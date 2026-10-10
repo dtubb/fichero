@@ -144,8 +144,10 @@ pages sends nothing. This is also why `rsync` is not used: it would be a second 
 what to send, outside the checkpoint, and it is not reachable from a sandboxed app.
 
 The Alliance recommends Globus for large transfers, through its data-transfer nodes (CITED,
-S2). For the sizes here (page images, not terabytes) the SSH carrier is enough; a Globus
-carrier is possible later under the same core and is not proposed now.
+S2). **Ruled 2026-10-09 (adopt tools, don't write our own):** large sets and model weights go to a cluster by
+Globus Transfer through those endpoints; the SSH carrier stays for small sets. On a cluster, objects travel
+and land as shards (tar in, Parquet out), never one file per object: `/project` has file-count quotas a
+million pages would break (`compute.hpc.shards-not-files`).
 
 ### Sending never pegs the Mac
 

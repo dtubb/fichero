@@ -116,7 +116,7 @@ default only on evidence. When no card is good enough on the sample, Fichero off
 a shared recipe carries its card choices with it.
 
 **YOLO models must work.** A small page detector and a region detector (text block, marginal note,
-heading, ruler, colour card) run locally (Core ML or PyTorch MPS), are trainable inside Fichero from
+heading, ruler, colour card) run locally (PyTorch on the GPU, or Core AI on the Neural Engine), are trainable inside Fichero from
 a few dozen corrected outlines (`train-a-model`), and appear as cards in the recipe.
 
 ## Behaviors
@@ -172,8 +172,8 @@ CER comparison. Later: a bound volume (curved pages) and a damaged Istmina page.
 1. **Blank pages:** kept and marked (recommended) or not imported at all?
 2. **Ruling suppression before every engine, or only where the bake-off shows it helps?**
    Recommendation: only where it helps; some models use the ruling as a line guide.
-3. **Answered** (design lead 2026-10-04, applying the spec's lean): Train in PyTorch and run in Core ML. **The YOLO runtime:** Core ML export (fast, on the Neural Engine) or PyTorch on MPS (one
-   runtime for inference and training). Recommendation: train in PyTorch, run in Core ML.
+3. **Answered** (design lead 2026-10-04, applying the spec's lean): Train in PyTorch and run in Core AI (Core ML's successor on macOS 27, inference only; revised 2026-10-10 for the 27-only app). **The YOLO runtime:** a Core AI conversion (fast, on the Neural Engine) or PyTorch on MPS (one
+   runtime for inference and training). Recommendation: train in PyTorch, run in Core AI. Built so far: PyTorch on the GPU (`llm/yolo_runtime.py`).
 
 ## Future (ideas, not scheduled)
 - (#4368) Native Apple image ops (book-spread split, border cleanup, bg removal) replacing OpenCV paths

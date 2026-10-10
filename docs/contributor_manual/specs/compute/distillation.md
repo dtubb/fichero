@@ -87,7 +87,7 @@ Every job a model does in Fichero has a teacher and a natural student:
 
 | Job | Typical teacher | Small student | Runs on |
 |---|---|---|---|
-| Layout: regions, signs | big VLM, or a person's boxes | YOLO detector | Mac (Core ML / MLX) |
+| Layout: regions, signs | big VLM, or a person's boxes | YOLO detector | Mac (PyTorch on the GPU, or Core AI) |
 | Lines and baselines | big VLM, Kraken base model | Kraken segmentation model | Mac |
 | Reading a line | big VLM | Kraken recognition model, TrOCR, small VLM with LoRA | Mac |
 | Reading with reasons | big VLM with reasoning | small VLM with LoRA, trained step-by-step | Mac (MLX) |
@@ -238,32 +238,33 @@ what a corrected set holds and how it is scored differs by kind:
 | spaCy names | a frontier model naming people, places, things | agreement with a second tagger | names as mentions on segments (#5488) | precision and recall per kind of name |
 | Tesseract line reader (#5554) | a frontier vision model reading each line | a second reader that is not the one trained | line readings on the page's lines, as line image + text | character and word error rate against the base language data |
 | Apple Vision (#5554) | — (no training API) | — | the project's names, places and terms as its custom-word list | character and word error rate with and without the list |
-| Apple Foundation Models adapter (#5556) | a frontier model doing the text step | agreement with a second model | the step's corrected outputs (names normalised, claims) | the step's own score; retrained for every on-device model version (see below) |
+| Apple Foundation Models adapter (#5556) | a frontier model doing the text step | agreement with a second model | the step's corrected outputs (names normalised, claims) | the step's own score; no adapter toolkit for macOS 27 yet (see below) |
 | Create ML word tagger or detector (#5556) | as spaCy names or YOLO regions | as those rows | as those rows | as those rows |
 
 Tesseract fine-tunes its line reader from corrected lines (tesstrain, starting from the language's data), on the CPU, small enough for the 8 GB Mac; the result is a model in the project like any other (#5554).
 Apple Vision cannot be trained. It can be given a list of words, so the project's own names, places and
 terms are passed to it, and the check pages measure whether the list helps; the app says plainly that this
 reader is given words, not trained (#5554).
-Models trained elsewhere (YOLO, and Kraken where it converts) can be converted to Core ML to run on the
-Neural Engine, in less memory on the 8 GB Mac; a converted model is scored against its original before it
-replaces it (#5556).
+Models trained elsewhere (YOLO, and Kraken where it converts) can be converted to run on the Neural Engine
+(Core AI on macOS 27, below), in less memory on the 8 GB Mac; a converted model is scored against its original
+before it replaces it (#5556).
 
-**Apple's training paths, checked 2026-10-10** (Golden Gate, macOS 26, is the target; macOS 27 shipped since):
-- **Foundation Models adapters** train only with Apple's adapter toolkit, whose release 26.0.0 is its last and
-  works for the macOS 26 model alone; it does not work with macOS 27's model, and no toolkit for 27 is
-  published. Training needs a Mac with at least 32 GB or a Linux GPU, so not the 8 and 16 GB Macs here (a
-  Hugging Face GPU job could). An adapter (about 160 MB) fits one on-device model version: a Mac updated to 27
-  cannot use a 26 adapter. Deploying one needs Apple's adapter entitlement and arrives by Background Assets,
-  never in the app bundle. Lowest priority of the Apple paths.
+**Apple's training paths, checked 2026-10-10** (the app targets macOS 27 and iOS 27 only; 26 is no longer
+supported, ruled the same day):
+- **Foundation Models adapters: no path today.** Apple's adapter toolkit 26.0.0 is its last release and trains
+  adapters only for the macOS 26 on-device model; it does not work with 27's model, and no toolkit for 27 is
+  published. When one is, training needs a Mac with at least 32 GB or a Linux GPU (a Hugging Face GPU job, not
+  the 8 and 16 GB Macs here); an adapter (about 160 MB) fits one on-device model version and is retrained when
+  macOS updates it; deploying needs Apple's adapter entitlement and arrives by Background Assets, never in the
+  bundle.
 - **Create ML** (on the Mac, small): the word tagger (names) and object detector (regions) are unchanged in 2026
-  and train on any of these Macs; they run on macOS 26 and 27.
-- **Core ML** stays the format for converted classical and detection models (coremltools 9 targets macOS 26).
-  At WWDC26 Apple named **Core AI** Core ML's successor for neural networks on macOS 27: inference only, models
-  converted from PyTorch with Core AI's own converter (`torch.export` to an `AIProgram`). Nothing trains in Core
-  AI; on macOS 26 a converted YOLO or Kraken model runs through Core ML.
-- **macOS 27's Foundation Models** take images with text, give each response's token counts, and add an OCR tool;
-  none of this is on macOS 26, so none of it is assumed.
+  and train on any of these Macs.
+- **Core AI** (WWDC26) succeeds Core ML for neural networks on macOS 27: inference only, models converted from
+  PyTorch with its own converter (`torch.export` to an `AIProgram`). A model trained elsewhere (YOLO; Kraken where
+  it converts) is converted to Core AI to run on the Neural Engine, scored against its original first. Core ML
+  stays for classical models. Nothing trains in Core AI.
+- **macOS 27's Foundation Models** take images with text, give each response's token counts, and have an OCR
+  tool and Dynamic Profiles: available to every step that uses Apple Intelligence.
 
 ### Cascade: small first, big when unsure
 
@@ -367,8 +368,8 @@ Tests for `distill.reasoning.*` and `distill.set.keeps-reasons`:
   of its base, set and teacher licences (extends `compute.tune.licence-carries` with the teacher).
   That a set holds people-checked work by default, and counts any unchecked teacher output, is
   already `source.train.human-checked-by-default` and `compute.tune.bootstrapped-data-is-marked`.
-- `distill.runs-local` — **[GAP]** (#5240, #5397) an adopted student runs on a 16 GB Mac through MLX, Core ML,
-  PyTorch or Kraken, throttled like any background work, its speed and peak memory measured there
+- `distill.runs-local` — **[GAP]** (#5240, #5397) an adopted student runs on the person's Macs (8 GB is the floor; 16 and 24 GB fit more)
+  through MLX, Core AI, PyTorch or Kraken, throttled like any background work, its speed and peak memory measured there
   (`compute.tune.measured-on-16gb`) (the MLX conversion is `compute.tune.convert-for-mlx`).
 
 - `distill.collect.teacher-reads-the-lines` — **[PARTIAL]** (#5398) *Built (0cbfab3bc, 768c12865): Transcribe in Kraken mode with `lines_read_by: "model"` has Kraken find each line and the run's vision model read each line's crop, a few per call; the pass keeps Kraken's geometry, so its PAGE XML export (one reading per line) is a training set; a line the teacher says holds no writing is dropped and counted; a batch answer that does not match line for line is re-asked one line at a time. Pinned by `fichero-server/tests/unit/workflows/test_teacher_reads_kraken_lines.py` (through the Transcribe tool) and `fichero-server/tests/unit/api/test_readings_not_echoed.py`. Not built: choosing the sample to cover every hand and layout.* the teacher labels the student's own unit of work (a line Kraken found) so the pair needs no alignment.

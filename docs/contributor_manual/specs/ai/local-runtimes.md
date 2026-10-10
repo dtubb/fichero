@@ -77,14 +77,14 @@ because a Fichero recipe chains models from several ecosystems and must pin them
 |---|---|---|---|---|---|---|
 | **Kraken segmenter (blla)** | Bundled at build time, in-process (`[tool.fichero.kraken_bundle]`, version 7.1.1) | **Reloaded every page**: `blla.segment(image)` at `llm/kraken_runtime.py:586,599` | CPU torch, utility QoS, threads capped; GPU measured no faster | 2.3–3.6 GB a page, **never given back** *(review; commit 2415b4c31)* | The bundled wheel's version | Row exists; status from `/api/providers/local-runtimes` is not read by the app |
 | **Kraken reader** | Weights fetched from Zenodo by `htrmopo`; two DOIs hard-coded (`llm/kraken_runtime.py:122-139`) | **Reloaded every page**: `models.load_any(model_path)` at `:600` | CPU | as above | Version DOI, **no checksum**; "newest `.mlmodel` in the folder" *(review)* | In-memory install job, not Activity |
-| **YOLO layout** | **Not present.** Only label formats are read and written (`formats/yolo.py`) | — | — | — | — | — |
+| **YOLO layout** | Ultralytics bundled at build time (`pyproject.toml`); weights downloaded on request into the shared models folder (`llm/yolo_runtime.py`, built 2026-10-10) | Loaded once per model, in process | GPU (MPS) | not measured | the stock DocLayNet YOLO11n (`hantian/yolo-doclaynet`), or a model trained in the project | a `download-model` job |
 | **PyTorch** | Bundled (with Kraken and PyKEEN) | — | CPU only; PyKEEN hard-codes `torch.device("cpu")` *(review)* | — | bundle | — |
 | **Apple Vision** (`VNRecognizeTextRequest`) | OS, through PyObjC (`pyobjc-framework-Vision` is declared) | Per page; **at least four requests a page**: accurate, a fast retry, and three overlapping strips that always run (`workflows/tools/vision_base.py`, `_strip_bands`, promoted to a base pass on 2026-08-23) | OS-chosen (Neural Engine/GPU) | OS-owned | OS version; not recorded on the reading | Always green |
-| **Apple document reader** (`RecognizeDocumentsRequest`, macOS 26) | OS, built into `fichero-server/bin/fm-bridge/FmBridge.swift` (`runRecognizeDocuments`, `:537`) | **No Python caller.** Measured cold 168 s on a 929×1346 scan (45 s on a blank image), 0.7 s warm (`FmBridge.swift:588-589`) | OS | OS | OS | none |
+| **Apple document reader** (`RecognizeDocumentsRequest`, macOS 26 and later) | OS, built into `fichero-server/bin/fm-bridge/FmBridge.swift` (`runRecognizeDocuments`, `:537`) | **No Python caller.** Measured cold 168 s on a 929×1346 scan (45 s on a blank image), 0.7 s warm (`FmBridge.swift:588-589`) | OS | OS | OS | none |
 | **Apple Intelligence** (FoundationModels) | OS, through fm-bridge | **One new bridge process per call** (`llm/__init__.py:1959`, `asyncio.create_subprocess_exec`); translation likewise *(review)* | OS | OS | OS | Factory default for every text tier (`db/app.py`) |
 | **Apple Speech** (`SFSpeechRecognizer`) | **Not bundled**: `workflows/tools/audio_base.py:193` imports `Speech`, and `pyobjc-framework-Speech` is not in `fichero-server/pyproject.toml` | — | — | — | — | **Factory audio default** (`db/app.py:78`, `apple-speech`) |
-| **Whisper** (mlx-whisper) | Installed **by pip at run time** into the MLX venv (`llm/mlx_runtime.py:247`): refused by the sandbox | **New Python process and model load per file** (`llm/whisper_runtime.py:319`); needs `ffmpeg`, not bundled (`:329-331`) | Metal | not measured | Six mlx-community repos pinned by revision *(review)*; `is_installed` checks only that the folder exists (`:179`) | Own `_DOWNLOAD_STATE` dict |
-| **MLX LLM/VLM** | `venv.EnvBuilder` + `pip install mlx-lm/mlx-vlm` at run time (`llm/mlx_runtime.py:222-237`): refused by the sandbox | A `mlx_vlm.server`/`mlx_lm server` child stays resident; 30–300 s cold start; no idle unload *(review)* | Metal | gate is size × 1.2 + 1.5 GB, an estimate (`settings.local-model-refused-before-it-loads`) | HF repo + commit SHA + completeness check: the best-pinned runtime | "Supported" ignores the sandbox: `FICHERO_SUBPROCESS_CAPABLE` defaults to `"1"` (`llm/local_inference.py:287`) |
+| **Whisper** (mlx-whisper) | Bundled at build time (`[tool.fichero.mlx_bundle]`) | In the engine's process; audio decoded with PyAV, no `ffmpeg` (`llm/whisper_runtime.decode_16k_mono`) | Metal | not measured | mlx-community repos, downloaded on request |
+| **MLX LLM/VLM** | Bundled at build time (`[tool.fichero.mlx_bundle]`: mlx, mlx-lm, mlx-vlm) | The model server runs inside the engine's process (`llm/mlx_in_process.py`); its batch is the client's pages at once (`local_inference.reads_at_once_for`) | Metal | the memory need: `compute.memory.need-is-weights` | mlx-community 4-bit builds, downloaded on request | ready, or the model to download |
 | **spaCy** | `es_core_news_sm`, `en_core_web_sm` 3.8.0 bundled as pinned wheels; others downloaded as data folders into the model store (2026-10-04) | **Two caches load the same language twice** (`knowledge/spacy_ner.py:300`, `knowledge/spacy_svo.py:204`); `nlp(text)` per page 2–3 times, never `nlp.pipe` | CPU | not measured | wheel version | NLP stage not counted in progress |
 | **Embeddings** (fastembed / ONNX) | `fastembed` bundled; **bge-m3** (default, `db/embeddings.py:349-361`) downloaded lazily on first embed | Resident while used; released after 600 s idle (#5283) | CPU ONNX, fp32, 64 passages a call *(review)* | ~1.5 GB resident | **No HF revision**; the "space contract" pins pooling and normalisation only; chosen by `FICHERO_EMBED_MODEL` | Downloads tab only |
 | **Tesseract** | **Not present.** Only `.box`/TSV are parsed | — | — | — | — | — |
@@ -169,7 +169,7 @@ states in a given build, and the card and the row say which:
 |---|---|---|
 | **bundled** | in the app; may need a weights download | Kraken, fastembed, spaCy (bundled languages), PyTorch; Tesseract once added (binary bundled, `traineddata` as data); MLX and mlx-whisper once bundled (open question 1) |
 | **OS** | comes with macOS; availability probed, never assumed | Apple Vision, the document reader, FoundationModels (needs Apple Intelligence on and a capable Mac), Speech (once `pyobjc-framework-Speech` is bundled) |
-| **unavailable in this build** | needs code installed at run time, which the sandbox refuses | MLX and mlx-whisper **today** in the DMG and App Store builds; available in Debug (extra spaCy pipelines download as data: `runtime.spacy.pipelines-download-as-data`) |
+| **unavailable in this build** | needs code installed at run time, which the sandbox refuses | none since 2026-10-09: MLX, mlx-whisper, Kraken, spaCy and Ultralytics ship inside every build (extra spaCy pipelines download as data: `runtime.spacy.pipelines-download-as-data`) |
 
 "Supported" is worked out from the build (a constant written by the bundle step), never from an
 environment default.
@@ -184,7 +184,7 @@ card, the **processor** it uses, and an **unload**.
 |---|---|---|---|---|---|
 | Kraken segmenter | heavy | one net per worker process | a document's pages in one locked call | CPU (post-processing single-threaded) | 2.3–3.6 GB measured |
 | Kraken reader | heavy | one net per model path per worker | all lines of a page; pages of a document | CPU | measured with the segmenter |
-| MLX LLM/VLM | heavy | one in-process model (open question 1) | several line crops, or a page with its boxes, per call | GPU (Metal) | measured per size class; until measured, the size × 1.2 + 1.5 GB estimate, labelled |
+| MLX LLM/VLM | heavy | one in-process model (open question 1) | several line crops, or a page with its boxes, per call | GPU (Metal) | measured per size class; until measured, the one rule `compute.memory.need-is-weights` |
 | Whisper | heavy for medium and up | one resident transcriber | files of a folder | GPU (Metal) | to be measured per size |
 | Embeddings | heavy (bge-m3) | one ONNX session | passages, `batch_size` passed | CPU (Core ML provider to be tried) | ~1.5 GB measured |
 | YOLO detector | heavy | one model | pages | GPU (MPS) or CPU | to be measured |
@@ -253,10 +253,12 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 
 ### B. Shipping in the sandboxed build
 
-- `runtime.code-ships-at-build-time` — **[BROKEN]** (#5367, #4973) every runtime's code is in the
-  app at build time; only weights and `traineddata` download. Today MLX and mlx-whisper are
-  installed by `venv.EnvBuilder` and pip at run time (`llm/mlx_runtime.py:222-247`); the sandbox refuses
-  both. (Extra spaCy pipelines no longer use pip: `runtime.spacy.pipelines-download-as-data`.)
+- `runtime.code-ships-at-build-time` — **[PARTIAL]** (#5367, #4973) every runtime's code is in the
+  app at build time; only weights and `traineddata` download. **Built 2026-10-09:** MLX, mlx-lm, mlx-vlm and
+  mlx-whisper (`[tool.fichero.mlx_bundle]`), Kraken, spaCy and Ultralytics are bundled; MLX runs in the engine's
+  process (`llm/mlx_in_process.py`); a leftover runtime folder from the pip era is deleted at start
+  (`mlx_runtime.remove_runtimes_the_app_no_longer_uses`). *Not yet:* the old venv-and-pip installer code is still
+  in `llm/mlx_runtime.py`, unreachable in the bundled app; it is removed when nothing calls it.
 - `runtime.build-state-is-known` — **[BROKEN]** (#5367) the engine knows, from a constant written
   when it was bundled, which runtimes this build contains; the hardware check never reports a
   runtime supported because an environment variable was unset.
@@ -276,9 +278,11 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   at build time, each language's `traineddata` downloads as data with a card of its own
   (`tesseract:tessdata/<lang>@sha256-…`), and it reads pages or cut lines. Same behaviour as
   `source.model.tesseract-provider`, which owns the card; this line owns the bundling.
-- `runtime.yolo.none-yet` — **[GAP]** (#4948, #4947) no layout detector runs today; only YOLO label
-  files are read and written (`formats/yolo.py`). A YOLO-family detector, once it has a card, is
-  downloaded on request (AGPL weights are never bundled) and runs in the local ML lane.
+- `runtime.yolo.none-yet` — **[PARTIAL]** (#4948, #4947, #5525) a YOLO-family detector has a card (the recipe's
+  find-regions step, `prep.yolo.regions-card`), is downloaded on request (AGPL weights are never bundled) and runs
+  in process on the GPU (`llm/yolo_runtime.py`, `recipes/regions.py`; built 2026-10-10). *Not yet:* it runs in the
+  recipe's own job rather than as a job on the local ML lane, so it does not yet take its turn with the other
+  heavy models.
 
 ### C. Loading, residency and speed
 
@@ -298,7 +302,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   background at launch (the `--warm-documents` path), so the 168 s Vision cold start is paid once,
   off any page, and later calls take about 0.7 s. Today each call starts a new bridge
   (`llm/__init__.py:1959`).
-- `runtime.apple.document-reader` — **[GAP]** (#4948, #5370) the macOS 26 document reader is a card
+- `runtime.apple.document-reader` — **[GAP]** (#4948, #5370) macOS's document reader (26 and later) is a card
   (jobs: find lines, read a page), called through the resident bridge, and marks a page it reads
   sparsely as such. Today it exists only in `FmBridge.swift` with no Python caller.
 - `runtime.vision.extra-passes-when-needed` — **[GAP]** (#5370) Apple Vision's fast retry and strip
@@ -418,7 +422,7 @@ Moved on 2026-10-04: the two key behaviours to `ai/ai-settings.md` ("Keys a runt
    the answer is to bundle those packages at build time and keep the oMLX provider as it is.
 2. **Answered** (this spec, ruled 2026-10-01): Speech is a choice of options (Apple, Whisper, MMS), cheapest covering the language starts. **Speech: which runtime?** *Ruled 2026-10-01:* speech is a choice of options, like any job,
    chosen by the same rules and A/B: Apple's on-device speech recognition (bundled so it works in
-   the sandbox; macOS 26's newer speech analyser where available), Whisper (99 languages), and a
+   the sandbox; macOS's newer speech analyser (26 and later) where available), Whisper (99 languages), and a
    more multilingual model for languages Whisper lacks (Meta's MMS, over 1,100 languages). The
    cheapest local option that covers the language starts; the others are one A/B away.
 3. **Answered** (this spec, ruled 2026-10-01): Allowed, marked 'can change', with the dated version recorded on each reading. **Cloud aliases in recipes.** *Ruled 2026-10-01:* allowed, marked "can change" in the recipe

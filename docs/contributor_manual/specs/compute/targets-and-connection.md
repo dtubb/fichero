@@ -82,8 +82,8 @@ project can live on (#2573), so there is never a second "remote machine" setting
 | Field | Meaning |
 |---|---|
 | `target_id`, `name` | identity; the name the person gave it |
-| `kind` | `this-mac` · `local-container` · `linux-machine` · `slurm-cluster` · `huggingface` |
-| `address` | how it is reached: nothing; a tailnet name; an SSH host, user and port; nothing (Hugging Face) |
+| `kind` | `this-mac` · `fichero-mac` · `local-container` · `linux-machine` · `slurm-cluster` · `huggingface` |
+| `address` | how it is reached: nothing; a tailnet name (another Mac running Fichero, a Linux machine); an SSH host, user and port; nothing (Hugging Face) |
 | `credential_ref` | the *name* of a secret in the one key store. Never the secret. |
 | `remote_base_dir` | where Fichero may write there (`<base>/fichero/…`); absolute |
 | `scheduler` | for a cluster: partition, account, default GPU request, default time limit |
@@ -93,6 +93,12 @@ project can live on (#2573), so there is never a second "remote machine" setting
 `this-mac` always exists and cannot be removed. It is the far side of the no-network job loop
 (`remote-compute.md`, "How this is tested"), and the first place training is offered when the
 model fits (ruled 2026-10-03: Kraken and YOLO train on a 16 GB Mac).
+
+**Another Mac you own** (`fichero-mac`; maintainer, 2026-10-10): a Mac of the person's that runs Fichero
+(an M4 with 16 GB, an M4 iMac with 24 GB), reached over their tailnet, is a place to train and to read,
+gently: it runs work only inside the run window its owner sets (idle, on power, overnight), never fills its
+disk, and gives the model back. A Mac shared with someone else (a family member's) says so, and its owner
+agrees to it once, in words.
 
 **Order of building** (ruled 2026-10-03): **Hugging Face** first, because it needs only a token
 and is known to run training reliably (#5398); then a **Slurm cluster** (ACENET); then a
@@ -244,6 +250,26 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   green with "No GPU". If the sandboxed build may not drive Docker (foundation question 9), the
   same sheet instead shows one command with a Copy button and an address field. *Test:* the
   click-around leg of the walkthrough.
+
+### Another Mac you own
+
+- `compute.target.add-fichero-mac` — **[GAP]** (#5238) adding another Mac takes its tailnet name; that Mac's
+  Fichero shows a pairing code, the person confirms it, and the paired token is the target's credential (the
+  device pairing `device-connection-auth-design` describes, over `tailscale serve`, never `funnel`). Nothing is
+  installed: that Mac runs the same Fichero, and `compute.connect.version-must-match` holds.
+- `compute.target.mac-run-window` — **[GAP]** (#5238) the target holds its owner's run window (only when idle,
+  only on power, only overnight, a disk floor); work there waits outside it, saying which rule holds it, as the
+  local lane's gentle training already does on this Mac.
+- `compute.target.fit-by-that-macs-memory` — **[GAP]** (#5238, #5641) whether a model fits is decided by that
+  Mac's memory, reported by its own engine, never this Mac's: a 7–8B vision model at 4-bit fits the 24 GB iMac
+  where it does not fit this 8 GB Mac. `compute.memory.too-big-refused-up-front` reads the target's numbers.
+- `compute.target.mac-trains-and-gives-back` — **[GAP]** (#5238) a training job sent there carries its training
+  set (the HTTPS carrier, `compute.transfer.https-write-half`), runs through that Mac's own training route
+  (Kraken, YOLO) under its gentle checks, and comes back as a result package that lands in this project, its
+  card naming the Mac it trained on.
+- `compute.target.mac-pages-stay-yours` — **[GAP]** (#5238) pages sent to another Mac of the person's are an
+  egress class of their own ("your own machine", `where-models-run.md` open question 2), asked once per project;
+  a Mac shared with someone else is named as such in that question.
 
 ### A Slurm cluster
 
