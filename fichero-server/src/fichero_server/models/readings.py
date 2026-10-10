@@ -721,7 +721,10 @@ def doubtful_read(text: str | None, scripts: Any = ()) -> str | None:
     (`scripts`: the project's and the page's scripts, as ISO 15924 codes; no test without them,
     and none for a script the letters cannot tell apart, such as `Jpan`). A read with no text is
     not doubted: a page's lines may carry words tied to them since."""
-    from fichero_server.llm.language_policy import _script_codes_by_first_word, script_of_text
+    from fichero_server.llm.language_policy import (
+        _script_codes_by_first_word,
+        script_of_text,
+    )
 
     if not text:
         return None

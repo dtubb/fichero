@@ -16,15 +16,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 import fichero_server.api.main  # noqa: F401  (registers every action)
+import pytest
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.maintenance.project_conversion import convert_new_results
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryResult
 from fichero_server.models import Artifact, DocType, Document, FileType, Status
 from fichero_server.models.readings import (
-    NOT_THE_PAGES_SCRIPT, PAGE_TEXT_BOUND, TOO_LONG_FOR_A_PAGE, doubtful_read,
+    NOT_THE_PAGES_SCRIPT,
+    PAGE_TEXT_BOUND,
+    TOO_LONG_FOR_A_PAGE,
+    doubtful_read,
 )
 from fichero_server.models.segments import SegmentPass
 from fichero_server.recipes.project import write_project_setup
