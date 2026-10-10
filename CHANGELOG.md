@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-10
+
+- Launch: the engine no longer deadlocks at start when a recipe run left from before resumes while the sidebar loads (the app said "Fichero Server Couldn't Restart").
+- Project menu: Set Up…, Start (⇧⌘↩) and, by stage, Find the Documents (⇧⌘D) and Run the Recipe on This Folder…; File says Project.
+- Running: a recipe runs on one folder, and a big project goes a folder (at most 500 pages) at a time, every step finishing a batch before the next; Activity says "N of M folders" (#5540).
+- Find the Documents: who chose each kind is recorded; stale and superseded proposals are refused in words; a run that accepts by itself takes boundaries only, and that is off until a box is scored; it runs after names and dates, and officials are not parties (#5550).
+- Models: the default search model and bge-m3 show as installed when they are; YOLO layout models are listed, run as a recipe step and train on this Mac (#5525); Kraken on this Mac trains on the same schedule as on Hugging Face.
+- PDFs: the sandboxed app never shows "libpdfium.dylib Not Opened".
+- Names and statements rest on their lines; a redo the project has moved past is refused in words, not a 500.
+- Every project, and the always-there one, has a Sources folder.
+
 ## 2026-10-09
 
 - Set Up: the sheet fits its window; goals in the ruled order with options under their parent; the script follows the language (CLDR seed); steps can be taken out of the plan and put back (#5624, #5625, #5626, #5627).
