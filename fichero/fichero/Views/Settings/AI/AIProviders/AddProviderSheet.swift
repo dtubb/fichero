@@ -22,10 +22,17 @@ struct AddProviderSheet: View {
 
     @Environment(ProviderAPIService.self) var providerService
 
-    init(onAdd: @escaping () async -> Void, isFirstLaunch: Bool = false) {
+    /// `preselectedType`: a provider already chosen (setup's Models & Services, Add… on its row) opens straight on
+    /// its configure step; nil opens on the list to choose from.
+    init(onAdd: @escaping () async -> Void, isFirstLaunch: Bool = false, preselectedType: String? = nil) {
         self.onAdd = onAdd
         self.isFirstLaunch = isFirstLaunch
+        _selectedType = State(initialValue: preselectedType)
+        _step = State(initialValue: Self.firstStep(preselectedType: preselectedType))
     }
+
+    /// The step the sheet opens on: configuring a preselected provider, else choosing one. Pure, for the tests.
+    static func firstStep(preselectedType: String?) -> Int { preselectedType == nil ? 1 : 2 }
 
     /// Currently selected catalog entry
     var selectedEntry: Components.Schemas.ProviderCatalogResponse? {

@@ -25,9 +25,9 @@ struct FirstRunWindow: View {
 
     @State private var step: SetupStep
     @State private var flow: SetupFlow
-    /// Choose a Provider opens its sheet here, while What Fichero runs shows (`source.onboard.app.provider-sheet-in-step`);
-    /// it used to open only once onboarding had finished.
-    @State var showsProviderSheet = false
+    /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
+    /// (`source.onboard.app.provider-sheet-in-step`).
+    @State var addProvider: AddProviderRequest?
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
@@ -91,10 +91,11 @@ struct FirstRunWindow: View {
             await store.loadJobs()
             await store.loadStages()
         }
-        .sheet(isPresented: $showsProviderSheet) {
-            AddProviderSheet(onAdd: { await appState.loadProviders() }, isFirstLaunch: true)
+        .sheet(item: $addProvider) { request in
+            AddProviderSheet(onAdd: { await appState.loadProviders() }, preselectedType: request.providerType)
                 .environment(appState.providerService)
         }
+        .task { await appState.loadProviders() }
     }
 
     /// The person chose to set up a project from the app's pages: the project's pages follow them.
@@ -171,51 +172,31 @@ extension FirstRunWindow {
     private var content: some View {
         switch step {
         case .welcome:
-            stepPage(
-                title: "Welcome to Fichero",
-                subtitle: FirstLaunchChoices.welcome,
-                systemImage: "doc.richtext",
-                showsContinue: false
-            ) {
-                // Less is more (Daniel, 2026-10-11): the welcome is its sentence and its two choices; the
-                // steps are in the list beside it, so no card restates them, and no feature pills. Either choice
-                // goes on to What Fichero runs; the hand-off then leads into the project, or into the app.
-                VStack(spacing: 12) {
-                    Spacer()
-                    Button(action: {
-                        flow.project = .new
-                        advance()
-                    }, label: {
-                        Label(FirstLaunchChoices.setUpNewProject, systemImage: "arrow.right")
-                            .frame(maxWidth: .infinity)
-                    })
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
-                    Button(FirstLaunchChoices.startWithoutProject) { advance() }
-                        .buttonStyle(.bordered)
-                }
+            // Less is more (Daniel, 2026-10-11): the welcome is the app's icon, its sentence and the space below;
+            // its two choices are the footer's, as a Mac setup assistant's are.
+            stepPage(title: "Welcome to Fichero", subtitle: "", systemImage: nil) {
+                SetupBodyText(paragraphs: FirstLaunchChoices.welcomeParagraphs)
             }
         case .whatFicheroRuns:
             stepPage(
                 title: WhatFicheroRuns.title,
-                subtitle: WhatFicheroRuns.subtitle,
+                subtitle: "",
                 systemImage: SetupStep.whatFicheroRuns.icon
             ) {
-                WhatFicheroRunsFields(providers: appState.providerService,
-                                      chooseProvider: { showsProviderSheet = true },
-                                      onAccountAdded: { await appState.loadProviders() })
+                WhatFicheroRunsFields(providers: appState.providers,
+                                      add: { addProvider = AddProviderRequest(providerType: $0) })
             }
         case .handOff:
             stepPage(
                 title: flow.project == .none ? "Fichero is ready" : "Next, your project",
                 subtitle: flow.project == .none
-                    ? "Set up a project when you have material, or start in the one Fichero always has."
-                    : "Name it, add your material, and choose what Fichero does with it.",
+                    ? "Set up a project when you have material, or start in the one Fichero always has." : "",
                 systemImage: SetupStep.handOff.icon
             ) {
-                if flow.project == .none {
-                    Button(FirstLaunchChoices.setUpNewProject) { setUpAProject() }
-                        .buttonStyle(.bordered)
+                if flow.project != .none {
+                    SetupBodyText(paragraphs: [FirstLaunchChoices.handOffIntro],
+                                  numbered: FirstLaunchChoices.handOffSteps,
+                                  closing: FirstLaunchChoices.handOffClosing)
                 }
             }
         default:
@@ -223,53 +204,91 @@ extension FirstRunWindow {
         }
     }
 
+    /// One page: its icon (the app's on the welcome), title and subtitle, its content, and the footer.
     func stepPage<Content: View>(
         title: String,
         subtitle: String,
-        systemImage: String,
-        showsContinue: Bool = true,
+        systemImage: String?,
         @ViewBuilder body: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(spacing: 12) {
-                Image(systemName: systemImage)
-                    .font(.title2)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 42, height: 42)
-                    .accessibilityHidden(true)
+                pageIcon(systemImage)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.title.weight(.semibold))
-                    Text(subtitle)
-                        .foregroundStyle(.secondary)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
             body().frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)  // keeps the buttons on (#5624)
 
             Spacer(minLength: 0)
-            HStack {
-                Button(mode == .setUp ? "Close" : "Skip") { finish() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
-                Button("Back") { step = step.previous(in: steps) }
-                    .disabled(step == steps.first)
-                // One Continue per step, the footer's (`source.onboard.app.one-continue`); the welcome's choices
-                // are its own buttons.
-                if showsContinue {
-                    Button(step == .ready ? "Start" : step == steps.last ? "Finish" : "Continue") {
-                        advance()
-                    }
-                    .disabled(step == .ready && !(store?.canStart ?? false))
-                    .help(step == .ready ? (store?.startDisabledReason ?? "") : "")
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                }
-            }
+            footer
         }
         .padding(28)
+    }
+
+    /// The page's symbol, or the app's icon at 64 pt where there is none (the welcome).
+    @ViewBuilder
+    private func pageIcon(_ systemImage: String?) -> some View {
+        if let systemImage {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 42, height: 42)
+                .accessibilityHidden(true)
+        } else {
+            #if canImport(AppKit)
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .frame(width: 64, height: 64)
+                .accessibilityHidden(true)
+            #endif
+        }
+    }
+
+    /// The Mac setup assistant's footer (`SetupFooter`): the one secondary choice at the far left, then Back and
+    /// the default button at the far right. Regular push buttons, no icons.
+    private var footer: some View {
+        let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none)
+        return HStack {
+            if let leading = model.leading {
+                Button(leading.title) { perform(leading.action) }
+            }
+            Spacer()
+            if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
+            if model.showsBack {
+                Button("Back") { step = step.previous(in: steps) }
+            }
+            Button(model.primary.title) { perform(model.primary.action) }
+                .disabled(step == .ready && !(store?.canStart ?? false))
+                .help(step == .ready ? (store?.startDisabledReason ?? "") : "")
+                .keyboardShortcut(.defaultAction)
+        }
+        .accessibilityIdentifier("setup.footer")
+    }
+
+    /// What a footer button does.
+    private func perform(_ action: SetupFooter.Action) {
+        switch action {
+        case .advance, .start:
+            advance()
+        case .setUpNewProject:
+            flow.project = .new
+            advance()
+        case .startWithoutProject:
+            advance()
+        case .addAProject:
+            setUpAProject()
+        case .skip:
+            step = step.next(in: steps)
+        case .finish, .close:
+            finish()
+        }
     }
 
     /// Start closes setup onto the run it queued (#5576, `source.onboard.auto.lands-on-the-run`):

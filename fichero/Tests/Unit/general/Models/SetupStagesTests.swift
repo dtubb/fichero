@@ -275,10 +275,11 @@ struct SetupStagesTests {
 
     // MARK: What Fichero runs
 
-    @Test("source.onboard.app.what-fichero-runs: what Fichero does and with what, and the two accounts it suggests")
+    @Test("source.onboard.app.what-fichero-runs: what runs on this Mac and with what, and the two accounts it suggests")
     func whatFicheroRuns() {
         #expect(WhatFicheroRuns.rows.map(\.work)
-                == ["Reading pages", "Finding regions and lines", "Names and statements", "Speech", "Remote models"])
+                == ["Reading pages", "Finding regions and lines", "Names and statements", "Speech"],
+                "only what runs on this Mac: no Remote models row")
         #expect(WhatFicheroRuns.rows.first?.with == "Kraken, Apple Vision, MLX vision models")
         #expect(WhatFicheroRuns.accounts.map(\.providerType) == ["huggingface", "openrouter"])
     }

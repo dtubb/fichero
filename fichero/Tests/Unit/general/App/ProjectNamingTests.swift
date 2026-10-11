@@ -178,17 +178,18 @@ final class ProjectNamingTests: XCTestCase {
     }
     #endif
 
-    func testFirstLaunchSetupWelcomesAndOffersBothChoices() throws {
+    @MainActor
+    func testFirstLaunchSetupWelcomesAndOffersBothChoices() {
         XCTAssertEqual(FirstLaunchChoices.setUpNewProject, "Set Up a New Project…")
         XCTAssertEqual(FirstLaunchChoices.startWithoutProject, "Start Without a Project")
-        XCTAssertTrue(FirstLaunchChoices.welcome.contains("setting up a project"))
+        XCTAssertTrue(FirstLaunchChoices.welcomeParagraphs.last?.contains("Your work lives in projects") == true)
 
-        let window = try Self.appSource("Views/Onboarding/FirstRunWindow.swift")
-        XCTAssertTrue(window.contains("title: \"Welcome to Fichero\""))
-        XCTAssertTrue(window.contains("subtitle: FirstLaunchChoices.welcome"))
-        XCTAssertTrue(window.contains("primaryTitle: FirstLaunchChoices.setUpNewProject"))
-        XCTAssertTrue(window.contains("secondary: (FirstLaunchChoices.startWithoutProject, { finish() })"))
-        XCTAssertFalse(window.contains("for Now"), "Use My Project for Now is retired")
+        // The welcome's two choices are its footer's (ruled 2026-10-11, the Mac setup assistant's chrome).
+        let steps = FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps
+        let footer = SetupFooter.of(.welcome, in: steps, mode: .firstRun, projectChosen: false)
+        XCTAssertEqual(footer.primary.title, FirstLaunchChoices.setUpNewProject)
+        XCTAssertEqual(footer.leading?.title, FirstLaunchChoices.startWithoutProject)
+        XCTAssertNotEqual(footer.leading?.title, "Use My Project for Now", "Use My Project for Now is retired")
     }
 
     // MARK: - A project opens on its Sources

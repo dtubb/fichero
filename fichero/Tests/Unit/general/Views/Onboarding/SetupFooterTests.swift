@@ -1,0 +1,122 @@
+@testable import Fichero
+import FicheroAPIClient
+import Foundation
+import Testing
+
+/// The setup window's chrome, the Mac setup assistant's (ruled 2026-10-11 from Daniel's screenshot of the welcome):
+/// one secondary choice at the far left, Back beside the primary (hidden, not disabled, on the first page), the
+/// primary the default button at the far right, named for what it does; all navigation in the footer, none in the
+/// content. And the Models & Services page's copy and accounts.
+@MainActor
+struct SetupFooterTests {
+    private let firstRun = FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps
+    private var newProject: [SetupStep] {
+        var flow = FirstRunWindow.flow(for: .newProject)
+        flow.chosenStages = ["read", "organise"]
+        return flow.steps
+    }
+
+    private func footer(_ step: SetupStep, _ steps: [SetupStep], _ mode: FirstRunWindow.Mode = .firstRun,
+                        projectChosen: Bool = false) -> SetupFooter {
+        SetupFooter.of(step, in: steps, mode: mode, projectChosen: projectChosen)
+    }
+
+    /// WHY: Daniel's screenshot: a centred full-width capsule, a "Skip" and a disabled Back on the first page.
+    @Test("the welcome: Start Without a Project at the left, Set Up a New Project… the default, and no Back at all")
+    func welcome() {
+        let welcome = footer(.welcome, firstRun)
+        #expect(welcome.leading == .init(title: "Start Without a Project", action: .startWithoutProject))
+        #expect(welcome.primary == .init(title: "Set Up a New Project…", action: .setUpNewProject))
+        #expect(!welcome.showsBack, "the first page has no Back: hidden, not disabled")
+    }
+
+    @Test("Skip is gone: Not Now on Models & Services, Skip This Stage on a stage, nothing where a page can't be skipped")
+    func leftHandChoices() {
+        #expect(footer(.whatFicheroRuns, firstRun).leading?.title == "Not Now")
+        #expect(footer(.stage("read"), newProject, .firstRun).leading?.title == "Skip This Stage")
+        for step in [SetupStep.project, .addMaterial, .aboutMaterial, .stages, .ready] {
+            #expect(footer(step, newProject, .firstRun).leading == nil, "\(step.id) cannot be skipped")
+        }
+        let all = (firstRun + newProject).map { footer($0, firstRun + newProject).leading?.title }
+        #expect(!all.contains("Skip"), "no bare Skip anywhere")
+    }
+
+    @Test("Back shows on every page after the first, beside the primary")
+    func back() {
+        for step in firstRun.dropFirst() { #expect(footer(step, firstRun).showsBack) }
+        #expect(!footer(.project, newProject, .newProject).showsBack, "Your project is the first page from the menu")
+        #expect(footer(.addMaterial, newProject, .newProject).showsBack)
+    }
+
+    @Test("the primary says what it does: Continue, Create Project, Start; the hand-off without a project starts")
+    func primaryTitles() {
+        #expect(footer(.whatFicheroRuns, firstRun).primary.title == "Continue")
+        #expect(footer(.project, newProject).primary.title == "Create Project")
+        #expect(footer(.stages, newProject).primary.title == "Continue")
+        #expect(footer(.ready, newProject).primary == .init(title: "Start", action: .start))
+        let handOff = footer(.handOff, firstRun, projectChosen: false)
+        #expect(handOff.primary == .init(title: "Start", action: .finish), "the app's last page says what it does")
+        #expect(handOff.leading == .init(title: "Set Up a New Project…", action: .addAProject))
+        #expect(footer(.handOff, firstRun, projectChosen: true).primary.title == "Continue")
+    }
+
+    @Test("a setup opened on purpose can always be closed from the left, where its page has no other choice")
+    func closeOnPurpose() {
+        #expect(footer(.addMaterial, newProject, .setUp).leading == .init(title: "Close", action: .close))
+        #expect(footer(.project, newProject, .newProject).leading == .init(title: "Cancel", action: .close))
+        #expect(footer(.stage("read"), newProject, .setUp).leading?.title == "Skip This Stage",
+                "the page's own choice wins")
+    }
+
+    @Test("the step list and the page say Models & Services, which never truncates")
+    func modelsAndServicesName() {
+        #expect(SetupStep.whatFicheroRuns.title() == "Models & Services")
+        #expect(WhatFicheroRuns.title == "Models & Services")
+    }
+
+    @Test("Models & Services explains local and cloud in Daniel's words, and lists only what runs on this Mac")
+    func modelsAndServicesCopy() {
+        #expect(WhatFicheroRuns.intro.hasPrefix("Fichero does its work with models"))
+        #expect(WhatFicheroRuns.places.map(\.title) == ["On this Mac", "In the cloud"])
+        #expect(WhatFicheroRuns.places.map(\.symbol) == ["laptopcomputer", "cloud"])
+        #expect(WhatFicheroRuns.places[0].body.hasPrefix("Free and private: your pages never leave this Mac."))
+        #expect(WhatFicheroRuns.places[1].body.hasSuffix("says what it will cost."))
+        #expect(WhatFicheroRuns.tableTitle == "What runs on this Mac")
+        #expect(!WhatFicheroRuns.rows.map(\.work).contains("Remote models"))
+        #expect(WhatFicheroRuns.accounts.map(\.purpose) == [
+            "A free account. Fichero uses it to find and download models for your material.",
+            "One account for many cloud models, paid as you go."
+        ])
+        #expect(WhatFicheroRuns.addAnother == "Add Another Provider…")
+        #expect(WhatFicheroRuns.accountsFootnote == "You can add accounts later in Settings › AI.")
+    }
+
+    /// WHY: an added account showed nothing; now it shows its name, and Add… only where there is none.
+    @Test("the account rows reflect the providers list: an added one shows its account name in place of Add…")
+    func accountRows() throws {
+        let json = #"[{"id":"1","name":"HF (dtubb)","provider_type":"huggingface","api_base":null,"enabled":true,"#
+            + #""sort_order":0,"has_api_key":true,"created_at":"2026-10-11T12:00:00Z"}]"#
+        let providers = try JSONDecoder().decode([Components.Schemas.ProviderResponse].self, from: Data(json.utf8))
+        let rows = WhatFicheroRuns.accountRows(providers: providers)
+        #expect(rows.map(\.account.title) == ["Hugging Face", "OpenRouter"])
+        #expect(rows.map(\.addedAs) == ["HF (dtubb)", nil])
+    }
+
+    @Test("Add… opens Settings' own sheet on that provider; Add Another Provider… opens it to choose")
+    func addOpensTheSharedSheet() {
+        #expect(AddProviderRequest(providerType: "openrouter").providerType == "openrouter")
+        #expect(AddProviderSheet.firstStep(preselectedType: "openrouter") == 2, "preselected: straight to its key")
+        #expect(AddProviderSheet.firstStep(preselectedType: nil) == 1, "unfiltered: the list to choose from")
+    }
+
+    @Test("the welcome and the hand-off say what Fichero and a project are, in Daniel's words")
+    func copy() {
+        #expect(FirstLaunchChoices.welcomeParagraphs.count == 3)
+        #expect(FirstLaunchChoices.welcomeParagraphs[0].hasPrefix("Fichero is a workbench for historians and archivists."))
+        #expect(FirstLaunchChoices.welcomeParagraphs[1].hasPrefix("Everything runs on this Mac unless you choose otherwise."))
+        #expect(FirstLaunchChoices.handOffIntro == "Setting up a project takes a few minutes:")
+        #expect(FirstLaunchChoices.handOffSteps.count == 4)
+        #expect(FirstLaunchChoices.handOffSteps[0] == "Name it and choose where it's kept.")
+        #expect(FirstLaunchChoices.handOffClosing.hasSuffix("with Project › Set Up…."))
+    }
+}
