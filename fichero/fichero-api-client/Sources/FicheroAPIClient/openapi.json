@@ -5100,6 +5100,49 @@
         }
       }
     },
+    "/api/documents/{page_id}/disagreement": {
+      "get": {
+        "tags": [
+          "segments"
+        ],
+        "summary": "Get Page Disagreement",
+        "description": "Where this page's readers disagree, line by line and word by word (`source.disagree.route`, #5665). Every\nreading of a line (each reader, or each sampled run of one) is brought to the line as written (CATMuS); per\nline the medoid reading is the reference, each other reading is aligned to it character by character, and\neach word scores the share of readers that gave exactly it. Agreement, never accuracy. With fewer than two\nreadings, 200 with `lines` empty and `page_agreement` null; an unknown page is 404. Read-only.",
+        "operationId": "get_page_disagreement_api_documents__page_id__disagreement_get",
+        "parameters": [
+          {
+            "name": "page_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Page Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisagreementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/source-settings/resolve": {
       "get": {
         "tags": [
@@ -55823,7 +55866,7 @@
             },
             "type": "array",
             "title": "Policies",
-            "description": "normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient"
+            "description": "normalisation policies: accent-blind, catmus-as-written, diplomatic, layout-insensitive, lenient"
           },
           "reference_checked_by": {
             "type": "string",
@@ -58433,6 +58476,191 @@
           "revoked"
         ],
         "title": "DeviceResponse"
+      },
+      "DisagreementLine": {
+        "properties": {
+          "segment_id": {
+            "type": "string",
+            "title": "Segment Id"
+          },
+          "reference_reader": {
+            "type": "string",
+            "title": "Reference Reader",
+            "description": "the medoid reading's reader id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "the reference reading, normalised"
+          },
+          "agreement": {
+            "type": "number",
+            "title": "Agreement",
+            "description": "the mean of its words' agreement"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/DisagreementWord"
+            },
+            "type": "array",
+            "title": "Words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment_id",
+          "reference_reader",
+          "text",
+          "agreement",
+          "words"
+        ],
+        "title": "DisagreementLine"
+      },
+      "DisagreementReader": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "stable for the page: the reader and its run"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "in words: the model, and which run when one model was sampled several times"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "DisagreementReader"
+      },
+      "DisagreementResponse": {
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "title": "Page Id"
+          },
+          "readers": {
+            "items": {
+              "$ref": "#/components/schemas/DisagreementReader"
+            },
+            "type": "array",
+            "title": "Readers"
+          },
+          "page_agreement": {
+            "type": "number",
+            "nullable": true,
+            "title": "Page Agreement",
+            "description": "the mean over the page's words; null with no words"
+          },
+          "normalised_as": {
+            "type": "string",
+            "title": "Normalised As",
+            "description": "the convention the readings were compared at"
+          },
+          "image_width": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Width",
+            "description": "pixel width of the image the bboxes are in"
+          },
+          "image_height": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Image Height",
+            "description": "pixel height of the image the bboxes are in"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/DisagreementLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_id",
+          "readers",
+          "page_agreement",
+          "normalised_as",
+          "lines"
+        ],
+        "title": "DisagreementResponse",
+        "description": "Where a page's readers disagree: agreement between readers, never accuracy (no reading is checked)."
+      },
+      "DisagreementVariant": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "an aligned word, normalised; \"\" where a reader gave nothing there"
+          },
+          "readers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readers",
+            "description": "the ids of the readers that gave it"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "readers"
+        ],
+        "title": "DisagreementVariant"
+      },
+      "DisagreementWord": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "char_start": {
+            "type": "integer",
+            "title": "Char Start",
+            "description": "index into the line's `text`"
+          },
+          "char_end": {
+            "type": "integer",
+            "title": "Char End"
+          },
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Bbox",
+            "description": "[x, y, width, height] in the page image's pixels when the reference reading places the word; else null"
+          },
+          "agreement": {
+            "type": "number",
+            "title": "Agreement",
+            "description": "the share of the line's readers whose aligned word is exactly this (0-1)"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/DisagreementVariant"
+            },
+            "type": "array",
+            "title": "Variants",
+            "description": "every distinct aligned word, most readers first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "char_start",
+          "char_end",
+          "agreement",
+          "variants"
+        ],
+        "title": "DisagreementWord"
       },
       "DiskUsageResponse": {
         "properties": {

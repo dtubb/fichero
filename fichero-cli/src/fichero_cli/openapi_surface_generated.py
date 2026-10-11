@@ -5458,7 +5458,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         document_id: str = typer.Argument(..., help='Document Id'),
         hypothesis: str = typer.Option(..., '--hypothesis', help='One reading of the page: a pass, or a saved result (artifact). JSON.'),
-        policies: Optional[list[str]] = typer.Option(None, '--policies', help='normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        policies: Optional[list[str]] = typer.Option(None, '--policies', help='normalisation policies: accent-blind, catmus-as-written, diplomatic, layout-insensitive, lenient. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         reference: str = typer.Option(..., '--reference', help='One reading of the page: a pass, or a saved result (artifact). JSON.'),
         reference_checked_by: Optional[str] = typer.Option(None, '--reference-checked-by', help='who checked the reference; without it the score is agreement, not CER.'),
     ) -> None:
@@ -5473,7 +5473,7 @@ def register_generated_openapi_commands(
                 "reference_checked_by": reference_checked_by,
             }, {
                 "hypothesis": {'properties': {'pass_id': {'type': 'string', 'nullable': True, 'title': 'Pass Id'}, 'artifact_id': {'type': 'string', 'nullable': True, 'title': 'Artifact Id'}}, 'type': 'object', 'title': 'ReadingRef', 'description': 'One reading of the page: a pass, or a saved result (artifact).', 'x-cli-required': True},
-                "policies": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Policies', 'description': 'normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient', 'x-cli-required': False},
+                "policies": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Policies', 'description': 'normalisation policies: accent-blind, catmus-as-written, diplomatic, layout-insensitive, lenient', 'x-cli-required': False},
                 "reference": {'properties': {'pass_id': {'type': 'string', 'nullable': True, 'title': 'Pass Id'}, 'artifact_id': {'type': 'string', 'nullable': True, 'title': 'Artifact Id'}}, 'type': 'object', 'title': 'ReadingRef', 'description': 'One reading of the page: a pass, or a saved result (artifact).', 'x-cli-required': True},
                 "reference_checked_by": {'type': 'string', 'nullable': True, 'title': 'Reference Checked By', 'description': 'who checked the reference; without it the score is agreement, not CER', 'x-cli-required': False},
             }, required=True)
@@ -5514,6 +5514,18 @@ def register_generated_openapi_commands(
         """Cheap per-type child counts for a collapsed library outline row (GET /api/documents/{document_id}/rollup)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/documents/{document_id}/rollup"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-page-disagreement")
+    def documents_get_page_disagreement_get(
+        ctx: typer.Context,
+        page_id: str = typer.Argument(..., help='Page Id'),
+    ) -> None:
+        """Get Page Disagreement (GET /api/documents/{page_id}/disagreement)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/{page_id}/disagreement"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

@@ -3770,6 +3770,18 @@
         "query_params": [],
         "request_model": null,
         "response_model": "DocumentRollupResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/{page_id}/disagreement",
+        "operation_id": "get_page_disagreement_api_documents__page_id__disagreement_get",
+        "summary": "Get Page Disagreement",
+        "path_params": [
+          "page_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "DisagreementResponse"
       }
     ],
     "editorial": [

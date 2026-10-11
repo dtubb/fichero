@@ -2549,7 +2549,7 @@ def fichero_segments_compare_readings(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
     hypothesis: Annotated[dict[str, Any], Field(description='One reading of the page: a pass, or a saved result (artifact).')],
-    policies: Annotated[Optional[list[Any]], Field(description='normalisation policies: accent-blind, diplomatic, layout-insensitive, lenient.')] = None,
+    policies: Annotated[Optional[list[Any]], Field(description='normalisation policies: accent-blind, catmus-as-written, diplomatic, layout-insensitive, lenient.')] = None,
     reference: Annotated[dict[str, Any], Field(description='One reading of the page: a pass, or a saved result (artifact).')],
     reference_checked_by: Annotated[Optional[str], Field(description='who checked the reference; without it the score is agreement, not CER.')] = None,
 ) -> Any:
@@ -2580,6 +2580,14 @@ def fichero_documents_rollup(
 ) -> Any:
     "Cheap per-type child counts for a collapsed library outline row\n\nReturns per-type child counts (artifacts, entities, notes, claims, pages) for a document, rolled up over the document and every descendant page/chunk. The library Table renders these on a *collapsed* outline row so it can show 'N entities, M notes' without fetching the children; the heavier per-type payloads are loaded only when the disclosure is expanded (#2258).\n\nThis is intentionally cheap — plain counts with no entity resolution, dedup, or merge-chain walking. The ``entities`` count therefore mirrors the inspector's union (entities linked by this document's claims plus entities whose per-page scope intersects the document) and is NOT the deduped/merge-resolved figure from /knowledge-graph. ``pages`` counts descendant page documents only (not the document itself).\n\nRoute: GET /api/documents/{document_id}/rollup (toolset `documents`; reads)."
     return _rt.call("GET", f"/api/documents/{document_id}/rollup")
+
+
+def fichero_segments_get_page_disagreement(
+    *,
+    page_id: Annotated[str, Field(description='Page Id')],
+) -> Any:
+    "Get Page Disagreement\n\nWhere this page's readers disagree, line by line and word by word (`source.disagree.route`, #5665). Every\nreading of a line (each reader, or each sampled run of one) is brought to the line as written (CATMuS); per\nline the medoid reading is the reference, each other reading is aligned to it character by character, and\neach word scores the share of readers that gave exactly it. Agreement, never accuracy. With fewer than two\nreadings, 200 with `lines` empty and `page_agreement` null; an unknown page is 404. Read-only.\n\nRoute: GET /api/documents/{page_id}/disagreement (toolset `segments`; reads)."
+    return _rt.call("GET", f"/api/documents/{page_id}/disagreement")
 
 
 def fichero_editorial_facts_of_segment(
@@ -9030,6 +9038,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_renditions_list", "renditions", "GET", "/api/documents/{document_id}/renditions", fichero_renditions_list),
     GeneratedTool("fichero_renditions_get_content", "renditions", "GET", "/api/documents/{document_id}/renditions/{rendition_id}/content", fichero_renditions_get_content),
     GeneratedTool("fichero_documents_rollup", "documents", "GET", "/api/documents/{document_id}/rollup", fichero_documents_rollup),
+    GeneratedTool("fichero_segments_get_page_disagreement", "segments", "GET", "/api/documents/{page_id}/disagreement", fichero_segments_get_page_disagreement),
     GeneratedTool("fichero_editorial_facts_of_segment", "editorial", "GET", "/api/editorial/segment/{segment_id}", fichero_editorial_facts_of_segment),
     GeneratedTool("fichero_entities_list", "entities", "GET", "/api/entities", fichero_entities_list),
     GeneratedTool("fichero_entities_upsert", "entities", "POST", "/api/entities", fichero_entities_upsert),

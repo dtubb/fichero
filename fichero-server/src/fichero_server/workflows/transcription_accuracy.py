@@ -136,6 +136,10 @@ class NormalizationPolicy:
     #: unattributed edit to a historian's gold text, so the caller supplies it
     #: and ``expansions_applied`` reports whether it fired.
     expansions: tuple[tuple[str, str], ...] = ()
+    #: u/v and i/j folded to u and i (either case): a spelling convention, not a reading, in this material.
+    fold_uv_ij: bool = False
+    #: The result decomposed (NFD), last: a letter and its diacritics as separate marks, as CATMuS writes them.
+    decompose: bool = False
 
     def flags(self) -> dict[str, Any]:
         return {
@@ -144,6 +148,8 @@ class NormalizationPolicy:
             "strip_accents": self.strip_accents,
             "strip_punctuation": self.strip_punctuation,
             "expansion_count": len(self.expansions),
+            "fold_uv_ij": self.fold_uv_ij,
+            "decompose": self.decompose,
         }
 
 
@@ -192,8 +198,21 @@ ACCENT_BLIND = NormalizationPolicy(
     strip_punctuation=True,
 )
 
+CATMUS_AS_WRITTEN = NormalizationPolicy(
+    name="catmus-as-written",
+    description=(
+        "The line as written in the CATMuS sense: abbreviations left unexpanded, spelling and scribal slips "
+        "kept, u/v and i/j folded, diacritics decomposed (NFD), runs of whitespace one space. What readers are "
+        "compared at when they disagree (#5665): otherwise the comparison shows that one reader writes v where "
+        "another writes u, not doubt about the hand."
+    ),
+    collapse_whitespace=True,
+    fold_uv_ij=True,
+    decompose=True,
+)
+
 POLICIES: dict[str, NormalizationPolicy] = {
-    p.name: p for p in (DIPLOMATIC, LAYOUT_INSENSITIVE, LENIENT, ACCENT_BLIND)
+    p.name: p for p in (DIPLOMATIC, LAYOUT_INSENSITIVE, LENIENT, ACCENT_BLIND, CATMUS_AS_WRITTEN)
 }
 
 DEFAULT_POLICY_NAME = LAYOUT_INSENSITIVE.name
@@ -242,6 +261,8 @@ def with_expansions(
         strip_accents=base.strip_accents,
         strip_punctuation=base.strip_punctuation,
         expansions=ordered,
+        fold_uv_ij=base.fold_uv_ij,
+        decompose=base.decompose,
     )
 
 
@@ -272,7 +293,16 @@ def normalize(text: str, policy: NormalizationPolicy) -> str:
     if policy.collapse_whitespace:
         out = " ".join(out.split())
 
+    if policy.fold_uv_ij:
+        out = out.translate(_UV_IJ)
+
+    if policy.decompose:
+        out = unicodedata.normalize("NFD", out)
+
     return out
+
+
+_UV_IJ = str.maketrans({"v": "u", "V": "U", "j": "i", "J": "I"})
 
 
 # ---------------------------------------------------------------------------
