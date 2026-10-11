@@ -80,7 +80,11 @@ EMBED_JOB = "make-a-vector"
 #: Every job Start has a card for (or, for training, offers later). Setup proposes no other job as a step: the
 #: rest are listed in the recipe's `by_hand` and in the plan's `skipped`, with the tool that does them by hand
 #: (`source.onboard.auto.every-proposed-step-runs`, #5574). A job given a card joins this set.
-START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, "train-a-model"}
+#: Find where the readers disagree (#5665, `source.disagree.recipe-step`): the lines read again by the readers the
+#: step names, or by one reader sampled `samples` times at `temperature`; every reading kept as a reading of the line.
+DISAGREE_JOB = "find-where-readers-disagree"
+DISAGREE_SAMPLES, DISAGREE_TEMPERATURE = 5, 0.7
+START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, "train-a-model", DISAGREE_JOB}
 #: What to use instead, by hand, for a job Start cannot run by itself (the shipped workflow or tool that does it).
 BY_HAND_FIX = {
     "link-to-authorities": "link each name to an authority from its Inspector",
@@ -175,6 +179,36 @@ def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
     return {"workflow": name, "workflow_id": workflow_id, "provider_override": provider, "model_override": model}
 
 
+def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, Any], bool]], str | None]:
+    """The runs of a Find where the readers disagree step (`source.disagree.recipe-step`, #5665), each with whether
+    it sends pages off this Mac, or why it has none. With `readers` (pins) in its settings, one run per reader;
+    else its model (or, unnamed, the recipe's own line reader) sampled `samples` times (5) at `temperature` (0.7).
+    Each run reads the page's lines again with a vision model and keeps its readings beside the others."""
+    from fichero_server.recipes.recipe import pin_leaves_this_mac
+
+    settings = dict(step.get("settings") or {})
+    pins = [p for p in settings.get("readers") or [] if isinstance(p, dict)]
+    temperature = settings.get("temperature", DISAGREE_TEMPERATURE)
+    if not pins:
+        pin = step.get("model") or next((s.get("model") for s in recipe.get("steps") or []
+                                         if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
+        if not isinstance(pin, dict) or _override(pin) is None:
+            return [], ("it samples a vision model, and none is named: choose one for this step, or a vision model "
+                        "for the line reader")
+        pins = [pin] * max(int(settings.get("samples", DISAGREE_SAMPLES)), 2)
+    name, workflow_id = _shipped(READ_LINES_WITH_A_MODEL)
+    out = []
+    for pin in pins:
+        override = _override(pin)
+        if override is None:
+            return [], f"it reads with a vision model, and {pin} is not one"
+        out.append(({"steps": [step.get("id", "?")], "job": DISAGREE_JOB, "card": "workflow", "workflow": name,
+                     "workflow_id": workflow_id, "provider_override": override[0], "model_override": override[1],
+                     "runs_on": step.get("runs_on") or "this-mac",
+                     "tool_config": {"transcribe": {"temperature": temperature}}}, pin_leaves_this_mac(pin)))
+    return out, None
+
+
 def _with_readers(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The runs and, as runs of their own steps, each kind's reader they carry: their models are checked too."""
     return runs + [{**run, **reader} for run in runs for reader in (run.get("readers") or {}).values()
@@ -252,6 +286,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if not start_runs(job):
             gone = by_hand(job)
             skip(sid, f"{label}: {gone['why']}", gone["fix"])
+            continue
+        if job == DISAGREE_JOB:
+            sampled, why = disagreement_runs(step, recipe)
+            if why:
+                skip(sid, f"{label}: {why}", "choose-model")
+            elif stays_local and any(leaves for _run, leaves in sampled):
+                skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here",
+                     "allow-cloud")
+            else:
+                runs.extend(run for run, _leaves in sampled)
             continue
         if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
             # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused

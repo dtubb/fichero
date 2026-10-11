@@ -58,7 +58,7 @@ STAGES: tuple[Stage, ...] = (
           "Finds the lines of writing in each block and the order to read them in.",
           "The left column's lines, then the right's, each traced along its baseline.",
           ()),
-    Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines"),
+    Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines", "find-where-readers-disagree"),
           "Reads the writing, line by line or the whole page at once, and can correct it with a second model.",
           "“Juan de la Cruz vende una casa” read from its line, ready to correct.",
           (Question("read_how", "Read line by line or the page at once?", "one",

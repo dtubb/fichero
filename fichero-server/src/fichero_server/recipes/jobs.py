@@ -101,6 +101,9 @@ _job("read-a-line", {"lines"}, {"line_readings"}, "reading", _TEXT, ("model", "p
 _job("read-a-page", {"page_image"}, {"page_reading"}, "reading", _TEXT, ("model", "prompt"))
 _job("tie-text-to-lines", {"page_reading", "lines"}, {"line_readings"}, "reading", _TEXT)
 _job("correct", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt", "only_below_confidence"))
+# Each line read by several readers, or one sampled N times at a temperature; every reading kept (#5665).
+_job("find-where-readers-disagree", {"lines"}, {"line_readings"}, "reading", _TEXT,
+     ("model", "readers", "samples", "temperature"))
 _job("trace-a-drawing", {"regions"}, {"drawings"}, "reading", "the drawings side by side", ("model",))
 _job("identify-signs", {"signs"}, {"sign_identifications"}, "reading", _LIST, ("model",))
 _job("transcribe-speech", {"recording"}, {"line_readings"}, "reading", _TEXT, ("model",))

@@ -112,6 +112,15 @@ topics:
     long: >-
       It can be limited to the lines the first reader was unsure of, which saves time and money on
       long runs.
+  - id: find-where-readers-disagree
+    kind: job
+    title: Find where the readers disagree
+    short: >-
+      Reads each line several times, with several readers or one model sampled at a temperature, and
+      shows the words they disagree on.
+    long: >-
+      Every reading is kept as a reading of the line. Where the readers agree the line is likely right;
+      where they differ is where to correct first. It measures agreement between readers, never accuracy.
   - id: trace-a-drawing
     kind: job
     title: Trace a drawing

@@ -79,7 +79,7 @@ READ_MATERIALS: tuple[str, ...] = tuple(m for m in MATERIALS if m != "text")
 #: its plan starts at what was ticked after reading (search, names, ...) (#5553).
 READING_THE_PICTURE = frozenset({"split-pages", "prepare-the-image", "find-regions", "find-lines", "put-in-order",
                                  "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
-                                 "tie-text-to-lines", "correct", "train-a-model"})
+                                 "tie-text-to-lines", "correct", "find-where-readers-disagree", "train-a-model"})
 #: Jobs that read the material: they get one reader per kind of material ticked.
 READING_JOBS = frozenset({"read-a-line", "read-a-page"})
 #: Finding the documents in a box of loose pages, after reading (`finddocs.recipe-step`, #5550).
@@ -117,7 +117,7 @@ MEMORY_HEADROOM_GB = 2.0
 STEP_ORDER: tuple[str, ...] = (
     "split-pages", "prepare-the-image", "find-regions", "find-lines",
     "put-in-order", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
-    "tie-text-to-lines", "transcribe-speech", "correct", "trace-a-drawing",
+    "tie-text-to-lines", "transcribe-speech", "correct", "find-where-readers-disagree", "trace-a-drawing",
     "identify-signs",
     "translate-transliterate-normalise", "split-into-entries", "find-names-tag-words", "work-out-dates",
     # Organise reads the names and dates found (ruled 2026-10-10): parties group the documents, dates order them.

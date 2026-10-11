@@ -375,7 +375,8 @@ Readings
   line's reading without character segments existing.
 
 Where the readers disagree (#5665; the engine half is worker C's, the app half built against the pinned shape)
-- `source.disagree.route` — **[GAP]** (#5665) `GET /api/documents/{page_id}/disagreement` answers, read-only:
+- `source.disagree.route` — **[OK]** (#5665; built 2026-10-11, engine: `compare_readings.page_disagreement`; tested in
+  `fichero-server/tests/unit/api/test_where_the_readers_disagree_5665.py`) `GET /api/documents/{page_id}/disagreement` answers, read-only:
   `{page_id, readers: [{id, label}], page_agreement, normalised_as, image_width, image_height,
   lines: [{segment_id, reference_reader, text, agreement,
   words: [{text, char_start, char_end, bbox, agreement, variants: [{text, readers}]}]}]}`.
@@ -391,19 +392,28 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   the reader ids that gave it (a reader with nothing aligned there gives ""). A line's `agreement` is the
   mean of its words'; `page_agreement` the mean over the page's words, null with no words. With fewer than
   two readings the answer is 200 with those readers, `lines` empty and `page_agreement` null (the app says
-  so); an unknown page is 404. It never says accuracy (`source.disagree.agreement-not-accuracy`).
-- `source.disagree.normalised-first` — **[GAP]** (#5665) every reading is brought to one convention before it
+  so); an unknown page is 404. It never says accuracy (`source.disagree.agreement-not-accuracy`). The answer also
+  carries `image_width` and `image_height`, the pixel size of the image the boxes are in (null when unknown). The
+  readings compared are a line's machine transcriptions as written (a person's reading is a correction, not a
+  reader); a reader is a model and the run it read under; a line read by fewer than two is left out. A word has a
+  box when the reference reader read the line's word segments one for one.
+- `source.disagree.normalised-first` — **[OK]** (#5665; the policy `catmus-as-written` in `transcription_accuracy`,
+  also offered by the comparison route; tested as above) every reading is brought to one convention before it
   is compared, the line as written in the CATMuS sense (abbreviations unexpanded, slips kept, u/v and i/j
   folded, NFD), through the existing normalisation policies of `transcription_accuracy`; `normalised_as`
   names the convention compared at.
-- `source.disagree.medoid-aligned` — **[GAP]** (#5665) per line, the reading with the least summed edit
+- `source.disagree.medoid-aligned` — **[OK]** (#5665; `compare_readings.medoid`, `aligned_words`; tested as above) per line, the reading with the least summed edit
   distance to the others is the reference; each other reading is aligned to it character by character
   (the comparison route's alignment, extended from two readings to N) and its words read off that alignment.
-- `source.disagree.recipe-step` — **[GAP]** (#5665) "Find where the readers disagree" is a recipe step (job
+- `source.disagree.recipe-step` — **[OK]** (#5665; built 2026-10-11: the job in `recipes/jobs.py`, the Read stage,
+  `start.disagreement_runs`: each run is `Read Lines (Kraken lines, vision model)` on the working pass's lines, its
+  model the step's, else the recipe's line reader, at `temperature` through the transcribe tool; `readers` in its
+  settings read once each; tested in `fichero-server/tests/unit/recipes/test_find_where_readers_disagree_step_5665.py`) "Find where the readers disagree" is a recipe step (job
   `find-where-readers-disagree`, stage Read): it reads the project's pages with the readers the step names, or
   one reader sampled N times at a temperature (5 at 0.7 by default), keeps every reading as a reading of the
   line (`source.reading.set`; none counts over another by being compared), and works out the disagreement.
-- `source.disagree.agreement-not-accuracy` — **[GAP]** (#5665) the figure is labelled agreement everywhere
+- `source.disagree.agreement-not-accuracy` — **[PARTIAL]** (#5665; the route's fields say agreement only; a checked
+  line is not yet scored as accuracy) the figure is labelled agreement everywhere
   (route, lens, Inspector) unless a person checked the line, as `compare_readings` labels its score.
 - `source.disagree.lens` — **[PARTIAL]** (#5665) the Reader's lens "Where the Readers Disagree" shows the page's
   lines, each word tinted by its agreement: plain at 1 (unanimous), yellow from 0.6 up to 1, red below 0.6;
