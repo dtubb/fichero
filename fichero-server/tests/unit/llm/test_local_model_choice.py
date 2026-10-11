@@ -312,9 +312,9 @@ def test_the_plan_offers_a_model_not_installed_as_a_download_or_the_installed_on
     tests/unit/recipes/test_installed_model_first_to_spec.py)."""
     mac.install("Qwen2.5-VL-3B")
     plan = _plan(_read_with("mlx-community/Qwen2.5-VL-7B-Instruct-4bit"))
-    [refusal] = plan["refusals"]
-    assert "wait for Qwen2.5-VL 7B (OCR)" in refusal and "download it" in refusal
-    assert "use the installed Qwen2.5-VL 3B (OCR) instead" in refusal
+    # #5664: Start downloads it itself (no refusal); the installed one stays offered instead.
+    assert plan["refusals"] == []
+    assert plan["start_downloads"]["sentence"].startswith("Start downloads Qwen2.5-VL 7B (OCR) (")
     [download] = plan["downloads"]
     assert download["model"] == "Qwen2.5-VL-7B" and [i["model"] for i in download["instead"]] == ["Qwen2.5-VL-3B"]
 

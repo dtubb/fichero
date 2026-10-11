@@ -86470,6 +86470,68 @@
         "title": "StartDownload",
         "description": "A model a step needs that is not on this Mac, and the action that downloads it."
       },
+      "StartDownloadItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "the model as people read it"
+          },
+          "size_mb": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Size Mb",
+            "description": "its download size; null when not stated"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "steps"
+        ],
+        "title": "StartDownloadItem"
+      },
+      "StartDownloads": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StartDownloadItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total_mb": {
+            "type": "integer",
+            "title": "Total Mb"
+          },
+          "total_known": {
+            "type": "boolean",
+            "title": "Total Known",
+            "description": "false when a size is not stated: the total is then a lower bound"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "e.g. 'Start downloads Qwen2.5-VL 7B (5.7 GB) and the Kraken reader PP-OCRv6 (60 MB): 5.8 GB in all.'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total_mb",
+          "total_known",
+          "sentence"
+        ],
+        "title": "StartDownloads",
+        "description": "What pressing Start will fetch before its steps run (#5664), for Ready's one line."
+      },
       "StartElsewhere": {
         "properties": {
           "runtime": {
@@ -86751,7 +86813,12 @@
             },
             "type": "array",
             "title": "Downloads",
-            "description": "models the steps are pinned to that are not on this Mac, each offered as a download (source.recipe.missing-model-offered)"
+            "description": "models the steps are pinned to that are not on this Mac; Start downloads each itself and its steps wait for it (#5664)"
+          },
+          "start_downloads": {
+            "$ref": "#/components/schemas/StartDownloads",
+            "nullable": true,
+            "description": "what Start will fetch, by name and size, with the total and one sentence; null when nothing (#5664)"
           },
           "elsewhere": {
             "items": {

@@ -181,7 +181,8 @@ def test_runtime_spacy_pin_is_honoured_and_loaded_from_the_store(client, db, sto
 def test_source_recipe_missing_model_offered(client, db, store, tmp_path):
     """source.recipe.missing-model-offered: "a step pinned to a model that is not on this Mac and can be downloaded
     (today: a spaCy pipeline) is named in the Start plan with the model and its size, and the plan offers the
-    download (`downloads`, each a `download-model` job on the network lane); Start is refused until it is there"."""
+    download (`downloads`, each a `download-model` job on the network lane)". Since #5664 Start fetches it itself
+    (Set Up never downloads), so the plan says what Start downloads instead of refusing."""
     from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save
 
     names = {"id": "names", "job": "find-names-tag-words", "model": {"spacy": NAME, "version": VERSION}}
@@ -189,8 +190,8 @@ def test_source_recipe_missing_model_offered(client, db, store, tmp_path):
     plan = client.get("/api/recipes/project/start").json()
     (offer,) = plan["downloads"]
     assert (offer["runtime"], offer["model"], offer["size_mb"]) == ("spacy", NAME, 45), offer
-    assert any(NAME in r and "45 MB" in r for r in plan["refusals"]), plan["refusals"]
-    assert client.post("/api/recipes/project/start").status_code == 422
+    assert not any(NAME in r for r in plan["refusals"]), plan["refusals"]
+    assert plan["start_downloads"]["sentence"] == f"Start downloads the spaCy pipeline {NAME} (45 MB)."
 
     r = client.post("/api/actions/invoke", json={"name": offer["action"], "params": offer["params"]})
     assert r.status_code == 200, r.text

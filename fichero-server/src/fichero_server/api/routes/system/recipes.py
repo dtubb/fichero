@@ -1070,6 +1070,22 @@ class StartDownload(BaseModel):
     job_id: Optional[str] = Field(default=None, description="the download-model job fetching it, while downloading")
 
 
+class StartDownloadItem(BaseModel):
+    name: str = Field(description="the model as people read it")
+    size_mb: Optional[int] = Field(default=None, description="its download size; null when not stated")
+    steps: list[str]
+
+
+class StartDownloads(BaseModel):
+    """What pressing Start will fetch before its steps run (#5664), for Ready's one line."""
+
+    items: list[StartDownloadItem]
+    total_mb: int
+    total_known: bool = Field(description="false when a size is not stated: the total is then a lower bound")
+    sentence: str = Field(description="e.g. 'Start downloads Qwen2.5-VL 7B (5.7 GB) and the Kraken reader PP-OCRv6 "
+                          "(60 MB): 5.8 GB in all.'")
+
+
 class ProposedStep(BaseModel):
     step: str
     job: Optional[str] = None
@@ -1138,8 +1154,10 @@ class StartPlan(BaseModel):
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
         "when it lands (#5660)"))
     downloads: list[StartDownload] = Field(default_factory=list, description=(
-        "models the steps are pinned to that are not on this Mac, each offered as a download "
-        "(source.recipe.missing-model-offered)"))
+        "models the steps are pinned to that are not on this Mac; Start downloads each itself and its steps wait "
+        "for it (#5664)"))
+    start_downloads: Optional[StartDownloads] = Field(default=None, description=(
+        "what Start will fetch, by name and size, with the total and one sentence; null when nothing (#5664)"))
     elsewhere: list[StartElsewhere] = Field(default_factory=list, description=(
         "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, "
         "never used without the person's press (ai.where.fallback-free-and-asked)"))
@@ -1385,9 +1403,12 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
         from fichero_server.recipes import runner
+        from fichero_server.recipes.start import queue_downloads
 
         recipe = read_project_setup(library)["recipe"] or {}
         runner.register_job_kinds()
+        # Start fetches what its steps need (#5664): each download queued now, and the run's steps on it wait.
+        queue_downloads(db, plan, started_by=ctx.actor or "owner")
         record = {
             "started_at": utc_now_iso(timespec="seconds"),
             "recipe_id": recipe.get("id"),

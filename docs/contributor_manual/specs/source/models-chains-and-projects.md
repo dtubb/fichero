@@ -2336,8 +2336,17 @@ Projects
 Profiles (the defaults section of a recipe)
 - `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
   Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
-  and the plan offers the download (`downloads`, each a `download-model` job on the network lane); Start is
-  refused until it is there, so the step never fails at run time for want of it.
+  and the plan offers the download (`downloads`, each a `download-model` job on the network lane). **Changed
+  2026-10-11 (#5664, ruled: Set Up never downloads):** Start is no longer refused for it. Pressing Start queues
+  each such download itself through the one download path (`start.queue_downloads`, `model.download`'s
+  `enqueue_download`), as an import after Start does too, and the run's steps on it wait for it to land
+  (`awaited`), so the step still never fails at run time for want of it. The plan says what Start will fetch in
+  one line for Ready (`start_downloads`: each model by the name a person reads, its size, the total, e.g. "Start
+  downloads Qwen2.5-VL 7B (OCR) (5.7 GB) and the Kraken reader PP-OCRv6 (medium) (60 MB): 5.8 GB in all."). Only a
+  model that cannot be downloaded at all still refuses Start, in words. Pinned by
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`. *Not built: Ready's Swift (B); a
+  licence acceptance asked before Start (no acceptance is recorded: the rules never pin a model whose licence is
+  not open, and a person's own choice of one is its acceptance).*
 - `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a
   page that already has its output: splitting, on a photograph already cut into pages; finding lines, on a page
   with a pass that has lines; reading lines, on a page with a pass read by the step's own model; reading a page, on

@@ -26,8 +26,9 @@ def test_a_kraken_reader_not_on_this_mac_is_offered_and_start_waits(client, tmp_
     assert (offer["runtime"], offer["model"]) == ("kraken", READER), offer
     assert offer["action"] == "model.download" and offer["params"] == {"runtime": "kraken", "model": READER}
     assert "read" in offer["steps"], offer  # with "lines": one Kraken run does both
-    assert any(READER in r and "download it first" in r for r in plan["refusals"]), plan["refusals"]
-    assert client.post("/api/recipes/project/start").status_code == 422
+    # #5664: Start fetches it itself; Ready says so, and nothing refuses Start for it.
+    assert plan["refusals"] == [], plan["refusals"]
+    assert plan["start_downloads"]["sentence"].startswith("Start downloads the Kraken reader PP-OCRv6 (medium)")
 
 
 def test_an_installed_kraken_reader_is_not_offered(client, tmp_path, monkeypatch):

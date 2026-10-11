@@ -81,15 +81,23 @@ def test_source_onboard_auto_plan_shows_what_will_not_run(client, db, pages, tmp
     assert download["runtime"] == "spacy" and download["steps"] == ["names"]
     assert download["action"] == "model.download" and download["params"] == {"runtime": "spacy",
                                                                               "model": "es_core_news_sm"}
-    assert any("es_core_news_sm" in r for r in plan["refusals"]), "Start waits for the download"
+    # #5664: Start fetches it itself (Set Up never downloads); Ready says so in one line, by name and size.
+    assert not any("es_core_news_sm" in r for r in plan["refusals"])
+    assert "the spaCy pipeline es_core_news_sm" in plan["start_downloads"]["sentence"]
     _record("start_plan_skips_and_downloads", plan)
 
 
 def test_source_onboard_auto_on_add_refusal_said(client, db, pages, tmp_path, monkeypatch, engine):
     """source.onboard.auto.on-add-refusal-said: "an import after Start whose recipe cannot run (the plan has
     refusals, or nothing runs) leaves a row in Activity saying why and what fixes it." Here the names step's
-    spaCy pipeline left this Mac after Start: the import's pages are not read, and Activity says so."""
+    spaCy pipeline left this Mac after Start and cannot be downloaded again (since #5664 a model that can be is
+    fetched by the import's run itself): the import's pages are not read, and Activity says so."""
     from fichero_server.llm import local_models
+
+    def cannot(db, runtime, name, **kw):
+        raise ValueError(f"no download for {runtime}:{name}")
+
+    monkeypatch.setattr(local_models, "enqueue_download", cannot)
 
     steps = _steps(tmp_path)[1:3]  # find the lines and read them
     _save(client, _recipe(tmp_path, *steps))
@@ -102,8 +110,8 @@ def test_source_onboard_auto_on_add_refusal_said(client, db, pages, tmp_path, mo
     assert _wait(lambda: len(_runs(client)) == 2), "the import leaves a row"
     row = next(r for r in _runs(client) if r["documents"] is not None)
     assert row["state"] == "failed" and row["started_by"] == "import" and row["steps"] == []
-    assert any("es_core_news_sm" in r and "download" in r for r in row["refusals"])
-    assert "Not run on the 1 new page this import brought" in row["reason"] and "download it first" in row["reason"]
+    assert any("es_core_news_sm" in r and "cannot be downloaded" in r for r in row["refusals"])
+    assert "Not run on the 1 new page this import brought" in row["reason"] and "cannot be downloaded" in row["reason"]
 
     listed = client.get("/api/activity/jobs").json()["jobs"]
     shown = next(j for j in listed if j["id"] == row["job_id"])

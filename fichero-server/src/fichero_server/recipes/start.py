@@ -423,9 +423,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     downloads = missing_models(every) + local_models_to_download(every)
     if db is not None:
         mark_downloads_under_way(db, downloads)
-    # A model that is downloading does not refuse Start: its steps wait for it (#5660); one that is neither here
-    # nor downloading still does.
-    refusals += [_waits_for(d) for d in downloads if not d.get("downloading")]
+    # A model that is not here never refuses Start: Start fetches it itself and its steps wait for it (#5664,
+    # ruled 2026-10-11: Set Up never downloads). Only a model that cannot be fetched at all refuses, below.
     waiting = [_downloading(d) for d in downloads if d.get("downloading")]
     cannot = local_models_this_mac_cannot_serve(every)
     elsewhere = places_elsewhere(every, stays_local=stays_local)
@@ -439,7 +438,54 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                         if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
-            "waiting": waiting}
+            "waiting": waiting, "start_downloads": start_downloads(downloads)}
+
+
+def _size_words(size_mb: int | None) -> str:
+    if not size_mb:
+        return "size not stated"
+    return f"{size_mb} MB" if size_mb < 1000 else f"{size_mb / 1000:.1f} GB"
+
+
+def start_downloads(downloads: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """What pressing Start will fetch before its steps run, for Ready to say in one line (#5664): each model by the
+    name a person reads, its size, and the total. None when nothing needs fetching. A download already under way
+    is not in it (`waiting` says that one)."""
+    fetch = [d for d in downloads if not d.get("downloading")]
+    if not fetch:
+        return None
+    items = [{"name": d.get("name") or d["model"], "size_mb": d.get("size_mb"), "steps": list(d["steps"])}
+             for d in fetch]
+    named = [f"{i['name']} ({_size_words(i['size_mb'])})" for i in items]
+    listed = named[0] if len(named) == 1 else ", ".join(named[:-1]) + " and " + named[-1]
+    total = sum(i["size_mb"] or 0 for i in items)
+    unknown = any(not i["size_mb"] for i in items)
+    sentence = f"Start downloads {listed}"
+    if len(items) > 1 and total:
+        sentence += f": {'at least ' if unknown else ''}{_size_words(total)} in all"
+    return {"items": items, "total_mb": total, "total_known": not unknown, "sentence": sentence + "."}
+
+
+def queue_downloads(db: Any, plan: dict[str, Any], *, started_by: str) -> list[str]:
+    """Start fetches every model its plan needs that is not here and not already downloading, through the one
+    download path (`model.download`'s `enqueue_download`, a `download-model` job on the network lane, resumable,
+    in Activity). Each download is then marked under way, so the run's steps on it wait for it to land
+    (`runner.enqueue`'s `awaited`). ValueError, in words, for a model that cannot be fetched at all. Returns the
+    jobs queued."""
+    from fichero_server.llm.local_models import enqueue_download
+
+    queued = []
+    for download in plan.get("downloads") or []:
+        if download.get("downloading"):
+            continue
+        try:
+            job_id = enqueue_download(db, download["runtime"], download["model"], started_by=started_by)
+        except ValueError as exc:
+            raise ValueError(f"steps {', '.join(download['steps'])} need {download.get('name') or download['model']}, "
+                             f"which cannot be downloaded: {exc}") from exc
+        download.update(downloading=True, job_id=job_id, progress=None)
+        queued.append(job_id)
+    return queued
 
 
 #: A download-model job still under way: waiting for the network lane, fetching, or paused.
@@ -508,20 +554,26 @@ def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
             if name not in YOLO_MODELS or is_installed(name):
                 continue
-            size_mb = None
+            label = f"the layout model {YOLO_MODELS[name][2].split(',')[0]}"
+            size_mb = YOLO_MODELS[name][3] // 1_000_000 or None
         elif runtime == "spacy":
             if spacy_pipeline_available(name):
                 continue
             size_mb = SPACY_MODELS.get(name, {}).get("disk_mb")
+            label = f"the spaCy pipeline {name}"
         elif runtime == "kraken":
             spec = kraken_runtime.recognition_spec(name)
             if not spec or "trained" in spec or _kraken_reader_here(name):
                 continue
-            size_mb = spec.get("size_mb")
+            record = _repository_record(spec.get("doi"))
+            size_bytes = spec.get("size_bytes") or record.get("size_bytes")
+            size_mb = (int(size_bytes) // 1_000_000 or None) if size_bytes else spec.get("size_mb")
+            label = f"the Kraken reader {spec.get('display_name') or _seed_name(spec.get('doi')) or record.get('summary') or name}"
         else:
             continue
-        entry = out.setdefault(name, {"runtime": runtime, "model": name, "steps": [], "size_mb": size_mb,
-                                      "action": "model.download", "params": {"runtime": runtime, "model": name}})
+        entry = out.setdefault(name, {"runtime": runtime, "model": name, "name": label, "steps": [],
+                                      "size_mb": size_mb, "action": "model.download",
+                                      "params": {"runtime": runtime, "model": name}})
         _add_steps(entry["steps"], run["steps"])
     return list(out.values())
 
@@ -533,19 +585,20 @@ def _kraken_reader_here(name: str) -> bool:
     return bool(kraken_runtime.recognition_model_path(name))
 
 
-def _waits_for(download: dict[str, Any]) -> str:
-    """Start's refusal while a download is not here, naming what fixes it: the download, or an installed model
-    used instead (`source.onboard.auto.installed-model-first`), never an edit of the recipe."""
-    steps = ", ".join(download["steps"])
-    if download["runtime"] != "mlx":
-        size = f"{download['size_mb']} MB" if download.get("size_mb") else "size not stated"
-        return (f"steps {steps} need the {download['runtime']} model {download['model']} ({size}), "
-                f"which is not on this Mac: download it first")
-    instead = [i["name"] for i in download.get("instead") or []]
-    size = f"{download['size_mb']} MB" if download.get("size_mb") else "size not stated"
-    return (f"steps {steps} wait for {download['name']} ({size}), which is not on this Mac: "
-            f"download it" + (f", or use the installed {' or '.join(instead)} instead" if instead else "")
-            + " (Set Up… › Ready)")
+def _seed_name(doi: Any) -> str | None:
+    """A shipped reader's own name for this Zenodo DOI (its card's `note`, as setup's rows show it)."""
+    from fichero_server.recipes.cards import all_seed_cards
+
+    card = next((c for c in all_seed_cards() if doi and c.pin.get("zenodo") == doi), None)
+    return card.note.split(",")[0].strip().rstrip(".") if card is not None and card.note else None  # its short name
+
+
+def _repository_record(doi: Any) -> dict[str, Any]:
+    """A Zenodo reader's record as the kept repository listing has it (its title, `summary`, and size); empty
+    without one. Never the network."""
+    from fichero_server.recipes.discovery import repository_record
+
+    return (repository_record(str(doi)) if doi else None) or {}
 
 
 #: Jobs whose local model reads the page image; the others send it text alone.

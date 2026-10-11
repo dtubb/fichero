@@ -219,7 +219,8 @@ def test_source_find_found_reader_downloads_a_tamil_reader_found_online_is_offer
     [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
     assert download["model"] == TAMIL and "read-a-line" in download["steps"] and download["size_mb"] is None
     assert download["action"] == "model.download" and download["params"] == {"runtime": "mlx", "model": TAMIL}
-    assert any(f"wait for {TAMIL.split('/')[-1]} (size not stated)" in r for r in plan["refusals"]), plan["refusals"]
+    # #5664: Start fetches it itself; Ready says what and how big, here unstated.
+    assert f"{TAMIL.split('/')[-1]} (size not stated)" in plan["start_downloads"]["sentence"], plan["start_downloads"]
     # The model store downloads it by that name, as it downloads a catalogue model.
     assert store.canonical_id(TAMIL) == TAMIL and store.spec(TAMIL).revision == "main"
     assert not store.is_complete(store.spec(TAMIL))

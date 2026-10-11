@@ -80,7 +80,7 @@ def test_a_step_run_per_level_is_named_once_where_it_waits_for_its_model(mac):
     plan = plan_start(recipe, stays_local=True)
     [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
     assert download["steps"] == ["correct", "normalise"]
-    said = " ".join(plan["refusals"])
+    said = " ".join(" ".join(i["steps"]) for i in plan["start_downloads"]["items"])  # what Ready says it fetches
     assert said.count("normalise") == 1, said
 
 

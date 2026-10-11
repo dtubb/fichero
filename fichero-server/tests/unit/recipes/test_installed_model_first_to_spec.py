@@ -68,9 +68,9 @@ def test_source_onboard_auto_installed_model_first_at_start(client, db, pages, m
                                                                                 "model": "Qwen2.5-VL-7B"}
     assert download["instead"] == [{"card": THREE_CARD, "model": "Qwen2.5-VL-3B", "name": "Qwen2.5-VL 3B (OCR)",
                                     "licence": "Qwen-Research"}], "a licence that is not open is named: the press accepts it"
-    [refusal] = plan["refusals"]
-    assert "download it, or use the installed Qwen2.5-VL 3B (OCR) instead" in refusal
-    assert "cannot run on this Mac" not in refusal and "Settings" not in refusal
+    # #5664: Start downloads it itself, so nothing refuses Start; the installed one stays offered beside it.
+    assert plan["refusals"] == []
+    assert "Qwen2.5-VL 7B (OCR) (5.7 GB)" in plan["start_downloads"]["sentence"]
 
     used = client.post("/api/recipes/project/start/use-instead",
                        json={"model": "Qwen2.5-VL-7B", "card": THREE_CARD})
@@ -94,7 +94,7 @@ def test_use_instead_refuses_a_choice_the_plan_does_not_offer(client, db, pages,
     plan = client.get("/api/recipes/project/start").json()
     [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
     assert download["instead"] == [], "nothing installed: only the download is offered"
-    assert "download it (Set Up… › Ready)" in plan["refusals"][0]
+    assert plan["refusals"] == []  # #5664: Start fetches it
     r = client.post("/api/recipes/project/start/use-instead", json={"model": "Qwen2.5-VL-7B", "card": THREE_CARD})
     assert r.status_code == 422 and "not an installed model offered instead" in r.json()["detail"]
     r = client.post("/api/recipes/project/start/use-instead", json={"model": "Chandra-OCR", "card": THREE_CARD})
@@ -167,7 +167,7 @@ def test_source_onboard_auto_installed_model_first__the_plan_drops_a_finished_do
     _save(client, _recipe(None, LINES, READ, CORRECT), cloud_allowed=False)
     plan = client.get("/api/recipes/project/start").json()
     [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
-    assert plan["refusals"], "Start waits for the download"
+    assert plan["start_downloads"], "Start would fetch it"
 
     params = download["params"]
     r = client.post(f"/api/local-models/download/{params['runtime']}/{params['model']}")

@@ -124,6 +124,14 @@ def material_arrived(db: Any, document_ids: list[str]) -> str | None:
     if _why_no_recipe_on_add(db) is not None:
         return None
     plan = _plan(db)
+    if not plan["refusals"] and plan["runs"]:
+        from fichero_server.recipes.start import queue_downloads
+
+        try:
+            # As Start does (#5664): the run fetches the models it needs, and its steps on them wait.
+            queue_downloads(db, plan, started_by="import")
+        except ValueError as exc:  # a model that cannot be downloaded at all
+            plan["refusals"] = [str(exc)]
     if plan["refusals"] or not plan["runs"]:
         return refused(db, plan, list(document_ids))
     return enqueue(db, plan, documents=list(document_ids), started_by="import")
