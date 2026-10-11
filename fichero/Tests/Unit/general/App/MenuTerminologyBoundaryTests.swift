@@ -214,6 +214,17 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
 
     /// The labels a person reads: the first string literal of each `Button(`, `Text(`, `Label(` and
     /// `Menu(` call.
+    /// Activity's Stop and Read Again are in the menu bar (#5652 slice 3): the Project menu's Activity
+    /// section renders the focused buttons, and the Activity window's context menu and the menu bar act
+    /// through the same `runMenuTarget(for:)` it publishes.
+    func testActivityStopAndReadAgainAreInTheMenuBar() throws {
+        let menus = try Self.appSource("App/Menus/ReadKnowledgeMenuCommands.swift")
+        XCTAssertTrue(menus.contains("Section(\"Activity\") {\n                FocusedActivityRunButtons()"))
+        let window = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
+        XCTAssertTrue(window.contains(".focusedSceneValue(\\.activityRun,"))
+        XCTAssertTrue(window.contains("runMenuTarget(for: id)"))
+    }
+
     private static func quotedLabels(in source: String) throws -> [String] {
         let pattern = try NSRegularExpression(pattern: #"\b(?:Button|Text|Label|Menu)\(\s*"([^"]*)""#)
         let range = NSRange(source.startIndex..<source.endIndex, in: source)

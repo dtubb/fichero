@@ -51,6 +51,10 @@ struct ReadKnowledgeMenuCommands: Commands {
                 projectStageSection(stage)
             }
 
+            Section("Activity") {
+                FocusedActivityRunButtons()
+            }
+
             Divider()
             projectWorkflowsAndChat
         }

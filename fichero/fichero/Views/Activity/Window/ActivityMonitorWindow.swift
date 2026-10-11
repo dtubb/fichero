@@ -151,7 +151,12 @@ struct ActivityMonitorWindow: View {
             }
         }
         .accessibilityIdentifier("activity.table")
+        .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
         .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
+            if ids.count == 1, let id = ids.first, let target = runMenuTarget(for: id) {
+                if target.canStop { Button("Stop") { target.stop() } }
+                if let label = target.readAgainLabel { Button(label) { target.readAgain() } }
+            }
             Button("Delete", role: .destructive) {
                 Task { await deleteRuns(withIDs: ids) }
             }
@@ -240,6 +245,24 @@ struct ActivityMonitorWindow: View {
     }
 
     // MARK: - Actions
+
+    /// Stop and Read Again for one row, shared by the context menu and the menu bar (#5652).
+    private func runMenuTarget(for id: ActivityMonitorRow.ID) -> ActivityRunMenuTarget? {
+        guard let row = Self.find(id, in: sortedRows) else { return nil }
+        return ActivityRunMenuTarget(
+            rowId: row.id, rowName: row.name,
+            canStop: row.controls.contains(.stop),
+            readAgainLabel: row.readAgainLabel,
+            stop: { Task { await act(.stop, on: row) } },
+            readAgain: { Task { await readAgain(row) } }
+        )
+    }
+
+    /// The run's "read again" offer, as the details' button makes it (`ActivityDetailsView`).
+    private func readAgain(_ row: ActivityMonitorRow) async {
+        guard let threadId = row.runThreadId, let store = library(for: row.libraryId)?.activityStore else { return }
+        notice = await store.readPagesAgain(runThreadId: threadId).map { "Couldn't read the pages again: \($0)" }
+    }
 
     /// Pause, Resume or Stop one row's job through the audited job actions;
     /// the engine's answer is set on that row in place.
