@@ -628,6 +628,9 @@ README and in the user manual. A new job or topic explains itself in all four by
 
 ### 7b. Setup, round 2: the screens as the next build makes them (ruled 2026-10-05)
 
+**Superseded in part by section 7c (ruled 2026-10-11, #5668):** What you want to do becomes Choose the
+Stages, with one page per chosen stage, and Train gets its own page; the rest of this section stands.
+
 The maintainer tested the five-screen setup built on 2026-10-04 and 2026-10-05 and ruled on it
 (#5477 to #5482). **This section is the one home for setup's screens**: it supersedes the
 provisional table of section 7 and the order in `source.onboard.screens-in-order`; other specs
@@ -1206,6 +1209,125 @@ plan's peak memory across steps. Ready shows none of it.
    its material's reader. Today a published aggregate decides, and one reader reads everything.
 5. **Text needs no reading** (#5553). A slip box gets a recipe that starts from its text and goes
    straight to names, dates, organising and search. Today it cannot get a recipe that passes the check.
+
+### 7c. Set Up, one page per stage (ruled 2026-10-11, #5668)
+
+**Ruled by the maintainer 2026-10-11 (morning).** Set Up becomes one page per stage of the work. The
+person chooses the stages first; each chosen stage then has its own page that says what it does, who
+runs it, asks its own questions, and shows its result on 3 to 5 of the person's own pages, so they
+know it works before Start. This supersedes the third of section 7b's four steps (What you want to do)
+and moves the plan's per-step rows, the model finder and Check on your pages from Ready onto the stage
+pages. Your project, Your material, Train and Ready stay; what each holds is below. As before, nothing
+runs on the project before Start: the sample results are the stage's, never the project's work.
+
+**The left list, in recipe order.** The window's list (`FirstRunWindow`'s sidebar) reads:
+1. **Your Project**: its name and where it lives (unchanged from 7b).
+2. **Your Material**: how it comes in, what it is (handwriting, print, typescript), languages, scripts
+   and direction (unchanged), and two new questions, each with examples:
+   - **When were they written**: a century or a range of years ("16th century", "1650–1700"),
+     proposed from the sample pages where a local model can look, labelled "suggested from your pages".
+   - **Which hand**: the script's style (Caroline minuscule, Gothic textualis, Secretary, Kurrent,
+     Humanistic cursive, Copperplate…), proposed from the script and the period, as tokens; "Not sure"
+     is an answer.
+   Both feed the search for readers (the Hugging Face tags people use, such as `htr`, `catmus`,
+   `kurrent`, with the language tags) and the comparison of readers on the person's pages.
+3. **Choose the Stages**: the first decision about the work, replacing What You Want to Do. Every
+   stage is on or off. The goals (Transcribe, Search, Knowledge graph…) stay as shortcuts that tick
+   the stages they need; a stage another chosen stage needs is ticked and says why ("Dates & Times
+   needs Names").
+4. **One page per chosen stage**, in this order, each only when chosen: **Clean Up Images · Find
+   Lines · Read · Organise (Find the Documents) · Names · Statements (who did what) · Dates & Times ·
+   Structured Data**.
+5. **Train**: offered later (`source.recipe.train-offered-per-step`, #5660 item 9), its own page.
+6. **Ready**: the plan in one list, what runs by itself, what Start will fetch (#5664), Keep an
+   export, and Start.
+
+**The stages and the jobs they carry** (the job registry's ids, section 2; one stage can carry several
+jobs, and the recipe keeps the registry's step order whatever order stages are chosen in):
+
+| Stage | Jobs | Its own questions (examples) |
+|---|---|---|
+| Clean Up Images | `split-pages`, `prepare-the-image` | Two pages per image? Straighten, crop, brighten? |
+| Find Lines | `find-regions`, `find-lines`, `put-in-order`, `refine-shapes` | Columns, margins and glosses? Tables on the pages? |
+| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Read line by line or the page at once? Correct with a second model? |
+| Organise | `find-documents-in-a-folder`, `split-into-entries` | Are several documents in one folder, or one document per folder? |
+| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which gazetteer? |
+| Statements | `find-statements` | Which kinds (sales, gifts, marriages, letters sent…)? |
+| Dates & Times | `work-out-dates` | Which calendars (Gregorian, Julian, regnal years, the French Republican…)? |
+| Structured Data | `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` | Which fields to fill, and from what? |
+
+**Each stage page holds, in order:**
+- **What it does**, in one sentence with an example, from the job registry's words (section 7a), so
+  the page, the Inspector and the manual say the same.
+- **Who runs it**: the model each of its jobs would use, with where it runs, its size and licence, the
+  model finder (Choose a model…) and the candidates, and for Read and Find Lines the comparison of
+  candidates on the person's pages (the bake-off, section 8a).
+- **Its own questions** (the table above), each with its default filled in.
+- **A result on 3 to 5 sample pages.** Fichero proposes the samples, spread across the material (first,
+  last, evenly spaced, the largest and smallest images); the person can pick others in the window. The
+  stage runs on them locally and free where it can; a stage that would use the cloud shows its cost
+  first and runs only on a press. The result is shown in place: the lines found drawn on the page, the
+  text read, the names found marked, the dates normalised, the table filled. The Read stage shows the
+  readers compared, line by line, with the disagreement heat map (#5665).
+
+**The engine.** One new run: **try this stage on these pages**. For Read and Find Lines it reuses the
+bake-off and its evaluation job (section 8a); for the other stages it runs the stage's workflow on the
+samples. Its results are kept as the stage's sample results (on the project's setup, with the samples
+and the models used), never written as the project's passes, readings, names or statements, and they
+are replaced when the stage is tried again. The sample run's cost and time are said before it runs.
+
+**What carries over from 7b.** Your project, Your material's ways in and fields, the cloud question,
+What runs by itself, Keep an export, the Start plan and its refusals, Start, and "nothing runs before
+Start" are unchanged. The purposes keep their place in the engine (`PURPOSE_STEPS`) as the goals that
+tick stages; the questions under a ticked purpose (`RecipeSetupStore.questions(under:)`) move onto the
+stage pages that own them.
+
+**Not in the ruling's list.** Translate or normalise, Search (make a vector) and Pull out passages
+are jobs with no stage of their own in the ruling (open question 16).
+
+#### The Swift as it is, mapped onto the stages (read on disk 2026-10-11, `lead/2026-10-09b`)
+
+**Stays as it is:**
+- `FirstRunWindow` (the window, its left list, `stepPage`, the recipe card) and `SetupWhereItLivesFields`
+  (Your Project).
+- `RecipeMaterialSourceFields` and `RecipeAboutFields` (Your Material), which gain the two new fields.
+- `ModelFinderSheet` / `ModelFinderView`, `LicenceReviewSheet` and `BakeoffSection`: moved from Ready
+  onto the stage pages (Who runs it; the comparison on Read and Find Lines).
+- `RecipeTrainOffersFields`: the Train page's content, moved off Ready.
+- `KeptExportFields`, `RecipeAutomaticFields`, `RecipeDownloadRows`, `RecipeElsewhereRows`,
+  `RecipeSkippedRows`, `RecipeTakenOutRows`, `RecipeStartFields`: stay on Ready.
+- `RecipeSetupStore` (answers, save, the Start plan, the training offers and Start), `ModelFinderStore`
+  and `BakeoffStore`, as they are.
+
+**Splits:**
+- `FirstRunStep`: today a fixed enum (`project`, `material`, `purpose`, `ready`). It becomes the fixed
+  steps plus one step per chosen stage (`.stages`, `.stage(id)`, `.train`, `.ready`), and
+  `setUpSteps` / `newProjectSteps` are computed from the chosen stages.
+- `RecipePurposeFields` becomes **the stage chooser**: the stages as checkboxes, the goals as
+  shortcuts above them, and a stage another needs ticked with its reason.
+- `JobQuestionFields`: its questions move to the stage that owns their job (Names' kinds and gazetteer
+  to Names; Into what to Translate's open question).
+- `RecipeProposalFields` and `RecipeStepsView` / `RecipeStepRow`: the plan's rows are split by stage.
+  Each stage page shows its own steps' rows (who runs it, with the finder); Ready keeps the whole plan
+  as one compact list.
+- `RecipeReadyFields.Row`: `checkOnYourPages` leaves Ready (it is the Read and Find Lines pages'
+  comparison) and `trainLater` becomes the Train page.
+
+**New:**
+- **The stages' list from the engine**: each stage's id, title, sentence and example, its jobs, its
+  questions and what it needs (`GET /api/recipes/stages`). The app shows what the engine lists and
+  works nothing out.
+- **`SetupStagePage`**: one view for every stage page (what it does, who runs it, its questions,
+  its samples), driven by the stage's entry.
+- **`SetupStageSamples`**: the 3 to 5 sample pages (proposed, changeable in the window), the Try on
+  These Pages button with its cost and time, and the result drawn per page by kind (lines on the page,
+  text, names marked, dates, a table).
+- **Your Material's two fields**: When were they written (a century or a range, with suggestions)
+  and Which hand (tokens, with proposals from the script and period).
+- **The engine's sample run**: try this stage on these pages, its result kept as the stage's
+  (`POST /api/recipes/stages/{stage}/try`, `GET` its result), the proposed samples
+  (`GET /api/recipes/samples`), and the reader search taking the period and hand.
+- **Read's comparison** with the disagreement heat map (#5665), on the Read page.
 
 ### 8. How the recipe is assembled: rules first, measurement second
 
@@ -2503,6 +2625,80 @@ Setup
   Your material; it can be closed at any step with the answers kept as a draft in the project,
   and nothing runs before Start. *Test:* setup is exactly those four steps; ticking People,
   places and things shows which kinds of names and nothing for an unticked purpose.
+**Set Up, one page per stage (section 7c, ruled 2026-10-11, #5668).**
+
+- `source.onboard.stages.left-list` — **[GAP]** (#5668) the setup window's left list reads, in recipe
+  order: Your Project, Your Material, Choose the Stages, one page per chosen stage (Clean Up Images,
+  Find Lines, Read, Organise, Names, Statements, Dates & Times, Structured Data, each only when chosen),
+  Train, Ready. Set Up… on an existing project starts at Your Material. *Test:* pure Swift, the step
+  list for no stage, one stage and all eight, in that order whatever order they were ticked in.
+- `source.onboard.stages.choose-first` — **[GAP]** (#5668) Choose the Stages replaces What You Want
+  to Do and is the first decision about the work: every stage is a checkbox, on or off, with its one
+  sentence. *Test:* pure Swift over the engine's stages list.
+- `source.onboard.stages.goals-are-shortcuts` — **[GAP]** (#5668) the goals (Transcribe, Search,
+  Knowledge graph and the rest of `PURPOSES`) stay, as shortcuts above the stages: choosing one ticks
+  the stages it needs (`PURPOSE_STEPS`); unticking a stage by hand is kept. *Test:* pure Swift, a
+  goal ticks its stages and a stage unticked afterwards stays unticked.
+- `source.onboard.stages.needs-are-ticked` — **[GAP]** (#5668) a stage another chosen stage needs is
+  ticked with its reason in words ("Dates & Times needs Names") and cannot be unticked while it is
+  needed, as the plan's own steps are today (`needed_by`). *Test:* engine, the stages list carries
+  each stage's needs; pure Swift, the chooser locks a needed stage.
+- `source.onboard.stages.stages-list-from-the-engine` — **[GAP]** (#5668) the stages, their titles,
+  sentences, examples, jobs, questions and needs come from one engine list (`GET /api/recipes/stages`),
+  read by setup, the Inspector and the manual; the app works none of it out. *Test:* pytest, every
+  registered job that a stage carries exists and every stage's needs are stages; the eight in order.
+- `source.onboard.stages.page-says-what-it-does` — **[GAP]** (#5668) each stage page opens with what
+  the stage does in one sentence, with an example, in the job registry's words (section 7a).
+  *Test:* pure Swift, the page's first line is the engine's sentence for that stage.
+- `source.onboard.stages.page-who-runs-it` — **[GAP]** (#5668) each stage page shows who runs each of
+  its jobs (the model, where it runs, its size and licence), with Choose a model… (the finder, for
+  that job) and its candidates; Read and Find Lines add the comparison of candidates on the person's
+  pages (the bake-off). *Test:* pure Swift, the page lists its own steps' rows and no other stage's.
+- `source.onboard.stages.page-asks-its-questions` — **[GAP]** (#5668) each stage page asks its own
+  questions with defaults filled in (Names: which kinds of names, which gazetteer; Dates & Times:
+  which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
+  the answers; a question belongs to one stage and is asked once. *Test:* pure Swift, each question's
+  stage; pytest, the answers round-trip.
+- `source.onboard.stages.samples-proposed` — **[GAP]** (#5668) Fichero proposes 3 to 5 sample pages,
+  spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
+  every stage page; the person can pick others in the window, and the choice holds for every stage.
+  *Test:* pytest, the proposal on a folder of 1, 4 and 200 pages; pure Swift, a page picked by hand
+  replaces a proposed one.
+- `source.onboard.stages.sample-result` — **[GAP]** (#5668) Try on These Pages runs the stage on the
+  samples and shows its result in place: lines drawn on the page, the text read, names marked, dates
+  normalised, the table filled. It runs locally and free where it can; a stage that would use the
+  cloud says its cost and time first and runs only on that press. *Test:* click-around per stage;
+  pytest, a cloud stage's try refuses without the press's yes.
+- `source.onboard.stages.read-compares-readers` — **[GAP]** (#5668, #5665) the Read stage's result
+  is the readers compared on the samples, line by line, with the disagreement heat map (#5665).
+  *Test:* pure Swift over a recorded comparison.
+- `source.onboard.stages.sample-run-reuses` — **[GAP]** (#5668) the engine's one sample run (try this
+  stage on these pages) reuses the bake-off and its evaluation job for Read and Find Lines, and runs
+  the stage's workflow on the samples for the others; one route, `POST /api/recipes/stages/{stage}/try`,
+  with its result read back by `GET`. *Test:* pytest, Read's try writes one evaluation job; Names'
+  try runs its workflow on the samples only.
+- `source.onboard.stages.samples-are-not-the-work` — **[GAP]** (#5668) a sample result is kept as the
+  stage's (with the samples and the models used) and replaced when the stage is tried again; it is
+  never written as the project's passes, readings, names, dates or statements, and Start does not
+  count it as done. *Test:* pytest, after a try the project's passes, readings and claims are
+  unchanged and Start's plan runs on every page.
+- `source.onboard.material.when-written` — **[GAP]** (#5668) Your Material asks when the material was
+  written, as a century or a range of years ("16th century", "1650–1700"), proposed from the sample
+  pages where a local model can look and labelled "suggested from your pages"; saved with the answers.
+  *Test:* pure Swift, a century and a range round-trip; pytest, the answers carry it.
+- `source.onboard.material.which-hand` — **[GAP]** (#5668) Your Material asks which hand (Caroline
+  minuscule, Gothic textualis, Secretary, Kurrent, Humanistic cursive, Copperplate…), proposed from the
+  script and the period, chosen as tokens; "Not sure" is an answer. *Test:* pytest, the hands proposed
+  for Latin script in the 15th century and in the 18th; pure Swift, tokens round-trip.
+- `source.onboard.material.feeds-the-reader-search` — **[GAP]** (#5668) the period and the hand feed the
+  search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
+  language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand
+  carries `kurrent`.
+- `source.onboard.stages.train-and-ready-last` — **[GAP]** (#5668) Train (the offers of
+  `source.recipe.train-offered-per-step`) is its own page after the stages, and Ready is last: the plan
+  as one list, what runs by itself, what Start will fetch, Keep an export, and Start. *Test:* pure
+  Swift, the last two steps are Train and Ready.
+
 - `source.onboard.sheet-fits-its-window` — **[PARTIAL]** (#5624) **Built 2026-10-09 (app), not yet seen:**
   rows of checkboxes and tokens wrap (`FlowLayout`: the kinds of names, the kinds of material, the language and
   script tokens), the step column takes `minWidth: 0` and the page body never widens the button row; pinned by
@@ -3445,6 +3641,18 @@ Ruled 2026-10-01 (former questions 1-4):
 15. **The default location** (#5482). *Recommend:* `~/Documents/Fichero/<name>.fichero`, the folder
     made if missing, so projects sit together and inside the folder the sandbox already asks for;
     Choose… for anywhere else.
+
+16. **Translate or normalise, Search and Pull out passages under the stages** (#5668). The ruling lists
+    eight stages; these three jobs have none. *Recommend:* three more stages after Dates & Times, each
+    with its page (Translate & Normalise: into what; Search: nothing to ask; Passages: which kinds), so
+    every job a person can choose has a page and a sample result.
+17. **Where a stage's sample results are kept** (#5668). *Recommend:* on the project's setup, beside
+    `recipe/setup.yaml`, one record per stage (the samples, the models, the result), replaced on each
+    try and cleared when the stage is unticked; never in the tables that hold the project's work.
+18. **The hands offered** (#5668). *Recommend:* a short list per script and century kept by the engine
+    (Latin: Caroline minuscule, Gothic textualis, Gothic cursiva, Secretary, Humanistic, Italic,
+    Kurrent, Copperplate; others as their own lists grow), each with the Hugging Face tags it maps to;
+    anything typed is kept as typed, and Not sure is an answer.
 
 **Not asked** (already decided by rulings): purpose first; purpose decides layers; offer, never
 hide; the recipe's contents; deterministic rules; the flagship and generated paths; the bake-off;
