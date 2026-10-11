@@ -23,6 +23,11 @@ struct FirstRunWindow: View {
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
+    /// The step list's width: its longest page name fits whole.
+    static let sidebarWidth: CGFloat = 260
+    /// The window's size on the Mac; the content column gets what the step list leaves.
+    static let windowSize = CGSize(width: 820, height: 600)
+
     @State private var step: SetupStep
     @State private var flow: SetupFlow
     /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
@@ -38,9 +43,12 @@ struct FirstRunWindow: View {
     private let onProjectReady: (UUID) -> Void
 
     /// `initialStep` and `newProject`: the onboarding screenshots' seam (`OnboardingScreenshotsTests`); the app passes neither.
+    /// `setsUpAProject`: a first launch whose welcome already chose Set Up a New Project… (the previews' seam).
     init(mode: Mode = .firstRun, project: LibraryManager.LibraryReference? = nil, initialStep: SetupStep? = nil,
-         newProject: NewProjectStore? = nil, onProjectReady: @escaping (UUID) -> Void = { _ in }) {
-        let flow = Self.flow(for: mode)
+         newProject: NewProjectStore? = nil, setsUpAProject: Bool = false,
+         onProjectReady: @escaping (UUID) -> Void = { _ in }) {
+        var flow = Self.flow(for: mode)
+        if setsUpAProject, flow.project == .none { flow.project = .new }
         self.mode = mode
         self.onProjectReady = onProjectReady
         _flow = State(initialValue: flow)
@@ -80,7 +88,7 @@ struct FirstRunWindow: View {
         // The fixed two-pane card is a desktop window size; a compact companion
         // presentation sizes to its sheet instead (#2807).
         #if os(macOS)
-        .frame(width: 820, height: 600)
+        .frame(width: Self.windowSize.width, height: Self.windowSize.height)
         #endif
         // Reopen where the person left off: the project's saved answers and
         // recipe (GET /api/recipes/project), the purposes, the jobs and the stages.
@@ -148,11 +156,13 @@ struct FirstRunWindow: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Fichero")
                 .font(.title2.weight(.semibold))
+                .padding(.horizontal, 8)
                 .padding(.bottom, 12)
 
             let titles = store?.stageTitles ?? [:]
             List(steps, selection: Binding(get: { step }, set: { if let chosen = $0 { step = chosen } })) { item in
                 Label(item.title(stageTitles: titles), systemImage: item.icon)
+                    .lineLimit(1)
                     .tag(item)
                     // Nothing after Your project can be reached before there is a project.
                     .disabled(store == nil && !item.needsNoProject)
@@ -160,8 +170,11 @@ struct FirstRunWindow: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
         }
-        .padding(20)
-        .frame(width: 230)
+        // Wide enough that the longest page names ("About the Material", "Choose the Stages", "Structured Data")
+        // never truncate in the sidebar list's own insets (Daniel's screenshot, 2026-10-11).
+        .padding(.vertical, 20)
+        .padding(.horizontal, 10)
+        .frame(width: Self.sidebarWidth)
         .background(Color(platformColor: .controlBackgroundColor))
     }
 }

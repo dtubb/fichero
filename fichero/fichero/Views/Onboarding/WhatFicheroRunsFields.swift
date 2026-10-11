@@ -81,15 +81,20 @@ struct WhatFicheroRunsFields: View {
     /// Opens Settings' add-provider sheet: for that provider, or (nil) to choose one.
     let add: (String?) -> Void
 
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text(WhatFicheroRuns.intro)
                     .fixedSize(horizontal: false, vertical: true)
-                // Side by side; stacked when the page is narrow.
-                ViewThatFits(in: .horizontal) {
-                    HStack(alignment: .top, spacing: 12) { places }
+                // Side by side, the same height; stacked at compact width. (ViewThatFits stacked them always: a
+                // wrapping text's ideal width is its one-line length, so the row never "fit".)
+                if horizontalSizeClass == .compact {
                     VStack(alignment: .leading, spacing: 12) { places }
+                } else {
+                    HStack(alignment: .top, spacing: 12) { places }
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Text(WhatFicheroRuns.tableTitle).font(.headline)
                 Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
@@ -108,6 +113,8 @@ struct WhatFicheroRunsFields: View {
                 Text(WhatFicheroRuns.accountsFootnote).font(.caption).foregroundStyle(.secondary)
             }
             .frame(maxWidth: 560, alignment: .leading)
+            // Clear of the scroller.
+            .padding(.trailing, 8)
         }
     }
 
@@ -122,7 +129,7 @@ struct WhatFicheroRunsFields: View {
                 Text(place.body).font(.callout).fixedSize(horizontal: false, vertical: true)
             }
             .padding(14)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08), lineWidth: 1))
         }
