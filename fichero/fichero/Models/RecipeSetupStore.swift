@@ -109,9 +109,9 @@ final class RecipeSetupStore {
     /// The registry's own order, so what is offered after the recipe's steps is stable.
     private(set) var jobOrder: [String] = []
     /// What setup's Add a Folder… brought in, said back to the person.
-    private(set) var materialAdded: String?
+    var materialAdded: String?
     /// The folder Add a Folder… tied as a synced folder (Index), shown on the screen with its intake.
-    private(set) var tiedFolderPath: String?
+    var tiedFolderPath: String?
     private(set) var isAssembling = false
     var errorMessage: String?
     /// What the engine worked out for each chosen script: direction, whether it may be vertical,
@@ -263,7 +263,11 @@ final class RecipeSetupStore {
 
     /// Start is offered only when the engine has a plan with nothing refused. A model already downloading is not
     /// a refusal (#5660): its steps wait for it after Start, so Start stays pressable while it downloads.
-    var canStart: Bool { startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false }
+    var canStart: Bool {
+        !isAddingMaterial && (startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false)
+    }
+    /// Material is being added: Start waits for it, so it never runs on a project that has nothing yet.
+    var isAddingMaterial = false
 
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
@@ -305,14 +309,19 @@ final class RecipeSetupStore {
                 startPlan = try success.body.json
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 return true
-            case .unprocessableContent:
-                errorMessage = "Start was refused; the steps below say why."
-            case .undocumented(let code, _):
-                errorMessage = "Could not start (HTTP \(code))"
+            case .unprocessableContent(let error):
+                // The engine's own sentence ("the project has no pages yet: add a folder or files to it, then
+                // press Start"), where it gave one in the typed shape.
+                errorMessage = (try? error.body.json)?.detail?.description
+                    ?? "Start was refused; the steps below say why."
+            case .undocumented(let code, let payload):
+                errorMessage = await EngineErrorDetail.message(from: payload) ?? "Could not start (HTTP \(code))"
             }
         } catch {
             if error.isCancellationError { return false }
-            errorMessage = error.localizedDescription
+            // A refusal whose words did not fit the typed shape (a plain-string detail): its words, not the
+            // decoder's.
+            errorMessage = await Self.engineWords(error) ?? error.localizedDescription
         }
         return false
     }
@@ -859,57 +868,6 @@ extension RecipeSetupStore {
     }
 
     // MARK: Your material (source.sync.four-ways-in)
-
-    /// Import a folder into the project the way setup chose (link, copy, move
-    /// or index), through the project's own import path. Importing is not
-    /// Start: no recipe step runs on it. With Index, the folder is then tied
-    /// through `/api/sync-folders` (`source.onboard.index-ties-the-folder`), so
-    /// Index is whole and not only a recorded mode; `tiedFolderPath` names it
-    /// for the screen to show. With Keep arranged the folder is tied the same way (as Index, so
-    /// nothing moves yet) and its dry run is read and shown with Arrange: the engine arranges a
-    /// folder the moment it is kept arranged, so the mode changes only on that yes
-    /// (`source.onboard.keep-arranged`, `SyncFolderStore.confirmKeepArranged`).
-    func addFolder(_ url: URL, importer: ImportService, syncFolders: SyncFolderStore? = nil) async {
-        materialAdded = nil
-        tiedFolderPath = nil
-        do {
-            let ids = try await importer.importFolder(url, mode: ingestMode)
-            materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(wayIn.title.lowercased()))."
-            if ingestMode == .index, let syncFolders {
-                if let tied = await syncFolders.tie(path: url.path) {
-                    tiedFolderPath = url.path
-                    if keepsArranged, tied.mode != .keepArranged,
-                       await syncFolders.proposeKeepArranged(tied.id) == nil {
-                        errorMessage = syncFolders.errorMessage
-                    }
-                } else {
-                    errorMessage = syncFolders.errorMessage
-                }
-            }
-        } catch {
-            if error.isCancellationError { return }
-            errorMessage = "Could not add \(url.lastPathComponent): \(error.localizedDescription)"
-        }
-    }
-
-    /// Add files, or several folders at once (section 7d, Add Files or Folders…): through the project's import path,
-    /// the way setup chose. One folder alone goes through `addFolder`, which also ties an Index folder.
-    func addMaterial(_ urls: [URL], importer: ImportService, syncFolders: SyncFolderStore? = nil) async {
-        if urls.count == 1, let url = urls.first, url.hasDirectoryPath {
-            await addFolder(url, importer: importer, syncFolders: syncFolders)
-            return
-        }
-        materialAdded = nil
-        tiedFolderPath = nil
-        do {
-            let outcome = try await importer.importFiles(urls, mode: ingestMode)
-            let failed = outcome.failures.isEmpty ? "" : ", \(outcome.failures.count) could not be added"
-            materialAdded = "\(urls.count) item\(urls.count == 1 ? "" : "s") added (\(wayIn.title.lowercased()))\(failed)."
-        } catch {
-            if error.isCancellationError { return }
-            errorMessage = "Could not add the material: \(error.localizedDescription)"
-        }
-    }
 
     // MARK: Added later (source.onboard.add-layer)
 

@@ -1,3 +1,6 @@
+#if canImport(AppKit)
+import AppKit
+#endif
 import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
@@ -126,18 +129,20 @@ struct RecipeMaterialSourceFields: View {
     var icloud: ICloudPagesStore?
     var actionsService: ActionsService?
     @State private var choosingFolder = false
-    @State private var adding = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ProjectIntakeChoice(store: store)
             Divider()
             HStack {
-                Button("Add Files or Folders…") { choosingFolder = true }
-                    .disabled(importer == nil || adding)
+                Button("Add Files or Folders…") { chooseMaterial() }
+                    .disabled(importer == nil || store.isAddingMaterial)
                     .help(importer == nil ? "Open the project first; its folder is added to it"
-                          : adding ? "Adding the material…" : "Choose files or folders of material to add")
-                if adding { ProgressView().controlSize(.small) }
+                          : store.isAddingMaterial ? "Adding the material…" : "Choose files or folders of material to add")
+                if store.isAddingMaterial {
+                    ProgressView().controlSize(.small)
+                    Text(Self.progressWords(importer?.activeIngest)).font(.caption).foregroundStyle(.secondary)
+                }
             }
             if let icloud { ICloudPagesNotice(store: icloud, actionsService: actionsService) }
             if let added = store.materialAdded {
@@ -150,18 +155,44 @@ struct RecipeMaterialSourceFields: View {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
         }
-        // Files or folders, several at once (section 7d).
+        // Files or folders, several at once (section 7d). Off the Mac, the system's importer.
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder, .item],
                       allowsMultipleSelection: true) { result in
-            guard case .success(let urls) = result, !urls.isEmpty, let importer else { return }
-            adding = true
-            Task {
-                await store.addMaterial(urls, importer: importer, syncFolders: syncFolders)
-                adding = false
-                await store.countPages()
-                await icloud?.load()
-            }
+            guard case .success(let urls) = result else { return }
+            add(urls)
         }
+    }
+
+    /// The Mac's own open panel (2026-10-11): the importer inside setup's sheet did not hand back what was chosen,
+    /// so nothing reached the project. The panel answers in place, with the app's access to what was chosen.
+    private func chooseMaterial() {
+        #if os(macOS)
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK else { return }
+        add(panel.urls)
+        #else
+        choosingFolder = true
+        #endif
+    }
+
+    /// Add into THIS project, then count its pages (About the material) and say what is in iCloud.
+    private func add(_ urls: [URL]) {
+        guard !urls.isEmpty, let importer else { return }
+        Task {
+            await store.addMaterial(urls, importer: importer, syncFolders: syncFolders)
+            await store.countPages()
+            await icloud?.load()
+        }
+    }
+
+    /// The folder import's progress in words: "120 of 184 files", or "Counting the files…" before the walk is done.
+    static func progressWords(_ status: IngestTaskStatus?) -> String {
+        guard let status, let total = status.total, total > 0 else { return "Adding…" }
+        return "\(status.processed ?? 0) of \(total) files"
     }
 }
 

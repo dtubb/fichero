@@ -118,11 +118,8 @@ class ImportService {
                     currentFile: url.lastPathComponent
                 )
 
-                // Check if URL is a directory
-                var isDirectory: ObjCBool = false
-                let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-
-                if exists && isDirectory.boolValue {
+                // A folder is imported as a folder, never as one file (`isDirectory`).
+                if Self.isDirectory(url) {
                     try await importFolderGrantingAccess(
                         url,
                         mode: mode,
@@ -169,9 +166,16 @@ class ImportService {
         )
     }
 
+    /// Whether a chosen URL is a folder. Read with the URL's own security-scoped access started: a folder picked in
+    /// the sandbox reads as not existing before it, and was then recorded as one file ("Is a directory",
+    /// 2026-10-11). The URL's own directory flag answers when the file system cannot.
     nonisolated static func isDirectory(_ url: URL) -> Bool {
+        let didStart = url.startAccessingSecurityScopedResource()
+        defer { if didStart { url.stopAccessingSecurityScopedResource() } }
+        if let flag = try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory { return flag }
         var isDirectory: ObjCBool = false
-        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) { return isDirectory.boolValue }
+        return url.hasDirectoryPath
     }
 
     /// `POST /api/ingest/files` (#5220): the dropped files as ONE set, each parent folder granted first (the

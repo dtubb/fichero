@@ -33,6 +33,7 @@ extension RecipeSetupStore {
     /// button acts, or is disabled with its reason).
     var startDisabledReason: String? {
         guard !canStart else { return nil }
+        if isAddingMaterial { return "Fichero is still adding your material; Start waits for it." }
         guard let plan = startPlan else { return "Fichero is still planning what Start would run." }
         if let first = plan.refusals.first { return "Start waits: \(first)" }
         return "Nothing in this plan runs yet: every step is skipped (see why above)."
