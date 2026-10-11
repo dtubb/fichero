@@ -418,66 +418,40 @@ struct FicheroApp: App {
             #if os(macOS)
             // Replace the default About item with one that opens the custom
             // About window (#2557).
+            // The app menu in Apple's order (Daniel, 2026-10-11, reviewed against iTerm): About and Check for Updates,
+            // then Settings… with Set Up Fichero… beside it, Services and Hide, the one-time installers above Quit.
+            // Reference windows (Language Coverage, Feature Tiers) live in Help (ViewMenuPaneSections).
             CommandGroup(replacing: .appInfo) {
                 AboutWindowMenuButton()
-            }
-            #endif
-            CommandGroup(after: .appInfo) {
-                // The app's welcome, again: beside Settings, as File › Set Up New Project… is for a project.
-                Button("Set Up Fichero…") { libraryManager.appSetUpRequested = true }
-                Divider()
-
-                // Sparkle auto-update is the DMG/Developer-ID channel only. The
-                // Mac App Store forbids Sparkle's helpers and does its own
-                // updates, so the MAS build (which defines APP_STORE and doesn't
-                // link Sparkle) hides this item (#3340). No-op on Dev/Release,
-                // which never define APP_STORE — those keep the update item.
-                #if os(macOS) && !APP_STORE
-                Button("Check for Updates...") {
+                // Sparkle auto-update is the DMG/Developer-ID channel only. The Mac App Store forbids Sparkle's
+                // helpers and does its own updates, so the MAS build (APP_STORE, no Sparkle) hides this (#3340).
+                #if !APP_STORE
+                Button("Check for Updates…") {
                     SparkleUpdater.shared.checkForUpdates()
                 }
                 #endif
-
-                // Log out of the multi-user session (#2021/#2022). Only shown
-                // when a session is active; clears the Keychain token and drops
-                // back to the login gate.
+            }
+            #endif
+            CommandGroup(after: .appSettings) {
+                // The app's welcome, again: beside Settings, as File › Set Up New Project… is for a project.
+                Button("Set Up Fichero…") { libraryManager.appSetUpRequested = true }
+            }
+            CommandGroup(before: .appTermination) {
+                #if os(macOS)
+                // The BBEdit pattern (Daniel, 2026-08-27): install the fichero CLI and MCP launchers from the app.
+                // At the bottom, as iTerm keeps its installers: done once, out of the way.
+                Button("Install Command-Line & MCP Tools…") {
+                    openWindow(id: "install-tools")
+                }
+                #endif
+                // Log out of the multi-user session (#2021/#2022). Only shown when a session is active; clears the
+                // Keychain token and drops back to the login gate.
                 if appState.sessionStore.phase == .authenticated {
-                    Divider()
                     Button(appState.sessionStore.currentUser.map { "Log Out \($0.username)…" } ?? "Log Out…") {
                         Task { await appState.sessionStore.logout() }
                     }
                 }
-
-                // Feature Tier Legend — the active build's tier + a window listing
-                // each feature's gate. Lives in the App menu: a top-level
-                // `CommandGroup(after: .help)` would be the 11th CommandsContent
-                // entry, exceeding @CommandsBuilder's 10-arity buildBlock (#3347).
-                // Shown only in non-release builds.
-                if featureManager.shouldShowTierChrome {
-                    Divider()
-                    Button(featureManager.buildTierStatusText) {
-                        openWindow(id: "feature-tier-legend")
-                    }
-                }
-
-                #if os(macOS)
-                // The BBEdit pattern (Daniel, 2026-08-27): install the
-                // fichero CLI and MCP launchers from the app itself.
                 Divider()
-                Button("Install Command-Line & MCP Tools…") {
-                    openWindow(id: "install-tools")
-                }
-
-                // loove language-coverage matrix — a dev-tier diagnostic window
-                // (which models can read which scripts), shown alongside the other
-                // diagnostic windows in non-release builds. Also reachable from the
-                // AI settings pane, which is why the menu entry can stay gated.
-                if featureManager.shouldShowTierChrome {
-                    Button("Language Coverage…") {
-                        openWindow(id: "loove-coverage")
-                    }
-                }
-                #endif
             }
 
             // File menu - Database/Library management

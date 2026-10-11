@@ -179,6 +179,8 @@ struct NavigateToParentButton: View {
 /// CommandsBuilder is at its arity cap, #3347); the empty `.sidebar`
 /// replacement keeps the system sidebar items suppressed as before.
 struct GoMenuCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+
     var body: some Commands {
         CommandGroup(replacing: .sidebar) {}
         CommandMenu("Go") {
@@ -193,6 +195,13 @@ struct GoMenuCommands: Commands {
         // `CommandGroup(after: .help)` in FicheroApp would be the 11th entry.
         CommandGroup(after: .help) {
             Link("Fichero User Manual", destination: URL(string: "https://tubb.ca/apps/fichero/")!)
+            // Reference windows moved out of the app menu (Daniel, 2026-10-11): which readers cover which scripts,
+            // and the build's feature tiers. Non-release builds only; the tier is a launch constant.
+            if FeatureManager.shared.shouldShowTierChrome {
+                Divider()
+                Button("Language Coverage…") { openWindow(id: "loove-coverage") }
+                Button("Feature Tiers…") { openWindow(id: "feature-tier-legend") }
+            }
             // Help › Save Logs for Support… (#5656): dev tier only. The tier is
             // a launch constant, so reading it here needs no observation.
             #if os(macOS)
