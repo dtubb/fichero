@@ -16,7 +16,9 @@ import importlib
 import os
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
+from _scan_files import scan_rglob
+
+SRC =Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 LOADS = {"from_pretrained", "SentenceTransformer", "hf_hub_download", "snapshot_download", "TextEmbedding"}
 WHERE = {"cache_dir", "cache_folder", "local_dir"}
 #: Scripts that run where the job runs, never on this Mac: their cache is that machine's.
@@ -28,7 +30,7 @@ REMOTE = {
 
 def _loads_without_a_place() -> list[str]:
     found = []
-    for path in sorted(SRC.rglob("*.py")):
+    for path in sorted(scan_rglob(SRC, "*.py")):
         rel = path.relative_to(SRC).as_posix()
         if rel in REMOTE:
             continue

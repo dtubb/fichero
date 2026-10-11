@@ -18,6 +18,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from _scan_files import scan_rglob
 
 from fichero_server.importers import dataless
 from fichero_server.models import DocType, Document, FileType
@@ -171,7 +172,7 @@ def test_ready_warns_and_copying_them_in_makes_the_project_keep_its_own(client, 
     assert undone.status_code == 200, undone.text
     for doc in linked:
         assert db.get(Document, doc.id).path == doc.path
-    assert not [p for p in (package / "files").rglob("*") if p.is_file() and "page_" in p.name]
+    assert not [p for p in scan_rglob(package / "files", "*") if p.is_file() and "page_" in p.name]
 
 
 def test_no_room_refuses_start_with_the_numbers(client, db, tmp_path, evicted, monkeypatch):
