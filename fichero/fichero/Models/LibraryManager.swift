@@ -188,6 +188,9 @@ class LibraryManager {
         /// Pages whose originals are in iCloud and not on this Mac, and Copy into the Project (#5669).
         @ObservationIgnored lazy var icloudStore = ICloudPagesStore(client: ficheroClient)
 
+        /// Import from IIIF and a bound folder's Refresh (#5671).
+        @ObservationIgnored lazy var iiifStore = IIIFImportStore(client: ficheroClient)
+
         /// Whether this library's older results are being brought into the page model, and the
         /// report when they have been (#5222 part 3). One per library, shared by its windows.
         @ObservationIgnored lazy var conversionStatusStore = ConversionStatusStore(client: ficheroClient)

@@ -192,6 +192,8 @@ struct FileMenuCommands: View {
                 FocusedImportFilesButton()
                 // Originals that moved (#5672): point at where they are now.
                 FocusedLocateOriginalsButton()
+                // A IIIF manifest or collection, by reference (#5671).
+                FocusedIIIFImportButton()
             }
 
             Divider()

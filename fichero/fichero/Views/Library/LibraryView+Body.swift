@@ -144,7 +144,11 @@ extension LibraryView {
             // Originals that moved, said above the rows, and Locate Originals (#5672).
             .modifier(LocateOriginalsPresenter(store: activeLibraryReference?.originalsStore,
                                                actionsService: activeLibraryReference?.actionsService,
-                                               folderId: folderId))
+                                               folderId: shownFolderDocumentId))
+            // File › Import from IIIF… into this project, or the folder shown (#5671).
+            .modifier(IIIFImportPresenter(target: activeLibraryReference.map {
+                IIIFImportTarget(store: $0.iiifStore, folderId: shownFolderDocumentId, folderName: shownFolderName)
+            }))
             // The library's own mini toolbar (#4407 / #4374): search, sort and
             // filter live with the surface they act on. Top on the Mac, bottom
             // on touch — the same single platform decision the reader's find

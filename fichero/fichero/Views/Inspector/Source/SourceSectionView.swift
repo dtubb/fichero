@@ -95,6 +95,8 @@ struct SourceInfoView: View {
                 InspectorMakingSection(documentId: document.id)
                 // A folder the project is tied to shows it is synced, its intake and Untie (#5480).
                 FolderSyncInspectorSection(document: document)
+                // A folder bound to a IIIF source: where from, how many, Refresh (#5671).
+                IIIFFolderInspectorSection(document: document)
                 // A folder: the documents Find the Documents proposed, waiting for a person (#5550).
                 FoundDocumentsInspectorSection(document: document)
                 DocumentInspectorInfoTab(document: document)
