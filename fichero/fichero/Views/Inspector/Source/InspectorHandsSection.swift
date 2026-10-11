@@ -8,7 +8,7 @@ struct InspectorHandsSection: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @Environment(WindowState.self) private var windowState: WindowState?
     @State private var hands: [InspectorHands.ListedHand] = []
     @State private var attributions: [InspectorHands.Attribution] = []
@@ -83,11 +83,11 @@ struct InspectorHandsSection: View {
 
     private func run<Params: Encodable>(_ name: String, _ params: Params, _ actionName: String) {
         guard let actionsService = actionStore?.actionsService else { return }
-        let undoManager = undoManager
+        let windowSteps = windowSteps
         Task {
             _ = try? await AuditedAction.run(
                 name, params: params, actionName: actionName, actionsService: actionsService,
-                undoManager: undoManager, afterChange: { await reload() }
+                steps: windowSteps, afterChange: { await reload() }
             )
         }
     }
@@ -99,7 +99,7 @@ struct InspectorHandsSection: View {
         let known = Set(hands.map(\.id))
         guard (try? await AuditedAction.run(
             "hand.create", params: HandCreateRequest(label: label), actionName: "New Hand",
-            actionsService: actionsService, undoManager: undoManager, afterChange: { await reload() }
+            actionsService: actionsService, steps: windowSteps, afterChange: { await reload() }
         )) != nil else { return }
         // The hand the create just made: the one with this name that was not in the list before.
         guard let handId = hands.first(where: { !known.contains($0.id) && $0.label == label })?.id else { return }

@@ -19,13 +19,13 @@ enum SourceDirection {
     /// Sends it through the audited choke point, ⌘Z registered, `didChange` after each step.
     @MainActor
     static func apply(
-        _ direction: String?, on nodeId: String, actionsService: ActionsService, undoManager: UndoManager?
+        _ direction: String?, on nodeId: String, actionsService: ActionsService, steps: WindowSteps?
     ) async throws {
         let planned = call(direction, on: nodeId)
         try await AuditedAction.run(
             planned.action, params: planned.params,
             actionName: direction == nil ? "Clear Direction" : "Set Direction",
-            actionsService: actionsService, undoManager: undoManager,
+            actionsService: actionsService, steps: steps,
             afterChange: { NotificationCenter.default.post(name: didChange, object: nodeId) }
         )
     }

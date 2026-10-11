@@ -10,7 +10,7 @@ struct InspectorSegmentMakingSection: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var live: Segment?
     @State private var versions: [SegmentHistory.Version] = []
     @State private var picture: Data?
@@ -86,7 +86,7 @@ struct InspectorSegmentMakingSection: View {
         do {
             try await AuditedAction.run(
                 "segment.restore_version", params: params, actionName: "Restore Version",
-                actionsService: actionsService, undoManager: undoManager,
+                actionsService: actionsService, steps: windowSteps,
                 afterChange: {
                     await store.load(documentId: documentId, force: true)
                     await reload()

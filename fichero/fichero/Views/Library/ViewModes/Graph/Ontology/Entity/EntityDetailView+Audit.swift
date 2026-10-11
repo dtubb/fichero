@@ -253,7 +253,7 @@ extension EntityDetailView {
         let absorbedId = keepThis ? candidate.id : entityId
         Task {
             do {
-                try await entityStore.merge(absorbedIds: [absorbedId], into: survivorId)
+                try await entityStore.merge(absorbedIds: [absorbedId], into: survivorId, steps: windowSteps)
                 duplicateActionMessage = keepThis
                     ? "Merged \"\(candidate.name)\" into \"\(displayName)\"."
                     : "Merged \"\(displayName)\" into \"\(candidate.name)\"."

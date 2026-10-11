@@ -215,6 +215,11 @@ struct LibraryWindow: View {
         .focusedSceneValue(\.newLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleNewLibrary() }))
         .focusedSceneValue(\.saveLibraryAction, FocusedLibraryAction(isEnabled: true, run: { handleSaveLibrary() }))
         .focusedSceneValue(\.closeLibraryAction, closeLibraryAction)
+        // This window's step stack (#5658): views register their changes on it, and the Edit menu's
+        // ⌘Z reads the key window's.
+        .environment(windowState.steps)
+        .focusedSceneValue(\.windowSteps, windowState.steps)
+        .overlay(alignment: .bottom) { UndoRefusalNotice(steps: windowState.steps) }
         // Project › Set Up… for this window's project (`source.onboard.reachable`, #5421).
         .focusedSceneValue(\.setUpProjectAction, FocusedLibraryAction(
             isEnabled: true,

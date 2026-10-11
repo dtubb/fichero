@@ -77,7 +77,7 @@ struct ReaderLineRow: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var editor: ReaderLineEditor
 
     init(segment: Segment, direction: String?, zoom: Double, isSelected: Bool = false, onPick: (() -> Void)? = nil) {
@@ -190,7 +190,7 @@ struct ReaderLineRow: View {
     private func save() async {
         guard editor.isChanged, let segmentService, let actionsService = actionStore?.actionsService else { return }
         let runner = ReaderTextEditRunner(
-            actionsService: actionsService, segmentService: segmentService, undoManager: undoManager,
+            actionsService: actionsService, segmentService: segmentService, steps: windowSteps,
             refreshPage: { _ in }
         )
         await editor.save(runner: runner, service: segmentService)

@@ -11,7 +11,7 @@ struct InspectorNoReadingSection: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var typing = false
     @State private var words = ""
 
@@ -48,7 +48,7 @@ struct InspectorNoReadingSection: View {
                 documentId: documentId, segmentId: segmentId, kind: "transcription", content: content,
                 correctsRepresentationId: nil
             ),
-            actionName: "Type a Reading", actionsService: actionsService, undoManager: undoManager,
+            actionName: "Type a Reading", actionsService: actionsService, steps: windowSteps,
             afterChange: {
                 await store.load(documentId: documentId, force: true)
                 await afterChange()

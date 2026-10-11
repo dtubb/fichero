@@ -89,12 +89,25 @@ extension LibraryView {
     /// Perform the actual deletion after confirmation
     func performDeleteSelected() async {
         guard let library = libraryManager.getLibrary(id: windowState.libraryId) else { return }
+        // ONE step for the whole selection (`undo.batches`): the rows the deletes wrote, registered together
+        // after the last, named by how many went (`undo.naming.counts`). A failed one is reported and left out.
+        let steps = windowState.steps
+        steps.callStarted()
+        var written: [String] = []
+        defer {
+            steps.callEnded()
+            UndoableChange.register(
+                written, named: written.count == 1 ? "Move to Trash" : "Move \(written.count) Items to Trash",
+                service: library.actionsService, steps: steps
+            )
+        }
         for doc in documentsToDelete {
             do {
-                _ = try await library.actionsService.invokeAction(
+                let result = try await library.actionsService.invokeAction(
                     name: "document.delete",
                     params: DocumentDeleteActionParams(docId: doc.id)
                 )
+                written.append(result.auditId)
             } catch {
                 ErrorService.shared.reportError(
                     ErrorModel.fileSystemError(

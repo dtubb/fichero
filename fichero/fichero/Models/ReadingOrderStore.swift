@@ -183,23 +183,18 @@ final class ReadingOrderStore {
         }
     }
 
-    /// ⌘Z for a move, through the app's `UndoManager` (`ActionUndo`): the engine inverts the audit
+    /// ⌘Z for a move, on the window's steps (`UndoableChange`, #5658): the engine inverts the audit
     /// row, and the list re-reads the order so it shows where the row went back to.
     /// `afterUndo` is for a surface that shows the order some other way -- the Reader's text.
     func registerUndo(
-        auditId: String?, undoManager: UndoManager?, actionsService: ActionsService?,
+        auditId: String?, steps: WindowSteps?, actionsService: ActionsService?,
         afterUndo: @escaping @MainActor () -> Void = {}
     ) {
-        guard let actionsService else { return }
-        ActionUndo.register(
-            auditId: auditId,
-            actionName: "Move in Reading Order",
-            undoManager: undoManager,
-            performUndo: { [weak self] auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
+        UndoableChange.register(
+            [auditId].compactMap { $0 }, named: "Move in Reading Order", service: actionsService, steps: steps,
+            afterEach: { [weak self] in
                 await self?.reloadEntries()
                 afterUndo()
-                return next
             }
         )
     }

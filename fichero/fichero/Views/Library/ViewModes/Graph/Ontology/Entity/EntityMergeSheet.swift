@@ -7,7 +7,7 @@ import SwiftUI
 /// `POST /api/actions/invoke` with `name: "entity.merge"` (#1848 exhibit A) —
 /// so the UI merge button runs the *same* named, audited action the chat agent,
 /// App Intents, and tests use. The `invokeAction` central seam records the
-/// returned `audit_id` on the per-library `LastAction` to seed ⌘Z
+/// returned `audit_id` as one step on the window's stack, for ⌘Z
 /// (`audit/{id}/undo`). The observable change stream still emits `entity.merged`,
 /// so the list refresh is unchanged.
 struct EntityMergeSheet: View {
@@ -23,6 +23,8 @@ struct EntityMergeSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(EntityService.self) private var entityService: EntityService?
+    /// This window's step stack: the change registers on it, so ⌘Z here takes it back (#5658).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
 
     /// The library this sheet is MUTATING, resolved from the service it was
     /// handed, by object identity. See `merge()` for why it is the library and
@@ -165,9 +167,8 @@ struct EntityMergeSheet: View {
                     absorbedEntityIds: Array(selectedIds),
                     mergedDescription: desc.isEmpty ? nil : desc
                 )
-                _ = try await library.actionsService.invokeAction(
-                    name: "entity.merge",
-                    params: params
+                try await UndoableChange.invoke(
+                    "entity.merge", params: params, named: "Merge", service: library.actionsService, steps: windowSteps
                 )
                 onMerge()
                 dismiss()

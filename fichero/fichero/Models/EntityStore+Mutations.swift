@@ -97,14 +97,15 @@ extension EntityStore {
     ///
     /// Through the audited `entity.merge` action, not the curation route (#5129): the route wrote
     /// the same audit row but handed back no `audit_id`, so ⌘Z could never take a merge back.
-    /// `invokeAction` records it on this library's `LastAction`.
-    func merge(absorbedIds: [String], into survivorId: String) async throws {
-        try await actions.invokeAction(
-            name: "entity.merge",
+    /// The merge is one step on `steps`, the window's stack, so ⌘Z there takes it back (#5658).
+    func merge(absorbedIds: [String], into survivorId: String, steps: WindowSteps?) async throws {
+        try await UndoableChange.invoke(
+            "entity.merge",
             params: Components.Schemas.EntityMergeRequest(
                 absorbingEntityId: survivorId,
                 absorbedEntityIds: absorbedIds
-            )
+            ),
+            named: "Merge", service: actions, steps: steps
         )
         // #4489 ③: this used to prune `libraryEntities` and the per-document
         // buckets by hand and leave `libraryClaimCounts` alone, so absorbed ids

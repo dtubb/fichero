@@ -9,7 +9,7 @@ struct SourceDirectionMenu: View {
     let nodeId: String
     let actionsService: ActionsService?
     var title = "Direction"
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
 
     var body: some View {
         Menu(title) {
@@ -25,11 +25,11 @@ struct SourceDirectionMenu: View {
 
     private func apply(_ direction: String?) {
         guard let actionsService else { return }
-        let undoManager = undoManager
+        let windowSteps = windowSteps
         let nodeId = nodeId
         Task {
             do {
-                try await SourceDirection.apply(direction, on: nodeId, actionsService: actionsService, undoManager: undoManager)
+                try await SourceDirection.apply(direction, on: nodeId, actionsService: actionsService, steps: windowSteps)
             } catch {
                 sourceDirectionLogger.error("direction on \(nodeId, privacy: .public) failed: \(error.localizedDescription)")
             }

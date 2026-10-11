@@ -59,8 +59,8 @@ private final class TransferMockURLProtocol: URLProtocol {
         case "/api/documents":
             return (200, #"{"count":1,"items":[{"id":"new-1","name":"Diary 1933","#
                 + #""expected_thumbnail_path":"","expected_display_path":""}]}"#)
-        case "/api/actions/audit/audit-9/undo":
-            return (200, #"{"ok":true,"result":{},"audit_id":"audit-10","changed_domains":["document"]}"#)
+        case "/api/actions/audit/undo":
+            return (200, #"{"ok":true,"audit_ids":["audit-10"],"results":[],"changed_domains":["document"]}"#)
         default:
             return (404, #"{"detail":"not stubbed"}"#)
         }
@@ -118,7 +118,7 @@ struct ProjectTransferStoreTests {
         #expect(ProjectTransferStore.cuts(plan) == ["Letter to Lima: its other end stays in Marshall"])
         #expect(ProjectTransferStore.proposals(plan) == ["Juan de la Cruz may be Juan de la Cruz (same name and type)"])
 
-        await store.run(undoManager: nil)
+        await store.run(steps: nil)
         #expect(transfers().last?["dry_run"] as? Bool == false)
         let drop = try #require(store.pending)
         let result = try #require(drop.result)
@@ -136,7 +136,7 @@ struct ProjectTransferStoreTests {
         await store.begin(items: ["d1"], from: source, to: target, parentId: nil, decision: .copy)
         #expect(transfers().last?["mode"] as? String == "copy")
         #expect(transfers().last?["target_parent_id"] == nil, "no folder: the target's Sources folder")
-        await store.run(undoManager: nil)
+        await store.run(steps: nil)
         #expect(store.pending?.result != nil)
         #expect(source.documentStore.currentDocuments.map(\.id) == ["d1"], "a copy leaves the source as it was")
     }
@@ -151,7 +151,7 @@ struct ProjectTransferStoreTests {
         #expect(store.pending?.refusal == "Aliases stay within a project.")
         #expect(store.pending?.offersCopyInstead == true)
         #expect(transfers().isEmpty, "nothing asked of the engine")
-        await store.run(undoManager: nil)
+        await store.run(steps: nil)
         #expect(transfers().isEmpty, "a refused drop never runs")
 
         await store.copyInstead()
@@ -169,7 +169,7 @@ struct ProjectTransferStoreTests {
         await store.begin(items: ["d1"], from: source, to: target, parentId: nil, decision: .move)
         #expect(store.pending?.refusal == "These items are already being moved to Istmina.")
         #expect(store.pending?.plan == nil)
-        await store.run(undoManager: nil)
+        await store.run(steps: nil)
         #expect(transfers().count == 1, "only the dry run was asked")
         #expect(source.documentStore.currentDocuments.map(\.id) == ["d1"])
     }
@@ -193,23 +193,21 @@ struct ProjectTransferStoreTests {
     func undoTakesItBack() async throws {
         let (source, target) = projects()
         let store = ProjectTransferStore()
-        let manager = UndoManager()
-        manager.groupsByEvent = false
+        let steps = WindowSteps()
         await store.begin(items: ["d1"], from: source, to: target, parentId: "f1", decision: .move)
-        manager.beginUndoGrouping()
-        await store.run(undoManager: manager)
-        manager.endUndoGrouping()
-        #expect(manager.canUndo)
-        #expect(manager.undoActionName == "Move to Istmina")
+        await store.run(steps: steps)
+        #expect(steps.canUndo)
+        #expect(steps.undoName == "Move to Istmina")
 
-        manager.undo()
-        // The undo is an engine call ActionUndo starts in a Task; wait for it to reach the stub, up to 20 s.
+        steps.undo()
+        // The undo is an engine call the step starts in a Task; wait for it to reach the stub, up to 20 s.
         for _ in 0..<2000 where !TransferMockURLProtocol.seen.contains(where: { $0.path.hasSuffix("/undo") }) {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         let undo = try #require(TransferMockURLProtocol.seen.first { $0.path.hasSuffix("/undo") },
                                 "requests seen: \(TransferMockURLProtocol.seen.map(\.path))")
-        #expect(undo.path == "/api/actions/audit/audit-9/undo")
+        #expect(undo.path == "/api/actions/audit/undo")
+        #expect(undo.body["audit_ids"] as? [String] == ["audit-9"])
         #expect(undo.library == "/tmp/Istmina.fichero")
     }
 }

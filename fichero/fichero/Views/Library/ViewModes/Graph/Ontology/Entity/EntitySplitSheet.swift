@@ -21,6 +21,8 @@ struct EntitySplitSheet: View {
     /// the library it is about to change must not guess one
     /// (#4306/#4461).
     @Environment(EntityService.self) private var entityService: EntityService?
+    /// This window's step stack: the change registers on it, so ⌘Z here takes it back (#5658).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @State private var selectedSplitIds: Set<String> = []
     @State private var selectedAliases: Set<String> = []
     @State private var isSaving = false
@@ -127,13 +129,14 @@ struct EntitySplitSheet: View {
             do {
                 // The audited `entity.split` action, not the curation route: the route handed back
                 // no `audit_id`, so ⌘Z could not take a split back (#5129).
-                try await library.actionsService.invokeAction(
-                    name: "entity.split",
+                try await UndoableChange.invoke(
+                    "entity.split",
                     params: Components.Schemas.EntitySplitRequest(
                         primaryEntityId: primaryId,
                         splitOffEntityIds: Array(selectedSplitIds),
                         aliasesToMove: Array(selectedAliases)
-                    )
+                    ),
+                    named: "Split", service: library.actionsService, steps: windowSteps
                 )
                 onSplit()
                 dismiss()

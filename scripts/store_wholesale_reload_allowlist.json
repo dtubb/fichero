@@ -145,13 +145,6 @@
     "issue": 4824
   },
   {
-    "file": "fichero/fichero/Models/AuditStore.swift",
-    "method": "undoLast",
-    "class": "violation",
-    "reason": "#4824 structural re-scan 2026-09-18 \u2014 same pattern as undo (delegates to it)",
-    "issue": 4824
-  },
-  {
     "file": "fichero/fichero/Models/BatchStore.swift",
     "method": "runFolderBatch",
     "class": "violation",

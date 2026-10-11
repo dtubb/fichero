@@ -34,12 +34,6 @@ class ActionLibraryService {
     /// `ActionsService` subclass.
     let client: FicheroClient
 
-    /// Per-library holder for the most-recent audited action, powering ⌘Z
-    /// (#3444). Scoped to this service (one per library) — NOT a process-global
-    /// singleton, so an undo can't reverse a different library's action. The
-    /// `invokeAction` central seam records every audited mutation here.
-    let lastAction = LastAction()
-
     /// - Parameter client: The generated client to route `/api/actions/*` through.
     ///   Required (no default): production injects the library's real client via
     ///   `LibraryManager` (which honors `EngineConfig.transportMode` — UDS /

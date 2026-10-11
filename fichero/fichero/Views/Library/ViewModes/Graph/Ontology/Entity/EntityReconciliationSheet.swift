@@ -75,6 +75,8 @@ struct EntityReconciliationSheet: View {
     let documentId: String
 
     @Environment(EntityStore.self) private var entityStore
+    /// This window's step stack: the change registers on it, so ⌘Z here takes it back (#5658).
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @Environment(\.dismiss) private var dismiss
 
     @State private var scope: EntityReconciliationScope = .folder
@@ -219,7 +221,7 @@ struct EntityReconciliationSheet: View {
         let survivorName = keepA ? candidate.entityAName : candidate.entityBName
         Task {
             do {
-                try await entityStore.merge(absorbedIds: [absorbedId], into: survivorId)
+                try await entityStore.merge(absorbedIds: [absorbedId], into: survivorId, steps: windowSteps)
                 message = "Merged into \"\(survivorName)\"."
                 await load()
             } catch {

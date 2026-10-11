@@ -8,7 +8,7 @@ struct ProjectTransferSheet: View {
     let store: ProjectTransferStore
     let drop: ProjectTransferStore.Pending
     /// The window's step stack, read outside the sheet, where ⌘Z takes the transfer back.
-    let undoManager: UndoManager?
+    let steps: WindowSteps?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -75,7 +75,7 @@ struct ProjectTransferSheet: View {
                 if drop.offersCopyInstead {
                     Button("Copy Instead") { Task { await store.copyInstead() } }.keyboardShortcut(.defaultAction)
                 } else {
-                    Button(drop.mode == .move ? "Move" : "Copy") { Task { await store.run(undoManager: undoManager) } }
+                    Button(drop.mode == .move ? "Move" : "Copy") { Task { await store.run(steps: steps) } }
                         .keyboardShortcut(.defaultAction)
                         .disabled(drop.plan == nil || drop.refusal != nil || drop.isWorking)
                 }
@@ -85,15 +85,15 @@ struct ProjectTransferSheet: View {
 }
 
 /// The window's one host for the transfer sheet: the sidebar and Items both start a drop on the window's
-/// `ProjectTransferStore`, and it shows here. The undo manager is read here, outside the sheet, so ⌘Z after a
+/// `ProjectTransferStore`, and it shows here. The window's steps are read here, outside the sheet, so ⌘Z after a
 /// transfer lands on the window's own step stack.
 struct ProjectTransferSheetHost: ViewModifier {
     let store: ProjectTransferStore
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
 
     func body(content: Content) -> some View {
         content.sheet(item: Binding(get: { store.pending }, set: { if $0 == nil { store.cancel() } })) { drop in
-            ProjectTransferSheet(store: store, drop: drop, undoManager: undoManager)
+            ProjectTransferSheet(store: store, drop: drop, steps: windowSteps)
         }
     }
 }
@@ -109,5 +109,5 @@ struct ProjectTransferSheetHost: ViewModifier {
                                             mode: .move)
     drop.refusal = ProjectTransferStore.aliasRefusal
     drop.offersCopyInstead = true
-    return ProjectTransferSheet(store: store, drop: drop, undoManager: nil)
+    return ProjectTransferSheet(store: store, drop: drop, steps: nil)
 }

@@ -11,7 +11,7 @@ struct InspectorEditorialSection: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var answer = InspectorEditorial.Answer(facts: [], drawn: nil)
 
     private var service: EditorialService? { segmentService.map { EditorialService(client: $0.client) } }
@@ -75,11 +75,11 @@ struct InspectorEditorialSection: View {
 
     private func run<Params: Encodable>(_ name: String, _ params: Params, _ actionName: String) {
         guard let actionsService = actionStore?.actionsService else { return }
-        let undoManager = undoManager
+        let windowSteps = windowSteps
         Task {
             _ = try? await AuditedAction.run(
                 name, params: params, actionName: actionName, actionsService: actionsService,
-                undoManager: undoManager, afterChange: { await reload() }
+                steps: windowSteps, afterChange: { await reload() }
             )
         }
     }

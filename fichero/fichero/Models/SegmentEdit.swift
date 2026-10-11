@@ -267,25 +267,18 @@ struct SegmentEditRunner {
     /// Answers the audit id the edit wrote.
     @discardableResult
     func run(
-        _ call: SegmentEdit.Call, documentId: String, actionName: String, undoManager: UndoManager?,
+        _ call: SegmentEdit.Call, documentId: String, actionName: String, steps: WindowSteps?,
         afterChange: @escaping @MainActor () async -> Void = {}
     ) async throws -> String {
-        let result = try await actionsService.invokeAction(name: call.action, params: call.params)
         let store = store
-        let actionsService = actionsService
-        ActionUndo.register(
-            auditId: result.auditId, actionName: actionName, undoManager: undoManager,
-            performUndo: { auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
+        let result = try await AuditedAction.run(
+            call.action, params: call.params, actionName: actionName, actionsService: actionsService, steps: steps,
+            afterChange: {
                 await store.load(documentId: documentId, force: true)
                 await afterChange()
                 NotificationCenter.default.post(name: SegmentEditRunner.didChange, object: documentId)
-                return next
             }
         )
-        await store.load(documentId: documentId, force: true)
-        await afterChange()
-        NotificationCenter.default.post(name: Self.didChange, object: documentId)
         return result.auditId
     }
 }

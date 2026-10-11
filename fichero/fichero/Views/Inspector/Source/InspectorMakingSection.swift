@@ -7,7 +7,7 @@ struct InspectorMakingSection: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
     @State private var shown: PassOriginal?
     /// What the engine writes, for each pass's Export menu (#5162).
@@ -127,7 +127,7 @@ struct InspectorMakingSection: View {
         do {
             try await WorkingPassChoice.run(
                 documentId: documentId, passId: passId, actionsService: actionsService,
-                store: SegmentStore.shared(for: segmentService), undoManager: undoManager
+                store: SegmentStore.shared(for: segmentService), steps: windowSteps
             )
             failure = nil
         } catch {
@@ -141,7 +141,7 @@ struct InspectorMakingSection: View {
         do {
             try await PassDeletion.run(
                 documentId: documentId, passId: passId, actionsService: actionsService,
-                store: SegmentStore.shared(for: segmentService), undoManager: undoManager
+                store: SegmentStore.shared(for: segmentService), steps: windowSteps
             )
             failure = nil
         } catch {

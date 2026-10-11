@@ -45,11 +45,11 @@ extension PDFPageWithToolbar {
             pdfSegmentEditLogger.notice("\(name, privacy: .public) not sent: refused")
             return
         }
-        let undoManager = pdfUndoManager
+        let windowSteps = pdfWindowSteps
         Task {
             do {
                 try await SegmentEditRunner(actionsService: actionsService, store: store).run(
-                    call, documentId: documentId, actionName: name, undoManager: undoManager,
+                    call, documentId: documentId, actionName: name, steps: windowSteps,
                     afterChange: { await loadOCRGeometry() }
                 )
             } catch {

@@ -23,6 +23,8 @@ struct EntityDetailView: View {
     /// Entity rename routes through the store (#1862/#1865); the change-stream's
     /// `entity.updated` event fans the refresh, retiring `.ficheroEntityUpdated`.
     @Environment(EntityStore.self) var entityStore
+    /// This window's step stack: the change registers on it, so ⌘Z here takes it back (#5658).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     /// Per-window entity-search bus (#3437).
     @Environment(EntitySearchState.self) private var entitySearchState: EntitySearchState?
     let entity: Components.Schemas.KnowledgeEntity

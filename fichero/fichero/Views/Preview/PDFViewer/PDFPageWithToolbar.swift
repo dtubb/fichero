@@ -117,7 +117,7 @@ struct PDFPageWithToolbar: View {
     /// Sticky markup tool seam (Daniel, 2026-08-30); optional for headless hosts.
     @Environment(WindowState.self) var pdfWindowState: WindowState?
     @Environment(ActionStore.self) var pdfActionStore: ActionStore?
-    @Environment(\.undoManager) var pdfUndoManager
+    @Environment(WindowSteps.self) var pdfWindowSteps: WindowSteps?
     /// This page's region selection -- the window's ONE selection while it is the focused pane (#5155):
     /// the Inspector and the Reader read and write it (`PDFPageWithToolbar+SegmentEdits`).
     @State var pdfRegionSelection = RegionSelection()

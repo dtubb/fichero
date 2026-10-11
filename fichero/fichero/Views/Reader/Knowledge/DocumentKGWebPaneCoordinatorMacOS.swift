@@ -474,7 +474,7 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         let webView = webView
         let runner = ReaderTextEditRunner(
             actionsService: library.actionsService, segmentService: library.segmentService,
-            undoManager: webView?.undoManager,
+            steps: windowState?.steps,
             refreshPage: { pageId in await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) }
         )
         // The page's answer is a courtesy (it re-reads itself on a refusal), so a failure to deliver it
@@ -559,7 +559,7 @@ extension DocumentKGWebPaneCoordinatorMacOS {
         let webView = webView
         let pageId = request.pageId
         store.registerUndo(
-            auditId: auditId, undoManager: webView?.undoManager, actionsService: library.actionsService,
+            auditId: auditId, steps: windowState?.steps, actionsService: library.actionsService,
             afterUndo: { Task { @MainActor in await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView) } }
         )
         await DocumentKGWebPaneCoordinatorMacOS.refreshPage(pageId, in: webView)

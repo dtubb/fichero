@@ -19,19 +19,13 @@ enum ReadingChoice {
     @MainActor
     @discardableResult
     static func run(
-        _ params: Params, actionsService: ActionsService, undoManager: UndoManager?,
+        _ params: Params, actionsService: ActionsService, steps: WindowSteps?,
         afterChange: @escaping @MainActor () async -> Void
     ) async throws -> String {
-        let result = try await actionsService.invokeAction(name: "reading.choose", params: params)
-        ActionUndo.register(
-            auditId: result.auditId, actionName: "Choose Reading", undoManager: undoManager,
-            performUndo: { auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
-                await afterChange()
-                return next
-            }
+        let result = try await AuditedAction.run(
+            "reading.choose", params: params, actionName: "Choose Reading", actionsService: actionsService,
+            steps: steps, afterChange: afterChange
         )
-        await afterChange()
         return result.auditId
     }
 }

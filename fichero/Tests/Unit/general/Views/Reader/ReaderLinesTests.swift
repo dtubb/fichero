@@ -164,7 +164,7 @@ struct ReaderLinesTests {
         let page = try await loaded()
         let store = page.store, service = page.service, client = page.client
         let runner = ReaderTextEditRunner(
-            actionsService: ActionsService(client: client), segmentService: service, undoManager: nil, refreshPage: { _ in }
+            actionsService: ActionsService(client: client), segmentService: service, steps: nil, refreshPage: { _ in }
         )
         let editor = ReaderLineEditor(segment: try line("seg-0003", in: store))
         await editor.load(service)

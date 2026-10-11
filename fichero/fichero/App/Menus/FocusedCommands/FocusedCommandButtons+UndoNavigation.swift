@@ -1,25 +1,7 @@
-import FicheroAPIClient
-import OSLog
 import SwiftUI
 
-#if canImport(AppKit)
-import AppKit
-#endif
+// MARK: - Back and Forward
 
-// MARK: - Undo (audited actions)
-
-/// ⌘Z — undo the last audited action via `POST /api/actions/audit/{id}/undo` (#2015).
-///
-/// MVP **single-level** undo: it reverses the most recent action recorded in the
-/// shared `LastAction` holder (seeded today by the entity-merge button), then
-/// clears the holder so a repeated ⌘Z can't double-undo the same audit row.
-/// The observable change stream propagates the reversed state back into the open
-/// views, so there is no manual refresh here.
-///
-/// Multi-level undo — a per-window stack that walks the `/api/actions/audit`
-/// log row by row — is a deliberate follow-up. This replaces SwiftUI's default
-/// `.undoRedo` menu items so there is exactly one "Undo", and so the view-local
-/// `UndoManager` isn't fighting the audited backend undo.
 /// View-menu "Back" — steps the focused window's navigation history back one
 /// entry (#3581). Mirrors the content-column toolbar button's ⌘' shortcut and
 /// enabled state; disabled when there's no focused window or nothing to go back to.
@@ -48,82 +30,50 @@ struct NavigateForwardButton: View {
     }
 }
 
+/// ⌘Z (#5658, ruled per window 2026-10-11): typing in a focused field first, then the image
+/// editor's last step, then the KEY WINDOW's own steps (`WindowSteps`), newest first, named by the
+/// step ("Undo Move", "Undo Delete 3 Items"). Disabled while one of the window's calls is out
+/// (`undo.window.in-flight`). Never Back, and never another window's or another person's change:
+/// those are taken back from the history list. A refusal is shown in the window that asked
+/// (`UndoRefusalNotice`).
 @MainActor
 struct UndoLastActionButton: View {
-    /// The active library's audited-action holder (#3444 — per library, not a
-    /// process-global singleton). Reading `.actionName`/`.auditId` in the body
-    /// registers an @Observable dependency, so the menu item's title + enabled
-    /// state track the last recorded action without manual republishing.
-    private var lastAction: LastAction? {
-        LibraryManager.shared.globalLibrary?.actionsService.lastAction
-    }
-    /// The active library's audit log — the source of truth for multi-level undo
-    /// (#3444). ⌘Z walks it row by row instead of only reversing the single
-    /// last-recorded action.
-    private var auditStore: AuditStore? {
-        LibraryManager.shared.globalLibrary?.auditStore
-    }
-    @FocusedValue(\.navigationUndoAction) private var navigationUndoAction
+    @FocusedValue(\.windowSteps) private var windowSteps
     /// The mounted image editor's undo-last-step (Daniel, 2026-08-31).
     @FocusedValue(\.imageEditUndoAction) private var imageEditUndoAction
-
-    private var logger: Logger {
-        Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
-    }
 
     var body: some View {
         Button(undoTitle) {
             performUndo()
         }
         .keyboardShortcut("z", modifiers: .command)
-        .disabled(!isEnabled)
+        .disabled(route == .none)
+        .accessibilityIdentifier("edit.undo")
     }
 
     /// Where this ⌘Z should land right now (#4354). The menu item is a key
     /// equivalent, so it matches ahead of the responder chain; the route puts
-    /// the focused text editor back in front of the app-level undo.
+    /// the focused text editor back in front of the window's steps.
     ///
     /// Recomputed on every body evaluation, which is when AppKit rebuilds the
     /// menu (menu validation runs before display and before a key equivalent
     /// fires), so the focus probe is read at the moment it matters.
     private var route: UndoRoute {
-        UndoRoutingPolicy.route(
+        _ = windowSteps?.revision
+        return UndoRoutingPolicy.route(
             isTextEditing: FocusedTextResponder.isEditing,
             textUndoAvailable: FocusedTextResponder.canUndo,
             imageEditUndoEnabled: imageEditUndoAction?.isEnabled == true,
-            windowUndoAvailable: WindowStepStack.canUndo,
-            navigationUndoEnabled: navigationUndoAction?.isEnabled == true,
-            hasAuditedUndo: auditStore?.nextUndoableEntry != nil || lastAction?.auditId != nil
+            windowUndoAvailable: windowSteps?.canUndo == true
         )
     }
 
-    /// "Undo Merge" when the next undoable action is known, plain "Undo"
-    /// otherwise. Prefers the audit log's next target (multi-level, #3444);
-    /// falls back to the last-recorded action before the log has loaded.
     private var undoTitle: String {
-        // While typing, the menu item names the typing — never a library action
-        // the user is not looking at.
-        if route == .imageEdit { return "Undo Edit" }
-        if route == .windowStep {
-            return WindowStepStack.undoName.map { "Undo \($0)" } ?? "Undo"
+        switch route {
+        case .imageEdit: "Undo Edit"
+        case .windowStep: windowSteps?.undoName.map { "Undo \($0)" } ?? "Undo"
+        case .focusedTextEditor, .none: "Undo"
         }
-        if route == .focusedTextEditor || navigationUndoAction != nil {
-            return "Undo"
-        }
-        let name = auditStore?.nextUndoableEntry?.actionName ?? lastAction?.actionName
-        guard let name else { return "Undo" }
-        return "Undo \(Self.menuLabel(for: name))"
-    }
-
-    private var isEnabled: Bool {
-        route != .none
-    }
-
-    /// `"entity.merge"` → `"Merge"`. Falls back to the raw name if unverbed.
-    private static func menuLabel(for actionName: String) -> String {
-        let verb = actionName.split(separator: ".").last.map(String.init) ?? actionName
-        guard let first = verb.first else { return verb }
-        return first.uppercased() + verb.dropFirst()
     }
 
     private func performUndo() {
@@ -135,122 +85,43 @@ struct UndoLastActionButton: View {
             // responder chain would have produced if a key equivalent did not
             // match first (#4354).
             FocusedTextResponder.undo()
-            return
         case .imageEdit:
             imageEditUndoAction?.run()
-            return
         case .windowStep:
-            WindowStepStack.undo()
-            return
-        case .navigation:
-            navigationUndoAction?.run()
-            return
-        case .auditedAction:
-            break
+            windowSteps?.undo()
         }
-        guard let auditStore else { return }
-        Task {
-            // Multi-level: walk the audit log and reverse the most-recent
-            // still-undoable forward action. `undoLast()` loads the log if
-            // needed and reloads after, so a repeated ⌘Z steps further back.
-            let didUndo = await auditStore.undoLast()
-            if didUndo {
-                logger.info("⌘Z multi-level undo succeeded")
-                // Keep the single-level signal in sync: once the log has no more
-                // undoable forward actions, drop it so Undo disables cleanly.
-                if auditStore.nextUndoableEntry == nil {
-                    lastAction?.auditId = nil
-                    lastAction?.actionName = nil
-                }
-            } else {
-                // Nothing left to undo, or the reversal failed — clear the signal
-                // and surface any message (raise-not-silent, #3302).
-                lastAction?.auditId = nil
-                lastAction?.actionName = nil
-                logger.error("⌘Z undo found nothing to reverse or failed")
-                if let message = auditStore.statusMessage, message != "Nothing to undo" {
-                    presentUndoError(
-                        NSError(
-                            domain: "app.fichero.undo",
-                            code: 0,
-                            userInfo: [NSLocalizedDescriptionKey: message]
-                        )
-                    )
-                }
-            }
-        }
-    }
-
-    private func presentUndoError(_ error: Error) {
-        #if canImport(AppKit)
-        let alert = NSAlert()
-        alert.messageText = "Couldn't Undo"
-        alert.informativeText = error.localizedDescription
-        alert.alertStyle = .warning
-        alert.runModal()
-        #endif
     }
 }
 
 // MARK: - Redo (menu audit 2026-09-17)
 
-/// ⌘⇧Z — the Redo `CommandGroup(replacing: .undoRedo)` never supplied. Before
-/// this, only `UndoLastActionButton` replaced SwiftUI's default undo/redo
-/// items, so the app had exactly one ⌘Z Undo and NO Redo at all — a focused
-/// text editor (a claim's notes, a chat draft) could undo a sentence but never
-/// get it back.
-///
-/// Deliberately narrower than `UndoLastActionButton`: only two of Undo's four
-/// routes have a real redo counterpart today (see `RedoRoute`). Text editing
-/// hands off to the field's own `NSTextView.undoManager`, same as Undo. The
-/// audited-action log has no separate "redo" endpoint (#1848) — but undoing an
-/// undo re-applies the original forward action, so the redo TARGET is the
-/// newest still-undoable row that is ITSELF an inverse (`inverseOf` set) —
-/// `AuditStore.nextUndoableEntry` explicitly SKIPS these same rows "because
-/// those are redo targets, not further undos" (its own doc comment). This
-/// button is the other half of that sentence, without adding an endpoint.
+/// ⌘⇧Z — typing in a focused field first, then the key window's steps (#5658): it puts back what
+/// ⌘Z in this window took back, by the rows that undo wrote. Disabled while one of the window's
+/// calls is out.
 @MainActor
 struct RedoLastActionButton: View {
-    private var auditStore: AuditStore? {
-        LibraryManager.shared.globalLibrary?.auditStore
-    }
-
-    private var logger: Logger {
-        Logger(subsystem: "app.fichero.fichero", category: "ActionUndo")
-    }
+    @FocusedValue(\.windowSteps) private var windowSteps
 
     var body: some View {
         Button(redoTitle) {
             performRedo()
         }
         .keyboardShortcut("z", modifiers: [.command, .shift])
-        .disabled(!isEnabled)
-    }
-
-    /// The newest still-undoable audit row that is itself an inverse — undoing
-    /// IT re-applies the forward action it reversed. Delegates to
-    /// `AuditStore.nextRedoable(in:)` (menu audit 2026-09-17 / #4700-class fix):
-    /// a naive "any untouched inverse" filter also matches the row a redo
-    /// itself just wrote, so a second ⌘⇧Z would undo the redo instead of
-    /// being a no-op.
-    private var nextRedoableEntry: Components.Schemas.AuditLogEntry? {
-        guard let auditStore else { return nil }
-        return AuditStore.nextRedoable(in: auditStore.entries)
+        .disabled(route == .none)
+        .accessibilityIdentifier("edit.redo")
     }
 
     private var route: RedoRoute {
-        RedoRoutingPolicy.route(
+        _ = windowSteps?.revision
+        return RedoRoutingPolicy.route(
             isTextEditing: FocusedTextResponder.isEditing,
             textRedoAvailable: FocusedTextResponder.canRedo,
-            windowRedoAvailable: WindowStepStack.canRedo,
-            hasAuditedRedo: nextRedoableEntry != nil
+            windowRedoAvailable: windowSteps?.canRedo == true
         )
     }
 
-    private var isEnabled: Bool { route != .none }
-
     private var redoTitle: String {
-        guard route == .windowStep, let name = WindowStepStack.redoName else { return "Redo" }
+        guard route == .windowStep, let name = windowSteps?.redoName else { return "Redo" }
         return "Redo \(name)"
     }
 
@@ -260,21 +131,8 @@ struct RedoLastActionButton: View {
             return
         case .focusedTextEditor:
             FocusedTextResponder.redo()
-            return
         case .windowStep:
-            WindowStepStack.redo()
-            return
-        case .auditedAction:
-            break
-        }
-        guard let auditStore, let entry = nextRedoableEntry else { return }
-        Task {
-            let didRedo = await auditStore.undo(entry.id)
-            if didRedo {
-                logger.info("⌘⇧Z redo succeeded")
-            } else {
-                logger.error("⌘⇧Z redo found nothing to reverse or failed")
-            }
+            windowSteps?.redo()
         }
     }
 }

@@ -140,7 +140,7 @@ final class ProjectTransferStore {
     /// Move or Copy: the transfer itself. The target gains the copies and, for a move, the source loses the items,
     /// each spliced or removed in place (never a wholesale reload); the step goes on the window's undo stack, under
     /// the target's audit row, so ⌘Z takes it back. The result stays in the sheet, in words.
-    func run(undoManager: UndoManager?) async {
+    func run(steps: WindowSteps?) async {
         guard let drop = pending, drop.refusal == nil, drop.result == nil else { return }
         pending?.isWorking = true
         defer { pending?.isWorking = false }
@@ -150,7 +150,7 @@ final class ProjectTransferStore {
         case .success(let result):
             pending?.result = result
             await applyLocally(result, of: drop)
-            registerUndo(result, of: drop, undoManager: undoManager)
+            registerUndo(result, of: drop, steps: steps)
         }
     }
 
@@ -166,15 +166,13 @@ final class ProjectTransferStore {
         }
     }
 
-    private func registerUndo(_ result: Components.Schemas.TransferResult, of drop: Pending, undoManager: UndoManager?) {
-        let actions = drop.target.actionsService
+    private func registerUndo(_ result: Components.Schemas.TransferResult, of drop: Pending, steps: WindowSteps?) {
         // ponytail: after ⌘Z the two projects' change streams bring the rows back and take the copies away; no
         // local splice here, since the engine's inverse names no ids to splice.
-        ActionUndo.register(
-            auditId: result.audit,
-            actionName: "\(drop.mode == .move ? "Move" : "Copy") to \(drop.target.displayName)",
-            undoManager: undoManager,
-            performUndo: { auditId in try await actions.undoAction(auditId: auditId).auditId }
+        UndoableChange.register(
+            [result.audit].compactMap { $0 },
+            named: "\(drop.mode == .move ? "Move" : "Copy") to \(drop.target.displayName)",
+            service: drop.target.actionsService, steps: steps
         )
     }
 

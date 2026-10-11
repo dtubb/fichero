@@ -27,7 +27,7 @@ struct ReadingOrderList: View {
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @Environment(WindowState.self) private var windowState: WindowState?
 
     @State private var store: ReadingOrderStore?
@@ -190,7 +190,7 @@ struct ReadingOrderList: View {
         do {
             try await AuditedAction.run(
                 "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
-                actionName: "Create Named Order", actionsService: actionsService, undoManager: undoManager,
+                actionName: "Create Named Order", actionsService: actionsService, steps: windowSteps,
                 afterChange: {
                     if let segmentService {
                         await SegmentStore.shared(for: segmentService).load(documentId: documentId, force: true)
@@ -287,7 +287,7 @@ struct ReadingOrderList: View {
 
     /// ⌘Z for the move just made.
     private func record(_ auditId: String?, in store: ReadingOrderStore) {
-        store.registerUndo(auditId: auditId, undoManager: undoManager, actionsService: actionStore?.actionsService)
+        store.registerUndo(auditId: auditId, steps: windowSteps, actionsService: actionStore?.actionsService)
     }
 
     /// The line's own words when the page has them, else "line 3": a list of ids reads as nothing.

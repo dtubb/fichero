@@ -315,7 +315,7 @@ extension LibraryView {
         var failures: [String] = []
         for id in ids {
             switch await applyLibraryItemDropOperation(
-                operation, documentId: id, intoFolderId: folder.id, library: library
+                operation, documentId: id, intoFolderId: folder.id, library: library, steps: windowState.steps
             ) {
             case .applied:
                 break

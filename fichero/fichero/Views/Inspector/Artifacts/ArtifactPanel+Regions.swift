@@ -24,7 +24,7 @@ struct ArtifactRegionsSection: View {
 
     @Environment(ArtifactService.self) private var artifactService: ArtifactService?
     /// ⌘Z for the Inspector's Combine (#5115): the same registration the Source view uses.
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(SegmentService.self) private var segmentService: SegmentService?
 
@@ -180,7 +180,7 @@ struct ArtifactRegionsSection: View {
                     artifactId: artifactId, documentId: documentId, indices: indices
                 )
                 combined.registerUndo(
-                    actionName: "Join Regions", undoManager: undoManager,
+                    actionName: "Join Regions", steps: windowSteps,
                     actionsService: actionStore?.actionsService
                 )
                 selection.invalidate(artifactId: artifactId)

@@ -245,7 +245,7 @@ extension ZoomableImagePreview {
     /// inverting a guessed row — on a shared library, one person undoing another's edit.
     func registerRegionUndo(_ result: RegionEditResult, actionName: String) {
         result.registerUndo(
-            actionName: actionName, undoManager: undoManager,
+            actionName: actionName, steps: windowSteps,
             actionsService: actionStore?.actionsService,
             afterChange: { await reloadSegmentsAfterRegionEdit() }
         )

@@ -77,6 +77,8 @@ struct ArtifactsInspectorPane: View {
     @Environment(DocumentService.self) private var documentService
     @Environment(DocumentStore.self) private var documentStore: DocumentStore
     @Environment(LibraryManager.self) var libraryManager
+    /// This window's step stack: the change registers on it, so ⌘Z here takes it back (#5658).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     /// OPTIONAL on purpose (#4703): this view can update from a host that does not
     /// inherit the window's environment (toolbar item / inspector column) — a
     /// non-optional read here trapped the app ~25 s after launch when restored scene

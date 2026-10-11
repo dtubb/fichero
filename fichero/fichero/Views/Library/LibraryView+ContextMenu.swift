@@ -189,9 +189,9 @@ extension LibraryView {
         guard let library = activeLibraryReference else { return }
         Task { @MainActor in
             do {
-                _ = try await library.actionsService.invokeAction(
-                    name: "document.duplicate",
-                    params: DocumentDuplicateActionParams(docId: document.id, parentId: nil)
+                try await UndoableChange.invoke(
+                    "document.duplicate", params: DocumentDuplicateActionParams(docId: document.id, parentId: nil),
+                    named: "Duplicate", service: library.actionsService, steps: windowState.steps
                 )
                 await library.documentStore.refresh()
             } catch {

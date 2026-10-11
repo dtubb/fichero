@@ -1,23 +1,18 @@
 import Foundation
 
-/// One audited action from a verb, with ⌘Z: invoke it, register the undo by its own audit id, and call
-/// `afterChange` (re-read what the verb changed) after it and after each undo / redo. The Hands
-/// section's verbs use it; the older verbs (`ReadingChoice`, `WorkingPassChoice`) have the same shape.
+/// One audited action from a verb, with ⌘Z: the verbs' shape over the one helper (`UndoableChange`,
+/// #5658). It invokes the action, registers its row as one step on the window's stack, and calls
+/// `afterChange` (re-read what the verb changed) after it and after each undo / redo.
 enum AuditedAction {
     @MainActor
     @discardableResult
     static func run<Params: Encodable>(
         _ name: String, params: Params, actionName: String, actionsService: ActionsService,
-        undoManager: UndoManager?, afterChange: @escaping @MainActor () async -> Void = {}
+        steps: WindowSteps?, afterChange: @escaping @MainActor () async -> Void = {}
     ) async throws -> ActionInvokeResult {
-        let result = try await actionsService.invokeAction(name: name, params: params)
-        ActionUndo.register(
-            auditId: result.auditId, actionName: actionName, undoManager: undoManager,
-            performUndo: { auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
-                await afterChange()
-                return next
-            }
+        let result = try await UndoableChange.invoke(
+            name, params: params, named: actionName, service: actionsService, steps: steps,
+            afterEach: afterChange
         )
         await afterChange()
         return result

@@ -120,7 +120,7 @@ struct ZoomableImagePreview: View {
     /// ⌘Z for region edits (`source.editor.system-undo`, #4941). The system undo manager
     /// the window provides, and the action store whose service asks the engine to invert
     /// an audited row. Both optional: a host without them simply offers no undo.
-    @Environment(\.undoManager) var undoManager
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @Environment(ActionStore.self) var actionStore: ActionStore?
     /// Optional so previews / hosts without the service stay safe; the
     /// rendition control simply stays hidden without it.

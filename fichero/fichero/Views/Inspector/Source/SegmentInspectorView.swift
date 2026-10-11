@@ -16,7 +16,7 @@ struct SegmentInspectorView: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var level: Level = .selection
     @State private var text: InspectorText?
     @State private var language: [InspectorLanguage.Row] = []
@@ -182,9 +182,9 @@ struct SegmentInspectorView: View {
         )
         guard case .success(let call) = SegmentEdit.set(attribute, on: selectedIds.compactMap { byId[$0] }) else { return }
         let runner = SegmentEditRunner(actionsService: actionsService, store: store)
-        let undoManager = undoManager
+        let windowSteps = windowSteps
         Task {
-            try? await runner.run(call, documentId: documentId, actionName: "Set Segment", undoManager: undoManager)
+            try? await runner.run(call, documentId: documentId, actionName: "Set Segment", steps: windowSteps)
         }
     }
 
@@ -202,7 +202,7 @@ struct SegmentInspectorView: View {
     private func saveEdit() async {
         guard let editing, let inspected, let segmentService, let actionsService = actionStore?.actionsService else { return }
         let runner = ReaderTextEditRunner(
-            actionsService: actionsService, segmentService: segmentService, undoManager: undoManager,
+            actionsService: actionsService, segmentService: segmentService, steps: windowSteps,
             refreshPage: { _ in await reloadText() }
         )
         if let problem = await InspectorReadingEdit.save(
@@ -219,10 +219,10 @@ struct SegmentInspectorView: View {
     private func choose(_ reading: InspectorText.Reading, in text: InspectorText) {
         guard let inspected, let params = ReadingChoice.choose(reading, of: inspected, in: text),
               let actionsService = actionStore?.actionsService else { return }
-        let undoManager = undoManager
+        let windowSteps = windowSteps
         Task {
             try? await ReadingChoice.run(
-                params, actionsService: actionsService, undoManager: undoManager,
+                params, actionsService: actionsService, steps: windowSteps,
                 afterChange: { await reloadText() }
             )
         }

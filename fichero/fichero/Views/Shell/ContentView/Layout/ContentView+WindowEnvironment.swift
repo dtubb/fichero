@@ -95,6 +95,8 @@ struct WindowEnvironmentModifier: ViewModifier {
             .environment(storageService)
             .environment(viewSettings)
             .environment(windowState)
+            // The window's step stack follows its state across hosting boundaries (#5658).
+            .environment(windowState.steps)
             .environment(workflowStore)
             .environment(workflowStreamService)
     }

@@ -12,19 +12,13 @@ enum WorkingPassChoice {
     @discardableResult
     static func run(
         documentId: String, passId: String, actionsService: ActionsService, store: SegmentStore,
-        undoManager: UndoManager?
+        steps: WindowSteps?
     ) async throws -> String {
-        let params = Params(documentId: documentId, passId: passId)
-        let result = try await actionsService.invokeAction(name: "pass.choose_working", params: params)
-        ActionUndo.register(
-            auditId: result.auditId, actionName: "Make Working", undoManager: undoManager,
-            performUndo: { auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
-                await store.load(documentId: documentId, force: true)
-                return next
-            }
+        let result = try await AuditedAction.run(
+            "pass.choose_working", params: Params(documentId: documentId, passId: passId), actionName: "Make Working",
+            actionsService: actionsService, steps: steps,
+            afterChange: { await store.load(documentId: documentId, force: true) }
         )
-        await store.load(documentId: documentId, force: true)
         return result.auditId
     }
 }
@@ -47,18 +41,13 @@ enum PassDeletion {
     @MainActor
     static func run(
         documentId: String, passId: String, actionsService: ActionsService, store: SegmentStore,
-        undoManager: UndoManager?
+        steps: WindowSteps?
     ) async throws {
-        let result = try await actionsService.invokeAction(name: "segment.pass_delete", params: PassDeleteParams(passId: passId))
-        ActionUndo.register(
-            auditId: result.auditId, actionName: "Delete Pass", undoManager: undoManager,
-            performUndo: { auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
-                await store.load(documentId: documentId, force: true)
-                return next
-            }
+        try await AuditedAction.run(
+            "segment.pass_delete", params: PassDeleteParams(passId: passId), actionName: "Delete Pass",
+            actionsService: actionsService, steps: steps,
+            afterChange: { await store.load(documentId: documentId, force: true) }
         )
-        await store.load(documentId: documentId, force: true)
     }
 }
 

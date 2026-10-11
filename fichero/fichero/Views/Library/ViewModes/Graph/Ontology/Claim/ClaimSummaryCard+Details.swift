@@ -613,9 +613,9 @@ extension ClaimSummaryCard {
         guard let library = LibraryManager.shared.getLibrary(id: windowState.libraryId) else { return }
         Task {
             do {
-                _ = try await library.actionsService.invokeAction(
-                    name: "claim.delete",
-                    params: ClaimDeleteActionParams(claimId: claimId)
+                try await UndoableChange.invoke(
+                    "claim.delete", params: ClaimDeleteActionParams(claimId: claimId), named: "Delete Statement",
+                    service: library.actionsService, steps: windowState.steps
                 )
             } catch {
                 mutationError = error.localizedDescription

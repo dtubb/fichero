@@ -8,9 +8,9 @@
 > what cannot be undone (exports, sign-in, running a job, emptying the Trash) and why; where
 > older changes can still be taken back (the history list).
 >
-> **Status: DRAFT, 2026-10-10; reconciled with `../safety/undo.md` the same day.** One
-> decision in it is PROVISIONAL and waits for the maintainer: one stack per window (see
-> "Decision"; #5658 is labelled `needs-your-decision`).
+> **Status: DRAFT, 2026-10-10; reconciled with `../safety/undo.md` the same day.** Its one
+> open decision was ruled by the maintainer on 2026-10-11: one stack per window (see
+> "Decision"). Slice 1's app half is built (2026-10-11).
 >
 > **Who owns what.** This file owns the APP path of taking things back: the one helper, the
 > window's step stack, the Edit menu, typing and the image editor, naming, showing a refusal in
@@ -67,14 +67,13 @@ ask the engine to reverse those exact rows and nothing else.
   the one judge of whether a reversal is still safe. This is why the stack can be per window
   without becoming a second source of truth.
 
-## Decision: one stack per window (PROVISIONAL, 2026-10-10)
+## Decision: one stack per window (RULED by the maintainer, 2026-10-11)
 
 **The question.** `../safety/undo.md` once proposed one undo stack per person per project,
 shared by every window and pane, and no project steps in any window's undo manager. This spec
 proposed one stack per window. The two contradicted each other.
 
-**Provisional decision, taken while the maintainer is away, flagged on #5658
-(`needs-your-decision`): per WINDOW.** Each window's Command-Z takes back what was done in that
+**Ruled 2026-10-11 (the maintainer), as proposed while he was away: per WINDOW.** Each window's Command-Z takes back what was done in that
 window, newest first, and Shift-Command-Z puts it back. The engine still decides every undo
 against the audit chain and refuses in words if the world moved on, whichever window asked
 (`safety.undo.refuses-when-changed`). The project's history list (Action History) lists every
@@ -210,25 +209,25 @@ in both, and whichever window undoes it first removes it from the other
 
 ### One path
 
-- `undo.one-path` — **[GAP]** (#5658) every person-initiated call that changes project data
+- `undo.one-path` — **[PARTIAL]** (#5658) every person-initiated call that changes project data
   and whose answer names an audit row registers Command-Z through one helper, and nothing
   else registers project steps. Today there are 22 helper-shaped call sites in five shapes,
   11 `invokeAction` sites that register nothing, three app-state closures, and a global
   `LastAction`. *Test:* a guardrail (`undo.guard.no-bypass`) and a pure Swift test of the
-  helper against a fake engine.
+  helper against a fake engine. Built (slice 1, app, 2026-10-11): `UndoableChange` (`fichero/fichero/Models/UndoableChange.swift`) over `ActionUndo`'s core, on the window's `WindowSteps`; the 22 helper-shaped sites and the 11 unregistered `invokeAction` sites moved onto it; `LastAction` and `AuditStore.undoLast` deleted; `UndoableChangeTests`. *Not built: the guardrail `undo.guard.no-bypass`.*
 - `undo.one-path.every-answer-names-its-row` — **[PARTIAL]** (#5658) every mutating route that
   wrote audit rows names them in its answer, in the declared `X-Fichero-Audit-Ids` header (or
   the existing `audit_id` field). 20 operations do so today and 160 audited routes do not.
   *Test:* pytest over the contract: every mutating operation whose handler invokes an audited
   action declares the header; one test per domain reads it back.
-- `undo.one-path.no-local-closures` — **[BROKEN]** (#5658) no view registers an undo that
+- `undo.one-path.no-local-closures` — **[PARTIAL]** (#5658) no view registers an undo that
   changes data through anything other than the engine's undo route; a window's stack holds
   record ids, never data and never a closure that writes. Sidebar delete restores through
   `restoreDocument` instead of reversing its own `document.delete` row
   (`SidebarActions.swift:235-245`), so the restore writes no inverse row and has no redo. The
   canvas and workflow canvas register app-state closures. All three move onto the helper.
   *Test:* the guardrail refuses `registerUndo(withTarget:)` outside the helper, text editing
-  and the image editor.
+  and the image editor. Built (slice 1, app, 2026-10-11): sidebar delete registers its own `document.delete` row through the helper (the `restoreDocument` closure is gone, so Redo works). *Not built: the canvas and workflow-canvas closures (build step 7).*
 - `undo.one-path.reachable` — **[GAP]** (#5658) every undoable change a person can make in the
   app can also be taken back from the app: from the Edit menu in the window that made it, and
   from the history list afterwards. A change with no way back says so before it runs
@@ -246,30 +245,30 @@ in both, and whichever window undoes it first removes it from the other
   "Undo Merge" from the dotted action name of the newest audit row
   (`FocusedCommandButtons+UndoNavigation.swift:111-124`). *Test:* pure Swift, a name for every
   action in the build order; pytest, every undoable registration has a verb and noun.
-- `undo.naming.counts` — **[GAP]** (#5658) a step over several things counts them: "Undo
+- `undo.naming.counts` — **[PARTIAL]** (#5658) a step over several things counts them: "Undo
   Delete 3 Items", "Undo Move 12 Pages". One thing is named by its kind ("Undo Delete Note").
-  *Test:* pure Swift, 1, 2 and many.
+  *Test:* pure Swift, 1, 2 and many. Built (slice 1, app, 2026-10-11): `UndoableChange.named` and the batch's name ("Move 3 Items to Trash", "Delete 3 Notes"); `UndoableChangeTests`::namesCount. *Not built: a name for every action in the build order.*
 - `undo.naming.other-project` — **[GAP]** (#5658) when the window now shows another project
   than the step's, the title names the step's project ("Undo Move in Marshall Diaries").
   *Test:* pure Swift with two fake projects.
 
 ### The window
 
-- `undo.window` — **[BROKEN]** (#5658) Command-Z in a window reverses that window's last
+- `undo.window` — **[PARTIAL]** (#5658) Command-Z in a window reverses that window's last
   step, and only that window's (the provisional decision above). Today the Edit menu never
   calls a window's undo manager. When no text field has focus it reverses the newest row in
   the always-there project's history, whoever made it and whichever project the window shows
   (`FocusedCommandButtons+UndoNavigation.swift:58-64, 149`; `LibraryManager.swift:658-660`).
   *Test:* click-around: make a step in window A, focus window B, press Command-Z, and A's step
-  is untouched; with nothing made in B, Undo in B is disabled even though the history has rows.
-- `undo.window.own-stack` — **[GAP]** (#5658) the helper's stack is separate from the typing
+  is untouched; with nothing made in B, Undo in B is disabled even though the history has rows. Built (slice 1, app, 2026-10-11): the Edit menu's ⌘Z and ⇧⌘Z read the key window's `WindowSteps` (focused scene value) and nothing else outside typing and the image editor; `UndoRoutingPolicyTests`. *Not run: the two-window click-around.*
+- `undo.window.own-stack` — **[PARTIAL]** (#5658) the helper's stack is separate from the typing
   stack. While an editable text field has focus, Command-Z and Shift-Command-Z are the
   system's own typing undo for that field, with the grouping Mac users expect, and never reach
   a project step, even when the typing stack is empty; a project step never swallows typing.
   The INFERRED sharing of one manager today (see "What exists") is confirmed or ruled out by
   this behaviour's test before slice 1 is merged. *Test:* mounted test: register a step, focus
   a field, type, then Command-Z undoes only the typing, the step is still offered, and the
-  record has no new row.
+  record has no new row. Built (slice 1, app, 2026-10-11): `WindowSteps` owns its own `UndoManager`, apart from the text view's; `WindowStepsTypingTests` (a real window and text view). *Not built: the iOS scene's responder answer (`undo.ios`).*
 - `undo.edit-menu` — **[PARTIAL]** (#5658) Command-Z goes to exactly one of these, in this
   order, and the menu item's title says which: (1) a focused, editable text field: its own
   typing undo; if its typing stack is empty, the item is disabled, never the project; (2) the
@@ -278,26 +277,26 @@ in both, and whichever window undoes it first removes it from the other
   disabled. Shift-Command-Z follows the same order. The text-field and image-editor routes are
   built and tested (`fichero/Tests/Unit/general/App/UndoRoutingPolicyTests.swift`); the
   window-stack route and its titles are not built. *Test:* extend the pure routing test, every
-  combination.
-- `undo.edit-menu.never-navigates` — **[BROKEN]** (#5658) going Back is not an undo. Command-Z
+  combination. Built (slice 1, app, 2026-10-11): the window-stack route and its titles (`windowSteps.undoName`, `redoName`), `edit.undo` and `edit.redo`; `UndoRoutingPolicyTests`. *Not built: the image editor's Redo.*
+- `undo.edit-menu.never-navigates` — **[OK]** (#5658) going Back is not an undo. Command-Z
   never changes what is shown except to reveal the thing a reversal changed. Back keeps its own
   key. Today navigation outranks the project in the routing (`UndoRouting.swift:52-53`).
   *Test:* pure routing: navigation is not an input; click-around: open a folder, press
-  Command-Z, the view does not move.
-- `undo.window.in-flight` — **[GAP]** (#5658) while a call this window started is waiting for
+  Command-Z, the view does not move. Built (slice 1, app, 2026-10-11): `UndoRoute` has no navigation or project-log case; `UndoRoutingPolicyTests`::testNothingMadeInThisWindowIsNoRoute.
+- `undo.window.in-flight` — **[OK]** (#5658) while a call this window started is waiting for
   the engine, Undo and Redo in this window are disabled, so a quick Command-Z after a change
   never takes back the step BEFORE it. *Test:* pure Swift with a slow fake engine: start a
-  change, Undo is disabled; the answer arrives, Undo names the change.
+  change, Undo is disabled; the answer arrives, Undo names the change. Built (slice 1, app, 2026-10-11): `WindowSteps.inFlight` counts the window's calls (a change through the helper, an undo, a redo) and `canUndo`/`canRedo` are false while any is out; `UndoableChangeTests`::inFlightDisables, ::aRunningChangeHoldsUndo.
 - `undo.window.drag-between-windows` — **[GAP]** (#5658) a step made by a drag from one window
   into another is offered in both; undoing it in one removes it from the other. *Test:* pure
   Swift with two window stacks.
-- `undo.typing.commit-is-one-step` — **[GAP]** (#5658) when a field commits an edit (focus
+- `undo.typing.commit-is-one-step` — **[PARTIAL]** (#5658) when a field commits an edit (focus
   leaves, or the app saves), the whole edit becomes ONE step on the window's stack, named "Edit
   Transcription" or the like. With focus still in the field, Command-Z keeps undoing typing.
   A later commit that the engine folds into the same row
   (`safety.undo.commits-are-not-per-keystroke`) answers the same row id, and the helper
   coalesces it into the step already on top rather than adding one. *Test:* type, click away,
-  Command-Z: the text returns to what it was before the edit; three autosaves leave one step.
+  Command-Z: the text returns to what it was before the edit; three autosaves leave one step. Built (slice 1, app, 2026-10-11): the same rows answered again are the step on top, not a second step; `UndoableChangeTests`::sameRowsCoalesce. *Not built: a field's commit as one step.*
 - `undo.image-editor` — **[PARTIAL]** (#5658) inside the image editor, Command-Z drops the last
   uncommitted step (built) and Shift-Command-Z puts it back (not built: there is no Redo).
   On Done, the whole session is one step on the window's stack. *Test:* crop, rotate,
@@ -315,24 +314,24 @@ part is to show that sentence (`undo.refusal`).
   refresh. The stream exists (`harness/observable-data-layer.md`). Some call sites still
   re-read by hand (`afterChange` in `AuditedAction.swift:10-21`). *Test:* click-around: undo in
   A, and B's row changes.
-- `undo.cross-project` — **[GAP]** (#5658) a step stays tied to its project. If the window has
+- `undo.cross-project` — **[PARTIAL]** (#5658) a step stays tied to its project. If the window has
   switched to another project, Command-Z still reverses the step in the project it was made
-  in (`undo.naming.other-project`). *Test:* pure Swift with two fake projects.
-- `undo.steps-end` — **[GAP]** (#5658) a window's steps end with the window, the app, their
+  in (`undo.naming.other-project`). *Test:* pure Swift with two fake projects. Built (slice 1, app, 2026-10-11): a step keeps its project's path and finds that project's live service when taken back, whatever the window shows now. *Not built: `undo.naming.other-project`.*
+- `undo.steps-end` — **[PARTIAL]** (#5658) a window's steps end with the window, the app, their
   project (closed or returned to a snapshot) and the signed-in person, as "When steps end"
   says; they stay in the history list. *Test:* pure Swift: close project P, and its steps are
-  gone from every window while Q's remain; a sign-out empties every stack.
+  gone from every window while Q's remain; a sign-out empties every stack. Built (slice 1, app, 2026-10-11): `WindowSteps.endSteps(forProject:)` on project close (`LibraryManager.closeLibrary`) and `endAllSteps()` on sign-out (`SessionStore.logout`), in every window; `UndoableChangeTests`::endingOneProjectsSteps. *Not built: the snapshot restore.*
 
 ### Refusal
 
-- `undo.refusal` — **[BROKEN]** (#5658) when the engine refuses an undo or redo, the window
+- `undo.refusal` — **[PARTIAL]** (#5658) when the engine refuses an undo or redo, the window
   shows the engine's sentence. A `changed` refusal leaves the step where it was;
   `already-undone` and `gone` drop it, saying so ("This change was already taken back in
   another window."). Today 409 and 404 are not declared on the route, so the generated client
   returns `.undocumented`. `ActionUndo` swallows the error (`try?`, `ActionUndo.swift:76`) and
   `AuditStore` shows "Undo failed (409)" (`AuditStore.swift:95`). *Test:* declare 404 and 409
   with `detail` and `reason` in the contract; a Swift test with a fake engine that refuses
-  checks that the sentence reaches the window and which steps stay.
+  checks that the sentence reaches the window and which steps stay. Built (slice 1, app, 2026-10-11): the set route's declared 404/409 arrive as `UndoRefusal` (sentence + reason); `changed` keeps the step, `already-undone` and `gone` drop it; the sentence shows in `UndoRefusalNotice` (`undo.refusal.notice`) in the window that asked; `UndoableChangeTests`::changedKeepsTheStep, ::alreadyUndoneAndGoneDrop. *Not built: a refused REDO keeping its place (it is dropped, and the history list still has it).*
 - `undo.refusal.in-words` — **[PARTIAL]** (#5658) every refusal from the undo route is a
   sentence a researcher can act on: "This page was changed by Ana at 14:02, after your edit.
   Your edit was not undone. See history." No status codes and no ids. `ActionRefused` does
@@ -357,11 +356,11 @@ part is to show that sentence (`undo.refusal`).
   (`fichero/fichero/Views/Library/LibraryView+DeleteActions.swift:90-97`), and so does deleting
   several notes (`fichero/fichero/Views/Library/Notes/NoteListView.swift:136-150`). *Test:*
   pure Swift: delete 3, then one Command-Z brings back all 3.
-- `undo.batches.whole` — **[GAP]** (#5658) a batch is reversed as one set by one engine call
+- `undo.batches.whole` — **[PARTIAL]** (#5658) a batch is reversed as one set by one engine call
   (`safety.undo.a-set-is-undone-whole`): all or none. A refusal names the one thing that
   refused, changes nothing, and the step still holds all its ids. *Test:* a fake engine that
   refuses the set: nothing reversed, the sentence names the second item, the step still holds
-  three; a backend test for the set itself is in `../safety/undo.md`.
+  three; a backend test for the set itself is in `../safety/undo.md`. Built (slice 1, app, 2026-10-11): a batch is one step holding every row written, taken back by one set call; `UndoableChange.batch`; library delete-selected and Continue Flow use it; `UndoableChangeTests`::aBatchIsOneSet, ::aFailedBatchHoldsWhatWasWritten. *Not built: the refusal naming the one thing that refused (the engine's sentence is shown as it comes).*
 
 ### Redo
 
@@ -371,19 +370,19 @@ How the engine redoes, keeps ids and passes four laps is `../safety/undo.md` §D
   undo walks the chain one row at a time. *Tests:* `ActionUndoTests.redoIsRegisteredDuringTheUndo`,
   `.redoInvertsTheUndosOwnRow`, `.theChainKeepsGoing` (in
   `fichero/Tests/Unit/general/Models/ActionUndoTests.swift:59-102`).
-- `undo.redo.new-step-clears` — **[PARTIAL]** (#5658) once I make a new step in a window, my
+- `undo.redo.new-step-clears` — **[OK]** (#5658) once I make a new step in a window, my
   earlier undone steps there are no longer offered by Shift-Command-Z; they remain in the
   history list. `UndoManager` does this itself, but no test pins it for the helper, whose redo
   is registered from inside an undo handler. *Test:* pure Swift: undo, register a new step, and
-  Redo is disabled.
-- `undo.redo.before-the-answer` — **[PARTIAL]** (#5658) a redo pressed before the engine has
+  Redo is disabled. Built (slice 1, app, 2026-10-11): `UndoableChangeTests`::newStepClearsRedo.
+- `undo.redo.before-the-answer` — **[OK]** (#5658) a redo pressed before the engine has
   answered the undo does nothing and is logged. It never guesses a row. Built
   (`ActionUndo.swift:66-74`) but not tested; with `undo.window.in-flight` the menu shows Redo
-  disabled until the answer arrives. *Test:* pure Swift with a slow fake engine.
+  disabled until the answer arrives. *Test:* pure Swift with a slow fake engine. Built (slice 1, app, 2026-10-11): `UndoableChangeTests`::redoBeforeTheAnswer; the menu's Redo is also disabled while the undo is out.
 
 ### Engine restart
 
-- `undo.engine-restart` — **[GAP]** (#5658) after the engine restarts, Command-Z still
+- `undo.engine-restart` — **[PARTIAL]** (#5658) after the engine restarts, Command-Z still
   reverses the window's steps, because the audit rows are in the project's database, their ids
   are never reused (UUID, `fichero-server/src/fichero_server/models/__init__.py:158-160`), and
   the helper looks up the live service at undo time. If a row no longer exists, the engine
@@ -391,7 +390,7 @@ How the engine redoes, keeps ids and passes four laps is `../safety/undo.md` §D
   drops the step. Today each call site captures its service when it registers, so this is
   INFERRED to break after a reconnect. *Test:* pure Swift: a step registered against service 1
   is undone through service 2 after a swap; integration: register, restart the dev engine,
-  then undo succeeds.
+  then undo succeeds. Built (slice 1, app, 2026-10-11): the step looks up its project's live service when taken back; `UndoableChangeTests`::liveServiceAtUndoTime. *Not run: the integration leg (restart the dev engine, then undo).*
 
 ### Moves between projects
 
@@ -650,8 +649,7 @@ messages), `undo.batches.whole`, `undo.redo.*`, `undo.engine-restart`; engine:
   the other's; a step registered against one service undoes through its replacement; the same
   row answered twice coalesces.
 - Extend `fichero/Tests/Unit/general/Models/ActionUndoTests.swift` for the set shape.
-- Replace `fichero/Tests/Unit/general/Models/AuditStoreRedoTests.swift` and
-  `fichero/Tests/Unit/general/Services/LastActionScopingTests.swift`, which pin the global path this slice deletes (`menus.undo-reaches-every-mutating-action`), by
+- Replace `AuditStoreRedoTests` and `LastActionScopingTests` (deleted with the global path, 2026-10-11), which pinned the global path this slice deletes (`menus.undo-reaches-every-mutating-action`), by
   the tests above; the history list's one-row reversal keeps its own test.
 - Extend `fichero/Tests/Unit/general/App/UndoRoutingPolicyTests.swift`: every combination of
   text focus, typing stack, image editor and window stack; navigation is never a route.

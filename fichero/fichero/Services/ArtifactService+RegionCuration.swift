@@ -17,23 +17,16 @@ extension RegionEditResult {
     /// Register ⌘Z for this edit, by the audit row the edit itself wrote. ONE place for
     /// every surface that offers a region verb -- the Source view and the Inspector (#5115:
     /// the Inspector may offer the same audited verbs, never a second implementation, and
-    /// that includes the undo). No audit id, undo manager or actions service: nothing is
+    /// that includes the undo). No audit id, window steps or actions service: nothing is
     /// registered, because the alternative is inverting a guessed row.
     @MainActor
     func registerUndo(
-        actionName: String, undoManager: UndoManager?, actionsService: ActionsService?,
+        actionName: String, steps: WindowSteps?, actionsService: ActionsService?,
         afterChange: @escaping @MainActor () async -> Void = {}
     ) {
-        guard let actionsService else { return }
-        ActionUndo.register(
-            auditId: auditId,
-            actionName: actionName,
-            undoManager: undoManager,
-            performUndo: { auditId in
-                let next = try await actionsService.undoAction(auditId: auditId).auditId
-                await afterChange()
-                return next
-            }
+        UndoableChange.register(
+            [auditId].compactMap { $0 }, named: actionName, service: actionsService, steps: steps,
+            afterEach: afterChange
         )
     }
 }

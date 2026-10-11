@@ -27,14 +27,15 @@ extension ArtifactsInspectorPane {
         Task { @MainActor in
             defer { isTranslating = false }
             do {
-                _ = try await actionsService.invokeAction(
-                    name: "artifact.translate",
+                try await UndoableChange.invoke(
+                    "artifact.translate",
                     params: ArtifactTranslateActionParams(
                         documentId: document.id,
                         targetLang: language.code,
                         sourceLang: "auto",
                         provider: nil
-                    )
+                    ),
+                    named: "Translate", service: actionsService, steps: windowSteps
                 )
                 actionError = nil
                 // The new translation artifact also arrives via the change stream;

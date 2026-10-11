@@ -66,6 +66,8 @@ struct DocumentLanguagePicker: View {
     /// when no library resolves — the editor then disables itself rather than
     /// quietly writing nowhere.
     let actionsService: ActionsService?
+    /// This window's step stack: the change registers on it, so ⌘Z here takes it back (#5658).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
 
     /// Common languages offered for one-tap assignment; a free-text field
     /// covers everything else (the engine accepts any canonical name).
@@ -195,7 +197,9 @@ struct DocumentLanguagePicker: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            try await service.invokeAction(name: "document.set_language", params: params)
+            try await UndoableChange.invoke(
+                "document.set_language", params: params, named: "Set Language", service: service, steps: windowSteps
+            )
             onSuccess()
         } catch {
             // Keep the UI honest: local state only moves when the engine

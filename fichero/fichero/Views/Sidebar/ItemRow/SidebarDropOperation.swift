@@ -153,7 +153,8 @@ struct SidebarInsertionDropRequest {
 func sidebarApplyInsertionDropOperation(
     _ request: SidebarInsertionDropRequest,
     library: LibraryManager.LibraryReference,
-    sidebarState: SidebarState
+    sidebarState: SidebarState,
+    steps: WindowSteps?
 ) async {
     let operation = request.operation
     let parentId = request.parentId
@@ -167,11 +168,10 @@ func sidebarApplyInsertionDropOperation(
         switch operation {
         case .copy:
             do {
-                _ = try await library.actionsService.invokeAction(
-                    name: "document.duplicate",
-                    params: DocumentDuplicateActionParams(
-                        docId: id, parentId: parentId, toRoot: parentId == nil
-                    )
+                try await UndoableChange.invoke(
+                    "document.duplicate",
+                    params: DocumentDuplicateActionParams(docId: id, parentId: parentId, toRoot: parentId == nil),
+                    named: "Copy", service: library.actionsService, steps: steps
                 )
             } catch {
                 sidebarState.dropErrorMessage = error.localizedDescription
@@ -233,7 +233,8 @@ func applyLibraryItemDropOperation(
     _ operation: SidebarDropOperation,
     documentId: String,
     intoFolderId: String,
-    library: LibraryManager.LibraryReference
+    library: LibraryManager.LibraryReference,
+    steps: WindowSteps?
 ) async -> LibraryItemDropOutcome {
     switch operation {
     case .move:
@@ -250,9 +251,9 @@ func applyLibraryItemDropOperation(
         // cycle/lock rules and keeps the name for cross-folder copies (Finder
         // suffixes only same-folder copies).
         do {
-            _ = try await library.actionsService.invokeAction(
-                name: "document.duplicate",
-                params: DocumentDuplicateActionParams(docId: documentId, parentId: intoFolderId)
+            try await UndoableChange.invoke(
+                "document.duplicate", params: DocumentDuplicateActionParams(docId: documentId, parentId: intoFolderId),
+                named: "Copy", service: library.actionsService, steps: steps
             )
             return .applied
         } catch {
@@ -287,7 +288,7 @@ extension SidebarItemRow {
             return false
         }
         switch await applyLibraryItemDropOperation(
-            .copy, documentId: documentId, intoFolderId: folderId, library: library
+            .copy, documentId: documentId, intoFolderId: folderId, library: library, steps: windowState.steps
         ) {
         case .applied:
             await library.documentStore.refresh()
@@ -311,7 +312,7 @@ extension SidebarItemRow {
             return false
         }
         switch await applyLibraryItemDropOperation(
-            .alias, documentId: documentId, intoFolderId: folderId, library: library
+            .alias, documentId: documentId, intoFolderId: folderId, library: library, steps: windowState.steps
         ) {
         case .applied:
             await library.documentStore.refresh()

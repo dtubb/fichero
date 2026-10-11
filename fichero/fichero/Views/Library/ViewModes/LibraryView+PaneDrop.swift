@@ -240,7 +240,7 @@ extension LibraryView {
             // accepts nil, which is how the sidebar header moves to root.
             if let parentId {
                 if case .failed(let reason) = await applyLibraryItemDropOperation(
-                    operation, documentId: id, intoFolderId: parentId, library: library
+                    operation, documentId: id, intoFolderId: parentId, library: library, steps: windowState.steps
                 ) {
                     failures.append(reason)
                 }

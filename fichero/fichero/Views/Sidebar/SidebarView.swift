@@ -29,7 +29,6 @@ struct SidebarView: View {
     // Window state - needed to switch libraries when selecting items
     @Environment(AppState.self) var appState
     @Environment(WindowState.self) var windowState
-    @Environment(\.undoManager) var undoManager
     /// Double-click / trailing-affordance opens reuse the shared Finder-style
     /// new-window path (`WindowOpener`, #1685).
     @Environment(\.openWindow) var openWindow

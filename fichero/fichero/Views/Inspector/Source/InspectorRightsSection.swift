@@ -12,7 +12,7 @@ struct InspectorRightsSection: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var answer = InspectorRights.Answer()
     @State private var failure: String?
     @State private var labeling = false
@@ -96,13 +96,13 @@ struct InspectorRightsSection: View {
 
     private func run<Params: Encodable>(_ name: String, _ params: Params, _ actionName: String) {
         guard let actionsService = actionStore?.actionsService else { return }
-        let undoManager = undoManager
+        let windowSteps = windowSteps
         failure = nil
         Task {
             do {
                 try await AuditedAction.run(
                     name, params: params, actionName: actionName, actionsService: actionsService,
-                    undoManager: undoManager, afterChange: { await reload() }
+                    steps: windowSteps, afterChange: { await reload() }
                 )
             } catch {
                 // Said as the engine answered, never guessed: a refusal to someone who may not act

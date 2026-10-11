@@ -326,6 +326,8 @@ extension LibraryManager {
 
         // Stop accessing security-scoped resource before removing
         library.stopAccessingSecurityScope()
+        // Its steps end in every window; they stay in its history list (`undo.steps-end`, #5658).
+        WindowSteps.endSteps(forProject: library.url.path)
 
         openLibraries.remove(at: index)
 

@@ -191,9 +191,9 @@ extension SidebarItemRow {
             // rows get the engine's 403 on the banner.
             guard let library else { return nil }
             return duplicateTask {
-                _ = try await library.actionsService.invokeAction(
-                    name: "document.duplicate",
-                    params: DocumentDuplicateActionParams(docId: doc.id, parentId: nil)
+                try await UndoableChange.invoke(
+                    "document.duplicate", params: DocumentDuplicateActionParams(docId: doc.id, parentId: nil),
+                    named: "Duplicate", service: library.actionsService, steps: windowState.steps
                 )
                 await library.documentStore.refresh()
             }

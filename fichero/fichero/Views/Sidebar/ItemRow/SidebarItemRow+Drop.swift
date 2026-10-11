@@ -302,7 +302,7 @@ extension SidebarItemRow {
         )
         Task {
             await sidebarApplyInsertionDropOperation(
-                request, library: library, sidebarState: sidebarState
+                request, library: library, sidebarState: sidebarState, steps: windowState.steps
             )
         }
         return true

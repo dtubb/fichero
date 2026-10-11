@@ -20,7 +20,7 @@ struct ReaderTextEditRunner {
 
     let actionsService: ActionsService
     let segmentService: SegmentService
-    let undoManager: UndoManager?
+    let steps: WindowSteps?
     /// Re-reads the page's text on screen (the coordinator's web view); a no-op in a test.
     let refreshPage: @MainActor (String) async -> Void
 
@@ -39,7 +39,7 @@ struct ReaderTextEditRunner {
                 guard let params = ReaderTextEdit.newReading(for: edit) else { return nil }
                 made = try await AuditedAction.run(
                     "representation.create", params: params, actionName: "Typing", actionsService: actionsService,
-                    undoManager: undoManager, afterChange: refresh
+                    steps: steps, afterChange: refresh
                 ).resultId
             case .split(_, let id, _):
                 // Fresh: a readingEdit posted just before the split changed the line's text and version.
@@ -53,7 +53,7 @@ struct ReaderTextEditRunner {
                 ).get()
                 try await AuditedAction.run(
                     "segment.split", params: params, actionName: "Split Line", actionsService: actionsService,
-                    undoManager: undoManager, afterChange: refresh
+                    steps: steps, afterChange: refresh
                 )
             case .join:
                 await store.load(documentId: pageId, force: true)
@@ -61,7 +61,7 @@ struct ReaderTextEditRunner {
                 // No afterChange: the runner posts `didChange`, which re-reads the Reader's page (#5171);
                 // refreshing here too would read it twice.
                 try await SegmentEditRunner(actionsService: actionsService, store: store).run(
-                    call, documentId: pageId, actionName: "Join Lines", undoManager: undoManager
+                    call, documentId: pageId, actionName: "Join Lines", steps: steps
                 )
             }
         } catch let error where ReaderTextEdit.unreachableReason(error) != nil {

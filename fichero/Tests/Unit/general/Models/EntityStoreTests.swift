@@ -318,7 +318,8 @@ final class EntityStoreTests: XCTestCase {
         let store = makeStore()
         await store.loadEntities(forDocument: "doc-1")
 
-        try await store.merge(absorbedIds: ["entity-2", "entity-3"], into: "entity-1")
+        let steps = WindowSteps()
+        try await store.merge(absorbedIds: ["entity-2", "entity-3"], into: "entity-1", steps: steps)
 
         // Absorbed rows gone, survivor's row PATCHED (canonical name from
         // the fresh fetch) rather than the list being thrown away and
@@ -330,7 +331,7 @@ final class EntityStoreTests: XCTestCase {
         // #5129: through the audited action, not the curation route, so ⌘Z can reach it.
         XCTAssertTrue(requests.contains { $0.httpMethod == "POST" && $0.url?.path == "/api/actions/invoke" })
         XCTAssertFalse(requests.contains { $0.url?.path == "/api/kg/entity-curation/merge" })
-        XCTAssertEqual(store.actions.lastAction.auditId, "action-audit-1", "the merge must seed ⌘Z")
+        XCTAssertEqual(steps.undoName, "Merge", "the merge is one step on the window's stack (#5658)")
         XCTAssertTrue(requests.contains { $0.httpMethod == "GET" && $0.url?.path == "/api/entities/entity-1" })
         // The load-bearing assertion: no second inspector fetch. Exactly one
         // GET for the initial load, none after the merge.

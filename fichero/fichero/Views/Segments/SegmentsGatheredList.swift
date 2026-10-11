@@ -10,7 +10,7 @@ struct SegmentsGatheredList: View {
 
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var answer = SegmentsGathered.Answer()
     @State private var loading = true
 
@@ -63,7 +63,7 @@ struct SegmentsGatheredList: View {
         guard let actionsService = actionStore?.actionsService else { return }
         try? await AuditedAction.run(
             action, params: SegmentMatchIdRequest(matchId: matchId), actionName: actionName,
-            actionsService: actionsService, undoManager: undoManager, afterChange: { await reload() }
+            actionsService: actionsService, steps: windowSteps, afterChange: { await reload() }
         )
     }
 

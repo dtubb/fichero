@@ -288,7 +288,7 @@ struct OnboardingScreenshotsTests {
         // A drop onto another project (#2397): the dry run's plan, before Move.
         try await shot("13-move-between-projects.png", CGSize(width: 440, height: 420),
                        ProjectTransferSheet(store: ProjectTransferStore(), drop: try Self.transferDrop(from: project),
-                                            undoManager: nil))
+                                            steps: nil))
 
         #expect(written.count == 13)
         // No screen may show the fixture's own words: every request is answered.

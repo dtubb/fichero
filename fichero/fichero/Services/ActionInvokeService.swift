@@ -35,7 +35,7 @@ extension ActionLibraryService {
     ///     fields, never `additionalProperties`).
     ///   - originWindow: Optional self-echo de-dup seam for the change stream.
     /// - Returns: The `{ ok, audit_id, changed_domains }` result. `audit_id` is
-    ///   captured by the caller for a future per-window ⌘Z (see `LastAction`).
+    ///   registered by the caller as a step on the window's stack (`UndoableChange`).
     @discardableResult
     func invokeAction<Params: Encodable>(
         name: String,
@@ -60,13 +60,6 @@ extension ActionLibraryService {
                 changedDomains: json.changedDomains,
                 resultId: (json.result.value as? [String: (any Sendable)?])?["id"] as? String
             )
-            // Central undo seam (#3302 part 1): record EVERY audited mutation so
-            // ⌘Z reaches all ~109 registry actions — not just the handful of call
-            // sites that recorded explicitly. Single-level (overwrites the prior
-            // entry); guarded on success so a reported failure never seeds undo.
-            if result.succeeded {
-                lastAction.record(auditId: result.auditId, actionName: name)
-            }
             invokeLogger.info("invokeAction(\(name)) ok — audit \(result.auditId)")
             return result
         case .unprocessableContent(let error):
@@ -127,6 +120,31 @@ extension ActionLibraryService {
             throw APIError.httpError(statusCode: 409, message: message)
         case .undocumented(let statusCode, _):
             invokeLogger.error("undoAction(\(auditId)) HTTP \(statusCode)")
+            throw APIError.httpError(statusCode: statusCode, message: "Undo failed")
+        }
+    }
+
+    /// Take back several steps together, all or none (`POST /api/actions/audit/undo`,
+    /// `safety.undo.a-set-is-undone-whole`): the window's one step for a batch, or a single row
+    /// as a set of one. Returns the new rows the reversal wrote; taking THOSE back is the redo.
+    /// A refusal arrives as `UndoRefusal`, with the engine's sentence and its reason.
+    func undoSet(auditIds: [String]) async throws -> [String] {
+        let response = try await client.api.undoActionsApiActionsAuditUndoPost(body: .json(.init(auditIds: auditIds)))
+        switch response {
+        case .ok(let okResponse):
+            let ids = try okResponse.body.json.auditIds
+            invokeLogger.info("undoSet(\(auditIds.count) step(s)) ok — \(ids.count) inverse row(s)")
+            return ids
+        case .notFound(let refusal):
+            throw UndoRefusal(try? refusal.body.json, fallback: "This change is no longer in the project's history.")
+        case .conflict(let refusal):
+            throw UndoRefusal(try? refusal.body.json, fallback: "This change cannot be taken back now.")
+        case .unprocessableContent(let error):
+            let message = (try? error.body.json)?.detail?.description ?? "Undo failed"
+            invokeLogger.error("undoSet 422: \(message)")
+            throw APIError.httpError(statusCode: 422, message: message)
+        case .undocumented(let statusCode, _):
+            invokeLogger.error("undoSet HTTP \(statusCode)")
             throw APIError.httpError(statusCode: statusCode, message: "Undo failed")
         }
     }
@@ -259,29 +277,34 @@ struct AclSetParams: Encodable {
     }
 }
 
-// MARK: - Last action (undo seam)
+// MARK: - An undo the engine refused (#5658)
 
-/// The most recent audited action invoked from the UI — the seed for ⌘Z (#1848).
-///
-/// Holds the `audit_id` returned by `/api/actions/invoke` so a future Undo
-/// command can call `POST /api/actions/audit/{id}/undo`. Kept deliberately
-/// Per-library holder for the most-recent audited action, powering single-level
-/// ⌘Z (#3444/#2015). Owned by `ActionLibraryService` (one per library) — NOT a
-/// process-global singleton, so an undo in one library can't reverse another's
-/// action. The `invokeAction` central seam records EVERY audited mutation here,
-/// so ⌘Z reaches all registry actions, not just the explicit inspector sites.
-@Observable
-final class LastAction {
-    /// Audit id of the last invoked action (the row `audit/{id}/undo` reverses).
-    var auditId: String?
-    /// Name of the last invoked action, for menu labelling ("Undo Merge").
-    var actionName: String?
-
-    init() {}
-
-    /// Record a freshly invoked action for the undo stack.
-    func record(auditId: String, actionName: String) {
-        self.auditId = auditId
-        self.actionName = actionName
+/// The engine's answer when it will not take a step back (`UndoRefusalResponse`, 404 or 409): the
+/// sentence a person reads, and why, which decides whether the window keeps the step
+/// (`undo.refusal`: `changed` keeps it; `already-undone` and `gone` drop it).
+struct UndoRefusal: Error, Equatable, LocalizedError {
+    enum Reason: String, Equatable {
+        case changed
+        case alreadyUndone = "already-undone"
+        case gone
+        case notUndoable = "not-undoable"
     }
+
+    let sentence: String
+    let reason: Reason
+
+    init(sentence: String, reason: Reason) {
+        self.sentence = sentence
+        self.reason = reason
+    }
+
+    init(_ body: Components.Schemas.UndoRefusalResponse?, fallback: String) {
+        sentence = body?.detail ?? fallback
+        reason = body.flatMap { Reason(rawValue: $0.reason.rawValue) } ?? .changed
+    }
+
+    /// Whether the window keeps the step on its stack after this refusal.
+    var keepsTheStep: Bool { reason == .changed }
+
+    var errorDescription: String? { sentence }
 }

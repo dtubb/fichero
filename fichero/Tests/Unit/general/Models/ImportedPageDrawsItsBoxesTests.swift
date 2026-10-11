@@ -194,6 +194,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
                 actionBody = Data(
                     #"{"ok":true,"result":\#(Self.invokeResult),"audit_id":"\#(auditId)","changed_domains":["segment"]}"#.utf8
                 )
+            } else if path == "/api/actions/audit/undo" {
+                // The window's steps take a step back as a set (#5658): each row is recorded as undone.
+                let ids = (try? JSONSerialization.jsonObject(with: Self.bodyOf(request)) as? [String: Any])?["audit_ids"]
+                    as? [String] ?? []
+                Self.undone.append(contentsOf: ids)
+                let written = ids.map { "\"undo-of-\($0)\"" }.joined(separator: ",")
+                actionBody = Data(#"{"ok":true,"audit_ids":[\#(written)],"results":[],"changed_domains":["segment"]}"#.utf8)
             } else if path.hasPrefix("/api/actions/audit/"), path.hasSuffix("/undo") {
                 let auditId = path.split(separator: "/").dropLast().last.map(String.init) ?? ""
                 Self.undone.append(auditId)
@@ -863,12 +870,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
         manager.beginUndoGrouping()
         let auditId = try await runner.run(
-            try SegmentEdit.join(picked).get(), documentId: "doc-0001", actionName: "Join Segments", undoManager: manager
+            try SegmentEdit.join(picked).get(), documentId: "doc-0001", actionName: "Join Segments", steps: steps
         )
         manager.endUndoGrouping()
 
@@ -936,11 +944,12 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let params = try XCTUnwrap(ReadingChoice.choose(text.readings[0], of: "seg-0003", in: text))
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         let auditId = try await ReadingChoice.run(
-            params, actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager,
+            params, actionsService: ActionsService(client: try XCTUnwrap(storeClient)), steps: steps,
             afterChange: {}
         )
         manager.endUndoGrouping()
@@ -996,12 +1005,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         let auditId = try await WorkingPassChoice.run(
             documentId: "doc-0001", passId: entry.passId,
-            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store, undoManager: manager
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store, steps: steps
         )
         manager.endUndoGrouping()
         XCTAssertEqual(auditId, "audit-1")
@@ -1029,13 +1039,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
         _ = try await runner.run(
             try SegmentEdit.set(.direction("rtl"), on: picked).get(), documentId: "doc-0001",
-            actionName: "Set Segment", undoManager: manager
+            actionName: "Set Segment", steps: steps
         )
         manager.endUndoGrouping()
 
@@ -1067,12 +1078,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         }
 
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         _ = try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
             try SegmentEdit.set(.direction("ltr"), on: picked).get(), documentId: "doc-0001",
-            actionName: "Set Segment", undoManager: manager
+            actionName: "Set Segment", steps: steps
         )
         manager.endUndoGrouping()
         try await settle(1)
@@ -1110,10 +1122,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
         let actions = ActionsService(client: try XCTUnwrap(storeClient))
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
-        try await SourceDirection.apply("ttb", on: "doc-0001", actionsService: actions, undoManager: manager)
+        try await SourceDirection.apply("ttb", on: "doc-0001", actionsService: actions, steps: steps)
         manager.endUndoGrouping()
         try await settle(1)
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
@@ -1132,7 +1145,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(reloaded.pages.count, 3, "its ⇧⌘Z once more")
 
         RecordedEngine.invoked = []
-        try await SourceDirection.apply(nil, on: "doc-0001", actionsService: actions, undoManager: nil)
+        try await SourceDirection.apply(nil, on: "doc-0001", actionsService: actions, steps: nil)
         let cleared = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
         XCTAssertEqual(cleared["name"] as? String, "source_setting.clear")
         XCTAssertEqual(cleared["params"] as? [String: String], ["level": "node", "key": "direction", "target_id": "doc-0001"])
@@ -1187,13 +1200,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         let result = try await AuditedAction.run(
             "hand.unattribute", params: HandUnattributeRequest(attributionId: rows[0].attributionId),
             actionName: "Withdraw Attribution", actionsService: ActionsService(client: try XCTUnwrap(storeClient)),
-            undoManager: manager
+            steps: steps
         )
         manager.endUndoGrouping()
         XCTAssertEqual(result.auditId, "audit-1")
@@ -1226,20 +1240,20 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         ]))
         try await AuditedAction.run(
             "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)), actionName: "Typing",
-            actionsService: actions, undoManager: nil
+            actionsService: actions, steps: nil
         )
         let split = try XCTUnwrap(ReaderTextEdit.message(from: [
             "kind": "lineSplit", "pageId": "doc-0001", "segmentId": first.id, "offset": 3
         ]))
         try await AuditedAction.run(
             "segment.split", params: try ReaderTextEdit.split(split, of: first, shownText: nil).get(),
-            actionName: "Split Line", actionsService: actions, undoManager: nil
+            actionName: "Split Line", actionsService: actions, steps: nil
         )
         let join = try XCTUnwrap(ReaderTextEdit.message(from: [
             "kind": "lineJoin", "pageId": "doc-0001", "segmentId": second.id, "intoSegmentId": first.id
         ]))
         try await SegmentEditRunner(actionsService: actions, store: store)
-            .run(try ReaderTextEdit.join(join, segments: lines).get(), documentId: "doc-0001", actionName: "Join Lines", undoManager: nil)
+            .run(try ReaderTextEdit.join(join, segments: lines).get(), documentId: "doc-0001", actionName: "Join Lines", steps: nil)
 
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
         XCTAssertEqual(sent.compactMap { $0["name"] as? String }, ["representation.create", "segment.split", "segment.merge"])
@@ -1278,12 +1292,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         ])
 
         let actions = ActionsService(client: try XCTUnwrap(storeClient))
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         try await AuditedAction.run(
             "editorial.withdraw", params: EditorialFactRequest(factId: rows[0].factId), actionName: "Withdraw Editorial Fact",
-            actionsService: actions, undoManager: manager
+            actionsService: actions, steps: steps
         )
         manager.endUndoGrouping()
         let reading = InspectorText.Reading(
@@ -1292,7 +1307,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         )
         try await AuditedAction.run(
             "editorial.record", params: try XCTUnwrap(InspectorEditorial.record(.unclear, segmentId: "seg-0003", reading: reading)),
-            actionName: "Mark Unclear", actionsService: actions, undoManager: nil
+            actionName: "Mark Unclear", actionsService: actions, steps: nil
         )
 
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
@@ -1391,14 +1406,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let pair = try XCTUnwrap(InspectorLinks.pair(["seg-0004", "seg-0003"]))
         try await AuditedAction.run(
             "typed_link.create", params: TypedLinkCreateRequest(fromId: pair.from, toId: pair.to, linkType: "continues"),
-            actionName: "Link Segments", actionsService: actions, undoManager: nil
+            actionName: "Link Segments", actionsService: actions, steps: nil
         )
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         try await AuditedAction.run(
             "typed_link.delete", params: TypedLinkIdRequest(linkId: try XCTUnwrap(rows.first).linkId),
-            actionName: "Withdraw Link", actionsService: actions, undoManager: manager
+            actionName: "Withdraw Link", actionsService: actions, steps: steps
         )
         manager.endUndoGrouping()
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
@@ -1435,14 +1451,15 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let actions = ActionsService(client: try XCTUnwrap(storeClient))
         try await AuditedAction.run(
             "rights.set", params: RightsSetRequest(targetKind: "segment", targetId: "seg-0003", modelUse: "none"),
-            actionName: "Set Model Rule", actionsService: actions, undoManager: nil
+            actionName: "Set Model Rule", actionsService: actions, steps: nil
         )
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         try await AuditedAction.run(
             "rights.withdraw", params: RightsRecordIdRequest(recordId: rows[2].recordId),
-            actionName: "Withdraw Rights Record", actionsService: actions, undoManager: manager
+            actionName: "Withdraw Rights Record", actionsService: actions, steps: steps
         )
         manager.endUndoGrouping()
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
@@ -1515,11 +1532,12 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(SegmentsPane.path(pageTitle: "page", to: region, in: segments).map(\.title), ["page", "Region"])
 
         await orders.show(childrenOf: nil)
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         let auditId = await orders.move(region, step: .downward)
-        orders.registerUndo(auditId: auditId, undoManager: manager, actionsService: ActionsService(client: try XCTUnwrap(storeClient)))
+        orders.registerUndo(auditId: auditId, steps: steps, actionsService: ActionsService(client: try XCTUnwrap(storeClient)))
         manager.endUndoGrouping()
         XCTAssertEqual(auditId, "place-1")
         let placed = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.placed.first)) as? [String: Any])
@@ -1610,13 +1628,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             "kind": "readingEdit", "pageId": "doc-0001", "segmentId": line.id, "text": typed,
             "previous": line.text ?? "", "basedOn": "rep-0001"
         ]))
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         RecordedEngine.invokeResult = #"{"id":"rep-0009","segment_id":"seg-0003"}"#
         let made = try await AuditedAction.run(
             "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)), actionName: "Typing",
-            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), steps: steps
         )
         manager.endUndoGrouping()
         XCTAssertEqual(RecordedEngine.invoked.count, 1, "one run of keys, one action")
@@ -1731,12 +1750,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let params = try XCTUnwrap(SegmentHistory.restore(XCTUnwrap(versions.first), of: live))
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         try await AuditedAction.run(
             "segment.restore_version", params: params, actionName: "Restore Version",
-            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: manager
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), steps: steps
         )
         manager.endUndoGrouping()
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
@@ -1805,13 +1825,14 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let actions = ActionsService(client: try XCTUnwrap(storeClient))
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         for (verb, row) in [("segment.match_accept", answer.rows[0]), ("segment.match_reject", answer.rows[1])] {
             manager.beginUndoGrouping()
             try await AuditedAction.run(
                 verb, params: SegmentMatchIdRequest(matchId: try XCTUnwrap(row.matchId)), actionName: verb,
-                actionsService: actions, undoManager: manager
+                actionsService: actions, steps: steps
             )
             manager.endUndoGrouping()
         }
@@ -1858,7 +1879,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         RecordedEngine.invoked = []
         try await AuditedAction.run(
             "reading_order.create", params: params, actionName: "New Flow",
-            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: nil
+            actionsService: ActionsService(client: try XCTUnwrap(storeClient)), steps: nil
         )
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
         let sentParams = try XCTUnwrap(sent["params"] as? [String: Any])
@@ -1991,11 +2012,12 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let call = try SegmentShapes.reshape(line, .polygon, to: added).get()
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
-            call, documentId: "doc-0001", actionName: "Reshape Segment", undoManager: manager
+            call, documentId: "doc-0001", actionName: "Reshape Segment", steps: steps
         )
         manager.endUndoGrouping()
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
@@ -2085,7 +2107,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let client = try XCTUnwrap(storeClient)
         let runner = ReaderTextEditRunner(
             actionsService: ActionsService(client: client), segmentService: SegmentService(ficheroClient: client),
-            undoManager: nil, refreshPage: { _ in }
+            steps: nil, refreshPage: { _ in }
         )
         RecordedEngine.invoked = []
         RecordedEngine.invokeResult = #"{"id":"rep-0009"}"#
@@ -2180,12 +2202,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let (clicked, baselinePoints) = (drawings[0].points, drawings[1].points)
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         let runner = SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store)
         for drawing in drawings {
             manager.beginUndoGrouping()
-            try await runner.run(drawing.call, documentId: "doc-0001", actionName: drawing.name, undoManager: manager)
+            try await runner.run(drawing.call, documentId: "doc-0001", actionName: drawing.name, steps: steps)
             manager.endUndoGrouping()
         }
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }
@@ -2244,7 +2267,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let call = try SegmentShapes.reshape(line, .shape(0, .path), to: movedPath).get()
         RecordedEngine.invoked = []
         try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
-            call, documentId: "doc-0001", actionName: "Reshape Segment", undoManager: nil
+            call, documentId: "doc-0001", actionName: "Reshape Segment", steps: nil
         )
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
         let params = try XCTUnwrap(sent["params"] as? [String: Any])
@@ -2306,7 +2329,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let client = try XCTUnwrap(storeClient)
         let runner = ReaderTextEditRunner(
             actionsService: ActionsService(client: client), segmentService: SegmentService(ficheroClient: client),
-            undoManager: nil, refreshPage: { _ in XCTFail("no engine to re-read from") }
+            steps: nil, refreshPage: { _ in XCTFail("no engine to re-read from") }
         )
         RecordedEngine.invokeUnreachable = true
         let typed = try XCTUnwrap(ReaderTextEdit.message(from: posted[0]))
@@ -2404,7 +2427,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             "representation.create",
             params: NewReadingParams(documentId: "doc-0001", segmentId: drawn.id, kind: "transcription",
                                      content: "ܫܠܡܐ", correctsRepresentationId: nil),
-            actionName: "Type a Reading", actionsService: ActionsService(client: try XCTUnwrap(storeClient)), undoManager: nil
+            actionName: "Type a Reading", actionsService: ActionsService(client: try XCTUnwrap(storeClient)), steps: nil
         )
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
         let params = try XCTUnwrap(sent["params"] as? [String: Any])
@@ -2508,12 +2531,13 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         RecordedEngine.invoked = []
         RecordedEngine.undone = []
-        let manager = UndoManager()
+        let steps = WindowSteps()
+        let manager = steps.undoManager
         manager.groupsByEvent = false
         manager.beginUndoGrouping()
         _ = try await SegmentEditRunner(actionsService: ActionsService(client: try XCTUnwrap(storeClient)), store: store).run(
             try SegmentShapes.reshape(line, done.target, to: done.points).get(), documentId: "doc-0001",
-            actionName: "Reshape Baseline", undoManager: manager
+            actionName: "Reshape Baseline", steps: steps
         )
         manager.endUndoGrouping()
         let sent = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(RecordedEngine.invoked.first)) as? [String: Any])
@@ -2664,7 +2688,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
             ]))
             try await AuditedAction.run(
                 "representation.create", params: try XCTUnwrap(ReaderTextEdit.newReading(for: edit)),
-                actionName: "Typing", actionsService: actions, undoManager: nil
+                actionName: "Typing", actionsService: actions, steps: nil
             )
         }
         let sent = try RecordedEngine.invoked.map { try XCTUnwrap(JSONSerialization.jsonObject(with: $0) as? [String: Any]) }

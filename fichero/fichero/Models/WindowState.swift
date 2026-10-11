@@ -77,6 +77,10 @@ class WindowState {
     /// like the marquees: the sidebar and Items both start it, and the window's one sheet shows it.
     let projectTransfer = ProjectTransferStore()
 
+    /// This window's step stack (#5658, per window): every change a person makes here registers
+    /// through `UndoableChange` on it, and the Edit menu's ⌘Z takes back the newest.
+    let steps = WindowSteps()
+
     /// The annotation bar's ARMED tool (Daniel, 2026-08-30: "when we change
     /// tools for markup… leave it selected"). Sticky: the tool stays armed
     /// across uses until toggled off or another tool is armed; canvases read

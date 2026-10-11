@@ -227,22 +227,15 @@ extension SidebarView {
         }
     }
 
+    /// The delete's own audit row is the step (`undo.one-path.no-local-closures`, #5658): ⌘Z reverses it
+    /// through the engine, which writes the inverse row, so Redo moves it to the Trash again. The old
+    /// closure called `restoreDocument` behind the engine's back and had no redo.
     private func deleteDocumentItem(_ doc: Document, library: LibraryManager.LibraryReference) async throws {
-        _ = try await library.actionsService.invokeAction(
-            name: "document.delete",
-            params: DocumentDeleteActionParams(docId: doc.id)
+        try await UndoableChange.invoke(
+            "document.delete", params: DocumentDeleteActionParams(docId: doc.id), named: "Move to Trash",
+            service: library.actionsService, steps: windowState.steps,
+            afterEach: { await library.documentStore.refresh() }
         )
-        undoManager?.registerUndo(withTarget: library.documentStore) { store in
-            Task { @MainActor in
-                do {
-                    try await store.documentService.restoreDocument(doc.id)
-                    await store.refresh()
-                } catch {
-                    logger.error("Failed to restore deleted document: \(error.localizedDescription)")
-                }
-            }
-        }
-        undoManager?.setActionName("Move to Trash")
         await library.documentStore.refresh()
     }
 

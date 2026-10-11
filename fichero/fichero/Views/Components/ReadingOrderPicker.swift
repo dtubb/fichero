@@ -13,7 +13,7 @@ struct ReadingOrderPicker: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowState.self) private var windowState: WindowState?
-    @Environment(\.undoManager) private var undoManager
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var naming: ReadingOrderChoice.NewKind?
     @State private var name = ""
     /// Why the last step or create did nothing, or what a continuation did; cleared by the next.
@@ -89,7 +89,7 @@ struct ReadingOrderPicker: View {
         do {
             try await AuditedAction.run(
                 "reading_order.create", params: params, actionName: kind.title, actionsService: actionsService,
-                undoManager: undoManager, afterChange: { try? await store.reloadOrders() }
+                steps: windowSteps, afterChange: { try? await store.reloadOrders() }
             )
             if let made = ReadingOrderChoice.made(named: name, before: before, after: store.orders) {
                 try await store.choose(made.id)
@@ -163,22 +163,18 @@ extension ReadingOrderPicker {
             return
         }
         let ids = ReadingOrderChoice.continuation(of: store.segments(documentId: documentId), onPass: shown.passId)
-        let undoManager = undoManager
-        undoManager?.beginUndoGrouping()
-        defer {
-            undoManager?.endUndoGrouping()
-            undoManager?.setActionName("Continue Flow")
-        }
+        // One step for the whole continuation (`undo.batches`): the rows are registered together after the
+        // last placement, never with a group held open across the awaits.
         var placed = 0
         do {
-            for id in ids {
-                let auditId = try await service.placeAtEnd(orderId: candidate.order.id, segmentId: id)
-                ActionUndo.register(
-                    auditId: auditId, actionName: "Continue Flow", undoManager: undoManager,
-                    performUndo: { try await actionsService.undoAction(auditId: $0).auditId }
-                )
-                placed += 1
-            }
+            try await UndoableChange.batch(
+                ids, named: { _ in "Continue Flow" }, service: actionsService, steps: windowSteps,
+                change: { id in
+                    let auditId = try await service.placeAtEnd(orderId: candidate.order.id, segmentId: id)
+                    placed += 1
+                    return [auditId].compactMap { $0 }
+                }
+            )
             note = "Continued “\(candidate.order.name)” onto this page: \(placed) segment\(placed == 1 ? "" : "s")."
         } catch {
             note = "The flow was continued with \(placed) of \(ids.count) segments: \(error.localizedDescription)"

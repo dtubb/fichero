@@ -47,7 +47,7 @@ extension ZoomableImagePreview {
             do {
                 try await AuditedAction.run(
                     "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
-                    actionName: "Convert Page", actionsService: actionsService, undoManager: undoManager,
+                    actionName: "Convert Page", actionsService: actionsService, steps: windowSteps,
                     afterChange: { await reloadSegmentsAfterRegionEdit() }
                 )
                 await reloadSegmentsAfterRegionEdit()
@@ -165,7 +165,7 @@ extension ZoomableImagePreview {
         Task {
             do {
                 try await runner.run(
-                    call, documentId: documentId, actionName: name, undoManager: undoManager,
+                    call, documentId: documentId, actionName: name, steps: windowSteps,
                     afterChange: { await loadOCRGeometry() }
                 )
             } catch {

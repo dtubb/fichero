@@ -293,6 +293,8 @@ final class SessionStore {
         AuthTokenMiddleware.clearSessionToken(hostString: hostString)
         currentUser = nil
         phase = .needsLogin
+        // The person's steps end with their session, in every window (`undo.steps-end`, #5658).
+        WindowSteps.endAllSteps()
     }
 
     // MARK: - Probes
