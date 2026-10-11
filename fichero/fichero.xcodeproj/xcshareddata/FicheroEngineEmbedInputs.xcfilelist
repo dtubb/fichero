@@ -360,6 +360,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_in_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_model_store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mock.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/model_downloads.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/model_profiles.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/model_recommendations.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/model_types.py
@@ -605,6 +606,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/transfer/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/copy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/id_map_classification.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/membership.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/move.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/plan.py
 $(SRCROOT)/../fichero-server/src/fichero_server/verification_targets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/__init__.py
