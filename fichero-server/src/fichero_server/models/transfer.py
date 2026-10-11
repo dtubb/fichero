@@ -139,6 +139,9 @@ class TransferResult(BaseModel):
     cuts: list[TransferCut] = Field(default_factory=list)
     left_behind: list[TransferLeftBehind] = Field(default_factory=list)
     copies: list[str] = Field(default_factory=list, description="The new ids of the top-level items in the target (empty in a dry run).")
+    audit: str | None = Field(
+        default=None, description="The target's audit row of this transfer: undo it (`POST /api/actions/audit/{audit}/undo`)."
+    )
     error: str | None = None
 
 

@@ -72,7 +72,7 @@ def result_of(plan: TransferPlan, *, mode: TransferMode, dry_run: bool, state: T
         files=len(plan.files), bytes=sum(f.size for f in plan.files), linked_files=list(plan.linked_files),
         vocabulary=list(plan.vocabulary), proposals=plan.proposals(), entities_new=plan.entities_new,
         cuts=list(plan.cuts), left_behind=list(plan.left_behind),
-        copies=[] if dry_run else plan.copies, error=error,
+        copies=[] if dry_run else plan.copies, audit=None if dry_run or error else plan.audit_id, error=error,
     )
 
 

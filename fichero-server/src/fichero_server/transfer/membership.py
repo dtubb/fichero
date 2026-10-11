@@ -2,7 +2,7 @@
 
 `id_map_classification.py` says what a transfer does with every id field; this says which of those
 MAPPED fields bring a row along. It names no id field of its own: every field below must be a
-`MAPPED` key of the classification (pinned by `tests/unit/transfer/test_transfer_plan.py`), so the
+`MAPPED` key of the classification (pinned by `tests/unit/transfer/test_transfer_a_page_whole.py`), so the
 two cannot drift into a second list.
 
 - ``owners`` — a row travels when ANY of these names something in the set (a segment by its page,
