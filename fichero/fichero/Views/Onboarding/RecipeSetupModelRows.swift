@@ -17,23 +17,28 @@ struct RecipeDownloadRows: View {
     var body: some View {
         if !store.downloads.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text("To download first").font(.subheadline.weight(.semibold))
+                Text(Self.heading(store.downloads)).font(.subheadline.weight(.semibold))
                 ForEach(store.downloads, id: \.model) { download in
                     let key = Self.key(download)
                     HStack(alignment: .firstTextBaseline) {
                         Text(Self.words(download, store: store)).font(.body)
                         Spacer()
-                        if let downloads, downloads.isActive(key) {
+                        if downloads?.isActive(key) == true || Self.isUnderWay(download) {
+                            // Already downloading, whoever asked (#5660): Start is not held for it.
                             ProgressView().controlSize(.small)
                         } else if let downloads {
                             Button(ModelFinderCard.failed(downloads.state(key)) ? "Try Again" : "Download") {
-                                Task { await downloads.start(key, name: download.name ?? download.model) }
+                                Task {
+                                    await downloads.start(key, name: download.name ?? download.model)
+                                    // The plan reads the download as under way, so Start no longer waits for it.
+                                    await store.loadStartPlan(folderId: store.startPlanFolderId)
+                                }
                             }
                             .controlSize(.small)
                             .help("Download it to this Mac; Activity shows the download")
                         }
                     }
-                    if let line = downloads?.line(key) {
+                    if let line = downloads?.line(key) ?? Self.engineProgress(download) {
                         let failed = ModelFinderCard.failed(downloads?.state(key))
                         Label(line, systemImage: failed ? "exclamationmark.triangle" : "arrow.down.circle")
                             .font(.caption)
@@ -52,6 +57,24 @@ struct RecipeDownloadRows: View {
                 }
             }
         }
+    }
+
+    /// The engine's plan says this model is already downloading (a `download-model` job under way, #5660).
+    static func isUnderWay(_ download: Components.Schemas.StartDownload) -> Bool {
+        download.downloading == true
+    }
+
+    /// What the plan says of a download under way: its job's progress, or that it is downloading; nil for a
+    /// download not started, which shows its Download button instead (#5660: never "download it first" while
+    /// it is downloading).
+    static func engineProgress(_ download: Components.Schemas.StartDownload) -> String? {
+        guard isUnderWay(download) else { return nil }
+        return download.progress ?? "Downloading…"
+    }
+
+    /// "Downloading" when every model is already on its way; "To download first" while one still needs a press.
+    static func heading(_ downloads: [Components.Schemas.StartDownload]) -> String {
+        downloads.allSatisfy(isUnderWay) ? "Downloading" : "To download first"
     }
 
     /// A plan's download as the one download path keys it: its runtime and model, as the engine names them.

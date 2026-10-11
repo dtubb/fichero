@@ -186,6 +186,12 @@ struct RecipeStartFields: View {
                         .font(.body)
                         .foregroundStyle(.orange)
                 }
+                // Steps that wait for a model already downloading (#5660): not a refusal, Start stays pressable.
+                ForEach(store.waitingForDownloads, id: \.self) { waiting in
+                    Label(waiting, systemImage: "arrow.down.circle")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
                 RecipeDownloadRows(store: store, downloads: project?.modelFinderStore.downloads)
                 RecipeElsewhereRows(store: store)
                 RecipeSkippedRows(store: store, onFix: onFix, project: project)

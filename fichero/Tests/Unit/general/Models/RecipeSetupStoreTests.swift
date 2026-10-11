@@ -408,6 +408,39 @@ struct RecipeSetupStoreTests {
         #expect(RecipeStartFields.cost(nil) == "price unknown")
     }
 
+    /// WHY (#5660 item 6, the maintainer's Set Up test of 2026.10.10): the needed models began downloading by
+    /// themselves, yet Ready kept Start disabled and said "not on this Mac: download it first". A model already
+    /// downloading is not a refusal: Start stays pressable, and the plan says it is downloading, with its progress.
+    @Test("Start stays pressable while a needed model downloads, and Ready says it is downloading")
+    func startWhileAModelDownloads() async {
+        let plan = """
+        {"runs":[],"skipped":[],"workflows":[{"steps":["lines","read"],"job":"read-a-line","workflow":"Transcribe (Kraken)",
+          "workflow_id":"w1","runs_on":"this-mac"}],
+         "offered":[],"refusals":[],
+         "waiting":["steps lines, read wait for blla, which is downloading (12 MB of 40 MB): they run when it lands"],
+         "downloads":[
+           {"runtime":"kraken","model":"blla","steps":["lines","read"],"size_mb":40,"action":"model.download",
+            "params":{"runtime":"kraken","model":"blla"},"downloading":true,"progress":"12 MB of 40 MB","job_id":"j1"},
+           {"runtime":"spacy","model":"es_core_news_sm","steps":["names"],"size_mb":13,"action":"model.download",
+            "params":{"runtime":"spacy","model":"es_core_news_sm"}}],
+         "estimate":{"pages":92,"runs":[],"total_cost_usd":null}}
+        """
+        let store = makeStore { request in Self.reply(request, 200, plan) }
+        await store.loadStartPlan()
+
+        #expect(store.canStart, "a model downloading does not hold Start")
+        #expect(store.waitingForDownloads.count == 1)
+        #expect(store.waitingForDownloads.first?.contains("which is downloading") == true)
+        #expect(!store.waitingForDownloads.contains { $0.contains("download it first") })
+        let downloads = store.downloads
+        #expect(RecipeDownloadRows.isUnderWay(downloads[0]))
+        #expect(RecipeDownloadRows.engineProgress(downloads[0]) == "12 MB of 40 MB")
+        #expect(!RecipeDownloadRows.isUnderWay(downloads[1]))
+        #expect(RecipeDownloadRows.engineProgress(downloads[1]) == nil, "not started: its Download button shows")
+        #expect(RecipeDownloadRows.heading(downloads) == "To download first")
+        #expect(RecipeDownloadRows.heading([downloads[0]]) == "Downloading")
+    }
+
     /// WHY: Start must record the yes in the engine (POST, audited) before the window closes; a
     /// refusal must not close it, and must say so.
     @Test("start posts the yes; a refusal returns false and says so")

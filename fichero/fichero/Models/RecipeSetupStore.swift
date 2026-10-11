@@ -242,8 +242,13 @@ final class RecipeSetupStore {
     /// as the engine plans it (GET /api/recipes/project/start).
     private(set) var startPlan: Components.Schemas.StartPlan?
 
-    /// Start is offered only when the engine has a plan with nothing refused.
+    /// Start is offered only when the engine has a plan with nothing refused. A model already downloading is not
+    /// a refusal (#5660): its steps wait for it after Start, so Start stays pressable while it downloads.
     var canStart: Bool { startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false }
+
+    /// The plan's words for steps that wait for a model already downloading ("... which is downloading (1.2 GB of
+    /// 5.6 GB): they run when it lands"), shown in place of a refusal (#5660).
+    var waitingForDownloads: [String] { startPlan?.waiting ?? [] }
 
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
