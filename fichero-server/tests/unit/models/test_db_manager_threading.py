@@ -202,7 +202,9 @@ def test_reopening_a_seeded_library_prunes_the_presets(tmp_path, monkeypatch):
         db2 = mgr2.get_database(pkg)
         names = [w.name for w in db2.all(Workflow)]
         assert names == ["My Own Pipeline"]
+        # Ruled 2026-10-11: in a non-global project the "Workflows" folder (the person's own workflows) stays, and
+        # the locked "Default Workflows" folder of shipped presets goes.
         containers = db2.query(Document, node_kind="workflow_container")
-        assert list(containers) == []
+        assert [c.id for c in containers] == ["system-workflows"]
     finally:
         mgr2.close_all()
