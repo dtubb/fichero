@@ -122,8 +122,8 @@ struct ActivityStatusToolbarItem: View {
         .popover(isPresented: $showPopover) {
             popoverContent
         }
-        // When each failure was first seen, the stand-in for when it failed (the job list carries no time).
-        .onChange(of: failedIds, initial: true) { _, ids in errorLedger.note(failedIds: ids) }
+        // When each failure failed: the engine's failed_at, or (without one) when it was first seen.
+        .onChange(of: activityStore.failedJobs, initial: true) { _, jobs in errorLedger.note(failed: jobs) }
         .accessibilityLabel(accessibilityLabel)
     }
 
@@ -184,7 +184,7 @@ struct ActivityStatusToolbarItem: View {
         // Recent errors only (#5666): the window is fixed as the popover opens, and what it could show is seen
         // when it closes, so an error shows once and never piles up.
         .onAppear {
-            errorLedger.note(failedIds: failedIds)
+            errorLedger.note(failed: activityStore.failedJobs)
             errorWindow = errorLedger.window()
         }
         .onDisappear { errorLedger.markSeen(failedIds) }

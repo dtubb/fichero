@@ -245,6 +245,8 @@ struct ActivityJob: Identifiable, Equatable {
     let offer: String?
     /// The workflow run a page's work is for (#5615); `nil` for a row not under a run.
     let runId: String?
+    /// When it failed, as the engine records it (`failed_at`); nil unless failed, and cleared on a retry.
+    let failedAt: Date?
 
     init(_ job: Components.Schemas.BackgroundJob) {
         self.id = job.id
@@ -259,6 +261,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.parentId = job.parentId
         self.offer = job.offer
         self.runId = job.runId
+        self.failedAt = job.failedAt
     }
 
     /// Test/preview seam — construct without the generated schema.
@@ -274,7 +277,8 @@ struct ActivityJob: Identifiable, Equatable {
         reason: String? = nil,
         parentId: String? = nil,
         offer: String? = nil,
-        runId: String? = nil
+        runId: String? = nil,
+        failedAt: Date? = nil
     ) {
         self.id = id
         self.taskType = taskType
@@ -288,6 +292,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.parentId = parentId
         self.offer = offer
         self.runId = runId
+        self.failedAt = failedAt
     }
 
     /// A determinate bar is only meaningful once the backend knows the total.

@@ -121,11 +121,44 @@ struct ActivityPopoverRunTests {
     func closedErrorsAreSeen() throws {
         let defaults = try #require(UserDefaults(suiteName: "activity-errors-\(UUID().uuidString)"))
         let ledger = ActivityErrorLedger(defaults: defaults)
-        ledger.note(failedIds: ["e1"])
+        ledger.note(failed: [ActivityJob(id: "e1", name: "Read", state: .failed)])
         #expect(ledger.window().isRecent("e1"))
         ledger.markSeen(["e1"])
         #expect(!ledger.window().isRecent("e1"))
         #expect(!ActivityErrorLedger(defaults: defaults).window().isRecent("e1"), "across launches")
+    }
+
+    /// WHY (#5666): the first time this app saw a failure stood in for when it failed, so a failure from yesterday,
+    /// first seen at launch, showed as recent. The engine now says when (`failed_at`).
+    @Test("a failure is recent by the engine's failed_at; the first sighting stands in only without one")
+    func failedAtDecidesRecent() throws {
+        let defaults = try #require(UserDefaults(suiteName: "activity-errors-\(UUID().uuidString)"))
+        let ledger = ActivityErrorLedger(defaults: defaults)
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        ledger.note(failed: [
+            ActivityJob(id: "yesterday", name: "Read", state: .failed, failedAt: now.addingTimeInterval(-24 * 60 * 60)),
+            ActivityJob(id: "just-now", name: "Read", state: .failed, failedAt: now.addingTimeInterval(-60)),
+            ActivityJob(id: "no-time", name: "Read", state: .failed)
+        ], now: now)
+        let window = ledger.window(now: now)
+        #expect(!window.isRecent("yesterday"), "first seen now, but it failed a day ago")
+        #expect(window.isRecent("just-now"))
+        #expect(window.isRecent("no-time"), "without failed_at, the first sighting stands in")
+        #expect(ledger.firstSeen["no-time"] == now)
+
+        // Retried and failed again: the new failed_at replaces the old one.
+        ledger.note(failed: [ActivityJob(id: "yesterday", name: "Read", state: .failed, failedAt: now)], now: now)
+        #expect(ledger.window(now: now).isRecent("yesterday"))
+    }
+
+    @Test("the jobs list's failed_at is read into the job")
+    func failedAtIsRead() throws {
+        let json = #"{"id":"j1","task_type":"workflow","name":"Read","current":0,"total":0,"percent":0,"#
+            + #""state":"failed","failed_at":"2026-10-11T18:00:00Z"}"#
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let job = ActivityJob(try decoder.decode(Components.Schemas.BackgroundJob.self, from: Data(json.utf8)))
+        #expect(job.failedAt == ISO8601DateFormatter().date(from: "2026-10-11T18:00:00Z"))
     }
 
     @Test("a running job shows its count on one line over a bar of its own")

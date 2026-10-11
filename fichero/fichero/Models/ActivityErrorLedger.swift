@@ -21,9 +21,10 @@ struct ActivityErrorWindow: Equatable {
     }
 }
 
-/// The app's record of the failures it has seen and the ones the person has seen in the popover. The engine's job
-/// list carries no time for a failure, so the first time this app saw it stands in for when it failed; the failures
-/// seen in the popover are kept across launches, so an old one never comes back.
+/// The app's record of the failures it has seen and the ones the person has seen in the popover. When a failure
+/// failed is the engine's `failed_at`; only a failure listed without one (an engine from before it) is stamped with
+/// the first time this app saw it. The failures seen in the popover are kept across launches, so an old one never
+/// comes back.
 @MainActor
 @Observable
 final class ActivityErrorLedger {
@@ -40,9 +41,15 @@ final class ActivityErrorLedger {
     /// The failures seen when the popover was last closed.
     var seen: Set<String> { Set(defaults.stringArray(forKey: Self.seenKey) ?? []) }
 
-    /// Note the failures listed now; a new one is stamped with now.
-    func note(failedIds: [String], now: Date = Date()) {
-        for id in failedIds where firstSeen[id] == nil { firstSeen[id] = now }
+    /// Note the failures listed now: each at the engine's `failed_at`; one without it, at the first time it was seen.
+    func note(failed jobs: [ActivityJob], now: Date = Date()) {
+        for job in jobs {
+            if let failedAt = job.failedAt {
+                if firstSeen[job.id] != failedAt { firstSeen[job.id] = failedAt }
+            } else if firstSeen[job.id] == nil {
+                firstSeen[job.id] = now
+            }
+        }
     }
 
     /// The window the popover shows its errors through, as it opens.

@@ -526,6 +526,9 @@ workflow by hand: a hand run is a job like any other.
   carries `failed_at`: for a failed job, when it failed (ISO 8601, UTC; a queued job's end, a workflow run's
   completion); null for any other, and null again once it is retried. So the popover's recent errors say when each
   happened rather than guess. Test: `fichero-server/tests/unit/jobs/test_failed_at_on_the_jobs_list.py`.
+  **Built 2026-10-11 (app, #5666):** `ActivityJob.failedAt`; the popover's recent-errors window dates each failure
+  by it (`ActivityErrorLedger.note(failed:)`), the first time the app saw it standing in only when it is null.
+  Pinned by `fichero/Tests/Unit/general/Models/ActivityPopoverRunTests.swift`.
 - `activity.persists-from-any-thread` — **[OK]** (2026-10-11) an Activity written from a job or timer thread
   with no event loop is kept: it is saved on that thread (`ActivityTracker._schedule_activity`,
   `ActivityStore.save_now`). Before, it was dropped with "Activity could not be persisted: no running event loop",
