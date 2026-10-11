@@ -200,12 +200,13 @@ All paths below are under `fichero-server/src/fichero_server/`.
   Fichero and the list of paired machines are designed, not built (`compute.transfer.https-write-half`,
   `compute.target.add-fichero-mac`). Device pairing exists (`api/routes/auth/pairing.py`: a code, a
   paired device's own token). A host per library is not built (#2573).
-- **Copy within one engine is built (build orders 2-3, 2026-10-10).** `POST /api/documents/transfer`
+- **Copy and move within one engine are built (build orders 2-4, 2026-10-10).** `POST /api/documents/transfer`
   (`api/routes/document/transfer.py`, action `document.transfer`, inverse `document.untransfer`) plans
-  (`dry_run`) or copies a selection into another open project: `transfer/plan.py` gathers the set by
+  (`dry_run`), copies or moves a selection into another open project: `transfer/plan.py` gathers the set by
   `transfer/membership.py`'s join table and re-points every id by the classification;
-  `transfer/copy.py` writes, verifies and records it (`TransferRecord`, `models/transfer.py`). Not
-  built: a move, the background job, the app's drag, between machines, out to the Finder.
+  `transfer/copy.py` writes, verifies and records it (`TransferRecord`, `models/transfer.py`);
+  `transfer/move.py` takes a move's source step (`document.transfer_out`, build order 4). Not built:
+  the background job, the app's drag, between machines, out to the Finder.
 
 ## Design
 
@@ -516,50 +517,50 @@ Nothing in the project changes.
 - `transfer.action.one-route` — **[PARTIAL]** (#5657, #2397) `POST /api/documents/transfer` runs one audited
   action `document.transfer` (items, source, target, target parent, mode, dry run); the app, MCP and CLI
   call it and nothing else; it runs as one background job beyond a handful of nodes and `GET
-  /api/documents/transfer/{id}` returns its state and result. Built (build orders 2-3): the route and the audited action `document.transfer` (`api/routes/document/transfer.py`), generated into the CLI and MCP; `test_transfer_a_page_whole.py`. *Not built: the background job and `GET /api/documents/transfer/{id}`; a move.*
+  /api/documents/transfer/{id}` returns its state and result. Built (build orders 2-4): the route and the audited action `document.transfer` (`api/routes/document/transfer.py`), copy and move, generated into the CLI and MCP; `test_transfer_a_page_whole.py`, `test_transfer_a_move.py`. *Not built: the background job and `GET /api/documents/transfer/{id}`.*
 - `transfer.action.dry-run` — **[OK]** (#5657) `dry_run: true` writes nothing and returns the plan:
   counts by kind, files and bytes, vocabulary to be made, entity matches, every cut, every refusal. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_dry_run_writes_nothing_and_says_what_a_copy_would
 - `transfer.action.refusals-in-words` — **[PARTIAL]** (#5657) refused in words, changing nothing: a project
   not open (`DatabaseManager.is_open`), no write permission in the target (or the source, for a move), a
   locked node (`_reject_if_document_read_only`), a target that is not a live folder, the same project
-  as source and target (that is `document.move`/`document.duplicate`), an alias between projects. Built (build orders 2-3): not open, same project, unknown or trashed item, alias, locked node, target not a folder, a move (not built yet); `test_transfer_refusals.py`. *Not pinned: no write permission in the target (the registry's write check refuses it, untested here).*
-- `transfer.action.verify-then-delete` — **[PARTIAL]** (#5657, #2397) a move soft-deletes the source's items
+  as source and target (that is `document.move`/`document.duplicate`), an alias between projects. Built (build orders 2-4): not open, same project, unknown or trashed item, alias, locked node, target not a folder, an item a pending move holds; a move checks write permission in the source; `test_transfer_refusals.py`. *Not pinned: no write permission in the target or the source.*
+- `transfer.action.verify-then-delete` — **[OK]** (#5657, #2397) a move soft-deletes the source's items
   only after the target's copy is written and verified (counts per kind, sha256 per file, every mapped
-  id resolving); a failed verification rolls the target back and leaves the source untouched. Built for a copy (build orders 2-3): per-kind counts, sha256 per file and every mapped id resolving, read back inside the target's transaction; a failure rolls it back; `test_transfer_is_never_half_done.py`. *Not built: the source's soft delete (a move).*
-- `transfer.action.compensates` — **[GAP]** (#5657) if the source's soft delete fails after
+  id resolving); a failed verification rolls the target back and leaves the source untouched. Built (build order 4): the source's items go to its Trash only after the target's copy is read back; `test_transfer_a_move.py`::test_a_move_lands_whole_and_sends_the_source_to_its_trash_labelled, `test_transfer_is_never_half_done.py`::test_a_failure_after_half_the_writes_leaves_the_target_with_nothing
+- `transfer.action.compensates` — **[OK]** (#5657) if the source's soft delete fails after
   verification, it is retried once, then the target's copy is rolled back and the move reported as not
-  done with the reason; a move never ends as a silent copy.
-- `transfer.action.journal-recovers` — **[PARTIAL]** (#5657) the transfer's record is written in the target
+  done with the reason; a move never ends as a silent copy. Built (build order 4): the source step (`document.transfer_out`, one source transaction) is tried twice, then the target's committed copy is removed by the record's `written` rows and the move reported as not done; `test_transfer_is_never_half_done.py`::test_a_move_whose_source_step_fails_twice_takes_its_copy_back
+- `transfer.action.journal-recovers` — **[OK]** (#5657) the transfer's record is written in the target
   as `writing` before any row, `verified` after verification, `done` after the source's delete; on
-  opening a project a `writing` transfer is rolled back and a `verified` move resumes its source step. Built (build orders 2-3): the target's record is `writing` before any row and `done` after; on opening a project a `writing` transfer is rolled back (its files removed) and a copy left `verified` is closed; `test_transfer_is_never_half_done.py`. *Not built: a `verified` move resuming its source step.*
+  opening a project a `writing` transfer is rolled back and a `verified` move resumes its source step. Built (build orders 3-4): `writing` rolled back on open (files removed); a copy left `verified` closed; a move left `verified` finishes its source step when both projects are open, from either side, and waits otherwise; `test_transfer_is_never_half_done.py`
 - `transfer.action.record-in-both` — **[OK]** (#5657) each transfer is one record in each project
   (same id): the id map, files and proposals in the target; items, mode and target in the source. Built (build orders 2-3): `TransferRecord` in each project, same id; `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
 - `transfer.action.provenance` — **[OK]** (#5657) every node written by a transfer records
   `metadata.transferred_from` (source project id, node id, transfer id, when, who). Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
 - `transfer.action.undo-copy` — **[PARTIAL]** (#5657, #4311) undoing a copy sends the copy to the target's
   Trash and withdraws its entity proposals; redo copies again. Built (build orders 2-3): undo (`document.untransfer`) sends the copies to the target's Trash and withdraws its proposals; redo replays the copy; `test_transfer_a_page_whole.py`::test_undo_of_a_copy_sends_it_to_the_targets_trash. *Not built: removing vocabulary the copy made when nothing else uses it.*
-- `transfer.action.undo-move` — **[GAP]** (#5657, #2397) undoing a move puts the items back in the source
+- `transfer.action.undo-move` — **[PARTIAL]** (#5657, #2397) undoing a move puts the items back in the source
   from its Trash, restores the cut edges from the record and sends the target's copy to the target's
   Trash; offered from either project; refused in words when the source's items were emptied since;
-  when the target's copy changed since, says so and offers to put the source back keeping the copy.
+  when the target's copy changed since, says so and offers to put the source back keeping the copy. Built (build order 4): `document.untransfer` from the target's `document.transfer` row or the source's `document.transfer_out` row puts the source's items back from its Trash with every cut edge and sends the copy to the target's Trash; refused in words when the other project is closed, when already undone, and when the source's items were emptied; `test_transfer_a_move.py`. *Not built: saying so when the target's copy changed since, and the offer to keep it (open question 4).*
 - `transfer.action.batched-and-gentle` — **[GAP]** (#5657) a large transfer writes in batches of
   top-level items, hashes and copies at background priority and yields to the person's work
   (the auto-throttle rule), with progress per batch.
 - `transfer.action.selection-is-one-transfer` — **[GAP]** (#5657) a multi-item selection is one
   transfer, one record, one undo, one result.
-- `transfer.action.pending-visible-in-source` — **[GAP]** (#5657) a move writes a mirror journal row in
+- `transfer.action.pending-visible-in-source` — **[PARTIAL]** (#5657) a move writes a mirror journal row in
   the source (same id, `sending` → `verified` → `done`) before it writes the target; opening the
   source while the move is `verified`-not-`done` shows the pending step in the source's Activity in
-  words, with Finish Now and Roll Back, and resumes it when the target is open.
-- `transfer.action.second-drag-refused` — **[GAP]** (#5657) while a move of an item is pending, a
+  words, with Finish Now and Roll Back, and resumes it when the target is open. Built (build order 4): the mirror row `sending` → `verified` → `done` in the source, written before the target; a pending move resumes when both are open (`test_transfer_is_never_half_done.py`). *Not built: the pending step in the source's Activity, in words, with Finish Now and Roll Back.*
+- `transfer.action.second-drag-refused` — **[OK]** (#5657) while a move of an item is pending, a
   second transfer of that item, of a folder holding it, or into it, is refused in words ("These
-  items are already being moved to <project>."), checked from the source's mirror row alone.
-- `transfer.action.undo-durable` — **[GAP]** (#5657) undo of a transfer survives quitting the app and
+  items are already being moved to <project>."), checked from the source's mirror row alone. Built (build order 4): `test_transfer_refusals.py`::test_a_second_drag_of_an_item_a_pending_move_holds_is_refused, ::test_a_drop_into_a_folder_a_pending_move_holds_is_refused
+- `transfer.action.undo-durable` — **[PARTIAL]** (#5657) undo of a transfer survives quitting the app and
   restarting the engine: it is found from the action history and the `transfers` record in either
   project, and a move stays undoable while its source items are in the source's Trash; once they
   are emptied (`safety.trash.empty-names-moved-items`) the record says "made permanent" and undo is
   refused in words. Decided in this spec, flagged for the maintainer (open question 9). *Test:*
-  move, restart the engine, undo from the target's window: both sides restored.
+  move, restart the engine, undo from the target's window: both sides restored. Built (build order 4): undo is read from the audit row and the `transfers` record in either project, so it does not depend on the session; refused in words once the source's items were emptied (`test_transfer_a_move.py`::test_undo_of_a_move_is_refused_once_the_source_trash_was_emptied). *Not pinned: undo after an engine restart; the record saying "made permanent" when the Trash is emptied.*
 - `transfer.inventory.every-id-classified` — **[OK]** (#5657) every persisted id field (model fields
   ending `_id`/`_ids` with nested models, id-bearing fields with other names, hand-written SQL id
   columns, episode-ledger id keys) is in one bucket of
@@ -630,23 +631,23 @@ Nothing in the project changes.
 - `transfer.cut.listed-never-silent` — **[PARTIAL]** (#5657) every edge that crosses the set's edge (links,
   note links, citations, research-workspace inclusions, recipe overrides, proposals naming a moved
   folder) is cut and listed in the result by name; nothing in either project points at an id that is
-  not there. Built for a copy (build orders 2-3): every edge out of the set is not carried and is listed (whole row, or the one field); no carried row names a row the target lacks; `test_transfer_a_page_whole.py`::test_no_carried_row_names_a_missing_row. *Not built: cuts in the source (a move).*
-- `transfer.cut.canvas-position` — **[GAP]** (#5657) the moved items' positions on the source folder's
+  not there. Built (build orders 3-4): a copy carries no edge out of the set and lists each; a move cuts in the source canvas places, canvas links, workspace slots, aliases and synced-folder ties and lists each; `test_transfer_a_page_whole.py`::test_no_carried_row_names_a_missing_row, `test_transfer_a_move.py`. *Not built: partial groups, research-workspace inclusions, recipe overrides, the CUT bucket's rows.*
+- `transfer.cut.canvas-position` — **[OK]** (#5657) the moved items' positions on the source folder's
   canvas are dropped; positions inside a moved folder's own canvas travel; items land in the target by
-  its canvas's arrange.
-- `transfer.cut.workspace-slot` — **[GAP]** (#5657) a workspace's slot naming a moved item is removed and
-  listed; the workspace stays.
+  its canvas's arrange. Built (build order 4): `test_transfer_a_move.py`::test_a_move_lands_whole_and_sends_the_source_to_its_trash_labelled; positions inside a moved folder travel (`test_transfer_a_page_whole.py`)
+- `transfer.cut.workspace-slot` — **[OK]** (#5657) a workspace's slot naming a moved item is removed and
+  listed; the workspace stays. Built (build order 4): `test_transfer_a_move.py`::test_a_move_lands_whole_and_sends_the_source_to_its_trash_labelled
 - `transfer.cut.partial-group` — **[GAP]** (#5657) moving some pages of a group takes them out of the
   group; the group keeps the rest; listed.
-- `transfer.cut.canvas-links` — **[PARTIAL]** (#5657) a canvas link item (`CanvasItem.source_item_id` /
+- `transfer.cut.canvas-links` — **[OK]** (#5657) a canvas link item (`CanvasItem.source_item_id` /
   `target_item_id`) travels with both ends mapped when both ends move; when one end stays, the
-  link is cut in the source (a move) or not carried (a copy) and listed. Built for a copy (build orders 2-3): both ends moved, mapped; one end left behind, not carried and listed; `test_transfer_a_page_whole.py`. *Not built: the cut in the source (a move).*
+  link is cut in the source (a move) or not carried (a copy) and listed. Built (build orders 3-4): both ends moved, mapped; one end staying, not carried (copy) and cut in the source (move), listed; `test_transfer_a_page_whole.py`, `test_transfer_a_move.py`
 - `transfer.cut.spatial-nodes` — **[GAP]** (#5657) a spatial node whose `source_id` names a moved item
   travels mapped when its room (a moved folder) travels, else is cut and listed; a
   `SpatialConnection` is mapped when both its nodes travel and cut and listed when one stays.
-- `transfer.cut.sync-folder-tie` — **[GAP]** (#5657) a moved document's tie to a synced folder
+- `transfer.cut.sync-folder-tie` — **[OK]** (#5657) a moved document's tie to a synced folder
   (`sync_files`) is severed in the source, its file left on disk untouched, and listed; the target
-  does not inherit the tie.
+  does not inherit the tie. Built (build order 4): `sync_folder.sever`/`retie`; `test_transfer_a_move.py`
 
 ### Aliases
 
@@ -659,9 +660,9 @@ Nothing in the project changes.
 - `transfer.alias.inside-set-rewritten` — **[OK]** (#5657) an alias in the set whose target is in the
   set travels with its target id rewritten; one whose target is not in the set does not travel and is
   listed. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
-- `transfer.alias.source-aliases` — **[GAP]** (#5657) an alias in the source pointing at a moved item goes
+- `transfer.alias.source-aliases` — **[OK]** (#5657) an alias in the source pointing at a moved item goes
   to the source's Trash labelled "alias to <item>, moved to <project>", is listed, and comes back on undo
-  (recommended, open question 2).
+  (recommended, open question 2). Built (build order 4): to the source's Trash "moved to", listed, back on undo; `test_transfer_a_move.py`
 
 ### Other kinds of items
 

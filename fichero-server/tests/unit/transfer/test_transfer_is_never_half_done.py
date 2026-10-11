@@ -102,3 +102,104 @@ def test_a_transfer_a_crash_left_writing_is_rolled_back_when_the_project_opens(t
     assert crashed.state.value == "rolled_back" and "rolled back on open" in crashed.error
     assert not stray.exists()
     assert reopened.get(TransferRecord, "finished").state.value == "done"
+
+
+# --- a move ------------------------------------------------------------------------------------
+
+
+def test_a_move_whose_source_step_fails_twice_takes_its_copy_back(client, db, tmp_path, monkeypatch):
+    """`transfer.action.compensates`: the source step fails half-way (after its deletes, before its cuts)
+    twice; its own transaction leaves the source as it was, and the checked copy in the target is
+    removed row by row and file by file. A move never ends as a silent copy."""
+    from fichero_server.transfer import move
+
+    source_package = open_source(tmp_path)
+    source = db_manager.get_database(source_package)
+    box = build_box(source, db, tmp_path)
+    source_before, target_before = table_counts(source), table_counts(db)
+    target_files = Path(db.path).parent / "files"
+    files_before = sorted(target_files.rglob("*"))
+    attempts = []
+
+    def fails(*args, **kwargs):
+        attempts.append(1)
+        raise OSError("the source is locked")
+
+    monkeypatch.setattr(move, "cut_in_source", fails)
+    response = client.post("/api/documents/transfer",
+                           json={"items": [box.folder.id], "source": str(source_package), "mode": "move"})
+
+    assert len(attempts) == 2  # tried, then tried once more
+    assert response.status_code == 500
+    detail = response.json()["detail"]
+    assert "was not done" in detail and "taken back" in detail and "the source is locked" in detail
+    assert {k: v for k, v in table_counts(source).items() if k != "ActionAudit"} == \
+        {k: v for k, v in source_before.items() if k != "ActionAudit"}
+    assert source.get(Document, box.folder.id).deleted_at is None
+    assert table_counts(db) == target_before and sorted(target_files.rglob("*")) == files_before
+    [record] = db.all(TransferRecord)
+    assert record.state.value == "rolled_back" and "the source step failed twice" in record.error
+    assert source.get(TransferRecord, record.id).state.value == "rolled_back"
+
+
+def _move_that_crashes_before_its_source_step(tmp_path, monkeypatch):
+    """Two projects, and a move stopped (as by a crash) after the target's copy was checked."""
+    from fichero_server.models import DocType
+    from fichero_server.transfer import move
+    from fichero_server.transfer.plan import build_plan
+
+    source_package, target_package = open_source(tmp_path), open_source(tmp_path, "Istmina.fichero")
+    source, target = db_manager.get_database(source_package), db_manager.get_database(target_package)
+    box = build_box(source, target, tmp_path)
+    landing = Document(name="Landing", doc_type=DocType.folder)
+    target.save(landing)
+    plan = build_plan(source, target, items=[box.folder.id], target_parent_id=landing.id,
+                      transfer_id="crash-move", audit_id="crash-audit", actor="maker")
+
+    class Crash(Exception):
+        pass
+
+    def crash(*args, **kwargs):
+        raise Crash()
+
+    monkeypatch.setattr(move, "finish_move", crash)
+    try:
+        move.move_between(source, target, plan, actor="maker", bootstrap=True)
+    except Crash:
+        pass
+    monkeypatch.undo()
+    assert target.get(TransferRecord, "crash-move").state.value == "verified"
+    assert source.get(TransferRecord, "crash-move").state.value == "verified"
+    assert source.get(Document, box.folder.id).deleted_at is None  # the crash came before the source step
+    return source_package, target_package, box
+
+
+def test_a_move_a_crash_left_between_write_and_trash_finishes_when_the_project_opens(tmp_path, monkeypatch):
+    """The journal for a move: the copy was written and checked, then the engine stopped. Opening the
+    target again (the source open) takes the source step: items to the Trash "moved to", both done."""
+    from fichero_server.api.routes.document.trash import moved_reasons
+
+    source_package, target_package, box = _move_that_crashes_before_its_source_step(tmp_path, monkeypatch)
+    db_manager.close_database(target_package)
+    target = db_manager.get_database(target_package)  # reopened: the pending move is finished
+
+    source = db_manager.get_database(source_package)
+    assert target.get(TransferRecord, "crash-move").state.value == "done"
+    assert source.get(TransferRecord, "crash-move").state.value == "done"
+    assert source.get(Document, box.folder.id).deleted_at is not None
+    assert moved_reasons(source, [box.folder.id])[box.folder.id][0].project == "Istmina"
+
+
+def test_a_pending_move_waits_while_the_other_project_is_closed(tmp_path, monkeypatch):
+    """Opened alone, the target cannot take the source step: the move waits, the source untouched,
+    and finishes when the source is opened."""
+    source_package, target_package, box = _move_that_crashes_before_its_source_step(tmp_path, monkeypatch)
+    db_manager.close_database(source_package)
+    db_manager.close_database(target_package)
+
+    target = db_manager.get_database(target_package)
+    assert target.get(TransferRecord, "crash-move").state.value == "verified"  # waits
+    source = db_manager.get_database(source_package)  # the source opens: the move finishes from its side
+    assert source.get(TransferRecord, "crash-move").state.value == "done"
+    assert target.get(TransferRecord, "crash-move").state.value == "done"
+    assert source.get(Document, box.folder.id).deleted_at is not None

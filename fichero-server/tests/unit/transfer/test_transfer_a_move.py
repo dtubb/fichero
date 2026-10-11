@@ -22,7 +22,12 @@ from fichero_server.models import ActionAudit, DocType, Document
 from fichero_server.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 from fichero_server.models.transfer import TransferRecord
 
-from tests.unit.transfer._two_projects import build_box, header_decides, open_source, table_counts
+from tests.unit.transfer._two_projects import (
+    build_box,
+    header_decides,
+    open_source,
+    table_counts,
+)
 
 
 def _source_edges(source, box) -> dict:

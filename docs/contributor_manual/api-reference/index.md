@@ -131,11 +131,20 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   `EntityMatchCandidate` (method `transfer`, never merged by the transfer), every
   edge cut and why, items left behind, the new top-level ids (`copies`) and the
   `audit` row to undo (`POST /api/actions/audit/{audit}/undo`).
+- `mode: move` copies and checks first, then sends the source's items to the
+  source's Trash through `document.delete` with `moved_to` (the Trash lists them
+  "moved to <project>") in one audited source action, `document.transfer_out`, which
+  also cuts what cannot follow (canvas places and links, workspace slots, aliases,
+  synced-folder ties) and lists each in `cuts`. If that step fails twice the copy is
+  taken back (500, in words). Undo works from the target's `document.transfer` row
+  or the source's `document.transfer_out` row; both projects must be open.
 - Refused in words, changing nothing: source not open (409), same project (400),
   unknown item (404), trashed item or alias ("Aliases stay within a project.",
-  409), locked node (403), target not a folder (400), `mode: move` (409, not built
-  yet). A failure while writing rolls the target back (500, the reason in words);
-  the record (`TransferRecord`, one per project) keeps the journal.
+  409), locked node (403), target not a folder (400), an item a pending move
+  holds ("These items are already being moved to <project>.", 409). A failure while
+  writing rolls the target back (500, the reason in words); the record
+  (`TransferRecord`, one per project) keeps the journal, and a move a crash left
+  half-way finishes when both projects are open.
 - Spec: `docs/contributor_manual/specs/source/moving-between-projects.md`.
 
 ## Fold endpoints documented here

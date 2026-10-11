@@ -185,7 +185,10 @@ def _action_transfer(db: Database, params: DocumentTransferParams, ctx: ActionCo
 def _action_untransfer(db: Database, params: DocumentUntransferParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     """Undo a transfer from this project: a copy's copies go to the target's Trash; a move's source items
     come back from the source's Trash with their cut edges, and its copy goes to the target's Trash."""
-    from fichero_server.api.routes.document.documents import delete_document_impl, restore_documents_impl
+    from fichero_server.api.routes.document.documents import (
+        delete_document_impl,
+        restore_documents_impl,
+    )
     from fichero_server.db.manager import db_manager
     from fichero_server.models.transfer import TransferRecord
     from fichero_server.transfer.move import undo_move

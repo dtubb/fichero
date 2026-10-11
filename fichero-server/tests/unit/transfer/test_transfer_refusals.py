@@ -68,10 +68,39 @@ def test_an_alias_between_projects_is_refused(two):
     assert_refused(client, db, source, {"items": [alias.id], "source": str(pkg)}, 409, "Aliases stay within a project.")
 
 
-def test_a_move_is_refused_until_it_is_built(two):
+def _pending_move(db, items, target="Istmina"):
+    """A move of `items` that a crash left between its checked copy and its source step."""
+    from fichero_server.models.transfer import (
+        TransferMode,
+        TransferRecord,
+        TransferRole,
+        TransferState,
+    )
+
+    db.save(TransferRecord(role=TransferRole.source, state=TransferState.verified, mode=TransferMode.move,
+                           source_project=str(db.path.parent), target_project=f"/x/{target}.fichero", items=items))
+
+
+def test_a_second_drag_of_an_item_a_pending_move_holds_is_refused(two):
+    """`transfer.action.second-drag-refused`: the item itself, a page inside it, a folder holding it --
+    each read from the source's mirror row alone."""
     client, db, source, pkg, box = two
-    assert_refused(client, db, source, {"items": [box.page1.id], "source": str(pkg), "mode": "move"}, 409,
-             "Moving between projects is not built yet")
+    _pending_move(source, [box.folder.id])
+    for item in (box.folder.id, box.page1.id):
+        for mode in ("copy", "move"):
+            assert_refused(client, db, source, {"items": [item], "source": str(pkg), "mode": mode}, 409,
+                     "These items are already being moved to Istmina.")
+
+
+def test_a_drop_into_a_folder_a_pending_move_holds_is_refused(two):
+    client, db, source, pkg, box = two
+    leaving = Document(name="Leaving", doc_type=DocType.folder)
+    inside = Document(name="Inside", doc_type=DocType.folder, parent_id=leaving.id)
+    db.save(leaving)
+    db.save(inside)
+    _pending_move(db, [leaving.id], target="Elsewhere")
+    assert_refused(client, db, source, {"items": [box.page1.id], "source": str(pkg), "target_parent_id": inside.id}, 409,
+             "That folder is already being moved to Elsewhere.")
 
 
 def test_a_locked_node_is_refused(two):
