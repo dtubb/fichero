@@ -3,5 +3,6 @@
   "GET /api/health": "#1921 baseline - health is handled outside generated CLI command surface",
   "GET /api/storage/debug/{doc_id}": "#1921 baseline - debug endpoint intentionally not generated into CLI command surface",
   "GET /api/tasks/health": "#1921 baseline - task health is handled outside generated CLI command surface",
-  "GET /api/workflow-execution/stream/{thread_id}": "#1921 baseline - streaming endpoint intentionally not generated into CLI command surface"
+  "GET /api/workflow-execution/stream/{thread_id}": "#1921 baseline - streaming endpoint intentionally not generated into CLI command surface",
+  "PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256}": "#5657 - raw-bytes upload one engine sends another while copying between machines; no CLI command or MCP tool can send a body, so it is reached only through POST /api/documents/transfer/to-machine"
 }
