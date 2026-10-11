@@ -64,6 +64,17 @@ extension RecipeSetupStore {
         return skippedSteps.filter { chosenJobs.contains(jobOfStep[$0.step] ?? $0.step) }
     }
 
+    /// The pages already in the project, as the engine counts them for Start (every page, every file with no pages:
+    /// `start.count_pages`); nil before the plan is read (`source.onboard.project.about-material`).
+    var countedPages: Int? { startPlan.map { $0.estimate.pages } }
+
+    /// Read the count again (after material was added) and keep it as the pages answer, so the estimate is the
+    /// material's, not a guess typed earlier.
+    func countPages() async {
+        await loadStartPlan()
+        if let counted = countedPages, counted > 0 { pages = counted }
+    }
+
     static func choiceStage(_ stage: Components.Schemas.SetupStage) -> SetupStageChoice.Stage {
         SetupStageChoice.Stage(id: stage.id, jobs: stage.jobs, needs: stage.needs.map { ($0.stage, $0.why) })
     }

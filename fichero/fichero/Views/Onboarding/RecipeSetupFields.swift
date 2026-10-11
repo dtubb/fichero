@@ -145,9 +145,6 @@ struct RecipeMaterialSourceFields: View {
             if let error = store.errorMessage {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
             }
-            LabeledContent("Roughly how many pages") {
-                TextField("Pages", value: $store.pages, format: .number).labelsHidden()
-            }
         }
         // Files or folders, several at once (section 7d).
         .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder, .item],
@@ -157,6 +154,7 @@ struct RecipeMaterialSourceFields: View {
             Task {
                 await store.addMaterial(urls, importer: importer, syncFolders: syncFolders)
                 adding = false
+                await store.countPages()
             }
         }
     }
@@ -169,6 +167,14 @@ struct RecipeAboutFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // The pages, counted from what was added (section 7d); a rough number only while nothing is added yet.
+            if let counted = store.countedPages, counted > 0 {
+                LabeledContent("Pages") { Text("\(counted), counted from what was added") }
+            } else {
+                LabeledContent("Roughly how many pages") {
+                    TextField("Pages", value: $store.pages, format: .number).labelsHidden()
+                }
+            }
             CodeTokenField(store: store, scripts: false)
             CodeTokenField(store: store, scripts: true)
             if !store.proposedScripts.isEmpty {
@@ -215,6 +221,7 @@ struct RecipeAboutFields: View {
             RecipeWhenWhereHandFields(store: store)
         }
         .task(id: store.scripts) { await store.loadDerived() }
+        .task { await store.countPages() }
     }
 }
 

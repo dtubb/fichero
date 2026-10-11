@@ -243,6 +243,20 @@ struct SetupStagesTests {
         #expect(RecipeStartFields.words(for: "Add a language first.", title: title) == "Add a language first.")
     }
 
+    @Test("source.onboard.project.about-material: the pages are counted from what was added, as Start counts them")
+    func pagesCounted() async {
+        StagesMockURLProtocol.replies = ["GET /api/recipes/project/start": (200, """
+        {"runs":[],"skipped":[],"workflows":[],"offered":[],"refusals":[],
+         "estimate":{"pages":92,"runs":[],"total_cost_usd":0}}
+        """)]
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.pages = 500  // a guess typed before anything was added
+        #expect(store.countedPages == nil, "not read yet")
+        await store.countPages()
+        #expect(store.countedPages == 92)
+        #expect(store.pages == 92, "the count replaces the guess")
+    }
+
     // MARK: What Fichero runs
 
     @Test("source.onboard.app.what-fichero-runs: what Fichero does and with what, and the two accounts it suggests")
