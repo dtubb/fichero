@@ -247,6 +247,11 @@ async def get_effective_rights(
 ) -> EffectiveRightsResponse:
     """What applies to a target: every record above it, combined tighten-only."""
     kind = target_kind.value
+    if kind != RightsTarget.library.value and target_id == LIBRARY_TARGET:
+        # Asked of a document, folder or segment without naming it (`openapi.mcp.refusals-in-words`): it was
+        # looked up as the id "library" and refused as "Document not found: library".
+        raise HTTPException(status_code=422, detail=f"name the {kind} whose rights you want: target_id is "
+                                                    f"required unless target_kind is library")
     tid = LIBRARY_TARGET if kind == RightsTarget.library.value else target_id
     effective = effective_rights(db, kind, tid)
     by_id = {r.id: r for k, t in chain(db, kind, tid) for r in records_on(db, k, t)}

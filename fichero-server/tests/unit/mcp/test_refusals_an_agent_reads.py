@@ -24,3 +24,11 @@ def test_meaning_search_before_anything_is_indexed_says_so_in_words(client):
         said = _said(r)
         assert not _INTERNALS.search(said), (route, said)
         assert "index" in said.lower(), (route, said)
+
+
+def test_effective_rights_of_a_document_not_named_asks_for_it(client):
+    r = client.get("/api/rights/effective", params={"target_kind": "document"})
+    assert r.status_code == 422, r.text
+    said = _said(r)
+    assert "library" not in said.lower() or "target_id" in said, said
+    assert "target_id" in said and "document" in said, said
