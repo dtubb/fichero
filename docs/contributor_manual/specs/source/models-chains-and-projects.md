@@ -3532,7 +3532,7 @@ Finding models
   finder lists the engine's candidates for the job (installed and downloadable, with Download and Use for
   This Step), and choosing one replaces the step in place, so the step can run. The finder answers for
   any job a card can name, not only a reader's (`GET /api/recipes/candidates?job=find-statements`); the
-  online search looks for readers only, so for any other job it is not run and the source says so.
+  online search is the step's own (`source.find.online-search-per-step`, #5668; it was readers only).
   *Test:* `fichero-server/tests/unit/recipes/test_models_ux_5619.py` (candidates for find-statements);
   `fichero/Tests/Unit/general/Models/ModelsUXTests.swift` (the fix opens the finder for the step).
   Built 2026-10-11 (#5660 item 4): for Find names and the other text jobs the finder also offers Apple
@@ -3541,6 +3541,21 @@ Finding models
   that says to add it in Settings › AI first); spaCy stays the default, these are the person's to choose
   (`discovery.other_text_cards`), and use-candidate keeps the choice, which the Start plan runs with
   (`fichero-server/tests/unit/recipes/test_set_up_steps_5660.py`).
+- `source.find.candidates-fit-the-step` — **[PARTIAL]** (#5668 walkthrough section 4) *Built: a model in this Mac's MLX store or catalogue with a vision path is a reader only, never a card for a text job (`discovery.local_text_cards`, `other_text_cards`); Find regions lists Kraken's segmenter and the YOLO model; pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`. Not built: cloud and Ollama models are general chat models and stay offered for text jobs whatever they can see.* a step's candidates are only
+  models whose kind does that step's job: readers (OCR and HTR, vision models) for reading; text models for
+  Find names, Find statements, Split into entries and Extract to a table; layout models for Find regions;
+  line finders for Find lines. A vision model made to read pages (every catalogue model with a vision
+  path, and any model in the store whose config has one) is never a card for a text job, so Find
+  statements never lists Qwen-VL OCR.
+- `source.find.online-search-per-step` — **[PARTIAL]** (#5668 walkthrough section 4) *Built: `discovery.STEP_SEARCHES` (Find names, Find statements, Split into entries, Extract to a table, Find regions), run as the `find-models` job by job and languages, kept in `hugging-face-steps.json`; a found MLX text build downloads through `hub_spec` as a text model; pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`. Not built: Find lines and the other steps have no search of their own and say so.* Search Online searches
+  Hugging Face for THAT step's job, by the step's own pipeline tags and Hub tags, never "readers only":
+  text generation (MLX builds) for the text jobs; token classification (NER) beside it for Find names;
+  object detection tagged for document layout for Find regions; the reader search, as before, for
+  reading. What it finds is kept for that job and those languages and listed only for that job. An MLX
+  text build found for a text job downloads into the model store and runs like a catalogue text model;
+  anything else found is listed as one Fichero cannot run yet, saying why. A step with no search of its
+  own (Prepare images, Put in order, Export and the like) says so in the sources row in place of
+  "Searched for readers only".
 - `source.recipe.local-text-models-are-cards` — **[PARTIAL]** (#5619) a text model already on this Mac
   is a card for the jobs that send a model text alone and that the shipped cards do not cover
   (`find-statements`, `split-into-entries`): every MLX model complete in this Mac's model store that

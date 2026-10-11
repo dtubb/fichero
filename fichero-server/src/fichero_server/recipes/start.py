@@ -321,10 +321,15 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     continue
                 entry.update(provider=override[0], model=override[1], prototype=str(settings["prototype"]))
             elif job == "find-regions":
-                if not pin.get("yolo"):
-                    skip(sid, f"{label}: regions are found by a YOLO layout model, and {pin} is not one", "choose-model")
+                # Kraken's bundled segmenter is the open default (prep.regions.open-default); a YOLO layout model is a choice.
+                if pin.get("kraken") == "blla":
+                    entry.update(provider="kraken", model="blla")
+                elif pin.get("yolo"):
+                    entry.update(provider="yolo", model=str(pin["yolo"]))
+                else:
+                    skip(sid, f"{label}: regions are found by Kraken's segmenter or a YOLO layout model, and this "
+                              "step's model is neither", "choose-model")
                     continue
-                entry.update(provider="yolo", model=str(pin["yolo"]))
             elif job == "find-documents-in-a-folder":
                 # The project's setting: None leaves every proposal for the person.
                 entry.update(accept_above=settings.get("accept_above"))

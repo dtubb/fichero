@@ -901,11 +901,11 @@ class ModelCandidateList(BaseModel):
         "at once with what is kept, and a later call, once the job is done, lists what it found (#5594)"))
 
 
-def _search_job(request: Request, library_path: str, languages: frozenset[str]) -> dict[str, Any]:
+def _search_job(request: Request, library_path: str, languages: frozenset[str], job: str) -> dict[str, Any]:
     from fichero_server.api.main import _get_library_database_for_access
     from fichero_server.recipes.discovery import search
 
-    return search(_get_library_database_for_access(request, library_path, write=False), languages)
+    return search(_get_library_database_for_access(request, library_path, write=False), languages, job)
 
 
 def _step_reader(request: Request, library_path: Optional[str], step: str) -> Optional[str]:
@@ -938,8 +938,9 @@ async def model_candidates(
     card saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,
     `source.find.by-need`). The network is never reached inside this call: with `online=true` the search is
     the open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier
-    searches kept; a later call lists what the job found. Never searched when this engine works offline, nor for
-    a job that is not a reader's (the search finds readers). With `step` (a step of the open project's recipe), the
+    searches kept; a later call lists what the job found. Never searched when this engine works offline. The
+    search is the step's own (#5668): readers for a reading job, and for another job Hugging Face by that job's
+    pipeline and Hub tags (`STEP_SEARCHES`); a job with no search of its own says so. With `step` (a step of the open project's recipe), the
     step's reader now is marked `chosen` and listed first, the person's choice included when the finder would not
     list it for these answers (#5660 item 8). Each candidate says plainly whether it ships with Fichero, is on this
     Mac or can be downloaded, with its size (`availability`). Refused (422), in words, for an unknown script,
@@ -953,6 +954,7 @@ async def model_candidates(
         candidate_download,
         candidate_installed,
         candidate_place,
+        STEP_SEARCHES,
         discover,
         egress_allowed,
         size_words,
@@ -963,10 +965,9 @@ async def model_candidates(
 
     if get_job(job) is None:
         raise HTTPException(status_code=422, detail=f"{job!r} is not a job Fichero knows")
-    reads = job in READING_JOBS
-    if not reads:
-        # The finder answers for any step's job (#5619, `source.find.choose-a-model-opens-the-finder`); the online
-        # search looks for readers only, so it is not run for another job, and the sources say so.
+    if job not in READING_JOBS and job not in STEP_SEARCHES:
+        # The finder answers for any step's job (#5619, `source.find.choose-a-model-opens-the-finder`); a job with
+        # no search of its own (#5668) is not searched, and the sources say so.
         online = False
     if material not in READ_MATERIALS:
         raise HTTPException(status_code=422, detail=f"material must be one of {', '.join(READ_MATERIALS)}")
@@ -981,12 +982,10 @@ async def model_candidates(
                 cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb())
     search = None
     if online and egress_allowed() and library_path:
-        search = await run_in_threadpool(_search_job, request, library_path, tags)
+        search = await run_in_threadpool(_search_job, request, library_path, tags, job)
     not_searched = None if library_path else NO_PROJECT
-    if not reads:
-        not_searched = "Searched for readers only"
     cards, sources = await run_in_threadpool(
-        discover, a, online=not reads or online, search=search, not_searched=not_searched, job=job)
+        discover, a, online=online, search=search, not_searched=not_searched, job=job)
     cards = [c for c in cards if job in c.jobs]
     chosen_id = await run_in_threadpool(_step_reader, request, library_path, step) if step else None
     if chosen_id and chosen_id not in {c.id for c in cards}:

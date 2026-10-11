@@ -117,14 +117,19 @@ def test_an_ollama_on_another_machine_is_free_but_its_pages_leave(client, mac, a
 
 def test_an_mlx_model_in_the_store_finds_the_statements(client, mac):
     """"every MLX model complete in this Mac's model store that reads text (its card made from the store's own
-    facts, licence included)": with no Ollama, the installed Qwen2.5-VL 7B (Apache-2.0) does Find statements."""
+    facts, licence included)": with no Ollama, the installed Qwen3 4B Instruct, a text model, does Find statements.
+    A reader in the store (Qwen2.5-VL 7B, a vision model) never does: it reads pages (#5668,
+    `source.find.candidates-fit-the-step`)."""
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
 
-    mac.installed.add("Qwen2.5-VL-7B")
-    seven = MANAGED_MLX_MODELS["Qwen2.5-VL-7B"]
+    mac.installed.update({"Qwen2.5-VL-7B", "Qwen3-4B-Instruct"})
+    four = MANAGED_MLX_MODELS["Qwen3-4B-Instruct"]
+    readme = mac.snapshot_path(four) / "README.md"  # its own card states its licence, as the Hub's does
+    readme.parent.mkdir(parents=True, exist_ok=True)
+    readme.write_text("---\nlicense: apache-2.0\n---\n", encoding="utf-8")
     step = _step(_assemble(client, purposes=["statements"], mac_memory_gb=32), "find-statements")
-    assert step["model"] == {"hf": seven.repo_id, "revision": seven.revision}, step.get("problem")
-    assert step["runs_on"] == "this-mac" and step["card"]["licence"] == "Apache-2.0"
+    assert step["model"] == {"hf": four.repo_id, "revision": four.revision}, step.get("problem")
+    assert step["runs_on"] == "this-mac"
     assert any("already on this Mac" in why for why in step["reasons"])
 
 
@@ -153,9 +158,11 @@ def test_the_finder_answers_for_any_steps_job_and_says_why_it_did_not_search(cli
                    params={"job": "find-statements", "scripts": "Latn", "languages": "en", "online": "true"})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["search_job"] is None
     hub = next(s for s in body["sources"] if s["source"] == "hugging-face")
-    assert hub["state"] == "offline" or (hub["state"] == "not-searched" and "readers only" in hub["detail"]), hub
+    # Find statements has a search of its own now (#5668): the project's search job for this step, never "readers
+    # only" (offline: not searched).
+    assert hub["state"] == "offline" or body["search_job"] is not None, hub
+    assert "readers only" not in hub["detail"], hub
     installed = next(s for s in body["sources"] if s["source"] == "installed")
     assert installed["count"] >= 1 and installed["detail"] == f"{installed['count']} on this Mac, your servers or the cloud"
     [llama] = [i for i in body["items"] if i["pin"].get("model") == "llama3.2:latest"]

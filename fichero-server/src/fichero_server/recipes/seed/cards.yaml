@@ -17,7 +17,9 @@ cards:
     note: A YOLO11 layout model trained on DocLayNet; finds text blocks, headings, tables, pictures, page headers and footers. Weak on handwritten pages until fine-tuned (measured 2026-10-10).
   - id: kraken:builtin/blla@bundled
     pin: {kraken: blla, kraken_version: bundled}
-    jobs: [find-lines]
+    # Find regions too (#5668): its text blocks, Apache-2.0 and inside the app, so a new project's regions need no
+    # licence sheet; the YOLO DocLayNet card (AGPL) stays the choice for finer labels.
+    jobs: [find-lines, find-regions]
     scripts: any
     languages: any
     material: [handwriting, print, typescript]

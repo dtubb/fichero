@@ -150,6 +150,14 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
   (`hantian/yolo-doclaynet`, AGPL like Fichero). **Measured 2026-10-10:** it runs (0.1 s a page warm, 6 s
   for the first load), but on two handwritten Sergio photos it saw one "Picture" at 26–28% confidence.
   The stock model is only a starting point for fine-tuning.
+- `prep.regions.open-default` — **[PARTIAL]** (#5668 walkthrough section 4) *Built: the bundled `blla` card names `find-regions` and the rules choose it; `recipes/regions.py` runs it (`provider="kraken"`) and saves its regions; pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`. Not built: the Start plan still sends a `find-regions` step to YOLO only (`recipes/start.py`, its owner's change).* Find Regions' default is
+  Kraken's built-in segmenter (`blla`, Apache-2.0, ships inside the app, nothing to download), kept to
+  its regions: each text block it finds becomes a region with its outline, made by Kraken. No licence
+  sheet stands between a new project and its first run. The YOLO DocLayNet model (AGPL-3.0) stays a
+  candidate to choose, with its licence sheet, for pages that need its finer labels (heading, table,
+  picture, page header and footer). **Measured 2026-10-11:** on a rendered two-column printed page,
+  `blla` found 3 text regions (the heading and both columns) and 81 lines in 11 s on the MacBook Air; it
+  labels every region "text".
 - `prep.yolo.fine-tune-from-corrected-regions` — **[PARTIAL]** (#5525, #5397) **Built 2026-10-10 (this Mac):** `training/yolo_set.py` and `training/yolo_local.py`, started by `POST /api/training/regions/here` (so the MCP tool and the CLI command); the real trainer ran on the GPU (two epochs, 11 s). Pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`. *Not yet: the Hugging Face path, the bake-off adopting it, a Train button in the app.* the regions a person corrects
   become a training set (exported as YOLO labels by `formats/yolo.py`, the same set builder as Kraken's,
   #5513), and the stock model is fine-tuned on it with Ultralytics, on this Mac or as a Hugging Face job.

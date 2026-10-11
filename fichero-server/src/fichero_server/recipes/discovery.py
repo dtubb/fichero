@@ -203,8 +203,8 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
         if model_id is None or f"mlx:{model_id}" in out:
             continue
         spec = store.spec(model_id)
-        if "text" not in spec.capabilities or not store.is_complete(spec):
-            continue
+        if tuple(spec.capabilities) != ("text",) or not store.is_complete(spec):
+            continue  # a model with a vision path reads pages: a reader, never a text job's (#5668)
         if store.trained_card(model_id) is not None:
             licence = "trained by you"
         else:
@@ -256,8 +256,8 @@ def other_text_cards() -> list[Card]:
     )]
     store = get_mlx_model_store()
     for name, spec in MANAGED_MLX_MODELS.items():
-        if "text" not in spec.capabilities or store.is_complete(spec):
-            continue  # one already here is `local_text_cards`'
+        if tuple(spec.capabilities) != ("text",) or store.is_complete(spec):
+            continue  # a reader (vision path), or one already here (`local_text_cards`')
         out.append(Card(
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
@@ -1002,18 +1002,126 @@ def hub_spec(repo_id: str) -> Any:
     from fichero_server.llm.mlx_model_store import ManagedModelSpec
 
     row = cached_hub().get(repo_id or "")
+    text_only = False
     if row is None:
-        return None
+        row, text_only = _step_hub_row(repo_id or ""), True  # an MLX text build a step's search found (#5668)
+        if row is None:
+            return None
     size = int(float(row.get("size_gb") or 0) * 1e9)
     return ManagedModelSpec(
         model_id=repo_id, repo_id=repo_id, revision="main", display_name=str(row.get("note") or repo_id),
         download_size_bytes=size, min_memory_bytes=size,
         memory_class="memory not stated until it is downloaded" if not size else
         f"needs at least {size / 1e9:.1f} GB unified memory (its weights)",
-        capabilities=("text", "vision"),
-        note=f"Found on Hugging Face by Fichero's model search: {row.get('offered_because') or ''}. "
+        capabilities=("text",) if text_only else ("text", "vision"),
+        note=f"Found on Hugging Face by Fichero's model search: {row.get('offered_because') or row.get('job')}. "
              "Not measured here yet.",
     )
+
+
+# --- a step's own search (#5668 walkthrough section 4: "the online search must be per step") ------------------
+
+#: Each non-reading job's Hugging Face search: (pipeline tag, Hub tags) asks, each asked alone and with each project
+#: language. A text model (an MLX text-generation build) does any text job; the others name what the step finds.
+_TEXT_ASK = ("text-generation", ("mlx",))
+STEP_SEARCHES: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "find-names-tag-words": (("token-classification", ("ner",)), _TEXT_ASK),
+    "find-statements": (_TEXT_ASK, ("text2text-generation", ("relation-extraction",)),
+                        ("token-classification", ("relation-extraction",))),
+    "split-into-entries": (_TEXT_ASK,),
+    "extract-to-a-table": (_TEXT_ASK,),
+    "find-regions": (("object-detection", ("doclaynet",)), ("object-detection", ("document-layout",)),
+                     ("object-detection", ("layout-detection",))),
+}
+#: What each job's search found, {job: {languages: {"found_at", "rows"}}}, beside the reader search's file.
+STEP_HUB_FILE = "hugging-face-steps.json"
+#: Why a model a step's search found cannot run here, by its pipeline tag (an MLX text build runs).
+_CANNOT_RUN_FOR = {
+    "token-classification": "a transformers tagger: Fichero finds names with spaCy pipelines, not this yet",
+    "text2text-generation": "a transformers model: Fichero runs MLX builds only",
+    "object-detection": "a layout model Fichero cannot run yet: it runs the layout models it lists",
+}
+
+
+def _step_hub_file() -> dict[str, Any]:
+    try:
+        data = json.loads((_store_root() / STEP_HUB_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _step_row(m: dict[str, Any], job: str, task: str) -> dict[str, Any]:
+    repo = str(m.get("modelId") or m.get("id"))
+    tags = [str(t) for t in m.get("tags") or []]
+    runs = task == "text-generation" and _runs_on_mlx(m) and not _gguf_only(m)
+    return {"repo": repo, "job": job, "pipeline_tag": m.get("pipeline_tag") or task, "runs_here": runs,
+            "licence": next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), ""),
+            "languages": sorted(_hub_tags(m) or ()) or None, "downloads": int(m.get("downloads") or 0),
+            "cannot_run_because": "" if runs else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task,
+                                                                      "Fichero cannot run it yet")}
+
+
+async def search_hugging_face_for_step(job: str, languages: frozenset[str],
+                                       progress: Callable[[str], None] = lambda _: None) -> list[dict[str, Any]]:
+    """What Hugging Face lists for this step's job (`STEP_SEARCHES`), runnable first, then most downloaded, one row
+    a repository. Network: call only behind the egress check. Raises the Hub fetch's error."""
+    from fichero_server.api.routes.ai.models import _fetch_hf_models
+
+    langs = sorted({t.split("-")[0] for t in languages})
+    asks = [(task, list(tags)) for task, tags in STEP_SEARCHES[job]]
+    asks += [(task, [*tags, lang]) for task, tags in STEP_SEARCHES[job] for lang in langs]
+    rows: dict[str, dict[str, Any]] = {}
+    for n, (task, tags) in enumerate(asks, 1):
+        progress(f"Searching Hugging Face ({n} of {len(asks)})")
+        for m in await _fetch_hf_models(task=task, tags=tags, limit=HF_LIMIT):
+            if m.get("pipeline_tag") not in (None, task) or _gguf_only(m):
+                continue
+            row = _step_row(m, job, task)
+            rows.setdefault(row["repo"], row)
+    return sorted(rows.values(), key=lambda r: (not r["runs_here"], -r["downloads"], r["repo"]))
+
+
+def keep_step_hub(job: str, languages: frozenset[str], rows: list[dict[str, Any]]) -> None:
+    """Keep what this job's search found for these languages, in place of the last such search's finds."""
+    data = _step_hub_file()
+    data.setdefault(job, {})[_languages_key(languages)] = {
+        "found_at": datetime.now(timezone.utc).isoformat(timespec="seconds"), "rows": rows}
+    folder = _store_root()
+    folder.mkdir(parents=True, exist_ok=True)
+    tmp = folder / f".{STEP_HUB_FILE}.tmp"
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(folder / STEP_HUB_FILE)
+
+
+def step_hub_cards(job: str, languages: frozenset[str]) -> list[Card] | None:
+    """The cards this job's kept search found for these languages; None when none was kept."""
+    kept = (_step_hub_file().get(job) or {}).get(_languages_key(languages))
+    if kept is None:
+        return None
+    out = []
+    for row in kept.get("rows") or []:
+        repo, runs = str(row["repo"]), bool(row.get("runs_here"))
+        out.append(Card(
+            id=f"{'mlx' if runs else 'hf'}:hf/{repo}@main", pin={"hf": repo, "revision": "main"},
+            jobs=frozenset({job}), runs_here=runs, cannot_run_because=str(row.get("cannot_run_because") or ""),
+            scripts=None, languages=_tags(row.get("languages")), material=frozenset(),
+            open_licence=_is_open(str(row.get("licence") or "")), licence=str(row.get("licence") or ""),
+            note=repo.rsplit("/", 1)[-1], source="hugging-face", offered_only=True,
+            offered_because=(f"found on Hugging Face for this step ({row.get('pipeline_tag')})"
+                             + (": an MLX build that runs on this Mac" if runs else "")),
+        ))
+    return out
+
+
+def _step_hub_row(repo_id: str) -> dict[str, Any] | None:
+    """A runnable text build some step's search found and kept, by its repository."""
+    for by_languages in _step_hub_file().values():
+        for kept in (by_languages or {}).values():
+            for row in kept.get("rows") or []:
+                if row.get("repo") == repo_id and row.get("runs_here"):
+                    return row
+    return None
 
 
 # --- what the rules see -------------------------------------------------------------------------------
@@ -1079,6 +1187,8 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
         why, quiet = not_searched or "Searching…", "not-searched"
     else:
         why, quiet = "Not searched", "not-searched"
+    if job not in READER_JOBS:
+        return _discover_for_step(job, a, shipped, installed, sources, search, why, quiet)
     cached = cached_repository()
     if cached is None:
         repo_cards: list[Card] = []
@@ -1107,6 +1217,30 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                         "detail": (f"{len(here)} at your remote endpoints" if here
                                    else "No remote endpoint with a vision model is set up")})
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
+
+
+#: Said in place of the online sources for a step with no search of its own (#5668).
+NO_STEP_SEARCH = "No online search for this step"
+
+
+def _discover_for_step(job: str, a: Answers, shipped: list[Card], installed: list[Card],
+                       sources: list[dict[str, Any]], search: dict[str, Any] | None, why: str,
+                       quiet: str) -> tuple[list[Card], list[dict[str, Any]]]:
+    """A step that is not a reader's: the shipped and installed cards, and what this job's own Hugging Face
+    search kept (`STEP_SEARCHES`); Kraken's repository holds readers and line finders, so it is not asked."""
+    if job not in STEP_SEARCHES:
+        sources.append({"source": "hugging-face", "state": "not-searched", "count": 0, "detail": NO_STEP_SEARCH})
+        return [*shipped, *installed], sources
+    found = step_hub_cards(job, a.languages)
+    if found is not None:
+        hub_source = {"source": "hugging-face", "state": "cached", "count": len(found),
+                      "detail": f"{len(found)} found on Hugging Face"}
+    else:
+        hub_source = {"source": "hugging-face", "state": quiet, "count": 0, "detail": why}
+    if search is not None:
+        _say_search(search, hub_source)
+    sources.append(hub_source)
+    return [*shipped, *installed, *(found or [])], sources
 
 
 def _left_out_words(left_out: int) -> str:
@@ -1161,24 +1295,30 @@ def register_job_kinds() -> None:
                            name="Find reading models online")
 
 
-def _subject(languages: frozenset[str]) -> str:
-    return f"languages:{_languages_key(languages)}"
+def _subject(languages: frozenset[str], job: str | None = None) -> str:
+    """The search's subject: the reader search's by languages; a step's own (`STEP_SEARCHES`) by job too."""
+    return (f"job:{job};" if job else "") + f"languages:{_languages_key(languages)}"
+
+
+def _job_of(subject: str) -> str | None:
+    return subject.partition(";")[0][len("job:"):] if subject.startswith("job:") else None
 
 
 def _languages_of(subject: str) -> frozenset[str]:
-    key = subject.partition(":")[2]
+    key = subject.rpartition("languages:")[2]
     return frozenset() if key in ("", "any") else frozenset(key.split(","))
 
 
-def search(db: Any, languages: frozenset[str]) -> dict[str, Any]:
-    """The search job for these languages (its row: id, state, reason, detail, finished_at): the one waiting
-    or running, or one done within a day; otherwise a new one, queued on the network lane with a person
+def search(db: Any, languages: frozenset[str], job: str | None = None) -> dict[str, Any]:
+    """The search job for these languages, and for a step's own job when given one with a search of its own
+    (`STEP_SEARCHES`, #5668), else the reader search (its row: id, state, reason, detail, finished_at): the one
+    waiting or running, or one done within a day; otherwise a new one, queued on the network lane with a person
     waiting on it. Never reaches the network itself."""
     from fichero_server.core.timeutil import ensure_utc
     from fichero_server.execution import jobs
 
     register_job_kinds()
-    subject = _subject(languages)
+    subject = _subject(languages, job if job in STEP_SEARCHES else None)
     latest = jobs.job_id_for(db, SEARCH_KIND, subject)
     row = jobs.find_jobs(db, kinds=[SEARCH_KIND], job_id=latest)[0] if latest else None
     if row is not None:
@@ -1215,7 +1355,11 @@ def _run_search(db: Any, subject: str) -> dict[str, Any]:
     def say(words: str) -> None:
         jobs.save_detail(db, job_id, json.dumps({"doing": words}, ensure_ascii=False), reason=words)
 
-    result = search_online(_languages_of(subject), progress=say, hand_tags=_project_hand_tags(db))
+    step = _job_of(subject)
+    if step:
+        result = search_online_for_step(step, _languages_of(subject), progress=say)
+    else:
+        result = search_online(_languages_of(subject), progress=say, hand_tags=_project_hand_tags(db))
     jobs.save_detail(db, job_id, json.dumps(result, ensure_ascii=False))
     failed = [s["detail"] for s in result["sources"].values() if s["state"] == "failed"]
     if len(failed) == len(result["sources"]):
@@ -1255,3 +1399,23 @@ def search_online(languages: frozenset[str], progress: Callable[[str], None] = l
         sources["hugging-face"] = {"state": "failed", "detail": "Could not reach Hugging Face"}
     return {"languages": sorted(languages), "searched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "sources": sources}
+
+
+def search_online_for_step(job: str, languages: frozenset[str],
+                           progress: Callable[[str], None] = lambda _: None) -> dict[str, Any]:
+    """Search Hugging Face for this step's job (`STEP_SEARCHES`) and keep what it found for the job and these
+    languages; return what the source did. Network: run only as the `find-models` job. Refused offline."""
+    import asyncio
+
+    if not egress_allowed():
+        raise RuntimeError("this engine works offline (local-only), so nothing was searched")
+    try:
+        rows = asyncio.run(search_hugging_face_for_step(job, languages, progress))
+        keep_step_hub(job, languages, rows)
+        source = {"state": "searched", "count": len(rows), "detail": f"{len(rows)} found on Hugging Face"}
+    except Exception as exc:  # HTTPException from the one Hub fetch, or the network
+        logger.warning("the Hugging Face search for %s failed: %s", job, getattr(exc, "detail", exc))
+        source = {"state": "failed", "detail": "Could not reach Hugging Face"}
+    return {"job": job, "languages": sorted(languages),
+            "searched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "sources": {"hugging-face": source}}

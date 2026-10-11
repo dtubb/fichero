@@ -430,11 +430,13 @@ def _run_prepare(db: Any, documents: list[str], parent: str,
 
 def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                  step: dict[str, Any]) -> tuple[str | None, str, str | None]:
-    """Each page image's regions found by the step's YOLO model and saved as its regions (`prep.yolo.regions-card`,
-    #5525); the step's account (`regions_found`) says how many pages and regions, and pages with no image."""
+    """Each page image's regions found by the step's model (Kraken's segmenter, or a YOLO model) and saved as its
+    regions (`prep.regions.open-default`, `prep.yolo.regions-card`); the step's account (`regions_found`) says how
+    many pages and regions, and pages with no image."""
     from fichero_server.recipes.regions import find_regions
 
-    step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent))
+    step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent),
+                                         provider=card.get("provider") or "yolo")
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
     return None, "done", None
