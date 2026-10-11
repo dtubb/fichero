@@ -217,7 +217,42 @@ involve the company it names. Lessons the tool must carry:
   run superseded, a document already accepted or rejected, or one whose pages are no longer the folder's
   loose pages (409). Accepting afterwards makes the adjusted documents. Pinned by
   `fichero-server/tests/unit/finddocs/test_find_documents_adjust.py`. **Built 2026-10-10 (engine).**
-  *Not built: the app's surface (moving a card on the canvas, `finddocs.canvas.drawn`).*
+  **Built 2026-10-11 (app):** the Items pane's review (`finddocs.review.items`). *Not built: moving a card on
+  the canvas (`finddocs.canvas.drawn`).*
+- `finddocs.review.items` — **[PARTIAL]** (#5550) after a run, a folder's Items list shows each document still
+  proposed as a proposal, never as a document: one row per proposed document, marked Proposed with a dashed
+  outline, its name, its pages ("Pages 3–5"), its kind and how sure the run was, holding its pages beneath it
+  (disclosed as a document's pages are); a page the proposal puts in no document stays a loose page. A
+  document a person or the run accepted is an ordinary group row; a rejected one leaves its pages loose. The
+  person answers in place, by the row's menu, one at a time or for every proposed row selected at once:
+  Accept, Reject, and the adjustments that change which pages belong: Split Here (on a page: it starts a new
+  document), Join with Next, Move First Page to the Previous Document and Move Last Page to the Next Document.
+  A page is taken out on its own by splitting before and after it and rejecting the one-page document. Each
+  is the engine's audited action (`finddocs.accept`, `.reject`, `.split`, `.join`, `.move_page`, through
+  `POST /api/actions/invoke`), and one answer, even over several proposals, is one ⌘Z step (`undo.batches`)
+  undone by the engine's inverse; after it and after its undo the folder's proposals and contents are read
+  again, so the list is what the engine holds. A refusal is said in the engine's words. The folder's
+  Inspector offers the same answers and Accept All at least 95/90/80/70% sure, through the same actions.
+  **Built 2026-10-11 (app):** `FoundDocumentsStore` (the actions and their one step) and the Items rows
+  (`LibraryOutlineNode.proposedDocument`); pinned by `fichero/Tests/Unit/general/Models/FoundDocumentsStoreTests.swift`
+  and `fichero/Tests/Unit/general/Models/ProposedDocumentsInItemsTests.swift`. *Not built: the same rows in
+  the Icon, List and Columns views (the Table, the default, shows them).*
+- `finddocs.review.setup-page` — **[PARTIAL]** (#5550, #5668) Set Up's Organise page says what the stage will
+  do in the engine's words, and how a run answers: documents at least as sure as the project's level are
+  applied by the run (none until the level is switched on, `finddocs.recipe-step`), every other one is
+  proposed for the person to confirm in Items. Trying it on the sample pages shows the grouping it proposes:
+  each proposed document, its pages, its kind and how sure. **Built 2026-10-11 (app):** the page's words
+  (`SetupStagePage.howItAnswers`), and the grouping drawn, each document in a dashed outline, from a try's
+  `documents` (`SetupStageTryResult.documents`) once the engine offers the try; pinned by
+  `fichero/Tests/Unit/general/Models/ProposedDocumentsInItemsTests.swift`. *Not built (engine): Organise
+  cannot be tried on the samples yet (`recipes/stages.sampleable` is false for its jobs, so the page has no
+  samples section); the try needs a run of neighbouring pages of one folder, not scattered samples, and its
+  result a `documents` list (`name`, `page_ids`, `kind`, `confidence`, `reasons`).*
+- `finddocs.review.activity` — **[OK]** (#5550, #5670) a recipe run's details say, under its Organise stage,
+  how many documents the run proposed and how many it applied: "N documents proposed, M applied", from the
+  run's summary (`documents_proposed`, `documents_accepted`); the engine counts, the app only words it.
+  **Built 2026-10-11 (app):** `ActivityDetails+RunStages.made`; pinned by
+  `fichero/Tests/Unit/general/Models/ActivityStageCardsTests.swift`.
 - `finddocs.corrections-teach` — **[PARTIAL]** (#5550) every accept, reject and adjustment is kept as a
   labelled example for the project. **Built 2026-10-07 (engine):** accepted and rejected documents keep
   their state on the stored proposal (`finddocs.reject`, undoable). **Built 2026-10-10 (engine):** each

@@ -219,6 +219,8 @@ struct LibraryView: View {
     @Environment(ArtifactService.self) var artifactService
     @Environment(WorkflowExecutionObserver.self) var executionObserver
     @Environment(KGFocusState.self) var kgFocusState
+    /// The window's ⌘Z stack, for the answers to proposed documents (`finddocs.review.items`).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     /// A split's SECOND library pane must not write the shared
     /// focusedSceneValue keys — two live writers of the same key is the
     /// "FocusedValue update tried to update multiple times per frame" fault

@@ -28,6 +28,9 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         case entityItem(Components.Schemas.KnowledgeEntity)
         /// An individual claim belonging to a document's KG rollup.
         case claimItem(Components.Schemas.KnowledgeClaim)
+        /// A document Find the Documents proposes and a person has yet to answer (`finddocs.review.items`): its
+        /// `document` is the folder, its children the pages it would hold. Never a stored document.
+        case proposedDocument(FoundDocumentsStore.Waiting)
     }
 
     /// The typed child collections a document can disclose. Order here is
@@ -97,7 +100,20 @@ struct LibraryOutlineNode: Identifiable, Hashable {
             return "\(document.id):entity:\(entity.id ?? entity.stableInspectorId)"
         case .claimItem(let claim):
             return "\(document.id):claim:\(claim.id ?? claim.displayMergeName)"
+        case .proposedDocument(let waiting):
+            return Self.proposedPrefix + waiting.id
         }
+    }
+
+    /// A proposed document's row id starts with this; it names no stored document.
+    static let proposedPrefix = "proposed:"
+
+    static func proposedDocument(
+        _ waiting: FoundDocumentsStore.Waiting,
+        folder: Document,
+        pages: [LibraryOutlineNode]
+    ) -> LibraryOutlineNode {
+        LibraryOutlineNode(kind: .proposedDocument(waiting), document: folder, count: 0, children: pages)
     }
 
     static func document(_ document: Document, children: [LibraryOutlineNode]?) -> LibraryOutlineNode {
@@ -141,7 +157,7 @@ struct LibraryOutlineNode: Identifiable, Hashable {
         switch kind {
         case .document:
             return !(children?.isEmpty ?? true) || document.childCount > 0
-        case .childGroup:
+        case .childGroup, .proposedDocument:
             return !(children?.isEmpty ?? true)
         case .pageItem, .artifactItem, .entityItem, .claimItem:
             return false

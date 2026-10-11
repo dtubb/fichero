@@ -134,9 +134,11 @@ extension ActivityDetails {
             return ["\(summary.statements) \(plural(summary.statements, "statement"))"]
         case "organise":
             var lines: [String] = []
+            // "N documents proposed, M applied" (`finddocs.review.activity`): applied by the run's own level or by
+            // a person since; the rest wait in Items.
             if let proposed = summary.documentsProposed {
-                let accepted = summary.documentsAccepted.map { " · \($0) accepted" } ?? ""
-                lines.append("\(proposed) \(plural(proposed, "document")) proposed\(accepted)")
+                let applied = summary.documentsAccepted.map { ", \($0) applied" } ?? ""
+                lines.append("\(proposed) \(plural(proposed, "document")) proposed\(applied)")
             }
             if let groups = summary.groupsProposed, groups > 0 {
                 lines.append("\(groups) \(plural(groups, "group")) proposed")

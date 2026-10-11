@@ -331,6 +331,8 @@ extension LibraryView {
             Label(claim.displayMergeName, systemImage: "quote.bubble")
                 .font(.subheadline)
                 .foregroundStyle(.primary)
+        case .proposedDocument(let waiting):
+            ProposedDocumentNameCell(proposal: waiting.document)
         }
     }
 
@@ -345,7 +347,7 @@ extension LibraryView {
                 // its neighbours' text to the middle of the row and drew it over other content.
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .modifier(tableCellServiceInjection)
-        case .childGroup, .pageItem, .artifactItem, .entityItem, .claimItem:
+        case .childGroup, .pageItem, .artifactItem, .entityItem, .claimItem, .proposedDocument:
             EmptyView()
         }
     }

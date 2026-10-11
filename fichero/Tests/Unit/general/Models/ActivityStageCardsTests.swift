@@ -65,6 +65,25 @@ struct ActivityStageCardsTests {
         #expect(cards["find-lines"]?.made == [], "a stage the summary has no figure for says only its state")
     }
 
+    /// WHY (`finddocs.review.activity`): after a run the person needs to know how much Organise left for them:
+    /// what it proposed and how many of those were applied, the rest waiting in Items.
+    @Test("Organise says the documents it proposed and how many were applied")
+    func organiseSaysProposedAndApplied() throws {
+        let json = Self.treeJSON
+            .replacingOccurrences(
+                of: #"{"steps":["find-names-tag-words","work-out-dates"]"#,
+                with: #"{"steps":["find-documents-in-a-folder"],"card":"find-documents","state":"done","child_id":"f1"},"#
+                    + #"{"steps":["find-names-tag-words","work-out-dates"]"#
+            )
+            .replacingOccurrences(of: #""dates":0,"statements":0,"#,
+                                  with: #""dates":0,"statements":0,"documents_proposed":12,"documents_accepted":3,"#
+                                      + #""groups_proposed":0,"#)
+        let tree = try JSONDecoder().decode(Components.Schemas.JobTree.self, from: Data(json.utf8))
+        let organise = try #require(ActivityDetails.stageCards(of: ActivityJobNode(tree)).first { $0.id == "organise" })
+        #expect(organise.title == "Organise")
+        #expect(organise.made == ["12 documents proposed, 3 applied"], "no groups line when none were proposed")
+    }
+
     @Test("a skipped stage says why in one short sentence, and Open Set Up… goes to that stage")
     func skippedSaysWhy() throws {
         let statements = try #require(try Self.cards().first { $0.id == "statements" })

@@ -145,6 +145,9 @@ extension LibraryView {
             .modifier(LocateOriginalsPresenter(store: activeLibraryReference?.originalsStore,
                                                actionsService: activeLibraryReference?.actionsService,
                                                folderId: shownFolderDocumentId))
+            // The folder's proposed documents, for Items to show (`finddocs.review.items`).
+            .modifier(ProposedDocumentsLoader(store: activeLibraryReference?.foundDocumentsStore,
+                                              folderId: shownFolderDocumentId))
             // File › Import from IIIF… into this project, or the folder shown (#5671).
             .modifier(IIIFImportPresenter(target: activeLibraryReference.map {
                 IIIFImportTarget(store: $0.iiifStore, folderId: shownFolderDocumentId, folderName: shownFolderName)

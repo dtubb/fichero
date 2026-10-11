@@ -9,30 +9,30 @@ struct FoundDocumentsInspectorSection: View {
 
     @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
 
-    private var store: FoundDocumentsStore? {
-        documentStore.flatMap { libraryManager?.library(owningService: $0)?.foundDocumentsStore }
+    private var library: LibraryManager.LibraryReference? {
+        documentStore.flatMap { libraryManager?.library(owningService: $0) }
     }
 
     var body: some View {
-        if document.docType == .folder, let store {
+        if document.docType == .folder, let library {
+            let store = library.foundDocumentsStore
             let folderId = document.id
+            // An accept makes group nodes, so the folder's contents are read again after it and after its undo.
+            let answering = FoundDocumentsStore.Answering(
+                actions: library.actionsService, steps: windowSteps, afterChange: { await documentStore?.refresh() }
+            )
             FoundDocumentsSection(
                 waiting: store.waiting[folderId] ?? [],
                 busy: store.busy,
                 errorMessage: store.errorMessage,
-                accept: { item in await change { await store.accept(item, folderId: folderId) } },
-                reject: { item in await store.reject(item, folderId: folderId) },
-                acceptAll: { threshold in await change { await store.acceptAll(above: threshold, folderId: folderId) } }
+                accept: { item in await store.accept([item], folderId: folderId, via: answering) },
+                reject: { item in await store.reject([item], folderId: folderId, via: answering) },
+                acceptAll: { threshold in await store.acceptAll(above: threshold, folderId: folderId, via: answering) }
             )
             .task(id: folderId) { await store.load(folderId: folderId) }
         }
-    }
-
-    /// An accept makes group nodes, so the folder's contents are read again after it.
-    private func change(_ work: () async -> Void) async {
-        await work()
-        await documentStore?.refresh()
     }
 }
 

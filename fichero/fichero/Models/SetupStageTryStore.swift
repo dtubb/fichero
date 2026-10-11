@@ -130,12 +130,20 @@ struct SetupStageTryResult: Decodable, Equatable {
     let how: String?
     let perPage: [Page]?
     let names: [Name]?
+    /// Organise's grouping of the samples into documents, when the try made one.
+    let documents: [SetupStageProposedDocument]?
     /// The comparison's id, for Read and Find Lines.
     let bakeoff: String?
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff
+        case state, error, how, names, bakeoff, documents
         case perPage = "per_page"
+    }
+
+    /// "Sentencia · 82% sure": a proposed document's kind and how sure, for the samples' grouping.
+    static func detail(of document: SetupStageProposedDocument) -> String {
+        let sure = document.confidence.map { $0.formatted(.percent.precision(.fractionLength(0))) + " sure" }
+        return [document.kind, sure].compactMap { $0 }.joined(separator: " · ")
     }
 
     var isUnderWay: Bool { state == "waiting" || state == "running" }
@@ -148,5 +156,19 @@ struct SetupStageTryResult: Decodable, Equatable {
         let statements = page.statements?.count ?? 0
         if statements > 0 { parts.append(statements == 1 ? "1 statement" : "\(statements) statements") }
         return parts.joined(separator: "; ")
+    }
+}
+
+/// A document Organise proposes on the samples (`finddocs.review.setup-page`): the pages it groups, in order.
+struct SetupStageProposedDocument: Decodable, Equatable {
+    let name: String
+    let pageIds: [String]
+    let kind: String?
+    let confidence: Double?
+    let reasons: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case name, kind, confidence, reasons
+        case pageIds = "page_ids"
     }
 }

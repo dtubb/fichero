@@ -28,7 +28,10 @@ extension LibraryView {
             // right-clicking a multi-selection targeted an arbitrary doc.
             // Child-group rows carry "<docId>:<type>" ids — drop the
             // suffix so a context-menu on a child still targets its doc.
-            if let firstId = primaryNodeId(in: items),
+            if let target = proposalTarget(for: items) {
+                // Proposed documents answer in place (`finddocs.review.items`).
+                ProposedDocumentsMenu(target: target) { answerProposals($0, target: target) }
+            } else if let firstId = primaryNodeId(in: items),
                let doc = outlineDocument(forNodeId: firstId) {
                 // Deferred to OPEN time like Icon, List and Columns (#4544):
                 // Table was the one browse mode still building its menu on
@@ -147,9 +150,10 @@ extension LibraryView {
     /// in table mode (#4198).
     var outlineNodes: [LibraryOutlineNode] {
         guard let outlineModel else {
-            return filteredDocuments.map { LibraryOutlineNode.document($0, children: nil) }
+            return withShownProposals(filteredDocuments.map { LibraryOutlineNode.document($0, children: nil) })
         }
-        return outlineModel.nodes(for: filteredDocuments)
+        // The shown folder's proposed documents stand in place of their pages (`finddocs.review.items`).
+        return withShownProposals(outlineModel.nodes(for: filteredDocuments))
     }
 
     /// The table's rows **in the order they are on screen**, ids only, with the

@@ -68,9 +68,11 @@ extension ActionLibraryService {
             let message = (try? error.body.json)?.detail?.description ?? "Action failed"
             invokeLogger.error("invokeAction(\(name)) 422: \(message)")
             throw APIError.httpError(statusCode: 422, message: message)
-        case .undocumented(let statusCode, _):
-            invokeLogger.error("invokeAction(\(name)) HTTP \(statusCode)")
-            throw APIError.httpError(statusCode: statusCode, message: "Action failed")
+        case .undocumented(let statusCode, let payload):
+            // The engine refuses in words (a 409 "document 2 is already accepted"): keep them.
+            let message = await EngineErrorDetail.message(from: payload) ?? "Action failed"
+            invokeLogger.error("invokeAction(\(name)) HTTP \(statusCode): \(message)")
+            throw APIError.httpError(statusCode: statusCode, message: message)
         }
     }
 

@@ -21,6 +21,11 @@ struct SetupStagePage: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let note = Self.howItAnswers(stage.id) {
+                Text(note)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             whoRunsIt
             if !stage.questions.isEmpty {
                 Divider()
@@ -82,6 +87,19 @@ struct SetupStagePage: View {
         if answers.isTyped(question.key) { return answers[question: question.key] }
         return answers.other[question.key]
             ?? StageAnswer.from(question.answer?.value) ?? StageAnswer.from(question._default?.value)
+    }
+
+    /// How a stage's results reach the project, where that is not plain (`finddocs.review.setup-page`): Organise
+    /// applies only what it is sure enough of and leaves the rest for the person. The level is the project's, so
+    /// it is not named here.
+    static func howItAnswers(_ stageId: String) -> String? {
+        switch stageId {
+        case "organise":
+            "A document it is sure enough of is applied by the run. Every other one is proposed: it waits in Items, "
+                + "marked Proposed, for you to accept, reject or change which pages belong, and ⌘Z takes back any answer."
+        default:
+            nil
+        }
     }
 }
 
