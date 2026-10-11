@@ -23,6 +23,14 @@ fi
 
 echo "[0/3] Generating release snippets + publication guard"
 cd "$ROOT_DIR"
+# MkDocs builds every file under docs/, tracked or not. On 2026-10-10 an untracked draft folder
+# (docs/user_manual/, a person's own manuscripts) went public this way. Only committed docs ship.
+UNTRACKED_DOCS=$(git ls-files --others -- docs | grep -v "\.DS_Store$" || true)
+if [ -n "$UNTRACKED_DOCS" ]; then
+  echo "error: untracked files under docs/ would be published; commit them or deploy from a clean checkout:" >&2
+  echo "$UNTRACKED_DOCS" | head -20 >&2
+  exit 1
+fi
 python3 scripts/gen_site_releases.py
 python3 scripts/check_docs_publication.py
 
