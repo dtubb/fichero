@@ -338,6 +338,13 @@ def _arm_stall_watchdog(library: str) -> None:
                 return
             done, total = state["done"], state["total"]
             tracker_path = _queue_db_paths.get(library)
+        # A deliberate wait is not a stall (`activity.throttle.power-heat-memory`): while the throttle holds
+        # background work (the person at the Mac, battery, heat, memory), the rows already say why. Look again later.
+        from fichero_server.execution import throttle
+
+        if throttle.why_wait(person_waiting=False):
+            _arm_stall_watchdog(library)
+            return
         logger.error(
             "derivatives: queue stalled for %s at %d of %d — no completion in %.0fs",
             library, done, total, STALL_SECONDS,

@@ -1217,6 +1217,10 @@ and node, not by job); a retry action for failed pages.
   every job said Kraken's floor ("Kraken and the other local models need about 2.5 GB", seen during an MLX
   step on the 2026-10-10 demo). `throttle.model_need`; tests:
   `fichero-server/tests/unit/jobs/test_memory_wait_names_its_model_5654.py`.
+  **[OK]** (2026-10-11) a deliberate wait is not a stall: the import queue's watchdog ("Processing imported pages
+  stalled at N of M") says nothing while the throttle holds background work, whose rows already say why, and looks
+  again a minute later (`derivatives._arm_stall_watchdog`; seen when the queue sat at "Waiting: you're using the
+  Mac" and was called stalled every minute). Test: `fichero-server/tests/unit/jobs/test_deliberate_wait_is_not_a_stall.py`.
 
 ### E. Durability
 
