@@ -227,6 +227,10 @@ class LibraryManager {
         /// with Accept, Reject and Accept All Above.
         @ObservationIgnored lazy var foundDocumentsStore = FoundDocumentsStore(client: ficheroClient)
 
+        /// Where this project's pages' readers disagree (#5665): the Reader's lens and the Inspector read it.
+        /// ponytail: its source says "not yet" until the engine's disagreement route is generated into the client.
+        @ObservationIgnored lazy var disagreementStore = ReadingDisagreementStore()
+
         /// This project's kept exports (#5485): setup's Kept exported screen keeps them, and the
         /// project's Inspector lists them with Write Now and Remove.
         @ObservationIgnored lazy var keptExportStore = KeptExportStore(client: ficheroClient)

@@ -21,7 +21,7 @@ struct ReaderLensInventoryTests {
         // tabs; the other seven are knowledge sub-modes, and each must name one.
         for lens in ReaderLens.allCases {
             switch lens {
-            case .page, .lines, .notes:
+            case .page, .lines, .disagreement, .notes:
                 #expect(lens.representation == nil)
             default:
                 #expect(lens.representation != nil, "\(lens.title) names no surface")

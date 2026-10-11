@@ -20,6 +20,8 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
     case page
     /// Line by line (#5414): each line's picture above its editable reading.
     case lines
+    /// Where the readers disagree (#5665, `source.disagree.lens`): each word tinted by agreement.
+    case disagreement
     case knowledge
     case notes
 
@@ -30,6 +32,7 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
         switch self {
         case .page: return "Page"
         case .lines: return "Lines"
+        case .disagreement: return "Disagreement"
         case .knowledge: return "Knowledge"
         case .notes: return "Notes"
         }
@@ -40,6 +43,7 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
         switch self {
         case .page: return "doc.text.image"
         case .lines: return "text.below.photo"
+        case .disagreement: return "exclamationmark.bubble"
         case .knowledge: return "point.3.connected.trianglepath.dotted"
         case .notes: return "note.text"
         }
@@ -50,6 +54,7 @@ enum ReaderTab: String, CaseIterable, Identifiable, SurfaceTab {
         switch self {
         case .page: return "Page — read the source: image, transcript, loupe, page-turn"
         case .lines: return "Lines — each line's picture above its reading, editable in place"
+        case .disagreement: return "Where the Readers Disagree — each word tinted by how many readers gave it"
         case .knowledge: return "Knowledge — explore entities, claims, graph, timeline, map, and the digest"
         case .notes: return "Notes — your highlights, notes, and bookmarks anchored to the page"
         }

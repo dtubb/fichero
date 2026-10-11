@@ -24,6 +24,8 @@ struct ReadKnowledgeMenuCommands: Commands {
             Menu("Reader Lens") {
                 ReaderLensSection()
             }
+            // Where the readers disagree (#5665): the doubtful words, one by one.
+            DoubtfulWordMenuSection()
 
             // ImagePreviewMenuCommands is itself a "Zoom" flyout carrying the
             // magnifier + loupe controls — reused unchanged (keeps its ⌘0/⌘9/

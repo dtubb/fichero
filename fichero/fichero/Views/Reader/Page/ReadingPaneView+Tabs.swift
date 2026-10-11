@@ -29,6 +29,8 @@ extension ReadingPaneView {
                 pageTabContent
             case .lines:
                 linesTabContent
+            case .disagreement:
+                disagreementTabContent
             case .knowledge:
                 knowledgeTabContent
             case .notes:
@@ -157,6 +159,16 @@ extension ReadingPaneView {
     private var linesTabContent: some View {
         if let pageId = effectivePageId ?? effectiveDocument?.id {
             ReaderLinesView(documentId: pageId, zoom: webZoom)
+        } else {
+            readerEmptyState
+        }
+    }
+
+    /// Where the readers disagree (#5665): the page's words tinted by agreement.
+    @ViewBuilder
+    private var disagreementTabContent: some View {
+        if let pageId = effectivePageId ?? effectiveDocument?.id {
+            ReaderDisagreementView(pageId: pageId)
         } else {
             readerEmptyState
         }

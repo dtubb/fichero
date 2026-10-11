@@ -551,10 +551,11 @@ struct KGSurfaceTabTests {
 
 struct ReaderTabTests {
 
-    @Test("ReaderTab folds the reader into Page, Lines, Knowledge, Notes in order")
+    @Test("ReaderTab folds the reader into Page, Lines, Disagreement, Knowledge, Notes in order")
     func orderingAndCount() {
-        // Order drives the lens list. Lines (#5414) reads the page line by line, beside Page.
-        #expect(ReaderTab.allCases == [.page, .lines, .knowledge, .notes])
+        // Order drives the lens list. Lines (#5414) reads the page line by line, beside Page; Disagreement
+        // (#5665) shows where its readers disagree, beside Lines.
+        #expect(ReaderTab.allCases == [.page, .lines, .disagreement, .knowledge, .notes])
     }
 
     @Test("ReaderTab id equals rawValue")

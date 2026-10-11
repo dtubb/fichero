@@ -99,6 +99,8 @@ struct SourceInfoView: View {
                 IIIFFolderInspectorSection(document: document)
                 // A folder: the documents Find the Documents proposed, waiting for a person (#5550).
                 FoundDocumentsInspectorSection(document: document)
+                // A page read by two readers or more: how far they agree, the page and each line (#5665).
+                ReadingAgreementInspectorSection(document: document)
                 DocumentInspectorInfoTab(document: document)
                 // Every step that has touched this document, newest first (#5434).
                 WhatHasBeenRunInspectorSection(document: document)
