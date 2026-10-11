@@ -166,7 +166,9 @@ struct SetupRoundTwoTests {
 
         #expect(!(await store.addTyped("zzqx", toScripts: false)))
         #expect(store.languages == ["es"], "an unknown word is never kept as a language")
-        #expect(store.errorMessage == "Fichero doesn't know a language called “zzqx”.")
+        // Said on the Languages row only, never repeated on Scripts (section 7d).
+        #expect(store.typedRefusal == .init(scripts: false, text: "Fichero doesn't know a language called “zzqx”."))
+        #expect(store.errorMessage == nil)
 
         #expect(await store.save())
         let answers = try #require(RoundTwoURLProtocol.bodies["PUT /api/recipes/project"]?["answers"] as? [String: Any])

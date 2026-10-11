@@ -2764,11 +2764,11 @@ Setup
   never written as the project's passes, readings, names, dates or statements, and Start does not
   count it as done. *Test:* pytest, after a try the project's passes, readings and claims are
   unchanged and Start's plan runs on every page.
-- `source.onboard.material.when-written` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `answers.period`, kept as typed, read by `recipes/hands.period_years`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the suggestion from the sample pages.* Your Material asks when the material was
+- `source.onboard.material.when-written` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `RecipeWhenWhereHandFields`, saved as `answers.period` and `answers.hands`; pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `answers.period`, kept as typed, read by `recipes/hands.period_years`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the suggestion from the sample pages.* Your Material asks when the material was
   written, as a century or a range of years ("16th century", "1650–1700"), proposed from the sample
   pages where a local model can look and labelled "suggested from your pages"; saved with the answers.
   *Test:* pure Swift, a century and a range round-trip; pytest, the answers carry it.
-- `source.onboard.material.which-hand` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/hands.py` and `GET /api/recipes/hands` (Latin, Arabic and Hebrew hands, each with its centuries, its tags and what it looks like), `answers.hands` kept as typed; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the pictures (each hand says what it looks like in words until then).* Your Material asks which hand, from a
+- `source.onboard.material.which-hand` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `RecipeWhenWhereHandFields`, saved as `answers.period` and `answers.hands`; pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/hands.py` and `GET /api/recipes/hands` (Latin, Arabic and Hebrew hands, each with its centuries, its tags and what it looks like), `answers.hands` kept as typed; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the pictures (each hand says what it looks like in words until then).* Your Material asks which hand, from a
   curated list of hands per script and century kept by the engine (Latin: Caroline minuscule, Gothic
   textualis, Gothic cursiva, Secretary, Humanistic, Italic, Kurrent, Copperplate…), each shown with a
   picture example and mapped to the Hugging Face tags readers carry; anything else is typed and kept as
@@ -2808,11 +2808,11 @@ Setup
 - `source.onboard.project.add-material` — **[GAP]** (#5668) Add material offers Add Files or Folders…
   and then how it comes in (Copy, the default; Link, Move, Index, Keep arranged), separate from what the
   material is. *Test:* pure Swift, the ways in and the default.
-- `source.onboard.project.about-material` — **[GAP]** (#5668) About the material holds the pages
+- `source.onboard.project.about-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** when written, where written (`answers.place`) and which hand (`RecipeWhenWhereHandFields`); pinned by `SetupStagesTests`. *Not built: the pages counted from what was added; the kinds beyond handwriting, print and typescript, which the engine's `MATERIALS` refuses today.* About the material holds the pages
   counted from what was added, languages, scripts, kinds (handwriting, print, typescript, tables and
   forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
   page's fields in that order.
-- `source.onboard.project.language-as-you-type` — **[BROKEN]** (#5668) the language field offers
+- `source.onboard.project.language-as-you-type` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the matches listed under the field as the person types, on every platform (`CodeTokenField`); an unknown word said on its own row (`RecipeSetupStore.typedRefusal`), pinned by `SetupRoundTwoTests`. the language field offers
   matches as the person types, by the language's own name with or without accents; a language it does
   not know is said on the language row only, never repeated on the scripts row. *Test:* pure Swift, a
   typed "espanol" lists Spanish; an unknown language's message appears once.

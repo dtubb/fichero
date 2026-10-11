@@ -83,6 +83,12 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var layers: [String]?
     var automatic: Automatic?
     var jobAnswers: JobAnswers?
+    /// When it was written: a century or a range of years, kept as typed (`answers.period`, section 7c).
+    var period: String?
+    /// Which hand: the curated hands' ids, or what the person typed, or "not-sure" (`answers.hands`).
+    var hands: [String]?
+    /// Where it was written: a place, as typed (`answers.place`, section 7d).
+    var place: String?
 
     /// What runs by itself after Start (`answers.automatic`).
     struct Automatic: Codable, Equatable {
@@ -208,7 +214,11 @@ struct RecipeSetupAnswers: Codable, Equatable {
     init(purposes: [String]? = nil, jobs: [String]? = nil, languages: [String]? = nil,
          scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
          pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
-         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil) {
+         automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil,
+         period: String? = nil, hands: [String]? = nil, place: String? = nil) {
+        self.period = period
+        self.hands = hands
+        self.place = place
         self.purposes = purposes
         self.jobs = jobs
         self.removedJobs = removedJobs
@@ -226,6 +236,7 @@ struct RecipeSetupAnswers: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
+        case period, hands, place
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
         case jobAnswers = "job_answers"

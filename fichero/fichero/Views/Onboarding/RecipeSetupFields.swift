@@ -211,8 +211,8 @@ struct RecipeAboutFields: View {
                     .setupCheckbox()
                 }
             }
-            Text("Tick every kind there is; a reader is proposed for each.")
-                .font(.caption).foregroundStyle(.secondary)
+            Divider()
+            RecipeWhenWhereHandFields(store: store)
         }
         .task(id: store.scripts) { await store.loadDerived() }
     }
@@ -260,15 +260,21 @@ struct CodeTokenField: View {
             LabeledContent(title) {
                 field
             }
-            #if !os(macOS)
-            // No text-field dropdown off the Mac: the same matches, as a list under the field.
+            // The matches as the person types, under the field, on every platform
+            // (`source.onboard.project.language-as-you-type`): the Mac's text-field dropdown did not show them.
             if !unchosen.isEmpty {
-                List(unchosen, id: \.self) { match in
-                    Button { take(RecipeSetupStore.completion(for: match)) } label: { MatchLabel(match: match) }
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(unchosen.prefix(8), id: \.self) { match in
+                        Button { take(RecipeSetupStore.completion(for: match)) } label: { MatchLabel(match: match) }
+                            .buttonStyle(.plain)
+                    }
                 }
-                .frame(height: 160)
+                .padding(6)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             }
-            #endif
+            if let refusal = store.typedRefusal, refusal.scripts == scripts {
+                Label(refusal.text, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
+            }
             if !codes.isEmpty {
                 FlowTokens(codes: codes, name: store.name(of:)) { code in
                     store.remove(code, fromScripts: scripts)
@@ -290,12 +296,6 @@ struct CodeTokenField: View {
     private var field: some View {
         TextField(title, text: $query, prompt: Text(scripts ? "Type to find, e.g. Latin" : "Type to find, e.g. Spanish"))
             .labelsHidden()
-            #if os(macOS)
-            .textInputSuggestions(unchosen, id: \.self) { match in
-                MatchLabel(match: match)
-                    .textInputCompletion(RecipeSetupStore.completion(for: match))
-            }
-            #endif
             .onChange(of: query) { _, text in take(text) }
             .onSubmit {
                 let typed = query

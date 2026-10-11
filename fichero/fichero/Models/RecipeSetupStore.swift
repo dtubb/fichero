@@ -90,6 +90,20 @@ final class RecipeSetupStore {
     var stages: [Components.Schemas.SetupStage] = []
     /// Which stages are chosen (`source.onboard.stages.choose-first`); nil until the stages have loaded.
     var stageChoice: SetupStageChoice?
+    /// When, where and in which hand the material was written (section 7d, About the material).
+    var period = ""
+    var place = ""
+    var hands: [String] = []
+    /// The curated hands for the first script and the period (`GET /api/recipes/hands`).
+    var handOptions: [Components.Schemas.HandOption] = []
+    /// A typed word the engine does not know, said on ITS row only (Languages or Scripts), never on the other's
+    /// (`source.onboard.project.language-as-you-type`).
+    var typedRefusal: TypedRefusal?
+
+    struct TypedRefusal: Equatable {
+        let scripts: Bool
+        let text: String
+    }
     private(set) var recipe: Components.Schemas.AssembledRecipe?
     private(set) var jobs: [String: Components.Schemas.JobInfo] = [:]
     /// The registry's own order, so what is offered after the recipe's steps is stable.
@@ -461,7 +475,8 @@ final class RecipeSetupStore {
         RecipeSetupAnswers(purposes: purposes, jobs: addedJobs, languages: languages, scripts: scripts,
                            directions: directions, materials: materials, pages: pages,
                            cloudAllowed: cloudAllowed, ingestMode: wayIn.savedName,
-                           layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs)
+                           layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
+                           period: period, hands: hands, place: place)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -496,6 +511,9 @@ final class RecipeSetupStore {
         if let value = saved.cloudAllowed { cloudAllowed = value }
         if let value = saved.automatic { automatic = value }
         if let value = saved.jobAnswers { jobAnswers = value }
+        if let value = saved.period { period = value }
+        if let value = saved.hands { hands = value }
+        if let value = saved.place { place = value }
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
             // An unknown mode is an error, never a silent fallback to link.
@@ -675,9 +693,12 @@ extension RecipeSetupStore {
         let lowered = word.lowercased()
         guard let choice = matches.first(where: { $0.name.lowercased() == lowered || $0.code.lowercased() == lowered })
                 ?? matches.first else {
-            errorMessage = "Fichero doesn't know a \(toScripts ? "script" : "language") called “\(word)”."
+            typedRefusal = TypedRefusal(
+                scripts: toScripts, text: "Fichero doesn't know a \(toScripts ? "script" : "language") called “\(word)”."
+            )
             return false
         }
+        typedRefusal = nil
         add(choice, toScripts: toScripts)
         return true
     }

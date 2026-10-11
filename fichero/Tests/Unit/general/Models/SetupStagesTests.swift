@@ -186,6 +186,36 @@ struct SetupStagesTests {
         #expect(result.names?.map(\.name) == ["Juan de Mosquera"])
     }
 
+    // MARK: About the material
+
+    @Test("source.onboard.material.which-hand: the engine's hands for the script; Not sure stands alone; typed is kept")
+    func whichHand() async {
+        StagesMockURLProtocol.replies = ["GET /api/recipes/hands": (200, TryJSON.hands)]
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        store.scripts = ["Latn"]
+        store.period = "16th century"
+        await store.loadHands()
+        #expect(store.handOptions.map(\.id) == ["secretary", "humanistic"])
+        store.toggle(hand: "secretary")
+        store.toggle(hand: "Procesal encadenada")
+        #expect(store.hands == ["secretary", "Procesal encadenada"])
+        store.toggle(hand: RecipeSetupStore.notSureHand)
+        #expect(store.hands == ["not-sure"], "Not sure clears the others")
+        store.toggle(hand: "humanistic")
+        #expect(store.hands == ["humanistic"], "a hand ticked clears Not sure")
+    }
+
+    @Test("source.onboard.material.when-written: when, where and which hand are saved with the answers, as typed")
+    func whenWhereHandRoundTrip() throws {
+        let answers = RecipeSetupAnswers(period: "1650–1700", hands: ["secretary"], place: "Popayán")
+        let data = try JSONEncoder().encode(answers)
+        let object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object["period"] as? String == "1650–1700")
+        #expect(object["hands"] as? [String] == ["secretary"])
+        #expect(object["place"] as? String == "Popayán")
+        #expect(try JSONDecoder().decode(RecipeSetupAnswers.self, from: data) == answers)
+    }
+
     // MARK: What Fichero runs
 
     @Test("source.onboard.app.what-fichero-runs: what Fichero does and with what, and the two accounts it suggests")
@@ -208,6 +238,14 @@ private enum TryJSON {
     """
     static let costFirst = """
     {"detail": "Trying Names on 2 pages uses the cloud and costs about $0.04: try it again with your yes to the cost"}
+    """
+    static let hands = """
+    {"items": [
+      {"id": "secretary", "title": "Secretary", "script": "Latn", "centuries": "16th–17th century",
+       "tags": ["secretary"], "looks": "angular, with a looped e"},
+      {"id": "humanistic", "title": "Humanistic", "script": "Latn", "centuries": "15th–16th century",
+       "tags": ["humanistic"], "looks": "round and upright"}
+    ], "period_years": [1501, 1600], "not_sure": "not-sure"}
     """
     static let done = """
     {"stage": "names", "pages": ["p1"], "state": "done", "how": "its own steps on a copy of these pages",
