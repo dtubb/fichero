@@ -290,8 +290,9 @@ struct OnboardingScreenshotsTests {
                        ProjectTransferSheet(store: ProjectTransferStore(), drop: try Self.transferDrop(from: project),
                                             steps: nil))
         // A finished recipe run's details by Set Up's stages (#5670): what each made, and why Statements was skipped.
+        let stageCards = try ActivityStageCardsTests.cards()
         try await shot("14-run-by-stage.png", CGSize(width: 460, height: 720), ScrollView {
-            ActivityDetailsStageCards(cards: try ActivityStageCardsTests.cards(), perform: { _ in }).padding(22)
+            ActivityDetailsStageCards(cards: stageCards, perform: { _ in }).padding(22)
         })
 
         #expect(written.count == 14)

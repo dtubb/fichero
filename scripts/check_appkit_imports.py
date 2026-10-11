@@ -155,7 +155,6 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Views/Preview/QuickLookViewer/QuickLookComponents.swift": "imports AppKit beside Quartz behind #if canImport and names no NS symbol itself; possibly removable, possibly needed for Quartz's NSView-based previews — confirm with a build (#2101)",
     "Views/Preview/QuickLookViewer/QuickLookPreviewViews.swift": "QuickLook preview via NSViewRepresentable / UIViewControllerRepresentable, #if canImport (#2101)",
     "App/Menus/FileMenuCommands.swift": "NSOpenPanel for File > Open/Import; SwiftUI's fileImporter cannot choose a .fichero package (#2101)",
-    "App/Menus/FocusedCommands/FocusedCommandButtons+UndoNavigation.swift": "#2713 — undo/nav buttons use macOS NSAlert via AppKit (moved here when FocusedCommandButtons was split by file_length); #2101",
     "Views/Onboarding/FirstRunWindow.swift": "NSOpenPanel to choose or create the first library; macOS-only by nature",
     "Views/Shell/OpenAffordances.swift": "#2713 — open/import affordance bridge uses AppKit open-panel helpers; #2101",
     "Views/Sidebar/ItemRow/SidebarDragID.swift": "#711/#4123 — the row drag Transferable split from SidebarItemRow.swift by file_length; NSAttributedString RTF export for cross-app text drops via #if canImport",
