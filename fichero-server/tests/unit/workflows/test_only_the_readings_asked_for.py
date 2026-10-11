@@ -143,7 +143,8 @@ async def test_a_download_reports_its_bytes_as_they_arrive(tmp_path, monkeypatch
         return Process()
 
     class Runtime:
-        def require_python_path(self):
+        # A download sets the runtime up first when it is not (#5664): this one already is.
+        def ensure_provisioned(self, on_message=None):
             return Path("/tmp/mlx-runtime/bin/python")
 
     monkeypatch.setattr(mlx_model_store, "get_mlx_runtime", lambda: Runtime())
