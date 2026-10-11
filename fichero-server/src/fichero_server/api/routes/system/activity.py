@@ -487,11 +487,12 @@ async def list_background_jobs(
                     state=status,
                     reason=(run.error or None) if status == "failed" else (account.waiting_reason if account else None),
                     account=account,
-                    failed_at=_utc(run.completed_at) if status == "failed" else None,
+                    # A run without its end time still lists, with its reason: never vanish over a timestamp.
+                    failed_at=_utc(getattr(run, "completed_at", None)) if status == "failed" else None,
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
-        logger.debug("list_background_jobs: workflow-run merge failed: %s", exc)
+        logger.warning("list_background_jobs: workflow-run merge failed: %s", exc)
 
     # Queued jobs (the one job model, #5353): running, waiting (one row per kind, `total` = how
     # many wait) and recently failed, with why.
