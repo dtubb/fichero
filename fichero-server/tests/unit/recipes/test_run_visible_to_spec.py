@@ -160,15 +160,21 @@ def test_source_onboard_auto_results_summary(client, db, pages, tmp_path, engine
     _save(client, _recipe(tmp_path, *_steps(tmp_path)), cloud_allowed=False)
     job_id = _start(client)
     _finished(client, job_id)
+    # Work out dates gave one page its date (its date column), which the KG's Dates group does not count.
+    dated = db.get(type(pages[0]), pages[0].id)
+    dated.date_jdn, dated.date_jdn_end = 2341973, 2341973
+    db.save(dated)
     summary = client.get(f"/api/recipes/project/runs/{job_id}/summary").json()
     assert summary["finished"] and summary["pages"] == 2 and summary["pages_read"] == 2
+    assert summary["pages_dated"] == 1
     assert {n["label"]: n["count"] for n in summary["names"]} == {"People": 1, "Places": 1}
     assert summary["statements"] == 1 and summary["dates"] == 1  # the claim names no entity: the KG's Dates
     assert summary["failed"] == [] and summary["pages_failed"] == 0
     skipped = {s["step"]: s["fix"] for s in summary["skipped"]}
     assert skipped["check"] == "allow-cloud" and skipped["names"] == "choose-model"
     # In the engine's words, one line per figure, shown as given; no line for a stage the run did not have.
-    assert summary["lines"] == ["Read 2 of 2 pages", "Names: 1 People · 1 Places", "1 date · 1 statement"]
+    assert summary["lines"] == ["Read 2 of 2 pages", "Names: 1 People · 1 Places",
+                                "1 page dated · 1 date named · 1 statement"]
     assert (summary["documents_proposed"], summary["groups_proposed"], summary["entries"]) == (None, None, None)
     tree = client.get(f"/api/activity/jobs/{job_id}").json()
     assert tree["summary"] == summary, "Activity's details show the same summary"

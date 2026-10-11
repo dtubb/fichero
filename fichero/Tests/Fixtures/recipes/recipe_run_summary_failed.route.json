@@ -2,7 +2,7 @@
  "request": null,
  "status": 200,
  "response": {
-  "job_id": "a8154916-8734-4170-9b26-2cb04befff81",
+  "job_id": "2dbbdad5-bdbf-4984-8810-ef477f75748c",
   "state": "failed",
   "finished": true,
   "pages": 2,
@@ -20,6 +20,7 @@
    }
   ],
   "dates": 1,
+  "pages_dated": 1,
   "statements": 1,
   "documents_proposed": null,
   "documents_accepted": null,
@@ -28,7 +29,7 @@
   "lines": [
    "Read 2 of 2 pages",
    "Names: 1 People \u00b7 1 Places",
-   "1 date \u00b7 1 statement"
+   "1 page dated \u00b7 1 date named \u00b7 1 statement"
   ],
   "failed": [
    {
@@ -36,18 +37,18 @@
      "lines",
      "read"
     ],
-    "thread_id": "thread-b18e27311afa",
+    "thread_id": "thread-c7ab4f13665a",
     "pages_failed": 2,
     "failures": [
      {
       "page": "p0.png",
-      "document_id": "12b54ed262f64709b100873ed4cdc431",
+      "document_id": "4183448f51bc4001a550e690018ca046",
       "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
       "retried": false
      },
      {
       "page": "p1.png",
-      "document_id": "960a6184ff0b4087aaa0d2153d3e2bc2",
+      "document_id": "43476bcd2f284c3b9574036670f0d029",
       "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
       "retried": false
      }
@@ -82,7 +83,7 @@
     "card": "workflow",
     "job": "read-a-line",
     "state": "failed",
-    "child_id": "thread-b18e27311afa",
+    "child_id": "thread-c7ab4f13665a",
     "why": "All parallel branches failed for kraken-htr. First error: Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
     "account": {
      "state": "failed",
@@ -93,13 +94,13 @@
      "failures": [
       {
        "page": "p0.png",
-       "document_id": "12b54ed262f64709b100873ed4cdc431",
+       "document_id": "4183448f51bc4001a550e690018ca046",
        "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
        "retried": false
       },
       {
        "page": "p1.png",
-       "document_id": "960a6184ff0b4087aaa0d2153d3e2bc2",
+       "document_id": "43476bcd2f284c3b9574036670f0d029",
        "reason": "Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
        "retried": false
       }
@@ -109,7 +110,7 @@
      "reason": "All parallel branches failed for kraken-htr. First error: Kraken could not read the lines: /models/mccatmus.mlmodel is not a regular file.",
      "interrupted": false,
      "estimate_seconds_left": null,
-     "engine_peak_memory_bytes": 2292649704,
+     "engine_peak_memory_bytes": 2296090368,
      "model_server_peak_memory_bytes": null,
      "offer": {
       "action": "read-again",
@@ -118,10 +119,12 @@
      }
     },
     "blank_versos": null,
+    "recordings_left_out": null,
     "kinds": null,
     "readers": null,
     "entries": null,
-    "prepared": null
+    "prepared": null,
+    "regions_found": null
    },
    {
     "steps": [
@@ -134,10 +137,12 @@
     "why": "it needs line readings or page reading, which no earlier step gave (step lines, read failed)",
     "account": null,
     "blank_versos": null,
+    "recordings_left_out": null,
     "kinds": null,
     "readers": null,
     "entries": null,
-    "prepared": null
+    "prepared": null,
+    "regions_found": null
    }
   ]
  }

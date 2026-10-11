@@ -78508,7 +78508,13 @@
           "dates": {
             "type": "integer",
             "title": "Dates",
-            "description": "the dates on those pages (the KG's Dates group)"
+            "description": "the dates named on those pages (the KG's Dates group)"
+          },
+          "pages_dated": {
+            "type": "integer",
+            "title": "Pages Dated",
+            "description": "of those pages, the ones Work out dates gave a date (their date columns): the step's own output, which the KG's Dates group does not count",
+            "default": 0
           },
           "statements": {
             "type": "integer",

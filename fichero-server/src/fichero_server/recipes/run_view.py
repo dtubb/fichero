@@ -148,7 +148,10 @@ class RecipeRunSummary(BaseModel):
     pages: int = Field(description="the pages the run ran over")
     pages_read: int = Field(description="of those, the pages that have a reading (lines read, or a page text)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
-    dates: int = Field(description="the dates on those pages (the KG's Dates group)")
+    dates: int = Field(description="the dates named on those pages (the KG's Dates group)")
+    pages_dated: int = Field(default=0, description=(
+        "of those pages, the ones Work out dates gave a date (their date columns): the step's own output, which "
+        "the KG's Dates group does not count"))
     statements: int = Field(description="the statements (claims) on those pages")
     documents_proposed: Optional[int] = Field(default=None, description=(
         "the documents Find the Documents proposed; null when it did not run in this run"))
@@ -186,6 +189,13 @@ def _has_reading(db: Any, doc_id: str) -> bool:
     from fichero_server.recipes.done import _has_line_readings, _has_page_reading
 
     return _has_page_reading(db, doc_id, None) or _has_line_readings(db, doc_id, None)
+
+
+def _pages_dated(db: Any, pages: list[str]) -> int:
+    """The pages Work out dates gave a date (`date_jdn` set), out of these."""
+    from fichero_server.models import Document
+
+    return sum(1 for p in pages if (d := db.get(Document, p)) is not None and d.date_jdn is not None)
 
 
 def _knowledge(db: Any, pages: list[str]) -> tuple[list[NamesOfAKind], int, int]:
@@ -248,7 +258,10 @@ def _lines(s: RecipeRunSummary, pages_split: int) -> list[str]:
     lines = [f"Read {s.pages_read} of {_plural(s.pages, 'page')}"]
     names = [n for n in s.names if n.count > 0]
     lines.append("Names: " + " · ".join(f"{n.count} {n.label}" for n in names) if names else "No names found")
-    lines.append(f"{_plural(s.dates, 'date')} · {_plural(s.statements, 'statement')}")
+    # Work out dates writes each page's own date, not a named date; a Spanish spaCy pipeline names no dates at
+    # all, so "0 dates" read as a step that did nothing while 92 pages had their date (2026-10-11).
+    lines.append(f"{_plural(s.pages_dated, 'page')} dated · {_plural(s.dates, 'date')} named · "
+                 f"{_plural(s.statements, 'statement')}")
     if s.documents_proposed is not None:
         lines.append(f"{_plural(s.documents_proposed, 'document')} proposed, {s.documents_accepted} accepted")
         lines.append(f"{_plural(s.groups_proposed or 0, 'group')} proposed")
@@ -285,7 +298,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     made = RecipeRunSummary(
         job_id=job_id, state=status["state"], finished=status["state"] in ("done", "failed", "cancelled"),
         pages=len(pages), pages_read=sum(1 for p in pages if _has_reading(db, p)),
-        names=names, dates=dates, statements=statements,
+        names=names, dates=dates, statements=statements, pages_dated=_pages_dated(db, pages),
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
