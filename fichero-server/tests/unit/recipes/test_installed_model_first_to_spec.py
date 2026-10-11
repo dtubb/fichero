@@ -49,7 +49,15 @@ def mac(monkeypatch, tmp_path):
                                                            macos_version="26.0"))
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(local_model_choice, "_store", lambda: store)
+    # Its local model runtime is set up: only models are missing here (a runtime to set up is
+    # test_start_sets_up_local_models.py's).
+    monkeypatch.setattr("fichero_server.llm.mlx_runtime.get_mlx_runtime", lambda: _RuntimeSetUp())
     return store
+
+
+class _RuntimeSetUp:
+    def is_provisioned(self) -> bool:
+        return True
 
 
 def test_source_onboard_auto_installed_model_first_at_start(client, db, pages, mac):

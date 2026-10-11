@@ -94,7 +94,7 @@ def test_a_runtime_without_a_transcriber_says_so_instead_of_failing_later(
     # state has to carry the reason.
     state, error = whisper_runtime.download_state("tiny")
     assert state == "failed"
-    assert "Provision" in str(error)
+    assert "Install Local Models" in str(error)
 
 
 def test_a_provisioned_runtime_reports_its_transcriber_version(

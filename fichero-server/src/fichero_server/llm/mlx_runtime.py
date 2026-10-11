@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import asdict, dataclass
 import json
+import logging
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import threading
 from typing import Callable
 import uuid
 import venv
@@ -69,6 +71,14 @@ def bundled_versions() -> dict[str, str] | None:
 
 _METADATA_FILENAME = "runtime.json"
 
+logger = logging.getLogger(__name__)
+
+#: What a person reads when the runtime is missing or could not be set up: in words, no route, no path (#5664).
+NOT_SET_UP = ("This Mac's local models are not set up yet. Start sets them up when a step needs them, or install "
+              "Local Models in Settings › AI.")
+COULD_NOT_SET_UP = ("This Mac's local models could not be set up; the engine's log says why. Try again, or install "
+                    "Local Models in Settings › AI.")
+
 
 class MLXRuntimeInTheAppError(RuntimeError):
     """Something in the app tried to use a separate MLX Python, which the sandbox can't have (#4973)."""
@@ -125,6 +135,8 @@ class MLXRuntime:
         self._job_lock = asyncio.Lock()
         self._provision_task: asyncio.Task[None] | None = None
         self._job: RuntimeProvisionJob | None = None
+        # One setting-up at a time, whichever thread or event loop asks (Settings, Start's job, a model download).
+        self._provisioning = threading.Lock()
 
     def is_provisioned(self) -> bool:
         """Whether this runtime can actually run mlx_lm.
@@ -218,10 +230,11 @@ class MLXRuntime:
 
     def remove(self) -> dict[str, object]:
         if self._provision_task is not None and not self._provision_task.done():
-            raise RuntimeError("MLX runtime provisioning is still running")
+            raise RuntimeError("This Mac's local models are still being set up; remove them once that has finished.")
         target = self.runtime_dir.resolve()
         if target.name != _RUNTIME_DIRNAME:
-            raise RuntimeError(f"Refusing to remove unexpected runtime dir: {target}")
+            logger.error("not removing %s: not the MLX runtime's own folder", target)
+            raise RuntimeError("Fichero will not remove that folder: it is not where this Mac's local models live.")
         if target.exists():
             shutil.rmtree(target)
         self._job = None
@@ -235,11 +248,33 @@ class MLXRuntime:
         # "No module named mlx_lm" with no hint that provisioning was the cause.
         if self.is_provisioned():
             return self.python_path()
-        raise RuntimeError(
-            f"MLX runtime is not provisioned (needs both mlx-lm and mlx-vlm): {self.missing()}. "
-            "Call POST /api/local-inference/runtime/provision "
-            "or enable Local Models in Settings before starting oMLX."
-        )
+        # Where it looked goes to the log, never into the sentence a person reads (no route, no path).
+        logger.warning("MLX runtime not provisioned: %s", self.missing())
+        raise RuntimeError(NOT_SET_UP)
+
+    def ensure_provisioned(self, on_message: Callable[[str], None] | None = None) -> Path:
+        """The runtime's interpreter, setting the runtime up first when it is not (#5664: Start fetches what its
+        steps need, and a model download needs the runtime). Blocks; one setting-up at a time, so a second caller
+        waits for the first and then finds it done. Raises, in words, when it cannot be set up."""
+        _refuse_in_the_app()
+        if not self.is_provisioned():
+            self.provision_now(on_message)
+        return self.require_python_path()
+
+    def provision_now(self, on_message: Callable[[str], None] | None = None) -> None:
+        """Set the runtime up on this thread (a job's), as Settings' Install does; nothing when it already is.
+        RuntimeError, in words, when it fails."""
+        if bundled_versions() is not None:
+            return
+        with self._provisioning:
+            if self.is_provisioned():
+                return
+            job = RuntimeProvisionJob(job_id=str(uuid.uuid4()), state="running", current=0, total=6,
+                                      message="Creating MLX runtime")
+            self._job = job
+            asyncio.run(self._provision_steps(job, on_message))
+        if job.state != "completed":
+            raise RuntimeError(COULD_NOT_SET_UP)
 
     def missing(self) -> str:
         """What this runtime lacks, and WHERE it looked (#5534): an engine whose status said
@@ -257,34 +292,50 @@ class MLXRuntime:
         if self.has_audio():
             return self.python_path()
         raise MLXAudioRuntimeMissingError(
-            "The MLX runtime cannot transcribe audio yet (mlx-whisper is not "
-            "installed). Provision the MLX runtime in Settings -> AI -> Local "
-            "Inference, or POST /api/local-inference/runtime/provision."
+            "This Mac's local models cannot transcribe recordings yet: their transcriber is not installed. "
+            "Install Local Models in Settings › AI."
         )
 
     def python_path(self) -> Path:
         return self.runtime_dir / "bin" / "python"
 
     async def _provision(self, job: RuntimeProvisionJob) -> None:
+        # Settings' Install: the same one-at-a-time as `provision_now`, the lock taken off the event loop.
+        await asyncio.to_thread(self._provisioning.acquire)
+        try:
+            if self.is_provisioned():
+                job.current, job.state, job.message = job.total, "completed", "MLX runtime ready"
+                return
+            await self._provision_steps(job)
+        finally:
+            self._provisioning.release()
+
+    async def _provision_steps(self, job: RuntimeProvisionJob,
+                               on_message: Callable[[str], None] | None = None) -> None:
+        def say(message: str) -> None:
+            job.message = message
+            if on_message is not None:
+                on_message(message)
+
         try:
             await asyncio.to_thread(self._ensure_parent_dir)
             job.current = 1
-            job.message = "Creating runtime virtual environment"
+            say("Creating runtime virtual environment")
             await asyncio.to_thread(self._create_venv, self.runtime_dir)
             job.current = 2
-            job.message = f"Installing mlx-lm=={MLX_LM_VERSION}"
+            say(f"Installing mlx-lm=={MLX_LM_VERSION}")
             await asyncio.to_thread(
                 self._run_command,
                 [str(self.python_path()), "-m", "pip", "install", f"mlx-lm=={MLX_LM_VERSION}"],
             )
             job.current = 3
-            job.message = f"Installing mlx-vlm=={MLX_VLM_VERSION}"
+            say(f"Installing mlx-vlm=={MLX_VLM_VERSION}")
             await asyncio.to_thread(
                 self._run_command,
                 [str(self.python_path()), "-m", "pip", "install", f"mlx-vlm=={MLX_VLM_VERSION}"],
             )
             job.current = 4
-            job.message = f"Installing mlx-whisper=={MLX_WHISPER_VERSION}"
+            say(f"Installing mlx-whisper=={MLX_WHISPER_VERSION}")
             await asyncio.to_thread(
                 self._run_command,
                 [
@@ -297,20 +348,22 @@ class MLXRuntime:
                 ],
             )
             job.current = 5
-            job.message = "Installing transcription dependencies"
+            say("Installing transcription dependencies")
             await asyncio.to_thread(
                 self._run_command,
                 [str(self.python_path()), "-m", "pip", "install", *MLX_WHISPER_DEPENDENCIES],
             )
             job.current = 6
-            job.message = "Writing runtime metadata"
+            say("Writing runtime metadata")
             await asyncio.to_thread(self._write_metadata)
             job.state = "completed"
-            job.message = "MLX runtime ready"
+            say("MLX runtime ready")
         except Exception as exc:
+            # What failed (a pip command, a path) goes to the log; the job says it in words.
+            logger.exception("MLX runtime set-up failed: %s", exc)
             job.state = "failed"
-            job.error = str(exc)
-            job.message = "MLX runtime provisioning failed"
+            job.error = COULD_NOT_SET_UP
+            say("MLX runtime provisioning failed")
 
     def _ensure_parent_dir(self) -> None:
         self.runtime_dir.parent.mkdir(parents=True, exist_ok=True)

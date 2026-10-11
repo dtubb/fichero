@@ -43,7 +43,7 @@ def test_runtime_status_reflects_provisioned_and_unprovisioned(tmp_path: Path) -
     assert ready["python_path"] == str(runtime.runtime_dir / "bin" / "python")
 
 
-def test_runtime_with_only_mlx_lm_is_not_provisioned(tmp_path: Path) -> None:
+def test_runtime_with_only_mlx_lm_is_not_provisioned(tmp_path: Path, caplog) -> None:
     """A pre-#4560 runtime has mlx-lm and no mlx-vlm, so it cannot read images.
 
     Every model in the managed catalog is a vision model, and `mlx_lm server`
@@ -61,8 +61,10 @@ def test_runtime_with_only_mlx_lm_is_not_provisioned(tmp_path: Path) -> None:
     status = runtime.status()
     assert status["provisioned"] is False
     assert status["mlx_vlm_version"] is None
-    with pytest.raises(RuntimeError, match="mlx-vlm"):
+    # What it lacks goes to the engine's log; the sentence a person reads says it in words (#5664).
+    with caplog.at_level("WARNING"), pytest.raises(RuntimeError, match="not set up"):
         runtime.require_python_path()
+    assert "mlx_vlm_version" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -126,7 +128,7 @@ def test_a_runtime_without_a_transcriber_serves_models_but_refuses_audio(tmp_pat
     assert status["mlx_whisper_version"] is None
     # The vision/text path is untouched by the missing transcriber.
     assert runtime.require_python_path() == runtime.python_path()
-    with pytest.raises(MLXAudioRuntimeMissingError, match="Provision the MLX runtime"):
+    with pytest.raises(MLXAudioRuntimeMissingError, match="Install Local Models in Settings"):
         runtime.require_audio_python_path()
 
 
@@ -190,7 +192,7 @@ def test_a_venv_without_mlx_lm_is_not_provisioned(tmp_path):
 
     assert runtime.python_path().exists()
     assert runtime.status()["provisioned"] is False
-    with pytest.raises(RuntimeError, match="not provisioned"):
+    with pytest.raises(RuntimeError, match="not set up"):
         runtime.require_python_path()
 
 
@@ -392,13 +394,16 @@ async def test_a_runtime_provisioned_under_a_relocated_store_root_is_found_by_a_
     assert python == str(state / "mlx-runtime" / "bin" / "python")
 
 
-def test_an_unprovisioned_runtime_says_where_it_looked(tmp_path):
-    """#5534: 'not provisioned' alone could not tell a missing runtime from one looked for elsewhere."""
+def test_an_unprovisioned_runtime_says_where_it_looked(tmp_path, caplog):
+    """#5534: 'not provisioned' alone could not tell a missing runtime from one looked for elsewhere. Where it looked
+    goes to the engine's log; the sentence a person reads names no path (#5664, 2026-10-11)."""
     runtime = MLXRuntime(tmp_path / "mlx-runtime")
-    with pytest.raises(RuntimeError) as refused:
+    with caplog.at_level("WARNING"), pytest.raises(RuntimeError) as refused:
         runtime.require_python_path()
-    assert str(tmp_path / "mlx-runtime" / "bin" / "python") in str(refused.value)
+    assert str(tmp_path / "mlx-runtime" / "bin" / "python") in caplog.text
+    assert str(tmp_path) not in str(refused.value)
     _touch_python(runtime.runtime_dir)
-    with pytest.raises(RuntimeError) as refused:
+    with caplog.at_level("WARNING"), pytest.raises(RuntimeError) as refused:
         runtime.require_python_path()
-    assert "runtime.json does not record mlx_lm_version or mlx_vlm_version" in str(refused.value)
+    assert "runtime.json does not record mlx_lm_version or mlx_vlm_version" in caplog.text
+    assert "runtime.json" not in str(refused.value)

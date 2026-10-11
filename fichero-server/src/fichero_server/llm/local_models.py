@@ -737,6 +737,10 @@ class LocalModelManager:
 
 # --- The download-model job (`runtime.spacy.pipelines-download-as-data`) ------------------------------------------
 DOWNLOAD_KIND = "download-model"
+#: Setting up this Mac's local model runtime (MLX) is fetched like a model: one `download-model` job,
+#: `mlx-runtime:mlx` (#5664: Start fetches what its steps need).
+MLX_RUNTIME = "mlx-runtime"
+MLX_RUNTIME_NAME = "the local model runtime"
 #: What a `download-model` job fetches, by runtime: each catalogue (#5359: Whisper and embeddings
 #: models too, which used to download where Activity could not see them).
 _DOWNLOADABLE = {"spacy": SPACY_MODELS, "whisper": WHISPER_MODELS, "embeddings": EMBEDDINGS_MODELS}
@@ -766,6 +770,8 @@ def model_display_name(runtime: str, model: str) -> str:
     """A model as a person sees it in Settings and Set Up (#5660 item 10): its card's or catalogue's name,
     never an id like kraken-zenodo-21788410; and never "Kraken", which ships inside the app."""
     try:
+        if runtime == MLX_RUNTIME:
+            return MLX_RUNTIME_NAME
         if runtime == "kraken":
             from fichero_server.llm.kraken_runtime import recognition_display_name
 
@@ -869,6 +875,8 @@ def _run_download(subject: str, db=None) -> None:
     try:
         if runtime == "mlx":
             _run_mlx_download(name, db, should_stop)
+        elif runtime == MLX_RUNTIME:
+            _set_up_mlx_runtime(db)
         elif runtime == "kraken":
             from fichero_server.llm.kraken_runtime import download_recognition_model
 
@@ -900,6 +908,22 @@ def _run_download(subject: str, db=None) -> None:
         jobs.come_back_after(db, job_id, COME_BACK_AFTER_SECONDS)
         raise jobs.JobDeferred(str(broken)) from broken
     say_installed(runtime, name)
+
+
+def _set_up_mlx_runtime(db) -> None:
+    """Set up this Mac's local model runtime (MLX) as a `download-model` job, so Start fetches it with its models
+    (#5664) and Activity shows it; a model download waiting on it finds it done. Nothing in the app (bundled)."""
+    from fichero_server.llm.mlx_runtime import get_mlx_runtime
+
+    runtime = get_mlx_runtime()
+    _say_progress(db, f"Setting up {MLX_RUNTIME_NAME}")
+
+    def said(_message: str) -> None:
+        job = runtime._job
+        if job is not None:
+            _say_progress(db, f"Setting up {MLX_RUNTIME_NAME}: {job.current} of {job.total}")
+
+    runtime.provision_now(said)
 
 
 def _run_mlx_download(name: str, db, should_stop=lambda: False) -> None:
@@ -952,6 +976,9 @@ def enqueue_download(db, runtime: str, name: str, *, started_by: str = "owner") 
 
     if runtime == "mlx":
         name = _check_mlx(name)
+    elif runtime == MLX_RUNTIME:
+        if name != "mlx":
+            raise ValueError(f"no download for {runtime}:{name}")
     elif runtime == "kraken":
         from fichero_server.llm.kraken_runtime import recognition_spec
 

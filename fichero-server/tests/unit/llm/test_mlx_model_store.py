@@ -127,7 +127,7 @@ async def test_download_command_pins_revision(tmp_path: Path, monkeypatch: pytes
         return FakeProcess()
 
     class FakeRuntime:
-        def require_python_path(self) -> Path:
+        def ensure_provisioned(self, on_message=None) -> Path:
             return Path("/tmp/mlx-runtime/bin/python")
 
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_runtime", lambda: FakeRuntime())
@@ -283,7 +283,7 @@ async def test_a_repo_with_two_weight_sets_downloads_only_the_one_it_declares(
         return FakeProcess()
 
     class FakeRuntime:
-        def require_python_path(self) -> Path:
+        def ensure_provisioned(self, on_message=None) -> Path:
             return Path("/tmp/mlx-runtime/bin/python")
 
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_runtime", lambda: FakeRuntime())
@@ -412,7 +412,7 @@ def test_resolve_refuses_a_partial_snapshot_rather_than_handing_it_to_the_sideca
     spec = MANAGED_MLX_MODELS["Chandra-OCR"]
     _partial_snapshot(tmp_path / "mlx", spec, weights=False, incomplete=True)
 
-    with pytest.raises(FileNotFoundError, match="not installed"):
+    with pytest.raises(FileNotFoundError, match="not on this Mac yet"):
         store.resolve_model_path("Chandra-OCR")
 
 

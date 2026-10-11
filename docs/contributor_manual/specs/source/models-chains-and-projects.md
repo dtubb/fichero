@@ -2545,7 +2545,14 @@ Profiles (the defaults section of a recipe)
   one line for Ready (`start_downloads`: each model by the name a person reads, its size, the total, e.g. "Start
   downloads Qwen2.5-VL 7B (OCR) (5.7 GB) and the Kraken reader PP-OCRv6 (medium) (60 MB): 5.8 GB in all."). Only a
   model that cannot be downloaded at all still refuses Start, in words. Pinned by
-  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`. *Not built: Ready's Swift (B); a
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`. **(2026-10-11)** What Start fetches
+  includes setting up this Mac's local model runtime when a step runs on the local model server and the runtime is
+  not set up (outside the app, where MLX does not ship inside it): one more download, "the local model runtime",
+  a `download-model` job (`mlx-runtime:mlx`) in Activity, and the steps on it wait for it; a model download that
+  finds the runtime missing sets it up first instead of failing. No sentence names an API route or a file path
+  (it said "Call POST /api/local-inference/runtime/provision" and the interpreter's path; where it looked goes to
+  the engine's log). `start.runtime_to_set_up`, `MLXRuntime.provision_now`/`ensure_provisioned`;
+  `fichero-server/tests/unit/recipes/test_start_sets_up_local_models.py`. *Not built: Ready's Swift (B); a
   licence acceptance asked before Start (no acceptance is recorded: the rules never pin a model whose licence is
   not open, and a person's own choice of one is its acceptance).*
 - `source.recipe.done-is-not-redone` — **[OK]** (#5390; built: `recipes/done.py`, the plan's `done`/`of`/`note` and Start's `redo`; tested in `fichero-server/tests/unit/recipes/test_recipe_cards_to_spec.py`) a started recipe does not run a step again on a

@@ -314,8 +314,9 @@ def test_the_plan_offers_a_model_not_installed_as_a_download_or_the_installed_on
     plan = _plan(_read_with("mlx-community/Qwen2.5-VL-7B-Instruct-4bit"))
     # #5664: Start downloads it itself (no refusal); the installed one stays offered instead.
     assert plan["refusals"] == []
-    assert plan["start_downloads"]["sentence"].startswith("Start downloads Qwen2.5-VL 7B (OCR) (")
-    [download] = plan["downloads"]
+    # The local model runtime may be fetched with it (#5664): this test's Mac has none set up.
+    assert "Qwen2.5-VL 7B (OCR) (" in plan["start_downloads"]["sentence"]
+    [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
     assert download["model"] == "Qwen2.5-VL-7B" and [i["model"] for i in download["instead"]] == ["Qwen2.5-VL-3B"]
 
 

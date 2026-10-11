@@ -529,7 +529,8 @@ class MLXModelStore:
         if self.is_complete(spec):
             return str(snapshot)
         raise FileNotFoundError(
-            f"Local model {model_id} is not installed. Download it first (Settings › AI, or Set Up… › Ready: POST /api/local-models/download/mlx/{model_id}) before starting oMLX."
+            f"{spec.display_name} is not on this Mac yet. Download it in Settings › AI, or press Start in Set Up… "
+            "and Start downloads it."
         )
 
     def canonical_id(self, name: str | None) -> str | None:
@@ -741,7 +742,10 @@ class MLXModelStore:
             await self._run_download_in_process(job, spec)
             return
         job.message = "Resolving MLX runtime"
-        python_path = str(get_mlx_runtime().require_python_path())
+        # A download needs the runtime: it is set up first rather than failing (#5664, Start fetches what it needs).
+        python_path = str(await asyncio.to_thread(
+            get_mlx_runtime().ensure_provisioned,
+            lambda _said: setattr(job, "message", "Setting up this Mac's local models first")))
         self.root.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         from fichero_server.llm import model_downloads

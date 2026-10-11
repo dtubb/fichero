@@ -420,7 +420,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
     refusals = check_recipe(recipe)
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
-    downloads = missing_models(every) + local_models_to_download(every)
+    downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)
     if db is not None:
         mark_downloads_under_way(db, downloads)
     # A model that is not here never refuses Start: Start fetches it itself and its steps wait for it (#5664,
@@ -614,6 +614,23 @@ def _local_model(run: dict[str, Any]) -> str | None:
     provider = run.get("provider_override") or run.get("provider")
     model = run.get("model_override") or run.get("model")
     return model if provider == "omlx" and model else None
+
+
+def runtime_to_set_up(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """This Mac's local model runtime (MLX), as a download Start fetches first, when a run is served by the local
+    model server and the runtime is not set up (#5664: Start fetches what its steps need; seen 2026-10-11, every
+    step on Qwen2.5-VL failing "MLX runtime is not provisioned"). None in the app, where MLX ships inside it."""
+    from fichero_server.llm.local_models import MLX_RUNTIME, MLX_RUNTIME_NAME
+    from fichero_server.llm.mlx_runtime import bundled_versions, get_mlx_runtime
+
+    steps: list[str] = []
+    for run in runs:
+        if _local_model(run) is not None:
+            _add_steps(steps, run["steps"])
+    if not steps or bundled_versions() is not None or get_mlx_runtime().is_provisioned():
+        return []
+    return [{"runtime": MLX_RUNTIME, "model": "mlx", "name": MLX_RUNTIME_NAME, "steps": steps, "size_mb": None,
+             "action": "model.download", "params": {"runtime": MLX_RUNTIME, "model": "mlx"}, "instead": []}]
 
 
 def local_models_to_download(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
