@@ -16,6 +16,9 @@ struct LicenceReviewSheet: View {
     var loadsCandidates = true
 
     @State private var accepting: String?
+    /// The one clear acceptance (section 7d, `source.onboard.models.licence-accepted-once`): the person ticks that
+    /// they accept this model's licence, then Accept and Use for This Step works.
+    @State private var accepted: Set<String> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -43,6 +46,9 @@ struct LicenceReviewSheet: View {
         }
         .padding()
         .frame(minWidth: 460, minHeight: 320)
+        // The sheet is its own decision: a presenting row that was disabled (while the plan was being proposed)
+        // left Accept and Use disabled with it (Daniel, 2026-10-11).
+        .environment(\.isEnabled, true)
         .task {
             if loadsCandidates { await finder.load(setup.finderQuery(job: step.job)) }
         }
@@ -52,6 +58,11 @@ struct LicenceReviewSheet: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(candidate.name).font(.body.weight(.medium))
             Text("Licence: \(Self.licenceName(candidate))").font(.callout)
+            Toggle("I accept the \(Self.licenceName(candidate)) licence for this project", isOn: Binding(
+                get: { accepted.contains(candidate.id) },
+                set: { isOn in if isOn { accepted.insert(candidate.id) } else { accepted.remove(candidate.id) } }
+            ))
+            .setupCheckbox()
             HStack {
                 if let url = Self.licenceURL(candidate.licence) {
                     Link("Read the Licence", destination: url)
@@ -65,12 +76,15 @@ struct LicenceReviewSheet: View {
                         if setup.errorMessage == nil { onDone() }
                     }
                 }
-                .disabled(accepting != nil)
+                .disabled(!Self.canAccept(accepted: accepted.contains(candidate.id), accepting: accepting))
             }
             .controlSize(.small)
         }
         .padding(.vertical, 4)
     }
+
+    /// Accept and Use works once its licence is ticked as accepted, and not while an acceptance is being kept.
+    static func canAccept(accepted: Bool, accepting: String?) -> Bool { accepted && accepting == nil }
 
     /// The cards the rules refused for this step because their licence is not open (`StepProblem.refused`).
     static func refusedForLicence(_ setup: RecipeSetupStore, step: String) -> [String] {

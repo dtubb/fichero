@@ -91,6 +91,15 @@ struct SetUpButtonsActTests {
         #expect(LicenceReviewSheet.licenceURL("Research use only") == nil)
     }
 
+    @Test("source.onboard.models.licence-accepted-once: Accept and Use works once the licence is ticked as accepted")
+    func licenceAcceptedOnce() {
+        // WHY (Daniel, 2026-10-11): Accept and Use for This Step stayed disabled, so the step could never take the
+        // model. One tick says the person accepts it; then the button works, except while it is being kept.
+        #expect(!LicenceReviewSheet.canAccept(accepted: false, accepting: nil))
+        #expect(LicenceReviewSheet.canAccept(accepted: true, accepting: nil))
+        #expect(!LicenceReviewSheet.canAccept(accepted: true, accepting: "yolo:hf:b@main"))
+    }
+
     @Test("a disabled Start says why")
     func disabledStartSaysWhy() {
         // WHY: Start disabled with no reason reads as broken; its help names the plan's first refusal.
