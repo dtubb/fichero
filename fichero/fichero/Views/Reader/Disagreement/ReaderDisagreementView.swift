@@ -13,6 +13,8 @@ struct ReaderDisagreementView: View {
 
     /// The page's picture, read when its words have boxes to tint over it.
     @State private var pageImage: PlatformImage?
+    /// Why the step could not be added, in the engine's words.
+    @State private var findRefusal: String?
 
     private var library: LibraryManager.LibraryReference? {
         documentStore.flatMap { libraryManager?.library(owningService: $0) }
@@ -29,6 +31,18 @@ struct ReaderDisagreementView: View {
                 state: store.pages[pageId],
                 selected: Binding(get: { store.selected[pageId] }, set: { store.selected[pageId] = $0 }),
                 readWithAnotherModel: { manager?.requestSetUp(for: libraryId, stage: "read") },
+                findWhereTheyDisagree: {
+                    let setup = library.recipeSetupStore
+                    Task {
+                        findRefusal = nil
+                        if await setup.addStep(job: DisagreementPageView.findJob) {
+                            manager?.requestSetUp(for: libraryId, stage: "read")
+                        } else {
+                            findRefusal = setup.errorMessage
+                        }
+                    }
+                },
+                findRefusal: findRefusal,
                 pageImage: pageImage
             )
             .task(id: pageId) {
@@ -53,8 +67,16 @@ struct DisagreementPageView: View {
     let state: ReadingDisagreementStore.State?
     @Binding var selected: ReadingDisagreement.WordRef?
     let readWithAnotherModel: () -> Void
+    /// Adds the step Find where the readers disagree to the project's plan and opens Set Up on it.
+    var findWhereTheyDisagree: () -> Void = {}
+    /// Why adding that step did not work, in the engine's words.
+    var findRefusal: String?
     /// The page's picture, when its words have boxes: each word's tint is drawn over it.
     var pageImage: PlatformImage?
+
+    static let findTitle = "Find Where the Readers Disagree"
+    /// The recipe step it adds (`source.disagree.recipe-step`).
+    static let findJob = "find-where-readers-disagree"
 
     /// The word whose variants are open; a click opens it, navigation only selects.
     @State private var popoverFor: ReadingDisagreement.WordRef?
@@ -79,7 +101,14 @@ struct DisagreementPageView: View {
         VStack(spacing: 10) {
             Text("This page has fewer than two readings, so there is nothing to compare.")
                 .foregroundStyle(.secondary)
-            Button("Read with Another Model…", action: readWithAnotherModel)
+            HStack {
+                Button("Read with Another Model…", action: readWithAnotherModel)
+                Button(Self.findTitle, action: findWhereTheyDisagree)
+                    .help("Adds the step to the project's Read stage: one reader, read five times, then compared")
+            }
+            if let findRefusal {
+                Text(findRefusal).font(.callout).foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("reader.disagreement.fewerThanTwo")

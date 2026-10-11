@@ -10,7 +10,7 @@ import Testing
 @MainActor
 struct ReadingDisagreementTests {
     /// Two lines read by four readers, as `GET /api/documents/{page_id}/disagreement` answers.
-    static let json = """
+    nonisolated static let json = """
     {"page_id":"p1","readers":[{"id":"k","label":"Kraken"},{"id":"v","label":"Apple Vision"},
       {"id":"q1","label":"Comma Qwen, run 1"},{"id":"q2","label":"Comma Qwen, run 2"}],
      "page_agreement":0.81,"normalised_as":"as_written",

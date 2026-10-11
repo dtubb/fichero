@@ -419,12 +419,13 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   lines, each word tinted by its agreement: plain at 1 (unanimous), yellow from 0.6 up to 1, red below 0.6;
   the page's figure, the readers compared and the convention head it, labelled agreement. **Built
   2026-10-11 (app):** `ReaderLens.disagreement`, `ReaderDisagreementView`, the tint `DisagreementTint`; read
-  through `ReadingDisagreementStore` from one source of the shape above, stubbed until the route exists.
+  through `ReadingDisagreementStore`, whose source is the route through the generated client
+  (`ReadingDisagreementStore.engine`; a refusal in the engine's words).
   Pinned by `fichero/Tests/Unit/general/Models/ReadingDisagreementTests.swift`. **Built 2026-10-11 (app):** a
   page whose words have boxes is drawn with each word's tint at its `bbox`, scaled from `image_width` /
   `image_height` (else the image's own size) to the size it is drawn at, the same tint mapping, a click
   opening the word's popover (`DisagreementOverlay`); a line with a word that has no box is listed as text
-  below the page, as before. *Not built: the route (the lens says Fichero cannot compare readers yet).*
+  below the page, as before. Wiring pinned by `fichero/Tests/Unit/general/Models/DisagreementWiringTests.swift`.
 - `source.disagree.popover` — **[PARTIAL]** (#5665) clicking a word lists its variants, most readers first,
   each with the readers that gave it by label and how many of how many. **Built 2026-10-11 (app):**
   `DisagreementWordPopover`, its rows from `ReadingDisagreement.variantRows`; pinned as above.
@@ -436,8 +437,11 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   line, word by word), wrapping at the page's end; with none, they are disabled. **Built 2026-10-11 (app):**
   `ReadingDisagreement.doubtful(after:)` / `(before:)` and the Read menu's buttons; pinned as above.
 - `source.disagree.fewer-than-two` — **[PARTIAL]** (#5665) with fewer than two readings the lens says so in one
-  line and offers Read with Another Model…, which opens Set Up at the Read stage, where its model is chosen.
-  **Built 2026-10-11 (app):** pinned as above.
+  line and offers Read with Another Model…, which opens Set Up at the Read stage, where its model is chosen, and
+  Find Where the Readers Disagree, which adds the step `find-where-readers-disagree` to the project's plan (the
+  project's saved setup read first, the engine's plan saved only once it holds the step, else the engine's words)
+  and opens Set Up on it for Start. **Built 2026-10-11 (app):** `RecipeSetupStore.addStep(job:)`; pinned by
+  `fichero/Tests/Unit/general/Models/DisagreementWiringTests.swift`.
 
 Hands and ink
 - `source.hand.record` — **[OK]** (→ #4935) a hand is a project record (name or label, date, place, style, notes)

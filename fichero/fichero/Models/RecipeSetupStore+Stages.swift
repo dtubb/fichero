@@ -78,4 +78,21 @@ extension RecipeSetupStore {
     static func choiceStage(_ stage: Components.Schemas.SetupStage) -> SetupStageChoice.Stage {
         SetupStageChoice.Stage(id: stage.id, jobs: stage.jobs, needs: stage.needs.map { ($0.stage, $0.why) })
     }
+
+    /// Add one step to the project's plan from outside Set Up (the disagreement lens's Find Where the Readers
+    /// Disagree, #5665): read what the project saved, tick the job, have the engine propose the plan again, and keep
+    /// it as the draft, for Set Up's Start to run. Saves only once the engine's plan holds the step, so a project
+    /// whose setup could not be read is never overwritten with defaults. False, with the engine's words in
+    /// `errorMessage`, when it could not.
+    func addStep(job: String) async -> Bool {
+        await loadSaved()
+        removedJobs.removeAll { $0 == job }
+        if !tickedJobs.contains(job) { addedJobs.append(job) }
+        await assemble()
+        guard (recipe?.steps ?? []).contains(where: { $0.job == job }) else {
+            if errorMessage == nil { errorMessage = "Set Up the project's languages and scripts first." }
+            return false
+        }
+        return await save()
+    }
 }

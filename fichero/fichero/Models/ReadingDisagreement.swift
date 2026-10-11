@@ -1,3 +1,4 @@
+import FicheroAPIClient
 import Foundation
 import Observation
 import SwiftUI
@@ -187,10 +188,17 @@ enum DisagreementTint: Equatable {
 
 /// What the engine could not give, in words.
 enum ReadingDisagreementUnavailable: LocalizedError, Equatable {
-    /// The engine has no disagreement route yet (#5665's engine half).
+    /// No engine to ask (a store made without a client: previews).
     case notYetBuilt
+    /// The engine refused, in its own words.
+    case refused(String)
 
-    var errorDescription: String? { "Fichero cannot compare this page's readers yet." }
+    var errorDescription: String? {
+        switch self {
+        case .notYetBuilt: "Fichero cannot compare this page's readers yet."
+        case .refused(let words): words
+        }
+    }
 }
 
 /// A project's pages' disagreement, read once per page and kept, with the word selected on each
@@ -204,11 +212,30 @@ final class ReadingDisagreementStore {
         case unavailable(String)
     }
 
-    /// Reads one page's disagreement. Until the engine's route exists, `notYetBuilt`.
+    /// Reads one page's disagreement.
     typealias Source = @MainActor (String) async throws -> ReadingDisagreement
 
-    /// The source before the engine has the route: it says so.
+    /// A store with no engine (previews): it says so.
     static let notYetBuilt: Source = { _ in throw ReadingDisagreementUnavailable.notYetBuilt }
+
+    /// The engine's `GET /api/documents/{page_id}/disagreement`, through the generated client, read as the app's
+    /// shape. A refusal is said in the engine's words.
+    static func engine(_ client: FicheroClient) -> Source {
+        { pageId in
+            let response = try await client.api.getPageDisagreementApiDocumentsPageIdDisagreementGet(
+                path: .init(pageId: pageId)
+            )
+            switch response {
+            case .ok(let success):
+                return try ReadingDisagreement.decode(try JSONEncoder().encode(try success.body.json))
+            case .unprocessableContent:
+                throw ReadingDisagreementUnavailable.refused("Fichero could not compare this page's readers.")
+            case .undocumented(let code, let payload):
+                let words = await EngineErrorDetail.message(from: payload)
+                throw ReadingDisagreementUnavailable.refused(words ?? "Could not compare the readers (HTTP \(code)).")
+            }
+        }
+    }
 
     private(set) var pages: [String: State] = [:]
     /// The word selected on each page, by page id.
