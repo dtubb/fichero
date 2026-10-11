@@ -169,6 +169,24 @@ which campaigns it takes in.
 
 They are never merged into one number.
 
+### Where the readers disagree (#5665)
+
+A fourth thing, not one of those three: **agreement** between readers. Read a page with several readers
+(Kraken models, Apple Vision, MLX vision models; or one model sampled several times at temperature, the
+Mattingly method of 5 runs at 0.7) and the words they disagree on are where correction should go first.
+It is agreement, never accuracy: with no checked reference, it says how far readers differ, not who is
+right (the comparison route's rule, `api/routes/document/compare_readings.py`).
+
+Before comparing, every reading is brought to one convention, the line **as written** in the CATMuS
+sense: abbreviations left unexpanded, spelling and scribal slips kept, u/v and i/j folded, diacritics
+decomposed (NFD). Otherwise the comparison shows that one reader expands and another does not, not doubt.
+Per line, the medoid reading (the one most like the others) is the reference; each other reading is
+aligned to it character by character, and each word of the reference scores the share of readers that
+gave exactly that word. The person sees it on the page, word by word: plain where the readers agree,
+yellow where some differ, red where most do; a word's variants and who gave each; the page's and each
+line's figure; and the next doubtful word to correct. The disagreements a person resolves are the
+corrections worth training on.
+
 Editorial facts are recorded as facts: *unclear*; *lost* (with extent); *restored by the
 editor*; *supplied* (left out by the scribe); *superfluous*; *deleted by the scribe*; *added
 by the scribe* (and where: above the line, in the margin). The editor's brackets and dots
@@ -355,6 +373,55 @@ Readings
   from error and correction.
 - `source.reading.char-confidence-on-line` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestPerCharacterDetailRidesOnTheLine::test_a_character_can_be_pointed_at_with_no_character_segment`) per-character positions and confidence ride on a
   line's reading without character segments existing.
+
+Where the readers disagree (#5665; the engine half is worker C's, the app half built against the pinned shape)
+- `source.disagree.route` — **[GAP]** (#5665) `GET /api/documents/{page_id}/disagreement` answers, read-only:
+  `{page_id, readers: [{id, label}], page_agreement, normalised_as, lines: [{segment_id, reference_reader,
+  text, agreement, words: [{text, char_start, char_end, bbox, agreement, variants: [{text, readers}]}]}]}`.
+  `readers` are the readings compared, one per reader or per sampled run (`id` stable for the page, `label`
+  in words: "Kraken (CATMuS Medieval)", "Comma Qwen 0.8B, run 3"). Lines are in the page's reading order,
+  each the reading of one line segment; `reference_reader` is its medoid reading, `text` that reading
+  normalised. Words are the reference's words in order; `char_start` / `char_end` index `text`; `bbox` is
+  `[x, y, width, height]` in the page image's pixels when the reading places the word, else null. A word's
+  `agreement` is the share of readers whose aligned word is exactly its text (0–1; 1 is unanimous); its
+  `variants` are every distinct aligned word, the reference's own included, most readers first, each with
+  the reader ids that gave it (a reader with nothing aligned there gives ""). A line's `agreement` is the
+  mean of its words'; `page_agreement` the mean over the page's words, null with no words. With fewer than
+  two readings the answer is 200 with those readers, `lines` empty and `page_agreement` null (the app says
+  so); an unknown page is 404. It never says accuracy (`source.disagree.agreement-not-accuracy`).
+- `source.disagree.normalised-first` — **[GAP]** (#5665) every reading is brought to one convention before it
+  is compared, the line as written in the CATMuS sense (abbreviations unexpanded, slips kept, u/v and i/j
+  folded, NFD), through the existing normalisation policies of `transcription_accuracy`; `normalised_as`
+  names the convention compared at.
+- `source.disagree.medoid-aligned` — **[GAP]** (#5665) per line, the reading with the least summed edit
+  distance to the others is the reference; each other reading is aligned to it character by character
+  (the comparison route's alignment, extended from two readings to N) and its words read off that alignment.
+- `source.disagree.recipe-step` — **[GAP]** (#5665) "Find where the readers disagree" is a recipe step (job
+  `find-where-readers-disagree`, stage Read): it reads the project's pages with the readers the step names, or
+  one reader sampled N times at a temperature (5 at 0.7 by default), keeps every reading as a reading of the
+  line (`source.reading.set`; none counts over another by being compared), and works out the disagreement.
+- `source.disagree.agreement-not-accuracy` — **[GAP]** (#5665) the figure is labelled agreement everywhere
+  (route, lens, Inspector) unless a person checked the line, as `compare_readings` labels its score.
+- `source.disagree.lens` — **[PARTIAL]** (#5665) the Reader's lens "Where the Readers Disagree" shows the page's
+  lines, each word tinted by its agreement: plain at 1 (unanimous), yellow from 0.6 up to 1, red below 0.6;
+  the page's figure, the readers compared and the convention head it, labelled agreement. **Built
+  2026-10-11 (app):** `ReaderLens.disagreement`, `ReaderDisagreementView`, the tint `DisagreementTint`; read
+  through `ReadingDisagreementStore` from one source of the shape above, stubbed until the route exists.
+  Pinned by `fichero/Tests/Unit/general/Models/ReadingDisagreementTests.swift`. *Not built: the route (the
+  lens says Fichero cannot compare readers yet); the tint drawn on the page image by each word's `bbox`.*
+- `source.disagree.popover` — **[PARTIAL]** (#5665) clicking a word lists its variants, most readers first,
+  each with the readers that gave it by label and how many of how many. **Built 2026-10-11 (app):**
+  `DisagreementWordPopover`, its rows from `ReadingDisagreement.variantRows`; pinned as above.
+- `source.disagree.inspector` — **[PARTIAL]** (#5665) the Inspector shows the page's agreement and each line's,
+  as percentages labelled agreement, for a page read by two readers or more. **Built 2026-10-11 (app):**
+  `ReadingAgreementInspectorSection`; pinned as above.
+- `source.disagree.next-doubtful` — **[PARTIAL]** (#5665) Read › Next Doubtful Word (⌥⌘G) and Previous Doubtful
+  Word (⇧⌥⌘G) move the selection to the next or previous word below unanimous, in reading order (line by
+  line, word by word), wrapping at the page's end; with none, they are disabled. **Built 2026-10-11 (app):**
+  `ReadingDisagreement.doubtful(after:)` / `(before:)` and the Read menu's buttons; pinned as above.
+- `source.disagree.fewer-than-two` — **[PARTIAL]** (#5665) with fewer than two readings the lens says so in one
+  line and offers Read with Another Model…, which opens Set Up at the Read stage, where its model is chosen.
+  **Built 2026-10-11 (app):** pinned as above.
 
 Hands and ink
 - `source.hand.record` — **[OK]** (→ #4935) a hand is a project record (name or label, date, place, style, notes)
