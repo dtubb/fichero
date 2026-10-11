@@ -54,7 +54,7 @@ enum UndoableChange {
         _ items: [Item], named: (Int) -> String,
         service: (any UndoSetEngine)?, steps: WindowSteps?,
         afterEach: @escaping @MainActor () async -> Void = {},
-        change: (Item) async throws -> [String]
+        change: @MainActor (Item) async throws -> [String]
     ) async throws {
         steps?.callStarted()
         defer { steps?.callEnded() }

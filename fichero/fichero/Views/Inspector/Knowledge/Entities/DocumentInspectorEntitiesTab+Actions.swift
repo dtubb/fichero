@@ -143,7 +143,8 @@ extension DocumentInspectorEntitiesTab {
         do {
             try await entityStore.merge(
                 absorbedIds: plan.absorbedEntityIds,
-                into: plan.survivorId
+                into: plan.survivorId,
+                steps: windowSteps
             )
             actionMessage = "Merged \(plan.entityCount) entities into \(plan.survivorName)."
             restoreSelectionAfterEntityRefresh(entityId: plan.survivorId)

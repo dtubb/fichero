@@ -29,6 +29,8 @@ struct DocumentInspectorEntitiesTab: View {
     /// observes the store and routes mutations through its named actions; the
     /// store (and, once it emits, the change-stream) republishes the list.
     @Environment(EntityStore.self) var entityStore
+    /// The window's step stack: a merge is one undoable step in this window (#5658).
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @Environment(EntityService.self) var entityService
     /// Per-window entity-search bus (#3437).
     @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
