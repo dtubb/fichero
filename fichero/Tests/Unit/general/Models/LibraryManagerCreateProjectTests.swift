@@ -193,14 +193,20 @@ final class LibraryManagerCreateProjectTests: XCTestCase {
         XCTAssertEqual(libraryManager.openLibraries.count, before, "nothing is made")
     }
 
-    /// Inside Fichero, the default, is beside the app's own Local project.
+    /// Inside Fichero, the default, is beside the app's own always-there project; the name defaults
+    /// to Untitled Project (`source.onboard.where-it-lives`).
     func test_inside_fichero_is_the_default_beside_the_local_project() throws {
         let global = installGlobalLibrary()
         let newProject = NewProjectStore(libraryManager: libraryManager)
         XCTAssertEqual(newProject.place, .insideFichero)
         XCTAssertEqual(newProject.projectURL?.deletingLastPathComponent().deletingLastPathComponent(),
                        global.url.deletingLastPathComponent())
-        XCTAssertEqual(newProject.projectURL?.lastPathComponent, "My Project.fichero")
+        // The default name is Untitled Project, the Finder/Pages convention (ruled 2026-10-10, #5655),
+        // and an emptied name falls back to it.
+        XCTAssertEqual(newProject.name, "Untitled Project")
+        XCTAssertEqual(newProject.projectURL?.lastPathComponent, "Untitled Project.fichero")
+        newProject.name = "   "
+        XCTAssertEqual(newProject.fileName, "Untitled Project")
     }
 
     /// A setup store over a transport that answers `PUT /api/recipes/project` as the engine does.

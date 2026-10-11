@@ -123,7 +123,8 @@ final class ProjectNamingTests: XCTestCase {
         let paths = ["Views/Onboarding/FirstRunWindow.swift", "Views/Onboarding/FirstRunWindow+Models.swift",
                      "Views/Sidebar/Sections/LibraryHeaderRow.swift", "Views/Sidebar/Sections/SidebarSectionHeader.swift",
                      "Models/AlwaysThereProject.swift", "Models/LibraryManager.swift",
-                     "Models/KnownLibraryRegistryStore.swift", "Models/LibraryRecents.swift"]
+                     "Models/KnownLibraryRegistryStore.swift", "Models/LibraryRecents.swift",
+                     "Models/NewProjectStore.swift", "Views/Onboarding/RecipeSetupFields.swift"]
         for path in paths {
             let code = try Self.appSource(path).components(separatedBy: .newlines)
                 .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
@@ -228,6 +229,66 @@ final class ProjectNamingTests: XCTestCase {
                        "Mosquera › Box 3 › File.pdf")
         XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "Mosquera").first?.name,
                        "Mosquera")
+    }
+
+    // MARK: - Side effects of the unnamed always-there project (#5655)
+
+    /// `sidebar.breadcrumb.no-root-for-unnamed-project`: the always-there project has no name, so
+    /// its trail starts at the first folder, never " › Sources › …".
+    func testTheBreadcrumbOmitsAnEmptyRoot() {
+        let doc = Document(id: "f", parentId: "p", name: "File.pdf")
+        let parent = Document(id: "p", docType: .folder, name: "Sources")
+        let lookup: BreadcrumbBuilder.DocumentLookup = { $0 == "p" ? parent : nil }
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: ""),
+                       "Sources › File.pdf")
+        let segments = BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "")
+        XCTAssertEqual(segments.map(\.name), ["Sources", "File.pdf"])
+        XCTAssertFalse(segments.contains(where: \.isRoot))
+        XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: nil, parentLookup: lookup, rootName: ""), [])
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
+            document: doc, parentLookup: lookup, rootName: ""), "Sources › File.pdf")
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumbForLibraryMode(
+            document: nil, parentLookup: lookup, rootName: ""), "")
+    }
+
+    /// `library.always-there-project.window-title`: the window titles by project; the always-there
+    /// project's window reads "Fichero", another project's its name, no project nothing.
+    func testTheAlwaysThereProjectsWindowIsTitledFichero() throws {
+        XCTAssertEqual(AlwaysThereProject.windowTitle(projectName: ""), "Fichero")
+        XCTAssertEqual(AlwaysThereProject.windowTitle(projectName: "Mosquera"), "Mosquera")
+        XCTAssertEqual(AlwaysThereProject.windowTitle(projectName: nil), "")
+        let window = try Self.appSource("App/LibraryWindow.swift")
+        XCTAssertTrue(window.contains(
+            ".navigationTitle(AlwaysThereProject.windowTitle(projectName: windowState.library?.displayName))"))
+    }
+
+    /// `sidebar.run-workflow.no-heading-for-the-always-there-project`: Run Workflow's own-workflows
+    /// group has no heading for the unnamed project, never an empty one.
+    func testRunWorkflowHasNoHeadingForTheAlwaysThereProject() throws {
+        XCTAssertNil(SidebarItemRow.ownWorkflowsHeading(projectName: ""))
+        XCTAssertEqual(SidebarItemRow.ownWorkflowsHeading(projectName: "Mosquera"), "Mosquera")
+        XCTAssertEqual(SidebarItemRow.ownWorkflowsHeading(projectName: nil), "This Project")
+        let menu = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
+        XCTAssertTrue(menu.contains("Self.ownWorkflowsHeading(projectName: library?.displayName)"))
+        XCTAssertFalse(menu.contains("Section(library?.displayName"))
+    }
+
+    /// `sidebar.top-section.empty-area-menu`: what the always-there project's header row menu offered
+    /// is on a right-click in the sidebar's empty space, and only there (a row keeps its own menu).
+    func testTheEmptyAreaMenuOffersWhatTheHeaderRowDid() throws {
+        XCTAssertEqual(AlwaysThereProjectMenu.items,
+                       ["New Folder", "Import Files…", "Edit Document Types…", "Show in Finder"])
+        XCTAssertTrue(AlwaysThereProjectMenu.isShown(clicked: Set<SidebarDestination>()))
+        XCTAssertFalse(AlwaysThereProjectMenu.isShown(clicked: Set([SidebarDestination.library(UUID())])))
+        let list = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        XCTAssertTrue(list.contains(".contextMenu(forSelectionType: SidebarDestination.self)"))
+        XCTAssertTrue(list.contains("alwaysThereProjectMenu(clicked: clicked)"))
+        let helpers = try Self.appSource("Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift")
+        for title in ["newFolder", "importFiles", "editDocumentTypes", "showInFinder"] {
+            XCTAssertTrue(helpers.contains("Button(AlwaysThereProjectMenu.\(title))"), title)
+        }
+        let sidebar = try Self.appSource("Views/Sidebar/SidebarView.swift")
+        XCTAssertTrue(sidebar.contains(".sheet(item: $alwaysThereTypeEditorLibrary)"))
     }
 
     // MARK: - Project, never Library

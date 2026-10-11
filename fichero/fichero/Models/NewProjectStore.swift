@@ -16,7 +16,7 @@ final class NewProjectStore {
         case chosen(URL)
     }
 
-    var name = "My Project"
+    var name = "Untitled Project"
     var place: Place = .insideFichero
     private(set) var isCreating = false
     private(set) var errorMessage: String?
@@ -37,12 +37,12 @@ final class NewProjectStore {
     }
 
     /// The name as a file name: what a folder cannot hold is replaced, and an empty name is
-    /// "My Project".
+    /// "Untitled Project".
     var fileName: String {
         let cleaned = name.trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
-        return cleaned.isEmpty ? "My Project" : cleaned
+        return cleaned.isEmpty ? "Untitled Project" : cleaned
     }
 
     /// The folder the project goes in.

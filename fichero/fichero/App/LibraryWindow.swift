@@ -225,8 +225,9 @@ struct LibraryWindow: View {
         // proxy icon (representedURL, set in syncHostWindowMetadata) — macOS
         // convention (#2489). Empty when no library is open. Folder/document
         // selection in the subtitle is a follow-up; ContentView still owns the
-        // in-window breadcrumb context.
-        .navigationTitle(windowState.library?.displayName ?? "")
+        // in-window breadcrumb context. The always-there project has no name, so its
+        // window reads "Fichero" (`library.always-there-project.window-title`).
+        .navigationTitle(AlwaysThereProject.windowTitle(projectName: windowState.library?.displayName))
         .navigationSubtitle("")
     }
 

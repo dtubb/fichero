@@ -31,6 +31,14 @@ struct ActivityRun: Identifiable {
     var selection: ActivitySelection {
         ActivitySelection(jobId: runId, libraryId: libraryId)
     }
+
+    /// The project label shown beside a run or job: none for the always-there project, which has
+    /// no name (`AlwaysThereProject.displayName` is ""), so no empty line, bracket or dash is
+    /// drawn (`activity.no-project-label-for-the-always-there-project`).
+    nonisolated static func projectLabel(_ name: String?) -> String? {
+        guard let name, !name.isEmpty else { return nil }
+        return name
+    }
 }
 
 // MARK: - Run delete outcome (#4960)

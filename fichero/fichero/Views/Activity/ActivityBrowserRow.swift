@@ -19,7 +19,7 @@ struct ActivityBrowserRow: View {
                     .font(.subheadline)
                     .lineLimit(1)
 
-                if let libraryName = run.libraryName {
+                if let libraryName = ActivityRun.projectLabel(run.libraryName) {
                     Text(libraryName)
                         .font(.caption)
                         .foregroundStyle(.secondary)

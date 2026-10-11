@@ -156,8 +156,15 @@ extension SidebarItemRow {
                             }
                         }
                         if !sections.libraryOwn.isEmpty {
-                            Section(library?.displayName ?? "This Project") {
-                                workflowSubmenu(sections.libraryOwn, resolution: resolution)
+                            if let heading = Self.ownWorkflowsHeading(projectName: library?.displayName) {
+                                Section(heading) {
+                                    workflowSubmenu(sections.libraryOwn, resolution: resolution)
+                                }
+                            } else {
+                                // The always-there project has no name: its workflows sit under no heading.
+                                Section {
+                                    workflowSubmenu(sections.libraryOwn, resolution: resolution)
+                                }
                             }
                         }
                     }

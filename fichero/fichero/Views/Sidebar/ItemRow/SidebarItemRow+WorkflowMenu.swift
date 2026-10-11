@@ -41,6 +41,14 @@ extension SidebarItemRow {
         (workflows.filter(\.isSystem), workflows.filter { !$0.isSystem })
     }
 
+    /// The heading over the project's own workflows in Run Workflow: the project's name, "This
+    /// Project" when there is no project, and NO heading for the always-there project, which has
+    /// no name (`sidebar.run-workflow.no-heading-for-the-always-there-project`).
+    nonisolated static func ownWorkflowsHeading(projectName: String?) -> String? {
+        guard let projectName else { return "This Project" }
+        return projectName.isEmpty ? nil : projectName
+    }
+
     /// One group of the Run Workflow menu. Both sections run the SAME action
     /// against the SAME targets — the split is presentational.
     @ViewBuilder

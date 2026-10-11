@@ -93,4 +93,21 @@ struct ActivityWindowHonestStateTests {
         let message = ActivityStore.runLoadFailureMessage(libraryName: "Local", error: URLError(.cannotConnectToHost))
         #expect(message.contains("could not be reached"))
     }
+
+    // WHY: the always-there project has no name (#5655); "Couldn't load activity from : …"
+    // reads as a broken sentence.
+    @Test("activity.no-project-label-for-the-always-there-project: a refused load names no empty project")
+    func refusedLoadForTheUnnamedProjectNamesNoProject() {
+        let message = ActivityStore.runLoadFailureMessage(libraryName: "", error: URLError(.cannotConnectToHost))
+        #expect(message == "Couldn't load activity: the engine could not be reached")
+    }
+
+    // WHY: a run in the always-there project carries its empty name; drawn, it is a blank line
+    // under the workflow, or an empty bracket in the details' subheading.
+    @Test("activity.no-project-label-for-the-always-there-project: no label for an empty or missing name")
+    func noProjectLabelForTheUnnamedProject() {
+        #expect(ActivityRun.projectLabel("") == nil)
+        #expect(ActivityRun.projectLabel(nil) == nil)
+        #expect(ActivityRun.projectLabel("Mosquera") == "Mosquera")
+    }
 }

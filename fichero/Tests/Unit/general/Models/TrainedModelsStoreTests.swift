@@ -82,6 +82,13 @@ struct TrainedModelsStoreTests {
         #expect(store.errorMessage == nil)
     }
 
+    @Test("training.model.node-under-models: the node is named Models, not Training")
+    func theNodeIsNamedModels() {
+        // WHY: ruled 2026-10-10 (training spec, open question 3): the node is Models; its label and
+        // VoiceOver name both come from this one constant.
+        #expect(SidebarTrainingNode.name == "Models")
+    }
+
     @Test("with no trained model the Training node is hidden")
     func trainingNodeHiddenWhenEmpty() async {
         // WHY: #5413's rule, a sidebar row appears only when non-empty; an empty Training node

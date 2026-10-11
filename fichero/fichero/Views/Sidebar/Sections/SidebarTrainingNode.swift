@@ -1,7 +1,8 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// A project's Training node (#5439, `source.model.node-in-sidebar`; ruled 2026-10-04):
+/// A project's Models node (#5439, `source.model.node-in-sidebar`; ruled 2026-10-04, named Models
+/// 2026-10-10, `training.model.node-under-models`; the type keeps its old name):
 /// training is the sidebar node, and every model Fichero trained or fine-tuned shows inside it.
 /// A model downloaded or imported is not here; it lives in Settings. The node draws nothing
 /// while there is no trained model (#5413: a row appears only when non-empty).
@@ -9,6 +10,9 @@ import SwiftUI
 /// Each model row is tagged with its `SidebarDestination`, so the list's own selection routes
 /// it (`handleSelectionDestination`) and the Inspector shows it (`ModelNodeInspector`).
 struct SidebarTrainingNode: View {
+    /// The node's name in the sidebar and to VoiceOver (ruled 2026-10-10: Models, not Training).
+    nonisolated static let name = "Models"
+
     let store: TrainedModelsStore
     let libraryId: UUID
 
@@ -24,14 +28,14 @@ struct SidebarTrainingNode: View {
                         .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
                 }
             } label: {
-                Label("Training", systemImage: "graduationcap")
+                Label(Self.name, systemImage: "graduationcap")
             }
             .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
         }
     }
 }
 
-#Preview("Training node with two trained models") {
+#Preview("Models node with two trained models") {
     let store = TrainedModelPreviewFixtures.store(client: LibraryPreviewFixtures.library.ficheroClient)
     return List {
         SidebarTrainingNode(store: store, libraryId: LibraryPreviewFixtures.library.id)

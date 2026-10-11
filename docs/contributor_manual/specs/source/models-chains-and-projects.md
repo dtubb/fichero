@@ -729,7 +729,7 @@ into the project as a draft (`PUT /api/recipes/project`, through the project's o
 nothing runs before Start. Set Up… on an existing project starts at screen 2 (the project already
 lives somewhere).
 
-1. **Where it lives** (#5482). The project's name (default "My Project") and where it lives: **Inside
+1. **Where it lives** (#5482). The project's name (default "Untitled Project", the Finder/Pages convention, ruled 2026-10-10) and where it lives: **Inside
    Fichero** (the default, the app's own container) or **Choose a location…**, which opens a save
    panel (ruled 2026-10-05, revised the same day). Continue makes the `.fichero` package there through the one create path
    (`LibraryManager.createProject(at:)`, which grants the folder and has the engine open it with
@@ -2594,7 +2594,7 @@ Setup
   Project…** for the selected project, and a **Set Up…** button on an empty project's main view, both
   opening the same flow as Inspector › Info › Recipe › Set Up…. *Test:* the menu command and the empty
   state's button each present setup for the selected project.
-- `source.onboard.where-it-lives` — **[PARTIAL]** (#5482) **Built 2026-10-05 (app), not yet seen, as ruled that day:** the name (default My Project) and two places, **Inside Fichero** (the default: `Projects/` beside the app's Local project in its data folder) or **Choose a location…** (a folder picker; a synced folder is warned about); Continue makes `<folder>/<name>.fichero` through `LibraryManager.createProject(at:)` and has the engine open it (`POST /api/library`), and a folder that cannot be written is refused on the screen ("Fichero can't write to that folder. Choose another."), nothing made (`NewProjectStore`); pinned by `fichero/Tests/Unit/general/Models/LibraryManagerCreateProjectTests.swift`. *Superseded by that ruling: the save panel and the `~/Fichero/<project name>` proposal below.* first-run setup's first screen asks where the
+- `source.onboard.where-it-lives` — **[PARTIAL]** (#5482) **Built 2026-10-05 (app), not yet seen, as ruled that day:** the name (default **Untitled Project**, the Finder/Pages convention, ruled 2026-10-10 with the always-there project losing its name, #5655) and two places, **Inside Fichero** (the default: `Projects/` beside the app's Local project in its data folder) or **Choose a location…** (a folder picker; a synced folder is warned about); Continue makes `<folder>/<name>.fichero` through `LibraryManager.createProject(at:)` and has the engine open it (`POST /api/library`), and a folder that cannot be written is refused on the screen ("Fichero can't write to that folder. Choose another."), nothing made (`NewProjectStore`); pinned by `fichero/Tests/Unit/general/Models/LibraryManagerCreateProjectTests.swift`. *Superseded by that ruling: the save panel and the `~/Fichero/<project name>` proposal below.* first-run setup's first screen asks where the
   project lives: its name and folder, a default proposed (`~/Documents/Fichero/`; Open questions),
   and Choose…, which opens a save panel; Continue makes the `.fichero` package there through the one
   create path (`LibraryManager.createProject(at:)`: grant, save, `POST /api/library`), and a folder
@@ -3203,9 +3203,9 @@ node; a model appears in the sidebar only inside a training node, as its base or
   lists every model Fichero trained or fine-tuned on this engine, newest first, read from its card; a
   downloaded or imported model (no training card) is not listed. Tested in
   `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Built (app): each project's sidebar
-  shows a Training node listing those models (`SidebarTrainingNode`, `TrainedModelsStore`), drawn only
-  when there is one; tested in `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Not
-  built: the base model as its own node inside Training (the Inspector names it). Since #5539 (ruled
+  shows a node named **Models** (was Training; ruled 2026-10-10, #5655) listing those models
+  (`SidebarTrainingNode`, `SidebarTrainingNode.name`, `TrainedModelsStore`), drawn only when there is one; tested in `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Not
+  built: the base model as its own node inside Models (the Inspector names it). Since #5539 (ruled
   2026-10-06) a model trained for a project lives inside its package (`models/`) and the project's list
   holds those, with the models in the engine's global store whose card names the project; each says
   where it lives (`lives`: `project`, `global`, `both`; `compute.model.lives-in-project`).* training is a node in the sidebar; the

@@ -24,6 +24,29 @@ nonisolated enum AlwaysThereProject {
     static func displayName(forPath path: String, given: String?) -> String {
         isPackage(path: path) ? "" : (given ?? "")
     }
+
+    /// The window's title for a project named `projectName` (nil: no project open, no title). The
+    /// window titles by project; the always-there project has no name, so its window reads as the
+    /// app, "Fichero" (`library.always-there-project.window-title`), never a blank title bar.
+    static func windowTitle(projectName: String?) -> String {
+        guard let projectName else { return "" }
+        return projectName.isEmpty ? "Fichero" : projectName
+    }
+}
+
+/// What the always-there project's header row menu offered, now on a right-click in the sidebar's
+/// empty space (`sidebar.top-section.empty-area-menu`): New Folder, Import Files…, Edit Document
+/// Types… and Show in Finder. Never Rename, Close, Delete or Share (`ProjectRowMenuOffers`).
+nonisolated enum AlwaysThereProjectMenu {
+    static let newFolder = "New Folder"
+    static let importFiles = "Import Files…"
+    static let editDocumentTypes = "Edit Document Types…"
+    static let showInFinder = "Show in Finder"
+    /// In menu order (Show in Finder on macOS only).
+    static let items = [newFolder, importFiles, editDocumentTypes, showInFinder]
+
+    /// Shown only for a click on no row: a row keeps its own menu.
+    static func isShown<Clicked>(clicked: Set<Clicked>) -> Bool { clicked.isEmpty }
 }
 
 /// The sidebar's two parts (ruled 2026-10-10, `sidebar.top-section-is-the-always-there-project`,

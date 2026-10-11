@@ -118,7 +118,7 @@ noise; and the person's corrections of the new model's output feed the next trai
   `fichero-server/src/fichero_server/training/model_nodes.py` and
   `fichero-server/src/fichero_server/api/routes/training.py` (`GET /api/training/models`,
   `GET /api/training/model`, `POST /api/training/models/make-global`). App: the sidebar's
-  **Training** node (`fichero/fichero/Views/Sidebar/Sections/SidebarTrainingNode.swift`,
+  **Models** node (was Training; `fichero/fichero/Views/Sidebar/Sections/SidebarTrainingNode.swift`,
   `fichero/fichero/Models/TrainedModelsStore.swift`) and the read-only
   `fichero/fichero/Views/Inspector/Model/ModelNodeInspector.swift` (provenance, held-out CER per
   policy, size, where it runs, licence, may-publish). Tested in
@@ -401,8 +401,10 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 ### The model it made (Screen 4)
 
 - `training.model.node-under-models` — **[PARTIAL]** (#5439) the model is a node under the project's Models
-  in the sidebar with an Inspector; built as a **Training** node (`source.model.node-in-sidebar`,
-  `source.model.node-inspector`); the wireframe names the node Models (see "Contradictions").
+  in the sidebar with an Inspector; the node reads **Models** (ruled 2026-10-10, open question 3; was
+  Training), its name and VoiceOver label from `SidebarTrainingNode.name` (`source.model.node-in-sidebar`,
+  `source.model.node-inspector`). Pinned by `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`
+  (`theNodeIsNamedModels`). *Not pinned: the drawn row.*
 - `training.model.error-beside-base` — **[GAP]** (#5439, #5441) the Inspector shows the model's held-out
   error rate beside its base's on the same pages and policy, and time, cost and epochs from the run; today
   it shows the model's CER per policy and the base's name only.
@@ -595,7 +597,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   the YOLO line with the ruling (offered, never default).
 - `compute/targets-and-connection.md`: add a Mac as a target kind (`training.place.other-macs`).
 - `source/models-chains-and-projects.md`: `source.model.node-actions` points here for the four buttons;
-  the node's name (Models or Training) follows open question 3.
+  the node is named Models (open question 3, ruled 2026-10-10).
 - `ui/activity-and-automatic-work.md`: a training row's phases in words
   (`training.run.one-row-in-activity`).
 
@@ -604,8 +606,8 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - **Noise band.** The ruling is 0.5 CER points; `recipes/bakeoff.py` bands by one point
   (`source.onboard.bakeoff-random-sample` says "within one CER point"); `reasons_ab.py` uses 0.005.
   This spec asks for one number (`training.regression.noise-band-one-number`).
-- **Sidebar node.** `source.model.node-in-sidebar` (corrected 2026-10-04) names the node Training;
-  the wireframe names it Models (open question 3).
+- **Sidebar node.** Resolved 2026-10-10: the node is Models in the app and in
+  `source.model.node-in-sidebar` (open question 3).
 - **YOLO on this Mac.** `compute.tune.yolo-layout` ("on this Mac first") against the 2026-10-04 ruling
   that nothing trains on this Mac by default.
 - **YOLO exists.** `runtime.yolo.none-yet` [GAP] against the built `find-regions` step.

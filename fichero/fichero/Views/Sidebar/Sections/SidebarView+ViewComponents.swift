@@ -67,6 +67,13 @@ extension SidebarView {
             pinnedGlobalNavigationRows()
         }
         .listStyle(.sidebar)
+        // A right-click on no row offers the always-there project's menu (New Folder, Import
+        // Files…, Edit Document Types…, Show in Finder): it lost its header row, which held them
+        // (`sidebar.top-section.empty-area-menu`). Rows keep their own `.contextMenu`; for a
+        // clicked row this builds nothing, so no menu is added to rows that have none.
+        .contextMenu(forSelectionType: SidebarDestination.self) { clicked in
+            alwaysThereProjectMenu(clicked: clicked)
+        }
         // ⌘A over the sidebar selects the CURRENT library's visible rows
         // (Daniel, 2026-08-23) — published, never key-handled here, because
         // `SelectAllButton` owns the chord and asks which pane has focus.

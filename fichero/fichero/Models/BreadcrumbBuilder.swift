@@ -1,8 +1,10 @@
 import Foundation
 
 /// Pure, testable helper for building breadcrumb paths from document hierarchies.
-/// Converts a document selection into a readable trail: "My Project › Folder › File › p.4".
-/// The trail's root is the PROJECT's own name (ruled 2026-10-10), never the pane's name.
+/// Converts a document selection into a readable trail: "Mosquera › Folder › File › p.4".
+/// The trail's root is the PROJECT's own name (ruled 2026-10-10), never the pane's name. The
+/// always-there project has no name (`AlwaysThereProject.displayName` is ""), so an empty root is
+/// left out and its trail starts at the first folder (`sidebar.breadcrumb.no-root-for-unnamed-project`).
 struct BreadcrumbBuilder {
     typealias DocumentLookup = (String) -> Document?
 
@@ -34,7 +36,7 @@ struct BreadcrumbBuilder {
         pageLabel: String? = nil,
         rootName: String = BreadcrumbBuilder.unnamedRoot
     ) -> [Segment] {
-        var segments = [Segment(name: rootName, documentId: nil, isRoot: true)]
+        var segments = rootName.isEmpty ? [] : [Segment(name: rootName, documentId: nil, isRoot: true)]
         guard let document else { return segments }
 
         var chain: [Document] = []
@@ -68,7 +70,7 @@ struct BreadcrumbBuilder {
     }
 
     /// Build a breadcrumb trail from a document and its parent hierarchy.
-    /// Returns a string like "My Project › Folder › File › p.4" or just the document name
+    /// Returns a string like "Mosquera › Folder › File › p.4" or just the document name
     /// if hierarchy is empty.
     static func buildBreadcrumb(
         from document: Document,
@@ -93,8 +95,9 @@ struct BreadcrumbBuilder {
             current = parent
         }
 
-        // Add the project root if path is not empty
-        if !path.isEmpty {
+        // Add the project root if path is not empty and the project has a name
+        // (the always-there project has none: its trail starts at the first folder).
+        if !path.isEmpty && !rootName.isEmpty {
             path.insert(rootName, at: 0)
         }
 

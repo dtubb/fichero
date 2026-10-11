@@ -435,7 +435,11 @@ final class ActivityStore: ChangeEventConsumer {
         case let other:
             cause = other.localizedDescription
         }
-        return "Couldn't load activity from \(libraryName): \(cause)"
+        // The always-there project has no name: no "from" (never "from : …").
+        guard let project = ActivityRun.projectLabel(libraryName) else {
+            return "Couldn't load activity: \(cause)"
+        }
+        return "Couldn't load activity from \(project): \(cause)"
     }
 
     private func liveRun(
@@ -711,8 +715,9 @@ extension ActivityStore {
 
     // MARK: - The details of one row (#5561)
 
-    /// The project's name, for the details' heading.
-    var projectName: String? { library?.displayName }
+    /// The project's name, for the details' heading; nil for the always-there project, which has
+    /// no name (`ActivityRun.projectLabel`).
+    var projectName: String? { ActivityRun.projectLabel(library?.displayName) }
 
     /// A row's node, read from the record the table reads (`activity.details.one-record`):
     /// its node in a loaded tree, else a job of its own from the jobs poll.

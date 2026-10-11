@@ -18,7 +18,7 @@ struct SetupWhereItLivesFields: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             LabeledContent("Name") {
-                TextField("Name", text: $store.name, prompt: Text("My Project"))
+                TextField("Name", text: $store.name, prompt: Text("Untitled Project"))
                     .labelsHidden()
                     .disabled(store.created != nil)
             }

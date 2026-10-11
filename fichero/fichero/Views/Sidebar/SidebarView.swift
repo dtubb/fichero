@@ -97,6 +97,9 @@ struct SidebarView: View {
     @State var pendingLibraryName = ""
     // Library the "Share Library…" header context-menu entry is presenting (#3149).
     @State var libraryToShare: LibraryManager.LibraryReference?
+    // The always-there project whose document types the empty-area menu is editing
+    // (`sidebar.top-section.empty-area-menu`; it has no header row to hold the sheet).
+    @State var alwaysThereTypeEditorLibrary: LibraryManager.LibraryReference?
 
     /// The store-observer chains, held by reference so `setupServiceObservers()` can supersede
     /// the set a previous call armed (see `SidebarObserverChains`).
@@ -367,6 +370,11 @@ struct SidebarView: View {
             // presents, reached here from the library-header context menu.
             .sheet(item: $libraryToShare) { library in
                 ShareLibrarySheet(library: library, usersStore: appState.usersStore)
+            }
+            // Edit Document Types… from the always-there project's empty-area menu: the same
+            // sheet a project row's menu presents.
+            .sheet(item: $alwaysThereTypeEditorLibrary) { library in
+                PrototypeEditorSheet(entityService: library.entityService)
             }
     }
 }

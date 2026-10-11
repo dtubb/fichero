@@ -650,6 +650,15 @@ workflow by hand: a hand run is a job like any other.
   `ActivityWindowHonestStateTests`) and by the engine test that the respawned engine's 401 names its
   branch (`fichero-server/tests/unit/security/test_auth_refusals_say_why.py`). Still to check: the
   spinner half (#4346, #4384).
+- `activity.no-project-label-for-the-always-there-project` — **[PARTIAL]** (#5655) *Built 2026-10-10
+  (app), not yet seen:* the always-there project has no name, so a run or job in it carries no
+  project label: the sidebar's Activity row draws no project line, the details' subheading leaves the
+  project out, and a failed load reads "Couldn't load activity: <cause>", never "from : …"
+  (`ActivityRun.projectLabel`, `ActivityStore.projectName`, `ActivityStore.runLoadFailureMessage`;
+  the Activity window's rows already drew no empty project, and its group reads This Mac). Pinned by
+  `fichero/Tests/Unit/general/Models/ActivityWindowTimesAndStateTests.swift`
+  (`noProjectLabelForTheUnnamedProject`, `refusedLoadForTheUnnamedProjectNamesNoProject`).
+  *Not pinned: the drawn rows.*
 - `activity.window.refusal-names-its-cause` — **[OK]** (#5469) a refused project says why, from
   the engine's typed error body, not a guess: a 403 coded `library_outside_allowed_locations` (the
   roots check) reads "the engine isn't allowed to open the project from where it's saved"; another

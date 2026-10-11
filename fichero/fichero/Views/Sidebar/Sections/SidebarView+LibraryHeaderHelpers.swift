@@ -47,19 +47,48 @@ extension SidebarView {
             onClose: { closeLibraryFromSidebar(library) },
             // Both closures select the library first so the shared dialogs
             // (which resolve via `selectedItemLibrary`) target THIS library.
-            onNewFolder: { [library] in
-                selectionState.selectedDestinations = [.library(library.id)]
-                selectedItemId = sidebarLibrarySelectionId(library.id)
-                sidebarState.newFolderParentId = nil
-                sidebarState.newFolderCategory = .folder
-                sidebarState.showingNewFolderDialog = true
-            },
-            onImport: { [library] in
-                selectionState.selectedDestinations = [.library(library.id)]
-                selectedItemId = sidebarLibrarySelectionId(library.id)
-                importFiles()  // routes to this library's Inbox, as a drop does
-            }
+            onNewFolder: { [library] in newFolderAtRoot(of: library) },
+            onImport: { [library] in importFiles(into: library) }
         )
+    }
+
+    /// New Folder at a project's root: selects the project first so the shared dialog (which
+    /// resolves via `selectedItemLibrary`) targets it. A project row's menu and the always-there
+    /// project's empty-area menu both call this.
+    func newFolderAtRoot(of library: LibraryManager.LibraryReference) {
+        selectionState.selectedDestinations = [.library(library.id)]
+        selectedItemId = sidebarLibrarySelectionId(library.id)
+        sidebarState.newFolderParentId = nil
+        sidebarState.newFolderCategory = .folder
+        sidebarState.showingNewFolderDialog = true
+    }
+
+    /// Import Files… into a project: selects it first, then the shared file picker imports there
+    /// (its Inbox, as a drop does).
+    func importFiles(into library: LibraryManager.LibraryReference) {
+        selectionState.selectedDestinations = [.library(library.id)]
+        selectedItemId = sidebarLibrarySelectionId(library.id)
+        importFiles()
+    }
+
+    /// The always-there project's menu, on a right-click in the sidebar's empty space (ruled
+    /// 2026-10-10, `sidebar.top-section.empty-area-menu`): it has no header row, so what that row's
+    /// menu offered lives here. Shown only when the click lands on no row (`clicked` empty); a row
+    /// keeps its own menu.
+    @ViewBuilder
+    func alwaysThereProjectMenu(clicked: Set<SidebarDestination>) -> some View {
+        if AlwaysThereProjectMenu.isShown(clicked: clicked),
+           let library = libraryManager.getLibrary(id: LibraryManager.globalLibraryId) {
+            Button(AlwaysThereProjectMenu.newFolder) { newFolderAtRoot(of: library) }
+            Button(AlwaysThereProjectMenu.importFiles) { importFiles(into: library) }
+            Divider()
+            Button(AlwaysThereProjectMenu.editDocumentTypes) { alwaysThereTypeEditorLibrary = library }
+            #if os(macOS)
+            Button(AlwaysThereProjectMenu.showInFinder) {
+                NSWorkspace.shared.activateFileViewerSelecting([library.url])
+            }
+            #endif
+        }
     }
 
     /// Close a library from the sidebar context menu (#1661): unregister it
