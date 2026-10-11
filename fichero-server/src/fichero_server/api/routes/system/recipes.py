@@ -814,7 +814,7 @@ async def model_candidates(
         from fichero_server.recipes.discovery import known_cards
 
         cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id][:1]
-    kept = sorted((c for c in cards if c.runs_here and _refusal(job, c, a, material) is None),
+    kept = sorted((c for c in cards if c.runs_here and not c.offered_only and _refusal(job, c, a, material) is None),
                   key=lambda c: _rank_key(c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
 
@@ -823,6 +823,9 @@ async def model_candidates(
             return None
         if not c.runs_here:
             return f"Fichero cannot run it yet: {c.cannot_run_because or 'not in this build'}"
+        if c.offered_only:
+            # Yours to choose, never the rules': no rank, and refused only where it could not do the job here.
+            return (_refusal(job, c, a, material) or (None, None))[1]
         return (_refusal(job, c, a, material) or (None, None))[1]
 
     def measured(c: Any) -> str:
@@ -838,7 +841,7 @@ async def model_candidates(
         open_licence=c.open_licence, size_gb=c.size_gb or None,
         memory_gb=None if not c.memory_gb and c.source == "hugging-face" else c.memory_gb,
         size=size_words(c.size_gb), cer_published=c.cer_published,
-        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=True,
+        cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
         rule_rank=rank.get(c.id), refused=refused(c),
         installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],

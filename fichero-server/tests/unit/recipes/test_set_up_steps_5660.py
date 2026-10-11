@@ -19,6 +19,7 @@ import pytest
 from fichero_server.recipes.answers import normalise_levels
 from fichero_server.recipes.start import plan_start
 from tests.unit.recipes.test_installed_model_first_to_spec import mac  # noqa: F401  (fixture)
+from tests.unit.recipes.test_models_ux_5619 import ollama  # noqa: F401  (fixture)
 from tests.unit.recipes.test_recipe_execution_to_spec import pages  # noqa: F401  (fixture)
 
 QWEN = {"hf": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit", "revision": "main"}
@@ -153,3 +154,18 @@ def test_the_person_chooses_who_finds_names_and_the_run_honours_it(client, db, p
                 "cloud": ("anthropic", "claude-sonnet-4-5")}[who]
     assert run["provider_override"] == expected[0]
     assert expected[1] is None or run["model_override"] == expected[1]
+
+
+@pytest.mark.parametrize("apple_here", [True, False])
+def test_the_offered_choices_never_outrank_a_model_the_person_has(client, mac, ollama, monkeypatch, apple_here):
+    """`source.recipe.local-text-models-are-cards`: a text model already here (an Ollama model on this Mac) is the
+    finder's rank 1, whether or not this Mac has Apple Intelligence; the choices item 4 adds are the person's to
+    make (`in_recipe_rules: false`, no rank), never the rules' (the M4, which has the bridge, ranked Apple first)."""
+    monkeypatch.setattr("fichero_server.llm.local_model_choice.apple_intelligence_in_this_build", lambda: apple_here)
+    r = client.get("/api/recipes/candidates", params={"job": "find-statements", "scripts": "Latn", "languages": "en"})
+    items = {c["id"]: c for c in r.json()["items"]}
+    [llama] = [c for c in items.values() if c["pin"].get("model") == "llama3.2:latest"]
+    assert llama["rule_rank"] == 1 and llama["in_recipe_rules"] is True
+    apple = items["apple:intelligence/foundation-models@os"]
+    assert apple["rule_rank"] is None and apple["in_recipe_rules"] is False
+    assert (apple["refused"] is None) == apple_here  # offered, or said that it cannot run here

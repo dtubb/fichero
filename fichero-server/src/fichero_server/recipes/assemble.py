@@ -186,6 +186,10 @@ class Card:
     #: Why Fichero cannot run it yet, in words, when `runs_here` is False ("a TrOCR model: no TrOCR runtime in this
     #: build"); the finder shows it so a person sees what exists, the rules never choose it (#5660 item 3).
     cannot_run_because: str = ""
+    #: Offered to a person by the finder, never chosen by the rules by themselves (#5660 item 4: Apple Intelligence,
+    #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
+    #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
+    offered_only: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
     #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).

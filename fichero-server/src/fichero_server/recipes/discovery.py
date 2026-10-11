@@ -250,7 +250,7 @@ def other_text_cards() -> list[Card]:
     out = [Card(
         id="apple:intelligence/foundation-models@os", pin=dict(APPLE_INTELLIGENCE_PIN), jobs=TEXT_MODEL_JOBS,
         scripts=None, languages=None, material=frozenset(), open_licence=True, licence="system",
-        note="Apple Intelligence, on this Mac", source="installed", runs_here=apple_here,
+        note="Apple Intelligence, on this Mac", source="installed", runs_here=apple_here, offered_only=True,
         cannot_run_because="" if apple_here else "Apple Intelligence is not available in this build or on this Mac",
         offered_because="Apple's on-device model (Foundation Models): free, and the pages stay on this Mac",
     )]
@@ -262,7 +262,7 @@ def other_text_cards() -> list[Card]:
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
             licence="", size_gb=round(spec.download_size_bytes / 1e9, 3),
-            memory_gb=round(spec.min_memory_bytes / 1024**3, 2), note=spec.display_name, source="shipped",
+            memory_gb=round(spec.min_memory_bytes / 1024**3, 2), note=spec.display_name, source="shipped", offered_only=True,
             installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
         ))
     out += _cloud_text_cards()
@@ -297,14 +297,14 @@ def _cloud_text_cards() -> list[Card]:
                 id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
                 jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
-                note=f"{model.name or model.model_id} ({row.name})", source="installed",
+                note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
             ))
     if CLAUDE_PROVIDER not in seen_types:
         out.append(Card(
             id="anthropic:claude@settings", pin={"cloud": CLAUDE_PROVIDER, "model": "claude"}, jobs=TEXT_MODEL_JOBS,
             scripts=None, languages=None, material=frozenset(), runs_on=f"cloud:{CLAUDE_PROVIDER}",
-            open_licence=True, licence="", note="Claude (Anthropic), in the cloud", source="installed",
+            open_licence=True, licence="", note="Claude (Anthropic), in the cloud", source="installed", offered_only=True,
             runs_here=False, cannot_run_because="add Claude (Anthropic) in Settings › AI first",
             offered_because="a cloud model through your provider settings: its pages leave this Mac",
         ))
