@@ -34,7 +34,7 @@ private final class OnboardingFixtureEngine: URLProtocol {
 
     static let names = ["purposes", "jobs", "project", "plan", "assembled", "candidates-read-a-line",
                         "candidates-find-regions", "languages", "scripts", "derived", "topics", "bakeoffs",
-                        "kept-exports"]
+                        "kept-exports", "candidates-find-names-tag-words"]
 
     static func loadFixtures() throws {
         for name in names {
@@ -216,17 +216,22 @@ struct OnboardingScreenshotsTests {
                        FirstRunWindow(mode: .setUp, project: project, initialStep: .purpose))
         try await shot("06-ready.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .ready))
         // Ready is longer than its card: the whole plan, top to bottom, as the card scrolls through it.
-        try await shot("07-ready-whole-plan.png", CGSize(width: 620, height: 2700), VStack {
+        try await shot("07-ready-whole-plan.png", CGSize(width: 620, height: 3200), VStack {
             RecipeReadyFields(store: setup, onFix: { _ in }, keptExports: project.keptExportStore, project: project)
             Spacer(minLength: 0)
         }.padding(22))
         try await shot("08-find-a-reader.png", sheet,
                        ModelFinderSheet(project: project, setup: setup,
                                         step: .init(id: "read-a-line", job: "read-a-line"), onDone: {}))
-        try await shot("09-review-the-licence.png", sheet,
+        // Choose a model… on Find names (#5660 item 4): spaCy in use, MLX models to download, Apple Intelligence
+        // and Claude saying why Fichero cannot run them yet.
+        try await shot("09-who-finds-names.png", CGSize(width: 640, height: 900),
+                       ModelFinderSheet(project: project, setup: setup,
+                                        step: .init(id: "find-names-tag-words", job: "find-names-tag-words"), onDone: {}))
+        try await shot("10-review-the-licence.png", sheet,
                        LicenceReviewSheet(finder: project.modelFinderStore, setup: setup,
                                           step: .init(id: "find-regions", job: "find-regions"), onDone: {}))
-        try await shot("10-run-strip-after-start.png", CGSize(width: 1100, height: 44), ProjectRunStripRow(
+        try await shot("11-run-strip-after-start.png", CGSize(width: 1100, height: 44), ProjectRunStripRow(
             strip: ProjectRunStrip(
                 jobId: "recipe-run", isLive: true, title: "Find lines · stage 1 of 5",
                 detail: "12 done · 0 failed · 80 left · 9 min left · "
@@ -234,7 +239,7 @@ struct OnboardingScreenshotsTests {
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
 
-        #expect(written.count == 10)
+        #expect(written.count == 11)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")

@@ -69,6 +69,82 @@
   },
   {
    "steps": [
+    "translate-transliterate-normalise"
+   ],
+   "job": "translate-transliterate-normalise",
+   "card": "workflow",
+   "runs_on": "this-mac",
+   "workflow": "Modernización (Spanish)",
+   "workflow_id": "e9bf7ed9-b230-5496-8f0c-cf97ce0170be",
+   "provider_override": "omlx",
+   "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+   "layer": null,
+   "check": null,
+   "provider": null,
+   "model": null,
+   "prompt": null,
+   "folder": null,
+   "formats": null,
+   "done": null,
+   "of": 0,
+   "note": "cannot tell what is done; runs on every page (0)",
+   "last_run": null,
+   "last_why": null,
+   "takes": [
+    "line_readings"
+   ],
+   "gives": [
+    "line_readings"
+   ],
+   "tool_config": {
+    "analyze": {
+     "reading_kind": "transcription",
+     "reading_level": "as_written",
+     "prompt": "Transcribe this page exactly as written, in its own language: keep the scribe's spelling, abbreviations, word division and punctuation; do not expand or modernise anything. Use the existing transcription as context where it is given; read the image where it is silent. Return only the text, line by line."
+    }
+   },
+   "readers": null
+  },
+  {
+   "steps": [
+    "translate-transliterate-normalise"
+   ],
+   "job": "translate-transliterate-normalise",
+   "card": "workflow",
+   "runs_on": "this-mac",
+   "workflow": "Modernización (Spanish)",
+   "workflow_id": "e9bf7ed9-b230-5496-8f0c-cf97ce0170be",
+   "provider_override": "omlx",
+   "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+   "layer": null,
+   "check": null,
+   "provider": null,
+   "model": null,
+   "prompt": null,
+   "folder": null,
+   "formats": null,
+   "done": null,
+   "of": 0,
+   "note": "cannot tell what is done; runs on every page (0)",
+   "last_run": null,
+   "last_why": null,
+   "takes": [
+    "line_readings"
+   ],
+   "gives": [
+    "line_readings"
+   ],
+   "tool_config": {
+    "analyze": {
+     "reading_kind": "transcription",
+     "reading_level": "expanded",
+     "prompt": "Transcribe this page with every abbreviation expanded into the full word the scribe meant (for example dha -> dicha), and the spelling otherwise exactly as written. Use the existing transcription as context where it is given; read the image where it is silent. Return only the text, line by line."
+    }
+   },
+   "readers": null
+  },
+  {
+   "steps": [
     "find-names-tag-words"
    ],
    "job": "find-names-tag-words",
@@ -96,7 +172,11 @@
    "gives": [
     "mentions"
    ],
-   "tool_config": null,
+   "tool_config": {
+    "extract_entities_only": {
+     "entity_types": "people,places"
+    }
+   },
    "readers": null
   }
  ],
@@ -126,6 +206,28 @@
   },
   {
    "steps": [
+    "translate-transliterate-normalise"
+   ],
+   "job": "translate-transliterate-normalise",
+   "workflow": "Modernización (Spanish)",
+   "workflow_id": "e9bf7ed9-b230-5496-8f0c-cf97ce0170be",
+   "provider_override": "omlx",
+   "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+   "runs_on": "this-mac"
+  },
+  {
+   "steps": [
+    "translate-transliterate-normalise"
+   ],
+   "job": "translate-transliterate-normalise",
+   "workflow": "Modernización (Spanish)",
+   "workflow_id": "e9bf7ed9-b230-5496-8f0c-cf97ce0170be",
+   "provider_override": "omlx",
+   "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+   "runs_on": "this-mac"
+  },
+  {
+   "steps": [
     "find-names-tag-words"
    ],
    "job": "find-names-tag-words",
@@ -146,14 +248,16 @@
  "offered": [],
  "refusals": [],
  "waiting": [
-  "steps correct wait for Qwen2.5-VL 7B (OCR), which is downloading (Downloading Qwen2.5-VL 7B (OCR): 1.9 GB of 5.6 GB): they run when it lands"
+  "steps correct, translate-transliterate-normalise, translate-transliterate-normalise wait for Qwen2.5-VL 7B (OCR), which is downloading (Downloading Qwen2.5-VL 7B (OCR): 1.9 GB of 5.6 GB): they run when it lands"
  ],
  "downloads": [
   {
    "runtime": "mlx",
    "model": "Qwen2.5-VL-7B",
    "steps": [
-    "correct"
+    "correct",
+    "translate-transliterate-normalise",
+    "translate-transliterate-normalise"
    ],
    "size_mb": 5653,
    "action": "model.download",
@@ -188,6 +292,26 @@
     "workflow": "Paleographer Review",
     "steps": [
      "correct"
+    ],
+    "where": "this-mac",
+    "pages": 92,
+    "cost_usd": 0.0,
+    "memory": "Qwen2.5-VL 7B (OCR) needs about 6.3 GB; on this Mac (16.0 GB) it reads 2 pages at once, about 7.3 GB at most"
+   },
+   {
+    "workflow": "Modernización (Spanish)",
+    "steps": [
+     "translate-transliterate-normalise"
+    ],
+    "where": "this-mac",
+    "pages": 92,
+    "cost_usd": 0.0,
+    "memory": "Qwen2.5-VL 7B (OCR) needs about 6.3 GB; on this Mac (16.0 GB) it reads 2 pages at once, about 7.3 GB at most"
+   },
+   {
+    "workflow": "Modernización (Spanish)",
+    "steps": [
+     "translate-transliterate-normalise"
     ],
     "where": "this-mac",
     "pages": 92,

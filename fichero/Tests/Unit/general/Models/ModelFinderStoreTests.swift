@@ -292,6 +292,46 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertFalse(ModelFinderCard.isChosen(try XCTUnwrap(store.candidates.last)))
     }
 
+    /// WHY (#5660 item 4): for Find names the person chooses who runs it: spaCy (in use), an MLX model to download,
+    /// Apple Intelligence and Claude. One Fichero cannot run yet offers nothing to press and says why once; one that
+    /// needs a provider first links to Settings › AI.
+    func testWhoFindsNamesCardsSayWhatRuns() throws {
+        let items = try JSONDecoder().decode([Components.Schemas.ModelCandidate].self, from: Data("""
+        [{"id":"spacy:pkg/es_core_news_sm@bundled","name":"spaCy's small Spanish pipeline; bundled","source":"shipped",
+          "offered_because":"a card that ships with Fichero","pin":{},"jobs":["find-names-tag-words"],"open_licence":true,
+          "size":"16 MB","measured":"unmeasured","in_recipe_rules":true,"runs_where":"this_mac","chosen":true,
+          "availability":"ships","availability_words":"Ships with Fichero"},
+         {"id":"mlx:text/qwen3-4b@main","name":"Qwen3 4B Instruct","source":"installed",
+          "offered_because":"an MLX text model this Mac can run","pin":{},"jobs":["find-names-tag-words"],
+          "open_licence":true,"size":"2.3 GB","measured":"unmeasured","in_recipe_rules":false,"runs_where":"this_mac",
+          "availability":"download","availability_words":"Download (2.3 GB)"},
+         {"id":"apple:intelligence/foundation-models@os","name":"Apple Intelligence, on this Mac","source":"installed",
+          "offered_because":"Apple's on-device model","pin":{},"jobs":["find-names-tag-words"],"open_licence":true,
+          "size":"0 GB","measured":"unmeasured","in_recipe_rules":false,"runs_where":"this_mac",
+          "refused":"Fichero cannot run it yet: Apple Intelligence is not available in this build or on this Mac",
+          "availability":"not_here",
+          "availability_words":"Fichero cannot run it yet (Apple Intelligence is not available in this build or on this Mac)"},
+         {"id":"anthropic:claude@settings","name":"Claude (Anthropic), in the cloud","source":"installed",
+          "offered_because":"a cloud model through your provider settings","pin":{},"jobs":["find-names-tag-words"],
+          "open_licence":true,"size":"0 GB","measured":"unmeasured","in_recipe_rules":false,"runs_where":"provider",
+          "refused":"Fichero cannot run it yet: add Claude (Anthropic) in Settings › AI first","availability":"not_here",
+          "availability_words":"Fichero cannot run it yet (add Claude (Anthropic) in Settings › AI first)"}]
+        """.utf8))
+        let byName = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let spacy = try XCTUnwrap(byName["spacy:pkg/es_core_news_sm@bundled"])
+        let mlx = try XCTUnwrap(byName["mlx:text/qwen3-4b@main"])
+        let apple = try XCTUnwrap(byName["apple:intelligence/foundation-models@os"])
+        let claude = try XCTUnwrap(byName["anthropic:claude@settings"])
+        XCTAssertTrue(ModelFinderCard.isChosen(spacy))
+        XCTAssertFalse(ModelFinderCard.cannotRunHere(spacy))
+        XCTAssertFalse(ModelFinderCard.cannotRunHere(mlx))
+        XCTAssertEqual(ModelFinderCard.facts(mlx), "Download (2.3 GB)")
+        XCTAssertTrue(ModelFinderCard.cannotRunHere(apple))
+        XCTAssertFalse(ModelFinderCard.asksForSettings(apple), "nothing in Settings makes Apple Intelligence run")
+        XCTAssertTrue(ModelFinderCard.cannotRunHere(claude))
+        XCTAssertTrue(ModelFinderCard.asksForSettings(claude), "add Claude in Settings › AI first: linked")
+    }
+
     /// WHY (#5660 item 3): a source's line is the engine's one sentence; the two it words without naming the
     /// place are said with it, so "Not searched" twice never reads as one thing said twice.
     func testSourceLinesAreTheEnginesWords() throws {

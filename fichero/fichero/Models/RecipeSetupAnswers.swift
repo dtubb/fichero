@@ -96,8 +96,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
     struct JobAnswers: Codable, Equatable {
         /// Entities (`find-names-tag-words`): the kinds to find.
         var entityKinds: [String] = ["people", "places"]
-        /// Translate or normalise: how far (as-written, expanded, normalised).
-        var normaliseHowFar: String = "expanded"
+        /// Translate or normalise › Into what (#5660 item 1): the reading levels to write, each its own run, in the
+        /// engine's spelling (`as_written`, `expanded`, `regularised`, `modernised`), and at most one
+        /// `translation:<language tag>`.
+        var normaliseHowFar: [String] = ["expanded"]
         /// Map places (`place-in-a-gazetteer`): which gazetteer.
         var gazetteer: String = "geonames"
 
@@ -113,8 +115,52 @@ struct RecipeSetupAnswers: Codable, Equatable {
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
             entityKinds = try values.decodeIfPresent([String].self, forKey: .entityKinds) ?? entityKinds
-            normaliseHowFar = try values.decodeIfPresent(String.self, forKey: .normaliseHowFar) ?? normaliseHowFar
+            // A project saved before #5660 kept one value: it reads as a list of one.
+            if let many = try? values.decodeIfPresent([String].self, forKey: .normaliseHowFar) {
+                normaliseHowFar = many.map(Self.engineLevel)
+            } else if let one = try values.decodeIfPresent(String.self, forKey: .normaliseHowFar) {
+                normaliseHowFar = [Self.engineLevel(one)]
+            }
             gazetteer = try values.decodeIfPresent(String.self, forKey: .gazetteer) ?? gazetteer
+        }
+
+        /// The levels Into what offers, in the order a reading cascades, with Set Up's words for them.
+        nonisolated static let normaliseLevels: [(id: String, title: String)] = [
+            ("as_written", "As written"), ("expanded", "Abbreviations expanded"),
+            ("regularised", "Normalised spelling"), ("modernised", "Modernised")
+        ]
+        nonisolated static let translationPrefix = "translation:"
+
+        /// A level as the engine spells it: Set Up's older words ("as-written", "normalised") are the same levels.
+        nonisolated static func engineLevel(_ value: String) -> String {
+            switch value {
+            case "as-written": "as_written"
+            case "normalised", "normalized", "normalised_spelling": "regularised"
+            case "abbreviations-expanded", "abbreviations_expanded": "expanded"
+            default: value
+            }
+        }
+
+        func writes(level: String) -> Bool { normaliseHowFar.contains(level) }
+
+        /// Tick or untick a level; the list keeps the cascade order, then the translation.
+        mutating func set(level: String, _ isOn: Bool) {
+            var levels = Set(normaliseHowFar.filter { !$0.hasPrefix(Self.translationPrefix) })
+            if isOn { levels.insert(level) } else { levels.remove(level) }
+            let ordered = Self.normaliseLevels.map(\.id).filter(levels.contains)
+            normaliseHowFar = ordered + normaliseHowFar.filter { $0.hasPrefix(Self.translationPrefix) }
+        }
+
+        /// The language a translation is asked into (its tag), or nil for none.
+        var translation: String? {
+            get {
+                normaliseHowFar.first { $0.hasPrefix(Self.translationPrefix) }
+                    .map { String($0.dropFirst(Self.translationPrefix.count)) }
+            }
+            set {
+                normaliseHowFar.removeAll { $0.hasPrefix(Self.translationPrefix) }
+                if let newValue, !newValue.isEmpty { normaliseHowFar.append(Self.translationPrefix + newValue) }
+            }
         }
     }
 

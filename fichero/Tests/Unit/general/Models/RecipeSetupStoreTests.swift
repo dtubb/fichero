@@ -436,6 +436,37 @@ struct RecipeSetupStoreTests {
     /// app, decides whether Start can go (source.project.automatic-after-first-yes). If the store
     /// offered Start while a step was refused, the person would press Start on a plan the engine
     /// already said it cannot run; a missing price must stay unknown, never read as free.
+    /// WHY (#5660 item 1, the maintainer's Set Up test of 2026-10-10): "Into what" was one choice, but a person may
+    /// want the page as written, with abbreviations expanded and in normalised spelling, each its own reading. The
+    /// answer is a list in the engine's spelling, a translation is one more item, and a project saved with one
+    /// value reopens with that one ticked.
+    @Test("Into what is several levels and a translation; a single saved value reads as one ticked")
+    func intoWhatIsAMultiSelect() throws {
+        typealias Answers = RecipeSetupAnswers.JobAnswers
+        let old = try JSONDecoder().decode(Answers.self, from: Data(#"{"normalise_how_far":"normalised"}"#.utf8))
+        #expect(old.normaliseHowFar == ["regularised"])
+        #expect(old.writes(level: "regularised"))
+
+        var answers = Answers()
+        #expect(answers.normaliseHowFar == ["expanded"], "the default")
+        answers.set(level: "as_written", true)
+        answers.translation = "en"
+        answers.set(level: "modernised", true)
+        answers.set(level: "expanded", false)
+        #expect(answers.normaliseHowFar == ["as_written", "modernised", "translation:en"], "cascade order, then the translation")
+        #expect(answers.translation == "en")
+        answers.translation = nil
+        #expect(answers.normaliseHowFar == ["as_written", "modernised"])
+
+        let sent = try JSONSerialization.jsonObject(with: JSONEncoder().encode(answers)) as? [String: Any]
+        #expect(sent?["normalise_how_far"] as? [String] == ["as_written", "modernised"], "sent as a list")
+        let saved = try JSONDecoder().decode(Answers.self, from: Data(
+            #"{"normalise_how_far":["as-written","expanded","translation:es"]}"#.utf8))
+        #expect(saved.normaliseHowFar == ["as_written", "expanded", "translation:es"])
+        #expect(RecipeSetupAnswers.JobAnswers.normaliseLevels.map(\.title)
+                == ["As written", "Abbreviations expanded", "Normalised spelling", "Modernised"])
+    }
+
     @Test("Start is offered only for a plan with nothing refused; an unpriced total stays unknown")
     func startNeedsAPlanWithNoRefusals() async {
         let refused = makeStore { request in

@@ -89,6 +89,8 @@ struct ModelFinderCard: View {
     let candidate: Components.Schemas.ModelCandidate
     let store: ModelFinderStore
     var step: ModelFinderView.Step?
+    /// Opens Settings › AI for a card that asks for a provider first; absent in a preview.
+    @Environment(AppState.self) private var appState: AppState?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -105,7 +107,19 @@ struct ModelFinderCard: View {
             if let why = Self.whyOffered(candidate) {
                 Text(why).font(.callout)
             }
-            Text(Self.facts(candidate)).font(.caption).foregroundStyle(.secondary)
+            if Self.cannotRunHere(candidate) {
+                // Why, once, in the engine's words ("Fichero cannot run it yet (…)"), with the one way on.
+                Label(candidate.availabilityWords, systemImage: "xmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if Self.asksForSettings(candidate), let appState {
+                    Button("Open Settings › AI") { appState.openSettings(tab: .aiModels) }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                }
+            } else {
+                Text(Self.facts(candidate)).font(.caption).foregroundStyle(.secondary)
+            }
             Text(candidate.measured).font(.caption).foregroundStyle(.secondary)
             // What its download's job says while it runs, or why it failed (#5620).
             if let key = ModelFinderStore.downloadKey(candidate), let line = store.downloads.line(key) {
@@ -115,7 +129,7 @@ struct ModelFinderCard: View {
                     .foregroundStyle(failed ? .orange : .secondary)
                     .textSelection(.enabled)
             }
-            if let refused = candidate.refused {
+            if let refused = candidate.refused, !Self.cannotRunHere(candidate) {
                 Label(refused, systemImage: "xmark.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -127,6 +141,12 @@ struct ModelFinderCard: View {
 
     @ViewBuilder
     private var actions: some View {
+        // A card Fichero cannot run yet has nothing to press: its why says what would change that.
+        if !Self.cannotRunHere(candidate) { runnableActions }
+    }
+
+    @ViewBuilder
+    private var runnableActions: some View {
         HStack(spacing: 6) {
             if let key = ModelFinderStore.downloadKey(candidate) {
                 if store.downloads.isActive(key) {
@@ -163,6 +183,17 @@ struct ModelFinderCard: View {
             parts.append("licence: \(licence)")
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// Fichero cannot run it yet (`availability` not_here: Apple Intelligence missing from this build, a cloud
+    /// model with no provider set up): no Download, no Use for This Step (#5660 item 4).
+    static func cannotRunHere(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        candidate.availability == .notHere
+    }
+
+    /// Its why names Settings › AI ("add Claude (Anthropic) in Settings › AI first"): the card links there.
+    static func asksForSettings(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        cannotRunHere(candidate) && candidate.availabilityWords.contains("Settings › AI")
     }
 
     /// The step's reader now (`chosen`, with `step`): marked, and offered no Use for This Step.

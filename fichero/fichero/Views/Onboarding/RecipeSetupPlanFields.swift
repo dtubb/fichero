@@ -17,6 +17,13 @@ struct JobQuestionFields: View {
         ("dates", "Dates"), ("things", "Things (objects, goods)"), ("events", "Events")
     ]
 
+    /// The languages a reading can be translated into from Set Up (a tag the engine resolves): the scholarly ones a
+    /// colonial archive is read into.
+    static let translationLanguages: [(tag: String, name: String)] = [
+        ("en", "English"), ("es", "Spanish"), ("fr", "French"), ("pt", "Portuguese"), ("de", "German"),
+        ("it", "Italian"), ("la", "Latin")
+    ]
+
     var body: some View {
         switch job {
         case "find-names-tag-words":
@@ -42,12 +49,30 @@ struct JobQuestionFields: View {
                 }
             }
         case "translate-transliterate-normalise":
-            Picker("Into what", selection: $store.jobAnswers.normaliseHowFar) {
-                Text("As written").tag("as-written")
-                Text("Abbreviations expanded").tag("expanded")
-                Text("Normalised spelling").tag("normalised")
+            // Several at once (#5660 item 1): each level ticked is its own run writing that reading.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Into what").font(.headline)
+                FlowLayout(spacing: 12) {
+                    ForEach(RecipeSetupAnswers.JobAnswers.normaliseLevels, id: \.id) { level in
+                        Toggle(level.title, isOn: Binding(
+                            get: { store.jobAnswers.writes(level: level.id) },
+                            set: { store.jobAnswers.set(level: level.id, $0) }
+                        ))
+                        .setupCheckbox()
+                        .fixedSize()
+                    }
+                }
+                Picker("Also translate into", selection: Binding(
+                    get: { store.jobAnswers.translation ?? "" },
+                    set: { store.jobAnswers.translation = $0.isEmpty ? nil : $0 }
+                )) {
+                    Text("No translation").tag("")
+                    ForEach(Self.translationLanguages, id: \.tag) { language in
+                        Text(language.name).tag(language.tag)
+                    }
+                }
+                .fixedSize()
             }
-            .fixedSize()
         case "place-in-a-gazetteer":
             Picker("Which gazetteer", selection: $store.jobAnswers.gazetteer) {
                 Text("GeoNames").tag("geonames")
