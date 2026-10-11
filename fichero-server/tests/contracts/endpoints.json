@@ -8812,6 +8812,11 @@
             "name": "scripts",
             "required": true,
             "type": "string"
+          },
+          {
+            "name": "step",
+            "required": false,
+            "type": "string"
           }
         ],
         "request_model": null,

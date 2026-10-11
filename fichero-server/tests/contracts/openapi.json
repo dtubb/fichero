@@ -14040,7 +14040,7 @@
           "recipes"
         ],
         "summary": "Model Candidates",
-        "description": "Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts\nand languages (comma-separated codes or names), from the shipped cards, the models on this Mac (and the\nperson's own Ollama and LM Studio servers), Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline, nor for\na job that is not a reader's (the search finds readers). Refused (422), in words, for an unknown script,\nlanguage, material or job.",
+        "description": "Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts\nand languages (comma-separated codes or names), from the shipped cards, the models on this Mac (and the\nperson's own Ollama and LM Studio servers), Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline, nor for\na job that is not a reader's (the search finds readers). With `step` (a step of the open project's recipe), the\nstep's reader now is marked `chosen` and listed first, the person's choice included when the finder would not\nlist it for these answers (#5660 item 8). Each candidate says plainly whether it ships with Fichero, is on this\nMac or can be downloaded, with its size (`availability`). Refused (422), in words, for an unknown script,\nlanguage, material or job.",
         "operationId": "model_candidates_api_recipes_candidates_get",
         "parameters": [
           {
@@ -14110,6 +14110,16 @@
               "type": "number",
               "nullable": true,
               "title": "Mac Memory Gb"
+            }
+          },
+          {
+            "name": "step",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Step"
             }
           }
         ],
@@ -16839,7 +16849,7 @@
           "documents"
         ],
         "summary": "Transfer Documents",
-        "description": "Copy items (each with its subtree) from the source project into this one, or plan it.\n\n`dry_run: true` writes nothing and returns the plan: counts by kind, files and bytes, vocabulary\nmatched or to be made, entity matches to be proposed, every cut, everything left behind.\nOtherwise the copy is written, verified and recorded in both projects; undo (`POST\n/api/actions/audit/{audit_id}/undo` in this project) sends the copies to this project's Trash.\nRefused in words, changing nothing: the source not open, the same project, an unknown or trashed\nitem, an alias, a locked node, a target that is not a folder, a move (not built yet).",
+        "description": "Copy items (each with its subtree) from the source project into this one, or plan it.\n\n`dry_run: true` writes nothing and returns the plan: counts by kind, files and bytes, vocabulary\nmatched or to be made, entity matches to be proposed, every cut, everything left behind.\nOtherwise the copy is written, verified and recorded in both projects; undo (`POST\n/api/actions/audit/{audit_id}/undo` in this project) sends the copies to this project's Trash.\n`mode: move` then sends the source's items to the source's Trash (\"moved to <this project>\") and\ncuts what cannot follow; undo works from either project's audit row.\nRefused in words, changing nothing: the source not open, the same project, an unknown or trashed\nitem, an alias, a locked node, a target that is not a folder, an item a pending move holds.",
         "operationId": "transfer_documents_api_documents_transfer_post",
         "parameters": [
           {
@@ -50906,6 +50916,18 @@
         "title": "CancelResponse",
         "description": "Response from POST /threads/{thread_id}/cancel (#1127).\n\n``partial_results_preserved`` is always True for now \u2014 the issue's\ninvariant is that artifacts and entities written before the cancel\nstay in place. Future work could add a soft-rollback option that\ndeletes per-thread writes; for now we surface the contract clearly\nin the response shape."
       },
+      "CandidateAvailability": {
+        "type": "string",
+        "enum": [
+          "ships",
+          "installed",
+          "download",
+          "elsewhere",
+          "not_here"
+        ],
+        "title": "CandidateAvailability",
+        "description": "Where a candidate stands for this Mac (#5660 item 3), one of: it ships with Fichero, it is on this Mac, it can\nbe downloaded, it runs elsewhere (a provider, a machine of the person's own), or Fichero cannot run it yet."
+      },
       "CandidateDownload": {
         "properties": {
           "runtime": {
@@ -70759,6 +70781,21 @@
           "runs_where": {
             "$ref": "#/components/schemas/CandidatePlace",
             "description": "where it runs: this Mac, a machine of the person's own, or the provider that runs it (llm.places, #5612)"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/CandidateAvailability",
+            "description": "ships with Fichero, installed on this Mac, can be downloaded, runs elsewhere, or not runnable here (#5660)"
+          },
+          "availability_words": {
+            "type": "string",
+            "title": "Availability Words",
+            "description": "the same, in one short phrase with its size: 'Ships with Fichero', 'On this Mac (16 MB)', 'Download (2.3 GB)', 'Runs at openai', 'Fichero cannot run it yet (\u2026)'"
+          },
+          "chosen": {
+            "type": "boolean",
+            "title": "Chosen",
+            "description": "with `step`: this is the step's reader now (the person's choice, or the rules' when none was made); listed first (#5660 item 8)",
+            "default": false
           }
         },
         "type": "object",
@@ -70773,7 +70810,9 @@
           "size",
           "measured",
           "in_recipe_rules",
-          "runs_where"
+          "runs_where",
+          "availability",
+          "availability_words"
         ],
         "title": "ModelCandidate",
         "description": "One reader candidate as a card: where it came from, why it is offered, what it states, and what\nthe rules make of it for the project's scripts, languages and material."

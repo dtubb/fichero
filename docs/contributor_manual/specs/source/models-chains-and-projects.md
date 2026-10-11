@@ -1689,7 +1689,9 @@ project's scripts, languages, material and period, discovery gathers candidates 
 2. **The Kraken model repository** (HTRMoPo on Zenodo, the one `ketos list` reads), by script and
    language tags.
 3. **Hugging Face**, by task and by language and script tags (image-to-text, token-classification,
-   object-detection for layout), never by keyword; a GGUF chat model is not a reader.
+   object-detection for layout), and by name for the HTR words (htr, manuscript, trocr, medieval,
+   palaeograph…) and the project's languages, which find the models made for manuscripts that the tag
+   listings miss (#5660); a GGUF chat model is not a reader.
 4. **spaCy's published pipelines** and the named community ones (LatinCy, greCy), by language.
 Each candidate becomes a card that says where it came from, its licence, size, what it claims to
 cover and what was measured; the same rules rank it; it is offered for download through the one
@@ -3036,7 +3038,10 @@ Finding models
   the model store's `discovery/` folder, fetched again at most daily; offline, the last fetch is used.
   *Pinned by `test_model_discovery.py`.*
 - `source.find.hub-runs-here` — **[PARTIAL]** (#5519) the Hugging Face search asks by task
-  (image-to-text, image-text-to-text) and language tag, never by keyword, and offers only MLX builds
+  (image-to-text, image-text-to-text) and language tag, and by name for the HTR words and the
+  project's languages (#5660 item 3: TrOCR fine-tunes and VLMs trained on old hands are found by name
+  only; one this build cannot run is listed `availability: not_here`, refused in words, never chosen,
+  pinned by `test_reader_finder_5660.py`), and offers the rules only MLX builds
   (the `mlx` tag; the Hub ignores a `library` parameter, which is how the old search returned GGUF chat
   models) or a safetensors model's MLX conversion found by its `base_model:` tag, each saying why it is
   offered; never a GGUF repository. *Built, pinned by `test_model_discovery.py` with recorded Hub
