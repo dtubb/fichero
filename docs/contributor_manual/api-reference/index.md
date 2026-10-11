@@ -523,6 +523,7 @@ non-image batch ids return `404`.
 - While a page is in the Trash, statements resting only on trashed pages, and entities with no live source that no person verified, are left out of `GET /api/claims`, `GET /api/entities`, the graph's neighbourhood and `GET /api/kg/search`. Put Back brings them back; Empty Trash removes them.
 - `POST /api/actions/audit/{audit_id}/undo` — take back one step (a set of one). Refusals are declared: 404 and 409 with `{detail, reason, audit_id}`, `detail` a sentence and `reason` one of `changed` (a later step still in effect touched the same things; the step stays), `already-undone`, `gone`, `not-undoable`.
 - `POST /api/actions/audit/undo` — take back a set of steps (`{audit_ids}`), newest first, in one transaction, all or none; a refusal names the step that refused. The answer's `audit_ids` are the new rows: taking those back as a set is the redo.
+- `GET /api/actions/registry/{name}` — one registered action whole, with its parameter schema (an agent's lean answer for one action, beside the list); 404 for a name the registry does not have.
 
 ## Sandbox (Mac App Store)
 
@@ -1136,6 +1137,12 @@ below goes through the one audited action layer, so each answer carries an
 `POST /api/documents/{document_id}/readings/compare`: how far one reading of this page is from
 another, scored by Fichero's CER definition under each normalisation policy asked for (#5389). Refuses
 (`422`) rather than return a number it cannot stand behind.
+
+`GET /api/documents/{page_id}/disagreement`: where this page's readers disagree, line by line and word by
+word (#5665). Each line's readings are brought to the line as written; the medoid reading is the reference,
+each other reading is aligned to it, and each word scores the share of readers that gave exactly it:
+agreement, never accuracy. With fewer than two readings, 200 with `lines` empty and `page_agreement` null; an
+unknown page is 404. Read-only.
 
 ### A segment's readings
 
