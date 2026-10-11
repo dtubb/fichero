@@ -120,16 +120,14 @@ struct RegionInteractionLayer: View {
                     liveReshape(in: geo.size)
                     liveDrawing(in: geo.size)
                     if let rect = liveBandRect {
-                        RoundedRectangle(cornerRadius: 2)
-                            .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
+                        RoundedRectangle(cornerRadius: 2).stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
                             .background(Color.accentColor.opacity(0.12))
                             .frame(width: rect.width, height: rect.height)
                             // Measured INSIDE the offset, so the frame is where the band is drawn
                             // after the offset and the layer's alignment, not where layout put it.
                             .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onBandFrame?($0) }
                             .offset(x: rect.minX, y: rect.minY)
-                            .accessibilityElement()
-                            .accessibilityIdentifier(Self.liveBandIdentifier)
+                            .accessibilityElement().accessibilityIdentifier(Self.liveBandIdentifier)
                     }
                 }
                 .allowsHitTesting(false)
@@ -463,7 +461,7 @@ struct RegionInteractionLayer: View {
             marquees?.add(
                 box, documentId: documentId, imagePixelSize: imagePixelSize
             )
-            if drawsSegments, let marquees, marquees.count > 0 {
+            if drawsSegments, let marquees, !marquees.isEmpty {
                 // The marquee just drawn, promoted through the ONE region-making path.
                 onPromote("", marquees.count - 1)
             }
