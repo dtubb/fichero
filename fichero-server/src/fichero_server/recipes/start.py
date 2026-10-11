@@ -48,7 +48,10 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
                # (`source.onboard.auto.prepare-damaged-images`, #5580).
                "prepare-the-image": "prepare",
                # A page's regions found by a YOLO layout model (`prep.yolo.regions-card`, #5525).
-               "find-regions": "regions"}
+               "find-regions": "regions",
+               # A prototype's questions asked of its documents and entries with the step's text model, the answers
+               # landing as their attributes, each citing its words (`structured.extract.step-in-a-recipe`, #5636).
+               "extract-to-a-table": "table"}
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
@@ -66,7 +69,6 @@ BY_HAND_FIX = {
     "link-to-authorities": "link each name to an authority from its Inspector",
     "place-in-a-gazetteer": "run the Extract Geo workflow by hand: it finds the places and puts them on the map",
     "describe-for-the-catalogue": "run the Catalogue Description workflow by hand",
-    "extract-to-a-table": "run the Extract Table workflow by hand",
 }
 _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 #: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
@@ -280,6 +282,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                     skip(sid, f"{label}: the entries are split by a text model, and {pin} is not one", "choose-model")
                     continue
                 entry.update(provider=override[0], model=override[1])
+            elif job == "extract-to-a-table":
+                override = _override(pin)
+                if override is None:
+                    skip(sid, f"{label}: the table is filled by a text model, and {pin} is not one", "choose-model")
+                    continue
+                if not settings.get("prototype"):
+                    skip(sid, f"{label} names no kind of document (`prototype`) whose fields it fills",
+                         "choose the kind of document in the step's settings")
+                    continue
+                entry.update(provider=override[0], model=override[1], prototype=str(settings["prototype"]))
             elif job == "find-regions":
                 if not pin.get("yolo"):
                     skip(sid, f"{label}: regions are found by a YOLO layout model, and {pin} is not one", "choose-model")
@@ -452,7 +464,7 @@ def _waits_for(download: dict[str, Any]) -> str:
 
 
 #: Jobs whose local model reads the page image; the others send it text alone.
-_TEXT_ONLY_JOBS = frozenset({"find-names-tag-words", "find-statements", "split-into-entries"})
+_TEXT_ONLY_JOBS = frozenset({"find-names-tag-words", "find-statements", "split-into-entries", "extract-to-a-table"})
 
 
 def _capability(run: dict[str, Any]) -> str:

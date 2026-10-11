@@ -17,6 +17,13 @@ show them as fields. A run sets a key only when it is empty and nobody set it, o
 person's value (and any value already there that no run claims) is never overwritten by a run. The
 page's kind from sorting keeps its own `material_set_by` (#5578).
 
+A run that answers a prototype's questions (`recipes/table.py`, `structured.extract.*`, #5636) writes them
+all at once with `write_answers_from_run`. Its source adds the answer's `status` (found, not_found,
+illegible, ambiguous), the model's self-reported `confidence` (kept, never acted on), and `cites` the
+words the value was read from: `{"kind": "span", "document_id", "segment_id", "representation_id",
+"char_start", "char_end", "words", "anchor": "exact" | "fuzzy" | "none"}`. A status other than found is
+a source with no value: "not on this page" is an answer, distinct from a field nobody filled.
+
 A run's KIND is not assigned: it is proposed for a person to accept (ruled 2026-10-08, #5600).
 `Document.metadata["proposed_attributes"]["prototype"]` holds it, citing the run as a value would:
 
@@ -136,6 +143,30 @@ def write_from_run(
     attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
     doc.attributes = {**attrs, **{k: fields[k] for k in written}}
     doc.metadata = with_sources(doc.metadata, {k: source for k in written})
+    doc.updated_at = utc_now()
+    db.save(doc)
+    return written
+
+
+def write_answers_from_run(db: Any, doc: Any, answers: dict[str, tuple[Any, dict]]) -> list[str]:
+    """Write a run's answers onto `doc` at once: `{key: (value, source)}`, each citing its source. A value of
+    None is a status with no value (not found, illegible, ambiguous): the source is kept and a value an
+    earlier run set is taken away, so the attribute never shows a value the latest run did not read. Keys a
+    person set are left alone (`machine_may_set`). One save. Returns the keys written."""
+    written = [k for k in answers if k != PROTOTYPE and machine_may_set(doc, k)]
+    if not written:
+        return []
+    from fichero_server.core.timeutil import utc_now
+
+    attrs = dict(doc.attributes) if isinstance(doc.attributes, dict) else {}
+    for key in written:
+        value = answers[key][0]
+        if value in (None, "", [], {}):
+            attrs.pop(key, None)
+        else:
+            attrs[key] = value
+    doc.attributes = attrs
+    doc.metadata = with_sources(doc.metadata, {k: answers[k][1] for k in written})
     doc.updated_at = utc_now()
     db.save(doc)
     return written

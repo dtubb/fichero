@@ -14,6 +14,9 @@ page, and every file that has no pages), or, after an import, over the pages tha
   (`workflows/tools/diary_entries.py`) and the step's model, over the pages that have text (#5581);
 * a **prepare** card gives each faded page a prepared rendition, its contrast raised, that lines and reading then
   read; the original is kept (`recipes/prepare.py`, #5580);
+* a **table** card (`extract-to-a-table`) asks the step's prototype's questions of each of its documents and entries
+  among the pages, with the step's model, and lands the answers as their attributes, each citing its words
+  (`recipes/table.py`, #5636);
 * an **embed** card (search) queues the embed job (`make-a-vector`) for each page and waits for them;
 * an **export** card is the project's synced folder (`sync_folder.py`): the folder the step names is tied
   (once) and the pages are written, or a folder already tied rewrites them.
@@ -390,6 +393,32 @@ def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: st
     step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent))
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
+    return None, "done", None
+
+
+def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+               step: dict[str, Any]) -> tuple[str | None, str, str | None]:
+    """Extract to a table (`structured.extract.step-in-a-recipe`, #5636): the step's prototype's questions asked of
+    each of its documents and entries among the pages, with the step's model, the answers landing as their
+    attributes (`recipes/table.py`). The step's account (`table`) counts the units, the values, the statuses, the
+    refusals and the values kept because a person (or no run) set them; `table_refusals` names each refused answer
+    and why."""
+    from fichero_server.recipes import table
+
+    try:
+        account = table.extract(db, documents, prototype=card["prototype"], provider=card["provider"],
+                                model=card["model"], run_id=parent, step=",".join(card["steps"]),
+                                stop=lambda: _stop_asked(parent))
+    except Exception as exc:  # noqa: BLE001 -- an unknown prototype or one with no fields, said on the step
+        return None, "failed", f"the table was not filled: {exc}"
+    refusals, errors = account.pop("refusals"), account.pop("errors")
+    step["table"] = {"prototype": card["prototype"], **account}
+    if refusals:
+        step["table_refusals"] = refusals
+    if _stop_asked(parent):
+        return None, "cancelled", "Stopped by you"
+    if errors:
+        return None, "failed", f"{len(errors)} of {account['asked']} units were not answered: {'; '.join(errors[:3])}"
     return None, "done", None
 
 
@@ -801,6 +830,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             child, state, why = _run_prepare(db, documents, job_id, scratch)
         elif card["card"] == "regions":
             child, state, why = _run_regions(db, card, documents, job_id, scratch)
+        elif card["card"] == "table":
+            child, state, why = _run_table(db, card, documents, job_id, scratch)
         elif card["card"] == "publish":
             child, state, why = _run_publish(db, card, job_id)
         elif card["card"] == "embed":

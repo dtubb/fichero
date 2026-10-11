@@ -49,6 +49,20 @@ class AttributeDecl(BaseModel):
     default: Any = None
     options: list[str] = Field(default_factory=list)
     required: bool = False
+    #: The question a model is asked and a person reads (`structured.schema.question-wording`, #5636);
+    #: None asks it from the label (`question`).
+    ask: str | None = None
+    #: The column heading; None shows the attribute's key.
+    label: str | None = None
+    #: A few worded answers, put in the extraction prompt (and later the training set).
+    examples: list[str] = Field(default_factory=list)
+
+    def question(self, key: str) -> str:
+        """The field's question: its own wording, else one made from its label (or key)."""
+        if self.ask and self.ask.strip():
+            return self.ask.strip()
+        name = (self.label or key.replace("_", " ")).strip()
+        return f"What is the {name[:1].lower() + name[1:]}?"
 
     @field_validator("type")
     @classmethod

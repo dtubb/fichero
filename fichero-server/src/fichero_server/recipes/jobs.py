@@ -119,7 +119,9 @@ _job("place-in-a-gazetteer", {"mentions"}, {"places"}, "places", _LIST, ("gazett
 _job("make-a-vector", {READING}, {"vectors"}, "vectors",
      "each model's top results for a few of your own questions", ("model",))
 _job("describe-for-the-catalogue", {"line_readings"}, {"metadata_values"}, "catalogue", _LIST, ("fields",))
-_job("extract-to-a-table", {"line_readings"}, {"table_rows"}, "structure", _LIST, ("fields",))
+# A prototype's questions asked of each of its documents and entries, from the text already read; the answers land
+# as the nodes' attributes, each citing its words (`structured.extract.step-in-a-recipe`, #5636).
+_job("extract-to-a-table", {READING}, {"table_rows"}, "structure", _LIST, ("model", "prototype"))
 _job("pull-out-passages", {"line_readings"}, {"passages"}, "knowledge", _LIST, ("question",))
 _job("train-a-model", {"line_readings", "lines"}, {"model_card"}, "train",
      "the candidate against the current step on held-out corrected pages", ("base", "where"))
