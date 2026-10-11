@@ -14,7 +14,7 @@ class LibraryManager {
     static let shared = LibraryManager()
 
     /// Fixed UUID for the Global library (cross-library searches, chats, workflows)
-    static let globalLibraryId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    nonisolated static let globalLibraryId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
     /// All currently open libraries (Global is always last)
     var openLibraries: [LibraryReference] = []
