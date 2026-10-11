@@ -315,6 +315,8 @@ extension ContentView {
         // the overflow chevron under pressure again, file that against the
         // system toggle; do not re-add a hand-placed one.
         .navigationTitle(toolbarTitle)
+        // The title's proxy icon: the item it names, draggable (2026-10-11).
+        .modifier(WindowProxyIcon(document: windowProxyDocument, libraryId: windowState.libraryId))
         // The breadcrumb subtitle is a desktop window-title affordance; on a
         // compact iPhone nav bar it reads as duplicate path text, so drop it
         // there and let the single inline title stand (#2814).

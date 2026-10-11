@@ -14,6 +14,14 @@ extension ContentView {
         }
     }
 
+    /// The item the window title names, for its proxy icon (`WindowProxyIcon`): the focused page, else the selected
+    /// folder or file; nil while the title names the project or a non-document view.
+    var windowProxyDocument: Document? {
+        guard case .library(let document) = viewMode else { return nil }
+        if let page = activeLocationDocument, page.docType == .page { return page }
+        return document
+    }
+
     /// Toolbar/window title showing only the current view/item name
     var toolbarTitle: String {
         let viewName: String
