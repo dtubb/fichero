@@ -205,6 +205,16 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   them. The action (`document.relink_originals`, audited, undoable) repoints the matched pages and folders and
   their recorded source paths. Server paths: owner only, inside an allowed location.
 
+## Set Up, one page per stage (#5668)
+
+`GET /api/recipes/stages`
+
+- The eleven stages of Set Up in order (section 7c of `source/models-chains-and-projects.md`): each with its
+  title, sentence and example, the registry jobs it carries, whether this project's recipe has it on, its own
+  questions (each a `job_answers` key, with options, its default and this project's answer), the stages it
+  needs and why in words, and whether it can be tried on the sample pages (by the bake-off, or by its
+  workflow). Without an open project every stage is off and every answer its default.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

@@ -300,6 +300,61 @@ class PurposeListResponse(BaseModel):
     count: int
 
 
+class StageOption(BaseModel):
+    id: str
+    title: str
+
+
+class StageQuestion(BaseModel):
+    key: str = Field(description="its answer's key in `answers.job_answers`")
+    ask: str
+    kind: Literal["one", "many", "yes-no", "text"]
+    options: list[StageOption] = Field(default_factory=list)
+    default: Any = None
+    answer: Any = Field(default=None, description="this project's answer, else the default")
+    read_by_a_step: bool = Field(description="true: a step reads it today; false: kept with the answers")
+
+
+class StageNeed(BaseModel):
+    stage: str
+    why: str = Field(description="in words: 'Dates & Times needs Names'")
+
+
+class SetupStage(BaseModel):
+    """One stage of Set Up, one page each (section 7c, #5668)."""
+
+    id: str
+    title: str
+    sentence: str = Field(description="what it does, in one sentence")
+    example: str
+    jobs: list[str] = Field(description="the registry jobs it carries, in step order")
+    on: bool = Field(description="whether this project's recipe has any of its jobs")
+    jobs_in_recipe: list[str]
+    questions: list[StageQuestion]
+    needs: list[StageNeed] = Field(description="the stages it needs, ticked with it")
+    sampleable: bool = Field(description="it can be tried on the sample pages before Start")
+    tried_by: Literal["bake-off", "workflow"]
+
+
+class SetupStageList(BaseModel):
+    items: list[SetupStage]
+    count: int
+
+
+@router.get("/stages", response_model=SetupStageList)
+async def list_stages(request: Request) -> SetupStageList:
+    """The eleven stages of Set Up in order (section 7c, `source.onboard.stages.stages-list-from-the-engine`): each
+    with its jobs, its own questions (this project's answer, else the default), whether this project's recipe has
+    it on, the stages it needs and why, and whether it can be tried on the sample pages. The app works none of it
+    out. Without an open project every stage is off and every answer its default."""
+    from fichero_server.recipes.stages import listing
+
+    library = _optional_library(request)
+    setup = read_project_setup(library) if library else {"recipe": None, "answers": None}
+    items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
+    return SetupStageList(items=items, count=len(items))
+
+
 @router.get("/purposes", response_model=PurposeListResponse)
 async def list_purposes() -> PurposeListResponse:
     """The purposes setup offers as checkboxes, in order, each with its label, whether it runs by

@@ -13703,6 +13703,28 @@
         }
       }
     },
+    "/api/recipes/stages": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "List Stages",
+        "description": "The eleven stages of Set Up in order (section 7c, `source.onboard.stages.stages-list-from-the-engine`): each\nwith its jobs, its own questions (this project's answer, else the default), whether this project's recipe has\nit on, the stages it needs and why, and whether it can be tried on the sample pages. The app works none of it\nout. Without an open project every stage is off and every answer its default.",
+        "operationId": "list_stages_api_recipes_stages_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStageList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/purposes": {
       "get": {
         "tags": [
@@ -85628,6 +85650,112 @@
         "title": "SettingResolution",
         "description": "One resolved fact, with the rung that answered."
       },
+      "SetupStage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "what it does, in one sentence"
+          },
+          "example": {
+            "type": "string",
+            "title": "Example"
+          },
+          "jobs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Jobs",
+            "description": "the registry jobs it carries, in step order"
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On",
+            "description": "whether this project's recipe has any of its jobs"
+          },
+          "jobs_in_recipe": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Jobs In Recipe"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/StageQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "needs": {
+            "items": {
+              "$ref": "#/components/schemas/StageNeed"
+            },
+            "type": "array",
+            "title": "Needs",
+            "description": "the stages it needs, ticked with it"
+          },
+          "sampleable": {
+            "type": "boolean",
+            "title": "Sampleable",
+            "description": "it can be tried on the sample pages before Start"
+          },
+          "tried_by": {
+            "type": "string",
+            "enum": [
+              "bake-off",
+              "workflow"
+            ],
+            "title": "Tried By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "sentence",
+          "example",
+          "jobs",
+          "on",
+          "jobs_in_recipe",
+          "questions",
+          "needs",
+          "sampleable",
+          "tried_by"
+        ],
+        "title": "SetupStage",
+        "description": "One stage of Set Up, one page each (section 7c, #5668)."
+      },
+      "SetupStageList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SetupStage"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count"
+        ],
+        "title": "SetupStageList"
+      },
       "ShareRequest": {
         "properties": {
           "user": {
@@ -86945,6 +87073,43 @@
         "title": "StageFailures",
         "description": "The pages one workflow stage could not do, and its offer to read them again."
       },
+      "StageNeed": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "in words: 'Dates & Times needs Names'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stage",
+          "why"
+        ],
+        "title": "StageNeed"
+      },
+      "StageOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "StageOption"
+      },
       "StagePrepared": {
         "properties": {
           "prepared": {
@@ -86971,6 +87136,56 @@
         ],
         "title": "StagePrepared",
         "description": "What a stage that prepares faded pages did (#5580)."
+      },
+      "StageQuestion": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "its answer's key in `answers.job_answers`"
+          },
+          "ask": {
+            "type": "string",
+            "title": "Ask"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "one",
+              "many",
+              "yes-no",
+              "text"
+            ],
+            "title": "Kind"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/StageOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "default": {
+            "title": "Default"
+          },
+          "answer": {
+            "title": "Answer",
+            "description": "this project's answer, else the default"
+          },
+          "read_by_a_step": {
+            "type": "boolean",
+            "title": "Read By A Step",
+            "description": "true: a step reads it today; false: kept with the answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "ask",
+          "kind",
+          "read_by_a_step"
+        ],
+        "title": "StageQuestion"
       },
       "StageReader": {
         "properties": {

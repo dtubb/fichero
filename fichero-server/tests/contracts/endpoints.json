@@ -9245,6 +9245,16 @@
         ],
         "request_model": null,
         "response_model": "NamedCodeList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/stages",
+        "operation_id": "list_stages_api_recipes_stages_get",
+        "summary": "List Stages",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SetupStageList"
       }
     ],
     "references": [

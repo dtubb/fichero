@@ -6338,6 +6338,12 @@ def fichero_recipes_search_scripts(
     return _rt.call("GET", "/api/recipes/scripts", params={"limit": limit, "q": q})
 
 
+def fichero_recipes_list_stages(
+) -> Any:
+    "List Stages\n\nThe eleven stages of Set Up in order (section 7c, `source.onboard.stages.stages-list-from-the-engine`): each\nwith its jobs, its own questions (this project's answer, else the default), whether this project's recipe has\nit on, the stages it needs and why, and whether it can be tried on the sample pages. The app works none of it\nout. Without an open project every stage is off and every answer its default.\n\nRoute: GET /api/recipes/stages (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/stages")
+
+
 def fichero_references_list(
     *,
     kind: Annotated[Optional[str], Field(description='Kind')] = None,
@@ -9357,6 +9363,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
     GeneratedTool("fichero_recipes_search_scripts", "recipes", "GET", "/api/recipes/scripts", fichero_recipes_search_scripts),
+    GeneratedTool("fichero_recipes_list_stages", "recipes", "GET", "/api/recipes/stages", fichero_recipes_list_stages),
     GeneratedTool("fichero_references_list", "references", "GET", "/api/references", fichero_references_list),
     GeneratedTool("fichero_references_delete", "references", "DELETE", "/api/references/{reference_id}", fichero_references_delete),
     GeneratedTool("fichero_references_get", "references", "GET", "/api/references/{reference_id}", fichero_references_get),
