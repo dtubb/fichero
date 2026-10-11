@@ -86,7 +86,10 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
                  "fichero_server.recipes.runner", "fichero_server.training.evaluation",
                  "fichero_server.kept_export", "fichero_server.recipes.discovery", "fichero_server.recipes.bakeoff",
                  "fichero_server.api.routes.kg.review", "fichero_server.recipes.samples",
-                 "fichero_server.importers.iiif_source")
+                 "fichero_server.importers.iiif_source",
+                 # A model download and a Find the Documents run left waiting by a restart need their runner
+                 # registered when the queue first looks, not when something else happens to (2026-10-11).
+                 "fichero_server.llm.local_models", "fichero_server.finddocs.job")
 #: Lane -> how many of its jobs run at once (`activity.throttle.lanes`). `remote`: work sent to another
 #: place (a training run on Hugging Face Jobs, #5398). It waits on the network, holds no model here and
 #: never holds the local ML lane.

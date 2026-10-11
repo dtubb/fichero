@@ -1248,6 +1248,17 @@ and node, not by job); a retry action for failed pages.
   checkpoints are on disk (`workflows/checkpointer.py`). Since #5555 the flip is on every open and says
   so — "Interrupted: the engine stopped at HH:MM" — and the run offers to read its pages not done as a new
   run (`compute.run.interrupted-on-start`); it is still not resumed in place.
+- `activity.durable.dies-with-the-engine` — **[OK]** (2026-10-11) when the engine dies mid-job (killed, not closed),
+  nothing reads "running" after it starts again: on the project's open a queued job (an import's page, a model
+  download, a recipe run) goes back to waiting, "Interrupted; carries on", and is taken up again from its own
+  checkpoint; one interrupted three times is set aside, failed, saying what interrupted it and when, with
+  `failed_at` and Resume (`POST /api/activity/jobs/{id}/retry`, which puts the same row back to waiting: one row,
+  no `failed_at`); a workflow run reads failed, "Interrupted: the engine stopped at HH:MM, before this run
+  finished", and offers its pages not done. Checked live on a scratch engine killed during an import, a recipe run
+  and its workflow step (the recipe run carried on and could then be stopped). Fixed with it: the model download's
+  and Find the Documents' runners were not registered when the queue first looked after a restart, so their rows
+  waited with no runner, named by their id and with no Resume (`jobs._KIND_MODULES`, guarded). Pinned by
+  `fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py`.
 - `activity.durable.paused-stays-paused` — **[OK]** (#5357) a paused job is still
   paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`) and,
   since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only
