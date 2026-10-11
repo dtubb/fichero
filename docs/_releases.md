@@ -1,3 +1,129 @@
+### 2026.10.10
+
+Everything since 2026.09.20, the last public release.
+
+- Launch: Fichero no longer stops at start with "Fichero Server Couldn't Restart", and starts in about half the time.
+- Setting up a project: Set Up asks four short questions, proposes a plan you can edit, and Start runs it all — reading, then organising (Find the Documents).
+- A Project menu: Set Up…, Start (⇧⌘↩), Find the Documents (⇧⌘D) and Run the Recipe on This Folder….
+- Big projects run a folder at a time, and Activity says how many folders are done.
+- Models: one way to find, download and choose a model for any step; YOLO finds a page's regions and can be trained on yours.
+- Archive model: names, statements, quotations, dates and attributes sit on their line and say who set them.
+- Editing pages like Preview, import of paired files, a Reader with one line per manuscript line, and pairing a second Mac fixed.
+
+**Launch.** A project that was running a recipe when Fichero last quit could stop the engine at
+start: the run resumed while the sidebar loaded, the two waited for each other, and the app said
+"Fichero Server Couldn't Restart". They no longer can. Launch is also about twice as fast: on a Mac
+with five projects open, the first is usable in about five and a half seconds. Hold Shift while
+Fichero launches to start with nothing open and the window layout forgotten; your projects are not
+changed.
+
+**Set Up and Start.** A new project is set up in four steps: your project, your material, what you
+want to do, and Ready. The goals read in order — transcribe, search, translate, then the knowledge
+graph with entities and statements under it — and the script is proposed from the language. Ready
+shows the plan, what will not run and why, and what to download first; a step can be taken out and
+put back. Start then runs everything: pages are sorted (blank, typed, handwritten) and each is read
+by a reader for its kind, faded pages are prepared first, diaries split into dated entries, names
+and dates are found, and then Find the Documents organises the pages. Every project has a Sources
+folder, where new material lands.
+
+<details markdown>
+<summary>Show more releases</summary>
+
+**The Project menu and running on a folder.** Set Up…, Start and each stage's commands are in one
+Project menu. Right-click a folder to Find the Documents in it or to Run the Recipe on This Folder…
+alone. A large project — hundreds of folders of a few hundred pages each — is worked through a
+folder at a time (at most 500 pages), every step finishing a folder before the next begins, so the
+first volume is readable early; Activity says "3 of 800 folders done", and a run that stops picks
+up where it left off without redoing anything.
+
+**Find the Documents.** It proposes where each document starts and ends, what kind it is, and which
+documents belong to one case, with its reasons. A folder's Inspector lists the proposals to Accept,
+Reject or Accept All above a level you choose; one Undo restores the folder. It now runs after names
+and dates are found, so the people named group documents into cases and dates put them in order; a
+judge or notary who signs most of a folder links nothing. It records who decided each document and
+who chose each kind, refuses a proposal a later run replaced or whose pages you have regrouped since,
+and accepts nothing by itself until it has been checked against a box a person sorted.
+
+**Models.** Download works from Set Up, Settings and the Inspector through one path, and shows as an
+Activity job with its progress. Choose a model… opens the model finder for that step, with installed
+and downloadable models, their size, licence and where they run. Text steps use the MLX or Ollama
+models already on this Mac; a model elsewhere is used only when it is free and you agree. A YOLO
+layout model can find a page's regions as a recipe step, and can be fine-tuned on this Mac on the
+regions you corrected; a Kraken reader trains here on the same schedule as on Hugging Face. The
+search models you already have now show as installed.
+
+**Activity.** A Start / Stop button in the main toolbar and the Activity window: Start runs waiting
+work even while you use the Mac or it is on battery, Stop pauses everything, and pressing again goes
+back to automatic. Work held for battery or use starts by itself when the hold clears; when memory is
+short, heavy work runs one job at a time. A waiting row says what it really waits for.
+
+**The archive.** Names, statements, quotations and diary entries sit on the line and reading they
+came from; a correction to a line shows in the entry without re-running. Attributes and dates say
+whether a person or a run set them, and a run never overwrites a person. Correct a name or a
+statement from its mark in the Inspector. Exports carry dates, attributes, readings and mentions.
+Agents can do all of this through MCP.
+
+**Editing, importing and reading** (from the 2026.09.29 build). Segments are drawn as their shapes
+and edited the way Preview does: a Shape tool, Reshape, eight resize handles, and a Segment menu with
+Delete, Join, Split, Direction and Language. Files dropped together import as one set, so an image
+pairs with its PAGE, ALTO, hOCR, TEI, .box or .txt file. The Reader shows one line per manuscript line
+in its own direction, and scripts macOS lacks draw with bundled fonts.
+
+**Fixed.** PDFs no longer bring up "libpdfium.dylib Not Opened". A redo that the project has moved
+past is refused in words. Pairing a second Mac works again, over Tailscale and on a signed build
+(from the 2026.09.26 build). Recordings are left out of steps that read page images, and M4A audio
+transcribes in the app.
+
+### 2026.09.29
+
+- Launch: Fichero is usable in about half the time it took, and the engine starts while the window is still opening.
+- Editing pages: draw, reshape and resize segments the way Preview does, with a Segment menu and a pass you can delete.
+- Import: files dropped together pair with their layout files, as a folder does; Tesseract .box and plain-text transcriptions import.
+- Reading: one line per manuscript line in its own direction, and fonts for scripts macOS lacks.
+
+**Launch is about twice as fast.** On a Mac with five libraries open, the first library is usable
+at about five and a half seconds and all of them at about seven, where it took ten or more. The
+engine now starts before the window is drawn rather than after it; the first library loads the
+moment the engine answers, without waiting for other housekeeping; the other libraries load
+together rather than one after another; and work that can wait (warming the workflow tools, the
+search index) waits until the libraries are open. Opening a library no longer visits every entity
+in it, which made a large knowledge graph slow to open.
+
+**Editing a page.** Segments are drawn as their shapes. The Shape tool draws a polygon or a
+baseline, Reshape moves, adds and removes points, and a selected segment resizes by eight handles
+as in Preview. A Segment menu in the menu bar holds Delete, Join, Split, Direction and Language.
+The Inspector's Making section can delete a pass, and asks first if it is the pass you are working
+in. Every one of these can be undone.
+
+**Importing.** Files dropped together are imported as one set, so an image and its PAGE, ALTO,
+hOCR, TEI, .box or .txt file pair exactly as they do when their folder is dropped. A Tesseract
+.box becomes character segments, and a .txt beside its image becomes its transcription.
+
+**Reading.** The Reader shows one line per manuscript line, each in its own direction, and
+highlights find their text across line breaks. Medieval abbreviations (MUFI), Syriac, Mongolian,
+Coptic and Cherokee draw with bundled fonts instead of boxes.
+
+### 2026.09.26
+
+- Connections: pairing a second Mac works again, over Tailscale and on a signed build.
+
+**Pairing a second Mac works again.** Two separate faults were stopping it, and each one hid
+the other.
+
+A shipped build could not save the key it had just been given. The keychain item asked for a
+protection class that, on a Mac, sends it to a keychain only entitled apps may write — an
+entitlement development builds have and released ones do not. So pairing appeared to succeed on
+the Mac sharing the library while the joining Mac quietly stored nothing, and every request
+afterwards arrived unauthenticated. The key now goes to the login keychain where it belongs, and
+if a keychain ever does refuse, the message says what it actually said rather than a bare number.
+
+Connecting over Tailscale was refused outright. The invitation carried a fingerprint of the
+sharing Mac's own certificate, but a Tailscale address answers with Tailscale's certificate — so
+the joining Mac checked a fingerprint against the wrong certificate and, quite correctly, refused
+to connect. An invitation for such an address no longer claims a certificate the Mac does not
+hold, and a Mac receiving one ignores a claim an older build may still send. An ordinary address
+still requires its fingerprint, and an invitation without one is still refused.
+
 ### 2026.09.20
 
 - Knowledge: click a sentence to see its source; Entities and Claims panes work as master and detail; a folder shows the people in its subfolders.
@@ -25,9 +151,6 @@ subfolders now shows its full list of people, matching what the Inspector alread
 Deleting or merging an entity now cleans up every field a claim carries about it, not just the
 obvious one. A source written in a language Fichero has no model for is now told apart from one
 it does — it no longer gets silently read with the wrong grammar.
-
-<details markdown>
-<summary>Show more releases</summary>
 
 **A Library pane now shows what its own label says.** Set a pane to Claims and it shows Claims,
 not whatever the sidebar last had selected — choosing a specific kind for a pane sticks, the same
