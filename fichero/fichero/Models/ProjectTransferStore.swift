@@ -186,20 +186,27 @@ final class ProjectTransferStore {
         let request = Components.Schemas.TransferRequest(
             items: drop.items, source: drop.source.url.path, targetParentId: drop.targetParentId,
             mode: drop.mode, dryRun: dryRun)
+        let outcome: Result<Components.Schemas.TransferResult, Refusal>
         do {
             switch try await drop.target.ficheroClient.api.transferDocumentsApiDocumentsTransferPost(body: .json(request)) {
             case .ok(let answer):
-                return .success(try answer.body.json)
+                outcome = .success(try answer.body.json)
             case .unprocessableContent(let error):
-                return .failure(Refusal(sentence: (try? error.body.json)?.detail?.description
+                outcome = .failure(Refusal(sentence: (try? error.body.json)?.detail?.description
                     ?? "The engine refused the transfer."))
             case .undocumented(let code, let payload):
-                return .failure(Refusal(sentence: await EngineErrorDetail.message(from: payload)
+                outcome = .failure(Refusal(sentence: await EngineErrorDetail.message(from: payload)
                     ?? "The transfer failed (HTTP \(code))."))
             }
         } catch {
-            return .failure(Refusal(sentence: "The transfer failed: \(error.localizedDescription)"))
+            // A transport or decoding failure (the answer did not read as a TransferResult): said, and logged whole.
+            transferLogger.error("transfer call failed: \(String(describing: error), privacy: .public)")
+            outcome = .failure(Refusal(sentence: "The transfer failed: \(error.localizedDescription)"))
         }
+        if case .failure(let refusal) = outcome {
+            transferLogger.notice("transfer \(dryRun ? "plan" : "run") refused: \(refusal.sentence, privacy: .public)")
+        }
+        return outcome
     }
 
     // MARK: Words

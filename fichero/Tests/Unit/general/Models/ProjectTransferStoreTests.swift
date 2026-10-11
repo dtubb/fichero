@@ -100,9 +100,13 @@ struct ProjectTransferStoreTests {
         let store = ProjectTransferStore()
         #expect(store.beginIfAcrossProjects(prefixedIds: ["doc:d1"], operation: .move, into: target,
                                             parentId: "f1", openLibraries: [source, target]))
-        for _ in 0..<200 where store.pending?.plan == nil { try await Task.sleep(nanoseconds: 10_000_000) }
+        // The hook starts the dry run in a Task; a request through the test host can take seconds, so wait for its
+        // answer (a plan or a refusal), up to 20 s.
+        for _ in 0..<2000 where store.pending?.plan == nil && store.pending?.refusal == nil {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
 
-        let plan = try #require(store.pending?.plan)
+        let plan = try #require(store.pending?.plan, "refused: \(store.pending?.refusal ?? "no answer in 20 s")")
         #expect(transfers().last?["dry_run"] as? Bool == true)
         #expect(transfers().last?["mode"] as? String == "move")
         #expect(transfers().last?["source"] as? String == "/tmp/Marshall.fichero")
@@ -199,10 +203,12 @@ struct ProjectTransferStoreTests {
         #expect(manager.undoActionName == "Move to Istmina")
 
         manager.undo()
-        for _ in 0..<100 where !TransferMockURLProtocol.seen.contains(where: { $0.path.hasSuffix("/undo") }) {
+        // The undo is an engine call ActionUndo starts in a Task; wait for it to reach the stub, up to 20 s.
+        for _ in 0..<2000 where !TransferMockURLProtocol.seen.contains(where: { $0.path.hasSuffix("/undo") }) {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        let undo = try #require(TransferMockURLProtocol.seen.first { $0.path.hasSuffix("/undo") })
+        let undo = try #require(TransferMockURLProtocol.seen.first { $0.path.hasSuffix("/undo") },
+                                "requests seen: \(TransferMockURLProtocol.seen.map(\.path))")
         #expect(undo.path == "/api/actions/audit/audit-9/undo")
         #expect(undo.library == "/tmp/Istmina.fichero")
     }
