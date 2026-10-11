@@ -216,6 +216,20 @@ struct SetupStagesTests {
         #expect(try JSONDecoder().decode(RecipeSetupAnswers.self, from: data) == answers)
     }
 
+    // MARK: Ready
+
+    @Test("source.onboard.ready.words-not-engine-errors: a refusal names the step and says what to do, never the engine's form")
+    func readyInWords() {
+        let title = { (job: String) in job == "find-regions" ? "Find regions" : job }
+        let raw = "step 1 (find-regions): the model ['yolo'] is not pinned in a known form for this step"
+        let said = RecipeStartFields.words(for: raw, title: title)
+        #expect(said == "Find regions: its model is not one Fichero can run yet. Choose a model for this step.")
+        #expect(!said.contains("['yolo']") && !said.contains("step 1"))
+        #expect(RecipeStartFields.words(for: "step 2 (read-a-line): no reader for Arabic yet", title: title)
+                == "read-a-line: no reader for Arabic yet")
+        #expect(RecipeStartFields.words(for: "Add a language first.", title: title) == "Add a language first.")
+    }
+
     // MARK: What Fichero runs
 
     @Test("source.onboard.app.what-fichero-runs: what Fichero does and with what, and the two accounts it suggests")

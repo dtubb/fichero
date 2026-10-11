@@ -130,14 +130,12 @@ struct RecipeMaterialSourceFields: View {
             ProjectIntakeChoice(store: store)
             Divider()
             HStack {
-                Button("Add a Folder…") { choosingFolder = true }
+                Button("Add Files or Folders…") { choosingFolder = true }
                     .disabled(importer == nil || adding)
                     .help(importer == nil ? "Open the project first; its folder is added to it"
                           : adding ? "Adding the folder…" : "Choose a folder of material to add")
                 if adding { ProgressView().controlSize(.small) }
             }
-            Text("Or add material later; it comes in the way chosen above.")
-                .font(.caption).foregroundStyle(.secondary)
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.body)
             }

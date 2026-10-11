@@ -206,8 +206,9 @@ struct RecipeStartFields: View {
             if let plan = store.startPlan {
                 Text("For the pages already here: \(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
                     .font(.headline)
+                // In words, never the engine's raw message (section 7d, `source.onboard.ready.words-not-engine-errors`).
                 ForEach(plan.refusals, id: \.self) { refusal in
-                    Label(refusal, systemImage: "exclamationmark.triangle")
+                    Label(Self.words(for: refusal, title: store.title(ofJob:)), systemImage: "exclamationmark.triangle")
                         .font(.body)
                         .foregroundStyle(.orange)
                 }
@@ -341,4 +342,23 @@ struct RecipeReadyFields: View {
     RecipeAutomaticFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
         .frame(width: 520, height: 120)
+}
+
+extension RecipeStartFields {
+    /// A refusal as Ready says it (`source.onboard.ready.words-not-engine-errors`): the step by its title, not
+    /// "step 1 (find-regions)", and a model the engine cannot run said as what to do, never its internal form.
+    static func words(for refusal: String, title: (String) -> String) -> String {
+        var text = refusal
+        // "step 1 (find-regions): …" → "<Find regions' title>: …".
+        if text.hasPrefix("step "), let open = text.firstIndex(of: "("), let close = text.range(of: "):"),
+           open < close.lowerBound {
+            let job = String(text[text.index(after: open)..<close.lowerBound])
+            text = title(job) + ": " + text[close.upperBound...].trimmingCharacters(in: .whitespaces)
+        }
+        if text.contains("is not pinned in a known form") {
+            let step = text.split(separator: ":").first.map(String.init) ?? "This step"
+            text = "\(step): its model is not one Fichero can run yet. Choose a model for this step."
+        }
+        return text
+    }
 }

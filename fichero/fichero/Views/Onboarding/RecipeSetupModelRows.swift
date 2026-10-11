@@ -119,10 +119,10 @@ struct RecipeSkippedRows: View {
     @State private var reviewingLicence: RecipeStepsView.FinderStep?
 
     var body: some View {
-        if !store.skippedSteps.isEmpty {
+        if !store.skippedStepsOfChosenStages.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Will not run").font(.subheadline.weight(.semibold))
-                ForEach(store.skippedSteps, id: \.step) { skipped in
+                ForEach(store.skippedStepsOfChosenStages, id: \.step) { skipped in
                     VStack(alignment: .leading, spacing: 2) {
                         Text(store.title(ofStepId: skipped.step)).font(.callout.weight(.medium))
                         Text(skipped.why).font(.callout).foregroundStyle(.secondary)

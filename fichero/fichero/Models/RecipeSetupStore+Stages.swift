@@ -55,6 +55,15 @@ extension RecipeSetupStore {
         removedJobs = removed
     }
 
+    /// The steps Start skips that belong to a chosen stage (`source.onboard.ready.will-not-run-when-chosen`): a step
+    /// of a stage not chosen is not listed. Before the stages load, every skipped step.
+    var skippedStepsOfChosenStages: [Components.Schemas.SkippedStep] {
+        guard let choice = stageChoice else { return skippedSteps }
+        let chosenJobs = Set(choice.jobsAddedAndRemoved.added)
+        let jobOfStep = Dictionary((recipe?.steps ?? []).map { ($0.id, $0.job) }, uniquingKeysWith: { first, _ in first })
+        return skippedSteps.filter { chosenJobs.contains(jobOfStep[$0.step] ?? $0.step) }
+    }
+
     static func choiceStage(_ stage: Components.Schemas.SetupStage) -> SetupStageChoice.Stage {
         SetupStageChoice.Stage(id: stage.id, jobs: stage.jobs, needs: stage.needs.map { ($0.stage, $0.why) })
     }

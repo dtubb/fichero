@@ -2805,7 +2805,7 @@ Setup
   About the material → the stages → one page per chosen stage → Train → Ready, one small page each, any
   of them skippable; Project › Set Up… starts at Add material. *Test:* pure Swift, the step list for no
   stage and for every stage.
-- `source.onboard.project.add-material` — **[GAP]** (#5668) Add material offers Add Files or Folders…
+- `source.onboard.project.add-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** its own page, Add Files or Folders…, the line about adding later gone. *The chooser still picks a folder only.* Add material offers Add Files or Folders…
   and then how it comes in (Copy, the default; Link, Move, Index, Keep arranged), separate from what the
   material is. *Test:* pure Swift, the ways in and the default.
 - `source.onboard.project.about-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** when written, where written (`answers.place`) and which hand (`RecipeWhenWhereHandFields`); pinned by `SetupStagesTests`. *Not built: the pages counted from what was added; the kinds beyond handwriting, print and typescript, which the engine's `MATERIALS` refuses today.* About the material holds the pages
@@ -2830,10 +2830,10 @@ Setup
 - `source.onboard.stages.page-trains` — **[GAP]** (#5668) each stage page offers training or fine-tuning
   for its step (Kraken, spaCy, Core ML, MLX LoRA) where the step can be trained. *Test:* pure Swift, a
   trainable stage's page offers it and another's does not.
-- `source.onboard.ready.words-not-engine-errors` — **[BROKEN]** (#5668) Ready says the plan in words and
+- `source.onboard.ready.words-not-engine-errors` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeStartFields.words(for:title:)` names the step by its title and says a model the engine cannot run as what to do; pinned by `SetupStagesTests`. The engine's own words are the fuller fix. Ready says the plan in words and
   never shows a raw engine message (a model "not pinned in a known form" is said in words with what to
   do). *Test:* pure Swift, a refusal's engine text is not on the page.
-- `source.onboard.ready.will-not-run-when-chosen` — **[BROKEN]** (#5668) a step that will not run is
+- `source.onboard.ready.will-not-run-when-chosen` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeSetupStore.skippedStepsOfChosenStages`; and an unchosen stage's jobs are taken out of the answers. a step that will not run is
   listed on Ready only when its stage was chosen. *Test:* pure Swift, an unchosen stage's refusal is not
   listed.
 - `source.onboard.models.chooser-per-step` — **[BROKEN]** (#5668) a step's model candidates and online
