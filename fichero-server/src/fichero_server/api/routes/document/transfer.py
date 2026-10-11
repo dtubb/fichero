@@ -7,7 +7,7 @@ route, which runs one audited action, `document.transfer`, in the target; its in
 same report a copy would.
 
 Built: plan (`dry_run`), copy and move within one engine (a move's source step is its own audited action
-in the source, `document.transfer_out`). Not built: a background job for large transfers, between machines.
+in the source, `document.transfer_out`). Not built: a background job for large transfers. Between machines: the section at the end of this file.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import asyncio
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from fichero_server.actions.registry import (
@@ -31,6 +31,10 @@ from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document
 from fichero_server.models.transfer import (
+    IncomingLand,
+    IncomingStatus,
+    IncomingTransfer,
+    MachineTransferRequest,
     TransferMode,
     TransferRequest,
     TransferResult,
@@ -41,6 +45,7 @@ from fichero_server.transfer import copy as transfer_copy
 from fichero_server.transfer.plan import build_plan
 
 router = APIRouter()
+machines_router = APIRouter()
 
 ALIASES_STAY = "Aliases stay within a project."
 
@@ -106,6 +111,19 @@ def _target_parent(target_db: Database, parent_id: str | None) -> str:
     return parent.id
 
 
+def landing_parent(db: Database, parent_id: str | None) -> tuple[str, Document | None]:
+    """The folder the items land in, and the Sources folder to make with the copy when the target has none
+    (made in its transaction, so a failure leaves none)."""
+    target_parent_id = _target_parent(db, parent_id)
+    if target_parent_id:
+        return target_parent_id, None
+    from fichero_server.importers.sources_folder import SOURCES_FOLDER_NAME
+    from fichero_server.models import Status
+
+    made = Document(name=SOURCES_FOLDER_NAME, doc_type=DocType.folder, status=Status.completed)
+    return made.id, made
+
+
 def _check_can_read(ctx: ActionContext, source: str, items: list[str]) -> None:
     if ctx.is_bootstrap:
         return
@@ -150,15 +168,7 @@ def _action_transfer(db: Database, params: DocumentTransferParams, ctx: ActionCo
     source_db = _source_database(params.source, db)
     source_name = Path(source_db.path).parent.stem
     _check_items(source_db, params.items, source_name, params.mode, ctx, db, params.target_parent_id)
-    target_parent_id = _target_parent(db, params.target_parent_id)
-    sources_folder = None
-    if not target_parent_id:
-        # The target has no Sources folder: made with the copy, in its transaction, so a failure leaves none.
-        from fichero_server.importers.sources_folder import SOURCES_FOLDER_NAME
-        from fichero_server.models import Status
-
-        sources_folder = Document(name=SOURCES_FOLDER_NAME, doc_type=DocType.folder, status=Status.completed)
-        target_parent_id = sources_folder.id
+    target_parent_id, sources_folder = landing_parent(db, params.target_parent_id)
     audit_id = _new_id()
     plan = build_plan(source_db, db, items=params.items, target_parent_id=target_parent_id,
                       transfer_id=_new_id(), audit_id=audit_id, actor=ctx.actor)
@@ -287,3 +297,240 @@ def _dry_run(db: Database, body: TransferRequest, ctx: ActionContext) -> Transfe
                       transfer_id=_new_id(), audit_id=_new_id(), actor=ctx.actor)
     return transfer_copy.result_of(plan, mode=body.mode, dry_run=True, state=TransferState.planned,
                                    actor=ctx.actor, source=source_name, target=Path(db.path).parent.stem)
+
+
+# =============================================================================================
+# Between machines (copy only)
+# =============================================================================================
+# A copy to another engine, and the routes that receive one (#5657, "Between machines (copy only)").
+#
+# The sending engine: `POST /api/documents/transfer/to-machine` (the library header names the SOURCE project)
+# packages the selection and pushes it to a paired machine (`GET /api/machines`, `POST /api/machines/pair`).
+# The receiving engine (its library header names the TARGET project, its device token the paired person):
+# `POST /api/documents/transfer/incoming` opens the copy and says which objects it lacks, `PUT
+# …/incoming/{id}/objects/{sha256}` takes one (re-hashed on arrival), `POST …/incoming/{id}/land` lands it
+# all or nothing as the audited action `document.transfer_in` (undo: `document.untransfer`), and `DELETE
+# …/incoming/{id}` abandons it, removing what arrived. Logic: `transfer/remote.py`, `transfer/machines.py`.
+
+
+# --- paired machines ------------------------------------------------------------------------------------
+
+
+class PairMachineRequest(BaseModel):
+    address: str
+    code: str
+
+
+class MachineOut(BaseModel):
+    id: str
+    name: str
+    url: str
+    paired_at: str
+
+
+@machines_router.get("/machines", response_model=list[MachineOut], summary="The other Fichero engines this one is paired with")
+async def list_machines() -> list[MachineOut]:
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        machines,
+    )
+    return [MachineOut(**m.public()) for m in await asyncio.to_thread(machines.machines)]
+
+
+@machines_router.post("/machines/pair", response_model=MachineOut, summary="Pair with another Mac's Fichero by its pairing code")
+async def pair_machine(body: PairMachineRequest, ctx: ActionContext = Depends(action_context)) -> MachineOut:
+    """`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero
+    shows. This engine becomes a paired device there; its token is kept in this Mac's Keychain."""
+    from fichero_server.api.routes.auth.pairing import _record_device_audit
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        machines,
+    )
+
+    try:
+        found = await asyncio.to_thread(machines.pair, body.address, body.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"{body.address} is not a tailnet address: {exc}") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    _record_device_audit(action_name="machine.pair", actor=ctx.actor, params={"address": body.address},
+                         device_id=found.id, after=found.public())
+    return MachineOut(**found.public())
+
+
+# --- the sending side -----------------------------------------------------------------------------------
+
+
+class TransferToMachineParams(BaseModel):
+    items: list[str]
+    machine: str
+    target_project: str
+    target_parent_id: str | None = None
+    transfer_id: str
+
+
+@action("document.transfer_to_machine", TransferToMachineParams, domains=["document"], undoable=False, atomic=False)
+def _action_to_machine(db: Database, params: TransferToMachineParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """In the SOURCE: the copy to another machine. The source is never changed, beyond its record."""
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        machines,
+        remote,
+    )
+    try:
+        far = machines.machine(params.machine)
+    except LookupError as exc:
+        raise ActionRefused(str(exc)) from exc
+    result = remote.send(db, items=params.items, machine=far, target_project=params.target_project,
+                         target_parent_id=params.target_parent_id, transfer_id=params.transfer_id, actor=ctx.actor)
+    return result.model_dump(mode="json"), ChangeSpec(domains=["document"], target_ids=list(params.items),
+                                                      after={"transfer_id": params.transfer_id})
+
+
+@router.post("/transfer/to-machine", response_model=TransferResult)
+async def transfer_to_machine(
+    body: MachineTransferRequest,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> TransferResult:
+    """Copy items (each with its subtree) from this project into a project on a paired machine. Always a copy.
+
+    Refused in words, sending nothing: no yes for the pages to leave (403), this engine working offline,
+    a machine not paired, an unknown or trashed item, an alias, a locked node, another version of Fichero
+    there. A send that stops (502) keeps what arrived there; `resume` with its id sends only the rest."""
+    from fichero_server.llm import is_local_only
+    from fichero_server.models.transfer import (
+        TransferRecord,
+        TransferRole,
+        TransferState,
+    )
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        remote,
+    )
+
+    source = str(Path(db.path).parent)
+    if not body.pages_may_leave:
+        raise HTTPException(status_code=403, detail="These pages go to another machine only with your yes (pages_may_leave).")
+    if is_local_only():
+        raise HTTPException(status_code=403, detail="Fichero is working offline on this Mac: nothing is sent to another machine.")
+    items, transfer_id = body.items, remote.new_transfer_id()
+    if body.resume:
+        record = db.get(TransferRecord, body.resume)
+        if record is None or record.role != TransferRole.source or record.state != TransferState.sending:
+            raise HTTPException(status_code=409, detail=f"There is no stopped copy {body.resume} to send again.")
+        items, transfer_id = list(record.items), record.id
+    try:
+        _check_can_read(ctx, source, items)
+        await asyncio.to_thread(_check_items, db, items, Path(source).stem, TransferMode.copy, ctx, None, None)
+        invoked = await asyncio.to_thread(registry.invoke, db, "document.transfer_to_machine", {
+            "items": items, "machine": body.machine, "target_project": body.target_project,
+            "target_parent_id": body.target_parent_id, "transfer_id": transfer_id}, ctx)
+    except authz.AuthorizationError as exc:
+        raise HTTPException(status_code=403, detail=f"You may not copy these: {exc}") from exc
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except remote.MachineTransferStopped as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return TransferResult.model_validate(invoked.result)
+
+
+# --- the receiving side ---------------------------------------------------------------------------------
+
+
+class TransferInParams(BaseModel):
+    transfer_id: str
+    target_parent_id: str | None = None
+
+
+@action("document.transfer_in", TransferInParams, domains=["document"], undoable=True, invert=_invert_transfer,
+        atomic=False)  # the copy owns its journal, its transaction and its roll-back
+def _action_transfer_in(db: Database, params: TransferInParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    """In the TARGET: land a copy from another machine, stamped with this engine's caller."""
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        remote,
+    )
+    target_parent_id, sources_folder = landing_parent(db, params.target_parent_id)
+    audit_id = remote.new_transfer_id()
+    try:
+        result = remote.land(db, params.transfer_id, target_parent_id=target_parent_id, parent_to_make=sources_folder,
+                             actor=ctx.actor, audit_id=audit_id)
+    except (LookupError, ValueError) as exc:
+        raise ActionRefused(str(exc)) from exc
+    spec = ChangeSpec(domains=["document"], target_ids=list(result.copies),
+                      after={"transfer_id": result.transfer_id, "copies": list(result.copies)}, audit_id=audit_id,
+                      emit_type="document.created", document_ids=[*result.copies, target_parent_id], emit_fn=_emit)
+    return result.model_dump(mode="json"), spec
+
+
+@router.post("/transfer/incoming", response_model=IncomingStatus)
+async def open_incoming(body: IncomingTransfer, db: Database = Depends(get_library_database_for_write)) -> IncomingStatus:
+    """Another machine opens a copy into this project: what it will send, and which objects are still missing
+    here (all of them the first time; on a resumed send, only those that had not arrived)."""
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        remote,
+    )
+    from fichero_server.workflows.library_sync import LibrarySyncError
+    try:
+        missing = await asyncio.to_thread(remote.open_incoming, db, body)
+    except remote.VersionMismatch as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except LibrarySyncError as exc:
+        raise HTTPException(status_code=422, detail=f"The copy's package is not readable: {exc}") from exc
+    return IncomingStatus(transfer_id=body.transfer_id, objects=len(body.manifest.get("objects", [])), missing=missing)
+
+
+@router.put("/transfer/incoming/{transfer_id}/objects/{sha256}", response_model=IncomingStatus,
+            openapi_extra={"requestBody": {"required": True, "content": {"application/octet-stream": {
+                "schema": {"type": "string", "format": "binary"}}}}})
+async def receive_object(transfer_id: str, sha256: str, request: Request,
+                         db: Database = Depends(get_library_database_for_write)) -> IncomingStatus:
+    """One object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it
+    again). ponytail: the body is read whole; stream to disk if originals of several GB travel."""
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        remote,
+    )
+    from fichero_server.workflows.library_sync import LibrarySyncError
+    data = await request.body()
+    try:
+        await asyncio.to_thread(remote.receive, db, transfer_id, sha256, data)
+        missing = await asyncio.to_thread(remote.missing, db, transfer_id)
+        total = await asyncio.to_thread(remote.objects, db, transfer_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except LibrarySyncError as exc:
+        raise HTTPException(status_code=422, detail=f"The object arrived damaged and was not kept: {exc}") from exc
+    return IncomingStatus(transfer_id=transfer_id, objects=total, missing=missing)
+
+
+@router.post("/transfer/incoming/{transfer_id}/land", response_model=TransferResult)
+async def land_incoming(transfer_id: str, body: IncomingLand, db: Database = Depends(get_library_database_for_write),
+                        ctx: ActionContext = Depends(action_context)) -> TransferResult:
+    """Land a copy whose objects have all arrived: all or nothing. A failure rolls back what it wrote here and
+    keeps the objects, so landing again needs nothing sent again."""
+    try:
+        invoked = await asyncio.to_thread(registry.invoke, db, "document.transfer_in",
+                                          {"transfer_id": transfer_id, "target_parent_id": body.target_parent_id}, ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except transfer_copy.TransferFailed as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TransferResult.model_validate(invoked.result)
+
+
+class Abandoned(BaseModel):
+    transfer_id: str
+    removed: int
+    said: str
+
+
+@router.delete("/transfer/incoming/{transfer_id}", response_model=Abandoned)
+async def abandon_incoming(transfer_id: str, db: Database = Depends(get_library_database_for_write)) -> Abandoned:
+    """Abandon a copy that will not land: what arrived of it is removed from this machine."""
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        remote,
+    )
+    try:
+        removed = await asyncio.to_thread(remote.abandon, db, transfer_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Abandoned(transfer_id=transfer_id, removed=removed,
+                     said=f"The copy {transfer_id} was abandoned: the {removed} objects that had arrived were removed.")

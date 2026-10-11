@@ -2281,6 +2281,8 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     # #5657: a selection copied into another open project (or planned, `dry_run`). Before
     # `documents.router` so `/transfer` is never read as a document id.
     (document_transfer.router, "/api/documents", ["documents"]),
+    # #5657: the paired machines a copy to another machine goes to (its routes are in `document_transfer.router`).
+    (document_transfer.machines_router, "/api", ["machines"]),
     (documents.router, "/api/documents", ["documents"]),
     # Mandate 1 (2026-08-24): the ONE outline endpoint — ancestors + node +
     # level-aware children + attachment summary in one response.

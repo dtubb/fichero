@@ -16907,6 +16907,380 @@
         }
       }
     },
+    "/api/documents/transfer/to-machine": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Transfer To Machine",
+        "description": "Copy items (each with its subtree) from this project into a project on a paired machine. Always a copy.\n\nRefused in words, sending nothing: no yes for the pages to leave (403), this engine working offline,\na machine not paired, an unknown or trashed item, an alias, a locked node, another version of Fichero\nthere. A send that stops (502) keeps what arrived there; `resume` with its id sends only the rest.",
+        "operationId": "transfer_to_machine_api_documents_transfer_to_machine_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MachineTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/transfer/incoming": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Open Incoming",
+        "description": "Another machine opens a copy into this project: what it will send, and which objects are still missing\nhere (all of them the first time; on a resumed send, only those that had not arrived).",
+        "operationId": "open_incoming_api_documents_transfer_incoming_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncomingTransfer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomingStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}": {
+      "put": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Receive Object",
+        "description": "One object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). ponytail: the body is read whole; stream to disk if originals of several GB travel.",
+        "operationId": "receive_object_api_documents_transfer_incoming__transfer_id__objects__sha256__put",
+        "parameters": [
+          {
+            "name": "transfer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Transfer Id"
+            }
+          },
+          {
+            "name": "sha256",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sha256"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomingStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/transfer/incoming/{transfer_id}/land": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Land Incoming",
+        "description": "Land a copy whose objects have all arrived: all or nothing. A failure rolls back what it wrote here and\nkeeps the objects, so landing again needs nothing sent again.",
+        "operationId": "land_incoming_api_documents_transfer_incoming__transfer_id__land_post",
+        "parameters": [
+          {
+            "name": "transfer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Transfer Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncomingLand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/transfer/incoming/{transfer_id}": {
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Abandon Incoming",
+        "description": "Abandon a copy that will not land: what arrived of it is removed from this machine.",
+        "operationId": "abandon_incoming_api_documents_transfer_incoming__transfer_id__delete",
+        "parameters": [
+          {
+            "name": "transfer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Transfer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Abandoned"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/machines": {
+      "get": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "The other Fichero engines this one is paired with",
+        "operationId": "list_machines_api_machines_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MachineOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Machines Api Machines Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/machines/pair": {
+      "post": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Pair with another Mac's Fichero by its pairing code",
+        "description": "`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero\nshows. This engine becomes a paired device there; its token is kept in this Mac's Keychain.",
+        "operationId": "pair_machine_api_machines_pair_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairMachineRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MachineOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents": {
       "get": {
         "tags": [
@@ -45705,6 +46079,29 @@
         ],
         "title": "APIKeyStoredResponse"
       },
+      "Abandoned": {
+        "properties": {
+          "transfer_id": {
+            "type": "string",
+            "title": "Transfer Id"
+          },
+          "removed": {
+            "type": "integer",
+            "title": "Removed"
+          },
+          "said": {
+            "type": "string",
+            "title": "Said"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transfer_id",
+          "removed",
+          "said"
+        ],
+        "title": "Abandoned"
+      },
       "AcceptResponse": {
         "properties": {
           "survivor_entity_id": {
@@ -64254,6 +64651,83 @@
         ],
         "title": "InclusionUpsertRequest"
       },
+      "IncomingLand": {
+        "properties": {
+          "target_parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Parent Id"
+          }
+        },
+        "type": "object",
+        "title": "IncomingLand"
+      },
+      "IncomingStatus": {
+        "properties": {
+          "transfer_id": {
+            "type": "string",
+            "title": "Transfer Id"
+          },
+          "objects": {
+            "type": "integer",
+            "title": "Objects"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "The sha256 of each object not yet arrived and verified here."
+          }
+        },
+        "type": "object",
+        "required": [
+          "transfer_id",
+          "objects",
+          "missing"
+        ],
+        "title": "IncomingStatus"
+      },
+      "IncomingTransfer": {
+        "properties": {
+          "transfer_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$",
+            "title": "Transfer Id"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Manifest",
+            "description": "A SyncManifest: every object by its sha256 and size; one is the rows."
+          },
+          "source_machine": {
+            "type": "string",
+            "title": "Source Machine"
+          },
+          "source_project": {
+            "type": "string",
+            "title": "Source Project",
+            "description": "The source project's package path on the source machine."
+          },
+          "contract": {
+            "type": "string",
+            "title": "Contract",
+            "description": "The sender's contract sha256: versions must match."
+          }
+        },
+        "type": "object",
+        "required": [
+          "transfer_id",
+          "manifest",
+          "source_machine",
+          "source_project",
+          "contract"
+        ],
+        "title": "IncomingTransfer",
+        "description": "The sending engine opens a copy on this one: what will arrive, from where (`transfer.machine.carriers-reused`)."
+      },
       "IngestCancelResponse": {
         "properties": {
           "task_id": {
@@ -69971,6 +70445,34 @@
         ],
         "title": "MacFacts"
       },
+      "MachineOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "paired_at": {
+            "type": "string",
+            "title": "Paired At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "url",
+          "paired_at"
+        ],
+        "title": "MachineOut"
+      },
       "MachineState": {
         "properties": {
           "memory_pressure": {
@@ -70013,6 +70515,55 @@
         "type": "object",
         "title": "MachineState",
         "description": "This Mac's state, as the throttle reads it (`activity.popover.summary`, #5415)."
+      },
+      "MachineTransferRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Items",
+            "description": "Ids of the nodes to copy, in this project; each carries its subtree."
+          },
+          "machine": {
+            "type": "string",
+            "title": "Machine",
+            "description": "A paired machine's id (GET /api/machines)."
+          },
+          "target_project": {
+            "type": "string",
+            "title": "Target Project",
+            "description": "The project on that machine, by its package path there, as it lists its projects."
+          },
+          "target_parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Parent Id",
+            "description": "The folder there; absent: its Sources folder."
+          },
+          "pages_may_leave": {
+            "type": "boolean",
+            "title": "Pages May Leave",
+            "description": "The person's yes for these pages to go to that machine.",
+            "default": false
+          },
+          "resume": {
+            "type": "string",
+            "nullable": true,
+            "title": "Resume",
+            "description": "A transfer that stopped: send again, only what has not arrived."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "machine",
+          "target_project"
+        ],
+        "title": "MachineTransferRequest",
+        "description": "A copy to another engine (`transfer.machine.copy-only`). The library header names the SOURCE project here."
       },
       "MakeModelGlobalParams": {
         "properties": {
@@ -73696,6 +74247,24 @@
           "expires_at"
         ],
         "title": "PairCodeResponse"
+      },
+      "PairMachineRequest": {
+        "properties": {
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "address",
+          "code"
+        ],
+        "title": "PairMachineRequest"
       },
       "PairRequest": {
         "properties": {
@@ -89583,6 +90152,26 @@
             "type": "string",
             "nullable": true,
             "title": "Error"
+          },
+          "machine": {
+            "type": "string",
+            "nullable": true,
+            "title": "Machine",
+            "description": "Between machines: the other engine (the source's, on the side it landed)."
+          },
+          "objects_sent": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Objects Sent",
+            "description": "Between machines: objects sent this time; a resumed send sends only what had not arrived."
+          },
+          "linked_elsewhere": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Elsewhere",
+            "description": "Between machines: per linked item, where its original stays, in words."
           }
         },
         "type": "object",

@@ -4649,6 +4649,113 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("open-incoming")
+    def documents_open_incoming_post(
+        ctx: typer.Context,
+        contract: str = typer.Option(..., '--contract', help="The sender's contract sha256: versions must match."),
+        manifest: str = typer.Option(..., '--manifest', help='A SyncManifest: every object by its sha256 and size; one is the rows. JSON.'),
+        source_machine: str = typer.Option(..., '--source-machine', help='Source Machine.'),
+        source_project: str = typer.Option(..., '--source-project', help="The source project's package path on the source machine."),
+        transfer_id: str = typer.Option(..., '--transfer-id', help='Transfer Id.'),
+    ) -> None:
+        """Open Incoming (POST /api/documents/transfer/incoming)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/transfer/incoming"
+            params = None
+            payload = _build_json_payload({
+                "contract": contract,
+                "manifest": manifest,
+                "source_machine": source_machine,
+                "source_project": source_project,
+                "transfer_id": transfer_id,
+            }, {
+                "contract": {'type': 'string', 'title': 'Contract', 'description': "The sender's contract sha256: versions must match.", 'x-cli-required': True},
+                "manifest": {'additionalProperties': True, 'type': 'object', 'title': 'Manifest', 'description': 'A SyncManifest: every object by its sha256 and size; one is the rows.', 'x-cli-required': True},
+                "source_machine": {'type': 'string', 'title': 'Source Machine', 'x-cli-required': True},
+                "source_project": {'type': 'string', 'title': 'Source Project', 'description': "The source project's package path on the source machine.", 'x-cli-required': True},
+                "transfer_id": {'type': 'string', 'pattern': '^[0-9a-f]{32}$', 'title': 'Transfer Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("abandon-incoming")
+    def documents_abandon_incoming_delete(
+        ctx: typer.Context,
+        transfer_id: str = typer.Argument(..., help='Transfer Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Abandon Incoming (DELETE /api/documents/transfer/incoming/{transfer_id})."""
+        if not yes:
+            typer.confirm("Delete documents?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/transfer/incoming/{transfer_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("land-incoming")
+    def documents_land_incoming_post(
+        ctx: typer.Context,
+        transfer_id: str = typer.Argument(..., help='Transfer Id'),
+        target_parent_id: Optional[str] = typer.Option(None, '--target-parent-id', help='Target Parent Id.'),
+    ) -> None:
+        """Land Incoming (POST /api/documents/transfer/incoming/{transfer_id}/land)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/transfer/incoming/{transfer_id}/land"
+            params = None
+            payload = _build_json_payload({
+                "target_parent_id": target_parent_id,
+            }, {
+                "target_parent_id": {'type': 'string', 'nullable': True, 'title': 'Target Parent Id', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("receive-object")
+    def documents_receive_object_put(
+        ctx: typer.Context,
+        transfer_id: str = typer.Argument(..., help='Transfer Id'),
+        sha256: str = typer.Argument(..., help='Sha256'),
+    ) -> None:
+        """Receive Object (PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}"
+            params = None
+            return client.request("PUT", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("transfer-to-machine")
+    def documents_transfer_to_machine_post(
+        ctx: typer.Context,
+        items: list[str] = typer.Option(..., '--items', help='Ids of the nodes to copy, in this project; each carries its subtree. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        machine: str = typer.Option(..., '--machine', help="A paired machine's id (GET /api/machines)."),
+        pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to that machine. Default: false."),
+        resume: Optional[str] = typer.Option(None, '--resume', help='A transfer that stopped: send again, only what has not arrived.'),
+        target_parent_id: Optional[str] = typer.Option(None, '--target-parent-id', help='The folder there; absent: its Sources folder.'),
+        target_project: str = typer.Option(..., '--target-project', help='The project on that machine, by its package path there, as it lists its projects.'),
+    ) -> None:
+        """Transfer To Machine (POST /api/documents/transfer/to-machine)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/transfer/to-machine"
+            params = None
+            payload = _build_json_payload({
+                "items": items,
+                "machine": machine,
+                "pages_may_leave": pages_may_leave,
+                "resume": resume,
+                "target_parent_id": target_parent_id,
+                "target_project": target_project,
+            }, {
+                "items": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Items', 'description': 'Ids of the nodes to copy, in this project; each carries its subtree.', 'x-cli-required': True},
+                "machine": {'type': 'string', 'title': 'Machine', 'description': "A paired machine's id (GET /api/machines).", 'x-cli-required': True},
+                "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to that machine.", 'default': False, 'x-cli-required': False},
+                "resume": {'type': 'string', 'nullable': True, 'title': 'Resume', 'description': 'A transfer that stopped: send again, only what has not arrived.', 'x-cli-required': False},
+                "target_parent_id": {'type': 'string', 'nullable': True, 'title': 'Target Parent Id', 'description': 'The folder there; absent: its Sources folder.', 'x-cli-required': False},
+                "target_project": {'type': 'string', 'title': 'Target Project', 'description': 'The project on that machine, by its package path there, as it lists its projects.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-deleted")
     def documents_list_deleted_get(
         ctx: typer.Context,
@@ -10441,6 +10548,45 @@ def register_generated_openapi_commands(
                 "page": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Page', 'x-cli-required': False},
                 "segmentId": {'type': 'string', 'nullable': True, 'title': 'Segmentid', 'x-cli-required': False},
                 "surface": {'type': 'string', 'enum': ['preview', 'reader', 'inspector', 'both'], 'title': 'LocationSurface', 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    target_app = existing_apps.get('machines')
+    if target_app is None:
+        target_app = typer.Typer(help='Generated OpenAPI commands for machines endpoints.', no_args_is_help=True)
+        root_app.add_typer(target_app, name='machines')
+        existing_apps['machines'] = target_app
+
+    @target_app.command("the-other-fichero-engines-this-one-is-paired-with", hidden=True)
+    @target_app.command("list")
+    def machines_list_get(
+        ctx: typer.Context,
+    ) -> None:
+        """The other Fichero engines this one is paired with (GET /api/machines)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/machines"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("pair-with-another-mac-s-fichero-by-its-pairing-code", hidden=True)
+    @target_app.command("pair")
+    def machines_pair_post(
+        ctx: typer.Context,
+        address: str = typer.Option(..., '--address', help='Address.'),
+        code: str = typer.Option(..., '--code', help='Code.'),
+    ) -> None:
+        """Pair with another Mac's Fichero by its pairing code (POST /api/machines/pair)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/machines/pair"
+            params = None
+            payload = _build_json_payload({
+                "address": address,
+                "code": code,
+            }, {
+                "address": {'type': 'string', 'title': 'Address', 'x-cli-required': True},
+                "code": {'type': 'string', 'title': 'Code', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

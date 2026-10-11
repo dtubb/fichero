@@ -143,6 +143,42 @@ class TransferResult(BaseModel):
         default=None, description="The target's audit row of this transfer: undo it (`POST /api/actions/audit/{audit}/undo`)."
     )
     error: str | None = None
+    machine: str | None = Field(default=None, description="Between machines: the other engine (the source's, on the side it landed).")
+    objects_sent: int | None = Field(
+        default=None, description="Between machines: objects sent this time; a resumed send sends only what had not arrived.")
+    linked_elsewhere: list[str] = Field(
+        default_factory=list, description="Between machines: per linked item, where its original stays, in words.")
+
+
+class MachineTransferRequest(BaseModel):
+    """A copy to another engine (`transfer.machine.copy-only`). The library header names the SOURCE project here."""
+
+    items: list[str] = Field(min_length=1, description="Ids of the nodes to copy, in this project; each carries its subtree.")
+    machine: str = Field(description="A paired machine's id (GET /api/machines).")
+    target_project: str = Field(description="The project on that machine, by its package path there, as it lists its projects.")
+    target_parent_id: str | None = Field(default=None, description="The folder there; absent: its Sources folder.")
+    pages_may_leave: bool = Field(False, description="The person's yes for these pages to go to that machine.")
+    resume: str | None = Field(default=None, description="A transfer that stopped: send again, only what has not arrived.")
+
+
+class IncomingTransfer(BaseModel):
+    """The sending engine opens a copy on this one: what will arrive, from where (`transfer.machine.carriers-reused`)."""
+
+    transfer_id: str = Field(pattern=r"^[0-9a-f]{32}$")
+    manifest: dict[str, Any] = Field(description="A SyncManifest: every object by its sha256 and size; one is the rows.")
+    source_machine: str
+    source_project: str = Field(description="The source project's package path on the source machine.")
+    contract: str = Field(description="The sender's contract sha256: versions must match.")
+
+
+class IncomingStatus(BaseModel):
+    transfer_id: str
+    objects: int
+    missing: list[str] = Field(description="The sha256 of each object not yet arrived and verified here.")
+
+
+class IncomingLand(BaseModel):
+    target_parent_id: str | None = None
 
 
 class TransferRecord(BaseModel):

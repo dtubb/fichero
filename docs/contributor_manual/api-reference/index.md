@@ -147,6 +147,38 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   half-way finishes when both projects are open.
 - Spec: `docs/contributor_manual/specs/source/moving-between-projects.md`.
 
+## Copy between machines (#5657)
+
+Between machines a transfer is always a copy. The sending engine pushes; the far engine lands.
+
+`GET /api/machines` · `POST /api/machines/pair`
+
+- The other Fichero engines this one is paired with, and pairing with one: `address`
+  (its tailnet name, `name.tailnet.ts.net`) and the `code` its Fichero shows. This
+  engine becomes a paired device there; the token is kept in the Keychain, never
+  returned.
+
+`POST /api/documents/transfer/to-machine`
+
+- On the SENDING engine (the library header names the source project): `items`,
+  `machine`, `target_project` (its package path there), `target_parent_id`,
+  `pages_may_leave` (required yes), `resume` (a stopped copy's id: only what had not
+  arrived is sent). Audited as `document.transfer_to_machine`. Answer: the far side's
+  `TransferResult`, with `machine`, `objects_sent` and `linked_elsewhere`. 502 when the
+  send stops: what arrived is kept there, nothing landed.
+
+`POST /api/documents/transfer/incoming` ·
+`PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256}` ·
+`POST /api/documents/transfer/incoming/{transfer_id}/land` ·
+`DELETE /api/documents/transfer/incoming/{transfer_id}`
+
+- On the RECEIVING engine (the library header names the target project; the device
+  token names the person): open a copy (its `SyncManifest`; refused when the
+  contract sha256 differs) and learn which objects are missing; take one object
+  (octet-stream, re-hashed on arrival; 422 when damaged); land it all or nothing as
+  the audited action `document.transfer_in` (undo: `document.untransfer`); or abandon
+  it, removing what arrived.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

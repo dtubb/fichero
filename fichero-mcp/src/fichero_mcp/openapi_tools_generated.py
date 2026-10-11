@@ -2116,6 +2116,57 @@ def fichero_documents_transfer(
     return _rt.call("POST", "/api/documents/transfer", json=_rt.body({"dry_run": dry_run, "items": items, "mode": mode, "source": source, "target_parent_id": target_parent_id}))
 
 
+def fichero_documents_open_incoming(
+    *,
+    contract: Annotated[str, Field(description="The sender's contract sha256: versions must match.")],
+    manifest: Annotated[dict[str, Any], Field(description='A SyncManifest: every object by its sha256 and size; one is the rows.')],
+    source_machine: Annotated[str, Field(description='Source Machine.')],
+    source_project: Annotated[str, Field(description="The source project's package path on the source machine.")],
+    transfer_id: Annotated[str, Field(description='Transfer Id.')],
+) -> Any:
+    'Open Incoming\n\nAnother machine opens a copy into this project: what it will send, and which objects are still missing\nhere (all of them the first time; on a resumed send, only those that had not arrived).\n\nRoute: POST /api/documents/transfer/incoming (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/documents/transfer/incoming", json=_rt.body({"contract": contract, "manifest": manifest, "source_machine": source_machine, "source_project": source_project, "transfer_id": transfer_id}))
+
+
+def fichero_documents_abandon_incoming(
+    *,
+    transfer_id: Annotated[str, Field(description='Transfer Id')],
+) -> Any:
+    'Abandon Incoming\n\nAbandon a copy that will not land: what arrived of it is removed from this machine.\n\nRoute: DELETE /api/documents/transfer/incoming/{transfer_id} (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/documents/transfer/incoming/{transfer_id}")
+
+
+def fichero_documents_land_incoming(
+    *,
+    transfer_id: Annotated[str, Field(description='Transfer Id')],
+    target_parent_id: Annotated[Optional[str], Field(description='Target Parent Id.')] = None,
+) -> Any:
+    'Land Incoming\n\nLand a copy whose objects have all arrived: all or nothing. A failure rolls back what it wrote here and\nkeeps the objects, so landing again needs nothing sent again.\n\nRoute: POST /api/documents/transfer/incoming/{transfer_id}/land (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/documents/transfer/incoming/{transfer_id}/land", json=_rt.body({"target_parent_id": target_parent_id}))
+
+
+def fichero_documents_receive_object(
+    *,
+    transfer_id: Annotated[str, Field(description='Transfer Id')],
+    sha256: Annotated[str, Field(description='Sha256')],
+) -> Any:
+    'Receive Object\n\nOne object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). ponytail: the body is read whole; stream to disk if originals of several GB travel.\n\nRoute: PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256} (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", f"/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}")
+
+
+def fichero_documents_transfer_to_machine(
+    *,
+    items: Annotated[list[Any], Field(description='Ids of the nodes to copy, in this project; each carries its subtree.')],
+    machine: Annotated[str, Field(description="A paired machine's id (GET /api/machines).")],
+    pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to that machine. Default: false.")] = None,
+    resume: Annotated[Optional[str], Field(description='A transfer that stopped: send again, only what has not arrived.')] = None,
+    target_parent_id: Annotated[Optional[str], Field(description='The folder there; absent: its Sources folder.')] = None,
+    target_project: Annotated[str, Field(description='The project on that machine, by its package path there, as it lists its projects.')],
+) -> Any:
+    'Transfer To Machine\n\nCopy items (each with its subtree) from this project into a project on a paired machine. Always a copy.\n\nRefused in words, sending nothing: no yes for the pages to leave (403), this engine working offline,\na machine not paired, an unknown or trashed item, an alias, a locked node, another version of Fichero\nthere. A send that stops (502) keeps what arrived there; `resume` with its id sends only the rest.\n\nRoute: POST /api/documents/transfer/to-machine (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/documents/transfer/to-machine", json=_rt.body({"items": items, "machine": machine, "pages_may_leave": pages_may_leave, "resume": resume, "target_parent_id": target_parent_id, "target_project": target_project}))
+
+
 def fichero_documents_list_deleted(
     *,
     limit: Annotated[Optional[int], Field(description='Max results (no limit if not specified)')] = None,
@@ -4956,6 +5007,21 @@ def fichero_locations_resolve(
 ) -> Any:
     "Resolve Location\n\nResolve a page-child anchor once, for every UI/MCP caller.\n\nSource-model slice 4 (#4922): a `segmentId` is followed through\n`resolve_segment` FIRST (merges/splits/deletes), and the PRIMARY live\nresult's document + anchor feed the SAME page-resolution logic below\nthat every other caller already uses -- one resolver, not two.\n\nRoute: POST /api/locations/resolve (toolset `locations`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/locations/resolve", json=_rt.body({"bbox": bbox, "charRange": charRange, "claimId": claimId, "documentId": documentId, "entityId": entityId, "page": page, "segmentId": segmentId, "surface": surface}))
+
+
+def fichero_machines_list(
+) -> Any:
+    'The other Fichero engines this one is paired with\n\nRoute: GET /api/machines (toolset `machines`; reads).'
+    return _rt.call("GET", "/api/machines")
+
+
+def fichero_machines_pair(
+    *,
+    address: Annotated[str, Field(description='Address.')],
+    code: Annotated[str, Field(description='Code.')],
+) -> Any:
+    "Pair with another Mac's Fichero by its pairing code\n\n`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero\nshows. This engine becomes a paired device there; its token is kept in this Mac's Keychain.\n\nRoute: POST /api/machines/pair (toolset `machines`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/machines/pair", json=_rt.body({"address": address, "code": code}))
 
 
 def fichero_mcp_servers_list(
@@ -8811,6 +8877,11 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_list_roots", "documents", "GET", "/api/documents/roots", fichero_documents_list_roots),
     GeneratedTool("fichero_documents_get_run_history", "documents", "GET", "/api/documents/run-history", fichero_documents_get_run_history),
     GeneratedTool("fichero_documents_transfer", "documents", "POST", "/api/documents/transfer", fichero_documents_transfer),
+    GeneratedTool("fichero_documents_open_incoming", "documents", "POST", "/api/documents/transfer/incoming", fichero_documents_open_incoming),
+    GeneratedTool("fichero_documents_abandon_incoming", "documents", "DELETE", "/api/documents/transfer/incoming/{transfer_id}", fichero_documents_abandon_incoming),
+    GeneratedTool("fichero_documents_land_incoming", "documents", "POST", "/api/documents/transfer/incoming/{transfer_id}/land", fichero_documents_land_incoming),
+    GeneratedTool("fichero_documents_receive_object", "documents", "PUT", "/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}", fichero_documents_receive_object),
+    GeneratedTool("fichero_documents_transfer_to_machine", "documents", "POST", "/api/documents/transfer/to-machine", fichero_documents_transfer_to_machine),
     GeneratedTool("fichero_documents_list_deleted", "documents", "GET", "/api/documents/trash", fichero_documents_list_deleted),
     GeneratedTool("fichero_documents_preview_empty_trash", "documents", "GET", "/api/documents/trash/empty", fichero_documents_preview_empty_trash),
     GeneratedTool("fichero_documents_empty_the_trash", "documents", "POST", "/api/documents/trash/empty", fichero_documents_empty_the_trash),
@@ -9113,6 +9184,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_local_models_kraken_status", "local-models", "GET", "/api/local-models/kraken/status", fichero_local_models_kraken_status),
     GeneratedTool("fichero_local_models_delete", "local-models", "DELETE", "/api/local-models/{model_type}/{model_id}", fichero_local_models_delete),
     GeneratedTool("fichero_locations_resolve", "locations", "POST", "/api/locations/resolve", fichero_locations_resolve),
+    GeneratedTool("fichero_machines_list", "machines", "GET", "/api/machines", fichero_machines_list),
+    GeneratedTool("fichero_machines_pair", "machines", "POST", "/api/machines/pair", fichero_machines_pair),
     GeneratedTool("fichero_mcp_servers_list", "mcp-servers", "GET", "/api/mcp-servers", fichero_mcp_servers_list),
     GeneratedTool("fichero_mcp_servers_create", "mcp-servers", "POST", "/api/mcp-servers", fichero_mcp_servers_create),
     GeneratedTool("fichero_mcp_servers_get_all_tools", "mcp-servers", "GET", "/api/mcp-servers/tools/all", fichero_mcp_servers_get_all_tools),
@@ -9488,4 +9561,4 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_views_document", "views", "GET", "/view/document/{doc_id}", fichero_views_document),
     GeneratedTool("fichero_views_global_kg", "views", "GET", "/view/kg/global", fichero_views_global_kg),
 )
-TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)
+TAGS: tuple[str, ...] = ("actions", "activity", "agent-memory", "annotations", "artifacts", "auth", "authz", "batches", "bibliography", "bookmarks", "campaigns", "canvas", "chains", "chat", "check", "citation-rendering", "citation-usages", "citations", "claim-curation", "claim-links", "claims", "classifications", "content-representations", "conversion", "documents", "editorial", "engine", "entities", "evaluation", "export", "find-documents", "folders", "fonts", "formats", "georeference", "hands", "hpc", "iiif", "images", "ingest", "integrations", "knowledge-graph", "letterforms", "library", "library-items", "library-links", "library-sync", "links", "local-inference", "local-models", "locations", "machines", "mcp", "mcp-servers", "migrations", "model-comparison", "models", "multilingual", "notes", "orchestration", "pairing", "projects", "providers", "reading-at-scale", "reading-orders", "recipes", "references", "registries", "renditions", "research", "rights", "sandbox", "schedules", "search", "search-explanation", "segments", "settings", "signs", "source-settings", "sources", "storage", "sync-folders", "tasks", "topics", "training", "triggers", "users", "views", "workflow-execution", "workflows",)

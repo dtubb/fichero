@@ -692,19 +692,25 @@ def _match_entities(plan: TransferPlan, source_db, target_db) -> None:
 # ---------------------------------------------------------------------------------------------
 
 
+def gather_set(source_db, items: list[str]) -> TransferPlan:
+    """The source half of a plan: the rows that travel, and what is cut or left behind, read from the source
+    alone (no target, no ids allocated). A copy to another machine packages exactly this (`transfer/remote.py`)."""
+    plan = TransferPlan(transfer_id="", source_package=Path(source_db.path).parent, target_package=Path(),
+                        target_parent_id="", audit_id="", items=list(items))
+    plan.models = _schema_models(source_db)
+    _walk_documents(plan, source_db, plan.models)
+    _gather(plan, source_db, plan.models)
+    return plan
+
+
 def build_plan(
     source_db, target_db, *, items: list[str], target_parent_id: str, transfer_id: str, audit_id: str, actor: str,
 ) -> TransferPlan:
     """Everything a copy would write, built and checked; nothing is written to either project."""
-    source_package = Path(source_db.path).parent
-    plan = TransferPlan(
-        transfer_id=transfer_id, source_package=source_package, target_package=Path(target_db.path).parent,
-        target_parent_id=target_parent_id, audit_id=audit_id, items=list(items),
-    )
-    models = _schema_models(source_db)
-    plan.models = models
-    _walk_documents(plan, source_db, models)
-    _gather(plan, source_db, models)
+    plan = gather_set(source_db, items)
+    plan.transfer_id, plan.target_package = transfer_id, Path(target_db.path).parent
+    plan.target_parent_id, plan.audit_id = target_parent_id, audit_id
+    source_package, models = plan.source_package, plan.models
     _allocate(plan)
     _build_rows(plan, source_db, target_db, models, actor, source_package.stem)
     _match_entities(plan, source_db, target_db)

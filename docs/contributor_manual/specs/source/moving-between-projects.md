@@ -206,7 +206,9 @@ All paths below are under `fichero-server/src/fichero_server/`.
   `transfer/membership.py`'s join table and re-points every id by the classification;
   `transfer/copy.py` writes, verifies and records it (`TransferRecord`, `models/transfer.py`);
   `transfer/move.py` takes a move's source step (`document.transfer_out`, build order 4). Not built:
-  the background job, the app's drag, between machines, out to the Finder.
+  the background job, the app's drag, out to the Finder. A copy between machines is built (2026-10-11,
+  `transfer/remote.py`, `transfer/machines.py`, `api/routes/document/transfer_remote.py`; see the behaviours
+  under "Between machines").
 
 ## Design
 
@@ -688,25 +690,52 @@ Nothing in the project changes.
 
 ### Between machines
 
-- `transfer.machine.copy-only` — **[GAP]** (#5657, #4311) a transfer to another engine copies; the
-  source is never changed by it; no modifier makes it a move.
-- `transfer.machine.one-code-path` — **[GAP]** (#5657, #5239) the source plans and packages, the target
-  lands and verifies with the same code a transfer on one engine uses.
-- `transfer.machine.carriers-reused` — **[GAP]** (#5657, #5239) the package travels by the HTTPS carrier
+- `transfer.machine.copy-only` — **[PARTIAL]** (#5657, #4311) a transfer to another engine copies; the
+  source is never changed by it; no modifier makes it a move. Built (2026-10-11): `POST
+  /api/documents/transfer/to-machine` (the library header names the source) has no mode; the source keeps only
+  its record (`transfers`, role source, `sending` then `done`, naming the machine) and the send's audit row;
+  `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`. *Not built: the app's drop.*
+- `transfer.machine.one-code-path` — **[PARTIAL]** (#5657, #5239) the source plans and packages, the target
+  lands and verifies with the same code a transfer on one engine uses. Built: the source packages what
+  `plan.gather_set` reads (the rows, the project vocabulary, the entities' authority links) as one rows object
+  beside each in-package original; the far engine makes those rows a project of their own in its incoming
+  folder and lands it with `build_plan` + `copy_into_target` (`transfer/remote.py`); the counts and cuts equal
+  a copy's on one engine; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`. *Not built: the background job.*
+- `transfer.machine.carriers-reused` — **[PARTIAL]** (#5657, #5239) the package travels by the HTTPS carrier
   through the one transfer core: only missing objects, verified on arrival, resumable from the checkpoint.
-- `transfer.machine.paired-only` — **[GAP]** (#5657, #5238) the far engine is a paired device; what lands
-  is stamped by the far engine with the paired person; versions must match.
-- `transfer.machine.egress-gated` — **[GAP]** (#5657, #5239) a copy off this machine passes the one
+  Built: a push from the sending engine; the far engine opens the copy (`POST
+  /api/documents/transfer/incoming`, answering the objects it lacks by `diff_manifests`, its `SyncCheckpoint`
+  and `pending_objects`), takes each (`PUT …/incoming/{id}/objects/{sha256}`, re-hashed by `land_object`) and
+  lands it (`POST …/incoming/{id}/land`); `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`. *Not built: streaming an object larger than memory.*
+- `transfer.machine.paired-only` — **[PARTIAL]** (#5657, #5238) the far engine is a paired device; what lands
+  is stamped by the far engine with the paired person; versions must match. Built: `POST /api/machines/pair`
+  (a `.ts.net` address and the code the other Mac's Fichero shows) runs the existing device pairing with this
+  engine as the device and keeps the machine and its token in the Keychain (`transfer/machines.py`); `GET
+  /api/machines` lists them; the far engine's routes take its device token, and its landing is its own audited
+  action `document.transfer_in` with its caller as the actor; a different contract sha256 is refused; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`.
+  *Not built: the app's pairing sheet; forgetting a machine.*
+- `transfer.machine.egress-gated` — **[PARTIAL]** (#5657, #5239) a copy off this machine passes the one
   egress gate: a project that may not leave this machine is refused; another of the person's Macs is
-  the "your own machine" class.
-- `transfer.machine.drop-resumes-or-rolls-back` — **[GAP]** (#5657) a dropped connection resumes from the
+  the "your own machine" class. Built, conservatively: every send needs the person's yes for the pages
+  (`pages_may_leave`, as reading at scale and training do), and nothing is sent while the engine works offline;
+  `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`. *Not built: the one gate, the "your own machine" class asked once per project, a project marked
+  "may not leave this machine" (no such mark exists yet).*
+- `transfer.machine.drop-resumes-or-rolls-back` — **[PARTIAL]** (#5657) a dropped connection resumes from the
   checkpoint; nothing lands until every object is verified; landing is all or nothing on the far side;
-  an abandoned transfer removes its partial objects there and says so.
-- `transfer.machine.linked-files-said` — **[GAP]** (#5657) a copy to another machine of an item whose
+  an abandoned transfer removes its partial objects there and says so. Built: a drop leaves the source's
+  record `sending` with why and the far side's arrived objects kept; `resume` with its id sends only the rest; a
+  landing that fails rolls back there (the one copy's journal) and lands on retry sending nothing; `DELETE
+  …/incoming/{id}` abandons, removing what arrived, and says how many; `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`. *Not built: abandoning by itself
+  after a set time.*
+- `transfer.machine.linked-files-said` — **[PARTIAL]** (#5657) a copy to another machine of an item whose
   original is linked says, per item, that the path is on the source machine and may not open
-  there; the far side shows it as linked elsewhere until relinked or copied in.
-- `transfer.machine.not-to-clusters` — **[GAP]** (#5657) a cluster or Hugging Face is not a transfer
-  target (it holds work packages, not projects); refused in words.
+  there; the far side shows it as linked elsewhere until relinked or copied in. Built: the result's
+  `linked_elsewhere` says it per item, and the node carries `metadata.linked_elsewhere` (machine, path); `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`.
+  *Not built: the app showing it; relinking.*
+- `transfer.machine.not-to-clusters` — **[PARTIAL]** (#5657) a cluster or Hugging Face is not a transfer
+  target (it holds work packages, not projects); refused in words. Built by construction: the only target is a
+  paired machine (`GET /api/machines`), and an address that is not a tailnet name is refused when pairing.
+  *Not pinned for a cluster by name.*
 
 ### Rights
 

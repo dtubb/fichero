@@ -3052,6 +3052,63 @@
         "response_model": "TransferResult"
       },
       {
+        "method": "POST",
+        "path": "/documents/transfer/incoming",
+        "operation_id": "open_incoming_api_documents_transfer_incoming_post",
+        "summary": "Open Incoming",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "IncomingTransfer",
+        "response_model": "IncomingStatus"
+      },
+      {
+        "method": "DELETE",
+        "path": "/documents/transfer/incoming/{transfer_id}",
+        "operation_id": "abandon_incoming_api_documents_transfer_incoming__transfer_id__delete",
+        "summary": "Abandon Incoming",
+        "path_params": [
+          "transfer_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "Abandoned"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/transfer/incoming/{transfer_id}/land",
+        "operation_id": "land_incoming_api_documents_transfer_incoming__transfer_id__land_post",
+        "summary": "Land Incoming",
+        "path_params": [
+          "transfer_id"
+        ],
+        "query_params": [],
+        "request_model": "IncomingLand",
+        "response_model": "TransferResult"
+      },
+      {
+        "method": "PUT",
+        "path": "/documents/transfer/incoming/{transfer_id}/objects/{sha256}",
+        "operation_id": "receive_object_api_documents_transfer_incoming__transfer_id__objects__sha256__put",
+        "summary": "Receive Object",
+        "path_params": [
+          "transfer_id",
+          "sha256"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IncomingStatus"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/transfer/to-machine",
+        "operation_id": "transfer_to_machine_api_documents_transfer_to_machine_post",
+        "summary": "Transfer To Machine",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "MachineTransferRequest",
+        "response_model": "TransferResult"
+      },
+      {
         "method": "GET",
         "path": "/documents/trash",
         "operation_id": "list_deleted_documents_api_documents_trash_get",
@@ -7280,6 +7337,28 @@
         "query_params": [],
         "request_model": "Location",
         "response_model": "ResolvedLocation"
+      }
+    ],
+    "machines": [
+      {
+        "method": "GET",
+        "path": "/machines",
+        "operation_id": "list_machines_api_machines_get",
+        "summary": "The other Fichero engines this one is paired with",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "[MachineOut]"
+      },
+      {
+        "method": "POST",
+        "path": "/machines/pair",
+        "operation_id": "pair_machine_api_machines_pair_post",
+        "summary": "Pair with another Mac's Fichero by its pairing code",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PairMachineRequest",
+        "response_model": "MachineOut"
       }
     ],
     "mcp": [
