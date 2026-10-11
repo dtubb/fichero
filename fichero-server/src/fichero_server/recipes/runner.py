@@ -75,11 +75,44 @@ def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, start
     awaited = [{"steps": d["steps"], "job_id": d["job_id"], "name": d.get("name") or d["model"]}
                for d in plan.get("downloads") or [] if d.get("downloading")]
     detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
-              "folder_id": folder_id, "awaited": awaited}
+              "folder_id": folder_id, "awaited": awaited,
+              # Its name and page count in Activity (#5615), as they were when it was queued.
+              "title": _recipe_title(db), "pages": _pages_counted(db, documents)}
     words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
     return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
                                reason=words, started_by=started_by)
+
+
+def _recipe_title(db: Any) -> str | None:
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        return (read_project_setup(_library(db))["recipe"] or {}).get("title") or None
+    except Exception:  # noqa: BLE001 -- a run is queued without its title; its row is named without one
+        return None
+
+
+def _pages_counted(db: Any, documents: list[str] | None) -> int | None:
+    from fichero_server.recipes.done import pages_for
+
+    try:
+        return len(pages_for(db, {}, documents))
+    except Exception:  # noqa: BLE001 -- the row is named without its count
+        return None
+
+
+def name_and_pages(db: Any, job_id: str) -> tuple[str, int | None]:
+    """A recipe run's name in Activity, "Run the recipe: Transcribe + names", and the pages it runs over (#5615):
+    never the kind's id ("run-a-recipe"). A run queued before these were kept is named by the project's recipe, its
+    pages counted now."""
+    detail = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    title = detail.get("title") or _recipe_title(db)
+    pages = detail.get("pages")
+    if pages is None:
+        pages = _pages_counted(db, detail.get("documents"))
+    name = jobs.kind_name(KIND)
+    return (f"{name}: {title}" if title else name), pages
 
 
 def material_arrived(db: Any, document_ids: list[str]) -> str | None:
@@ -934,6 +967,15 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
             step["state"] = child["state"]
             if child["state"] in ("failed", "cancelled") and not step.get("why"):
                 step["why"] = child["reason"]
+    if row["state"] in ("done", "failed", "cancelled"):
+        # The run has ended: a step it left waiting or running did not run, or stopped with it (#5615); never
+        # "running" under a failed run (the engine stopped mid-step, and the run was set aside).
+        ended = row["reason"] or row["state"]
+        for step in steps:
+            if step["state"] == "waiting":
+                step.update(state="not run", why=f"the run ended before this step: {ended}")
+            elif step["state"] == "running":
+                step.update(state="not run", why=f"stopped when the run ended, before this step finished: {ended}")
     reason = row["reason"]
     if row["state"] == "waiting":
         ahead = [r["id"] for r in jobs.find_jobs(db, kinds=[KIND], states=["running"]) if r["id"] != job_id]

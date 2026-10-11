@@ -2258,7 +2258,8 @@ Projects
   again without naming it to redo.
 - `source.recipe.run-status-is-activity` — **[OK]** (#5498; built: `runner.status`; tested as above) a recipe
   run's step states are its steps' own jobs, the rows Activity shows, so the run's status and Activity are one
-  account; a run still waiting says what it waits for (recipe runs go one at a time).
+  account; a run still waiting says what it waits for (recipe runs go one at a time). **(#5615)** A run that has
+  ended has no stage waiting or running: each says "not run" with why (see `activity.ended-run-reads-ended`).
 - `source.recipe.folder-scoped-start` — **[OK]** (#5540; built 2026-10-10: `folder_id` on `GET|POST
   /api/recipes/project/start` and `runner.enqueue`, `runner.folder_scope`, `done.material`/`annotate` `within`;
   tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) Start, and the Start plan before

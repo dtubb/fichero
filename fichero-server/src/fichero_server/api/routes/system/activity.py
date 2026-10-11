@@ -144,10 +144,18 @@ class BackgroundJob(BaseModel):
     # For a failed job (e.g. a Kraken run when the runtime/model isn't installed),
     # the actionable reason — so the user sees WHY, not just that it stopped.
     reason: Optional[str] = None
-    # The job this one belongs to: a page's step (whose own parent is its run), #5353.
+    # The job this one belongs to: a page's step (whose own parent is its run), #5353. A step's row id is its
+    # run's id and the step's name, "<run id>:<step name>" (the id every step row has been written under); look
+    # it up as any job, or look up `run_id`.
     parent_id: Optional[str] = None
+    # The workflow run a page's work is for (#5615): its thread id, a job id `GET /api/activity/jobs/{id}`
+    # reads; null for a row that is not under a run.
+    run_id: Optional[str] = None
     # A workflow run's account (#5555): `current`/`total` are its pages done and in all.
     account: Optional[RunAccount] = None
+    # What the row offers (#5615): "Resume" for a job set aside after its interruptions, done by
+    # `POST /api/activity/jobs/{id}/retry`, which carries it on from where it was; null when nothing.
+    offer: Optional[str] = None
 
 
 class MachineState(BaseModel):
@@ -447,10 +455,8 @@ async def list_background_jobs(
                 account = None
             current = account.pages_done if account else 0
             total = account.pages_total if account else 0
-            percent = (
-                100.0 if status == "failed"
-                else (current * 100.0 / total if total else 0.0)
-            )
+            # Its pages done, whatever its state: a failed run with no page done is at 0, not 100 (#5615).
+            percent = current * 100.0 / total if total else 0.0
             jobs.append(
                 BackgroundJob(
                     id=run.thread_id,
@@ -474,28 +480,38 @@ async def list_background_jobs(
 
     from fichero_server.recipes.runner import KIND as RECIPE_KIND
 
+    from fichero_server.recipes import runner as recipe_runner
+
     for row in job_queue.snapshot(db):
         state, reason = row["state"], row["reason"]
+        name, current, total = job_queue.kind_name(row["kind"]), 0, row["count"]
         if row["kind"] == RECIPE_KIND and row["count"] == 1:
             # A recipe run's row says what its tree says, from the one place (#5606). A run whose stages
             # cannot be read still shows, with its row's own state and reason (FIX 3).
             try:
-                state, reason, _status = await _recipe_state(db, row["id"])
+                state, reason, status = await _recipe_state(db, row["id"])
+                current = _recipe_pages_done(status)
             except Exception as exc:  # noqa: BLE001 -- the row stands, and says its stages could not be read
                 logger.warning("list_background_jobs: no status for recipe run %s: %s", row["id"], exc)
                 reason = f"{reason or state}; its stages could not be read: {exc}"
+            # Named by its recipe, with the pages it runs over (#5615), never its kind's id.
+            name, pages = recipe_runner.name_and_pages(db, row["id"])
+            total = pages if pages is not None else 0
         jobs.append(
             BackgroundJob(
                 id=row["id"],
                 task_type=row["kind"],
-                name=job_queue.kind_name(row["kind"]),
+                name=name,
                 library=library,
-                current=1 if state == "failed" else 0,
-                total=row["count"],
-                percent=100.0 if state == "failed" else 0.0,
+                current=min(current, total) if total else current,
+                total=total,
+                # What is done, whatever its state: a failed row with nothing done is at 0, not 100 (#5615).
+                percent=round(current * 100.0 / total, 1) if total and current else 0.0,
                 state=state,
                 reason=reason,
                 parent_id=row.get("parent_id"),
+                run_id=row.get("run_id"),
+                offer=job_queue.offer_for(row["kind"], state, reason),
             )
         )
 
@@ -565,6 +581,13 @@ def _cut(node: dict[str, Any], depth: int) -> None:
         return
     for child in node["children"]:
         _cut(child, depth - 1)
+
+
+def _recipe_pages_done(status: dict[str, Any]) -> int:
+    """A recipe run's pages done (#5615): those its furthest started workflow stage has done, by that stage's
+    run account; 0 before one starts."""
+    accounts = [s["account"] for s in status["steps"] if s.get("account") is not None]
+    return accounts[-1].pages_done if accounts else 0
 
 
 async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], dict[str, Any]]:

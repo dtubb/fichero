@@ -920,13 +920,17 @@ async def get_run_history(
             state=row["state"], reason=row["reason"], model=row["model"],
             at=_when(row["finished_at"] or row["started_at"] or row["created_at"]),
             job_id=row["id"], parent_id=row["parent_id"]))
+    from fichero_server.workflows.completion import outcome
+
     for doc in docs:
         for run in doc.workflow_runs or []:
             if not isinstance(run, dict) or not run.get("workflow_id"):
                 continue
+            # How it ended, as recorded (#5615): a failed run is not "done", and its reason is words.
+            state, why = outcome(run)
             items[doc.id].append(RunHistoryEntry(
                 document_id=doc.id, source="workflow_run", kind="workflow",
-                name=run.get("workflow_name") or run["workflow_id"], state="done",
+                name=run.get("workflow_name") or run["workflow_id"], state=state, reason=why,
                 model=run.get("model"), provider=run.get("provider"),
                 at=_when(run.get("completed_at") or run.get("started_at")),
                 workflow_id=run["workflow_id"], thread_id=run.get("thread_id")))
@@ -1080,8 +1084,13 @@ async def get_document_workflow_runs(
     """Return the recorded workflow runs for a single document."""
     doc = _document_or_404(db, doc_id)
 
+    from fichero_server.workflows.completion import reason_in_words
+
     items: list[WorkflowRunProvenanceResponse] = []
     for index, run in enumerate(doc.workflow_runs):
+        if isinstance(run, dict) and isinstance(run.get("result"), dict) and "reason" in run["result"]:
+            # An old row's internal code, in words (#5615).
+            run = {**run, "result": {**run["result"], "reason": reason_in_words(run["result"]["reason"])}}
         try:
             items.append(WorkflowRunProvenanceResponse.model_validate(run))
         except ValidationError as exc:

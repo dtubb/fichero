@@ -734,6 +734,7 @@ async def _settle_recovered_run_documents(
 
     from fichero_server.db.manager import db_manager  # noqa: PLC0415
     from fichero_server.workflows.completion import (  # noqa: PLC0415
+        RECOVERED_REASON,
         settle_documents_for_dead_run,
     )
 
@@ -753,7 +754,7 @@ async def _settle_recovered_run_documents(
                     "thread_id": thread_id,
                     "result": {
                         "status": "failed",
-                        "reason": "process_died_recovered_on_library_open",
+                        "reason": RECOVERED_REASON,
                     },
                 },
             )

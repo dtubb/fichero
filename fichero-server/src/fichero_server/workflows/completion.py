@@ -131,6 +131,31 @@ def collect_created_artifact_ids(final_state: Any) -> set[str]:
     return ids
 
 
+#: Why a run the engine left running is failed when its project is next opened, in words (#5615): what a page's
+#: run history says. Before, the code below was stored and shown as it was.
+RECOVERED_REASON = ("The engine stopped while this run was going (the app was quit, or the engine or the Mac "
+                    "stopped); it was marked failed when the project was next opened")
+_REASON_CODES = {"process_died_recovered_on_library_open": RECOVERED_REASON}
+#: A run's recorded status -> the run history's state.
+_RESULT_STATES = {"completed": "done", "failed": "failed", "cancelled": "cancelled", "paused": "paused"}
+
+
+def reason_in_words(reason: Any) -> Any:
+    """A recorded run's reason as a person reads it: an old row's internal code becomes its words."""
+    return _REASON_CODES.get(reason, reason) if isinstance(reason, str) else reason
+
+
+def outcome(run: dict[str, Any]) -> tuple[str, str | None]:
+    """(state, reason) of a run recorded on a document: its result's status, and why, in words. A run recorded
+    without a status (before results were kept) reads done, as it did."""
+    result = run.get("result")
+    if not isinstance(result, dict):
+        return "done", None
+    state = _RESULT_STATES.get(str(result.get("status") or "completed"), str(result.get("status")))
+    why = result.get("reason") or result.get("error")
+    return state, (reason_in_words(why) if isinstance(why, str) else None)
+
+
 # Terminal outcomes finalize_run_documents accepts. "completed" advances the
 # run's documents; "failed"/"cancelled" revert them so nothing spins forever.
 FINAL_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})

@@ -204,6 +204,10 @@ def kind_name(kind: str) -> str:
     job = get_job(kind)
     if job is not None:
         return job.name
+    if kind not in KINDS:
+        # A project opened with nothing waiting has not had its kinds registered by a lane: a recipe run read
+        # "run-a-recipe" (#5615).
+        load_kinds()
     registered = KINDS.get(kind)
     return (registered.name if registered else None) or kind
 
@@ -1001,6 +1005,34 @@ def _stop_requested(run_id: str) -> bool:
     return cancellation_requested(run_id)
 
 
+#: How a job set aside after its interruptions begins its reason; such a row offers Resume (#5615).
+INTERRUPTED = "Interrupted "
+#: What a set-aside row offers: Retry (`POST /api/activity/jobs/{id}/retry`) carries it on from where it was.
+RESUME = "Resume"
+
+
+def _clock(at: Any) -> str:
+    return ensure_utc(at).strftime("%Y-%m-%d %H:%M UTC") if at is not None else "at a time not recorded"
+
+
+def set_aside_reason(attempts: int, started_at: Any, found_at: Any) -> str:
+    """Why a job was set aside, in words (#5615): what interrupted it, when, and what carries it on. Only the
+    engine stopping (the app quit, or the engine or the Mac stopped) leaves a job running at an open."""
+    return (f"{INTERRUPTED}{attempts} times: the engine stopped while it ran (the app was quit, or the engine or "
+            f"the Mac stopped). Its last try started {_clock(started_at)} and was found stopped when the project "
+            f"was opened at {_clock(found_at)}; set aside. Resume carries it on from where it was")
+
+
+def offer_for(kind: str, state: str, reason: str | None) -> str | None:
+    """What a row offers: Resume for a job set aside after its interruptions that can be run again; else None."""
+    if state != "failed" or not (reason or "").startswith(INTERRUPTED):
+        return None
+    if kind not in KINDS:
+        load_kinds()
+    registered = KINDS.get(kind)
+    return RESUME if registered is not None and registered.run is not None and not registered.no_retry else None
+
+
 def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, model: str,
                          fn: Callable[[], Any]) -> Any:
     """`run_on_lane` for a synchronous caller."""
@@ -1028,12 +1060,15 @@ def resume(db: "Database") -> None:
     )
     # A job watching a Job on Hugging Face is never set aside for being interrupted: the Job runs (and
     # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449).
-    db.execute(
-        "UPDATE jobs SET state = 'failed', finished_at = ?, "
-        "reason = 'Interrupted ' || attempts || ' times; set aside' "
+    now = utc_now()
+    for job_id, attempts, started_at in db.execute_fetchall(
+        "SELECT id, attempts, started_at FROM jobs "
         "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs'",
-        [utc_now(), MAX_ATTEMPTS],
-    )
+        [MAX_ATTEMPTS],
+    ):
+        # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
+        db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
+                   [now, set_aside_reason(attempts, started_at, now), job_id])
     # A job a person stopped that was still winding down when the engine went away is not taken up again
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
@@ -1347,6 +1382,8 @@ def retry_job(db: "Database", job_id: str) -> str:
     kind that says why it cannot be, and where the same work already waits. Any other state is
     returned unchanged."""
     kind, state = _job_row(db, job_id)
+    if kind not in KINDS:
+        load_kinds()  # a project opened with nothing waiting: its kinds not yet registered by a lane (#5615)
     registered = KINDS.get(kind)
     if registered is None or registered.run is None:
         raise ValueError("This is work a workflow run (or a training) handed in and waits for: retry that instead")
@@ -1462,6 +1499,15 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         if group is not None:
             waiting[group] = row
         out.append(row)
+    # The run each row's work is for (#5615): a page's parent is its step's row ("<run id>:<step name>"),
+    # whose own parent is the run.
+    parents = sorted({r["parent_id"] for r in out if r["parent_id"]})
+    if parents:
+        known = {pid: (pkind, grand) for pid, pkind, grand in db.execute_fetchall(
+            f"SELECT id, kind, parent_id FROM jobs WHERE id IN ({', '.join('?' for _ in parents)})", parents)}
+        for r in out:
+            pkind, grand = known.get(r["parent_id"], (None, None))
+            r["run_id"] = grand if pkind == "workflow-step" else r["parent_id"] if pkind in _RUN_KINDS else None
     return out
 
 

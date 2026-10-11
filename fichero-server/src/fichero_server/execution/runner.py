@@ -961,6 +961,14 @@ async def run_and_wait(db: Database, workflow: Workflow, inputs: dict[str, Any],
     return status, error
 
 
+def _ran_with(workflow: Workflow, request: ExecuteWorkflowRequest) -> tuple[str | None, str | None]:
+    """(provider, model) a run ran with, as its documents record it (#5615): the run's own choice when it made one
+    (a recipe step's model), else the workflow's. A run that names neither left both empty."""
+    provider = (getattr(request, "provider_override", None) or "").strip() or workflow.provider or None
+    model = (getattr(request, "model_override", None) or "").strip() or workflow.model or None
+    return provider, model
+
+
 async def _run_workflow_in_background(
     thread_id: str,
     workflow: Workflow,
@@ -1221,8 +1229,8 @@ async def _run_workflow_in_background(
                     "thread_id": thread_id,
                     "workflow_id": workflow_id,
                     "workflow_name": workflow.name,
-                    "provider": workflow.provider,
-                    "model": workflow.model,
+                    "provider": _ran_with(workflow, request)[0],
+                    "model": _ran_with(workflow, request)[1],
                     "result": {"status": final_status, **result_extra},
                     "started_at": start_time,
                     "completed_at": datetime.now(timezone.utc),
@@ -2317,8 +2325,8 @@ async def _run_workflow_in_background(
                     "thread_id": thread_id,
                     "workflow_id": workflow_id,
                     "workflow_name": workflow.name,
-                    "provider": workflow.provider,
-                    "model": workflow.model,
+                    "provider": _ran_with(workflow, request)[0],
+                    "model": _ran_with(workflow, request)[1],
                     "result": {
                         "status": "completed",
                         **completion_metadata,

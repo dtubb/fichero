@@ -29,6 +29,7 @@ from fichero_server.models import Document, Status
 from fichero_server.workflows import activity
 from fichero_server.workflows.activity_store import ActivityStore
 from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
+from fichero_server.workflows.completion import RECOVERED_REASON
 
 
 @pytest.fixture(autouse=True)
@@ -148,7 +149,7 @@ class TestRecoveredRunReleasesDocuments:
         assert provenance[-1]["result"]["status"] == "failed"
         assert (
             provenance[-1]["result"]["reason"]
-            == "process_died_recovered_on_library_open"
+            == RECOVERED_REASON
         )
 
     def test_page_children_are_released_too(self, library, store):

@@ -173,12 +173,34 @@ def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
                for a in db.query(Artifact, document_id=doc_id))
 
 
-def _has_review(db: Any, doc_id: str, model: str | None) -> bool:
-    """A reviewed transcription the model saved (the correcting step's output)."""
+def _has_review(db: Any, doc_id: str, model: str | None, workflow_id: str | None = None) -> bool:
+    """A reviewed transcription the step saved (the correcting step's output): by the step's model when it is
+    known; else by the step's own workflow, never any model's review from any earlier run (#5616: the plan said
+    "already done on 184 of 203" for a Review step whose runs had done none, counting reviews from runs outside the
+    recipe)."""
     from fichero_server.models import Artifact
 
-    return any(a.artifact_type == REVIEWED and (model is None or a.model == model)
+    return any(a.artifact_type == REVIEWED and _by_the_step(a, model, workflow_id)
                for a in db.query(Artifact, document_id=doc_id))
+
+
+def _by_the_step(artifact: Any, model: str | None, workflow_id: str | None) -> bool:
+    if model is not None:
+        return artifact.model == model
+    return workflow_id is None or artifact.workflow_id == workflow_id
+
+
+def effective_model(db: Any, card: dict[str, Any]) -> str | None:
+    """The model a step's run reads with (#5616): its own choice (`model_override`, a recipe step's model), else its
+    workflow's model; None when the workflow names none (its nodes then take the engine's default)."""
+    if card.get("model_override"):
+        return str(card["model_override"])
+    if not card.get("workflow_id"):
+        return None
+    from fichero_server.models import Workflow
+
+    workflow = db.get(Workflow, card["workflow_id"])
+    return (workflow.model or None) if workflow is not None else None
 
 
 def pages_with_names(db: Any) -> set[str]:
@@ -205,7 +227,7 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
 
         return prepared(db, doc_id) is not None
     if job == "correct":
-        return _has_review(db, doc_id, card.get("model_override"))
+        return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"))
     if job == "find-names-tag-words":
         return doc_id in pages_with_names(db)
     return None

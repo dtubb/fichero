@@ -784,6 +784,29 @@ workflow by hand: a hand run is a job like any other.
   through `GET /api/activity/jobs` and the tree with the real recipes lane: a run interrupted by
   the engine's own `resume`, read while paused, as it carries on and while it runs
   (`fichero-server/tests/unit/jobs/test_activity_one_truth_5606.py`). Not yet seen in the app.
+- `activity.ended-run-reads-ended` — **[OK]** (#5615) a run that has ended reads ended, in words, on every
+  surface, with what it offers. Seen in the MCP review of 2026-10-08: a recipe run failed "Interrupted 3 times; set
+  aside" while its Correct stage still said running and its names stage waiting; the list named it
+  `run-a-recipe`; the reason gave no cause, time or next step; failed rows stood at 100 % with nothing done; a
+  page's `parent_id` looked like an id glued to a label; a page's run history said
+  `process_died_recovered_on_library_open`, and a completed Transcribe run recorded provider and model empty.
+  Now: a recipe run that has ended leaves no stage waiting or running: each says "not run" and why (the run ended
+  before it, or it was stopped when the run ended, with the run's own reason; `recipes/runner.status`). Its row in
+  the list is named by its recipe, "Run the recipe: <the recipe's title>", with the pages it runs over as its
+  `total` and its furthest stage's pages done as `current` (`runner.name_and_pages`); every kind is named in words
+  even when nothing waits, and Retry works then too (`jobs.load_kinds`: the lanes loaded the kinds only when one
+  started). A job set aside after its interruptions says what interrupted it (the engine stopped: the app quit, or
+  the engine or the Mac stopped), when its last try started and when it was found stopped, and the row offers
+  Resume (`offer`, done by `POST /api/activity/jobs/{id}/retry`, which carries it on from where it was;
+  `jobs.set_aside_reason`, `jobs.offer_for`). A row's percent is its pages done over its pages, whatever its state:
+  a failed run with nothing done is at 0. A page's `parent_id` stays its step's row id, "<run id>:<step name>"
+  (every step row is written under that id, and the tree and log find steps by it), and is looked up like any job;
+  each row under a run also carries `run_id`, the run's own id. A run's reason recorded on its pages is words ("The
+  engine stopped while this run was going …"; an old row's code is read as those words), a page's run history
+  gives each recorded run's own outcome (failed, cancelled; before, every one read done), and a run records the
+  provider and model it ran with: the run's own choice (a recipe step's model) before the workflow's default
+  (`execution/runner._ran_with`). Tested through the routes in
+  `fichero-server/tests/unit/recipes/test_ended_run_reads_ended_5615.py`. Not yet seen in the app.
 - `activity.popover.summary` — **[PARTIAL]** (#5415) the toolbar popover is a summary, not a list:
   what is running, what is waiting and the main reason why, the last three errors, and the Mac's
   state (memory pressure, heat, battery, in use), read from the engine. CPU and GPU percentages
