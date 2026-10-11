@@ -46,6 +46,16 @@ final class MillerColumnModelTests: XCTestCase {
         XCTAssertEqual(MillerColumnModel.truncate(path: ["a"], forSelectionAtDepth: 0), [])
     }
 
+    /// WHY (`finddocs.review.items`): a column's pages carry the proposals of the folder that column lists, the
+    /// path segment above it; the root column lists the project's top level, where no folder proposes anything.
+    func testEachColumnKnowsTheFolderItLists() {
+        let path = ["box", "bundle"]
+        XCTAssertNil(MillerColumnModel.folder(atDepth: 0, path: path), "the root column lists the top level")
+        XCTAssertEqual(MillerColumnModel.folder(atDepth: 1, path: path), "box")
+        XCTAssertEqual(MillerColumnModel.folder(atDepth: 2, path: path), "bundle")
+        XCTAssertNil(MillerColumnModel.folder(atDepth: 3, path: path), "no column past the path")
+    }
+
     func testClampActiveDepthStaysWithinExistingColumns() {
         // path.count segments → path.count + 1 columns (root + one each).
         XCTAssertEqual(MillerColumnModel.clampActiveDepth(5, pathCount: 2), 2)

@@ -98,8 +98,9 @@ extension LibraryView {
     }
 
     /// Answer through the project's store: the engine's audited action, one ⌘Z step, then the folder read again.
-    func answerProposals(_ answer: ProposalAnswer, target: LibraryOutlineNode.ProposalTarget) {
-        guard let folderId = shownFolderDocumentId, let library = activeLibraryReference,
+    /// `folder`: the folder the proposal is in, when it is not the one shown (a Columns column's).
+    func answerProposals(_ answer: ProposalAnswer, target: LibraryOutlineNode.ProposalTarget, folder: String? = nil) {
+        guard let folderId = folder ?? shownFolderDocumentId, let library = activeLibraryReference,
               let first = target.documents.first else { return }
         let store = library.foundDocumentsStore
         let documents = documentStore
@@ -195,14 +196,25 @@ extension LibraryView {
         shownProposals.map { ProposedInItems.members(of: $0.waiting) } ?? [:]
     }
 
-    /// The dashed Proposed mark over a page of a proposal in Icon, with its menu (the page's adjustments too).
-    func proposedPageBadge(_ item: FoundDocumentsStore.Waiting, pageId: String) -> some View {
+    /// A folder's proposals by each of their pages (a Columns column's folder), as far as they have been read.
+    func proposalsByPage(inFolder folderId: String?) -> [String: FoundDocumentsStore.Waiting] {
+        guard let folderId, let waiting = activeLibraryReference?.foundDocumentsStore.waiting[folderId] else {
+            return [:]
+        }
+        return ProposedInItems.members(of: waiting)
+    }
+
+    /// The dashed Proposed mark over a page of a proposal in Icon and Columns, with its menu (the page's
+    /// adjustments too). `folder`: the proposal's folder, when it is not the one shown.
+    func proposedPageBadge(_ item: FoundDocumentsStore.Waiting, pageId: String, folder: String? = nil) -> some View {
         let target = LibraryOutlineNode.ProposalTarget(documents: [item], pageId: pageId)
         return ProposedBadge()
             .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 4))
             .padding(4)
             .help("Proposed: \(item.document.name), \(ProposedDocumentNameCell.detail(of: item.document))")
-            .contextMenu { ProposedDocumentsMenu(target: target) { answerProposals($0, target: target) } }
+            .contextMenu {
+                ProposedDocumentsMenu(target: target) { answerProposals($0, target: target, folder: folder) }
+            }
     }
 
     /// The row that heads a proposal's pages in List: its mark, name and detail, with its menu.

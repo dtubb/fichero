@@ -241,8 +241,10 @@ involve the company it names. Lessons the tool must carry:
   (`ProposedInItems`). The proposals are read when the folder is shown and again, with every folder read so
   far, whenever a Find the Documents run ends, the menu's or a recipe run's step: the jobs read the app
   already makes sees it leave the list or fail (`ActivityStore.findDocumentsRunsEnded`); pinned by
-  `fichero/Tests/Unit/general/Models/FindDocumentsRunEndsTests.swift`. *Not built: Columns, and List on
-  iPhone and iPad.*
+  `fichero/Tests/Unit/general/Models/FindDocumentsRunEndsTests.swift`. **Built 2026-10-11 (app):** Columns
+  marks each page of a proposal in the folder a column lists with the dashed Proposed mark and its menu,
+  reading that folder's proposals when the column opens (`MillerColumnModel.folder(atDepth:path:)`, pinned by
+  `fichero/Tests/Unit/general/Views/Library/MillerColumnModelTests.swift`). *Not built: List on iPhone and iPad.*
 - `finddocs.review.setup-page` — **[OK]** (#5550, #5668) Set Up's Organise page says what the stage will
   do in the engine's words, and how a run answers: documents at least as sure as the project's level are
   applied by the run (none until the level is switched on, `finddocs.recipe-step`), every other one is

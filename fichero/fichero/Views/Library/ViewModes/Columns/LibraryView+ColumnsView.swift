@@ -141,6 +141,10 @@ extension LibraryView {
         let isActiveColumn = depth == MillerColumnModel.clampActiveDepth(
             columnsActiveDepth, pathCount: path.count
         )
+        // The folder this column lists, and the documents Find the Documents proposes in it
+        // (`finddocs.review.items`): each page of one carries the dashed Proposed mark and its menu.
+        let folderId = MillerColumnModel.folder(atDepth: depth, path: path)
+        let proposals = proposalsByPage(inFolder: folderId)
         // Hand-rolled ScrollView+LazyVStack ON PURPOSE (native-controls
         // baseline): `List` is NSTableView-backed and consumes arrow keys
         // before `.onKeyPress` fires, and this browser's entire keyboard
@@ -180,6 +184,9 @@ extension LibraryView {
                         millerRow(doc, depth: depth, isActiveColumn: isActiveColumn)
                     }
                     .equatable()
+                    .overlay(alignment: .trailing) {
+                        if let item = proposals[doc.id] { proposedPageBadge(item, pageId: doc.id, folder: folderId) }
+                    }
                     .id(doc.id)
                     .draggable(libraryItemDrag(for: doc)) {
                         RowDragPreview(name: doc.name, systemImage: doc.fileType?.icon ?? doc.docType.icon)
@@ -203,6 +210,10 @@ extension LibraryView {
         // fields is how one of them ends up writing only two (#4436).
         .onTapGesture {
             apply(SelectionGrammar.clear())
+        }
+        // The column's folder's proposals, read when it opens (a run's end reads them again with the rest).
+        .task(id: folderId) {
+            if let folderId { await activeLibraryReference?.foundDocumentsStore.load(folderId: folderId) }
         }
     }
 

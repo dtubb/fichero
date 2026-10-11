@@ -39,6 +39,12 @@ enum MillerColumnModel {
     static func clampActiveDepth(_ depth: Int, pathCount: Int) -> Int {
         min(max(0, depth), max(0, pathCount))
     }
+
+    /// The folder column `depth` lists: the path segment above it; nil for the root column, which lists the
+    /// project's top level, and for a column past the path.
+    static func folder(atDepth depth: Int, path: [String]) -> String? {
+        depth > 0 && path.indices.contains(depth - 1) ? path[depth - 1] : nil
+    }
 }
 
 // The model has no view of its own — preview the columns browser it drives
