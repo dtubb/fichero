@@ -45,28 +45,31 @@ private final class OnboardingFixtureEngine: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool { true }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
+    /// Each route's fixture file, as `<method> <path>`. Saving the setup (PUT) answers the setup saved, as the
+    /// engine does; the candidates are by the step's job (`fixture(for:)`).
+    nonisolated static let routes: [String: String] = [
+        "GET /api/recipes/purposes": "purposes",
+        "GET /api/recipes/jobs": "jobs",
+        "GET /api/recipes/project": "project",
+        "PUT /api/recipes/project": "project",
+        "GET /api/recipes/project/start": "plan",
+        "POST /api/recipes/assemble": "assembled",
+        "GET /api/recipes/languages": "languages",
+        "GET /api/recipes/scripts": "scripts",
+        "GET /api/recipes/derived": "derived",
+        "GET /api/topics": "topics",
+        "GET /api/recipes/project/bakeoffs": "bakeoffs",
+        "GET /api/export/kept": "kept-exports"
+    ]
+
     /// The fixture file for a request, or nil (answered 404, as an engine without that route would).
     nonisolated static func fixture(for request: URLRequest) -> String? {
         let path = request.url?.path ?? ""
-        let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        switch path {
-        case "/api/recipes/purposes": return "purposes"
-        case "/api/recipes/jobs": return "jobs"
-        // Saving the setup answers the setup saved (PUT), as the engine does.
-        case "/api/recipes/project": return "project"
-        case "/api/recipes/project/start": return request.httpMethod == "GET" ? "plan" : nil
-        case "/api/recipes/assemble": return "assembled"
-        case "/api/recipes/languages": return "languages"
-        case "/api/recipes/scripts": return "scripts"
-        case "/api/recipes/derived": return "derived"
-        case "/api/topics": return "topics"
-        case "/api/recipes/project/bakeoffs": return "bakeoffs"
-        case "/api/export/kept": return request.httpMethod == "GET" ? "kept-exports" : nil
-        case "/api/recipes/candidates":
-            let job = query.first { $0.name == "job" }?.value ?? "read-a-line"
-            return "candidates-\(job)"
-        default: return nil
+        if path == "/api/recipes/candidates" {
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            return "candidates-\(query.first { $0.name == "job" }?.value ?? "read-a-line")"
         }
+        return routes["\(request.httpMethod ?? "GET") \(path)"]
     }
 
     override func startLoading() {
@@ -147,20 +150,32 @@ struct OnboardingScreenshotsTests {
         return url
     }
 
-    /// A sidebar's selected row, and any other material, is an NSVisualEffectView, which an offscreen
-    /// cacheDisplay draws solid black. Each is drawn as its material's flat colour instead (inactive, within the
-    /// window), which is how the window shows it when another app is in front.
+    /// A sidebar's selected row is drawn by its table as a material (a visual-effect layer), which an offscreen
+    /// cacheDisplay paints solid black; round 2's "inactive" material was still black. So the tables draw no
+    /// highlight of their own here, and each selected row gets a plain rounded fill in the system's selection
+    /// colour behind its content, which cacheDisplay draws as the window shows it.
     private static func flattenVisualEffects(in view: NSView) {
-        if let effect = view as? NSVisualEffectView {
-            effect.state = .inactive
-            effect.blendingMode = .withinWindow
-            effect.isEmphasized = false
+        if let table = view as? NSTableView {
+            table.selectionHighlightStyle = .none
         }
-        if let row = view as? NSTableRowView, row.isSelected {
-            row.isEmphasized = false
+        if let effect = view as? NSVisualEffectView, effect.superview is NSTableRowView {
+            effect.isHidden = true
+        }
+        if let row = view as? NSTableRowView, row.isSelected,
+           !row.subviews.contains(where: { $0.identifier == selectionFill }) {
+            let fill = NSBox(frame: row.bounds.insetBy(dx: 10, dy: 1))
+            fill.identifier = selectionFill
+            fill.boxType = .custom
+            fill.borderWidth = 0
+            fill.cornerRadius = 6
+            fill.fillColor = NSColor.unemphasizedSelectedContentBackgroundColor
+            fill.autoresizingMask = [.width, .height]
+            row.addSubview(fill, positioned: .below, relativeTo: nil)
         }
         view.subviews.forEach(flattenVisualEffects(in:))
     }
+
+    private static let selectionFill = NSUserInterfaceItemIdentifier("screenshot-selection-fill")
 
     @Test("every onboarding screen, in flow order, as a PNG at 2x")
     func writeEveryOnboardingScreen() async throws {
@@ -191,7 +206,7 @@ struct OnboardingScreenshotsTests {
         try await shot("03-your-material.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .material))
         // Your material is longer than its card: all of it, as the card scrolls through it (languages, scripts,
         // what the material is).
-        try await shot("04-your-material-whole.png", CGSize(width: 620, height: 1150), VStack(alignment: .leading, spacing: 16) {
+        try await shot("04-your-material-whole.png", CGSize(width: 620, height: 620), VStack(alignment: .leading, spacing: 16) {
             RecipeMaterialSourceFields(store: setup, importer: project.importService, syncFolders: project.syncFolderStore)
             Divider()
             RecipeAboutFields(store: setup)

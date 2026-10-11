@@ -301,8 +301,19 @@ struct RecipeSetupStoreTests {
     func loadSavedFillsAnswersAndRecipe() async throws {
         defer { RecipesMockURLProtocol.requestHandler = nil }
         let store = makeStore { request in
-            #expect(request.url?.path == "/api/recipes/project")
             #expect(request.httpMethod == "GET")
+            // The saved tags are named from the engine's search (`resolveNames`), as a pick names them.
+            switch request.url?.path {
+            case "/api/recipes/languages":
+                let code = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+                    .queryItems?.first { $0.name == "q" }?.value ?? ""
+                let name = ["es": "Spanish", "la": "Latin"][code] ?? code
+                return Self.reply(request, 200, #"{"items":[{"code":"\#(code)","name":"\#(name)","level":"language"}],"count":1}"#)
+            case "/api/recipes/scripts":
+                return Self.reply(request, 200, #"{"items":[{"code":"Latn","name":"Latin"}],"count":1}"#)
+            default:
+                #expect(request.url?.path == "/api/recipes/project")
+            }
             return Self.reply(request, 200, """
             {"answers":{"purpose":"entities","languages":["es","la"],"scripts":["Latn"],
               "material":"print","pages":40,"cloud_allowed":true,"ingest_mode":"copy"},
@@ -312,6 +323,9 @@ struct RecipeSetupStoreTests {
 
         await store.loadSaved()
 
+        #expect(store.name(of: "es") == "Spanish" && store.name(of: "la") == "Latin" && store.name(of: "Latn") == "Latin",
+                "a reopened project shows its languages and script by name")
+
         #expect(store.purposes == ["entities"], "a project saved with one purpose reads as a list of one")
         #expect(store.languages == ["es", "la"])
         #expect(store.scripts == ["Latn"])
@@ -320,6 +334,27 @@ struct RecipeSetupStoreTests {
         #expect(store.cloudAllowed)
         #expect(store.ingestMode == .copy)
         #expect(store.recipe?.steps.map(\.job) == ["find-lines", "correct"])
+        #expect(store.errorMessage == nil)
+    }
+
+    /// WHY (2026-10-11): naming the saved tags is a nicety on top of answers that loaded fine; if the search
+    /// fails, the field shows the codes and setup shows no error.
+    @Test("a failed name lookup on load leaves the codes and says nothing")
+    func failedNameLookupIsQuiet() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            if request.url?.path == "/api/recipes/project" {
+                return Self.reply(request, 200, """
+                {"answers":{"purpose":"transcribe","languages":["es"],"scripts":["Latn"]},"recipe":null}
+                """)
+            }
+            return Self.reply(request, 500, #"{"detail":"search is down"}"#)
+        }
+
+        await store.loadSaved()
+
+        #expect(store.languages == ["es"] && store.scripts == ["Latn"])
+        #expect(store.name(of: "es") == "es" && store.name(of: "Latn") == "Latn", "the codes show")
         #expect(store.errorMessage == nil)
     }
 

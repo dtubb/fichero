@@ -1,5 +1,6 @@
 import FicheroAPIClient
 import Foundation
+import OSLog
 
 /// Setup's model questions answered by the model finder (#5619, `source.find.choose-a-model-opens-the-finder`): a
 /// step's Choose a model…, Download a model… and Use a cloud model… open the finder for THAT step's job, with the
@@ -58,13 +59,20 @@ extension RecipeStepsView {
 // keep tags ("es", "Latn"); without this the tokens read "es" until the person searched again.
 extension RecipeSetupStore {
     /// Name every saved language and script the field would otherwise show as a bare code, from the engine's
-    /// own search (its exact match on the code).
+    /// own search (its exact match on the code). Quiet: the answers themselves loaded, so a failed lookup leaves
+    /// the code showing, is logged, and never becomes setup's error.
     func resolveNames() async {
+        let said = errorMessage
         for code in languages where name(of: code) == code {
             if let match = await searchLanguages(code).first(where: { $0.code == code }) { add(match, toScripts: false) }
         }
         for code in scripts where name(of: code) == code {
             if let match = await searchScripts(code).first(where: { $0.code == code }) { add(match, toScripts: true) }
+        }
+        if errorMessage != said {
+            Logger(subsystem: "app.fichero.fichero", category: "RecipeSetup")
+                .info("Naming the saved languages and scripts failed; their codes show: \(self.errorMessage ?? "", privacy: .public)")
+            errorMessage = said
         }
     }
 }
