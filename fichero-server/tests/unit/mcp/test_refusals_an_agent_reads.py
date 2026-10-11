@@ -26,6 +26,21 @@ def test_meaning_search_before_anything_is_indexed_says_so_in_words(client):
         assert "index" in said.lower(), (route, said)
 
 
+def test_citing_a_document_with_no_bibliographic_record_says_what_is_missing(client, db):
+    from fichero_server.models import Document
+
+    page = Document(name="f. 1r")
+    db.save(page)
+    for route in (f"/api/citations/document/{page.id}", f"/api/citations/document/{page.id}.bib"):
+        r = client.get(route)
+        assert r.status_code == 404, (route, r.text)
+        said = _said(r)
+        assert not _INTERNALS.search(said), (route, said)
+        assert "f. 1r" in said and "bibliographic" in said, (route, said)
+    unknown = client.get("/api/citations/document/no-such-document")
+    assert unknown.status_code == 404 and "no document" in _said(unknown).lower(), unknown.text
+
+
 def test_effective_rights_of_a_document_not_named_asks_for_it(client):
     r = client.get("/api/rights/effective", params={"target_kind": "document"})
     assert r.status_code == 422, r.text

@@ -44,6 +44,22 @@ class CitationResponse(BaseModel):
     claim_id: str | None = None
 
 
+def _metadata_or_refuse(db: Database, document_id: str):
+    """The document's bibliographic record, or a 404 that says, in words, what is missing
+    (`openapi.mcp.refusals-in-words`: it said "No SourceMetadata found", the record's class name)."""
+    from fichero_server.models import Document
+
+    meta = _metadata_for_document(db, document_id)
+    if meta is not None:
+        return meta
+    doc = db.get(Document, document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail=f"no document {document_id} in this project")
+    raise HTTPException(status_code=404, detail=(
+        f"{doc.name} has no bibliographic record yet (who made it, its title, its date): add one to it, "
+        "then cite it"))
+
+
 def _metadata_for_document(db: Database, document_id: str):
     """Pull SourceMetadata for a document.
 
@@ -94,12 +110,7 @@ async def cite_document_bibtex(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> str:
-    meta = _metadata_for_document(db, document_id)
-    if meta is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No SourceMetadata found for document {document_id}",
-        )
+    meta = _metadata_or_refuse(db, document_id)
     return _render("bibtex", meta)
 
 
@@ -116,12 +127,7 @@ async def cite_document(
     ),
     db: Database = Depends(get_library_database),
 ) -> CitationResponse:
-    meta = _metadata_for_document(db, document_id)
-    if meta is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No SourceMetadata found for document {document_id}",
-        )
+    meta = _metadata_or_refuse(db, document_id)
     return CitationResponse(
         style=style,
         text=_render(style, meta),
