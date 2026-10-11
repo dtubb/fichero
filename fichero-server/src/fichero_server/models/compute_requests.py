@@ -117,8 +117,9 @@ class EvaluationCandidate(BaseModel):
                        "model (an MLX catalogue model or `fichero-trained/<name>`).")
     reader: Literal["kraken", "vision"] = Field("kraken", description="How it reads: a Kraken reader on each line's "
                                                 "own baseline and outline, or a vision model on each line's picture.")
-    provider: str = Field("omlx", description="vision: the provider; only this Mac's (`omlx`) is built. A remote "
-                          "model target is not built yet and is refused.")
+    provider: str = Field("omlx", description="vision: the provider: this Mac's models (`omlx`), Apple Vision "
+                          "(`apple`, model `apple-vision`), or a cloud provider set up in Settings › AI, which reads "
+                          "only when the request allows pages to leave this Mac (`remote_allowed`, #5660 item 7).")
 
 
 class EvaluationRunRequest(BaseModel):
@@ -135,3 +136,6 @@ class EvaluationRunRequest(BaseModel):
     held_out_ids: list[str] = Field(default_factory=list, description="The pages to score on. None given: the "
                                     "pages every trained candidate's card says were held out of its training.")
     language: str | None = Field(None, description="The pages' language, given to a vision model.")
+    remote_allowed: bool = Field(False, description="A cloud reader may read the sample's lines: the project lets "
+                                 "pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). "
+                                 "False: a candidate on a cloud provider is refused, in words.")

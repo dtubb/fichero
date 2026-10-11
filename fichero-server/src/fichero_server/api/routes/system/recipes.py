@@ -1529,6 +1529,9 @@ class BakeoffStartRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     page_ids: list[str] = Field(default_factory=list, description="the sample pages; none: every page with a pass a "
                                 "person made")
+    step: Literal["read-a-line", "find-lines"] = Field(default="read-a-line", description=(
+        "which step's models to compare: the readers (each scored by CER and WER against the checked text), or the "
+        "line finders (each scored by how many checked lines it finds) (#5660 item 7)"))
 
 
 class BakeoffPage(BaseModel):
@@ -1561,7 +1564,9 @@ class BakeoffRow(BaseModel):
     card: str = Field(description="its model card id: for Use This, never shown")
     name: str = Field(default="", description="the reader by its card's own name (the card's note, as a recipe step "
                       "names its model): what the table shows, never the card id")
-    role: Literal["rule rank", "baseline for print"]
+    role: Literal["rule rank", "baseline for print", "contender"] = Field(description=(
+        "why it takes part: the rules' top three, the print baseline, or one of each kind of reader or line finder "
+        "beside them (Kraken, Apple Vision, an MLX vision model, a cloud reader; #5660 item 7)"))
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules before measurement")
     reader: Optional[Literal["kraken", "vision", "tesseract"]] = None
     model: Optional[str] = Field(default=None, description="the model id the evaluation reads with")
@@ -1584,6 +1589,10 @@ class BakeoffRow(BaseModel):
     size_gb: float
     why: Optional[str] = Field(default=None, description="why it has no score (not on this Mac, not in this build, "
                                "remote, still running, or 'not measured: read N of M pages (why)')")
+    wer: Optional[float] = Field(default=None, description="a reader's word error rate over the pages it read (#5660)")
+    lines_found: Optional[int] = Field(default=None, description="a line finder: the checked lines it found")
+    lines_checked: Optional[int] = Field(default=None, description="a line finder: the checked lines on the pages")
+    extra_lines: Optional[int] = Field(default=None, description="a line finder: its lines that match no checked one")
 
 
 class BakeoffResult(BaseModel):
@@ -1644,10 +1653,13 @@ async def start_bakeoff(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> BakeoffResult:
-    """Compare the readers on the project's corrected sample pages: the top three by rule rank (and Tesseract
-    for print, when it has the language), each scored by the evaluation job (`evaluation.run`, audited) on
-    the same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying
-    how many more), for a project not set up, or when no candidate can be scored on this Mac."""
+    """Compare the readers on the project's corrected sample pages: the top three by rule rank, one of each kind
+    beside them (Kraken, Apple Vision, an MLX vision model, a cloud reader where a provider is set up and pages may
+    leave; a kind that cannot read here is listed with why), and Tesseract for print when it has the language,
+    each scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With
+    `step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a
+    `compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages
+    (saying how many more), for a project not set up, or when no candidate can be scored on this Mac."""
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.recipes.start import count_pages
 
@@ -1656,6 +1668,13 @@ async def start_bakeoff(
     if not setup["answers"]:
         raise HTTPException(status_code=422, detail="this project has not been set up: run setup first")
     bakeoff = _bakeoff()
+    if request is not None and request.step == "find-lines":
+        try:
+            record = bakeoff.start_lines(db, library, page_ids=request.page_ids or None,
+                                         now=utc_now_iso(timespec="seconds"), started_by=ctx.actor or "owner")
+            return BakeoffResult(**bakeoff.result(db, library, record["id"]))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         a = _answers(setup["answers"])
         record = bakeoff.start(

@@ -79,6 +79,10 @@ def _reader_of(card: Card) -> tuple[str | None, str | None, str]:
     from fichero_server.recipes.cards import kraken_reader_for, mlx_model_for
 
     pin = card.pin
+    if pin.get("builtin") == "apple-vision":
+        from fichero_server.training.evaluation import APPLE_VISION
+
+        return "vision", APPLE_VISION, "apple"
     if "zenodo" in pin:
         return "kraken", kraken_reader_for(pin), "omlx"
     if mlx_model_for(pin):
@@ -90,17 +94,20 @@ def _reader_of(card: Card) -> tuple[str | None, str | None, str]:
     return None, None, ""
 
 
-def _not_scored_because(card: Card, reader: str | None, model: str | None, provider: str) -> str | None:
+def _not_scored_because(card: Card, reader: str | None, model: str | None, provider: str,
+                        remote_allowed: bool = False) -> str | None:
     """Why the evaluation cannot score this candidate here, or None when it can."""
     from fichero_server.training.evaluation import LOCAL_PROVIDERS, on_this_mac
 
     if not card.runs_here:
-        return "its runtime is not in this build yet (its card says so): named, not scored"
+        return card.cannot_run_because or "its runtime is not in this build yet (its card says so): named, not scored"
     if reader not in ("kraken", "vision") or model is None:
         return "the evaluation job cannot read with this kind of model yet"
+    if reader == "vision" and provider == "apple" and not on_this_mac(model, reader, provider):
+        return "Apple Vision's text recognition is not available on this Mac"
     if reader == "vision" and provider not in LOCAL_PROVIDERS:
-        return "a remote model target is not built in the evaluation job yet: priced, not scored"
-    if not on_this_mac(model, reader):
+        return None if remote_allowed else "this project keeps its pages on this Mac: priced, not scored"
+    if not on_this_mac(model, reader, provider):
         return "not on this Mac: download it to score it"
     return None
 
@@ -128,12 +135,13 @@ def _name_of(card_id: str) -> str:
     return next((reader_name(c) for c in known_cards(include_not_built=True) if c.id == card_id), "")
 
 
-def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int) -> dict[str, Any]:
+def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int,
+               remote_allowed: bool = False) -> dict[str, Any]:
     reader, model, provider = _reader_of(card)
     return {
         "card": card.id, "name": reader_name(card), "pin": dict(card.pin), "role": role, "rule_rank": rule_rank,
         "reader": reader, "model": model, "provider": provider, "runs_on": card.runs_on, "local": card.local,
-        "not_scored": _not_scored_because(card, reader, model, provider),
+        "not_scored": _not_scored_because(card, reader, model, provider, remote_allowed),
         "cost_usd": _cost(card, provider, model, volume),
         "carbon_g_per_page": card.carbon_g_per_page, "trainable": card.trainable, "size_gb": card.size_gb,
         "material": sorted(card.material),
@@ -144,12 +152,84 @@ def _tesseract_has_the_language(card: Card, a: Answers) -> bool:
     return bool(a.languages) and (card.languages is None or a.languages <= card.languages)
 
 
+#: The kinds of reader a bake-off always tries, beside the rules' top three (#5660 item 7): Kraken's readers, Apple
+#: Vision, an MLX vision model, and a cloud reader where a provider is set up and the project lets pages leave.
+FAMILIES = ("kraken", "apple", "mlx", "cloud")
+
+
+def _family(card: Card) -> str | None:
+    from fichero_server.recipes.cards import mlx_model_for
+
+    pin = card.pin
+    if "zenodo" in pin:
+        return "kraken"
+    if pin.get("builtin") == "apple-vision":
+        return "apple"
+    if mlx_model_for(pin):
+        return "mlx"
+    if set(pin) == {"cloud", "model"} and not card.local:
+        return "cloud"
+    return None
+
+
+def cloud_readers() -> list[Card]:
+    """A card for each vision model of the person's cloud provider rows (Settings › AI); with none, a Claude card
+    that says to add it first (#5660 item 7). Never the network: the rows as kept."""
+    from fichero_server.db.app import get_app_db
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.places import PROVIDER, place_of
+
+    out: list[Card] = []
+    try:
+        app_db = get_app_db()
+        rows = app_db.list_providers()
+    except Exception:  # noqa: BLE001 -- no app database (a bare tool run): no rows
+        rows = []
+    for row in rows:
+        ptype = row.provider_type.value
+        if not row.enabled or place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base)) != PROVIDER:
+            continue
+        for model in app_db.list_models(row.id):
+            if not model.enabled or not ("vision" in (model.capabilities or []) or ptype == "anthropic"):
+                continue
+            out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
+                            jobs=frozenset({STEP}), scripts=None, languages=None, material=frozenset(),
+                            runs_on=f"cloud:{ptype}", note=f"{model.name or model.model_id} ({row.name})",
+                            source="installed", offered_because="a cloud model from your provider settings"))
+    if not any(c.pin["cloud"] == "anthropic" for c in out):
+        out.append(Card(id="anthropic:claude@settings", pin={"cloud": "anthropic", "model": "claude"},
+                        jobs=frozenset({STEP}), scripts=None, languages=None, material=frozenset(),
+                        runs_on="cloud:anthropic", note="Claude (Anthropic), in the cloud", source="installed",
+                        runs_here=False, cannot_run_because="not available yet: add Claude (Anthropic) in Settings › AI"))
+    return out
+
+
 def candidates(a: Answers, cards: list[Card], *, volume: int) -> list[dict[str, Any]]:
-    """The readers that take part, in rule rank, then the Tesseract baseline where it belongs."""
+    """The readers that take part: the rules' top three, then one of each kind not among them (`FAMILIES`: Kraken,
+    Apple Vision, an MLX vision model, a cloud reader), then the Tesseract baseline where it belongs. A kind with no
+    model that can read here is listed with why (not available yet, not on this Mac, the pages stay here)."""
     material = a.material
+    remote = bool(a.cloud_allowed)
     kept = [c for c in cards if c.runs_here and _refusal(STEP, c, a, material) is None]
     ranked = sorted(kept, key=lambda c: _rank_key(c, material, a))[:TOP]
-    out = [_candidate(c, rule_rank=i, role="rule rank", volume=volume) for i, c in enumerate(ranked, 1)]
+    out = [_candidate(c, rule_rank=i, role="rule rank", volume=volume, remote_allowed=remote)
+           for i, c in enumerate(ranked, 1)]
+    have = {_family(c) for c in ranked}
+
+    def fits(card: Card) -> bool:
+        # Its script and language, whatever job its card names: a page reader reads the lines' pictures too.
+        refused = _refusal(STEP, replace(card, jobs=frozenset({STEP})), a, material)
+        return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted")
+
+    pool = [*cards, *cloud_readers()]
+    for family in FAMILIES:
+        if family in have:
+            continue
+        options = [c for c in pool if _family(c) == family and fits(c)]
+        if not options:
+            continue
+        best = sorted(options, key=lambda c: (not c.runs_here, not c.open_licence, _rank_key(c, material, a)))[0]
+        out.append(_candidate(best, rule_rank=None, role="contender", volume=volume, remote_allowed=remote))
     print_like = [m for m in a.materials if m in TESSERACT_MATERIALS]
     if print_like:
         named = {c.id for c in ranked}
@@ -262,7 +342,7 @@ def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: li
         raise BakeoffRefused(f"No reader can be compared on this Mac yet. {why or 'No reader fits this project.'}")
     job_id = run_evaluation({
         "checked": None, "add_out_of_the_box": False, "held_out_ids": [p["document_id"] for p in pages],
-        "language": sorted(a.languages)[0] if a.languages else None,
+        "language": sorted(a.languages)[0] if a.languages else None, "remote_allowed": bool(a.cloud_allowed),
         "candidates": [{"model": c["model"], "reader": c["reader"], "provider": c["provider"]} for c in scored],
     })
     record = {"id": job_id, "job_id": job_id, "step": STEP, "started_at": now, "material": a.material,
@@ -315,7 +395,7 @@ def list_records(library: Path) -> list[dict[str, Any]]:
 def _scored_row(entry: dict[str, Any]) -> dict[str, Any]:
     """A candidate's row from its card's entry for this job, judged by the evaluation's one rule (an entry
     kept before #5531 has no read/measured fields: it is judged from the characters its pages recorded)."""
-    from fichero_server.training.evaluation import judged
+    from fichero_server.training.evaluation import judged, wer_over
     from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
 
     speed = entry.get("speed") or {}
@@ -328,7 +408,8 @@ def _scored_row(entry: dict[str, Any]) -> dict[str, Any]:
                           "cer": p["scores"][DEFAULT_POLICY_NAME].get("cer"), "read": p["read"], "why": p["why"]}
                          for p in j["per_page"]],
             "measured": j["measured"], "pages_read": j["pages_read"], "pages_total": j["pages_total"],
-            "why": j["why"], "pages_per_hour": speed.get("pages_per_hour"), "seconds": speed.get("seconds")}
+            "why": j["why"], "pages_per_hour": speed.get("pages_per_hour"), "seconds": speed.get("seconds"),
+            "wer": wer_over(j["per_page"]) if j["measured"] else None}
 
 
 def _rank(rows: list[dict[str, Any]], material: str, volume: int) -> list[dict[str, Any]]:
@@ -364,6 +445,8 @@ def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
     from fichero_server.training.evaluation import model_evaluations, no_winner_why
 
     record = read_record(library, bakeoff_id)
+    if record.get("step") == LINES_STEP:
+        return lines_result(db, record)
     job = jobs.read_job(db, record["job_id"])
     state = job["state"] if job else "cleared"
     rows, waiting = [], False
@@ -373,7 +456,7 @@ def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
         # A record kept before rows carried a name reads it from the card now (one source: the card).
         row["name"] = c.get("name") or _name_of(c["card"])
         row.update(cer=None, policy=None, scores={}, per_page=[], pages_per_hour=None, seconds=None,
-                   measured=False, pages_read=None, pages_total=None, why=c["not_scored"])
+                   measured=False, pages_read=None, pages_total=None, why=c["not_scored"], wer=None)
         if c["not_scored"] is None:
             entry = next((e for e in model_evaluations(c["model"], c["reader"])
                           if e.get("job_id") == record["job_id"]), None)
@@ -412,16 +495,22 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     row = next((r for r in table["rows"] if r["card"] == card.id), None)
     if row is None:
         raise BakeoffRefused(f"{name} is not one of this bake-off's candidates")
-    if row["cer"] is None or not row.get("measured"):
+    lines = table["step"] == LINES_STEP
+    if not row.get("measured") or (row["cer"] is None and not lines):
         raise BakeoffRefused(f"{name} was not measured in this bake-off ({row['why']}), so it cannot be chosen "
                              "from it")
+    if lines and "kraken" not in card.pin:
+        raise BakeoffRefused(f"{name} was compared, but the line step runs Kraken's line finder only so far: it "
+                             "cannot be chosen for the step yet")
     if scope == "folder" and not folder_id:
         raise BakeoffRefused("name the folder to use it for")
     out = copy.deepcopy(recipe)
     step = next((s for s in out.get("steps") or [] if s.get("job") == table["step"]), None)
     if step is None:
         raise BakeoffRefused(f"this project's recipe has no {table['step']} step to set a reader for")
-    because = (f"chosen in the bake-off on your pages: CER {row['cer'] * 100:.1f}% ({row['policy']}) on the "
+    because = (f"chosen in the comparison on your pages: found {row['lines_found']} of {row['lines_checked']} "
+               f"checked lines; rank {row['rank']}" if lines else
+               f"chosen in the bake-off on your pages: CER {row['cer'] * 100:.1f}% ({row['policy']}) on the "
                f"{row['pages_read']} of {_plural(row['pages_total'], 'page')} it read, {table['lines']} lines; "
                f"rank {row['rank']}")
     override = {"step": step["id"], "scope": scope, "folder_id": folder_id if scope == "folder" else None,
@@ -461,3 +550,208 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
         step.update(_chosen(Choice(step["job"], measured, reasons=[override.get("because") or "chosen by you"])))
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
     return recipe
+
+
+# --- the line finders (#5660 item 7) ---------------------------------------------------------------------------
+#
+# The same bake-off for the step that finds the lines: each line finder the engine has runs on the sample pages,
+# and is scored by how many of the lines a person checked it finds. A checked line is found when one of the
+# finder's lines covers at least `LINE_COVER` of its box, and is no more than `LINE_TALL` times its height (a box
+# round a whole paragraph does not find its lines). Kraken's segmenter (the step's own) and Apple Vision's text
+# lines run here; a YOLO layout model finds regions, not lines, and is named as not a line finder.
+
+LINES_STEP = "find-lines"
+LINE_KIND = "compare-line-finders"
+LINE_COVER = 0.5
+LINE_TALL = 2.5
+
+#: The line finders, by the name a person reads: what each is, and the card a choice of it would set.
+LINE_FINDERS: tuple[dict[str, Any], ...] = (
+    {"finder": "kraken-blla", "name": "Kraken's line finder", "card": "kraken:builtin/blla@bundled",
+     "pin": {"kraken": "blla", "kraken_version": "bundled"}},
+    {"finder": "apple-vision", "name": "Apple Vision's text lines", "card": "apple:vision/recognize-text@os",
+     "pin": {"builtin": "apple-vision"}},
+    {"finder": "yolo", "name": "The YOLO layout model", "card": "yolo:hf/hantian/yolo-doclaynet@main",
+     "pin": {"yolo": "yolo-doclaynet-11n"}, "not_available": "not available yet: it finds regions, not lines"},
+)
+
+
+def _finder_unavailable(finder: dict[str, Any]) -> str | None:
+    if finder.get("not_available"):
+        return finder["not_available"]
+    if finder["finder"] == "apple-vision":
+        from fichero_server.training.evaluation import apple_vision_here
+
+        return None if apple_vision_here() else "Apple Vision's text recognition is not available on this Mac"
+    if finder["finder"] == "kraken-blla":
+        from fichero_server.llm.kraken_runtime import is_installed
+
+        return None if is_installed() else "Kraken is not in this build"
+    return None
+
+
+def find_lines_with(finder: str, photo: str) -> list[list[float]]:
+    """The lines a finder finds on a page, each a normalised [x, y, w, h] box. The seam tests replace."""
+    if finder == "kraken-blla":
+        from fichero_server.llm import kraken_runtime
+        from fichero_server.media.ocr_geometry import OCRGeometryLevel
+
+        result = kraken_runtime.segment_to_geometry(photo)
+        return [list(b.bbox) for b in result.boxes if b.level == OCRGeometryLevel.LINE]
+    if finder == "apple-vision":
+        from fichero_server.workflows.tools.vision_base import apple_vision_ocr_with_geometry
+
+        return [list(b.bbox) for b in apple_vision_ocr_with_geometry(photo).line_boxes]
+    raise ValueError(f"no line finder {finder!r}")
+
+
+def _checked_boxes(page: dict[str, Any]) -> list[list[float]]:
+    """The checked lines' boxes, normalised to the photograph (their outlines are in its pixels)."""
+    from PIL import Image
+
+    with Image.open(page["photo"]) as image:
+        width, height = image.size
+    boxes = []
+    for line in page["lines"]:
+        points = line.get("polygon") or line.get("baseline") or []
+        if not points or not width or not height:
+            continue
+        xs, ys = [p[0] for p in points], [p[1] for p in points]
+        boxes.append([min(xs) / width, min(ys) / height, (max(xs) - min(xs)) / width, (max(ys) - min(ys)) / height])
+    return boxes
+
+
+def _covers(found: list[float], checked: list[float]) -> bool:
+    fx, fy, fw, fh = found
+    cx, cy, cw, ch = checked
+    across = max(0.0, min(fx + fw, cx + cw) - max(fx, cx))
+    down = max(0.0, min(fy + fh, cy + ch) - max(fy, cy))
+    area = cw * ch
+    return area > 0 and across * down / area >= LINE_COVER and fh <= LINE_TALL * max(ch, 1e-9)
+
+
+def score_lines(found: list[list[float]], checked: list[list[float]]) -> dict[str, int]:
+    """How many checked lines the finder found, of how many, and how many of its lines match none."""
+    hit = sum(1 for c in checked if any(_covers(f, c) for f in found))
+    extra = sum(1 for f in found if not any(_covers(f, c) for c in checked))
+    return {"found": hit, "checked": len(checked), "extra": extra}
+
+
+def start_lines(db: Any, library: Path, *, page_ids: list[str] | None, now: str, started_by: str) -> dict[str, Any]:
+    """Compare the line finders on the sample pages: the same readiness as the readers' bake-off, one
+    `compare-line-finders` job in Activity, one record. Refused in words when no finder can run here."""
+    import uuid
+
+    from fichero_server.execution import jobs
+
+    pages, left_out = ground_truth(db, page_ids)
+    ready = readiness(pages, unmarked_import_pages(db))
+    if not ready["ready"]:
+        raise BakeoffRefused(ready["sentence"])
+    finders = [{**f, "not_scored": _finder_unavailable(f)} for f in LINE_FINDERS]
+    if not any(f["not_scored"] is None for f in finders):
+        why = " ".join(f"{f['name']}: {f['not_scored']}." for f in finders)
+        raise BakeoffRefused(f"No line finder can be compared on this Mac yet. {why}")
+    register_job_kinds()
+    record_id = uuid.uuid4().hex
+    job_id = jobs.enqueue(db, LINE_KIND, record_id, started_by=started_by, watched=True)
+    record = {"id": record_id, "job_id": job_id, "step": LINES_STEP, "started_at": now, "material": "",
+              "volume": 0, "pages": pages, "left_out": left_out, "lines": sum(p["lines"] for p in pages),
+              "candidates": [{k: f.get(k) for k in ("finder", "name", "card", "pin", "not_scored")} for f in finders]}
+    write_record(library, record)
+    return record
+
+
+def _run_lines(db: Any, record_id: str) -> dict[str, Any]:
+    """The job's work: each finder on each sample page, scored, kept on the job's row as it goes."""
+    import json
+    import time
+
+    from fichero_server.execution import jobs
+    from fichero_server.training.evaluation import reference_page
+
+    job_id = jobs.current_job_id()
+    record = read_record(Path(db.path).parent, record_id)
+    out: dict[str, Any] = {}
+    for finder in record["candidates"]:
+        if finder["not_scored"] is not None:
+            continue
+        per_page, began = [], time.monotonic()
+        for p in record["pages"]:
+            page, _why = reference_page(db, p["document_id"], None)
+            if page is None:
+                continue
+            if job_id:
+                jobs.save_detail(db, job_id, json.dumps({"finders": out}),
+                                 reason=f"Finding lines on {page['name']} with {finder['name']}")
+            try:
+                found, why = find_lines_with(finder["finder"], page["photo"]), None
+            except Exception as exc:  # noqa: BLE001 -- the page says why it was not scored
+                found, why = [], f"failed: {exc}"
+            per_page.append({"document_id": p["document_id"], "name": page["name"], "why": why,
+                             **score_lines(found, _checked_boxes(page))})
+        out[finder["finder"]] = {"per_page": per_page, "seconds": round(time.monotonic() - began, 2)}
+        if job_id:
+            jobs.save_detail(db, job_id, json.dumps({"finders": out}))
+    return {"finders": out}
+
+
+def register_job_kinds() -> None:
+    from fichero_server.execution import jobs
+
+    if LINE_KIND not in jobs.KINDS or jobs.KINDS[LINE_KIND].run is None:
+        jobs.register_kind(LINE_KIND, _run_lines, model=None, lane="local-ml", name="Compare the line finders")
+
+
+def lines_result(db: Any, record: dict[str, Any]) -> dict[str, Any]:
+    """The line finders' table: by the share of checked lines each found, then fewer extra lines, then faster."""
+    import json
+
+    from fichero_server.execution import jobs
+
+    job = jobs.read_job(db, record["job_id"])
+    state = job["state"] if job else "cleared"
+    try:
+        done = (json.loads(job["detail"] or "{}") if job else {}).get("finders") or {}
+    except ValueError:
+        done = {}
+    rows = []
+    for f in record["candidates"]:
+        row = {"card": f["card"], "name": f["name"], "pin": f["pin"], "role": "contender", "rule_rank": None,
+               "reader": None, "model": f["finder"], "runs_on": "this-mac", "local": True,
+               "cost_usd": _figure(0.0, "measured", "runs on this Mac"), "carbon_g_per_page": None,
+               "trainable": False, "size_gb": 0.0, "cer": None, "policy": None, "scores": {}, "per_page": [],
+               "measured": False, "pages_read": None, "pages_total": len(record["pages"]), "pages_per_hour": None,
+               "seconds": None, "wer": None, "lines_found": None, "lines_checked": None, "extra_lines": None,
+               "why": f["not_scored"]}
+        kept = done.get(f["finder"])
+        if f["not_scored"] is None and kept:
+            pages = [p for p in kept["per_page"] if p["why"] is None]
+            row.update(lines_found=sum(p["found"] for p in pages), lines_checked=sum(p["checked"] for p in pages),
+                       extra_lines=sum(p["extra"] for p in pages), pages_read=len(pages), seconds=kept["seconds"],
+                       measured=bool(pages), why=None if pages else "it could not find lines on any of the pages")
+        elif f["not_scored"] is None:
+            row["why"] = ("waiting for the comparison job" if state in ("waiting", "running")
+                          else f"the comparison job ended ({state}) without scoring it")
+        rows.append(row)
+
+    def key(r: dict[str, Any]) -> tuple:
+        share = r["lines_found"] / r["lines_checked"] if r["measured"] and r["lines_checked"] else -1.0
+        return (-share, r["extra_lines"] if r["extra_lines"] is not None else math.inf, r["seconds"] or math.inf,
+                r["card"])
+
+    ranked = sorted(rows, key=key)
+    for i, r in enumerate(ranked, 1):
+        r["rank"] = i
+    measured = [r for r in ranked if r["measured"]]
+    # Still scoring while a finder that can run has no result yet (the table is read from what the job kept).
+    waiting = any(f["not_scored"] is None and f["finder"] not in done for f in record["candidates"]) \
+        and state in ("waiting", "running")
+    no_winner = None
+    if not waiting and len(measured) < 2:
+        no_winner = ("no line finder found lines on these pages" if not measured
+                     else f"only {measured[0]['name']} could be compared")
+    winner = measured[0]["card"] if not waiting and no_winner is None else None
+    return {**{k: record[k] for k in ("id", "job_id", "step", "started_at", "pages", "left_out", "lines")},
+            "state": state, "reason": job["reason"] if job else None, "rows": ranked, "winner": winner,
+            "no_winner_why": no_winner}

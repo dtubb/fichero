@@ -29,6 +29,7 @@ from tests.unit.recipes.test_bakeoff_readers import (  # noqa: F401  (fixtures)
     _set_up,
     folder,
     homes,
+    no_apple_vision,
 )
 
 PAGES = 5  # 4 of 5 is the measured share (80%); 3 of 5 is under it
@@ -97,7 +98,8 @@ def test_a_reader_that_returned_nothing_is_not_read_never_100_percent_and_never_
     assert empty["why"] == f"not measured: read 0 of {PAGES} pages (returned no text on {PAGES} pages)"
     assert all(p["read"] is False and p["cer"] is None and p["why"] == "returned no text" for p in empty["per_page"])
     assert done["winner"] == MCCATMUS and done["no_winner_why"] is None  # reads every line right, of the two
-    assert [r["card"] for r in done["rows"]][-1] == PPOCR  # ranked after every measured reader
+    order = [r["card"] for r in done["rows"]]
+    assert all(order.index(PPOCR) > order.index(r["card"]) for r in done["rows"] if r["measured"])  # after every measured reader
     # The card's own entry carries the same judgement: no 100% written as the reader's score.
     (kept,) = evaluation.model_evaluations(READER_IDS[PPOCR], "kraken")
     assert kept["measured"] is False and kept["scores"][DEFAULT_POLICY_NAME]["cer"] is None

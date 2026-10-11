@@ -230,5 +230,5 @@ def test_a_model_with_no_held_out_pages_is_refused_in_words(client, db, tmp_path
     remote = client.post("/api/evaluation/runs", json={"checked": CHECKED, "held_out_ids": [project["held"][0].id],
                                                        "candidates": [{"model": "qwen/qwen3-vl-4b", "reader": "vision",
                                                                        "provider": "openrouter"}]})
-    assert remote.status_code == 422 and "remote model target is not built yet" in remote.json()["detail"]
+    assert remote.status_code == 422 and "lines off this Mac, and this evaluation keeps them here" in remote.json()["detail"]
     assert db.execute_fetchone("SELECT COUNT(*) FROM jobs WHERE kind = 'evaluate-models'")[0] == 0

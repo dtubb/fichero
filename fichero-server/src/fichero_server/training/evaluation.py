@@ -52,7 +52,10 @@ from fichero_server.models.compute_requests import EvaluationCandidate, Evaluati
 
 KIND = "evaluate-models"
 #: Providers that run on this Mac. Anything else is a remote target, not built yet.
-LOCAL_PROVIDERS = ("omlx",)
+#: Readers on this Mac: its MLX models, and Apple Vision's on-device recognition (#5660 item 7).
+LOCAL_PROVIDERS = ("omlx", "apple")
+#: Apple Vision as the evaluation names it: `vision` reader, provider `apple`, this model.
+APPLE_VISION = "apple-vision"
 CARDS_DIR = "cards"
 #: A page counts as read only when the reader's text has at least this share of the reference's characters
 #: (under the default policy). A reader that reads badly still writes about as much as the page holds (a
@@ -141,7 +144,21 @@ def trained_card(candidate: EvaluationCandidate) -> dict[str, Any] | None:
     return get_mlx_model_store().trained_card(candidate.model)
 
 
-def on_this_mac(model: str, reader: str) -> bool:
+def apple_vision_here() -> bool:
+    """Whether this Mac's Vision framework recognises text (the locales it offers; none off macOS)."""
+    try:
+        from fichero_server.workflows.tools.vision_base import _supported_vision_locales
+
+        return bool(_supported_vision_locales())
+    except Exception:  # noqa: BLE001 -- no Vision framework here: not available, said by the caller
+        return False
+
+
+def on_this_mac(model: str, reader: str, provider: str = "omlx") -> bool:
+    if reader == "vision" and provider == "apple":
+        return model == APPLE_VISION and apple_vision_here()
+    if reader == "vision" and provider not in LOCAL_PROVIDERS:
+        return True  # a cloud provider: nothing to download; whether pages may leave is the request's
     if reader == "kraken":
         from fichero_server.llm.kraken_runtime import is_recognition_model_installed
 
@@ -353,12 +370,47 @@ def read_with_vision(photo: str, candidate: EvaluationCandidate, lines: list[dic
             out.append((parsed[0] if parsed else None) or "")
         return out
 
+    if candidate.provider == "apple":
+        # Apple Vision recognises the text in each line's picture: its answer IS the reading, not a JSON array.
+        async def recognised() -> list[str]:
+            out = []
+            for crop in crops:
+                raw = await ask_vision(candidate, crop, prompt)
+                answers.append(raw or "")
+                out.append(" ".join((raw or "").split()))
+            return out
+
+        reads = asyncio.run(recognised())
+        if answers and not any(a.strip() for a in answers):
+            return reads, "Apple Vision recognised no text in any line"
+        return reads, None
     reads = asyncio.run(all_lines())
     if answers and not any(a.strip() for a in answers):
         return reads, "the model gave an empty answer for every line"
     if answers and all(parse_answer(a, 1) is None for a in answers):
         return reads, "the model's answers were not the readings it was asked for"
     return reads, None
+
+
+def word_errors(reference: list[str], reads: list[str]) -> dict[str, int]:
+    """The page's word errors (#5660 item 7, WER beside CER): the word-level edit distance between the reference
+    lines and the reads, and the reference's word count. Words are split on whitespace, as written."""
+    ref = " ".join(reference).split()
+    hyp = " ".join(reads).split()
+    previous = list(range(len(hyp) + 1))
+    for i, r in enumerate(ref, 1):
+        current = [i]
+        for j, h in enumerate(hyp, 1):
+            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (r != h)))
+        previous = current
+    return {"distance": previous[-1], "reference_words": len(ref)}
+
+
+def wer_over(per_page: list[dict[str, Any]]) -> float | None:
+    """The word error rate over the pages read, from each page's `words` (none kept before #5660: None)."""
+    read = [p for p in per_page if p.get("read", True) and isinstance(p.get("words"), dict)]
+    total = sum(p["words"]["reference_words"] for p in read)
+    return sum(p["words"]["distance"] for p in read) / total if read and total else None
 
 
 def score_page(reference: list[str], reads: list[str]) -> dict[str, dict[str, Any]]:
@@ -462,10 +514,10 @@ def speed(seconds: float, pages: int) -> dict[str, Any]:
 def plan(db: Any, request: EvaluationRunRequest) -> dict[str, Any]:
     """The candidates, the pages and what was left out, or refused in words. Nothing is read yet."""
     for c in request.candidates:
-        if c.reader == "vision" and c.provider not in LOCAL_PROVIDERS:
-            raise EvaluationRefused(f"{c.model} on {c.provider}: only this Mac's models can be evaluated so far "
-                                    f"({', '.join(LOCAL_PROVIDERS)}); a remote model target is not built yet")
-        if not on_this_mac(c.model, c.reader):
+        if c.reader == "vision" and c.provider not in LOCAL_PROVIDERS and not request.remote_allowed:
+            raise EvaluationRefused(f"{c.model} on {c.provider} would send the sample's lines off this Mac, and "
+                                    "this evaluation keeps them here")
+        if not on_this_mac(c.model, c.reader, c.provider):
             raise EvaluationRefused(f"{c.model} is not on this Mac: download it (or land its training) first")
     candidates = list(request.candidates)
     absent: list[dict[str, str]] = []
@@ -548,7 +600,8 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
             seconds += time.monotonic() - began
             per_page.append(judge_page({"document_id": page["document_id"], "name": page["name"],
                                         "trust": page["trust"], "lines": len(reference),
-                                        "scores": score_page(reference, reads)}, why))
+                                        "scores": score_page(reference, reads),
+                                        "words": word_errors(reference, reads)}, why))
             _keep_measured(db, job_id, key, per_page, seconds)
         models.append({"model": c.model, "reader": c.reader,
                        "role": "trained" if trained_card(c) is not None else "out of the box",
