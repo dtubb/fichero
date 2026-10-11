@@ -76,7 +76,7 @@ enum ProposalAnswer: Equatable {
 
 extension LibraryView {
     /// The folder shown, when it is a folder with proposals waiting; and what waits in it.
-    private var shownProposals: (folder: Document, waiting: [FoundDocumentsStore.Waiting])? {
+    fileprivate var shownProposals: (folder: Document, waiting: [FoundDocumentsStore.Waiting])? {
         guard let folderId = shownFolderDocumentId, let folder = documentStore.selectedCollection,
               folder.id == folderId,
               let waiting = activeLibraryReference?.foundDocumentsStore.waiting[folderId], !waiting.isEmpty else {
@@ -161,6 +161,76 @@ struct ProposedDocumentsMenu: View {
     }
 }
 
+/// Where the shown folder's proposals sit among the items List and Icon list (`finddocs.review.items`).
+enum ProposedInItems {
+    /// Each proposal by the id of its first listed page: List heads the proposal's pages with it there.
+    static func starts(in ids: [String], waiting: [FoundDocumentsStore.Waiting]) -> [String: FoundDocumentsStore.Waiting] {
+        var starts: [String: FoundDocumentsStore.Waiting] = [:]
+        for item in waiting {
+            let pages = Set(item.document.pageIds)
+            if let first = ids.first(where: { pages.contains($0) }) { starts[first] = item }
+        }
+        return starts
+    }
+
+    /// Each page's proposal: Icon marks every page of one.
+    static func members(of waiting: [FoundDocumentsStore.Waiting]) -> [String: FoundDocumentsStore.Waiting] {
+        var members: [String: FoundDocumentsStore.Waiting] = [:]
+        for item in waiting {
+            for pageId in item.document.pageIds { members[pageId] = item }
+        }
+        return members
+    }
+}
+
+extension LibraryView {
+    /// The shown folder's proposals by the id of their first listed page (List).
+    var proposalStarts: [String: FoundDocumentsStore.Waiting] {
+        guard let shown = shownProposals else { return [:] }
+        return ProposedInItems.starts(in: filteredDocuments.map(\.id), waiting: shown.waiting)
+    }
+
+    /// The shown folder's proposals by each of their pages (Icon).
+    var proposalsByPage: [String: FoundDocumentsStore.Waiting] {
+        shownProposals.map { ProposedInItems.members(of: $0.waiting) } ?? [:]
+    }
+
+    /// The dashed Proposed mark over a page of a proposal in Icon, with its menu (the page's adjustments too).
+    func proposedPageBadge(_ item: FoundDocumentsStore.Waiting, pageId: String) -> some View {
+        let target = LibraryOutlineNode.ProposalTarget(documents: [item], pageId: pageId)
+        return ProposedBadge()
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 4))
+            .padding(4)
+            .help("Proposed: \(item.document.name), \(ProposedDocumentNameCell.detail(of: item.document))")
+            .contextMenu { ProposedDocumentsMenu(target: target) { answerProposals($0, target: target) } }
+    }
+
+    /// The row that heads a proposal's pages in List: its mark, name and detail, with its menu.
+    func proposedListHeader(_ item: FoundDocumentsStore.Waiting) -> some View {
+        let target = LibraryOutlineNode.ProposalTarget(documents: [item], pageId: nil)
+        return ProposedDocumentNameCell(proposal: item.document)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+            .contextMenu { ProposedDocumentsMenu(target: target) { answerProposals($0, target: target) } }
+    }
+}
+
+/// The dashed "Proposed" mark: a proposal, never a document.
+struct ProposedBadge: View {
+    var body: some View {
+        Text("Proposed")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+            )
+    }
+}
+
 /// A proposed document's Name cell: a dashed "Proposed" mark, its name, then its pages, kind and how sure.
 struct ProposedDocumentNameCell: View {
     let proposal: Components.Schemas.ProposedDocument
@@ -175,14 +245,7 @@ struct ProposedDocumentNameCell: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("Proposed")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                )
+            ProposedBadge()
             Text(proposal.name)
                 .lineLimit(1)
             Text(Self.detail(of: proposal))
@@ -197,15 +260,22 @@ struct ProposedDocumentNameCell: View {
     }
 }
 
-/// Reads the shown folder's proposals when the folder changes, so Items can show them.
+/// Reads the shown folder's proposals when the folder changes, and every read folder's again when a Find the
+/// Documents run ends anywhere (the menu's, or a recipe's step: `ActivityStore.findDocumentsRunsEnded`).
 struct ProposedDocumentsLoader: ViewModifier {
     let store: FoundDocumentsStore?
     let folderId: String?
+    let runsEnded: Int
+
+    private struct Key: Equatable {
+        let folderId: String?
+        let runsEnded: Int
+    }
 
     func body(content: Content) -> some View {
-        content.task(id: folderId) {
-            guard let store, let folderId else { return }
-            await store.load(folderId: folderId)
+        content.task(id: Key(folderId: folderId, runsEnded: runsEnded)) {
+            guard let store else { return }
+            await store.loadAgain(alongWith: folderId)
         }
     }
 }

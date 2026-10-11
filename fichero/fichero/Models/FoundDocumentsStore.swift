@@ -83,20 +83,10 @@ final class FoundDocumentsStore {
         }
     }
 
-    /// How often a run is asked whether it has ended.
-    var pollInterval: Duration = .seconds(3)
-
-    /// Follow a Find the Documents run until it ends, then read again every folder read so far (the one Items or
-    /// the Inspector shows among them), so its proposals appear without leaving the folder.
-    func follow(run jobId: String) async {
-        let underWay: Set<String> = ["queued", "waiting", "pending", "running", "paused"]
-        while !Task.isCancelled {
-            guard case .ok(let response)? = try? await client.api.findDocumentsRunApiFindDocumentsRunsJobIdGet(
-                path: .init(jobId: jobId)
-            ), let run = try? response.body.json, underWay.contains(run.state) else { break }
-            try? await Task.sleep(for: pollInterval)
-        }
-        for folderId in waiting.keys.sorted() { await load(folderId: folderId) }
+    /// Read again `folderId` and every folder read so far (the one the Inspector shows among them): after a Find
+    /// the Documents run ends, from the menu or as a recipe's step (`ActivityStore.findDocumentsRunsEnded`).
+    func loadAgain(alongWith folderId: String?) async {
+        for id in Set(waiting.keys).union([folderId].compactMap { $0 }).sorted() { await load(folderId: id) }
     }
 
     // MARK: - Answers (each one ⌘Z step)

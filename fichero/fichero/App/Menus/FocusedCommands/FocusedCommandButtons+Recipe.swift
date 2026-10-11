@@ -245,9 +245,7 @@ struct FindDocumentsMenuItem: View {
         guard let library, !scopeIds.isEmpty else { return }
         Task {
             do {
-                let jobId = try await library.documentService.findDocuments(scopeIds: scopeIds)
-                // Its proposals show in Items when it ends (`finddocs.review.items`).
-                await library.foundDocumentsStore.follow(run: jobId)
+                _ = try await library.documentService.findDocuments(scopeIds: scopeIds)
             } catch {
                 findDocumentsLogger.error("Find the Documents failed: \(error.localizedDescription, privacy: .public)")
                 library.documentStore.error = error

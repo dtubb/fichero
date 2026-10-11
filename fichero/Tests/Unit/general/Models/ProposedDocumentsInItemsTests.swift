@@ -90,6 +90,18 @@ struct ProposedDocumentsInItemsTests {
                 "a neighbour already answered takes no page")
     }
 
+    /// WHY: List and Icon showed proposed documents as loose pages, nothing saying they were proposed. List heads a
+    /// proposal's pages with it at its first listed page; Icon marks every page of one.
+    @Test("List heads each proposal at its first listed page; Icon marks each of its pages")
+    func listAndIconPlaces() {
+        let items = [waiting(0, ["b", "c"], first: 1), waiting(1, ["x", "e"], first: 4)]
+        let starts = ProposedInItems.starts(in: ["a", "b", "c", "d", "e"], waiting: items)
+        #expect(starts.mapValues(\.id) == ["b": "p1#0", "e": "p1#1"], "a page filtered out never heads it")
+        let members = ProposedInItems.members(of: items)
+        #expect(members.mapValues(\.id) == ["b": "p1#0", "c": "p1#0", "x": "p1#1", "e": "p1#1"])
+        #expect(members["a"] == nil, "a loose page carries no mark")
+    }
+
     @Test("a proposed row reads as a proposal: its pages, kind and how sure")
     func proposedRowWords() {
         let document = waiting(0, ["b", "c", "d"], first: 2).document

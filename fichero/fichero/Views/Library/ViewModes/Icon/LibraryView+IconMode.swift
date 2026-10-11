@@ -65,6 +65,8 @@ extension LibraryView {
         // raw @AppStorage string was re-split into a Set inside the ForEach
         // for every document, on both the identity and the thumbnail.
         let showsName = LibraryRowAttribute.set(from: rowAttributesRaw).contains(.name)
+        // Each page of a proposed document carries its dashed mark (`finddocs.review.items`).
+        let proposals = proposalsByPage
         return GeometryReader { geometry in
             // #4966: clamped to THIS pane's own measured width, not scale
             // alone — the fix for C8 (thumbnails pushed off the left edge
@@ -156,6 +158,9 @@ extension LibraryView {
                                     }
                                 }
                                 .equatable()
+                                .overlay(alignment: .bottomLeading) {
+                                    if let item = proposals[doc.id] { proposedPageBadge(item, pageId: doc.id) }
+                                }
                                 .id(doc.id)
                                 .iconTileFrame(id: doc.id, in: "libraryIconGrid", model: marqueeModel)
                                 .draggable(libraryItemDrag(for: doc)) {

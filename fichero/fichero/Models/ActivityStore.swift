@@ -106,6 +106,9 @@ final class ActivityStore: ChangeEventConsumer {
     // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
     // invalidates the observing views.
     private(set) var backgroundJobs: [ActivityJob] = []
+    /// Counts the Find the Documents runs seen to end, a recipe's step among them (`finddocs.review.items`):
+    /// Items and the Inspector read their proposals again when it moves.
+    private(set) var findDocumentsRunsEnded = 0
     private(set) var processCpuPercent: Double?
     private(set) var cpuCount: Int = 0
     /// Pause Background Work is on (`activity.pause.global`), from the same read.
@@ -232,6 +235,7 @@ final class ActivityStore: ChangeEventConsumer {
                 for id in before.keys where runTrees[id] != nil && !listed.contains(id) {
                     scheduleTreeRead(threadId: id)
                 }
+                if Self.aFindDocumentsRunEnded(from: backgroundJobs, to: snapshot.jobs) { findDocumentsRunsEnded += 1 }
                 backgroundJobs = snapshot.jobs
             }
             await followProjectRun(in: snapshot.jobs)

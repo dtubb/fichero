@@ -247,6 +247,8 @@ extension LibraryView {
     private func macList(proxy: ScrollViewProxy) -> some View {
         // ONE derivation for the whole pass — see `ListRowChrome`.
         let chrome = listRowChrome
+        // The shown folder's proposed documents head their pages (`finddocs.review.items`).
+        let starts = proposalStarts
         return listScrollSync(
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -261,6 +263,7 @@ extension LibraryView {
                         // #3322: same predicate and same title as the outline
                         // table's Section — one grouping, not two that drift.
                         ForEach(datedDocuments) { doc in
+                            if let item = starts[doc.id] { proposedListHeader(item) }
                             documentRow(doc, chrome)
 
                             Divider()
@@ -270,6 +273,7 @@ extension LibraryView {
                         undatedSectionHeader
 
                         ForEach(undatedDocuments) { doc in
+                            if let item = starts[doc.id] { proposedListHeader(item) }
                             documentRow(doc, chrome)
 
                             Divider()
@@ -277,6 +281,7 @@ extension LibraryView {
                         }
                     } else {
                         ForEach(filteredDocuments) { doc in
+                            if let item = starts[doc.id] { proposedListHeader(item) }
                             documentRow(doc, chrome)
 
                             Divider()
