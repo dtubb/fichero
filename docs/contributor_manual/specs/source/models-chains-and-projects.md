@@ -1339,6 +1339,74 @@ each with its page, its questions and a sample result.
   (`GET /api/recipes/samples`), and the reader search taking the period and hand.
 - **Read's comparison** with the disagreement heat map (#5665), on the Read page.
 
+### 7d. Two set-ups: the app, then a project (ruled 2026-10-11 afternoon, #5668)
+
+**From the maintainer's walkthrough of a first launch on a Dev Local build, 2026-10-11** (the comment
+on #5668). It restructures sections 7b and 7c where they differ, and supersedes the first-run flow of
+`FirstRunWindow` (Welcome, Permissions, AI, then the project's steps in one window). Where 7c and this
+section disagree, this section holds; 7c's stage pages, samples and engine run stand as written.
+
+**Two flows, one code path each.**
+- **Setting up the app** (a first launch, and Fichero › Set Up Fichero…): Welcome, then What Fichero
+  runs, then a hand-off to Set Up a Project or to the app.
+- **Set Up a Project**: one view, the same from every way in: the welcome's Set Up a New Project…, File ›
+  Set Up New Project… and Project › Set Up…. There is never a second copy of it.
+
+**Setting up the app.**
+1. **Welcome**: its sentence and its two choices, nothing else (no card, no pills; done on the lead).
+2. **What Fichero runs** (it was "AI is optional"): what Fichero can do, and with what:
+   - reading pages: Kraken, Apple Vision, MLX vision models;
+   - finding regions and lines: YOLO, Kraken;
+   - names and statements: spaCy;
+   - speech: Whisper;
+   - remote models: OpenRouter, Anthropic, OpenAI, Google.
+   It suggests two accounts and takes them right in the step: **Hugging Face** (to find and download
+   models) and **OpenRouter** (remote readers). Choose a Provider opens its sheet in the step, while
+   the step is showing; it opened only after onboarding ended.
+3. **The hand-off**: Set Up a Project, or straight into the app.
+- **Permissions is no longer a step.** Access to a folder is asked when a folder is added.
+- **One Continue per step**, in the footer. A step's body has no Continue of its own.
+
+**Set Up a Project: small pages, one step at a time, any of them skippable.**
+1. **Your project**: its name and where it lives.
+2. **Add material**: Add Files or Folders… (it was Add a Folder…), then how it comes in: Copy (the
+   default), Link, Move, Index, Keep arranged. How it comes in is separate from what it is. The line
+   about adding material later goes.
+3. **About the material**:
+   - the pages, counted from what was added;
+   - languages and scripts. The language field offers matches as the person types, by ISO 639-3 and
+     Glottolog (about 8,000 languages and 13,000 dialects), and by a language's own name, with or
+     without its accents ("español", "espanol"); the engine half is on the lead. A language it does
+     not know is said once, on the language row, never repeated on the scripts row;
+   - kinds: handwriting, print, typescript, and more (tables and forms, maps and drawings);
+   - when it was written; where it was written (a place);
+   - which hand: the curated hands for the script and century (section 7c).
+   The line saying a reader is proposed for each goes.
+4. **The stages, in pipeline order**: Prepare Images · Find Regions · Find Lines · Read · Normalise ·
+   Translate · Organise · Names · Statements · Dates & Times · Passages · Structured Data · Search.
+   Each stage's explanation shows whether or not it is ticked. The goals stay as shortcuts that tick
+   stages (section 7c).
+5. **One page per chosen stage**: what it does, its questions, its model (with the comparison on 3 to 5
+   sample pages, section 7c) and training or fine-tuning for that step (Kraken, spaCy, Core ML, MLX
+   LoRA).
+   - **Normalise and Translate are two stages.** Normalise offers as written (diplomatic),
+     abbreviations expanded, normalised spelling, and modernised (for instance into modern Spanish).
+     Translate goes into any language, found by the same search as the material's languages, not a
+     fixed five.
+6. **Ready**: the plan in words. No raw engine message reaches the page: a step whose model is not in
+   a form the engine knows says so in words, with what to do. A step that will not run (Find a table's
+   cells, for one) is listed only when its stage was chosen.
+
+**The model chooser, per step.** A step's candidates and its online search are that step's own: Find
+statements lists models that find statements, never page readers, and never says it searched for
+readers. Find Regions has a default with an open licence; a model under a licence that needs accepting
+(YOLO11 DocLayNet, AGPL-3.0) is accepted once, clearly, and Accept and Use for This Step then works.
+
+**What the engine needs for this** (the stages list is the engine's, section 7c): Prepare Images and
+Find Regions become stages of their own (they were Clean Up Images, and part of Find Lines), and
+Normalise its own stage beside Translate, whose target is any language tag. Thirteen stages, in the
+order above.
+
 ### 8. How the recipe is assembled: rules first, measurement second
 
 **By rule, and deterministic** (ruled 2026-10-01). The recipe is assembled from the answers and
@@ -2638,7 +2706,8 @@ Setup
   places and things shows which kinds of names and nothing for an unticked purpose.
 **Set Up, one page per stage (section 7c, ruled 2026-10-11, #5668).**
 
-- `source.onboard.stages.left-list` — **[GAP]** (#5668) the setup window's left list reads, in recipe
+- `source.onboard.stages.left-list` — **[GAP]** (#5668) *Superseded in part by section 7d: the steps are
+  `source.onboard.project.steps`, the stages' order `source.onboard.stages.pipeline-order`.* the setup window's left list reads, in recipe
   order: Your Project, Your Material, Choose the Stages, one page per chosen stage (Clean Up Images,
   Find Lines, Read, Translate, Organise, Names, Statements, Dates & Times, Passages, Structured Data,
   Search, each only when chosen), Train, Ready. Set Up… on an existing project starts at Your Material.
@@ -2714,6 +2783,66 @@ Setup
   `source.recipe.train-offered-per-step`) is its own page after the stages, and Ready is last: the plan
   as one list, what runs by itself, what Start will fetch, Keep an export, and Start. *Test:* pure
   Swift, the last two steps are Train and Ready.
+
+**The two set-ups (section 7d, ruled 2026-10-11 afternoon, #5668).**
+- `source.onboard.app.steps` — **[GAP]** (#5668) setting up the app (a first launch, and Fichero › Set
+  Up Fichero…) is Welcome → What Fichero runs → the hand-off, and no Permissions step: folder access is
+  asked when a folder is added. *Test:* pure Swift, the app's steps are exactly those three.
+- `source.onboard.app.what-fichero-runs` — **[GAP]** (#5668) What Fichero runs says what Fichero can do
+  and with what (reading pages: Kraken, Apple Vision, MLX vision models; regions and lines: YOLO, Kraken;
+  names and statements: spaCy; speech: Whisper; remote: OpenRouter, Anthropic, OpenAI, Google), and
+  takes a Hugging Face and an OpenRouter account in the step. *Test:* pure Swift, the step's rows and its
+  two account fields.
+- `source.onboard.app.provider-sheet-in-step` — **[BROKEN]** (#5668) Choose a Provider opens its sheet
+  while the step shows; it opened only after onboarding ended. *Test:* pure Swift, the sheet's presented
+  state is set by the press, in the step.
+- `source.onboard.app.one-continue` — **[BROKEN]** (#5668) each step has one Continue, the footer's; a
+  step's body carries none. *Test:* pure Swift, no step body offers Continue.
+- `source.onboard.project.one-view` — **[GAP]** (#5668) Set Up a Project is one view, reached from the
+  welcome's Set Up a New Project…, File › Set Up New Project… and Project › Set Up…. *Test:* pure Swift,
+  each way in opens the same steps.
+- `source.onboard.project.steps` — **[GAP]** (#5668) Set Up a Project runs Your project → Add material →
+  About the material → the stages → one page per chosen stage → Train → Ready, one small page each, any
+  of them skippable; Project › Set Up… starts at Add material. *Test:* pure Swift, the step list for no
+  stage and for every stage.
+- `source.onboard.project.add-material` — **[GAP]** (#5668) Add material offers Add Files or Folders…
+  and then how it comes in (Copy, the default; Link, Move, Index, Keep arranged), separate from what the
+  material is. *Test:* pure Swift, the ways in and the default.
+- `source.onboard.project.about-material` — **[GAP]** (#5668) About the material holds the pages
+  counted from what was added, languages, scripts, kinds (handwriting, print, typescript, tables and
+  forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
+  page's fields in that order.
+- `source.onboard.project.language-as-you-type` — **[BROKEN]** (#5668) the language field offers
+  matches as the person types, by the language's own name with or without accents; a language it does
+  not know is said on the language row only, never repeated on the scripts row. *Test:* pure Swift, a
+  typed "espanol" lists Spanish; an unknown language's message appears once.
+- `source.onboard.stages.pipeline-order` — **[GAP]** (#5668) the stages are, in pipeline order: Prepare
+  Images, Find Regions, Find Lines, Read, Normalise, Translate, Organise, Names, Statements, Dates &
+  Times, Passages, Structured Data, Search, from the engine's list. *Test:* pytest, the thirteen in that
+  order; pure Swift, the chooser shows the engine's order.
+- `source.onboard.stages.explanation-always-shown` — **[GAP]** (#5668) every stage in the chooser shows
+  its explanation whether or not it is ticked. *Test:* pure Swift, an unticked stage's row carries its
+  sentence.
+- `source.onboard.stages.normalise-and-translate` — **[GAP]** (#5668) Normalise and Translate are two
+  stages: Normalise offers as written, abbreviations expanded, normalised spelling and modernised;
+  Translate's target is any language, found by the language search. *Test:* pytest, the two stages and
+  their questions; pure Swift, Translate's target field is the language search.
+- `source.onboard.stages.page-trains` — **[GAP]** (#5668) each stage page offers training or fine-tuning
+  for its step (Kraken, spaCy, Core ML, MLX LoRA) where the step can be trained. *Test:* pure Swift, a
+  trainable stage's page offers it and another's does not.
+- `source.onboard.ready.words-not-engine-errors` — **[BROKEN]** (#5668) Ready says the plan in words and
+  never shows a raw engine message (a model "not pinned in a known form" is said in words with what to
+  do). *Test:* pure Swift, a refusal's engine text is not on the page.
+- `source.onboard.ready.will-not-run-when-chosen` — **[BROKEN]** (#5668) a step that will not run is
+  listed on Ready only when its stage was chosen. *Test:* pure Swift, an unchosen stage's refusal is not
+  listed.
+- `source.onboard.models.chooser-per-step` — **[BROKEN]** (#5668) a step's model candidates and online
+  search are that step's own: Find statements never lists page readers or says it searched for readers.
+  *Test:* engine, the candidates for `find-statements` carry that job; pure Swift, the search label
+  names the step.
+- `source.onboard.models.licence-accepted-once` — **[BROKEN]** (#5668) Find Regions has a default under an
+  open licence, and a model under a licence that needs accepting is accepted once, after which Accept and
+  Use for This Step works. *Test:* pure Swift, accepting enables the button.
 
 - `source.onboard.sheet-fits-its-window` — **[PARTIAL]** (#5624) **Built 2026-10-09 (app), not yet seen:**
   rows of checkboxes and tokens wrap (`FlowLayout`: the kinds of names, the kinds of material, the language and
