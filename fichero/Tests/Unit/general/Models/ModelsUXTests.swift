@@ -238,7 +238,8 @@ final class ModelsUXTests: XCTestCase {
             XCTAssertEqual(RecipeStepsView.fixRoute(fix, hasProject: false), .setup, fix)
         }
         XCTAssertEqual(RecipeStepsView.fixRoute("allow-cloud", hasProject: true), .setup)
-        XCTAssertEqual(RecipeStepsView.fixRoute("accept-licence", hasProject: true), .setup)
+        // Review the licence… opens the step's licence to accept (#5660), never setup's handler.
+        XCTAssertEqual(RecipeStepsView.fixRoute("accept-licence", hasProject: true), .licence)
     }
 
     /// WHY: the finder asks for THAT step's job with the project's answers, not a reader's job by default.

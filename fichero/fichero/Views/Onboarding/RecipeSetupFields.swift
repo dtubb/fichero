@@ -190,6 +190,8 @@ struct RecipeMaterialSourceFields: View {
             HStack {
                 Button("Add a Folder…") { choosingFolder = true }
                     .disabled(importer == nil || adding)
+                    .help(importer == nil ? "Open the project first; its folder is added to it"
+                          : adding ? "Adding the folder…" : "Choose a folder of material to add")
                 if adding { ProgressView().controlSize(.small) }
             }
             Text("Or add material later; it comes in the way chosen above.")

@@ -25,3 +25,31 @@ extension RecipeSetupStore {
         .init(job: job, scripts: scripts, languages: languages, material: materials.first ?? "handwriting")
     }
 }
+
+// Start's words in Ready (#5660).
+extension RecipeSetupStore {
+    /// Why Start cannot be pressed yet, in words, for the button's help; nil when it can (#5660 item 2: every Set Up
+    /// button acts, or is disabled with its reason).
+    var startDisabledReason: String? {
+        guard !canStart else { return nil }
+        guard let plan = startPlan else { return "Fichero is still planning what Start would run." }
+        if let first = plan.refusals.first { return "Start waits: \(first)" }
+        return "Nothing in this plan runs yet: every step is skipped (see why above)."
+    }
+
+    /// The plan's words for steps that wait for a model already downloading ("... which is downloading (1.2 GB of
+    /// 5.6 GB): they run when it lands"), shown in place of a refusal (#5660).
+    var waitingForDownloads: [String] { startPlan?.waiting ?? [] }
+}
+
+extension RecipeStepsView {
+    /// Where a fix goes: the model finder for the step, the step's licence to review and accept (#5660), or
+    /// setup's handler (letting pages leave; without a project, Settings › AI Models).
+    enum FixRoute: Equatable { case finder, licence, setup }
+
+    static func fixRoute(_ fix: String, hasProject: Bool) -> FixRoute {
+        guard hasProject else { return .setup }
+        if RecipeSetupStore.fixOpensFinder(fix) { return .finder }
+        return fix == "accept-licence" ? .licence : .setup
+    }
+}

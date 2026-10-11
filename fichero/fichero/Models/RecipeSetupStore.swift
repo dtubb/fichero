@@ -246,10 +246,6 @@ final class RecipeSetupStore {
     /// a refusal (#5660): its steps wait for it after Start, so Start stays pressable while it downloads.
     var canStart: Bool { startPlan.map { $0.refusals.isEmpty && !$0.workflows.isEmpty } ?? false }
 
-    /// The plan's words for steps that wait for a model already downloading ("... which is downloading (1.2 GB of
-    /// 5.6 GB): they run when it lands"), shown in place of a refusal (#5660).
-    var waitingForDownloads: [String] { startPlan?.waiting ?? [] }
-
     /// The folder the shown plan covers (`source.recipe.folder-scoped-start`); nil: the whole project.
     private(set) var startPlanFolderId: String?
 
@@ -329,7 +325,7 @@ final class RecipeSetupStore {
 
     /// Fetch a model the plan needs, through the one download route
     /// (`POST /api/local-models/download/{runtime}/{model}`); the row says Downloading…. The step
-    /// stays refused until the download has finished; the engine then says `model.installed` and the plan is read again (`modelInstalled()`).
+    /// waits for it, Start not held (#5660); the engine then says `model.installed` and the plan is read again.
     func download(_ download: Components.Schemas.StartDownload) async {
         do {
             let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(

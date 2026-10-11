@@ -135,6 +135,7 @@ struct RecipeSkippedRows: View {
     var project: LibraryManager.LibraryReference?
 
     @State private var findingFor: RecipeStepsView.FinderStep?
+    @State private var reviewingLicence: RecipeStepsView.FinderStep?
 
     var body: some View {
         if !store.skippedSteps.isEmpty {
@@ -156,15 +157,22 @@ struct RecipeSkippedRows: View {
                     ModelFinderSheet(project: project, setup: store, step: step) { findingFor = nil }
                 }
             }
+            .sheet(item: $reviewingLicence) { step in
+                if let project {
+                    LicenceReviewSheet(project: project, setup: store, step: step) { reviewingLicence = nil }
+                }
+            }
         }
     }
 
     private func press(_ fix: String, step: String) {
-        if RecipeStepsView.fixRoute(fix, hasProject: project != nil) == .finder, let job = store.job(ofStepId: step) {
-            findingFor = RecipeStepsView.FinderStep(id: step, job: job)
-        } else {
+        let route = RecipeStepsView.fixRoute(fix, hasProject: project != nil)
+        guard route != .setup, let job = store.job(ofStepId: step) else {
             onFix(fix)
+            return
         }
+        let finderStep = RecipeStepsView.FinderStep(id: step, job: job)
+        if route == .finder { findingFor = finderStep } else { reviewingLicence = finderStep }
     }
 }
 

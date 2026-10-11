@@ -290,7 +290,7 @@ extension FirstRunWindow {
                 Button(step == .ready ? "Start" : step == steps.last ? "Finish" : "Continue") {
                     advance()
                 }
-                .disabled(step == .ready && !(store?.canStart ?? false))
+                .disabled(step == .ready && !(store?.canStart ?? false)).help(step == .ready ? (store?.startDisabledReason ?? "") : "")
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }

@@ -20,6 +20,8 @@ struct RecipeStepsView: View {
     var finder: LibraryManager.LibraryReference?
 
     @State private var findingFor: FinderStep?
+    /// The step whose Review the licence… was pressed (#5660).
+    @State private var reviewingLicence: FinderStep?
 
     /// The step Find a Reader… was pressed beside.
     struct FinderStep: Identifiable {
@@ -62,28 +64,22 @@ struct RecipeStepsView: View {
                 ModelFinderSheet(project: finder, setup: store, step: step) { findingFor = nil }
             }
         }
-    }
-
-    /// A step problem's fix button (#5619, `source.find.choose-a-model-opens-the-finder`): Choose a model…,
-    /// Download a model… and Use a cloud model… open the model finder for THIS step's job; the other fixes (let
-    /// pages leave, a licence) go to setup's own handler. Without a project the finder cannot list anything, so
-    /// every fix goes to setup's handler.
-    private func fixHandler(for step: Components.Schemas.RecipeStep) -> ((String) -> Void)? {
-        guard let onFix else { return nil }
-        return { fix in
-            if Self.fixRoute(fix, hasProject: finder != nil) == .finder {
-                findingFor = FinderStep(id: step.id, job: step.job)
-            } else {
-                onFix(fix)
+        .sheet(item: $reviewingLicence) { step in
+            if let finder {
+                LicenceReviewSheet(project: finder, setup: store, step: step) { reviewingLicence = nil }
             }
         }
     }
 
-    /// Where a fix goes: the model finder for the step, or setup's handler.
-    enum FixRoute: Equatable { case finder, setup }
-
-    static func fixRoute(_ fix: String, hasProject: Bool) -> FixRoute {
-        hasProject && RecipeSetupStore.fixOpensFinder(fix) ? .finder : .setup
+    /// A step problem's fix button (#5619, #5660): a model fix opens the model finder for THIS step's job, a
+    /// licence its review (`LicenceReviewSheet`), letting pages leave goes to setup's own handler; without a
+    /// project every fix goes to setup's handler.
+    private func fixHandler(for step: Components.Schemas.RecipeStep) -> ((String) -> Void)? {
+        guard let onFix else { return nil }
+        return { fix in
+            let route = Self.fixRoute(fix, hasProject: finder != nil), here = FinderStep(id: step.id, job: step.job)
+            if route == .finder { findingFor = here } else if route == .licence { reviewingLicence = here } else { onFix(fix) }
+        }
     }
 }
 
@@ -343,6 +339,7 @@ struct InspectorProjectLayers: View {
             }
             Button("Start") { Task { await store.start() } }
                 .disabled(!store.canStart)
+                .help(store.startDisabledReason ?? "Run what these layers propose on the material already here")
             if let message = store.errorMessage {
                 Text(message).foregroundStyle(.red)
             }

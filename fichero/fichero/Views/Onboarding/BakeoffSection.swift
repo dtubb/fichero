@@ -137,6 +137,9 @@ struct BakeoffSection: View {
                 Button("Use This") { use(row) }
                     .controlSize(.small)
                     .disabled(row.cer == nil || store.usingCard != nil)
+                    .help(row.cer == nil ? "Not scored on these pages: \(BakeoffStore.note(row))"
+                          : store.usingCard != nil ? "Setting another reader; wait for it to finish"
+                          : "Use this reader for the step")
             }
             .width(min: 70, ideal: 80)
         } rows: {
