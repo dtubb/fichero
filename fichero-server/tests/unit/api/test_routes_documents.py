@@ -164,10 +164,11 @@ class TestDocumentNotes:
         assert first.json()["id"] == second.json()["id"]
         assert second.json()["content"] == "v2"
 
-    def test_get_missing_note_returns_404(self, client, db):
+    def test_a_document_with_no_note_answers_an_empty_note(self, client, db):
+        # An absence, not an error (`openapi.mcp.refusals-in-words`, 2026-10-11); a missing document is still 404.
         doc = _make_doc(db, "No Note")
         r = client.get(f"/api/documents/{doc.id}/notes")
-        assert r.status_code == 404
+        assert r.status_code == 200 and r.json()["content"] == ""
 
     def test_delete_document_note(self, client, db):
         doc = _make_doc(db, "Delete Note")
@@ -177,8 +178,8 @@ class TestDocumentNotes:
         delete = client.delete(f"/api/documents/{doc.id}/notes")
         assert delete.status_code == 204
 
-        missing = client.get(f"/api/documents/{doc.id}/notes")
-        assert missing.status_code == 404
+        gone = client.get(f"/api/documents/{doc.id}/notes")
+        assert gone.status_code == 200 and gone.json()["content"] == "", "deleted: the note is empty again"
 
     def test_notes_missing_document_returns_404(self, client):
         r = client.put("/api/documents/no-such-doc/notes", json={"content": "x"})
