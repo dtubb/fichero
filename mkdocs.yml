@@ -498,6 +498,7 @@ nav:
               - Research: contributor_manual/specs/ui/research.md
               - Search: contributor_manual/specs/ui/search.md
               - Sidebar CRUD: contributor_manual/specs/ui/sidebar-crud.md
+              - Undo Everywhere: contributor_manual/specs/ui/undo-everywhere.md
               - Workflow Node Config: contributor_manual/specs/ui/workflow-node-config.md
               - Workflows: contributor_manual/specs/ui/workflows.md
               - Write Layer: contributor_manual/specs/ui/write-layer.md
