@@ -21,15 +21,11 @@ extension EnvironmentValues {
 struct FolderContentsPreview: View {
     let folderId: String
     var onNavigateToDocument: ((String) -> Void)?
-    /// A group previews here too, as its pages on its own board (#5570); only its empty state
-    /// differs.
-    var isGroup = false
 
     @Environment(DocumentStore.self) private var documentStore
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(WindowState.self) private var windowState
     @State private var items: [Document] = []
-    @State private var loaded = false
     @State private var selectedNodeIds: Set<String> = []
     @Environment(\.onFolderCanvasFocus) private var onFolderCanvasFocus
     @Environment(\.onFolderCanvasSelection) private var onFolderCanvasSelection
@@ -81,24 +77,10 @@ struct FolderContentsPreview: View {
                     onFolderCanvasFocus?(nil)
                     onFolderCanvasSelection?([])
                 }
-            } else if loaded {
-                if isGroup {
-                    ContentUnavailableView(
-                        "Empty Group",
-                        systemImage: DocType.group.icon,
-                        description: Text("This group holds no pages.")
-                    )
-                } else {
-                    ContentUnavailableView(
-                        "Empty Folder",
-                        systemImage: "folder",
-                        description: Text("Items you add to this folder appear here.")
-                    )
-                }
             } else {
-                // ★ EVERY FRAME PERFECT: hold a quiet frame while the cached
-                // children resolve (usually one turn) instead of flashing the
-                // empty-folder state first.
+                // Empty means empty (Daniel, 2026-10-11): an empty folder or group previews as a blank pane, no
+                // glyph and no sentence, as the Items pane and the Trash do. The same quiet frame holds while the
+                // children resolve, so nothing flashes either way (★ EVERY FRAME PERFECT).
                 Color.clear
             }
         }
@@ -106,7 +88,6 @@ struct FolderContentsPreview: View {
         .task(id: folderId) {
             // Every child, subfolders included, as the library's Canvas shows them.
             items = await documentStore.children(of: folderId)
-            loaded = true
         }
     }
 

@@ -281,11 +281,8 @@ struct EditorView: View {
         case .quickLook:
             QuickLookDownloadView(document: doc)
         case .folderContents(let folderId):
-            FolderContentsPreview(
-                folderId: folderId,
-                onNavigateToDocument: onNavigateToDocument,
-                isGroup: doc.isGroup
-            )
+            // A group previews here too, as its pages on its own board (#5570).
+            FolderContentsPreview(folderId: folderId, onNavigateToDocument: onNavigateToDocument)
         case .glyph(let systemImage, let title):
             GlyphPreviewPlaceholder(systemImage: systemImage, title: title)
         case .entrySource:
