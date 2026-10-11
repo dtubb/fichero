@@ -805,6 +805,11 @@ class ActivityStore:
 
     async def save(self, activity: Activity) -> None:
         """Save an activity to the database."""
+        await asyncio.to_thread(self.save_now, activity)
+
+    def save_now(self, activity: Activity) -> None:
+        """Save an activity on the caller's thread: for a caller with no event loop (a job or timer thread,
+        `activity.persists-from-any-thread`)."""
 
         def _save():
             logger.info(f"ActivityStore.save: connecting to {self.db_path}")
@@ -840,7 +845,7 @@ class ActivityStore:
                 finally:
                     conn.close()
 
-        await asyncio.to_thread(_save)
+        _save()
 
     async def query(self, filter: ActivityFilter) -> list[Activity]:
         """Query activities with filtering."""

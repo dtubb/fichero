@@ -133,10 +133,13 @@ class ActivityTracker:
             self._event_loop = running_loop
 
         if self._event_loop is None:
-            logger.warning(
-                "Activity could not be persisted: no running event loop (%s)",
-                activity.message,
-            )
+            # A job or timer thread, and no loop to hand the save to: save it here, on this thread
+            # (`activity.persists-from-any-thread`; before, the row was lost with "no running event loop").
+            # Nobody can be subscribed without a loop, so there is no one to tell.
+            try:
+                self.store.save_now(activity)
+            except Exception:  # noqa: BLE001 -- a status row must never fail the work it describes
+                logger.error("Activity could not be saved: %s", activity.message, exc_info=True)
             return
 
         if self._event_loop is not running_loop:

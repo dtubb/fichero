@@ -522,6 +522,11 @@ workflow by hand: a hand run is a job like any other.
 - `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
   Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
   today reading at scale and training are top-level rows of their own.
+- `activity.persists-from-any-thread` — **[OK]** (2026-10-11) an Activity written from a job or timer thread
+  with no event loop is kept: it is saved on that thread (`ActivityTracker._schedule_activity`,
+  `ActivityStore.save_now`). Before, it was dropped with "Activity could not be persisted: no running event loop",
+  as the import queue's "Processing imported pages started" and "stalled" rows were. Test:
+  `fichero-server/tests/unit/workflows/test_activity_persists_from_any_thread.py`.
 - `activity.global-work-is-the-macs` — **[GAP]** (#5359) downloads, installs, runtime provisioning
   and model loads belong to the Mac, not a project: they are rows in the Mac's own jobs table (the
   engine's global library), shown in the window's Global group. Today they are in-memory jobs shown
