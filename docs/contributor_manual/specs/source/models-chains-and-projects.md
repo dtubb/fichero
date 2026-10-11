@@ -2731,7 +2731,7 @@ Setup
 - `source.onboard.stages.page-says-what-it-does` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` (the sentence as the page's subtitle, then its example). each stage page opens with what
   the stage does in one sentence, with an example, in the job registry's words (section 7a).
   *Test:* pure Swift, the page's first line is the engine's sentence for that stage.
-- `source.onboard.stages.page-who-runs-it` — **[GAP]** (#5668) each stage page shows who runs each of
+- `source.onboard.stages.page-who-runs-it` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` shows the plan's rows for its own jobs (`RecipeStepsView(onlyJobs:)`) with the finder and, for Read and Find Lines, the comparison; the finder still searches readers only (`source.onboard.models.chooser-per-step`). each stage page shows who runs each of
   its jobs (the model, where it runs, its size and licence), with Choose a model… (the finder, for
   that job) and its candidates; Read and Find Lines add the comparison of candidates on the person's
   pages (the bake-off). *Test:* pure Swift, the page lists its own steps' rows and no other stage's.
@@ -2740,12 +2740,12 @@ Setup
   which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
   the answers; a question belongs to one stage and is asked once. *Test:* pure Swift, each question's
   stage; pytest, the answers round-trip.
-- `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
+- `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage.
   *Test:* pytest, the proposal on a folder of 1, 4 and 200 pages; pure Swift, a page picked by hand
   replaces a proposed one.
-- `source.onboard.stages.sample-result` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine half): a try whose steps use the cloud is refused (402) with its cost until `cost_ok`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the result drawn in place (B).* Try on These Pages runs the stage on the
+- `source.onboard.stages.sample-result` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine half): a try whose steps use the cloud is refused (402) with its cost until `cost_ok`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the result drawn in place (B).* Try on These Pages runs the stage on the
   samples and shows its result in place: lines drawn on the page, the text read, names marked, dates
   normalised, the table filled. It runs locally and free where it can; a stage that would use the
   cloud says its cost and time first and runs only on that press. *Test:* click-around per stage;

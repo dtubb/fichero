@@ -8,6 +8,10 @@ import SwiftUI
 struct SetupStagePage: View {
     @Bindable var store: RecipeSetupStore
     let stage: Components.Schemas.SetupStage
+    /// A step problem's fix (Ready's handler); the comparison of candidates; the project whose model finder opens.
+    var onFix: ((String) -> Void)?
+    var bakeoff: BakeoffSection.Context?
+    var project: LibraryManager.LibraryReference?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -17,7 +21,7 @@ struct SetupStagePage: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            jobs
+            whoRunsIt
             if !stage.questions.isEmpty {
                 Divider()
                 ForEach(stage.questions, id: \.key) { question in
@@ -30,16 +34,33 @@ struct SetupStagePage: View {
                     )
                 }
             }
+            if stage.sampleable {
+                Divider()
+                SetupStageSamples(store: SetupStageTryStore(client: store.client, stageId: stage.id))
+                    .id(stage.id)
+            }
+        }
+        // The plan's rows come from the recipe: propose it when this page needs it and there is none yet.
+        .task(id: stage.id) {
+            if store.recipe == nil, store.canAssemble { await store.assemble() }
         }
     }
 
-    /// The jobs this stage carries, in step order, each in the registry's words.
-    private var jobs: some View {
+    /// Who runs it (`source.onboard.stages.page-who-runs-it`): this stage's own steps of the plan, with the model
+    /// each would use, where it runs, Choose a model… and, for Read and Find Lines, the comparison of candidates.
+    @ViewBuilder
+    private var whoRunsIt: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("What it runs").font(.headline)
-            ForEach(stage.jobs, id: \.self) { job in
-                Label(store.jobs[job]?.name ?? job, systemImage: stage.jobsInRecipe.contains(job) ? "checkmark.circle" : "circle")
-                    .font(.callout)
+            Text("Who runs it").font(.headline)
+            if let recipe = store.recipe {
+                RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff, finder: project,
+                                onlyJobs: Set(stage.jobs))
+            } else {
+                ForEach(stage.jobs, id: \.self) { job in
+                    Label(store.jobs[job]?.name ?? job, systemImage: "circle").font(.callout)
+                }
+                Text("The model for each step is proposed once the material's languages and scripts are known.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
     }

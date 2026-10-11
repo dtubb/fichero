@@ -18,6 +18,8 @@ struct RecipeStepsView: View {
     /// The project whose model finder opens beside a reading step's model in setup (#5611,
     /// `source.find.app-finder-three-hosts`); nil where there is no project, or in the Inspector.
     var finder: LibraryManager.LibraryReference?
+    /// Only these jobs' steps: a stage page shows its own steps of the plan (section 7c); nil shows every step.
+    var onlyJobs: Set<String>?
 
     @State private var findingFor: FinderStep?
     /// The step whose Review the licence… was pressed (#5660).
@@ -36,7 +38,7 @@ struct RecipeStepsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ForEach(recipe.steps, id: \.id) { step in
+            ForEach(recipe.steps.filter { onlyJobs?.contains($0.job) ?? true }, id: \.id) { step in
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: fixHandler(for: step))

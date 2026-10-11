@@ -105,7 +105,10 @@ extension FirstRunWindow {
                 systemImage: step.icon
             ) {
                 recipeCard {
-                    if let stage { SetupStagePage(store: store, stage: stage) }
+                    if let stage {
+                        SetupStagePage(store: store, stage: stage, onFix: { fix in handle(fix: fix, store: store) },
+                                       bakeoff: project.map(BakeoffSection.Context.init(project:)), project: project)
+                    }
                 }
             }
         default:
