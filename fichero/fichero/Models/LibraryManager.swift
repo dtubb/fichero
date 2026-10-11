@@ -182,6 +182,9 @@ class LibraryManager {
         /// action list + categories, and reacts to `action.*` change events.
         @ObservationIgnored lazy var actionStore: ActionStore = ActionStore(service: actionsService)
 
+        /// Linked originals that moved, and Locate Originals (#5672). One per project, shared by its windows.
+        @ObservationIgnored lazy var originalsStore = OriginalsStore(client: ficheroClient)
+
         /// Whether this library's older results are being brought into the page model, and the
         /// report when they have been (#5222 part 3). One per library, shared by its windows.
         @ObservationIgnored lazy var conversionStatusStore = ConversionStatusStore(client: ficheroClient)

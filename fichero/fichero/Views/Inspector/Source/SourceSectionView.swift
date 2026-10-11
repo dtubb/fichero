@@ -43,6 +43,12 @@ struct SourceSectionView: View {
 
     private var documentBody: some View {
         VStack(spacing: 0) {
+            // A page whose original moved says so first, with Locate Originals… (#5672).
+            if let originals = windowState?.library?.originalsStore {
+                MissingOriginalNote(store: originals, documentId: document.id)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+            }
             Picker("Source view", selection: $mode) {
                 Text("Content").tag(SourceSectionMode.content)
                 Text("Info").tag(SourceSectionMode.info)

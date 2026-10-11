@@ -190,6 +190,8 @@ struct FileMenuCommands: View {
                 // and the Import submenu render as siblings directly in File.
                 FocusedNewFolderButton()
                 FocusedImportFilesButton()
+                // Originals that moved (#5672): point at where they are now.
+                FocusedLocateOriginalsButton()
             }
 
             Divider()

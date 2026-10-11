@@ -141,6 +141,10 @@ extension LibraryView {
             .safeAreaInset(edge: .top, spacing: 0) {
                 liveUpdatesPausedInset
             }
+            // Originals that moved, said above the rows, and Locate Originals (#5672).
+            .modifier(LocateOriginalsPresenter(store: activeLibraryReference?.originalsStore,
+                                               actionsService: activeLibraryReference?.actionsService,
+                                               folderId: folderId))
             // The library's own mini toolbar (#4407 / #4374): search, sort and
             // filter live with the surface they act on. Top on the Mac, bottom
             // on touch — the same single platform decision the reader's find
