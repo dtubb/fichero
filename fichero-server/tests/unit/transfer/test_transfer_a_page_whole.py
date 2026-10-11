@@ -53,6 +53,10 @@ from tests.unit.transfer._two_projects import (
     table_counts,
 )
 
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[4] / "scripts"))
+from _scan_files import scan_rglob  # noqa: E402
+
 
 def _copy(client, source_package, items, **extra):
     return client.post("/api/documents/transfer", json={"items": items, "source": str(source_package), **extra})
@@ -202,14 +206,14 @@ def test_a_dry_run_writes_nothing_and_says_what_a_copy_would(client, db, tmp_pat
     source = db_manager.get_database(source_package)
     box = build_box(source, db, tmp_path)
     source_before, target_before = table_counts(source), table_counts(db)
-    files_before = sorted((Path(db.path).parent / "files").rglob("*"))
+    files_before = sorted(scan_rglob(Path(db.path).parent / "files", "*"))
 
     response = _copy(client, source_package, [box.folder.id], dry_run=True)
     assert response.status_code == 200, response.text
     plan = response.json()
     assert plan["dry_run"] and plan["state"] == "planned" and plan["copies"] == [] and plan["audit"] is None
     assert table_counts(source) == source_before and table_counts(db) == target_before
-    assert sorted((Path(db.path).parent / "files").rglob("*")) == files_before
+    assert sorted(scan_rglob(Path(db.path).parent / "files", "*")) == files_before
     assert not db.all(TransferRecord) and not source.all(TransferRecord)
 
     counts = {c["kind"]: c["planned"] for c in plan["counts"]}

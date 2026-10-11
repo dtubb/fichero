@@ -27,6 +27,10 @@ from fichero_server.db import Database
 from fichero_server.observability import episodes
 from fichero_server.transfer import id_map_classification as cls
 
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[4] / "scripts"))
+from _scan_files import scan_rglob  # noqa: E402
+
 ENGINE_SRC = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
 
 HOW_TO_FIX = (
@@ -98,7 +102,7 @@ def _paren_body(text: str, open_at: int) -> str:
 def _raw_sql_columns() -> dict[str, set[str]]:
     """table -> every column named in a hand-written CREATE TABLE / ADD COLUMN."""
     tables: dict[str, set[str]] = {}
-    for path in sorted(ENGINE_SRC.rglob("*.py")):
+    for path in sorted(scan_rglob(ENGINE_SRC, "*.py")):
         text = path.read_text(encoding="utf-8")
         for match in _CREATE.finditer(text):
             body = re.sub(r"\([^()]*\)", "", _paren_body(text, match.end() - 1))

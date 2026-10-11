@@ -19,6 +19,10 @@ from fichero_server.transfer import copy as transfer_copy
 
 from tests.unit.transfer._two_projects import build_box, open_source, table_counts
 
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[4] / "scripts"))
+from _scan_files import scan_rglob  # noqa: E402
+
 
 def test_a_failure_after_half_the_writes_leaves_the_target_with_nothing(client, db, tmp_path, monkeypatch):
     source_package = open_source(tmp_path)
@@ -26,7 +30,7 @@ def test_a_failure_after_half_the_writes_leaves_the_target_with_nothing(client, 
     box = build_box(source, db, tmp_path)
     source_before, target_before = table_counts(source), table_counts(db)
     target_files = Path(db.path).parent / "files"
-    files_before = sorted(target_files.rglob("*"))
+    files_before = sorted(scan_rglob(target_files, "*"))
 
     planned = client.post("/api/documents/transfer",
                           json={"items": [box.folder.id], "source": str(source_package), "dry_run": True}).json()
@@ -48,7 +52,7 @@ def test_a_failure_after_half_the_writes_leaves_the_target_with_nothing(client, 
     # Nothing the transfer wrote is left in the target: rows, files.
     assert table_counts(db) == target_before
     assert not [d for d in db.all(Document) if (d.metadata or {}).get("transferred_from")]
-    assert sorted(target_files.rglob("*")) == files_before
+    assert sorted(scan_rglob(target_files, "*")) == files_before
     # The record says what failed, and that it was rolled back; nothing became undoable.
     [record] = db.all(TransferRecord)
     assert record.state.value == "rolled_back" and "disk went away" in record.error
@@ -118,7 +122,7 @@ def test_a_move_whose_source_step_fails_twice_takes_its_copy_back(client, db, tm
     box = build_box(source, db, tmp_path)
     source_before, target_before = table_counts(source), table_counts(db)
     target_files = Path(db.path).parent / "files"
-    files_before = sorted(target_files.rglob("*"))
+    files_before = sorted(scan_rglob(target_files, "*"))
     attempts = []
 
     def fails(*args, **kwargs):
@@ -136,7 +140,7 @@ def test_a_move_whose_source_step_fails_twice_takes_its_copy_back(client, db, tm
     assert {k: v for k, v in table_counts(source).items() if k != "ActionAudit"} == \
         {k: v for k, v in source_before.items() if k != "ActionAudit"}
     assert source.get(Document, box.folder.id).deleted_at is None
-    assert table_counts(db) == target_before and sorted(target_files.rglob("*")) == files_before
+    assert table_counts(db) == target_before and sorted(scan_rglob(target_files, "*")) == files_before
     [record] = db.all(TransferRecord)
     assert record.state.value == "rolled_back" and "the source step failed twice" in record.error
     assert source.get(TransferRecord, record.id).state.value == "rolled_back"

@@ -67,7 +67,9 @@ db/embeddings.py::DatabaseEmbeddingMixin.migrate_embedding_space 1
 # #5555: so is marking its unfinished runs interrupted (a failure leaves the older sweep to do it).
 # #5599: the catalogue-narrative migration runs on every open; a failure is logged and the project still
 # opens (the migration is idempotent and runs again next open), so the open never fails over it.
-db/manager.py::DatabaseManager.get_database 6
+# #5657: finishing or rolling back a transfer a crash left half-way runs on open; a failure is logged and
+# the project still opens (the journal keeps the record, so the next open tries again).
+db/manager.py::DatabaseManager.get_database 8
 db/migrations/schema.py::migrate_knowledge_indices 2
 db/migrations/schema.py::migrate_segment_indices 1
 db/storage.py::_generate_image 1
@@ -122,6 +124,8 @@ llm/__init__.py::_log_provider_quota_hit 1
 llm/__init__.py::_model_has_capability 1
 llm/language_coverage.py::_ensure_derived_coverage 1
 llm/local_inference.py::ManagedLocalInferenceProcess._environment 1
+# #5660: a model with no card still downloads; its name falls back to "the model", logged.
+llm/local_models.py::model_display_name 1
 llm/mlx_in_process.py::InProcessLocalInferenceProcess.stop 1
 llm/mlx_model_store.py::MLXModelStore.cancel 1
 llm/multilingual.py::detect_language 1
