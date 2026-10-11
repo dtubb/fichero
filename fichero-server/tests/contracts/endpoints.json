@@ -41,6 +41,16 @@
       },
       {
         "method": "POST",
+        "path": "/actions/audit/undo",
+        "operation_id": "undo_actions_api_actions_audit_undo_post",
+        "summary": "Undo Actions",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "UndoSetRequest",
+        "response_model": "UndoSetResponse"
+      },
+      {
+        "method": "POST",
         "path": "/actions/audit/{audit_id}/undo",
         "operation_id": "undo_action_api_actions_audit__audit_id__undo_post",
         "summary": "Undo Action",
@@ -3060,7 +3070,27 @@
           }
         ],
         "request_model": null,
-        "response_model": "fichero_server__models__DocumentListResponse"
+        "response_model": "TrashListResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/trash/empty",
+        "operation_id": "preview_empty_trash_api_documents_trash_empty_get",
+        "summary": "Preview Empty Trash",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EmptyTrashPreview"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/trash/empty",
+        "operation_id": "empty_the_trash_api_documents_trash_empty_post",
+        "summary": "Empty The Trash",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "EmptyTrashResult"
       },
       {
         "method": "GET",
@@ -3443,7 +3473,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": null
+        "response_model": "PutBackResponse"
       },
       {
         "method": "GET",

@@ -45,9 +45,17 @@ def fichero_actions_list_audit_log(
 
 def fichero_actions_undo(
     *,
+    audit_ids: Annotated[list[Any], Field(description='The steps to take back together, all or none.')],
+) -> Any:
+    'Undo Actions\n\nTake back a set of steps together, newest first, all or none (`safety.undo.a-set-is-undone-whole`).\n\nIf any one step is refused, nothing is changed and the refusal names that step\n(``audit_id``). The answer lists the new rows; taking those back as a set is the redo.\n\nRoute: POST /api/actions/audit/undo (toolset `actions`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/actions/audit/undo", json=_rt.body({"audit_ids": audit_ids}))
+
+
+def fichero_actions_undo_post(
+    *,
     audit_id: Annotated[str, Field(description='Audit Id')],
 ) -> Any:
-    "Undo Action\n\nReverse an action — or redo, when the target audit is itself an inverse.\n\nTwo paths, both registry-driven and both producing a fresh audit row so the\nchain stays reversible indefinitely:\n\n* **Undo a forward action** (``inverse_of is None``): look the action up in the\n  registry, call its ``invert(before, after, ctx) -> (name, params)``, and\n  ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.\n* **Undo an inverse / redo** (``inverse_of`` set): by default, replay the\n  ORIGINAL forward action's ``action_name``, with its recorded ``params``\n  freshened by :func:`_refresh_replay_expected_versions` (#4957) so a\n  versioned action's ``expected_version``/``expected_versions`` compare\n  against the state the undo just left, not the value recorded back when\n  the action first ran. No per-action redo logic and no need for inverse\n  actions (restore/unmerge/unsplit/uncarry) to be independently\n  ``undoable``. When THIS row's own action opts in via\n  ``redo_via_own_invert`` (segment actions that mint a new id/row on a\n  plain replay), undo it through its OWN ``invert(before, after, ctx)``\n  instead — see :attr:`fichero_server.actions.registry.ActionRegistration.redo_via_own_invert`.\n\nRoute: POST /api/actions/audit/{audit_id}/undo (toolset `actions`; changes data, as the agent account when one exists)."
+    'Undo Action\n\nTake back one step, or redo it when the step is itself a taking-back.\n\nA set of one (`POST /api/actions/audit/undo`): the inverse and the step\'s "undone" mark are\nwritten in one transaction, and the step is refused, changing nothing, when a later step\nstill in effect touched the same things. Refusals answer 404 or 409 with a sentence and a\nmachine ``reason`` (see ``fichero_server.actions.undo``).\n\nRoute: POST /api/actions/audit/{audit_id}/undo (toolset `actions`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/actions/audit/{audit_id}/undo")
 
 
@@ -2113,8 +2121,20 @@ def fichero_documents_list_deleted(
     limit: Annotated[Optional[int], Field(description='Max results (no limit if not specified)')] = None,
     offset: Annotated[Optional[int], Field(description='Offset for pagination')] = None,
 ) -> Any:
-    'List Deleted Documents\n\nList soft-deleted documents for the future Trash view.\n\nRoute: GET /api/documents/trash (toolset `documents`; reads).'
+    "List Deleted Documents\n\nThis project's Trash (`safety.trash.lists-what-and-why`): each thing deleted listed once,\nnewest first, with how many things inside it went with it, when, by whom, where it was, and\nwhy (deleted, or moved to another project on a date).\n\nRoute: GET /api/documents/trash (toolset `documents`; reads)."
     return _rt.call("GET", "/api/documents/trash", params={"limit": limit, "offset": offset})
+
+
+def fichero_documents_preview_empty_trash(
+) -> Any:
+    'Preview Empty Trash\n\nWhat Empty Trash would remove, in numbers, and the moves it would make permanent\n(`safety.trash.empty-names-moved-items`). Changes nothing.\n\nRoute: GET /api/documents/trash/empty (toolset `documents`; reads).'
+    return _rt.call("GET", "/api/documents/trash/empty")
+
+
+def fichero_documents_empty_the_trash(
+) -> Any:
+    "Empty The Trash\n\nRemove everything in this project's Trash for good: one recorded step, a snapshot first,\nrefused if the snapshot cannot be made (`safety.trash.empty-is-one-step`). Cannot be undone.\n\nRoute: POST /api/documents/trash/empty (toolset `documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/documents/trash/empty")
 
 
 def fichero_documents_list_workspaces(
@@ -2364,7 +2384,7 @@ def fichero_documents_restore(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
 ) -> Any:
-    'Restore Document\n\nRestore a soft-deleted document subtree.\n\nRoute: POST /api/documents/{doc_id}/restore (toolset `documents`; changes data, as the agent account when one exists).'
+    "Restore Document\n\nPut Back (`safety.trash.put-back`): the item and what was deleted with it return to its\nold folder, or to the project's Sources folder when that folder is in the Trash or gone. The\nanswer says where, in words.\n\nRoute: POST /api/documents/{doc_id}/restore (toolset `documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/documents/{doc_id}/restore")
 
 
@@ -8586,7 +8606,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_actions_list", "actions", "GET", "/api/actions", fichero_actions_list),
     GeneratedTool("fichero_actions_create", "actions", "POST", "/api/actions", fichero_actions_create),
     GeneratedTool("fichero_actions_list_audit_log", "actions", "GET", "/api/actions/audit", fichero_actions_list_audit_log),
-    GeneratedTool("fichero_actions_undo", "actions", "POST", "/api/actions/audit/{audit_id}/undo", fichero_actions_undo),
+    GeneratedTool("fichero_actions_undo", "actions", "POST", "/api/actions/audit/undo", fichero_actions_undo),
+    GeneratedTool("fichero_actions_undo_post", "actions", "POST", "/api/actions/audit/{audit_id}/undo", fichero_actions_undo_post),
     GeneratedTool("fichero_actions_list_builtin", "actions", "GET", "/api/actions/builtin", fichero_actions_list_builtin),
     GeneratedTool("fichero_actions_list_categories", "actions", "GET", "/api/actions/categories", fichero_actions_list_categories),
     GeneratedTool("fichero_actions_list_by_category", "actions", "GET", "/api/actions/category/{category}", fichero_actions_list_by_category),
@@ -8788,6 +8809,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_get_run_history", "documents", "GET", "/api/documents/run-history", fichero_documents_get_run_history),
     GeneratedTool("fichero_documents_transfer", "documents", "POST", "/api/documents/transfer", fichero_documents_transfer),
     GeneratedTool("fichero_documents_list_deleted", "documents", "GET", "/api/documents/trash", fichero_documents_list_deleted),
+    GeneratedTool("fichero_documents_preview_empty_trash", "documents", "GET", "/api/documents/trash/empty", fichero_documents_preview_empty_trash),
+    GeneratedTool("fichero_documents_empty_the_trash", "documents", "POST", "/api/documents/trash/empty", fichero_documents_empty_the_trash),
     GeneratedTool("fichero_documents_list_workspaces", "documents", "GET", "/api/documents/workspaces", fichero_documents_list_workspaces),
     GeneratedTool("fichero_documents_delete", "documents", "DELETE", "/api/documents/{doc_id}", fichero_documents_delete),
     GeneratedTool("fichero_documents_get", "documents", "GET", "/api/documents/{doc_id}", fichero_documents_get),

@@ -17211,7 +17211,7 @@
           "documents"
         ],
         "summary": "List Deleted Documents",
-        "description": "List soft-deleted documents for the future Trash view.",
+        "description": "This project's Trash (`safety.trash.lists-what-and-why`): each thing deleted listed once,\nnewest first, with how many things inside it went with it, when, by whom, where it was, and\nwhy (deleted, or moved to another project on a date).",
         "operationId": "list_deleted_documents_api_documents_trash_get",
         "parameters": [
           {
@@ -17247,7 +17247,81 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/fichero_server__models__DocumentListResponse"
+                  "$ref": "#/components/schemas/TrashListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/trash/empty": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Preview Empty Trash",
+        "description": "What Empty Trash would remove, in numbers, and the moves it would make permanent\n(`safety.trash.empty-names-moved-items`). Changes nothing.",
+        "operationId": "preview_empty_trash_api_documents_trash_empty_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyTrashPreview"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Empty The Trash",
+        "description": "Remove everything in this project's Trash for good: one recorded step, a snapshot first,\nrefused if the snapshot cannot be made (`safety.trash.empty-is-one-step`). Cannot be undone.",
+        "operationId": "empty_the_trash_api_documents_trash_empty_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyTrashResult"
                 }
               }
             }
@@ -18610,7 +18684,7 @@
           "documents"
         ],
         "summary": "Restore Document",
-        "description": "Restore a soft-deleted document subtree.",
+        "description": "Put Back (`safety.trash.put-back`): the item and what was deleted with it return to its\nold folder, or to the project's Sources folder when that folder is in the Trash or gone. The\nanswer says where, in words.",
         "operationId": "restore_document_api_documents__doc_id__restore_post",
         "parameters": [
           {
@@ -18644,8 +18718,15 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PutBackResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -40990,7 +41071,7 @@
           "actions"
         ],
         "summary": "Undo Action",
-        "description": "Reverse an action \u2014 or redo, when the target audit is itself an inverse.\n\nTwo paths, both registry-driven and both producing a fresh audit row so the\nchain stays reversible indefinitely:\n\n* **Undo a forward action** (``inverse_of is None``): look the action up in the\n  registry, call its ``invert(before, after, ctx) -> (name, params)``, and\n  ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.\n* **Undo an inverse / redo** (``inverse_of`` set): by default, replay the\n  ORIGINAL forward action's ``action_name``, with its recorded ``params``\n  freshened by :func:`_refresh_replay_expected_versions` (#4957) so a\n  versioned action's ``expected_version``/``expected_versions`` compare\n  against the state the undo just left, not the value recorded back when\n  the action first ran. No per-action redo logic and no need for inverse\n  actions (restore/unmerge/unsplit/uncarry) to be independently\n  ``undoable``. When THIS row's own action opts in via\n  ``redo_via_own_invert`` (segment actions that mint a new id/row on a\n  plain replay), undo it through its OWN ``invert(before, after, ctx)``\n  instead \u2014 see :attr:`fichero_server.actions.registry.ActionRegistration.redo_via_own_invert`.",
+        "description": "Take back one step, or redo it when the step is itself a taking-back.\n\nA set of one (`POST /api/actions/audit/undo`): the inverse and the step's \"undone\" mark are\nwritten in one transaction, and the step is refused, changing nothing, when a later step\nstill in effect touched the same things. Refusals answer 404 or 409 with a sentence and a\nmachine ``reason`` (see ``fichero_server.actions.undo``).",
         "operationId": "undo_action_api_actions_audit__audit_id__undo_post",
         "parameters": [
           {
@@ -41030,6 +41111,111 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ActionResultResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The step is not in the project's history (reason `gone`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoRefusalResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The step cannot be taken back now (reason `changed`, `already-undone` or `not-undoable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoRefusalResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/actions/audit/undo": {
+      "post": {
+        "tags": [
+          "actions",
+          "actions"
+        ],
+        "summary": "Undo Actions",
+        "description": "Take back a set of steps together, newest first, all or none (`safety.undo.a-set-is-undone-whole`).\n\nIf any one step is refused, nothing is changed and the refusal names that step\n(``audit_id``). The answer lists the new rows; taking those back as a set is the redo.",
+        "operationId": "undo_actions_api_actions_audit_undo_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoSetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoSetResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The step is not in the project's history (reason `gone`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoRefusalResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The step cannot be taken back now (reason `changed`, `already-undone` or `not-undoable`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UndoRefusalResponse"
                 }
               }
             }
@@ -59166,6 +59352,96 @@
         "title": "EmbeddingStatsResponse",
         "description": "Response from ``GET /api/search/stats`` and embedded library stats."
       },
+      "EmptyTrashPreview": {
+        "properties": {
+          "items": {
+            "type": "integer",
+            "title": "Items",
+            "description": "Things in the Trash, each counted once"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents",
+            "description": "Every document, page and folder that will be removed"
+          },
+          "statements": {
+            "type": "integer",
+            "title": "Statements",
+            "description": "Statements that rest on them and go with them"
+          },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/MovedGroup"
+            },
+            "type": "array",
+            "title": "Moved"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "The question to ask before emptying"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "documents",
+          "statements",
+          "sentence"
+        ],
+        "title": "EmptyTrashPreview"
+      },
+      "EmptyTrashResult": {
+        "properties": {
+          "items": {
+            "type": "integer",
+            "title": "Items",
+            "description": "Things in the Trash, each counted once"
+          },
+          "documents": {
+            "type": "integer",
+            "title": "Documents",
+            "description": "Every document, page and folder that will be removed"
+          },
+          "statements": {
+            "type": "integer",
+            "title": "Statements",
+            "description": "Statements that rest on them and go with them"
+          },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/MovedGroup"
+            },
+            "type": "array",
+            "title": "Moved"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "The question to ask before emptying"
+          },
+          "deleted_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Deleted Document Ids"
+          },
+          "entities_pruned": {
+            "type": "integer",
+            "title": "Entities Pruned",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "documents",
+          "statements",
+          "sentence"
+        ],
+        "title": "EmptyTrashResult"
+      },
       "EnhanceOperationRequest": {
         "properties": {
           "brightness": {
@@ -71633,6 +71909,36 @@
         "title": "MoveItemsRequest",
         "description": "Request to move items to a folder."
       },
+      "MovedGroup": {
+        "properties": {
+          "project": {
+            "type": "string",
+            "title": "Project"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "moved_on": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Moved On"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "count",
+          "moved_on",
+          "sentence"
+        ],
+        "title": "MovedGroup"
+      },
       "MutationListResponse": {
         "properties": {
           "items": {
@@ -76144,6 +76450,52 @@
           "count"
         ],
         "title": "PurposeListResponse"
+      },
+      "PutBackResponse": {
+        "properties": {
+          "restored_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Restored Document Ids"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "Where it went back to; null is the top of the project"
+          },
+          "folder_name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Name"
+          },
+          "into_sources": {
+            "type": "boolean",
+            "title": "Into Sources",
+            "description": "True when its own folder could not take it back"
+          },
+          "folder_in_trash_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder In Trash Id",
+            "description": "Its old folder, when that folder is in the Trash (offer to put it back too)"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "restored_document_ids",
+          "folder_id",
+          "folder_name",
+          "into_sources",
+          "message"
+        ],
+        "title": "PutBackResponse"
       },
       "PykeenListResponse": {
         "properties": {
@@ -89114,6 +89466,147 @@
         "title": "TransliterationResponse",
         "description": "Transliteration variants."
       },
+      "TrashItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "doc_type": {
+            "$ref": "#/components/schemas/DocType"
+          },
+          "deleted_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Deleted At"
+          },
+          "deleted_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Deleted By"
+          },
+          "item_count": {
+            "type": "integer",
+            "title": "Item Count",
+            "description": "How many things inside it were deleted with it"
+          },
+          "from_folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "From Folder Id",
+            "description": "The folder it was in"
+          },
+          "from_folder_path": {
+            "type": "string",
+            "nullable": true,
+            "title": "From Folder Path",
+            "description": "That folder's path, while the folder is live"
+          },
+          "from_folder_state": {
+            "type": "string",
+            "enum": [
+              "top",
+              "live",
+              "in-trash",
+              "gone"
+            ],
+            "title": "From Folder State",
+            "description": "top: it was at the top of the project; live; in-trash: its folder is in the Trash too; gone"
+          },
+          "from_where": {
+            "type": "string",
+            "title": "From Where",
+            "description": "Where it was, in words"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "deleted",
+              "moved"
+            ],
+            "title": "Reason"
+          },
+          "moved_to_project": {
+            "type": "string",
+            "nullable": true,
+            "title": "Moved To Project"
+          },
+          "moved_on": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Moved On"
+          },
+          "transfer_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Transfer Id"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "Why it is in the Trash, in words"
+          },
+          "document": {
+            "$ref": "#/components/schemas/Document"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "doc_type",
+          "deleted_at",
+          "deleted_by",
+          "item_count",
+          "from_folder_id",
+          "from_folder_path",
+          "from_folder_state",
+          "from_where",
+          "reason",
+          "why",
+          "document"
+        ],
+        "title": "TrashItem"
+      },
+      "TrashListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TrashItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Items in this page"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Items in the Trash that this caller may see"
+          },
+          "withheld": {
+            "type": "integer",
+            "title": "Withheld",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "count",
+          "total"
+        ],
+        "title": "TrashListResponse"
+      },
       "TraverseEdge": {
         "properties": {
           "source": {
@@ -89634,6 +90127,39 @@
         ],
         "title": "TypedLinkWrite"
       },
+      "UndoRefusalResponse": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "What happened, as a sentence for a person"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "changed",
+              "already-undone",
+              "gone",
+              "not-undoable"
+            ],
+            "title": "Reason",
+            "description": "changed: something later touched the same things (the step stays; try again after taking that back); already-undone: it was already taken back; gone: it is no longer in the project's history; not-undoable: this kind of step cannot be taken back"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id",
+            "description": "The step that refused"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail",
+          "reason"
+        ],
+        "title": "UndoRefusalResponse",
+        "description": "Why a step was not taken back (`safety.undo.refusal-loses-nothing`)."
+      },
       "UndoResponse": {
         "properties": {
           "mutation_id": {
@@ -89657,6 +90183,60 @@
           "restored_entity_id"
         ],
         "title": "UndoResponse"
+      },
+      "UndoSetRequest": {
+        "properties": {
+          "audit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Audit Ids",
+            "description": "The steps to take back together, all or none"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audit_ids"
+        ],
+        "title": "UndoSetRequest"
+      },
+      "UndoSetResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "audit_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Audit Ids",
+            "description": "The new rows the reversal wrote, newest step's first; taking THESE back as a set is the redo"
+          },
+          "results": {
+            "items": {},
+            "type": "array",
+            "title": "Results"
+          },
+          "changed_domains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Domains"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "audit_ids",
+          "results",
+          "changed_domains"
+        ],
+        "title": "UndoSetResponse"
       },
       "UnicodeLibraryCollision": {
         "properties": {

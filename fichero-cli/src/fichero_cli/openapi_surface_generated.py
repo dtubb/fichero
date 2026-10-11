@@ -212,6 +212,23 @@ def register_generated_openapi_commands(
     @target_app.command("undo")
     def actions_undo_post(
         ctx: typer.Context,
+        audit_ids: list[str] = typer.Option(..., '--audit-ids', help='The steps to take back together, all or none. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Undo Actions (POST /api/actions/audit/undo)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/actions/audit/undo"
+            params = None
+            payload = _build_json_payload({
+                "audit_ids": audit_ids,
+            }, {
+                "audit_ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Audit Ids', 'description': 'The steps to take back together, all or none', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("undo-actions-audit-undo")
+    def actions_undo_actions_audit_undo_post(
+        ctx: typer.Context,
         audit_id: str = typer.Argument(..., help='Audit Id'),
     ) -> None:
         """Undo Action (POST /api/actions/audit/{audit_id}/undo)."""
@@ -4646,6 +4663,28 @@ def register_generated_openapi_commands(
                 "offset": offset,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("preview-empty-trash")
+    def documents_preview_empty_trash_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Preview Empty Trash (GET /api/documents/trash/empty)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/trash/empty"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("empty-the-trash")
+    def documents_empty_the_trash_post(
+        ctx: typer.Context,
+    ) -> None:
+        """Empty The Trash (POST /api/documents/trash/empty)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/trash/empty"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-workspaces")
