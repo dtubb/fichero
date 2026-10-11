@@ -118,4 +118,64 @@ final class UndoRoutingPolicyTests: XCTestCase {
             .auditedAction
         )
     }
+
+    // MARK: - The window's own steps (#5658, undo.window.own-stack)
+
+    func testAStepTakenInThisWindowComesBeforeNavigationAndTheProjectLog() {
+        XCTAssertEqual(
+            UndoRoutingPolicy.route(
+                isTextEditing: false,
+                textUndoAvailable: false,
+                windowUndoAvailable: true,
+                navigationUndoEnabled: true,
+                hasAuditedUndo: true
+            ),
+            .windowStep
+        )
+    }
+
+    func testTypingAndTheImageEditorStillComeBeforeTheWindowsSteps() {
+        XCTAssertEqual(
+            UndoRoutingPolicy.route(
+                isTextEditing: true, textUndoAvailable: true, windowUndoAvailable: true,
+                navigationUndoEnabled: false, hasAuditedUndo: false
+            ),
+            .focusedTextEditor
+        )
+        XCTAssertEqual(
+            UndoRoutingPolicy.route(
+                isTextEditing: false, textUndoAvailable: false, imageEditUndoEnabled: true,
+                windowUndoAvailable: true, navigationUndoEnabled: false, hasAuditedUndo: false
+            ),
+            .imageEdit
+        )
+    }
+
+    func testRedoPutsBackThisWindowsStepBeforeTheProjectLog() {
+        XCTAssertEqual(
+            RedoRoutingPolicy.route(
+                isTextEditing: false, textRedoAvailable: false,
+                windowRedoAvailable: true, hasAuditedRedo: true
+            ),
+            .windowStep
+        )
+        XCTAssertEqual(
+            RedoRoutingPolicy.route(
+                isTextEditing: true, textRedoAvailable: false,
+                windowRedoAvailable: true, hasAuditedRedo: true
+            ),
+            .none
+        )
+    }
+
+    func testAWindowStepRegisteredByActionUndoIsWhatTheMenuReaches() {
+        // The manager the menu reads is the one ActionUndo registers on; its name is the step's.
+        let manager = UndoManager()
+        manager.groupsByEvent = false
+        manager.beginUndoGrouping()
+        ActionUndo.register(auditId: "a1", actionName: "Merge", undoManager: manager) { _ in "a2" }
+        manager.endUndoGrouping()
+        XCTAssertTrue(manager.canUndo)
+        XCTAssertEqual(manager.undoActionName, "Merge")
+    }
 }

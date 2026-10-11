@@ -19,6 +19,10 @@ enum UndoRoute: Equatable {
     /// (Daniel, 2026-08-31). Ahead of navigation: while editing an image,
     /// ⌘Z means "undo that edit", never "go back a folder".
     case imageEdit
+    /// No text focus; the key window's own step stack has a step a person took in
+    /// this window (`undo.window.own-stack`, #5658). Ahead of navigation and of the
+    /// project-wide log: ⌘Z takes back what was done HERE first.
+    case windowStep
     /// No text focus; the focused window's navigation history handles it.
     case navigation
     /// No text focus; the audited backend action log handles it.
@@ -39,6 +43,7 @@ enum UndoRoutingPolicy {
         isTextEditing: Bool,
         textUndoAvailable: Bool,
         imageEditUndoEnabled: Bool = false,
+        windowUndoAvailable: Bool = false,
         navigationUndoEnabled: Bool,
         hasAuditedUndo: Bool
     ) -> UndoRoute {
@@ -49,6 +54,7 @@ enum UndoRoutingPolicy {
             return textUndoAvailable ? .focusedTextEditor : .none
         }
         if imageEditUndoEnabled { return .imageEdit }
+        if windowUndoAvailable { return .windowStep }
         if navigationUndoEnabled { return .navigation }
         if hasAuditedUndo { return .auditedAction }
         return .none
@@ -96,6 +102,30 @@ enum FocusedTextResponder {
     #endif
 }
 
+/// The key window's own `UndoManager` — where `ActionUndo` and `AuditedAction.run`
+/// register a person's steps (`@Environment(\.undoManager)` resolves to it). Before
+/// #5658 the Edit menu never read it, so those steps were reachable only from inside a
+/// text field. Only consulted when no text field has focus.
+@MainActor
+enum WindowStepStack {
+    #if canImport(AppKit)
+    private static var manager: UndoManager? { NSApp.keyWindow?.undoManager }
+    #else
+    private static var manager: UndoManager? { nil }
+    #endif
+    static var canUndo: Bool { manager?.canUndo ?? false }
+    static var canRedo: Bool { manager?.canRedo ?? false }
+    /// The step's name in words ("Merge"), or nil when it has none.
+    static var undoName: String? { manager?.undoActionName.nilIfEmpty }
+    static var redoName: String? { manager?.redoActionName.nilIfEmpty }
+    static func undo() { manager?.undo() }
+    static func redo() { manager?.redo() }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
 // MARK: - ⌘⇧Z (menu audit 2026-09-17)
 
 /// Where ⌘⇧Z should land — the Redo counterpart of `UndoRoute`/`UndoRoutingPolicy`.
@@ -108,6 +138,8 @@ enum FocusedTextResponder {
 enum RedoRoute: Equatable {
     /// A text editor has focus — its own undo manager owns ⌘⇧Z.
     case focusedTextEditor
+    /// No text focus; the key window's step stack has a step to put back (#5658).
+    case windowStep
     /// No text focus; the audited backend log has a reversed action to
     /// re-apply (undoing ITS inverse row re-does the original).
     case auditedAction
@@ -120,11 +152,13 @@ enum RedoRoutingPolicy {
     static func route(
         isTextEditing: Bool,
         textRedoAvailable: Bool,
+        windowRedoAvailable: Bool = false,
         hasAuditedRedo: Bool
     ) -> RedoRoute {
         if isTextEditing {
             return textRedoAvailable ? .focusedTextEditor : .none
         }
+        if windowRedoAvailable { return .windowStep }
         if hasAuditedRedo { return .auditedAction }
         return .none
     }

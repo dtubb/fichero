@@ -91,6 +91,7 @@ struct UndoLastActionButton: View {
             isTextEditing: FocusedTextResponder.isEditing,
             textUndoAvailable: FocusedTextResponder.canUndo,
             imageEditUndoEnabled: imageEditUndoAction?.isEnabled == true,
+            windowUndoAvailable: WindowStepStack.canUndo,
             navigationUndoEnabled: navigationUndoAction?.isEnabled == true,
             hasAuditedUndo: auditStore?.nextUndoableEntry != nil || lastAction?.auditId != nil
         )
@@ -103,6 +104,9 @@ struct UndoLastActionButton: View {
         // While typing, the menu item names the typing — never a library action
         // the user is not looking at.
         if route == .imageEdit { return "Undo Edit" }
+        if route == .windowStep {
+            return WindowStepStack.undoName.map { "Undo \($0)" } ?? "Undo"
+        }
         if route == .focusedTextEditor || navigationUndoAction != nil {
             return "Undo"
         }
@@ -134,6 +138,9 @@ struct UndoLastActionButton: View {
             return
         case .imageEdit:
             imageEditUndoAction?.run()
+            return
+        case .windowStep:
+            WindowStepStack.undo()
             return
         case .navigation:
             navigationUndoAction?.run()
@@ -213,7 +220,7 @@ struct RedoLastActionButton: View {
     }
 
     var body: some View {
-        Button("Redo") {
+        Button(redoTitle) {
             performRedo()
         }
         .keyboardShortcut("z", modifiers: [.command, .shift])
@@ -235,11 +242,17 @@ struct RedoLastActionButton: View {
         RedoRoutingPolicy.route(
             isTextEditing: FocusedTextResponder.isEditing,
             textRedoAvailable: FocusedTextResponder.canRedo,
+            windowRedoAvailable: WindowStepStack.canRedo,
             hasAuditedRedo: nextRedoableEntry != nil
         )
     }
 
     private var isEnabled: Bool { route != .none }
+
+    private var redoTitle: String {
+        guard route == .windowStep, let name = WindowStepStack.redoName else { return "Redo" }
+        return "Redo \(name)"
+    }
 
     private func performRedo() {
         switch route {
@@ -247,6 +260,9 @@ struct RedoLastActionButton: View {
             return
         case .focusedTextEditor:
             FocusedTextResponder.redo()
+            return
+        case .windowStep:
+            WindowStepStack.redo()
             return
         case .auditedAction:
             break
