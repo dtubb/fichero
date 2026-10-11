@@ -156,28 +156,19 @@ extension FirstRunWindow {
                 subtitle: FirstLaunchChoices.welcome,
                 systemImage: "doc.richtext"
             ) {
-                firstRunCard(
-                    FirstRunCardConfig(
-                        icon: "books.vertical",
-                        title: "Set up your first project",
-                        body: "Four steps: your project, your material, what you want to do, and the plan. "
-                            + "Fichero proposes how the work will be done, and nothing runs until you press Start.",
-                        primaryTitle: FirstLaunchChoices.setUpNewProject,
-                        primaryIcon: "arrow.right",
-                        primaryAction: { advance() },
-                        secondary: (FirstLaunchChoices.startWithoutProject, { finish() })
-                    ),
-                    footer: {
-                        HStack(spacing: 8) {
-                            detailPill("Local-first", icon: "desktopcomputer")
-                            detailPill("Knowledge graph ready", icon: "point.3.connected.trianglepath.dotted")
-                            // Surface the Research workspace at first run so it's
-                            // discoverable — it lives behind the flask icon in the
-                            // sidebar mode bar (⌃⌘8). (#1499)
-                            detailPill("Research workspace (⌃⌘8)", icon: "flask")
-                        }
+                // Less is more (Daniel, 2026-10-11): the welcome is its sentence and its two choices; the
+                // steps are in the list beside it, so no card restates them, and no feature pills.
+                VStack(spacing: 12) {
+                    Spacer()
+                    Button(action: { advance() }) {
+                        Label(FirstLaunchChoices.setUpNewProject, systemImage: "arrow.right")
+                            .frame(maxWidth: .infinity)
                     }
-                )
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    Button(FirstLaunchChoices.startWithoutProject) { finish() }
+                        .buttonStyle(.bordered)
+                }
             }
         case .permissions:
             stepPage(
