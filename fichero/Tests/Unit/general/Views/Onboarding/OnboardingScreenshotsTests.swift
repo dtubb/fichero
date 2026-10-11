@@ -233,7 +233,7 @@ struct OnboardingScreenshotsTests {
                                           step: .init(id: "find-regions", job: "find-regions"), onDone: {}))
         // A finished bake-off (#5660 item 7): every kind of reader by CER and WER, then the line finders.
         let compared = BakeoffSection.Context(project: project)
-        try await shot("11-compare-on-your-pages.png", CGSize(width: 900, height: 760), VStack(alignment: .leading, spacing: 18) {
+        try await shot("11-compare-on-your-pages.png", CGSize(width: 900, height: 820), VStack(alignment: .leading, spacing: 18) {
             BakeoffSection(context: compared, setup: setup)
             if let lines = compared.forStep(BakeoffStore.lineStep) { BakeoffSection(context: lines, setup: setup) }
             Spacer(minLength: 0)

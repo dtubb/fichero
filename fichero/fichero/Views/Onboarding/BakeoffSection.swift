@@ -135,22 +135,21 @@ struct BakeoffSection: View {
 
     private func table(_ comparison: BakeoffStore.Comparison) -> some View {
         Table(of: BakeoffStore.Row.self) {
+            // Use This sits after the numbers, before the long reasons, so it stays in reach however wide those are.
             TableColumn("Reader") { row in nameCell(row) }
-                .width(min: 150, ideal: 210)
+                .width(min: 140, ideal: 180)
             TableColumn("CER") { row in Text(BakeoffStore.errorRate(row)).monospacedDigit() }
-                .width(min: 46, ideal: 56)
+                .width(min: 44, ideal: 50)
             TableColumn("WER") { row in Text(BakeoffStore.wordErrorRate(row)).monospacedDigit() }
-                .width(min: 46, ideal: 56)
+                .width(min: 44, ideal: 50)
             TableColumn("Time") { row in Text(BakeoffStore.time(row)).monospacedDigit() }
-                .width(min: 56, ideal: 70)
-            TableColumn("Cost for all pages") { row in Text(BakeoffStore.cost(row)) }
-                .width(min: 80, ideal: 120)
-            TableColumn("Why not scored") { row in
-                Text(BakeoffStore.note(row)).foregroundStyle(.secondary).help(BakeoffStore.note(row))
-            }
-            .width(min: 120, ideal: 200)
+                .width(min: 50, ideal: 64)
             TableColumn("") { row in useButton(row) }
-                .width(min: 70, ideal: 80)
+                .width(min: 70, ideal: 76)
+            TableColumn("Cost for all pages") { row in wrapping(BakeoffStore.cost(row)) }
+                .width(min: 90, ideal: 110)
+            TableColumn("Why not scored") { row in wrapping(BakeoffStore.note(row), secondary: true) }
+                .width(min: 120, ideal: 180)
         } rows: {
             // The engine's order, as it ranked them; the app never re-sorts.
             ForEach(comparison.rows) { row in
@@ -171,10 +170,8 @@ struct BakeoffSection: View {
                 .width(min: 60, ideal: 80)
             TableColumn("Time") { row in Text(BakeoffStore.time(row)).monospacedDigit() }
                 .width(min: 56, ideal: 70)
-            TableColumn("Why not compared") { row in
-                Text(row.why ?? "").foregroundStyle(.secondary).help(row.why ?? "")
-            }
-            .width(min: 120, ideal: 200)
+            TableColumn("Why not compared") { row in wrapping(row.why ?? "", secondary: true) }
+                .width(min: 120, ideal: 200)
             TableColumn("") { row in useButton(row) }
                 .width(min: 70, ideal: 80)
         } rows: {
@@ -182,7 +179,16 @@ struct BakeoffSection: View {
                 TableRow(row)
             }
         }
-        .frame(height: CGFloat(comparison.rows.count) * 28 + 34)
+        .frame(height: CGFloat(comparison.rows.count) * 40 + 34)
+    }
+
+    /// A cell's words on up to two lines, the whole of them on hover: a cost or a reason never cut to "…" unread.
+    private func wrapping(_ text: String, secondary: Bool = false) -> some View {
+        Text(text)
+            .foregroundStyle(secondary ? .secondary : .primary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .help(text)
     }
 
     /// A reader by name, and why it takes part (the rules' pick, or one of each kind tried beside them).
