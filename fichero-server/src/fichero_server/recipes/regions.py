@@ -58,6 +58,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     from fichero_server.models import Document
     from fichero_server.workflows.tools.detect_regions import TOOL_CONFIG
     from fichero_server.workflows.tools.llm_base import save_artifact
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
 
     library = str(Path(db.path).parent)
     account = {"pages": 0, "regions": 0, "no_image": 0}
@@ -65,13 +66,15 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         if stop is not None and stop():
             break
         doc = db.get(Document, doc_id)
+        # The page's image as every step finds it: a copied page's stored path is inside the package (#5668).
+        path = _resolve_abs_path(doc, library) if doc is not None else ""
         try:
-            with Image.open(doc.path) as image:
+            with Image.open(path) as image:
                 width, height = image.size
         except (AttributeError, TypeError, OSError):
             account["no_image"] += 1
             continue
-        found = kraken_regions(doc.path) if provider == "kraken" else detect_regions(doc.path, model)
+        found = kraken_regions(path) if provider == "kraken" else detect_regions(path, model)
         asyncio.run(save_artifact(
             document_id=doc.id, file_path=doc.path, content="", data=None, library_path=library,
             llm_config=LLMConfig(provider=provider, model=model), task_id=run_id, tool_config=TOOL_CONFIG,

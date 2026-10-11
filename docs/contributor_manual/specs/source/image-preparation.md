@@ -153,7 +153,9 @@ a few dozen corrected outlines (`train-a-model`), and appear as cards in the rec
 - `prep.regions.open-default` — **[PARTIAL]** (#5668 walkthrough section 4) *Built: the bundled `blla` card names `find-regions` and the rules choose it; `recipes/regions.py` runs it (`provider="kraken"`) and saves its regions; pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`. Not built: the Start plan still sends a `find-regions` step to YOLO only (`recipes/start.py`, its owner's change).* Find Regions' default is
   Kraken's built-in segmenter (`blla`, Apache-2.0, ships inside the app, nothing to download), kept to
   its regions: each text block it finds becomes a region with its outline, made by Kraken. No licence
-  sheet stands between a new project and its first run. The YOLO DocLayNet model (AGPL-3.0) stays a
+  sheet stands between a new project and its first run. Every page the project holds is looked at, whether copied into the
+  project (its path inside the package) or linked: the step finds each page's image as every other
+  step does (`sources._resolve_abs_path`), never by opening the stored path as it stands. The YOLO DocLayNet model (AGPL-3.0) stays a
   candidate to choose, with its licence sheet, for pages that need its finer labels (heading, table,
   picture, page header and footer). **Measured 2026-10-11:** on a rendered two-column printed page,
   `blla` found 3 text regions (the heading and both columns) and 81 lines in 11 s on the MacBook Air; it

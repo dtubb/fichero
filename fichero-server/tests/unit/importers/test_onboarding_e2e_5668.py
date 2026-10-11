@@ -27,6 +27,33 @@ def test_a_copy_import_of_a_folder_warns_of_no_page_in_icloud(client, tmp_path):
     assert status["in_icloud"] is None, status["in_icloud"]
 
 
+def test_find_regions_looks_at_pages_copied_into_the_project(db, monkeypatch):
+    """`prep.regions.open-default`: "Every page the project holds is looked at, whether copied into the project (its
+    path inside the package) or linked." The run's Find Regions said all 92 copied pages had no image: it opened
+    the stored package-relative path (`files/…`) as it stood."""
+    from pathlib import Path
+
+    from fichero_server.llm import kraken_runtime
+    from fichero_server.models import DocType, Document, FileType
+    from fichero_server.recipes.regions import find_regions
+
+    library = Path(db.path).parent
+    stored = Path("files") / "ab" / "1_Hoja_530_Recto.JPG"
+    (library / stored).parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (100, 200), (230, 225, 210)).save(library / stored, format="JPEG")
+    page = Document(name="1_Hoja_530_Recto.JPG", doc_type=DocType.file, file_type=FileType.image, path=str(stored))
+    db.save(page)
+    opened = []
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: opened.append(path) or {
+        "width": 100, "height": 200, "lines": [],
+        "regions": [{"id": "r1", "type": "text", "polygon": [[10, 20], [90, 20], [90, 180], [10, 180]]}]})
+
+    account = find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert account == {"pages": 1, "regions": 1, "no_image": 0}
+    assert opened == [str(library / stored)]
+
+
 def test_apple_vision_used_for_read_a_page_is_what_start_runs():
     """`source.find.used-candidate-runs`: "A candidate the finder lists as runnable on this Mac, once used for the
     step, is what Start runs." The run chose Apple Vision for Read a page (the no-download reader); Start skipped
