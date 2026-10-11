@@ -304,7 +304,12 @@ def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str
     chosen = checked_pass(db, page_id, checked)
     if chosen is None:
         return None, f"no pass {by_whom(checked)}"
-    if not doc.path or not Path(doc.path).is_file():
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
+
+    # The page's image as every step finds it: a copied page's stored path is inside the package
+    # (`source.pages.image-found-wherever-kept`, #5668).
+    photo = _resolve_abs_path(doc, str(Path(db.path).parent))
+    if not photo or not Path(photo).is_file():
         return None, "its photograph is not on this Mac"
     try:
         xml = export_page(db, page_id, "pagexml", pass_id=chosen.id).data.decode("utf-8")
@@ -321,7 +326,7 @@ def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str
         lines, trust = [ln for ln in lines if ln["id"] in corrected], "person"
     if not lines:
         return None, f"the pass {by_whom(checked)} has no read lines"
-    return {"document_id": page_id, "name": doc.name, "photo": doc.path, "pass_id": chosen.id,
+    return {"document_id": page_id, "name": doc.name, "photo": photo, "pass_id": chosen.id,
             "trust": trust, "lines": lines}, None
 
 

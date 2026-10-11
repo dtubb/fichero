@@ -124,6 +124,7 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
     from PIL import Image, ImageOps
 
     from fichero_server.models import Document, Rendition
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
 
     library = Path(db.path).parent
     account = {"prepared": 0, "clear": 0, "no_image": 0}
@@ -131,7 +132,9 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
         if stop is not None and stop():
             break
         doc = db.get(Document, doc_id)
-        spread = contrast_spread(doc.path if doc is not None else None)
+        # The page's image as every step finds it (`source.pages.image-found-wherever-kept`, #5668).
+        path = _resolve_abs_path(doc, str(library)) if doc is not None else None
+        spread = contrast_spread(path)
         if spread is None:
             account["no_image"] += 1
             continue
@@ -139,7 +142,7 @@ def prepare_pages(db: Any, documents: list[str], run_id: str,
             account["clear"] += 1  # clear enough, or blank: nothing to raise
             continue
         relative = Path("files") / ROLE / f"{doc.id}.png"
-        with Image.open(doc.path) as image:
+        with Image.open(path) as image:
             # The original's own pixels and orientation tag: the same frame, so the lines found on it are the page's.
             exif = image.getexif()
             base = image if image.mode in ("RGB", "L") else image.convert("RGB")

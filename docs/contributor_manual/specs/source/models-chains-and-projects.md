@@ -2539,6 +2539,15 @@ Projects
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
+- `source.pages.image-found-wherever-kept` — **[OK]** (#5668, found by the end-to-end onboarding run) *Built:
+  `recipes/regions.py`, `recipes/prepare.py`, `finddocs/job.py` (the blank-verso rule and the image cues),
+  `training/evaluation.reference_page`, `training/yolo_set.export_region_set`, all through
+  `workflows/tools/sources._resolve_abs_path`; pinned by
+  `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py`.* Every step that looks at a page's image
+  finds it the one way the reading steps do: a page copied into the project (its stored path inside the
+  package, `files/…`) and a linked page alike. None opens the stored path as it stands. Found when a copied
+  folder's Find Regions said every page had no image, the blank versos were sent to Apple Vision (the
+  blank-verso rule saw no image), and Find the Documents worked from the text alone.
 - `source.onboard.icloud-pages-warned` — **[PARTIAL]** (#5669) *Built: `importers/keep_a_copy.summary`, the
   Start plan's and an import's `in_icloud`, `document.copy_into_project`. Not built: Ready's and the import
   sheet's Swift (B).* Before Start, and in an import's answer, Fichero says how many of the project's pages are

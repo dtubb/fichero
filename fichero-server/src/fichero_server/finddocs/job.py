@@ -92,6 +92,14 @@ def _text(db: Any, doc: Any) -> str:
     return reading.content if reading is not None else ""
 
 
+def _image_of(db: Any, page: Any) -> str:
+    """The page's image as every step finds it (`source.pages.image-found-wherever-kept`): a copied page's stored
+    path is inside the package."""
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
+
+    return _resolve_abs_path(page, str(Path(db.path).parent))
+
+
 def _look(path: str | None) -> tuple[float | None, int | None]:
     """(ink, average hash) of the image's thumbnail; (None, None) when there is no image to look at."""
     if not path or not Path(path).is_file():
@@ -157,7 +165,7 @@ def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
 
         def ink(i: int) -> float | None:
             if i not in inks:
-                inks[i] = _look(pages[i].path)[0]
+                inks[i] = _look(_image_of(db, pages[i]))[0]
             return inks[i]
 
         for i, page in enumerate(pages):
@@ -184,7 +192,7 @@ def page_inputs(db: Any, pages: list[Any], *, job_id: str | None = None) -> list
     out = []
     for page in pages:
         _stop_point(job_id)
-        ink, image_hash = _look(page.path)
+        ink, image_hash = _look(_image_of(db, page))
         out.append(PageInput(id=page.id, text=_text(db, page), ink=ink, image_hash=image_hash,
                              names=names.get(page.id, [])))
     return out

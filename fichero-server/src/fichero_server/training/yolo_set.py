@@ -55,22 +55,27 @@ def yolo_line(class_number: int, segment: Any) -> str:
 def export_region_set(db: Any, *, scope_ids: list[str], held_out_ids: list[str], out_dir: str | Path) -> RegionSet:
     """Write `images/`, `labels/` and `data.yaml` under `out_dir`; refused when nothing is there to learn from."""
     from fichero_server.training.kraken_set import pages_in_scope
+    from fichero_server.workflows.tools.sources import _resolve_abs_path
 
     out = Path(out_dir)
-    found = [(page, persons_regions(db, page.id)) for page in pages_in_scope(db, scope_ids)]
-    found = [(page, regions) for page, regions in found if regions and Path(page.path).is_file()]
+    library = str(Path(db.path).parent)
+    # Each page's image as every step finds it: a copied page's stored path is inside the package
+    # (`source.pages.image-found-wherever-kept`, #5668).
+    found = [(page, persons_regions(db, page.id), _resolve_abs_path(page, library))
+             for page in pages_in_scope(db, scope_ids)]
+    found = [(page, regions, photo) for page, regions, photo in found if regions and photo and Path(photo).is_file()]
     if not found:
         raise EmptyRegionSet("no page in scope has regions a person drew or corrected")
-    classes = sorted({label_of(s) for _, regions in found for s in regions})
+    classes = sorted({label_of(s) for _, regions, _ in found for s in regions})
     number = {name: i for i, name in enumerate(classes)}
     held = set(held_out_ids)
     made = RegionSet(classes=classes)
-    for page, regions in found:
+    for page, regions, photo in found:
         split = "val" if page.id in held else "train"
         (out / "images" / split).mkdir(parents=True, exist_ok=True)
         (out / "labels" / split).mkdir(parents=True, exist_ok=True)
-        image = out / "images" / split / f"{page.id}{Path(page.path).suffix.lower()}"
-        shutil.copy2(page.path, image)
+        image = out / "images" / split / f"{page.id}{Path(photo).suffix.lower()}"
+        shutil.copy2(photo, image)
         (out / "labels" / split / f"{page.id}.txt").write_text(
             "\n".join(yolo_line(number[label_of(s)], s) for s in regions) + "\n", encoding="utf-8")
         made.pages += 1
