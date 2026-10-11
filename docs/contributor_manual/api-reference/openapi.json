@@ -49598,6 +49598,12 @@
             "title": "Period",
             "description": "when the material was written: a century or a range of years ('16th century', '1650\u20131700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)"
           },
+          "place": {
+            "type": "string",
+            "nullable": true,
+            "title": "Place",
+            "description": "where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)"
+          },
           "hands": {
             "items": {
               "type": "string"

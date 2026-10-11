@@ -40,11 +40,11 @@ def test_the_hands_offered_follow_the_script_and_the_century(client):
 
 def test_the_period_and_hand_are_saved_with_the_answers(client):
     answers = {"purposes": ["transcribe"], "languages": ["de"], "scripts": ["Latn"], "materials": ["handwriting"],
-               "period": "1650–1700", "hands": ["kurrent", "a hand of my own", "not-sure"]}
+               "period": "1650–1700", "place": "Istmina, Chocó", "hands": ["kurrent", "a hand of my own", "not-sure"]}
     recipe = client.post("/api/recipes/assemble", json=answers)
     assert recipe.status_code == 200, recipe.text
     saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe.json()}).json()
-    assert saved["answers"]["period"] == "1650–1700"
+    assert saved["answers"]["period"] == "1650–1700" and saved["answers"]["place"] == "Istmina, Chocó"
     assert saved["answers"]["hands"] == ["kurrent", "a hand of my own", "not-sure"]  # typed kept as typed
     assert tags_for(saved["answers"]["hands"]) == ["kurrent", "a-hand-of-my-own"]
 

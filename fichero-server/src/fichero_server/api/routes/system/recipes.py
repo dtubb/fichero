@@ -126,6 +126,9 @@ class AssembleRequest(BaseModel):
     period: Optional[str] = Field(default=None, description=(
         "when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed "
         "(GET /api/recipes/hands reads it; source.onboard.material.when-written)"))
+    place: Optional[str] = Field(default=None, description=(
+        "where the material was written, kept as typed (a town, a region or an archive; "
+        "source.onboard.material.where-written)"))
     hands: list[str] = Field(default_factory=list, description=(
         "which hand: curated hand ids (GET /api/recipes/hands), anything else typed and kept as typed, or 'not-sure'; "
         "their tags join the reader search (source.onboard.material.which-hand)"))
