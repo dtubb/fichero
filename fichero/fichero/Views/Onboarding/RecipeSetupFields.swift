@@ -133,7 +133,7 @@ struct RecipeMaterialSourceFields: View {
                 Button("Add Files or Folders…") { choosingFolder = true }
                     .disabled(importer == nil || adding)
                     .help(importer == nil ? "Open the project first; its folder is added to it"
-                          : adding ? "Adding the folder…" : "Choose a folder of material to add")
+                          : adding ? "Adding the material…" : "Choose files or folders of material to add")
                 if adding { ProgressView().controlSize(.small) }
             }
             if let added = store.materialAdded {
@@ -149,11 +149,13 @@ struct RecipeMaterialSourceFields: View {
                 TextField("Pages", value: $store.pages, format: .number).labelsHidden()
             }
         }
-        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder]) { result in
-            guard case .success(let url) = result, let importer else { return }
+        // Files or folders, several at once (section 7d).
+        .fileImporter(isPresented: $choosingFolder, allowedContentTypes: [.folder, .item],
+                      allowsMultipleSelection: true) { result in
+            guard case .success(let urls) = result, !urls.isEmpty, let importer else { return }
             adding = true
             Task {
-                await store.addFolder(url, importer: importer, syncFolders: syncFolders)
+                await store.addMaterial(urls, importer: importer, syncFolders: syncFolders)
                 adding = false
             }
         }

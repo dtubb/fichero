@@ -889,6 +889,25 @@ extension RecipeSetupStore {
         }
     }
 
+    /// Add files, or several folders at once (section 7d, Add Files or Folders…): through the project's import path,
+    /// the way setup chose. One folder alone goes through `addFolder`, which also ties an Index folder.
+    func addMaterial(_ urls: [URL], importer: ImportService, syncFolders: SyncFolderStore? = nil) async {
+        if urls.count == 1, let url = urls.first, url.hasDirectoryPath {
+            await addFolder(url, importer: importer, syncFolders: syncFolders)
+            return
+        }
+        materialAdded = nil
+        tiedFolderPath = nil
+        do {
+            let outcome = try await importer.importFiles(urls, mode: ingestMode)
+            let failed = outcome.failures.isEmpty ? "" : ", \(outcome.failures.count) could not be added"
+            materialAdded = "\(urls.count) item\(urls.count == 1 ? "" : "s") added (\(wayIn.title.lowercased()))\(failed)."
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not add the material: \(error.localizedDescription)"
+        }
+    }
+
     // MARK: Added later (source.onboard.add-layer)
 
     /// Change the project's languages after setup (from the Inspector):
