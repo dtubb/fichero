@@ -1566,7 +1566,7 @@ class TestInvariants:
         assert len(forwarding_after_merge) >= 1
 
         # split.
-        _invoke_versioned(
+        split_result = _invoke_versioned(
             db, "segment.split",
             {
                 "segment_id": seg_b.id,
@@ -1578,7 +1578,11 @@ class TestInvariants:
             ctx,
         )
 
-        # undo the merge -> segment.unmerge.
+        # undo the merge -> segment.unmerge. Newest first: the split changed the kept segment after
+        # the merge, so the merge alone is refused as overwriting later work
+        # (`safety.undo.refuses-when-changed`); taking the split back first lets it through.
+        undo_split = client.post(f"/api/actions/audit/{split_result.audit_id}/undo")
+        assert undo_split.status_code == 200, undo_split.text
         undo = client.post(f"/api/actions/audit/{merge_result.audit_id}/undo")
         assert undo.status_code == 200, undo.text
 
