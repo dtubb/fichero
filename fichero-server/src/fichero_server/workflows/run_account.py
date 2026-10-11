@@ -233,6 +233,20 @@ async def _checkpoint(db: Any, thread_id: str) -> tuple[dict[str, Any], list[Any
     return found.checkpoint.get("channel_values", {}) or {}, list(found.pending_writes or [])
 
 
+def _title_failed_pages(db: Any, failures: list[PageFailure]) -> None:
+    """Each failed page named as the Reader names it (`views.page_title`), never its file's basename: a PDF's
+    page child is stored under a storage name (`fichero_upload_…`) that Activity would otherwise show."""
+    from fichero_server.api.routes.system.views import page_title
+    from fichero_server.models import Document
+
+    for failure in failures:
+        doc = db.get(Document, failure.document_id) if failure.document_id else None
+        if doc is None:
+            continue  # gone since the run: the file name the run recorded is all there is
+        parent = db.get(Document, doc.parent_id) if doc.parent_id else None
+        failure.page = page_title(parent, doc, doc.sequence or 1) if parent else page_title(doc, None, doc.sequence or 1)
+
+
 async def run_account(db: Any, thread_id: str, *, run: Any = None, state: dict[str, Any] | None = None,
                       pending_writes: Iterable[Any] | None = None) -> RunAccount | None:
     """The account of one run, or None when the project has no record of it. `run`, `state` and
@@ -256,6 +270,7 @@ async def run_account(db: Any, thread_id: str, *, run: Any = None, state: dict[s
                             live_peaks=_live_peaks(thread_id),
                             waiting_reason=waiting_reason(db, thread_id),
                             scope_ids=scope.get("resolved_ids") or scope.get("requested_ids"))
+    _title_failed_pages(db, account.failures)
     if account.state in ("done", "failed", "cancelled", "interrupted"):
         if len(_FINISHED) >= _FINISHED_LIMIT:
             _FINISHED.pop(next(iter(_FINISHED)))
