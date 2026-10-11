@@ -36,3 +36,26 @@ def test_the_repair_runs_one_thread_at_a_time_per_project():
 def test_two_projects_repair_side_by_side():
     assert db_module._repair_lock("/a.fichero") is db_module._repair_lock("/a.fichero")
     assert db_module._repair_lock("/a.fichero") is not db_module._repair_lock("/b.fichero")
+
+
+def test_a_new_library_is_not_rebuilt_on_every_open(tmp_path, monkeypatch):
+    """A library with no settings table has nothing written before the #5644 fix: no rebuild, ever."""
+    calls = []
+    monkeypatch.setattr(db_module, "rebuild_secondary_indexes", lambda conn: calls.append(1) or (0, 0))
+
+    class Conn:
+        def execute(self, *_):
+            class R:
+                def fetchone(self):
+                    return None
+            return R()
+
+    class Fake:
+        path = str(tmp_path / "new.fichero")
+        conn = Conn()
+        INDEXES_REPAIRED_SETTING = db_module.Database.INDEXES_REPAIRED_SETTING
+        _repair_indexes_once_locked = db_module.Database._repair_indexes_once_locked
+
+    for _ in range(3):
+        db_module.Database._repair_indexes_once(Fake())
+    assert calls == []

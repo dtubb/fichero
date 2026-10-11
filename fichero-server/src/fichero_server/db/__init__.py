@@ -1006,6 +1006,7 @@ def _opening_caller() -> str:
 
 
 _REPAIR_LOCKS: dict[str, threading.Lock] = {}
+_REPAIRED_THIS_RUN: set[str] = set()
 _REPAIR_LOCKS_GUARD = threading.Lock()
 
 
@@ -1180,8 +1181,15 @@ class Database(DatabaseEmbeddingMixin):
         each dropped and re-created its indexes together, and DuckDB crashed the process
         (segmentation fault in `rebuild_secondary_indexes`, M4 suite 2026-10-11).
         """
-        with _repair_lock(str(self.path)):
+        path = str(self.path)
+        if path in _REPAIRED_THIS_RUN:
+            return
+        with _repair_lock(path):
+            if path in _REPAIRED_THIS_RUN:
+                return
             self._repair_indexes_once_locked()
+            # ponytail: once per process per library; the settings row keeps it across runs.
+            _REPAIRED_THIS_RUN.add(path)
 
     def _repair_indexes_once_locked(self) -> None:
         conn = self.conn
@@ -1191,7 +1199,9 @@ class Database(DatabaseEmbeddingMixin):
         repaired = has_settings and bool(conn.execute(
             "SELECT 1 FROM librarysettings WHERE id = ?", [self.INDEXES_REPAIRED_SETTING]
         ).fetchone())
-        if repaired:
+        if repaired or not has_settings:
+            # Repaired before, or a new library with nothing written before the fix to repair. Rebuilding
+            # a new library's indexes on every open, while other threads write to it, crashed the engine.
             return
         if rebuilt_after_replay(self.path):
             failed = 0  # rebuilt moments ago in `connect_utc`; nothing stale is left to repair
@@ -1199,8 +1209,8 @@ class Database(DatabaseEmbeddingMixin):
             rebuilt, failed = rebuild_secondary_indexes(conn)
             if rebuilt:
                 logger.warning("rebuilt %d secondary indexes on %s (one-time repair, #5644)", rebuilt, self.path)
-        if not has_settings or failed:
-            return  # a new library has nothing to repair; a failed index is tried again next open
+        if failed:
+            return  # a failed index is tried again next open
         try:
             conn.execute(
                 "INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())",
