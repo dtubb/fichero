@@ -5,12 +5,12 @@
 > ⌥-dragging them (a copy); what travels with a page and what is left behind and listed; how the
 > people and places on a page join the other project's knowledge graph (proposed, never merged by
 > themselves); undoing a move; copying to another Mac or a server; dragging items out to the Finder;
-> the Trash (`source/trash.md`).
+> the Trash (`safety/trash.md`).
 >
 > **Status: DRAFT — 2026-10-10.** Issues: #2397 (move between projects), #4311 (copy between projects,
 > and dragging out to the Finder), tracked by #5657. Written to be implemented next: every claim about
 > the code is **VERIFIED** on disk at `52b7b1f65` with a path, or marked **INFERRED**. Related:
-> `source/trash.md` (the per-project Trash a move sends its source to), `ui/sidebar-crud.md` (drag
+> `safety/trash.md` (the per-project Trash a move sends its source to), `ui/sidebar-crud.md` (drag
 > grammar inside one project, `delete.*`, the always-there project), `compute/transfer-and-results.md`
 > and `compute/targets-and-connection.md` (the carriers and the paired machines a copy between
 > machines reuses), `source/models-chains-and-projects.md` (a project is what the code calls a
@@ -58,7 +58,7 @@ transfer between machines; a person who wants the source gone deletes it themsel
 - **Aliases stay within a project.** Make Alias and ⌘⌥-drag make an alias inside one project; a drop
   that would make an alias in another project, or on another machine, is refused in words ("Aliases
   stay within a project.") and offers a copy instead.
-- **Each project has its own Trash, the always-there project included** (`source/trash.md`).
+- **Each project has its own Trash, the always-there project included** (`safety/trash.md`).
 
 ## What exists today (VERIFIED at `52b7b1f65` unless marked)
 
@@ -221,7 +221,7 @@ its result.
    mismatch stops the transfer and rolls the target back (below).
 5. **Source (a move only).** Soft-delete the moved items in the source through `document.delete`, with
    the reason "moved to <target>" and the transfer's id, so they appear in the source's Trash labelled
-   as moved (`source/trash.md`, `trash.lists-what-was-deleted`). Cut what must be cut in the source
+   as moved (`safety/trash.md`, `safety.trash.lists-what-and-why`). Cut what must be cut in the source
    (`transfer.cut.*`).
 6. **Result.** Store and return the result report (below), and emit change events in both projects.
 
@@ -308,7 +308,7 @@ end is on a page left behind) travels when it rests on a moved page — it is th
 its far entity travels with it as a referenced entity, matched the same way.
 
 **On a move, the source** keeps an entity while any live page in the source still mentions it. Claims
-resting on the moved pages go to the Trash with their pages: hidden, not deleted (`trash.knowledge`).
+resting on the moved pages go to the Trash with their pages: hidden, not deleted (`safety.trash.dependants-go-with-their-source`).
 An entity whose every mention is now in the Trash is hidden with them, and comes back if the pages are
 put back; emptying the Trash prunes it through the existing cascade (`_cascade_delete_kg_rows`).
 
@@ -646,9 +646,9 @@ Nothing in the project changes.
 
 Engine first, each slice pinned by its tests before the next:
 
-1. **The Trash in the app** (`source/trash.md`): the engine routes exist; the app's Trash row, view and
+1. **The Trash in the app** (`safety/trash.md`): the engine routes exist; the app's Trash row, view and
    Put Back come early, because a move's safety is that its source lands somewhere a person can see.
-   The engine's `trash.knowledge` (claims on trashed pages hidden) lands with it.
+   The engine's `safety.trash.dependants-go-with-their-source` (claims on trashed pages hidden) lands with it.
 2. **The plan and the id map** (`transfer.action.dry-run`): walk a subtree, gather every row by kind,
    allocate ids, list cuts; no writes. Pins the inventory against every model keyed by document id.
 3. **Copy within one engine** (`mode: copy`): write the target, files, vocabulary, verify, the record,

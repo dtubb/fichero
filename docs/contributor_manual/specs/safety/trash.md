@@ -1,24 +1,40 @@
-# Trash: I removed a thing and may want it back. Design Spec (#TBD)
+# Trash: I removed a thing and may want it back. Design Spec (#5243, #2077)
 
 > Milestone: undo-trash-rollback
 > Manual: TBD. "The Trash": what goes there and what does not; opening it; Put Back; what
 > happens to a document's statements and search results while it is in the Trash; Empty Trash
-> and what it really removes; who may empty it in a shared library.
+> and what it really removes; who may empty it in a shared library; items a move to another
+> project sent there.
 >
 > Slice 2 of the safety set. Read `undo-trash-rollback.md` first. **Status: DRAFT,
-> 2026-09-20.** Behaviours carry no tag and no issue yet, by instruction. Claims about the code
+> 2026-09-20; revised 2026-10-10** with the maintainer's rulings of that day and the Trash
+> findings of the adversarial review of `source/moving-between-projects.md` (#5657). This is the
+> **one** Trash spec: a second draft written on 2026-10-10 (`source/trash.md`) was folded in here
+> and removed. Issues: #5243 (this slice), #2077 (the Trash UI and soft delete for the other
+> kinds), #5657 (moves between projects, which send their source here). Claims about the code
 > are VERIFIED (line given), TRACED or INFERRED. Nothing was run. Engine paths are relative to
 > the engine's source folder; app paths are given in full.
 
 ## Intent
 
-Each library has one Trash, at the foot of the sidebar. Deleting a thing a person can name
-sends it there. It can be opened, looked through, and things can be put back where they came
-from, today or next year. While a thing is in the Trash it is out of the way everywhere: lists,
-search, the knowledge graph, exports. Nothing is destroyed until someone chooses Empty Trash or
-Delete Permanently, is told exactly what will go, and says yes.
+Each project has its own Trash, the always-there project included, as a row at the end of that
+project's section of the sidebar. Deleting a thing a person can name sends it there. It can be
+opened, looked through, and things can be put back where they came from, today or next year.
+While a thing is in the Trash it is out of the way everywhere: lists, search, the knowledge
+graph, exports. Nothing is destroyed until someone chooses Empty Trash or Delete Permanently, is
+told exactly what will go, and says yes.
 
 This is the Trash the app already promises in its delete dialog and does not have.
+
+## Ruled 2026-10-10 (the maintainer)
+
+- **Each project has its own Trash, and so does the always-there project.** A project is one
+  package and one database, so its Trash is the deleted rows of that file. The Trash is a row
+  named Trash at the end of each project's section in the sidebar; the always-there project's is
+  at the end of the top section.
+- **A move between projects sends the source's items to the source's Trash**, after the
+  target's copy is verified (`source/moving-between-projects.md`), labelled as moved.
+- **Nothing empties the Trash by itself** (already `safety.trash.never-empties-itself`).
 
 ## Prior art
 
@@ -52,6 +68,11 @@ This is the Trash the app already promises in its delete dialog and does not hav
 | Deleting a folder of workflows, searches or conversations with its contents | hard delete, no record, no way back | VERIFIED by survey `api/routes/document/folders.py:388-422` |
 | Confirmation before delete | inconsistent: the same kind confirms on one surface and not another; deleting a run never confirms | VERIFIED by survey |
 | Who may delete, restore, purge | one "may write" bit; who deleted is stored and never consulted | VERIFIED by survey `security/authz.py:255-260` |
+| The Trash listing | every deleted row, a deleted folder's descendants beside the folder, readable rows only, paged; no reason ("moved to <project>") and no "from where" | VERIFIED at `52b7b1f65` `GET /api/documents/trash` (`list_deleted_documents`, `documents.py:822`); descendants-beside-folder INFERRED from `_list_documents(only_deleted=True)` |
+| Put Back into a folder that is itself gone or in the Trash | the item comes back under a parent that is not shown | VERIFIED at `52b7b1f65`: `restore_documents_impl` (`documents.py:2973`) sets no parent; `restore_document_subtree_impl` (`:1806`) clears the stamps only |
+| Empty the whole Trash in one step | no route; purge is per item (`DELETE /{doc_id}/purge`, `:1854`), snapshot first (#5070) | VERIFIED at `52b7b1f65` |
+| Per project | the Trash listing is per library (one database per project), the always-there project included | VERIFIED at `52b7b1f65`: the routes run on the library the request names |
+| MCP and CLI | list, restore and purge are generated tools (`fichero_documents_list_deleted`, `fichero_documents_restore`, `fichero_documents_purge`); no Empty Trash | VERIFIED: the generated MCP tool list |
 
 ## Behaviours
 
@@ -113,7 +134,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   already (→ #4960, and documents in exports) is a mark that is written and not read. *Data:*
   none new. *Test:* for each Trash kind, a behaviour test per read surface; and a guardrail
   that refuses a query on a Trash kind's table that names neither the seam nor the Trash.
-- `safety.trash.dependants-go-with-their-source` — **[GAP]** (#5243) while a document is in the Trash:
+- `safety.trash.dependants-go-with-their-source` — **[GAP]** (#5243, #2077, #5657) hidden, not deleted: while a document is in the Trash (deleted, or sent there by a move to another project):
   its **statements** that rest only on it are out of view; a statement that rests on other
   sources too stays, and shows that one of its sources is in the Trash; its **search entries**
   are left out of results; its **segments, artifacts, annotations and notes** are out of view
@@ -125,21 +146,51 @@ This is the Trash the app already promises in its delete dialog and does not hav
   the new version; the release notes say so, and the app says once: "N items are in the Trash."
   *Test:* trash a document: its only-here statements vanish from the table and the graph, a
   two-source statement stays with a mark, search no longer finds its text; Put Back: all of it
-  returns, row for row identical.
+  returns, row for row identical. Emptying prunes what rests only on the removed rows through the
+  existing cascade (`_cascade_delete_kg_rows`, `documents.py:1729`, each a reversible
+  `MutationLog`).
 - `safety.trash.curated-work-is-never-hidden-silently` — **[GAP]** (#5243) when a delete will take
   person-curated statements or notes out of view, the short notice after the delete says how
   many. *Test:* the notice for a document with curated statements names the count.
 
 ### C. The Trash screen
 
-- `safety.trash.a-place-in-the-sidebar` — **[GAP]** (#5243) the Trash is a row at the foot of the library's
-  sidebar. It opens in the Library like any folder: every view mode, search within it, sorting
-  by when deleted and by whom. Things in it can be looked at (Quick Look, the Source view, the
-  Reader) and cannot be edited. *Test:* availability; click-around.
-- `safety.trash.put-back` — **[GAP]** (#5243) Put Back returns a thing to where it came from, with everything
-  that was deleted with it, as one recorded step that can be undone. If its folder is also in
-  the Trash, the app offers to put the folder back too. If its folder is gone for good, it
-  returns to the top of the library and the notice says so. *Test:* each of the three cases.
+- `safety.trash.one-per-project` — **[PARTIAL]** (#2077, #5243) every project has its own Trash: the
+  deleted items of that project's file. The always-there project has one too. Built (engine):
+  soft delete and `GET /api/documents/trash` per library. *Not built:* the app's per-project
+  Trash. *Test:* delete in two projects and in the always-there project; each Trash lists only
+  its own.
+- `safety.trash.a-place-in-the-sidebar` — **[GAP]** (#5243, #2077) the Trash is a row named Trash at the
+  end of each project's section of the sidebar; the always-there project's is at the end of the
+  top section; its icon shows whether that Trash is empty. It opens in the Library like any
+  folder: every view mode, search within it, sorting by when deleted and by whom, List mode with
+  columns for where from, when, by whom and why. Things in it can be looked at (Quick Look, the
+  Source view, the Reader) and cannot be edited. The context menu and the Edit menu offer Put
+  Back, Delete Permanently… and Empty Trash…; dragging an item out of the Trash onto a folder of
+  the same project puts it back there. *Test:* availability; click-around.
+- `safety.trash.lists-what-and-why` — **[PARTIAL]** (#2077, #5657, #5243) the Trash lists each top-level
+  deleted item once (a deleted folder once, with its count, not each descendant), with when, by
+  whom, where it was (its old folder's path, or "a folder now in the Trash" / "a folder now
+  gone"), and why: deleted, or **moved to <project> on <date>** (from the transfer's record in
+  this project), or "alias to <item>, moved to <project>" for an alias a move sent there
+  (`transfer.alias.source-aliases`). Built: the listing of every deleted row with
+  `deleted_at`/`deleted_by` (`documents.py:822`). *Not built:* top-level only, from where, why.
+  *Test:* a folder trashed with 40 pages lists once with "40 items"; a moved page says "moved to
+  Istmina on 10 Oct 2026".
+- `safety.trash.put-back` — **[PARTIAL]** (#5243, #2077) Put Back returns a thing to where it came from,
+  with everything that was deleted with it, as one recorded step that can be undone. When its
+  old folder is live, it goes there. When that folder is itself in the Trash, or gone for good,
+  the thing goes into the project's **Sources** folder and the notice says so ("Put back in
+  Sources: its folder is in the Trash."), offering to put the folder back too when it is in the
+  Trash. Built: `document.restore` (`restore_document_subtree_impl`, `documents.py:1806`). *Not
+  built:* the fallback to Sources (today the thing comes back under a parent that is not shown),
+  the words, the offer. *Test:* each of the three cases.
+- `safety.trash.put-back-a-moved-item` — **[GAP]** (#5657, #2077) Put Back on an item a move sent to
+  this Trash asks which is meant: **Undo the Move** (`transfer.action.undo-move`: the item comes
+  back here and the target's copy goes to the target's Trash) or **Put Back and Keep the Copy**
+  (the item comes back here; the target keeps its copy; the move becomes a copy, recorded so in
+  both projects). Never silently one or the other. *Test:* both choices, read back in both
+  projects.
 - `safety.trash.delete-is-not-confirmed` — **[GAP]** (#5243) sending a thing to the Trash does not ask first. It
   is reversible, and a short notice offers Undo. The only questions asked are before Empty
   Trash and Delete Permanently. The present dialogs for reversible deletes are removed; the
@@ -154,8 +205,19 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 - `safety.trash.empty-says-what-will-go` — **[GAP]** (#5243) Empty Trash and Delete Permanently first show what
   will be destroyed, in numbers: documents, pages, statements and notes that rest only on them,
-  and stored files with their total size. The button says "Delete Permanently". *Test:* the
-  sheet's numbers equal what is then removed.
+  and stored files with their total size, in words with the count ("Delete 37 items for good?
+  This cannot be undone."). The button says "Delete Permanently". *Test:* the sheet's numbers
+  equal what is then removed.
+- `safety.trash.empty-names-moved-items` — **[GAP]** (#5657, #2077) when the Trash holds items a move
+  sent there, Empty Trash and Delete Permanently name them: "N of these were moved to <project>
+  on <date>; emptying makes those moves permanent." (one line per target project). After that,
+  the move can no longer be undone from either project (`transfer.action.undo-move` is refused in
+  words), and the transfer's record in both projects says the move was made permanent, when and
+  by whom. *Test:* move 3 pages, empty the source's Trash: the sheet names the 3 and the target;
+  undo of the move is then refused in words in both windows.
+- `safety.trash.empty-is-one-step` — **[GAP]** (#2077, #5243) Empty Trash is one recorded action over
+  everything in the Trash (today purge is one call per item), snapshot first, refused if the
+  snapshot cannot be made. *Test:* empty a Trash of 50 items: one record row, one snapshot.
 - `safety.trash.empty-removes-everything-and-only-that` — **[GAP]** (#5243) emptying removes the rows, the
   dependants that rest only on them, the search entries, the derived images, **and the stored
   original files** (today nothing ever removes those). A stored file shared by a live document
@@ -194,9 +256,12 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 ### F. From everywhere
 
-- `safety.trash.command-line-and-agents` — **[GAP]** (#5243) list the Trash, put back, and (for a person's
-  account only) delete permanently, from the command line and the agent tools, through the
-  same actions. *Test:* CLI and MCP legs.
+- `safety.trash.command-line-and-agents` — **[PARTIAL]** (#5243, #2077) list the Trash, put back, and
+  (for a person's account only) delete permanently and empty, from the command line and the
+  agent tools, through the same actions, generated from the routes. Built: list, restore and
+  purge are generated (`fichero_documents_list_deleted`, `fichero_documents_restore`,
+  `fichero_documents_purge`). *Not built:* Empty Trash, the reason and from-where in the
+  listing, the person-only rule for permanent deletes. *Test:* CLI and MCP legs.
 - `safety.trash.shortcuts-ask-first` — **[GAP]** (#5243) the Shortcuts delete action sends to the Trash and
   needs no confirmation; no Shortcuts action empties the Trash. This answers the open half of
   → #3304. *Test:* the intent calls the Trash action.
@@ -226,6 +291,7 @@ own confirmation and its own line in `safety.undo.every-action-says-how-it-comes
 | Pure rule (Swift) | y | which kinds go to the Trash | beside the delete actions |
 | Availability (Swift) | y | Trash row, Put Back, Empty reachable | the availability suite |
 | Backend (pytest) | y | A, B, D, E with a real database, real vectors, real stored files, two accounts | extends `fichero-server/tests/unit/api/test_document_actions.py` and siblings |
+| Backend (pytest), to write | top-level listing with from-where and why ("moved to <project>"); Put Back into Sources when the folder is gone or trashed; Empty Trash as one step with a snapshot, naming moved items; knowledge hidden, shown again, pruned | `fichero-server/tests/unit/api/test_trash.py` |
 | Guardrail | y | every delete declares trash or undo-only; reads use the seam; no sweeper | new checks |
 | MCP / CLI | y | F | the MCP and CLI suites |
 | Click-around (Mac) | y | C and the six things above | the UI suite |
@@ -237,3 +303,10 @@ own confirmation and its own line in `safety.undo.every-action-says-how-it-comes
 **Answered** (source/source-model.md Rulings 2026-09-20 item 6 (passes only)): A deleted pass goes to the Trash; a single segment is undo only. Rest of the rule still open. See the questions file. From this slice: the rule for what goes to the Trash; no confirmation
 for a reversible delete; what happens to a trashed document's statements; never emptying by
 age; who may empty.
+
+**Answered 2026-10-10** (the maintainer): a Trash per project and one for the always-there
+project; a move between projects sends its source here; no automatic emptying (no retention
+period). Still open from the folded draft: whether workflows and notes as rows join this Trash
+as nodes (*recommend:* yes, as `safety.trash.the-rule` already says), and whether claims and
+entities deleted on their own keep the knowledge graph's `MutationLog` undo rather than a second
+Trash (*recommend:* yes; `safety.trash.the-rule` already makes a statement undo only).

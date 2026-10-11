@@ -450,7 +450,6 @@ nav:
               - Structured Data from Documents: contributor_manual/specs/source/structured-data.md
               - Synced Folder: contributor_manual/specs/source/synced-folder.md
               - Moving & Copying Between Projects: contributor_manual/specs/source/moving-between-projects.md
-              - The Trash: contributor_manual/specs/source/trash.md
               - Rights, Consent & Access: contributor_manual/specs/source/rights-and-access.md
               - Build Notes (identity & storage): contributor_manual/specs/source/build-notes-identity-and-storage.md
               - Build Notes (shapes & the anchor): contributor_manual/specs/source/build-notes-shapes-and-anchor.md
