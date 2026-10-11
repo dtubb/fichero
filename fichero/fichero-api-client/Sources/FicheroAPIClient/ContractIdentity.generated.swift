@@ -6,6 +6,6 @@
 // looks exactly like a real mismatch.
 
 public enum BakedContractIdentity {
-    public static let version = "2026.9.29"
-    public static let sha256 = "94079aabc6268d63e5d730b7f4b0a95fc42ea45b5ea11a8f05d2a2a004b67257"
+    public static let version = "2026.10.10"
+    public static let sha256 = "a9bcb86a596da976b086b98b77e45e0d9d09b540c30b96f4734d3f58fdea1c83"
 }
