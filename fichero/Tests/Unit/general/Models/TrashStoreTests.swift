@@ -232,19 +232,11 @@ struct TrashStoreTests {
     }
 
     @Test("the Trash row ends every project's section, the always-there project's too")
-    func trashRowEndsEveryProjectSection() throws {
-        // WHY: ruled 2026-10-10: the Trash is the last row of each project's section and of the top
-        // section; both draw `unifiedLibrarySections`, so the row must be drawn there, after Models.
-        let source = try String(
-            contentsOf: AppSource.root().appendingPathComponent(
-                "Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift"
-            ),
-            encoding: .utf8
-        )
-        let sections = try #require(source.components(separatedBy: "func unifiedLibrarySections(").dropFirst().first)
-        let body = sections.components(separatedBy: "private func flattenedLibraryItems(").first ?? ""
-        let models = try #require(body.range(of: "SidebarTrainingNode(store: library.trainedModelsStore"))
-        let trash = try #require(body.range(of: "SidebarTrashRow(store: library.trashStore, libraryId: libraryId)"))
-        #expect(models.upperBound < trash.lowerBound)
+    func trashRowEndsEveryProjectSection() {
+        // WHY: ruled 2026-10-10: the Trash is the last row of each project's section and of the top section.
+        // Both draw `unifiedLibrarySections`, which draws a project's own nodes from this one list, in order.
+        #expect(SidebarProjectNode.order == [.knowledge, .models, .trash])
+        #expect(SidebarProjectNode.order.last == .trash)
+        #expect(Set(SidebarProjectNode.order) == Set(SidebarProjectNode.allCases), "every node is drawn")
     }
 }

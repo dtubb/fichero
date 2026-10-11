@@ -66,7 +66,7 @@ struct RecipeStepsView: View {
         }
         .sheet(item: $reviewingLicence) { step in
             if let finder {
-                LicenceReviewSheet(project: finder, setup: store, step: step) { reviewingLicence = nil }
+                LicenceReviewSheet(finder: finder.modelFinderStore, setup: store, step: step) { reviewingLicence = nil }
             }
         }
     }

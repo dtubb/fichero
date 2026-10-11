@@ -7,14 +7,15 @@ import SwiftUI
 /// `RecipeSetupStore.useCandidate`): the step takes the model as the project's override, saved and audited, and a
 /// licence that is not open is accepted by that press (`source.onboard.auto.installed-model-first`, #5612).
 struct LicenceReviewSheet: View {
-    let project: LibraryManager.LibraryReference
+    /// The project's model finder (`LibraryReference.modelFinderStore`), which lists the step's models.
+    let finder: ModelFinderStore
     let setup: RecipeSetupStore
     let step: RecipeStepsView.FinderStep
     let onDone: () -> Void
+    /// Read the step's models on appear; off for a preview or a screenshot, whose finder is already filled.
+    var loadsCandidates = true
 
     @State private var accepting: String?
-
-    private var finder: ModelFinderStore { project.modelFinderStore }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -29,12 +30,8 @@ struct LicenceReviewSheet: View {
                 Text("No model for this step is waiting on a licence. Choose another model with Find a Reader….")
                     .font(.callout)
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(shown, id: \.id) { candidate in
-                        row(candidate)
-                    }
-                }
+            List(shown, id: \.id) { candidate in
+                row(candidate)
             }
             if let message = setup.errorMessage {
                 Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
@@ -46,7 +43,9 @@ struct LicenceReviewSheet: View {
         }
         .padding()
         .frame(minWidth: 460, minHeight: 320)
-        .task { await finder.load(setup.finderQuery(job: step.job)) }
+        .task {
+            if loadsCandidates { await finder.load(setup.finderQuery(job: step.job)) }
+        }
     }
 
     private func row(_ candidate: Components.Schemas.ModelCandidate) -> some View {
@@ -70,8 +69,7 @@ struct LicenceReviewSheet: View {
             }
             .controlSize(.small)
         }
-        .padding(8)
-        .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.vertical, 4)
     }
 
     /// The cards the rules refused for this step because their licence is not open (`StepProblem.refused`).
@@ -101,4 +99,37 @@ struct LicenceReviewSheet: View {
         else { return nil }
         return URL(string: "https://spdx.org/licenses/\(licence).html")
     }
+}
+
+extension ModelFinderStore {
+    /// A step's models as the engine lists them, for the licence review's preview and screenshots: one open, one
+    /// held back for its licence (`agpl-3.0`), as in the maintainer's Find regions step of 2026-10-10.
+    static let licencePreviewList: Components.Schemas.ModelCandidateList? = {
+        let json = """
+        {"job":"find-regions","count":2,"items":[
+          {"id":"yolo:hf/fichero/regions-open@1","name":"Page regions (open)","source":"shipped",
+           "offered_because":"a card that ships with Fichero","pin":{"hf":"fichero/regions-open"},
+           "jobs":["find-regions"],"open_licence":true,"size":"0.05 GB","size_gb":0.05,
+           "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,
+           "runs_where":"this_mac"},
+          {"id":"yolo:hf/ultralytics/yolov8-layout@main","name":"YOLOv8 document layout","source":"hugging-face",
+           "offered_because":"finds text blocks, marginalia and seals on manuscript pages",
+           "pin":{"hf":"ultralytics/yolov8-layout","revision":"main"},"jobs":["find-regions"],"licence":"agpl-3.0",
+           "open_licence":false,"size":"0.09 GB","size_gb":0.09,
+           "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,
+           "installed":false,"runs_where":"this_mac"}],
+         "sources":[{"source":"shipped","state":"read","count":1,"detail":"the cards that ship with Fichero"}]}
+        """
+        return try? JSONDecoder().decode(Components.Schemas.ModelCandidateList.self, from: Data(json.utf8))
+    }()
+}
+
+#Preview("Review the licence for Find regions") {
+    LicenceReviewSheet(
+        finder: ModelFinderStore(client: FicheroClient(libraryPath: nil), list: ModelFinderStore.licencePreviewList),
+        setup: RecipeSetupStore(client: FicheroClient(libraryPath: nil)),
+        step: .init(id: "regions", job: "find-regions"),
+        onDone: {},
+        loadsCandidates: false
+    )
 }

@@ -159,7 +159,7 @@ struct RecipeSkippedRows: View {
             }
             .sheet(item: $reviewingLicence) { step in
                 if let project {
-                    LicenceReviewSheet(project: project, setup: store, step: step) { reviewingLicence = nil }
+                    LicenceReviewSheet(finder: project.modelFinderStore, setup: store, step: step) { reviewingLicence = nil }
                 }
             }
         }

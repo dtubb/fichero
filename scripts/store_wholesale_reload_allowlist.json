@@ -305,5 +305,11 @@
     "method": "modelInstalled",
     "class": "by-design",
     "reason": "by-design 2026-10-08 (#5583): the Start plan is one engine-computed value, not a list of rows; the engine works it out afresh from what is on this Mac, so a finished download (model.installed) can only be shown by reading the plan again"
+  },
+  {
+    "file": "fichero/fichero/Models/TrashStore.swift",
+    "method": "resync",
+    "class": "by-design",
+    "reason": "by-design 2026-10-11 (#5243): an explicit RESYNC after a reconnect re-reads the Trash, since events were missed while the stream was down; load() merges by id (TrashStore.merge), so entries are removed, inserted and replaced one at a time, never reassigned (TrashStoreTests.reloadMergesOneEntryAtATime)"
   }
 ]

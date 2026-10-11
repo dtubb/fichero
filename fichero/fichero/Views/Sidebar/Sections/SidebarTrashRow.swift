@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// The nodes every project's section draws after its items, in order (ruled 2026-10-10): its knowledge rows,
+/// Models, and Trash last. `unifiedLibrarySections` draws them from this list for each project and for the
+/// always-there project's top section alike, so the order is one declaration.
+enum SidebarProjectNode: CaseIterable, Hashable {
+    case knowledge, models, trash
+
+    nonisolated static let order: [SidebarProjectNode] = [.knowledge, .models, .trash]
+}
+
 /// A project's Trash row (#2077, #5243, `safety.trash.a-place-in-the-sidebar`; ruled 2026-10-10):
 /// the last row of each project's section, the always-there project's included (its row ends the
 /// top section). Always drawn, since the Trash is a place a person goes to, and its icon shows

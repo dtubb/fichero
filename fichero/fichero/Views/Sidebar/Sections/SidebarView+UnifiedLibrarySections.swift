@@ -201,13 +201,20 @@ extension SidebarView {
         let libraryItems = flattenedLibraryItems(libraryId: libraryId, buckets: buckets)
         unifiedRows(libraryItems, libraryId: libraryId)
         if let library = libraryManager.getLibrary(id: libraryId) {
-            // Each knowledge row draws only while it holds an item (#5413); the bottom bar's
-            // control hides them all.
-            SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore, libraryId: libraryId)
-            // Training is a node of the project (#5439); it draws nothing until a model is trained.
-            SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId)
-            // Trash ends every project's section, the always-there project's too (#5243).
-            SidebarTrashRow(store: library.trashStore, libraryId: libraryId)
+            // The project's own nodes after its items, in `SidebarProjectNode.order`; Trash last (#5243).
+            ForEach(SidebarProjectNode.order, id: \.self) { node in
+                switch node {
+                case .knowledge:
+                    // Each knowledge row draws only while it holds an item (#5413); the bottom bar's
+                    // control hides them all.
+                    SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore, libraryId: libraryId)
+                case .models:
+                    // Training is a node of the project (#5439); it draws nothing until a model is trained.
+                    SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId)
+                case .trash:
+                    SidebarTrashRow(store: library.trashStore, libraryId: libraryId)
+                }
+            }
         }
     }
 
