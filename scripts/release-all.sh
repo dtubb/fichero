@@ -389,6 +389,9 @@ fi
   exit 1
 }
 
+# Publishing only (no DMG, no TestFlight: publish-release.sh) needs no engine; rebuilding it cost
+# ~20 minutes and nothing used it (2026-10-10).
+if [ "$SKIP_DMG" = false ] || [ "$RUN_MAC_TESTFLIGHT" = true ] || [ "$RUN_IOS_TESTFLIGHT" = true ]; then
 echo
 echo "── Engine: rebuild current Briefcase stage ──"
 "$ROOT_DIR/scripts/preflight-embedded-engine.sh" --rebuild
@@ -435,6 +438,7 @@ else
   exit 1
 fi
 
+fi  # engine rebuild
 
 if [ "$SKIP_DMG" = false ]; then
   # One loop, both DMGs (dev first, beta last — see DMG_TIERS above). Each
