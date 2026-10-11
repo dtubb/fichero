@@ -740,7 +740,7 @@ extension ActivityStore {
     }
 
     /// The engine's kind for a recipe run (`recipes/runner.KIND`).
-    static let recipeRunKind = "run-a-recipe"
+    nonisolated static let recipeRunKind = "run-a-recipe"
 
     /// Follow the project's running recipe run on the strip (#5576): the first
     /// one the jobs poll lists running, waiting or paused (never the row that
