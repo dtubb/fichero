@@ -20,7 +20,13 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero_server.actions.registry import ActionContext, ActionRefused, ChangeSpec, action, registry
+from fichero_server.actions.registry import (
+    ActionContext,
+    ActionRefused,
+    ChangeSpec,
+    action,
+    registry,
+)
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
@@ -61,7 +67,9 @@ def _source_database(source: str, target_db: Database) -> Database:
 
 
 def _check_items(source_db: Database, items: list[str], source_name: str, mode: TransferMode) -> None:
-    from fichero_server.api.routes.document.documents import _reject_if_document_read_only
+    from fichero_server.api.routes.document.documents import (
+        _reject_if_document_read_only,
+    )
 
     for item in items:
         doc = source_db.get(Document, item)

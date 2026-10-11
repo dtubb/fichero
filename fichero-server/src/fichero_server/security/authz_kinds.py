@@ -44,6 +44,8 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
         # or holds out as its test. Walked like any document id, so a page a person may not read is
         # never trained on or read remotely on their say-so.
         "scope_ids", "held_out_ids",
+        # document.transfer (#5657): the folder in THIS project (the target) the copies land in.
+        "target_parent_id",
     )},
     # --- the page model ------------------------------------------------------------------------
     **{name: (RECORD, _SEGMENT) for name in (
@@ -123,6 +125,9 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "topic_id": (LIBRARY, "a topic of the engine's built-in help text (recipes/seed/topics.yaml), shipped with the "
                  "engine: it reads no library, so there is no page for a deny to reach"),
     "external_id": (LIBRARY, "an item's id in ANOTHER application (Bookends, Tinderbox): nothing in this library"),
+    # #5657: undoing a transfer names its record; the copies it trashes are walked as documents by the route.
+    "transfer_id": (LIBRARY, "a transfer's record between two projects: the whole project's journal, not content of a "
+                    "document; its copies are documents of this project"),
     "mutation_id": (LIBRARY, _KG),
     # maps D6/D7 (9205a2f25): a name or a dated geometry ON a place entity -- part of that KG record.
     "name_id": (LIBRARY, _KG),

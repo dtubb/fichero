@@ -9,9 +9,9 @@ and neither project changes.
 from __future__ import annotations
 
 import pytest
-
 from fichero_server.db.manager import db_manager
 from fichero_server.models import DocType, Document
+
 from tests.unit.transfer._two_projects import build_box, open_source, table_counts
 
 

@@ -10,12 +10,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image
-
 import fichero_server.api.main  # noqa: F401  (registers every action and route)
 from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db.manager import db_manager
-from fichero_server.models import Artifact, ContentRepresentation, DocType, Document, FileType, ReadingChoice
+from fichero_server.knowledge.authorities import link_entity
+from fichero_server.models import (
+    Artifact,
+    ContentRepresentation,
+    DocType,
+    Document,
+    FileType,
+    ReadingChoice,
+)
 from fichero_server.models.anchors import SourceAnchor
 from fichero_server.models.canvas import CanvasItem, CanvasItemKind, CanvasLayout
 from fichero_server.models.hands import Hand, HandAttribution
@@ -31,7 +37,7 @@ from fichero_server.models.knowledge import (
 from fichero_server.models.readings import LibraryReadingLevel
 from fichero_server.models.transfer import TransferRecord
 from fichero_server.models.typed_links import TypedLink
-from fichero_server.knowledge.authorities import link_entity
+from PIL import Image
 
 WIKIDATA = "Q4115189"
 

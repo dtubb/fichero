@@ -365,7 +365,10 @@ class _Vocabulary:
             return key
         self._done[token] = key
         from fichero_server.models import LibraryReadingKind
-        from fichero_server.models.knowledge import ClassificationDimension, ClassificationValue
+        from fichero_server.models.knowledge import (
+            ClassificationDimension,
+            ClassificationValue,
+        )
         from fichero_server.models.readings import LibraryReadingLevel
         from fichero_server.models.typed_links import LibraryLinkType
 

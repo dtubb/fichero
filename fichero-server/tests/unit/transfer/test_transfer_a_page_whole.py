@@ -21,7 +21,14 @@ from pathlib import Path
 
 from fichero_server.api.main import app
 from fichero_server.db.manager import db_manager
-from fichero_server.models import Artifact, ContentRepresentation, Document, ReadingChoice, Segment, SegmentPass
+from fichero_server.models import (
+    Artifact,
+    ContentRepresentation,
+    Document,
+    ReadingChoice,
+    Segment,
+    SegmentPass,
+)
 from fichero_server.models.canvas import CanvasItem, CanvasLayout
 from fichero_server.models.hands import Hand, HandAttribution
 from fichero_server.models.knowledge import (
@@ -38,7 +45,13 @@ from fichero_server.models.transfer import TransferRecord
 from fichero_server.models.typed_links import TypedLink
 from fichero_server.transfer import membership
 from fichero_server.transfer.copy import _mapped_values
-from tests.unit.transfer._two_projects import build_box, header_decides, open_source, table_counts
+
+from tests.unit.transfer._two_projects import (
+    build_box,
+    header_decides,
+    open_source,
+    table_counts,
+)
 
 
 def _copy(client, source_package, items, **extra):
