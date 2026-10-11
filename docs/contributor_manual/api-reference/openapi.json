@@ -17019,7 +17019,7 @@
           "documents"
         ],
         "summary": "Receive Object",
-        "description": "One object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). ponytail: the body is read whole; stream to disk if originals of several GB travel.",
+        "description": "One object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). A body longer than the size the copy declared for it is refused (413) before it is kept, and never\nread past that size. ponytail: held in memory up to `remote.MAX_OBJECT_BYTES`; stream to disk if more.",
         "operationId": "receive_object_api_documents_transfer_incoming__transfer_id__objects__sha256__put",
         "parameters": [
           {
@@ -17028,6 +17028,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
               "title": "Transfer Id"
             }
           },
@@ -17037,6 +17038,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
               "title": "Sha256"
             }
           }
@@ -17091,6 +17093,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
               "title": "Transfer Id"
             }
           },
@@ -17164,6 +17167,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
               "title": "Transfer Id"
             }
           }
@@ -17223,7 +17227,7 @@
           "machines"
         ],
         "summary": "Pair with another Mac's Fichero by its pairing code",
-        "description": "`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero\nshows. This engine becomes a paired device there; its token is kept in this Mac's Keychain.",
+        "description": "`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero\nshows. This engine becomes a paired device there; its token is kept in this Mac's Keychain. The owner\nonly. The code is the other Mac's: single use and rate-limited there (`POST /api/pair`).",
         "operationId": "pair_machine_api_machines_pair_post",
         "parameters": [
           {

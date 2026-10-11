@@ -2150,7 +2150,7 @@ def fichero_documents_receive_object(
     transfer_id: Annotated[str, Field(description='Transfer Id')],
     sha256: Annotated[str, Field(description='Sha256')],
 ) -> Any:
-    'Receive Object\n\nOne object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). ponytail: the body is read whole; stream to disk if originals of several GB travel.\n\nRoute: PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256} (toolset `documents`; changes data, as the agent account when one exists).'
+    'Receive Object\n\nOne object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). A body longer than the size the copy declared for it is refused (413) before it is kept, and never\nread past that size. ponytail: held in memory up to `remote.MAX_OBJECT_BYTES`; stream to disk if more.\n\nRoute: PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256} (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", f"/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}")
 
 
@@ -5020,7 +5020,7 @@ def fichero_machines_pair(
     address: Annotated[str, Field(description='Address.')],
     code: Annotated[str, Field(description='Code.')],
 ) -> Any:
-    "Pair with another Mac's Fichero by its pairing code\n\n`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero\nshows. This engine becomes a paired device there; its token is kept in this Mac's Keychain.\n\nRoute: POST /api/machines/pair (toolset `machines`; changes data, as the agent account when one exists)."
+    "Pair with another Mac's Fichero by its pairing code\n\n`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero\nshows. This engine becomes a paired device there; its token is kept in this Mac's Keychain. The owner\nonly. The code is the other Mac's: single use and rate-limited there (`POST /api/pair`).\n\nRoute: POST /api/machines/pair (toolset `machines`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/machines/pair", json=_rt.body({"address": address, "code": code}))
 
 

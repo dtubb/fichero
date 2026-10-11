@@ -26,7 +26,10 @@ Auth is the existing device pairing (`transfer/machines.py`); versions must matc
 from __future__ import annotations
 
 import json
+import re
 import shutil
+import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -58,6 +61,32 @@ INCOMING = "/api/documents/transfer/incoming"
 #: ponytail: these tables are small; only the records the set names, if one ever is not.
 VOCABULARY = ("LibraryReadingKind", "LibraryReadingLevel", "LibraryLinkType", "ClassificationValue",
               "Hand", "Allograph", "InterpretiveFramework")
+
+
+#: What a far peer may make this machine hold (`transfer.machine.incoming-bounded`): refused at open, before
+#: anything is written, and again on every object. ponytail: constants; a setting if a person ever needs more.
+MAX_OBJECT_BYTES = 512 * 1024 * 1024  # one object is read into memory on arrival
+MAX_TRANSFER_BYTES = 20 * 1024 * 1024 * 1024
+MAX_OBJECTS = 100_000
+#: Left free on this disk after every open copy has arrived (`user-machine-always-useful`).
+FREE_FLOOR_BYTES = 5 * 1024 * 1024 * 1024
+#: An incoming copy nothing has arrived for or landed this long is abandoned the next time one opens.
+STALE_AFTER_SECONDS = 7 * 24 * 3600
+_ID = re.compile(r"^[0-9a-f]{32}$")
+_SHA = re.compile(r"^[0-9a-f]{64}$")
+_LOCKS: dict[str, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+class TooBig(ValueError):
+    """More than this machine takes from a peer, refused before anything is written."""
+
+
+def _lock(target_db, transfer_id: str) -> threading.Lock:
+    """One copy's objects, landing and abandoning never interleave."""
+    key = f"{Path(target_db.path).parent}:{transfer_id}"
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.Lock())
 
 
 class VersionMismatch(ValueError):
@@ -190,8 +219,15 @@ def send(source_db, *, items: list[str], machine, target_project: str, target_pa
 # =============================================================================================
 
 
+def _incoming_root(target_db) -> Path:
+    return Path(target_db.path).parent / "transfers" / "incoming"
+
+
 def _incoming(target_db, transfer_id: str) -> Path:
-    return Path(target_db.path).parent / "transfers" / "incoming" / transfer_id
+    """The copy's folder, confined: an id is 32 hex characters, never a path (`..`, `/`)."""
+    if not isinstance(transfer_id, str) or not _ID.fullmatch(transfer_id):
+        raise LookupError(f"No copy {transfer_id!r} is arriving here.")
+    return _incoming_root(target_db) / transfer_id
 
 
 def _opened(target_db, transfer_id: str) -> tuple[IncomingTransfer, SyncManifest, Path, Path]:
@@ -201,7 +237,7 @@ def _opened(target_db, transfer_id: str) -> tuple[IncomingTransfer, SyncManifest
     except FileNotFoundError:
         raise LookupError(f"No copy {transfer_id} is arriving here.") from None
     name = Path(opened.source_project).name
-    package = where / (name if name not in ("", ".", "..") else "source.fichero")
+    package = where / "package" / (name if name not in ("", ".", "..") else "source.fichero")
     return opened, SyncManifest.from_json(json.dumps(opened.manifest)), where / "checkpoint.json", package
 
 
@@ -222,14 +258,63 @@ def objects(target_db, transfer_id: str) -> int:
     return len(_opened(target_db, transfer_id)[1].objects)
 
 
+def _check_manifest(manifest: SyncManifest) -> None:
+    """Every object named as the package lays out (the rows, or an original under `files/`), each within the
+    limits, the whole within the limits."""
+    if len(manifest.objects) > MAX_OBJECTS:
+        raise TooBig(f"{len(manifest.objects)} objects; this machine takes at most {MAX_OBJECTS} in one copy")
+    for obj in manifest.objects:
+        parts = obj.rel.split("/")
+        if not _SHA.fullmatch(obj.sha256) or "\\" in obj.rel or (
+                obj.rel != RECORDS and (parts[0] != "files" or len(parts) < 2 or any(p in ("", ".", "..") for p in parts))):
+            raise LibrarySyncError(f"the object {obj.rel!r} is not one a copy's package holds")
+        if obj.size > MAX_OBJECT_BYTES:
+            raise TooBig(f"{obj.rel} is {obj.size} bytes; this machine takes at most {MAX_OBJECT_BYTES} in one object")
+    if manifest.total_bytes() > MAX_TRANSFER_BYTES:
+        raise TooBig(f"the copy is {manifest.total_bytes()} bytes; this machine takes at most {MAX_TRANSFER_BYTES}")
+
+
+def _declared(where: Path) -> int:
+    try:
+        opened = IncomingTransfer.model_validate_json((where / "opened.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0
+    return sum(int(o.get("size", 0) or 0) for o in opened.manifest.get("objects", []))
+
+
+def sweep_stale(target_db, *, now: float | None = None) -> list[str]:
+    """Abandon every incoming copy nothing arrived for (and that did not land) in `STALE_AFTER_SECONDS`;
+    returns their ids. Run whenever a copy opens here."""
+    root, now = _incoming_root(target_db), time.time() if now is None else now
+    removed = []
+    for where in (root.iterdir() if root.is_dir() else ()):
+        if not where.is_dir():
+            continue
+        latest = max((p.stat().st_mtime for p in where.rglob("*")), default=where.stat().st_mtime)
+        if now - latest > STALE_AFTER_SECONDS:
+            shutil.rmtree(where, ignore_errors=True)
+            removed.append(where.name)
+    return removed
+
+
 def open_incoming(target_db, request: IncomingTransfer) -> list[str]:
-    """Open (or reopen, to resume) a copy arriving here; returns the objects still missing."""
+    """Open (or reopen, to resume) a copy arriving here; returns the objects still missing. Refused before
+    anything is written: another version, a malformed or oversized package, or too little room on this disk
+    for it and every other copy still arriving."""
     if request.contract != contract():
         raise VersionMismatch("The two machines run different versions of Fichero: update both, then copy again.")
     manifest = SyncManifest.from_json(json.dumps(request.manifest))  # malformed: LibrarySyncError
     if manifest.library_id != request.transfer_id or RECORDS not in manifest.by_rel():
         raise LibrarySyncError("the manifest is not this transfer's package")
+    _check_manifest(manifest)
+    sweep_stale(target_db)
     where = _incoming(target_db, request.transfer_id)
+    root = _incoming_root(target_db)
+    others = sum(_declared(w) for w in (root.iterdir() if root.is_dir() else ()) if w.is_dir() and w != where)
+    free = shutil.disk_usage(Path(target_db.path).parent).free
+    if others + manifest.total_bytes() + FREE_FLOOR_BYTES > free:
+        raise TooBig(f"this disk has {free} bytes free; the copy needs {manifest.total_bytes()} with "
+                     f"{others} for other copies arriving, and {FREE_FLOOR_BYTES} kept free")
     opened_path = where / "opened.json"
     if opened_path.exists():
         before = IncomingTransfer.model_validate_json(opened_path.read_text(encoding="utf-8"))
@@ -241,12 +326,28 @@ def open_incoming(target_db, request: IncomingTransfer) -> list[str]:
     return missing(target_db, request.transfer_id)
 
 
+def expected_size(target_db, transfer_id: str, sha256: str) -> int:
+    """The size the manifest declared for this object: the most a PUT of it may carry."""
+    _, manifest, _, _ = _opened(target_db, transfer_id)
+    sizes = {o.size for o in manifest.objects if o.sha256 == sha256} if _SHA.fullmatch(sha256 or "") else set()
+    if not sizes:
+        raise LookupError(f"No object {sha256} belongs to the copy {transfer_id}.")
+    return max(sizes)
+
+
 def receive(target_db, transfer_id: str, sha256: str, data: bytes) -> None:
     """One object arrives: re-hashed, landed under its name in the incoming package, recorded as arrived."""
+    with _lock(target_db, transfer_id):
+        _receive(target_db, transfer_id, sha256, data)
+
+
+def _receive(target_db, transfer_id: str, sha256: str, data: bytes) -> None:
     _, manifest, checkpoint_path, package = _opened(target_db, transfer_id)
     objects = [o for o in manifest.objects if o.sha256 == sha256]
     if not objects:
         raise LookupError(f"No object {sha256} belongs to the copy {transfer_id}.")
+    if len(data) != objects[0].size:
+        raise LibrarySyncError(f"{len(data)} bytes arrived for an object of {objects[0].size}")
     checkpoint = _checkpoint(checkpoint_path, manifest)
     for obj in objects:
         land_object(package, obj, data)  # a damaged object raises and is not recorded: it is sent again
@@ -258,13 +359,14 @@ def receive(target_db, transfer_id: str, sha256: str, data: bytes) -> None:
 
 def abandon(target_db, transfer_id: str) -> int:
     """Remove what arrived of a copy that will not land; returns how many objects were removed."""
-    where = _incoming(target_db, transfer_id)
-    if not where.exists():
-        raise LookupError(f"No copy {transfer_id} is arriving here.")
-    _, manifest, checkpoint_path, _ = _opened(target_db, transfer_id)
-    removed = len(_checkpoint(checkpoint_path, manifest).objects_done)
-    shutil.rmtree(where)
-    return removed
+    with _lock(target_db, transfer_id):
+        where = _incoming(target_db, transfer_id)
+        if not where.exists():
+            raise LookupError(f"No copy {transfer_id} is arriving here.")
+        _, manifest, checkpoint_path, _ = _opened(target_db, transfer_id)
+        removed = len(_checkpoint(checkpoint_path, manifest).objects_done)
+        shutil.rmtree(where)
+        return removed
 
 
 def _materialise(package: Path, opened: IncomingTransfer):
@@ -294,6 +396,13 @@ def _materialise(package: Path, opened: IncomingTransfer):
 
 def land(target_db, transfer_id: str, *, target_parent_id: str, parent_to_make, actor: str,
          audit_id: str) -> TransferResult:
+    with _lock(target_db, transfer_id):
+        return _land(target_db, transfer_id, target_parent_id=target_parent_id, parent_to_make=parent_to_make,
+                     actor=actor, audit_id=audit_id)
+
+
+def _land(target_db, transfer_id: str, *, target_parent_id: str, parent_to_make, actor: str,
+          audit_id: str) -> TransferResult:
     """Land a copy whose every object has arrived: all or nothing, by the one copy code. Raises `TransferFailed`
     (rolled back there, the objects kept for another try) or ValueError (objects still missing)."""
     from fichero_server.models.transfer import TransferCut, TransferLeftBehind
@@ -321,7 +430,11 @@ def land(target_db, transfer_id: str, *, target_parent_id: str, parent_to_make, 
             came.update(machine=opened.source_machine, project_path=opened.source_project)
             original = sources[came["node"]]
             if came["node"] in plan.linked_files:
+                # A path on the SOURCE machine: never this machine's path, or a peer could point a node at any
+                # file here and have it served. Kept only as words until a person relinks it.
+                row.metadata = {k: v for k, v in row.metadata.items() if v != original.path}
                 row.metadata["linked_elsewhere"] = {"machine": opened.source_machine, "path": original.path}
+                row.path = None
                 linked.append(f"{original.name}: linked file; the original stays at {original.path} on "
                               f"{opened.source_machine} and may not open here")
         result = copy_into_target(scratch, target_db, plan, mode=TransferMode.copy, actor=actor)

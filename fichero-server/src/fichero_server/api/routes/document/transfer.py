@@ -17,6 +17,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import Path as PathParam
 from pydantic import BaseModel
 
 from fichero_server.actions.registry import (
@@ -315,6 +316,20 @@ def _dry_run(db: Database, body: TransferRequest, ctx: ActionContext) -> Transfe
 
 # --- paired machines ------------------------------------------------------------------------------------
 
+#: A copy's id and an object's hash in a URL: never a path (`transfer.machine.incoming-confined`).
+TRANSFER_ID = PathParam(pattern=r"^[0-9a-f]{32}$")
+SHA256 = PathParam(pattern=r"^[0-9a-f]{64}$")
+
+
+def _engine_owner(request: Request) -> None:
+    """Pairing out, listing the paired machines and sending to one use credentials this engine holds for the
+    whole Mac: only its owner may (the host app on loopback, or an owner's session), never a paired device or
+    a collaborator. Refused 403 otherwise."""
+    from fichero_server.api.routes.auth.pairing import _owner_for_pairing
+    from fichero_server.db.app import get_app_db
+
+    _owner_for_pairing(request, get_app_db())
+
 
 class PairMachineRequest(BaseModel):
     address: str
@@ -329,7 +344,8 @@ class MachineOut(BaseModel):
 
 
 @machines_router.get("/machines", response_model=list[MachineOut], summary="The other Fichero engines this one is paired with")
-async def list_machines() -> list[MachineOut]:
+async def list_machines(request: Request) -> list[MachineOut]:
+    _engine_owner(request)
     from fichero_server.transfer import (  # lazy: app-import budget (#3950)
         machines,
     )
@@ -337,9 +353,12 @@ async def list_machines() -> list[MachineOut]:
 
 
 @machines_router.post("/machines/pair", response_model=MachineOut, summary="Pair with another Mac's Fichero by its pairing code")
-async def pair_machine(body: PairMachineRequest, ctx: ActionContext = Depends(action_context)) -> MachineOut:
+async def pair_machine(request: Request, body: PairMachineRequest,
+                       ctx: ActionContext = Depends(action_context)) -> MachineOut:
     """`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero
-    shows. This engine becomes a paired device there; its token is kept in this Mac's Keychain."""
+    shows. This engine becomes a paired device there; its token is kept in this Mac's Keychain. The owner
+    only. The code is the other Mac's: single use and rate-limited there (`POST /api/pair`)."""
+    _engine_owner(request)
     from fichero_server.api.routes.auth.pairing import _record_device_audit
     from fichero_server.transfer import (  # lazy: app-import budget (#3950)
         machines,
@@ -388,6 +407,7 @@ def _action_to_machine(db: Database, params: TransferToMachineParams, ctx: Actio
 
 @router.post("/transfer/to-machine", response_model=TransferResult)
 async def transfer_to_machine(
+    request: Request,
     body: MachineTransferRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -407,6 +427,7 @@ async def transfer_to_machine(
         remote,
     )
 
+    _engine_owner(request)
     source = str(Path(db.path).parent)
     if not body.pages_may_leave:
         raise HTTPException(status_code=403, detail="These pages go to another machine only with your yes (pages_may_leave).")
@@ -473,6 +494,8 @@ async def open_incoming(body: IncomingTransfer, db: Database = Depends(get_libra
         missing = await asyncio.to_thread(remote.open_incoming, db, body)
     except remote.VersionMismatch as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except remote.TooBig as exc:
+        raise HTTPException(status_code=413, detail=f"This machine will not take this copy: {exc}.") from exc
     except LibrarySyncError as exc:
         raise HTTPException(status_code=422, detail=f"The copy's package is not readable: {exc}") from exc
     return IncomingStatus(transfer_id=body.transfer_id, objects=len(body.manifest.get("objects", [])), missing=missing)
@@ -481,15 +504,32 @@ async def open_incoming(body: IncomingTransfer, db: Database = Depends(get_libra
 @router.put("/transfer/incoming/{transfer_id}/objects/{sha256}", response_model=IncomingStatus,
             openapi_extra={"requestBody": {"required": True, "content": {"application/octet-stream": {
                 "schema": {"type": "string", "format": "binary"}}}}})
-async def receive_object(transfer_id: str, sha256: str, request: Request,
+async def receive_object(request: Request, transfer_id: str = TRANSFER_ID, sha256: str = SHA256,
                          db: Database = Depends(get_library_database_for_write)) -> IncomingStatus:
     """One object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it
-    again). ponytail: the body is read whole; stream to disk if originals of several GB travel."""
+    again). A body longer than the size the copy declared for it is refused (413) before it is kept, and never
+    read past that size. ponytail: held in memory up to `remote.MAX_OBJECT_BYTES`; stream to disk if more."""
     from fichero_server.transfer import (  # lazy: app-import budget (#3950)
         remote,
     )
     from fichero_server.workflows.library_sync import LibrarySyncError
-    data = await request.body()
+    try:
+        limit = await asyncio.to_thread(remote.expected_size, db, transfer_id, sha256)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    too_big = HTTPException(status_code=413, detail=f"This object was declared as {limit} bytes; more was sent.")
+    try:
+        if int(request.headers.get("content-length") or 0) > limit:
+            raise too_big
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Content-Length is not a number.") from exc
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            raise too_big
+        chunks.append(chunk)
+    data = b"".join(chunks)
     try:
         await asyncio.to_thread(remote.receive, db, transfer_id, sha256, data)
         missing = await asyncio.to_thread(remote.missing, db, transfer_id)
@@ -502,7 +542,8 @@ async def receive_object(transfer_id: str, sha256: str, request: Request,
 
 
 @router.post("/transfer/incoming/{transfer_id}/land", response_model=TransferResult)
-async def land_incoming(transfer_id: str, body: IncomingLand, db: Database = Depends(get_library_database_for_write),
+async def land_incoming(body: IncomingLand, transfer_id: str = TRANSFER_ID,
+                        db: Database = Depends(get_library_database_for_write),
                         ctx: ActionContext = Depends(action_context)) -> TransferResult:
     """Land a copy whose objects have all arrived: all or nothing. A failure rolls back what it wrote here and
     keeps the objects, so landing again needs nothing sent again."""
@@ -523,7 +564,8 @@ class Abandoned(BaseModel):
 
 
 @router.delete("/transfer/incoming/{transfer_id}", response_model=Abandoned)
-async def abandon_incoming(transfer_id: str, db: Database = Depends(get_library_database_for_write)) -> Abandoned:
+async def abandon_incoming(transfer_id: str = TRANSFER_ID,
+                           db: Database = Depends(get_library_database_for_write)) -> Abandoned:
     """Abandon a copy that will not land: what arrived of it is removed from this machine."""
     from fichero_server.transfer import (  # lazy: app-import budget (#3950)
         remote,

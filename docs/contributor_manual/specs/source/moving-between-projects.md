@@ -732,6 +732,23 @@ Nothing in the project changes.
   there; the far side shows it as linked elsewhere until relinked or copied in. Built: the result's
   `linked_elsewhere` says it per item, and the node carries `metadata.linked_elsewhere` (machine, path); `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`.
   *Not built: the app showing it; relinking.*
+- `transfer.machine.incoming-bounded` — **[PARTIAL]** (#5657, security review 2026-10-11) a far peer cannot
+  fill this disk: a copy is refused (413) before anything is written when one object is over 512 MB, the whole
+  over 20 GB or 100,000 objects, or this disk would keep less than 5 GB free once it and every other copy still
+  arriving had arrived; an object's PUT longer than the size the copy declared for it is refused (413), never
+  read past that size and never kept; a copy nothing arrived for in a week is abandoned the next time one opens
+  (`remote.sweep_stale`); `fichero-server/tests/unit/transfer/test_incoming_copy_security.py`. *Not built: a per-person quota; the limits as a setting.*
+- `transfer.machine.incoming-confined` — **[PARTIAL]** (#5657, security review 2026-10-11) what arrives stays
+  in its copy's folder: a copy's id is 32 hex characters and an object's hash 64 (refused otherwise, in the
+  route and in `remote`), every object is named `records.json` or under `files/` with no `..` (refused at
+  open), and a linked original's path, a path on the source machine, never becomes a node's `path` here (only
+  `metadata.linked_elsewhere`), so a peer cannot point a node at a file on this machine; the landing is the
+  caller's own audited action (`document.transfer_in`, its actor on the record and on every node); only the
+  engine's owner may pair this engine out, list its machines or send to one (a paired device and a collaborator
+  are refused 403), and the incoming routes need the write role in the project (a viewer is refused 403) and
+  answer no anonymous caller from another machine; `fichero-server/tests/unit/transfer/test_incoming_copy_security.py`. *Not built: a row's own `created_by` is kept as the
+  source wrote it (human work keeps its author), which `compute.land.server-sets-the-maker` would replace for
+  machine results.*
 - `transfer.machine.not-to-clusters` — **[PARTIAL]** (#5657) a cluster or Hugging Face is not a transfer
   target (it holds work packages, not projects); refused in words. Built by construction: the only target is a
   paired machine (`GET /api/machines`), and an address that is not a tailnet name is refused when pairing.
