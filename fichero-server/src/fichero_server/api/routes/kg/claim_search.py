@@ -65,7 +65,9 @@ def search_claims_semantic_impl(
     if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
         raise HTTPException(
             status_code=503,
-            detail="Claim embeddings not yet indexed. POST /kg/claim-search/embed first.",
+            # In words, no route (`openapi.mcp.refusals-in-words`): an agent reads this as all it has to go on.
+            detail=("The claims are not indexed for search by meaning yet: index the claims first, "
+                    "then search again."),
         )
 
     try:

@@ -263,9 +263,10 @@ def search_entities_semantic_impl(
     if table_name is None:
         raise HTTPException(
             status_code=503,
+            # In words, no route (`openapi.mcp.refusals-in-words`).
             detail=(
-                "Entity embeddings not yet indexed. POST /kg/entity-curation/semantic/embed "
-                "first or rebuild KG vectors."
+                "The people, places and things are not indexed for search by meaning yet: index the "
+                "entities first (or rebuild the knowledge graph's vectors), then search again."
             ),
         )
     try:

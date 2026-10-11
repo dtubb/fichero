@@ -123,6 +123,10 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   `GET /api/documents/in-icloud` (`null`) as results with no content, which read as nothing said. Built:
   `openapi_runtime.as_tool`, which the server registers every generated tool and alias through. Pinned by
   `fichero-mcp/tests/test_mcp_generated.py::test_an_empty_or_list_answer_reaches_the_agent_as_one_json_block`.
+- `openapi.mcp.refusals-in-words` **[PARTIAL]** (2026-10-11, the same pass) a refusal an agent reads says what is
+  missing and what to do, in words: never a route to call, an internal record's class name, or a target the
+  caller did not name. Fixed so far: search by meaning before anything is indexed (claims, entities). Pinned by
+  `fichero-server/tests/unit/mcp/test_refusals_an_agent_reads.py`.
 
 ### B. CLI (already generated)
 
