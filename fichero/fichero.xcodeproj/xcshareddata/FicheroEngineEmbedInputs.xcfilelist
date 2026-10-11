@@ -297,13 +297,16 @@ $(SRCROOT)/../fichero-server/src/fichero_server/importers/dataless.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/derivatives.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/http_client.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/iiif_import.py
+$(SRCROOT)/../fichero-server/src/fichero_server/importers/iiif_source.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/ingest.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/interchange_pairing.py
+$(SRCROOT)/../fichero-server/src/fichero_server/importers/keep_a_copy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/legacy_10_archive.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/manifest_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/manifest_renditions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/nlp_draft.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/pdf_annotations.py
+$(SRCROOT)/../fichero-server/src/fichero_server/importers/relink.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/rendition_sidecar.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/sergio_import.py
 $(SRCROOT)/../fichero-server/src/fichero_server/importers/slipbox_import.py
@@ -446,6 +449,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/cards.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/done.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/layers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
@@ -456,9 +460,11 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/regions.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/routes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/run_view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/samples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/iso15924.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-autonyms.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-scripts.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/README.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/correct-line.prompt.md
@@ -466,6 +472,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/promp
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/recipe.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/topics.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/sorting.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/stages.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
