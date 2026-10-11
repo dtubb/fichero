@@ -1347,16 +1347,13 @@ async def get_document_workflow_runs(
 async def get_document_note(
     doc_id: str, db: Database = Depends(get_library_database)
 ) -> DocumentNote:
-    """Get the user note for a document."""
+    """Get the user note for a document: an empty note when it has none (an absence, not an error); 404 only for a
+    document that is not there (`openapi.mcp.refusals-in-words`)."""
     normalized_id = _normalize_document_id(doc_id)
     _document_or_404(db, normalized_id)
 
     notes = list(db.query(DocumentNote, document_id=normalized_id))
-    if not notes:
-        raise HTTPException(
-            status_code=404, detail=f"Document note not found: {doc_id}"
-        )
-    return notes[0]
+    return notes[0] if notes else DocumentNote(document_id=normalized_id, content="")
 
 
 def put_document_note_impl(
