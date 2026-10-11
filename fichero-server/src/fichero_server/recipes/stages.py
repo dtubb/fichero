@@ -42,29 +42,39 @@ _LEVELS = (("as_written", "As written"), ("expanded", "Abbreviations expanded"),
            ("modernised", "Modernised"))
 
 STAGES: tuple[Stage, ...] = (
-    Stage("clean-up-images", "Clean Up Images", ("split-pages", "prepare-the-image"),
+    Stage("prepare-images", "Prepare Images", ("split-pages", "prepare-the-image"),
           "Splits two-page scans into single pages and straightens, crops or brightens a page, keeping the original.",
           "A photograph of an open notebook becomes its left and right pages.",
           (Question("two_pages_per_image", "Two pages per image?", "yes-no", default=False),
            Question("prepare", "Straighten, crop, brighten?", "many",
                     (("straighten", "Straighten"), ("crop", "Crop"), ("brighten", "Brighten")), default=[]))),
-    Stage("find-lines", "Find Lines", ("find-regions", "find-lines", "put-in-order", "refine-shapes"),
-          "Finds the blocks and lines of writing on each page and the order to read them in.",
-          "A two-column page: the left column's lines, then the right's, with a gloss in the margin kept apart.",
+    Stage("find-regions", "Find Regions", ("find-regions",),
+          "Finds the blocks on each page: columns, notes in the margin, headings, tables and pictures.",
+          "A two-column page with a note in the margin: three blocks, the note kept apart.",
           (Question("layout", "Columns, margins and glosses? Tables on the pages?", "many",
                     (("columns", "Columns"), ("margins", "Notes in the margins"), ("glosses", "Glosses between lines"),
                      ("tables", "Tables")), default=[]),)),
+    Stage("find-lines", "Find Lines", ("find-lines", "put-in-order", "refine-shapes"),
+          "Finds the lines of writing in each block and the order to read them in.",
+          "The left column's lines, then the right's, each traced along its baseline.",
+          ()),
     Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines"),
           "Reads the writing, line by line or the whole page at once, and can correct it with a second model.",
           "“Juan de la Cruz vende una casa” read from its line, ready to correct.",
           (Question("read_how", "Read line by line or the page at once?", "one",
                     (("lines", "Line by line"), ("page", "The page at once")), default="lines"),
            Question("correct_with_a_second_model", "Correct with a second model?", "yes-no", default=False))),
-    Stage("translate", "Translate", ("translate-transliterate-normalise",),
-          "Writes the text again at another level: abbreviations expanded, spelling normalised, modernised, or "
-          "translated.",
+    Stage("normalise", "Normalise", ("translate-transliterate-normalise",),
+          "Writes the text again in the same language at another level: as written (a diplomatic reading), "
+          "abbreviations expanded, spelling normalised, or modernised.",
           "“q̃ dho” written out as “que dicho”.",
           (Question("normalise_how_far", "Into what?", "many", _LEVELS, default=["as_written"], read_by_a_step=True),),
+          needs=("read",)),
+    # ponytail: Translate shares Normalise's job until a translation job of its own exists; `stage_of` names Normalise.
+    Stage("translate", "Translate", ("translate-transliterate-normalise",),
+          "Translates the text into another language, any language you choose.",
+          "“vende una casa” as “sells a house”.",
+          (Question("translate_into", "Into which language?", "language", default=""),),
           needs=("read",)),
     Stage("organise", "Organise", ("find-documents-in-a-folder", "split-into-entries"),
           "Finds which pages belong together as one document, and splits a diary or register into its entries.",
@@ -137,7 +147,7 @@ def sampleable(stage: Stage) -> bool:
 
 
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-    """The eleven stages, in order, each on or off in this project's recipe, with its questions (answered where the
+    """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
     project has answered them, else their defaults) and its needs in words."""
     in_recipe = {str(s.get("job")) for s in (recipe or {}).get("steps") or []}
     answered = dict((answers or {}).get("job_answers") or {})

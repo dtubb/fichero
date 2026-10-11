@@ -10,16 +10,17 @@ from __future__ import annotations
 from fichero_server.recipes.jobs import get_job
 from fichero_server.recipes.stages import STAGES
 
-ORDER = ["clean-up-images", "find-lines", "read", "translate", "organise", "names", "statements", "dates",
-         "passages", "structured-data", "search"]
+#: Section 7d's pipeline order (Daniel, 2026-10-11): Find Regions before Find Lines; Normalise apart from Translate.
+ORDER = ["prepare-images", "find-regions", "find-lines", "read", "normalise", "translate", "organise", "names",
+         "statements", "dates", "passages", "structured-data", "search"]
 
 
-def test_the_eleven_stages_in_order_each_job_registered_and_each_need_a_stage(client):
+def test_the_thirteen_stages_in_pipeline_order_each_job_registered_and_each_need_a_stage(client):
     """`source.onboard.stages.stages-list-from-the-engine` and `needs-are-ticked`."""
     r = client.get("/api/recipes/stages")
     assert r.status_code == 200, r.text
     items = r.json()["items"]
-    assert [s["id"] for s in items] == ORDER and r.json()["count"] == 11
+    assert [s["id"] for s in items] == ORDER and r.json()["count"] == 13
     ids = set(ORDER)
     for stage in items:
         assert stage["title"] and stage["sentence"] and stage["example"]
@@ -27,11 +28,13 @@ def test_the_eleven_stages_in_order_each_job_registered_and_each_need_a_stage(cl
         assert all(n["stage"] in ids and n["why"].endswith(f"needs {next(s['title'] for s in items if s['id'] == n['stage'])}")
                    for n in stage["needs"])
     by_id = {s["id"]: s for s in items}
+    assert next(q for q in by_id["translate"]["questions"])["kind"] == "language"
+    assert "normalise_how_far" in [q["key"] for q in by_id["normalise"]["questions"]]
     assert [n["why"] for n in by_id["dates"]["needs"]] == ["Dates & Times needs Names"]
     assert by_id["read"]["tried_by"] == "bake-off" and by_id["find-lines"]["tried_by"] == "bake-off"
     assert by_id["names"]["sampleable"] and by_id["names"]["tried_by"] == "workflow"
-    # A job belongs to one stage.
-    jobs = [j for s in STAGES for j in s.jobs]
+    # A job belongs to one stage, except Translate, which shares Normalise's job until it has its own.
+    jobs = [j for s in STAGES if s.id != "translate" for j in s.jobs]
     assert len(jobs) == len(set(jobs))
 
 

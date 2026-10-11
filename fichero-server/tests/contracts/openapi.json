@@ -87545,7 +87545,8 @@
               "one",
               "many",
               "yes-no",
-              "text"
+              "text",
+              "language"
             ],
             "title": "Kind"
           },

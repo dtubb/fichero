@@ -315,7 +315,7 @@ class StageOption(BaseModel):
 class StageQuestion(BaseModel):
     key: str = Field(description="its answer's key in `answers.job_answers`")
     ask: str
-    kind: Literal["one", "many", "yes-no", "text"]
+    kind: Literal["one", "many", "yes-no", "text", "language"]  # language: any BCP 47 tag, chosen by search
     options: list[StageOption] = Field(default_factory=list)
     default: Any = None
     answer: Any = Field(default=None, description="this project's answer, else the default")
