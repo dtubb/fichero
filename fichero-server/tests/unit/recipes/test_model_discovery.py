@@ -85,7 +85,7 @@ def hub(monkeypatch):
     asked = []
 
     async def fetch(task=None, search=None, sort="downloads", limit=20, offset=0, library=None, tags=None):
-        key = f"{task or ''}|{','.join(tags or [])}"
+        key = f"{task or ''}|{','.join(tags or [])}" + (f"?{search}" if search else "")
         asked.append(key)
         return copy.deepcopy(responses.get(key, []))
 
@@ -238,15 +238,19 @@ def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client,
     # are left out and counted, never listed.
     assert not any("LFM2.5-VL" in i or "Mistral" in i or "eretic" in i or "ncensored" in i for i in found)
     assert sources["hugging-face"]["left_out"] >= 5 and "left out" in sources["hugging-face"]["detail"]
-    # Asked by task and language tag, never by keyword, and MLX by its tag.
-    assert "image-to-text|mlx,ja" in hub and all("mlx" in k or k.endswith("|ja") for k in hub)
+    # Asked by task and language tag, MLX by its tag; and by name only for the HTR words (#5660 item 3: the tag
+    # listings never found the models made for manuscripts).
+    assert "image-to-text|mlx,ja" in hub
+    by_tag = [k for k in hub if "?" not in k]
+    assert by_tag and all("mlx" in k or k.endswith("|ja") for k in by_tag)
+    assert {k.split("?", 1)[1] for k in hub if "?" in k} <= set(discovery.HTR_SEARCH_TERMS)
 
 
 def test_working_offline_reaches_no_network_and_says_so(client, store, repository, hub, monkeypatch):
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
     _, _, sources = _candidates(client, scripts="Jpan", languages="ja", online="true")
     assert sources["kraken-repository"]["state"] == "offline"
-    assert sources["hugging-face"]["state"] == "offline" and "offline" in sources["hugging-face"]["detail"]
+    assert sources["hugging-face"]["state"] == "offline" and sources["hugging-face"]["detail"] == "Offline: not searched"
     assert repository == [] and hub == []
 
 

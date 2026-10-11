@@ -519,7 +519,10 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         from fichero_server.recipes.bakeoff import apply_project_overrides
 
         recipe["overrides"] = list(saved["overrides"])
-        apply_project_overrides(recipe, known_cards(a, include_not_built=True))
+        # Every card Fichero keeps, not only those the finder lists for these answers: a reader chosen for other
+        # languages is still the person's choice (#5660 item 8).
+        apply_project_overrides(recipe, [*known_cards(a, include_not_built=True),
+                                         *known_cards(None, include_not_built=True)])
     return recipe
 
 
@@ -653,6 +656,17 @@ class CandidateDownload(BaseModel):
     params: dict[str, Any]
 
 
+class CandidateAvailability(str, Enum):
+    """Where a candidate stands for this Mac (#5660 item 3), one of: it ships with Fichero, it is on this Mac, it can
+    be downloaded, it runs elsewhere (a provider, a machine of the person's own), or Fichero cannot run it yet."""
+
+    ships = "ships"
+    installed = "installed"
+    download = "download"
+    elsewhere = "elsewhere"
+    not_here = "not_here"
+
+
 class ModelCandidate(BaseModel):
     """One reader candidate as a card: where it came from, why it is offered, what it states, and what
     the rules make of it for the project's scripts, languages and material."""
@@ -688,6 +702,14 @@ class ModelCandidate(BaseModel):
         "to download first (#5612)"))
     runs_where: CandidatePlace = Field(description=(
         "where it runs: this Mac, a machine of the person's own, or the provider that runs it (llm.places, #5612)"))
+    availability: CandidateAvailability = Field(description=(
+        "ships with Fichero, installed on this Mac, can be downloaded, runs elsewhere, or not runnable here (#5660)"))
+    availability_words: str = Field(description=(
+        "the same, in one short phrase with its size: 'Ships with Fichero', 'On this Mac (16 MB)', 'Download "
+        "(2.3 GB)', 'Runs at openai', 'Fichero cannot run it yet (…)'"))
+    chosen: bool = Field(default=False, description=(
+        "with `step`: this is the step's reader now (the person's choice, or the rules' when none was made); "
+        "listed first (#5660 item 8)"))
 
 
 class ModelCandidateList(BaseModel):
@@ -707,11 +729,28 @@ def _search_job(request: Request, library_path: str, languages: frozenset[str]) 
     return search(_get_library_database_for_access(request, library_path, write=False), languages)
 
 
+def _step_reader(request: Request, library_path: Optional[str], step: str) -> Optional[str]:
+    """The card id of the open project's step's reader now (its project-scope override, else the rules' choice)."""
+    if not library_path:
+        return None
+    from fichero_server.api.main import _get_library_database_for_access
+
+    db = _get_library_database_for_access(request, library_path, write=False)
+    recipe = read_project_setup(_library(db))["recipe"] or {}
+    for override in recipe.get("overrides") or []:
+        if override.get("step") == step and override.get("scope") == "project" and override.get("card"):
+            return str(override["card"])
+    found = next((s for s in recipe.get("steps") or [] if s.get("id") == step), None)
+    card = (found or {}).get("card")
+    return str(card["id"]) if isinstance(card, dict) and card.get("id") else None
+
+
 @router.get("/candidates", response_model=ModelCandidateList)
 async def model_candidates(
     request: Request,
     scripts: str, languages: str = "", material: str = "handwriting", job: str = "read-a-line",
     online: bool = False, cloud_allowed: bool = False, mac_memory_gb: Optional[float] = None,
+    step: Optional[str] = None,
     library_path: Optional[str] = Depends(optional_library_path),
 ) -> ModelCandidateList:
     """Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts
@@ -721,18 +760,23 @@ async def model_candidates(
     `source.find.by-need`). The network is never reached inside this call: with `online=true` the search is
     the open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier
     searches kept; a later call lists what the job found. Never searched when this engine works offline, nor for
-    a job that is not a reader's (the search finds readers). Refused (422), in words, for an unknown script,
+    a job that is not a reader's (the search finds readers). With `step` (a step of the open project's recipe), the
+    step's reader now is marked `chosen` and listed first, the person's choice included when the finder would not
+    list it for these answers (#5660 item 8). Each candidate says plainly whether it ships with Fichero, is on this
+    Mac or can be downloaded, with its size (`availability`). Refused (422), in words, for an unknown script,
     language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
     from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _rank_key, _refusal
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
+        candidate_availability,
         candidate_download,
         candidate_installed,
         candidate_place,
         discover,
         egress_allowed,
+        size_words,
     )
     from fichero_server.recipes.names import resolve_language, resolve_script
 
@@ -761,13 +805,25 @@ async def model_candidates(
         search = await run_in_threadpool(_search_job, request, library_path, tags)
     not_searched = None if library_path else NO_PROJECT
     if not reads:
-        not_searched = "the online search looks for readers only, and this job is not a reader's"
+        not_searched = "Searched for readers only"
     cards, sources = await run_in_threadpool(
         discover, a, online=not reads or online, search=search, not_searched=not_searched, job=job)
     cards = [c for c in cards if job in c.jobs]
-    kept = sorted((c for c in cards if _refusal(job, c, a, material) is None),
+    chosen_id = await run_in_threadpool(_step_reader, request, library_path, step) if step else None
+    if chosen_id and chosen_id not in {c.id for c in cards}:
+        from fichero_server.recipes.discovery import known_cards
+
+        cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id][:1]
+    kept = sorted((c for c in cards if c.runs_here and _refusal(job, c, a, material) is None),
                   key=lambda c: _rank_key(c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
+
+    def refused(c: Any) -> Optional[str]:
+        if c.id in rank:
+            return None
+        if not c.runs_here:
+            return f"Fichero cannot run it yet: {c.cannot_run_because or 'not in this build'}"
+        return (_refusal(job, c, a, material) or (None, None))[1]
 
     def measured(c: Any) -> str:
         if c.cer_measured_here is not None:
@@ -781,12 +837,13 @@ async def model_candidates(
         languages=sorted(c.languages) if c.languages is not None else None, licence=c.licence,
         open_licence=c.open_licence, size_gb=c.size_gb or None,
         memory_gb=None if not c.memory_gb and c.source == "hugging-face" else c.memory_gb,
-        size=f"{c.size_gb:g} GB" if c.size_gb else "size not stated", cer_published=c.cer_published,
+        size=size_words(c.size_gb), cer_published=c.cer_published,
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=True,
-        rule_rank=rank.get(c.id),
-        refused=None if c.id in rank else (_refusal(job, c, a, material) or (None, None))[1],
-        installed=candidate_installed(c), download=candidate_download(c), runs_where=candidate_place(c),
-    ) for c in sorted(cards, key=lambda c: (rank.get(c.id, len(rank) + 1), c.id))]
+        rule_rank=rank.get(c.id), refused=refused(c),
+        installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
+        runs_where=candidate_place(c), availability=candidate_availability(c)[0],
+        availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id,
+    ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
         search_job=SearchJob(id=search["id"], state=search["state"], reason=search.get("reason"))

@@ -285,6 +285,12 @@ def candidate_installed(card: Card) -> bool | None:
         return bool(spacy_pipeline_available(str(card.pin["spacy"])))
     if card.pin.get("kraken_version") == "bundled" or "builtin" in card.pin:
         return True
+    if card.pin.get("zenodo"):
+        # A Kraken reader: downloaded (Settings, Set Up, or a run that fetched it) or not yet (#5660 item 3).
+        from fichero_server.llm.kraken_runtime import is_recognition_model_installed
+        from fichero_server.recipes.cards import kraken_reader_for
+
+        return bool(is_recognition_model_installed(kraken_reader_for(card.pin)))
     return None
 
 
@@ -303,10 +309,39 @@ def candidate_download(card: Card) -> dict[str, Any] | None:
         runtime, model = "mlx", get_mlx_model_store().canonical_id(repo)
     elif "spacy" in card.pin:
         runtime, model = "spacy", str(card.pin["spacy"])
+    elif card.pin.get("zenodo"):
+        from fichero_server.recipes.cards import kraken_reader_for
+
+        runtime, model = "kraken", str(kraken_reader_for(card.pin))
     else:
         return None
     return {"runtime": runtime, "model": model, "action": "model.download",
             "params": {"runtime": runtime, "model": model}}
+
+
+def size_words(size_gb: float | None) -> str:
+    """A size a person reads: "16 MB", "2.3 GB", or "size not stated" (never 0.0 GB, #5594)."""
+    if not size_gb:
+        return "size not stated"
+    return f"{size_gb * 1000:.0f} MB" if size_gb < 1 else f"{size_gb:.1f} GB"
+
+
+def candidate_availability(card: Card) -> tuple[str, str]:
+    """(where it stands, in one short phrase) for the finder (#5660 item 3): it ships with Fichero, it is on this
+    Mac, it can be downloaded (and how big), it runs elsewhere, or Fichero cannot run it yet."""
+    if not card.runs_here:
+        return "not_here", f"Fichero cannot run it yet ({card.cannot_run_because or 'not in this build'})"
+    if not card.local:
+        where = card.runs_on.split(":", 1)[-1] if card.runs_on.startswith("cloud:") else "a machine of yours"
+        return "elsewhere", f"Runs at {where}"
+    pin = card.pin
+    if "builtin" in pin or pin.get("kraken_version") == "bundled" or pin.get("version") == "bundled":
+        return "ships", "Ships with Fichero"
+    if candidate_installed(card):
+        return "installed", "On this Mac" + (f" ({size_words(card.size_gb)})" if card.size_gb else "")
+    if candidate_download(card) is not None:
+        return "download", f"Download ({size_words(card.size_gb)})"
+    return "download", f"Downloads when first used ({size_words(card.size_gb)})"
 
 
 def candidate_place(card: Card) -> str:
@@ -509,6 +544,13 @@ CHAT_BUILD_WORDS = frozenset({"uncensored", "abliterated", "decensored", "hereti
 #: Words that say a vision-language model reads text: its OCR use (#5594, `source.find.hub-readers-only`).
 OCR_WORDS = frozenset({"ocr", "htr", "text-recognition", "textline_recognition", "text recognition", "handwriting",
                        "handwritten", "handwriting-recognition", "document-understanding", "document-ocr"})
+#: What a person reading old hands searches Hugging Face for, beside the language-tagged task listings (#5660
+#: item 3: the tag listings found general VLMs, never the HTR models made for manuscripts). Each is a free-text
+#: search of model names, asked of the image-to-text listing; the first three of the vision-language one too.
+HTR_SEARCH_TERMS = ("htr", "manuscript", "handwrit", "trocr", "medieval", "paleograph", "palaeograph")
+#: The project's languages as Hugging Face model names spell them ("trocr-spanish-…", "…-latin-htr").
+_LANGUAGE_WORDS = {"es": "spanish", "la": "latin", "fr": "french", "it": "italian", "de": "german", "pt": "portuguese",
+                   "ca": "catalan", "nl": "dutch", "en": "english"}
 #: Script words a reader's tags or name may state, as ISO 15924 codes.
 _SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
 
@@ -581,6 +623,18 @@ def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
     )
 
 
+def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card:
+    """A reader on the Hub this build cannot run (a TrOCR or other transformers model with no MLX build): listed so a
+    person sees what exists for their material, never chosen by the rules (`runs_here` False, #5660 item 3)."""
+    from dataclasses import replace
+
+    words = _words(model)
+    kind = "a TrOCR model" if "trocr" in words or "vision-encoder-decoder" in words else "a transformers model"
+    card = _hf_card(model, what, f"{kind} with no MLX build Fichero can run", wanted)
+    return replace(card, id=card.id.replace("mlx:hf/", "hf:hf/"), runs_here=False,
+                   cannot_run_because=f"{kind}, and this build runs MLX builds only")
+
+
 def _runs_on_mlx(model: dict[str, Any]) -> bool:
     tags = set(model.get("tags") or [])
     return model.get("library_name") == "mlx" or "mlx" in tags
@@ -608,7 +662,7 @@ async def search_hugging_face(languages: frozenset[str],
         for tags in filters:
             for mlx in (True, False):
                 asked += 1
-                progress(f"Searching Hugging Face ({task}, query {asked} of {queries})")
+                progress(f"Searching Hugging Face ({asked} of {queries})")
                 listing = await _fetch_hf_models(task=task, tags=["mlx", *tags] if mlx else (tags or None),
                                                  limit=HF_LIMIT)
                 for m in listing:
@@ -623,6 +677,27 @@ async def search_hugging_face(languages: frozenset[str],
                     elif (not mlx and what is not None and not _runs_on_mlx(m) and not _gguf_only(m)
                           and "safetensors" in (m.get("tags") or [])):
                         originals.append((m, what))
+    # The HTR models made for manuscripts (TrOCR fine-tunes, VLMs trained on old hands): searched by name, with and
+    # without the project's languages in it (#5660 item 3).
+    terms = list(HTR_SEARCH_TERMS) + [f"{_LANGUAGE_WORDS[t.split('-')[0]]}" for t in sorted(languages)
+                                      if t.split("-")[0] in _LANGUAGE_WORDS]
+    asks = [(term, "image-to-text") for term in terms] + [(term, "image-text-to-text") for term in terms[:3]]
+    not_runnable: dict[str, Card] = {}
+    for n, (term, task) in enumerate(asks, 1):
+        progress(f"Searching Hugging Face for HTR models ({n} of {len(asks)})")
+        for m in await _fetch_hf_models(task=task, search=term, limit=HF_LIMIT):
+            repo = str(m.get("modelId") or m.get("id"))
+            what = reads_text(m) or ("an HTR model (image-to-text)" if _words(m) & OCR_WORDS else None)
+            if what is None or _gguf_only(m) or repo in found:
+                continue
+            if _runs_on_mlx(m):
+                found.setdefault(repo, _hf_card(m, what, "an MLX build on Hugging Face that runs on this Mac",
+                                                languages))
+            elif "safetensors" in (m.get("tags") or []) and len(originals) < HF_CONVERSIONS_LOOKED_UP:
+                originals.append((m, what))
+                not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
+            else:
+                not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
     for original, what in originals[:HF_CONVERSIONS_LOOKED_UP]:
         repo = str(original.get("modelId") or original.get("id"))
         progress(f"Looking up the MLX conversion of {repo}")
@@ -636,6 +711,10 @@ async def search_hugging_face(languages: frozenset[str],
                     m, what, f"the MLX conversion of {repo} (safetensors on Hugging Face), which runs on this Mac",
                     languages, _hub_tags(original)))
                 break
+    converted = {str(c.offered_because).split("the MLX conversion of ", 1)[-1].split(" ", 1)[0] for c in found.values()}
+    for repo, card in not_runnable.items():
+        if repo not in converted:
+            found.setdefault(f"not-runnable:{repo}", card)
     return sorted(found.values(), key=lambda c: c.id), len(left_out - set(found))
 
 
@@ -673,19 +752,20 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
     data = _hub_file()
     found = cached_hub()
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    found_now = {str(card.pin["hf"]) for card in cards}
+    found_now = {_hub_key(card) for card in cards}
     for repo, row in list(found.items()):
         if repo not in found_now:
             row["found_for"] = sorted(set(row.get("found_for") or ()) - languages)
             if not row["found_for"]:
                 del found[repo]
     for card in cards:
-        repo = str(card.pin["hf"])
-        before = found.get(repo) or {}
-        found[repo] = {"repo": repo, "languages": sorted(card.languages) if card.languages else None,
+        key, repo = _hub_key(card), str(card.pin["hf"])
+        before = found.get(key) or {}
+        found[key] = {"repo": repo, "languages": sorted(card.languages) if card.languages else None,
                        "scripts": sorted(card.scripts) if card.scripts else None,
                        "material": sorted(card.material), "licence": card.licence, "note": card.note,
                        "offered_because": card.offered_because, "size_gb": card.size_gb,
+                       "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
                        "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now}
     left = dict(data.get("left_out") or {})
     left[_languages_key(languages)] = left_out
@@ -696,16 +776,28 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
     tmp.replace(folder / HUB_FILE)
 
 
-def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset()) -> list[Card]:
+def _hub_key(card: Card) -> str:
+    """Where a kept Hub reader is filed: its repository, or `not-runnable:<repo>` for one this build cannot run, so
+    the MLX conversion of a model and the model itself are both kept."""
+    return str(card.pin["hf"]) if card.runs_here else f"not-runnable:{card.pin['hf']}"
+
+
+def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset(), *,
+              runnable_only: bool = True) -> list[Card]:
     """The kept Hub readers found for any of these languages (every one kept, for None: a card looked up by its
     id), as cards the rules rank, except those whose repository another card already pins (a shipped card, or
     the installed copy once downloaded)."""
     out = []
-    for repo, row in sorted(cached_hub().items()):
+    for key, row in sorted(cached_hub().items()):
+        repo = str(row.get("repo") or key)
+        runs_here = bool(row.get("runs_here", True))
         if repo in skip_repos or (languages is not None and not languages & set(row.get("found_for") or ())):
             continue
+        if runnable_only and not runs_here:
+            continue
         out.append(Card(
-            id=f"mlx:hf/{repo}@main", pin={"hf": repo, "revision": "main"}, jobs=READER_JOBS,
+            id=f"{'mlx' if runs_here else 'hf'}:hf/{repo}@main", pin={"hf": repo, "revision": "main"},
+            jobs=READER_JOBS, runs_here=runs_here, cannot_run_because=str(row.get("cannot_run_because") or ""),
             scripts=frozenset(row["scripts"]) if row.get("scripts") else None,
             languages=_tags(row.get("languages")), material=frozenset(row.get("material") or ()),
             open_licence=_is_open(str(row.get("licence") or "")), trainable=True,
@@ -769,7 +861,7 @@ def egress_allowed() -> bool:
 
 
 #: Why the online search did not run when no project is open: its job is one of a project's (#5594).
-NO_PROJECT = "the online search runs as an Activity job of an open project: open a project to search"
+NO_PROJECT = "Open a project to search online"
 
 
 def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
@@ -785,23 +877,22 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     sources: list[dict[str, Any]] = []
     shipped = mark_installed(c for c in seed if c.runs_here)
     sources.append({"source": "shipped", "state": "read", "count": len(shipped),
-                    "detail": "the cards that ship with Fichero"})
+                    "detail": f"{len(shipped)} ship with Fichero"})
     if job in TEXT_MODEL_JOBS:
         # A job a text model does: the text models here and on the person's own servers (#5619).
         installed = local_text_cards(seed)
         sources.append({"source": "installed", "state": "read", "count": len(installed),
-                        "detail": "text models complete in this engine's model store, and the models of your "
-                                  "Ollama and LM Studio servers"})
+                        "detail": f"{len(installed)} on this Mac or your own servers"})
     else:
         installed = installed_cards(seed)
         sources.append({"source": "installed", "state": "read", "count": len(installed),
-                        "detail": "MLX vision models complete in this engine's model store"})
+                        "detail": f"{len(installed)} on this Mac"})
     if online and not egress_allowed():
-        why, quiet = "this engine works offline (local-only), so nothing was fetched", "offline"
+        why, quiet = "Offline: not searched", "offline"
     elif online:
-        why, quiet = not_searched or "being searched", "not-searched"
+        why, quiet = not_searched or "Searching…", "not-searched"
     else:
-        why, quiet = "not searched: ask with online=true to search it", "not-searched"
+        why, quiet = "Not searched", "not-searched"
     cached = cached_repository()
     if cached is None:
         repo_cards: list[Card] = []
@@ -809,12 +900,12 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     else:
         repo_cards = repository_cards(cached["records"], seed, a.languages)
         repo_source = {"source": "kraken-repository", "state": "cached", "count": len(repo_cards),
-                       "detail": f"Kraken's model repository on Zenodo, as fetched {cached['fetched_at']}"}
-    hf_cards = mark_installed(hub_cards(a.languages, _pinned_repos([*seed, *installed])))
+                       "detail": f"{len(repo_cards)} found on Zenodo"}
+    hf_cards = mark_installed(hub_cards(a.languages, _pinned_repos([*seed, *installed]), runnable_only=False))
     left_out = hub_left_out(a.languages) or 0
     if hf_cards or hub_left_out(a.languages) is not None:
         hub_source = {"source": "hugging-face", "state": "cached", "count": len(hf_cards), "left_out": left_out,
-                      "detail": "the readers earlier searches found for these languages" + _left_out_words(left_out)}
+                      "detail": f"{len(hf_cards)} found on Hugging Face" + _left_out_words(left_out)}
     else:
         hub_source = {"source": "hugging-face", "state": quiet, "count": 0, "detail": why}
     if search is not None:
@@ -826,22 +917,26 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
 def _left_out_words(left_out: int) -> str:
     if not left_out:
         return ""
-    return f"; {left_out} build{'s' if left_out != 1 else ''} left out: chat models, not readers"
+    return f" ({left_out} chat model{'s' if left_out != 1 else ''} left out)"
+
+
+#: Each online source by the name a person knows it by, in the finder's one-line status (#5660 item 3).
+SOURCE_NAMES = {"kraken-repository": "Zenodo", "hugging-face": "Hugging Face"}
 
 
 def _say_search(search: dict[str, Any], *rows: dict[str, Any]) -> None:
-    """The online sources as the search job leaves them: being searched, what it found, or why it failed."""
+    """The online sources as the search job leaves them, each in one short sentence (#5660 item 3: never an
+    Activity job id or the engine's own words): "Searching Hugging Face…", "3 found on Zenodo", or that it
+    could not be reached."""
     state = search.get("state")
     if state in ("waiting", "running", "paused"):
-        doing = search.get("reason") or "waiting for the network lane"
         for row in rows:
             row["state"] = "searching"
-            row["detail"] = (f"being searched now (Activity job {search['id']}: {doing}); "
-                             f"{'showing what was kept before' if row['count'] else 'nothing kept yet'}")
+            row["detail"] = f"Searching {SOURCE_NAMES[row['source']]}…"
         return
     if state == "failed":
         for row in rows:
-            row["state"], row["detail"] = "failed", f"the search failed ({search.get('reason') or 'no reason'})"
+            row["state"], row["detail"] = "failed", f"Could not reach {SOURCE_NAMES[row['source']]}"
         return
     try:
         done = json.loads(search.get("detail") or "{}").get("sources") or {}
@@ -850,7 +945,10 @@ def _say_search(search: dict[str, Any], *rows: dict[str, Any]) -> None:
     for row in rows:
         said = done.get(row["source"])
         if said:
-            row["state"], row["detail"] = said["state"], said["detail"]
+            row["state"] = said["state"]
+            row["detail"] = (f"Could not reach {SOURCE_NAMES[row['source']]}" if said["state"] == "failed"
+                             else f"{row['count']} found on {SOURCE_NAMES[row['source']]}"
+                             + _left_out_words(int(row.get("left_out") or 0)))
 
 
 # --- the online search, as an Activity job (#5594) ------------------------------------------------------
@@ -927,25 +1025,23 @@ def search_online(languages: frozenset[str], progress: Callable[[str], None] = l
     sources: dict[str, dict[str, Any]] = {}
     cached = cached_repository()
     if _stale(cached):
-        progress("Reading Kraken's model repository on Zenodo")
+        progress("Searching Zenodo…")
         try:
             cached = refresh_repository()
-            sources["kraken-repository"] = {"state": "searched", "detail": (
-                f"Kraken's model repository on Zenodo, fetched {cached['fetched_at']}")}
+            sources["kraken-repository"] = {"state": "searched",
+                                            "detail": f"{len(cached['records'])} found on Zenodo"}
         except Exception as exc:  # the network or the repository failed: say so, keep the cache
-            sources["kraken-repository"] = {"state": "failed",
-                                            "detail": f"the repository could not be read ({exc})"}
+            logger.warning("Kraken's repository could not be read: %s", exc)
+            sources["kraken-repository"] = {"state": "failed", "detail": "Could not reach Zenodo"}
     else:
-        sources["kraken-repository"] = {"state": "cached", "detail": (
-            f"Kraken's model repository on Zenodo, as fetched {cached['fetched_at']} (fetched again after a day)")}
+        sources["kraken-repository"] = {"state": "cached", "detail": f"{len(cached['records'])} found on Zenodo"}
     try:
         found, left_out = asyncio.run(search_hugging_face(languages, progress))
         keep_hub(found, languages, left_out)
-        sources["hugging-face"] = {"state": "searched", "count": len(found), "left_out": left_out, "detail": (
-            f"{len(found)} reader{'s' if len(found) != 1 else ''} found: image-to-text models and vision-language "
-            "models made for OCR, by language tag; MLX builds only, never GGUF" + _left_out_words(left_out))}
+        sources["hugging-face"] = {"state": "searched", "count": len(found), "left_out": left_out,
+                                   "detail": f"{len(found)} found on Hugging Face"}
     except Exception as exc:  # HTTPException from the one Hub fetch, or the network
-        sources["hugging-face"] = {"state": "failed",
-                                   "detail": f"the Hub could not be searched ({getattr(exc, 'detail', exc)})"}
+        logger.warning("the Hugging Face search failed: %s", getattr(exc, "detail", exc))
+        sources["hugging-face"] = {"state": "failed", "detail": "Could not reach Hugging Face"}
     return {"languages": sorted(languages), "searched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "sources": sources}

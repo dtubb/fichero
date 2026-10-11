@@ -183,6 +183,9 @@ class Card:
     source: str = "shipped"
     #: Why discovery offers it, in words: what was found where, and what its record states.
     offered_because: str = ""
+    #: Why Fichero cannot run it yet, in words, when `runs_here` is False ("a TrOCR model: no TrOCR runtime in this
+    #: build"); the finder shows it so a person sees what exists, the rules never choose it (#5660 item 3).
+    cannot_run_because: str = ""
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
     #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).

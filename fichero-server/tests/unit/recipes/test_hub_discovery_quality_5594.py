@@ -111,7 +111,7 @@ def test_source_find_hub_readers_only_a_chat_build_is_left_out_and_counted(clien
     assert set(found) == {OCR["modelId"], VLM_OCR["modelId"]}
     hf = _source(body, "hugging-face")
     assert hf["state"] == "searched" and hf["count"] == 2 and hf["left_out"] == 1
-    assert "1 build left out: chat models, not readers" in hf["detail"]
+    assert "(1 chat model left out)" in hf["detail"]  # one short line (#5660 item 3)
     assert not any("abliterated" in c["id"].lower() for c in body["items"])
     # The kept list obeys the same rule: the offline call afterwards lists the same two, and says one was left out.
     again = _candidates(client)
@@ -124,7 +124,7 @@ def test_source_find_unknown_size_said_never_zero(client, db, store, hub):
     for card in _hub_items(_searched(client, db)).values():
         assert card["size"] == "size not stated" and card["size_gb"] is None and card["memory_gb"] is None
     shipped = [c for c in _candidates(client)["items"] if c["source"] == "shipped" and c["size_gb"]]
-    assert shipped and all(c["size"].endswith(" GB") for c in shipped)
+    assert shipped and all(c["size"].endswith((" GB", " MB")) for c in shipped)
 
 
 def test_source_find_reason_names_fit_script_language_and_how_it_runs(client, db, store, hub):
@@ -166,7 +166,8 @@ def test_source_find_online_search_is_a_job_the_cold_call_answers_at_once(client
     assert job["id"] and job["state"] in ("waiting", "running")
     assert not _hub_items(cold)
     assert _source(cold, "hugging-face")["state"] == "searching"
-    assert job["id"] in _source(cold, "hugging-face")["detail"]
+    # One short sentence, never the Activity job's id (#5660 item 3): the id is the response's `search_job`.
+    assert _source(cold, "hugging-face")["detail"] == "Searching Hugging Face…"
 
     # Activity lists it, by name, while it runs.
     listed = client.get("/api/activity/jobs")
@@ -196,7 +197,7 @@ def test_with_no_project_open_the_online_search_is_not_run_and_says_why(client, 
     body = r.json()
     assert body["search_job"] is None and hub.asked == []
     assert _source(body, "hugging-face")["state"] == "not-searched"
-    assert "open a project" in _source(body, "hugging-face")["detail"]
+    assert _source(body, "hugging-face")["detail"] == "Open a project to search online"
 
 
 def test_working_offline_queues_no_search(client, db, store, hub, monkeypatch):

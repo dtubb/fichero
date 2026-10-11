@@ -438,13 +438,23 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
     the recipe Start reads and the one setup proposes again both read with the reader the person chose
     (`source.try.use-this-scope`). The one code path for Use This and for assembling a project's recipe
     again. A folder override stays an override only: the step's own model is the project's. An override
-    whose card is no longer shipped is kept and leaves the step to the rules. Changes `recipe` in place."""
+    whose card Fichero no longer has (a Hugging Face reader no longer kept, a card no longer shipped) still sets
+    its step to the model it names: the person chose it, and the rules never take a choice back (#5660 item 8:
+    the default came back once the finder stopped listing the chosen reader). Changes `recipe` in place."""
     by_id = {c.id: c for c in cards}
     steps = {s.get("id"): s for s in recipe.get("steps") or []}
     for override in recipe.get("overrides") or []:
         step, card = steps.get(override.get("step")), by_id.get(override.get("card"))
-        if override.get("scope") != "project" or step is None or card is None:
+        if override.get("scope") != "project" or step is None:
             continue
+        if card is None:
+            if not isinstance(override.get("model"), dict) or not override["model"]:
+                continue
+            card = Card(id=str(override.get("card") or ""), pin=dict(override["model"]), jobs=frozenset({step["job"]}),
+                        scripts=None, languages=None, material=frozenset(),
+                        runs_on=str(override.get("runs_on") or "this-mac"),
+                        note=str(override["model"].get("hf", "")).rsplit("/", 1)[-1] or str(override.get("card") or ""),
+                        offered_because="chosen by you")
         for stale in ("gap", "problem"):
             step.pop(stale, None)
         measured = replace(card, cer_measured_here=override.get("cer"))

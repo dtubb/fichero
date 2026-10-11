@@ -157,7 +157,7 @@ def test_the_finder_answers_for_any_steps_job_and_says_why_it_did_not_search(cli
     hub = next(s for s in body["sources"] if s["source"] == "hugging-face")
     assert hub["state"] == "offline" or (hub["state"] == "not-searched" and "readers only" in hub["detail"]), hub
     installed = next(s for s in body["sources"] if s["source"] == "installed")
-    assert installed["count"] >= 1 and "Ollama" in installed["detail"]
+    assert installed["count"] >= 1 and installed["detail"] == f"{installed['count']} on this Mac or your own servers"
     [llama] = [i for i in body["items"] if i["pin"].get("model") == "llama3.2:latest"]
     assert llama["rule_rank"] == 1 and llama["refused"] is None and llama["runs_where"] == "this_mac"
 
