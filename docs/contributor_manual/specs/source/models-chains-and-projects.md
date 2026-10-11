@@ -1407,6 +1407,46 @@ Find Regions become stages of their own (they were Clean Up Images, and part of 
 Normalise its own stage beside Translate, whose target is any language tag. Thirteen stages, in the
 order above.
 
+**Each stage shows what it does, and compares who does it** (ruled 2026-10-11 evening). A stage page opens
+with a short picture of its work: the stage's job played once on a page, about 3 to 5 seconds, with
+Replay; with Reduce Motion on, its last frame stands still. The page is the person's own where there is
+one: a sample page the stage was tried on, with what the try made (its reading, its names, its
+statements). Before any try, it is one example page shipped with the app, with its regions, lines,
+reading, names and dates worked out once: page 18 of the sixteenth-century manuscript of Juan de Valdés's
+*Diálogo de la Lengua* (Biblioteca Nacional de España, public domain; "Imagen procedente de los fondos de
+la Biblioteca Nacional de España"), its lines read after the DILE transcription (CC BY-SA 4.0, M. T.
+Carrasco Benitez, dir.; Alba Agraz Ortiz and Sara Sánchez Hernández), the same page and licence as the
+engine's paleography fixture. Never a project's own material, and never the Marshall or Sergio papers.
+
+What each stage's picture does:
+
+| Stage | Its picture |
+|---|---|
+| Prepare Images | a tilted, dim scan straightens, crops and brightens, a light sweeping down it |
+| Find Regions | the blocks outline one after another (text, margin, folio, catchword) |
+| Find Lines | each baseline draws left to right |
+| Read | the reading types in, line by line, beside the page, a light sweeping the line being read |
+| Normalise | an abbreviated word becomes its expanded form ("q́" into "que", "tþo" into "tiempo") |
+| Translate | a line crossfades into its translation |
+| Organise | page thumbnails slide together into dashed document groups |
+| Names | the names light up, coloured by kind |
+| Statements | arrows join the names a statement links |
+| Dates & Times | the date words become date chips |
+| Passages | a passage lifts out of the page |
+| Structured Data | values fly into a table's cells |
+| Search | a query lights its matches |
+
+**A / B / C: the same page by two or three candidates** (ruled 2026-10-11 evening). Comparing is how setup
+teaches: a stage page shows the same sample page done by 2 or 3 of the step's candidates side by side
+(Read: Kraken, Apple Vision, an MLX reader; Find Regions: Kraken blla, YOLO DocLayNet; Names: spaCy, a
+cloud model). Each column plays the stage's picture on its own result, says under it how it measured
+(agreement or character error rate, how long, and the cost: "free, on this Mac" or the cloud price), and
+offers Use This, which sets that candidate for the step (the use-candidate route, section 8a). Try on These
+Pages becomes Compare on These Pages; the defaults are the step's top 2 or 3 candidates, and the person can
+change which. With one candidate there is one column. The engine's result is the bake-off's row for each
+candidate (card, its name, where it runs, its measures and cost) with that candidate's own result on the
+samples, in the shape the stage's try already answers (per page: readings, segments, statements; names).
+
 ### 8. How the recipe is assembled: rules first, measurement second
 
 **By rule, and deterministic** (ruled 2026-10-01). The recipe is assembled from the answers and
@@ -2769,6 +2809,23 @@ Setup
   which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
   the answers; a question belongs to one stage and is asked once. *Test:* pure Swift, each question's
   stage; pytest, the answers round-trip.
+- `source.onboard.stages.shows-what-it-does` — **[GAP]** (#5668) each stage page opens with a picture of
+  its work (section 7d, the table there), about 360 by 220 points, played once as the page appears and
+  again on Replay, 3 to 5 seconds; with Reduce Motion it shows its last frame still. It plays on the
+  person's own sample page when the stage was tried (the sample's picture and what the try made), else on
+  the example page shipped with the app (Diálogo de la Lengua, p. 18: regions, lines, reading, names and
+  dates worked out once and kept with its licence and credit). Drawn in SwiftUI; one Metal shader, a light
+  sweeping the page, for Prepare Images and Read. *Test:* pure Swift, the try's page is chosen over the
+  example; every stage has a picture; Reduce Motion gives the last frame; the example's data decodes and
+  every box lies on its image.
+- `source.onboard.stages.compares-candidates` — **[GAP]** (#5668) a stage page shows the same sample page
+  done by 2 or 3 of the step's candidates side by side, each column playing the stage's picture on its own
+  result with its measures under it (agreement or character error rate, time, cost: "free, on this Mac" or
+  the cloud price) and Use This (the use-candidate route); Compare on These Pages runs them, the step's top
+  2 or 3 by default, the person free to change which; one candidate is one column. The engine's answer is
+  the try's, with `candidates: [...]`, each the bake-off row's fields (`card`, `name`, `runs_on`, `local`,
+  `cer` or `agreement`, `seconds`, `cost_usd`, `why`) and its own `per_page` and `names`. *Test:* pure Swift,
+  one column per candidate, its measures in words, Use This sends its card for the step.
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage.
