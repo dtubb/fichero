@@ -376,8 +376,11 @@ Readings
 
 Where the readers disagree (#5665; the engine half is worker C's, the app half built against the pinned shape)
 - `source.disagree.route` — **[GAP]** (#5665) `GET /api/documents/{page_id}/disagreement` answers, read-only:
-  `{page_id, readers: [{id, label}], page_agreement, normalised_as, lines: [{segment_id, reference_reader,
-  text, agreement, words: [{text, char_start, char_end, bbox, agreement, variants: [{text, readers}]}]}]}`.
+  `{page_id, readers: [{id, label}], page_agreement, normalised_as, image_width, image_height,
+  lines: [{segment_id, reference_reader, text, agreement,
+  words: [{text, char_start, char_end, bbox, agreement, variants: [{text, readers}]}]}]}`.
+  `image_width` / `image_height` are the pixel size of the image the boxes were measured on (amended
+  2026-10-11 so the app scales `bbox` to whatever size it draws the page at; null when no word has a box).
   `readers` are the readings compared, one per reader or per sampled run (`id` stable for the page, `label`
   in words: "Kraken (CATMuS Medieval)", "Comma Qwen 0.8B, run 3"). Lines are in the page's reading order,
   each the reading of one line segment; `reference_reader` is its medoid reading, `text` that reading
@@ -407,8 +410,11 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   the page's figure, the readers compared and the convention head it, labelled agreement. **Built
   2026-10-11 (app):** `ReaderLens.disagreement`, `ReaderDisagreementView`, the tint `DisagreementTint`; read
   through `ReadingDisagreementStore` from one source of the shape above, stubbed until the route exists.
-  Pinned by `fichero/Tests/Unit/general/Models/ReadingDisagreementTests.swift`. *Not built: the route (the
-  lens says Fichero cannot compare readers yet); the tint drawn on the page image by each word's `bbox`.*
+  Pinned by `fichero/Tests/Unit/general/Models/ReadingDisagreementTests.swift`. **Built 2026-10-11 (app):** a
+  page whose words have boxes is drawn with each word's tint at its `bbox`, scaled from `image_width` /
+  `image_height` (else the image's own size) to the size it is drawn at, the same tint mapping, a click
+  opening the word's popover (`DisagreementOverlay`); a line with a word that has no box is listed as text
+  below the page, as before. *Not built: the route (the lens says Fichero cannot compare readers yet).*
 - `source.disagree.popover` — **[PARTIAL]** (#5665) clicking a word lists its variants, most readers first,
   each with the readers that gave it by label and how many of how many. **Built 2026-10-11 (app):**
   `DisagreementWordPopover`, its rows from `ReadingDisagreement.variantRows`; pinned as above.

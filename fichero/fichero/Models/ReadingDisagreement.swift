@@ -58,6 +58,9 @@ struct ReadingDisagreement: Decodable, Equatable {
     let pageAgreement: Double?
     let normalisedAs: String?
     let lines: [Line]
+    /// The pixel size of the image the words' boxes were measured on; nil when no word has one.
+    var imageWidth: Double?
+    var imageHeight: Double?
 
     /// The engine's snake_case, read as the app's names.
     static func decode(_ data: Data) throws -> ReadingDisagreement {
@@ -118,6 +121,45 @@ struct ReadingDisagreement: Decodable, Equatable {
     /// An agreement figure in words: "82% agreement".
     static func percent(_ agreement: Double) -> String {
         agreement.formatted(.percent.precision(.fractionLength(0))) + " agreement"
+    }
+}
+
+/// The words' tints over the page image (`source.disagree.lens`): each word with a box, scaled from the frame the
+/// boxes were measured on to the size the page is drawn at; the lines with a word that has no box stay as text.
+enum DisagreementOverlay {
+    struct Box: Equatable {
+        let ref: ReadingDisagreement.WordRef
+        let rect: CGRect
+        let tint: DisagreementTint
+    }
+
+    /// The frame the boxes were measured on: the engine's image size, else the image's own.
+    static func frame(of disagreement: ReadingDisagreement, imageSize: CGSize) -> CGSize {
+        if let width = disagreement.imageWidth, let height = disagreement.imageHeight, width > 0, height > 0 {
+            return CGSize(width: width, height: height)
+        }
+        return imageSize
+    }
+
+    /// Every word with a box, in reading order, placed at `drawnAt` (the size the page is drawn at).
+    static func boxes(_ disagreement: ReadingDisagreement, frame: CGSize, drawnAt size: CGSize) -> [Box] {
+        guard frame.width > 0, frame.height > 0 else { return [] }
+        let scaleX = size.width / frame.width, scaleY = size.height / frame.height
+        return disagreement.wordRefs.compactMap { ref in
+            guard let word = disagreement.word(ref), let box = word.bbox, box.count == 4 else { return nil }
+            let rect = CGRect(x: box[0] * scaleX, y: box[1] * scaleY, width: box[2] * scaleX, height: box[3] * scaleY)
+            return Box(ref: ref, rect: rect, tint: DisagreementTint.of(word.agreement))
+        }
+    }
+
+    /// Whether any word has a box: the page is drawn.
+    static func hasBoxes(_ disagreement: ReadingDisagreement) -> Bool {
+        disagreement.lines.contains { $0.words.contains { $0.bbox?.count == 4 } }
+    }
+
+    /// The lines listed as text: those with a word that has no box.
+    static func linesAsText(_ disagreement: ReadingDisagreement) -> [Int] {
+        disagreement.lines.indices.filter { disagreement.lines[$0].words.contains { $0.bbox?.count != 4 } }
     }
 }
 

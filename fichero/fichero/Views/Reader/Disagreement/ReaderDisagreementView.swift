@@ -9,6 +9,10 @@ struct ReaderDisagreementView: View {
 
     @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
     @Environment(DocumentStore.self) private var documentStore: DocumentStore?
+    @Environment(StorageService.self) private var storageService: StorageService?
+
+    /// The page's picture, read when its words have boxes to tint over it.
+    @State private var pageImage: PlatformImage?
 
     private var library: LibraryManager.LibraryReference? {
         documentStore.flatMap { libraryManager?.library(owningService: $0) }
@@ -19,13 +23,21 @@ struct ReaderDisagreementView: View {
             let store = library.disagreementStore
             let libraryId = library.id
             let manager = libraryManager
+            let storage = storageService
             let hasDoubtful = !(store.disagreement(of: pageId)?.doubtfulRefs.isEmpty ?? true)
             DisagreementPageView(
                 state: store.pages[pageId],
                 selected: Binding(get: { store.selected[pageId] }, set: { store.selected[pageId] = $0 }),
-                readWithAnotherModel: { manager?.requestSetUp(for: libraryId, stage: "read") }
+                readWithAnotherModel: { manager?.requestSetUp(for: libraryId, stage: "read") },
+                pageImage: pageImage
             )
-            .task(id: pageId) { await store.load(pageId: pageId) }
+            .task(id: pageId) {
+                pageImage = nil
+                await store.load(pageId: pageId)
+                if let disagreement = store.disagreement(of: pageId), DisagreementOverlay.hasBoxes(disagreement) {
+                    pageImage = try? await storage?.getDisplayPlatformImage(pageId)
+                }
+            }
             .focusedSceneValue(\.nextDoubtfulWord, FocusedLibraryAction(isEnabled: hasDoubtful, target: pageId) {
                 _ = store.selectNextDoubtful(on: pageId)
             })
@@ -41,6 +53,8 @@ struct DisagreementPageView: View {
     let state: ReadingDisagreementStore.State?
     @Binding var selected: ReadingDisagreement.WordRef?
     let readWithAnotherModel: () -> Void
+    /// The page's picture, when its words have boxes: each word's tint is drawn over it.
+    var pageImage: PlatformImage?
 
     /// The word whose variants are open; a click opens it, navigation only selects.
     @State private var popoverFor: ReadingDisagreement.WordRef?
@@ -76,7 +90,11 @@ struct DisagreementPageView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     header(of: disagreement)
-                    ForEach(disagreement.lines.indices, id: \.self) { index in
+                    // Words with boxes are tinted on the page itself; a line with a word that has none stays text.
+                    let drawn = DisagreementOverlay.hasBoxes(disagreement)
+                    if drawn { tintedPage(disagreement) }
+                    ForEach(drawn ? DisagreementOverlay.linesAsText(disagreement) : Array(disagreement.lines.indices),
+                            id: \.self) { index in
                         lineRow(disagreement, index)
                     }
                 }
@@ -138,6 +156,52 @@ struct DisagreementPageView: View {
                 }
                 .popover(isPresented: Binding(get: { popoverFor == ref },
                                               set: { if !$0, popoverFor == ref { popoverFor = nil } })) {
+                    DisagreementWordPopover(word: word.text, rows: disagreement.variantRows(for: word))
+                }
+                .accessibilityLabel("\(word.text), \(ReadingDisagreement.percent(word.agreement))")
+                .accessibilityAddTraits(.isButton)
+        }
+    }
+
+    /// The page with each boxed word's tint over it, at the size it is drawn; a click opens the word's variants.
+    @ViewBuilder
+    private func tintedPage(_ disagreement: ReadingDisagreement) -> some View {
+        if let pageImage {
+            Image(platformImage: pageImage)
+                .resizable()
+                .scaledToFit()
+                .overlay {
+                    GeometryReader { geometry in
+                        let frame = DisagreementOverlay.frame(of: disagreement, imageSize: pageImage.size)
+                        ForEach(DisagreementOverlay.boxes(disagreement, frame: frame, drawnAt: geometry.size),
+                                id: \.ref) { box in
+                            boxView(disagreement, box)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("reader.disagreement.page")
+        } else {
+            ProgressView().frame(maxWidth: .infinity, minHeight: 120)
+        }
+    }
+
+    @ViewBuilder
+    private func boxView(_ disagreement: ReadingDisagreement, _ box: DisagreementOverlay.Box) -> some View {
+        if let word = disagreement.word(box.ref) {
+            Rectangle()
+                .fill(box.tint.color)
+                .overlay {
+                    if selected == box.ref { Rectangle().strokeBorder(Color.accentColor, lineWidth: 1.5) }
+                }
+                .contentShape(Rectangle())
+                .frame(width: box.rect.width, height: box.rect.height)
+                .position(x: box.rect.midX, y: box.rect.midY)
+                .onTapGesture {
+                    selected = box.ref
+                    popoverFor = box.ref
+                }
+                .popover(isPresented: Binding(get: { popoverFor == box.ref },
+                                              set: { if !$0, popoverFor == box.ref { popoverFor = nil } })) {
                     DisagreementWordPopover(word: word.text, rows: disagreement.variantRows(for: word))
                 }
                 .accessibilityLabel("\(word.text), \(ReadingDisagreement.percent(word.agreement))")

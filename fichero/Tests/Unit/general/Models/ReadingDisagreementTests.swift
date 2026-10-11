@@ -156,6 +156,37 @@ struct ReadingDisagreementTests {
         #expect(store.pages["p1"] == .unavailable("Fichero cannot compare this page's readers yet."))
     }
 
+    /// WHY: the tint belongs on the page, where the doubtful ink is; the boxes are measured on the engine's image,
+    /// so they are scaled to whatever size the page is drawn at, and a word without a box falls back to its line.
+    @Test("each boxed word's tint is placed over the page, scaled from the engine's image to the drawn size")
+    func tintOnThePage() throws {
+        let sized = Self.json.replacingOccurrences(of: #""normalised_as":"as_written","#,
+                                                   with: #""normalised_as":"as_written","image_width":200,"image_height":100,"#)
+        let page = try ReadingDisagreement.decode(Data(sized.utf8))
+        #expect(page.imageWidth == 200 && page.imageHeight == 100)
+        let frame = DisagreementOverlay.frame(of: page, imageSize: CGSize(width: 999, height: 999))
+        #expect(frame == CGSize(width: 200, height: 100), "the engine's frame wins over the picture's own size")
+
+        let boxes = DisagreementOverlay.boxes(page, frame: frame, drawnAt: CGSize(width: 100, height: 50))
+        #expect(boxes.count == 1, "only the word with a box is drawn on the page")
+        #expect(boxes.first?.ref == Ref(line: 0, word: 0))
+        #expect(boxes.first?.rect == CGRect(x: 5, y: 10, width: 30, height: 9), "halved with the page")
+        #expect(boxes.first?.tint == .unanimous, "the same tint mapping as the text")
+
+        #expect(DisagreementOverlay.hasBoxes(page))
+        #expect(DisagreementOverlay.linesAsText(page) == [0, 1], "a line with a word that has no box stays as text")
+    }
+
+    @Test("with no image size from the engine the picture's own size is the frame; with no boxes nothing is drawn")
+    func tintFallbacks() throws {
+        let page = try Self.page()
+        #expect(DisagreementOverlay.frame(of: page, imageSize: CGSize(width: 60, height: 40)) == CGSize(width: 60, height: 40))
+        #expect(DisagreementOverlay.boxes(page, frame: .zero, drawnAt: CGSize(width: 10, height: 10)).isEmpty)
+        let unboxed = try ReadingDisagreement.decode(Data(Self.json.replacingOccurrences(
+            of: #""bbox":[10,20,60,18],"#, with: "").utf8))
+        #expect(!DisagreementOverlay.hasBoxes(unboxed))
+    }
+
     @Test("the lens is a Reader lens of its own, named for what it shows")
     func theLens() {
         #expect(ReaderLens.disagreement.title == "Where the Readers Disagree")
