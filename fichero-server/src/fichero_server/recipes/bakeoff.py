@@ -287,22 +287,23 @@ def ground_truth(db: Any, page_ids: list[str] | None) -> tuple[list[dict[str, An
 
 
 def _plural(n: int, word: str) -> str:
-    return f"{n} {word}{'' if n == 1 else 's'}"
+    return f"{n:,} {word}{'' if n == 1 else 's'}"
 
 
-def readiness(pages: list[dict[str, Any]], unmarked_pages: int = 0) -> dict[str, Any]:
+def readiness(pages: list[dict[str, Any]], unmarked_pages: int = 0, *, min_lines: int = MIN_LINES) -> dict[str, Any]:
     """Whether the sample pages hold enough ground truth for a fair bake-off: the corrected lines and pages
     counted, how many more of each are needed, and, when short, the sentence that says so. The one count
     behind both the list's readiness (shown before anything is pressed) and Start's refusal.
 
     `unmarked_pages` (`unmarked_import_pages`): pages of imported transcriptions not marked ground truth.
     When short and there are some, the sentence says so and how to mark them, since that is the usual
-    reason a project of corrected files counts none (#5513)."""
+    reason a project of corrected files counts none (#5513). `min_lines`: training's threshold is counted and said
+    the same way (`recipes.train_offers`, #5660 item 9)."""
     lines = sum(p["lines"] for p in pages)
-    more_lines, more_pages = max(0, MIN_LINES - lines), max(0, MIN_PAGES - len(pages))
+    more_lines, more_pages = max(0, min_lines - lines), max(0, MIN_PAGES - len(pages))
     sentence = None
     if more_lines or more_pages:
-        needs = (f"Needs {MIN_LINES} corrected lines on at least {MIN_PAGES} pages; this project has {lines} on "
+        needs = (f"Needs {min_lines:,} corrected lines on at least {MIN_PAGES} pages; this project has {lines} on "
                  f"{_plural(len(pages), 'page')}.")
         if unmarked_pages:
             what = (f"{_plural(unmarked_pages, 'page')} {'has' if unmarked_pages == 1 else 'have'} imported "
@@ -315,7 +316,7 @@ def readiness(pages: list[dict[str, Any]], unmarked_pages: int = 0) -> dict[str,
         else:
             what = f"Correct lines on {_plural(more_pages, 'more page')}."
         sentence = f"{needs} {what}"
-    return {"ready": sentence is None, "lines": lines, "pages": len(pages), "min_lines": MIN_LINES,
+    return {"ready": sentence is None, "lines": lines, "pages": len(pages), "min_lines": min_lines,
             "min_pages": MIN_PAGES, "more_lines": more_lines, "more_pages": more_pages,
             "unmarked_import_pages": unmarked_pages, "sentence": sentence}
 

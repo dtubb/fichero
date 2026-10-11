@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-916/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-968/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -153,6 +153,74 @@
    }
   ],
   "offered": [],
+  "train_offers": [
+   {
+    "step": "read",
+    "job": "read-a-line",
+    "title": "Train a model on your corrected pages",
+    "ways": [
+     {
+      "method": "kraken",
+      "how": "fine-tune",
+      "says": "Fine-tune a Kraken reader on your corrected lines",
+      "targets": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "starts": "training.start_here"
+       }
+      ],
+      "available": true,
+      "why": null
+     },
+     {
+      "method": "mlx-vision-lora",
+      "how": "distil",
+      "says": "Distil a vision model's readings into a small MLX model (LoRA)",
+      "targets": [],
+      "available": false,
+      "why": "this project keeps its pages on this Mac, and this training runs only on Hugging Face Jobs"
+     }
+    ],
+    "readiness": {
+     "ready": false,
+     "lines": 0,
+     "pages": 0,
+     "min_lines": 2000,
+     "min_pages": 2,
+     "more_lines": 2000,
+     "more_pages": 2,
+     "unmarked_import_pages": 0,
+     "sentence": "Needs 2,000 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 2,000 more lines, on at least 2 more pages."
+    }
+   },
+   {
+    "step": "names",
+    "job": "find-names-tag-words",
+    "title": "Train a model on your corrected pages",
+    "ways": [
+     {
+      "method": "spacy-ner",
+      "how": "fine-tune",
+      "says": "Fine-tune a spaCy names model on your corrected names",
+      "targets": [],
+      "available": false,
+      "why": "not available yet: Fichero has no spaCy trainer"
+     }
+    ],
+    "readiness": {
+     "ready": false,
+     "lines": 0,
+     "pages": 0,
+     "min_lines": 2000,
+     "min_pages": 2,
+     "more_lines": 2000,
+     "more_pages": 2,
+     "unmarked_import_pages": 0,
+     "sentence": "Needs 2,000 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 2,000 more lines, on at least 2 more pages."
+    }
+   }
+  ],
   "refusals": [
    "steps names need the spacy model es_core_news_sm (16 MB), which is not on this Mac: download it first"
   ],

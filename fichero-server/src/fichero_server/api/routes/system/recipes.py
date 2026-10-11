@@ -1087,6 +1087,37 @@ class ProposedJobs(BaseModel):
     proposed_at: Optional[str] = None
 
 
+class TrainTarget(BaseModel):
+    """A place a way of training runs, and the audited action that starts it there (#5660 item 9)."""
+
+    place: str = Field(description="this-mac or huggingface-jobs: only the places the engine trains on today")
+    name: str
+    starts: str = Field(description="the action that starts it, e.g. training.start_here")
+
+
+class TrainWay(BaseModel):
+    """One way to train for a step: a fine-tune or a distillation, and where it can run."""
+
+    method: str = Field(description="kraken, mlx-vision-lora, yolo or spacy-ner")
+    how: str = Field(description="fine-tune or distil")
+    says: str
+    targets: list[TrainTarget]
+    available: bool = Field(description="false: not available yet (no trainer, or nowhere this project allows)")
+    why: Optional[str] = Field(default=None, description="why it is not available, in words")
+
+
+class TrainOffer(BaseModel):
+    """'Train a model on your corrected pages' for one trainable step, offered later, never run at Start."""
+
+    step: str
+    job: str
+    title: str
+    ways: list[TrainWay]
+    readiness: dict[str, Any] = Field(description=(
+        "whether the project has enough corrected material: counts, how many more lines and pages, and the "
+        "sentence that says so (the bake-off's one count, at the train step's threshold)"))
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -1095,6 +1126,9 @@ class StartPlan(BaseModel):
     workflows: list[StartWorkflow]
     skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
     offered: list[str] = Field(description="steps offered later (training), never run at Start")
+    train_offers: list[TrainOffer] = Field(default_factory=list, description=(
+        "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
+        "later, never run at Start (#5660 item 9)"))
     refusals: list[str] = Field(description="Start is refused while this is not empty")
     waiting: list[str] = Field(default_factory=list, description=(
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
@@ -1125,6 +1159,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.start import estimate, plan_start
+    from fichero_server.recipes.train_offers import counted, train_offers
 
     library = _library(db)
     setup = read_project_setup(library)
@@ -1146,6 +1181,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["proposed"] = explain(setup["recipe"], proposal)
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["folder_id"] = folder_id
+    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local)
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     annotate(db, plan, unfinished, within)

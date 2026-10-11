@@ -2826,6 +2826,19 @@ The recipe and its format
   person chose automatic training in setup (offered with a default such as distilling from a large
   teacher, then fine-tuning a small model); otherwise it is offered when its condition is met and
   runs only when the person starts it.
+- `source.recipe.train-offered-per-step` — **[PARTIAL]** (#5660 item 9) for each step a model can be trained
+  for, the Start plan offers "Train a model on your corrected pages" (`train_offers`), offered later and never
+  run at Start: the line reader (fine-tune a Kraken reader, on this Mac or Hugging Face Jobs; distil into an MLX
+  vision model by LoRA, on Hugging Face Jobs), regions (fine-tune YOLO, on this Mac), and names (a spaCy
+  fine-tune, listed as not available yet: Fichero has no spaCy trainer). Each way names the places the engine
+  trains on today and the action that starts it there (`training.start_here`, `training.start`,
+  `training.start_vision_lora`, `training.start_regions_here`); a project that keeps its pages on this Mac is
+  offered this Mac only. Each offer says how many more corrected lines and pages it needs, counted as the
+  bake-off counts them (`bakeoff.readiness`) at the train step's `offered_when` threshold (2,000 corrected lines
+  on at least 2 pages by default); regions count the pages holding a person's regions. Built in
+  `recipes/train_offers.py`; pinned by `fichero-server/tests/unit/recipes/test_train_offers_5660.py` (4 tests).
+  *Not built: Core ML (the engine has no Core ML training path); a cluster (ACENET) or another Mac as a
+  training place; the app showing the offers.*
 - `source.recipe.update-is-clicked-not-applied` — **[GAP]** (#5364) a new version of a followed recipe shows
   as an update symbol in the Inspector; nothing changes until the person clicks it; then the recipe
   updates and a re-run of existing pages is offered as one job with its estimate.

@@ -86170,6 +86170,14 @@
             "title": "Offered",
             "description": "steps offered later (training), never run at Start"
           },
+          "train_offers": {
+            "items": {
+              "$ref": "#/components/schemas/TrainOffer"
+            },
+            "type": "array",
+            "title": "Train Offers",
+            "description": "for each step a model can be trained for, how to train it on the corrected pages and where; offered later, never run at Start (#5660 item 9)"
+          },
           "refusals": {
             "items": {
               "type": "string"
@@ -88273,6 +88281,45 @@
         "title": "TrainKrakenRequest",
         "description": "The Kraken card: a recognition model fine-tuned with `ketos train`."
       },
+      "TrainOffer": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "job": {
+            "type": "string",
+            "title": "Job"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "ways": {
+            "items": {
+              "$ref": "#/components/schemas/TrainWay"
+            },
+            "type": "array",
+            "title": "Ways"
+          },
+          "readiness": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Readiness",
+            "description": "whether the project has enough corrected material: counts, how many more lines and pages, and the sentence that says so (the bake-off's one count, at the train step's threshold)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "job",
+          "title",
+          "ways",
+          "readiness"
+        ],
+        "title": "TrainOffer",
+        "description": "'Train a model on your corrected pages' for one trainable step, offered later, never run at Start."
+      },
       "TrainRegionsHereRequest": {
         "properties": {
           "name": {
@@ -88374,6 +88421,32 @@
           "trained"
         ],
         "title": "TrainResponse"
+      },
+      "TrainTarget": {
+        "properties": {
+          "place": {
+            "type": "string",
+            "title": "Place",
+            "description": "this-mac or huggingface-jobs: only the places the engine trains on today"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "starts": {
+            "type": "string",
+            "title": "Starts",
+            "description": "the action that starts it, e.g. training.start_here"
+          }
+        },
+        "type": "object",
+        "required": [
+          "place",
+          "name",
+          "starts"
+        ],
+        "title": "TrainTarget",
+        "description": "A place a way of training runs, and the audited action that starts it there (#5660 item 9)."
       },
       "TrainVisionLoraRequest": {
         "properties": {
@@ -88510,6 +88583,52 @@
         ],
         "title": "TrainVisionLoraRequest",
         "description": "The vision-model card: a LoRA on a vision-language model, landed on this Mac as MLX 4-bit."
+      },
+      "TrainWay": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "description": "kraken, mlx-vision-lora, yolo or spacy-ner"
+          },
+          "how": {
+            "type": "string",
+            "title": "How",
+            "description": "fine-tune or distil"
+          },
+          "says": {
+            "type": "string",
+            "title": "Says"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/TrainTarget"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "false: not available yet (no trainer, or nowhere this project allows)"
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why",
+            "description": "why it is not available, in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "method",
+          "how",
+          "says",
+          "targets",
+          "available"
+        ],
+        "title": "TrainWay",
+        "description": "One way to train for a step: a fine-tune or a distillation, and where it can run."
       },
       "TrainedModelInspector": {
         "properties": {

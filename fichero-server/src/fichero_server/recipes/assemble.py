@@ -105,6 +105,8 @@ LANGUAGE_JOBS = frozenset({"correct", "translate-transliterate-normalise", "find
 REWRITING_JOBS = frozenset({"correct", "translate-transliterate-normalise"})
 #: Volume above which training is offered from the start (section 8, the volume rule).
 TRAIN_OFFERED_FROM_PAGES = 5_000
+#: Corrected lines a train step waits for before it is offered (its `offered_when`).
+TRAIN_OFFERED_FROM_LINES = 2_000
 #: Memory left for macOS, the app and the engine when a model is resident (the 8 GB Air taught us).
 MEMORY_HEADROOM_GB = 2.0
 
@@ -618,7 +620,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             why = (f"{a.pages} pages: a reader trained on your corrections repays its training"
                    if a.pages >= TRAIN_OFFERED_FROM_PAGES else "you ticked it")
             steps.append({"id": job, "job": job, "layer": "train", **_topic(job),
-                          "offered_when": {"corrected_lines_at_least": 2000},
+                          "offered_when": {"corrected_lines_at_least": TRAIN_OFFERED_FROM_LINES},
                           "settings": {"base": "read-a-line"}, "runs_on": "cluster", "reasons": [why]})
             continue
         if job == FIND_DOCUMENTS:

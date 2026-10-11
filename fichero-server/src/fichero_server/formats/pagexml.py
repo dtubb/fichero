@@ -586,7 +586,9 @@ def write(page: SourcePage, report: LossReport) -> bytes:
                 f"PAGE XML has no readingDirection for {page.direction!r}",
             )
 
-    if page.orders:
+    # An order with nothing in it is not written: PAGE's schema requires a group to hold at least one
+    # reference, and a page of a person's regions alone exported invalid and stopped the corrected-page count.
+    if page.orders and page.orders[0].refs:
         order_el = etree.SubElement(page_el, f"{{{PAGE_NS_2019}}}ReadingOrder")
         first = page.orders[0]
         group = etree.SubElement(
