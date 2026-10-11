@@ -229,6 +229,14 @@ class DatabaseManager:
                             ensure_sources_folder_on_open(db)
                         except Exception:
                             logger.exception("Could not give the project its Sources folder")
+                    # A transfer between projects left half-way by a crash (#5657, the journal):
+                    # `writing` is rolled back, a finished copy left `verified` is closed.
+                    from fichero_server.transfer.copy import recover_interrupted_transfers
+
+                    try:
+                        recover_interrupted_transfers(db)
+                    except Exception:
+                        logger.exception("Could not recover an interrupted transfer")
                 except Exception as exc:
                     db.close()
                     logger.exception("Failed to initialize library database: %s", package_str)

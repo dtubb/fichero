@@ -79,13 +79,12 @@ def _check_items(source_db: Database, items: list[str], source_name: str, mode: 
         )
 
 
-def _target_parent(target_db: Database, parent_id: str | None, *, create: bool) -> str:
+def _target_parent(target_db: Database, parent_id: str | None) -> str:
+    """The folder the items land in; "" when none is named and the target has no Sources folder yet."""
     target_name = Path(target_db.path).parent.stem
     if parent_id is None:
-        from fichero_server.importers.sources_folder import ensure_sources_folder, find_sources_folder
+        from fichero_server.importers.sources_folder import find_sources_folder
 
-        if create:
-            return ensure_sources_folder(target_db)[0]
         found = find_sources_folder(target_db)
         return found.id if found is not None else ""
     parent = target_db.get(Document, parent_id)
@@ -142,10 +141,19 @@ def _action_transfer(db: Database, params: DocumentTransferParams, ctx: ActionCo
     source_db = _source_database(params.source, db)
     source_name = Path(source_db.path).parent.stem
     _check_items(source_db, params.items, source_name, params.mode)
-    target_parent_id = _target_parent(db, params.target_parent_id, create=True)
+    target_parent_id = _target_parent(db, params.target_parent_id)
+    sources_folder = None
+    if not target_parent_id:
+        # The target has no Sources folder: made with the copy, in its transaction, so a failure leaves none.
+        from fichero_server.importers.sources_folder import SOURCES_FOLDER_NAME
+        from fichero_server.models import Status
+
+        sources_folder = Document(name=SOURCES_FOLDER_NAME, doc_type=DocType.folder, status=Status.completed)
+        target_parent_id = sources_folder.id
     audit_id = _new_id()
     plan = build_plan(source_db, db, items=params.items, target_parent_id=target_parent_id,
                       transfer_id=_new_id(), audit_id=audit_id, actor=ctx.actor)
+    plan.parent_to_make = sources_folder
     result = transfer_copy.copy_into_target(source_db, db, plan, mode=params.mode, actor=ctx.actor)
     spec = ChangeSpec(
         domains=["document"],
@@ -216,7 +224,7 @@ def _dry_run(db: Database, body: TransferRequest, ctx: ActionContext) -> Transfe
     source_db = _source_database(body.source, db)
     source_name = Path(source_db.path).parent.stem
     _check_items(source_db, body.items, source_name, body.mode)
-    target_parent_id = _target_parent(db, body.target_parent_id, create=False)
+    target_parent_id = _target_parent(db, body.target_parent_id)
     plan = build_plan(source_db, db, items=body.items, target_parent_id=target_parent_id,
                       transfer_id=_new_id(), audit_id=_new_id(), actor=ctx.actor)
     return transfer_copy.result_of(plan, mode=body.mode, dry_run=True, state=TransferState.planned,

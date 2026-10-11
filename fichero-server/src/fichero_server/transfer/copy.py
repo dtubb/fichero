@@ -149,6 +149,26 @@ def roll_back_target(target_db, record: TransferRecord, reason: str) -> None:
     target_db.save(record)
 
 
+def recover_interrupted_transfers(db) -> list[str]:
+    """On opening a project: finish what a crash left of a transfer that landed here (`transfer.action.journal-recovers`).
+
+    ``writing`` means the engine stopped before the target's transaction committed: no row of it is
+    there (DuckDB rolled it back), so the files it copied are removed and the record says so. A copy
+    left ``verified`` committed and checked its rows: it is complete, and is closed as ``done``. (A
+    move left ``verified`` resumes its source step: build order 4.) Returns the transfers touched."""
+    touched: list[str] = []
+    for record in db.query(TransferRecord, role=TransferRole.target):
+        if record.state == TransferState.writing:
+            roll_back_target(db, record, "the engine stopped before this transfer was written; rolled back on open")
+            touched.append(record.id)
+        elif record.state == TransferState.verified and record.mode == TransferMode.copy:
+            record.state = TransferState.done
+            record.updated_at = utc_now()
+            db.save(record)
+            touched.append(record.id)
+    return touched
+
+
 def copy_into_target(source_db, target_db, plan: TransferPlan, *, mode: TransferMode, actor: str) -> TransferResult:
     """Write the plan into the target, verify, and record it in both projects. Raises `TransferFailed`."""
     from fichero_server.models.knowledge import EntityMatchCandidate, PendingMatchMethod
@@ -177,6 +197,8 @@ def copy_into_target(source_db, target_db, plan: TransferPlan, *, mode: Transfer
             for match in plan.matches
         ]
         with target_db.transaction():
+            if plan.parent_to_make is not None:
+                _save_row(target_db, plan.parent_to_make)
             for made in plan.vocabulary_to_make:
                 _save_row(target_db, made)
             for _kind, row in plan.built:

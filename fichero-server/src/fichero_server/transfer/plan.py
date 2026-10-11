@@ -113,6 +113,8 @@ class TransferPlan:
     files: list[PlannedFile] = field(default_factory=list)
     linked_files: list[str] = field(default_factory=list)
     source_audits: dict[str, str] = field(default_factory=dict)
+    #: The target's Sources folder when it has none yet: made with the copy, in its transaction.
+    parent_to_make: BaseModel | None = None
 
     @property
     def copies(self) -> list[str]:
