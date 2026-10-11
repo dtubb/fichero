@@ -2346,7 +2346,11 @@ Profiles (the defaults section of a recipe)
   the steps to redo when pressing Start. A step that cannot tell (names, statements, checks, export, publish)
   runs on every page, and the plan says so.
   **[OK] (#5584; built: `recipes/done.py`; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`):** correcting and finding names
-  can tell too: correcting, on a page with a reviewed transcription saved by the step's own model;
+  can tell too: correcting, on a page with a reviewed transcription saved by the step's own model (#5616: its
+  effective model, the step's choice else its workflow's; with neither, a review its own workflow saved, never
+  any model's review from a run outside the recipe; `done.effective_model`, pinned by
+  `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py`, which also pins `last_run` and
+  `last_why` on a step a failed run left unfinished);
   finding names, on a page some entity names as a page it was found on (a page whose text names no one
   leaves no trace, so it is looked at again). The pages a step runs on are worked out when it starts, so pages a
   split made earlier in the same run are read like any others.

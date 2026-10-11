@@ -49290,9 +49290,19 @@
             "nullable": true,
             "title": "Parent Id"
           },
+          "run_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Run Id"
+          },
           "account": {
             "$ref": "#/components/schemas/RunAccount",
             "nullable": true
+          },
+          "offer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Offer"
           }
         },
         "type": "object",
