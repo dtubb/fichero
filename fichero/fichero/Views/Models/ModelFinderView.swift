@@ -148,7 +148,7 @@ struct ModelFinderCard: View {
     @ViewBuilder
     private var runnableActions: some View {
         HStack(spacing: 6) {
-            if let key = ModelFinderStore.downloadKey(candidate) {
+            if let key = ModelFinderStore.downloadKey(candidate), Self.offersDownload(candidate) {
                 if store.downloads.isActive(key) {
                     ProgressView().controlSize(.small)
                 } else if store.downloads.state(key) != .done {
@@ -159,8 +159,8 @@ struct ModelFinderCard: View {
                     .help("Download it to this Mac; Activity shows the download")
                 }
             }
-            if let step, !Self.isChosen(candidate) {
-                // Any candidate: the engine refuses, in words, one that does not do the step's job.
+            if let step, !Self.isChosen(candidate), Self.offersUse(candidate) {
+                // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
                     Task { await step.setup.useCandidate(candidate, forStep: step.id) }
                 }
@@ -189,6 +189,20 @@ struct ModelFinderCard: View {
     /// model with no provider set up): no Download, no Use for This Step (#5660 item 4).
     static func cannotRunHere(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         candidate.availability == .notHere
+    }
+
+    /// The rules refused it (`refused`: not enough memory, not the project's language, it runs in the cloud and
+    /// pages stay here): nothing offers to use it, so a card never says "cannot" beside a button that does. A licence
+    /// that is not open is the one refusal a press answers (choosing it accepts the licence, #5660 item 2).
+    static func offersUse(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        guard !cannotRunHere(candidate), let refused = candidate.refused else { return !cannotRunHere(candidate) }
+        return refused.contains("licence")
+    }
+
+    /// A refused card is not offered for download either, unless the engine says it runs elsewhere (a machine of the
+    /// person's own), where the download is still the way to it.
+    static func offersDownload(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        offersUse(candidate) || candidate.availability == .elsewhere
     }
 
     /// Its why names Settings › AI ("add Claude (Anthropic) in Settings › AI first"): the card links there.

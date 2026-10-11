@@ -330,6 +330,35 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertFalse(ModelFinderCard.asksForSettings(apple), "nothing in Settings makes Apple Intelligence run")
         XCTAssertTrue(ModelFinderCard.cannotRunHere(claude))
         XCTAssertTrue(ModelFinderCard.asksForSettings(claude), "add Claude in Settings › AI first: linked")
+        XCTAssertTrue(ModelFinderCard.offersUse(spacy) && ModelFinderCard.offersDownload(mlx))
+        XCTAssertFalse(ModelFinderCard.offersUse(claude) || ModelFinderCard.offersDownload(claude))
+    }
+
+    /// WHY (shots5, 2026-10-11): Qwen2.5-VL 7B showed Download and Use for This Step beside "this Mac does not have
+    /// the memory to run it alongside macOS and Fichero". A card the rules refused offers neither, following the
+    /// engine's `refused`; a licence is the one refusal a press answers; one that runs elsewhere keeps its Download.
+    func testARefusedCardOffersNoUseNorDownload() throws {
+        func card(_ refused: String?, availability: String = "download") throws -> Components.Schemas.ModelCandidate {
+            let why = refused.map { #","refused":"\#($0)""# } ?? ""
+            return try JSONDecoder().decode(Components.Schemas.ModelCandidate.self, from: Data("""
+            {"id":"mlx:hf/qwen@main","name":"Qwen2.5-VL 7B (OCR)","source":"installed","offered_because":"fits",
+             "pin":{},"jobs":["find-names-tag-words"],"open_licence":true,"size":"5.7 GB","measured":"unmeasured",
+             "in_recipe_rules":true,"runs_where":"this_mac","availability":"\(availability)",
+             "availability_words":"Download (5.7 GB)",
+             "download":{"runtime":"mlx","model":"qwen","action":"model.download","params":{}}\(why)}
+            """.utf8))
+        }
+        let memory = try card("this Mac does not have the memory to run it alongside macOS and Fichero")
+        XCTAssertFalse(ModelFinderCard.offersUse(memory))
+        XCTAssertFalse(ModelFinderCard.offersDownload(memory))
+        let fits = try card(nil)
+        XCTAssertTrue(ModelFinderCard.offersUse(fits) && ModelFinderCard.offersDownload(fits))
+        let licence = try card("its licence is not open (accept it to use it)")
+        XCTAssertTrue(ModelFinderCard.offersUse(licence), "choosing it accepts the licence")
+        let elsewhere = try card("this Mac does not have the memory to run it alongside macOS and Fichero",
+                                 availability: "elsewhere")
+        XCTAssertFalse(ModelFinderCard.offersUse(elsewhere))
+        XCTAssertTrue(ModelFinderCard.offersDownload(elsewhere), "it runs on a machine of yours")
     }
 
     /// WHY (#5660 item 3): a source's line is the engine's one sentence; the two it words without naming the
