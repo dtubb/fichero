@@ -333,11 +333,16 @@ The student lives in the project and can be made global (`compute.model.lives-in
 - `structured.schema.typed-fields` — **[PARTIAL]** (#5636) a prototype declares typed fields with a
   type from one closed list, options, required and a role. *Built:* `models/prototype_schema.py`
   (`AttributeDecl`, `ATTRIBUTE_TYPES`), inheritance in `models/node_prototypes.py`; pinned by
-  `fichero-server/tests/unit/models/test_prototype_schema.py`. *Not built:* `ask`, `label`, `unit`,
-  `precision`, vocabulary mappings, `entity_type`, `not_found`, `examples`, `check`.
-- `structured.schema.question-wording` — **[GAP]** (#5636) each field carries the question a model is
+  `fichero-server/tests/unit/models/test_prototype_schema.py`; `ask`, `label` and `examples` since
+  2026-10-10 (`structured.schema.question-wording`). *Not built:* `unit`, `precision`, vocabulary
+  mappings, `entity_type`, `not_found`, `check`.
+- `structured.schema.question-wording` — **[OK]** each field carries the question a model is
   asked and a person reads, its label, and a few worded examples; the extraction prompt is built from
-  them and nothing else.
+  them and nothing else. *Built 2026-10-10:* `AttributeDecl.ask`, `label`, `examples` and
+  `AttributeDecl.question(key)` (the field's wording, else "What is the <label or key>?") in
+  `models/prototype_schema.py`; the prompt and the answer schema in `recipes/table.py` (`prompt`,
+  `answer_schema`); pinned by `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`.
+  The prototype editor does not show the wording yet (`structured.schema.editor-complete`).
 - `structured.schema.units-and-precision` — **[GAP]** (#5636) a number field declares its unit (fixed,
   or read from the page); a date field its allowed precision; both are kept on the value.
 - `structured.schema.vocabulary-with-mapping` — **[GAP]** (#5636) a select field's options may each map
@@ -364,33 +369,66 @@ The student lives in the project and can be made global (`compute.model.lives-in
 
 ### Extraction (`structured.extract.*`)
 
-- `structured.extract.step-in-a-recipe` — **[GAP]** (#5636, #4949) "Extract to a table" is a recipe
+- `structured.extract.step-in-a-recipe` — **[PARTIAL]** (#5636, #4949) "Extract to a table" is a recipe
   step and an Organise verb on a folder or selection, taking a prototype; it is the design of
-  `source.job.extract-to-table`.
-- `structured.extract.text-first-then-image` — **[GAP]** (#5636) the input is the unit's tied reading
+  `source.job.extract-to-table`. *Built 2026-10-10:* the recipe step: job `extract-to-a-table` (takes the
+  reading, settings `model` and `prototype`) has a Start card, `table` (`recipes/start.py`; a step with no
+  text model is skipped with "choose-model", one naming no prototype is skipped and says so), run by the
+  recipe runner (`recipes/runner.py` `_run_table`) over the pages and the live entries under them whose
+  kind is the prototype or one under it (`recipes/table.py` `units`); the step's account (`table`) counts
+  units, asked, without text, values, not found, refused, kept, unanchored and failed, and
+  `table_refusals` names each refusal; pinned by
+  `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`. *Not built:* the Organise verb on
+  a folder or selection; setup does not offer a prototype for the step (no model card names the job, so
+  an assembled recipe's step waits for a chosen model), and a re-run asks every unit again.
+- `structured.extract.text-first-then-image` — **[PARTIAL]** (#5636) the input is the unit's tied reading
   with line ids when its CER is at or under the project's bar; otherwise the image for a vision
-  model; the choice is recorded on each value's source.
-- `structured.extract.schema-constrained` — **[GAP]** (#5636) one call per unit asks every field; the
+  model; the choice is recorded on each value's source. *Built 2026-10-10:* the text: a page's derived
+  text (`page_content`, re-derived once if stale, `page_text_cache.ensure_current`), an entry's text read
+  from its lines; the source records `input` (which text, and `cer: null` with why). *Not built:* the
+  project's CER bar (no per-project error-rate bar exists; the text is used unmeasured, ruled provisional on
+  #5636) and the image route for a vision model: a unit with no text is not asked and is counted
+  (`without_text`).
+- `structured.extract.schema-constrained` — **[OK]** one call per unit asks every field; the
   answer is validated against a Pydantic model generated from the prototype (value, words, status,
   confidence per field), constrained where the runtime can, re-asked once otherwise, refused loudly
-  after that.
-- `structured.extract.lands-on-attributes` — **[GAP]** (#5636) answers land as the node's typed
+  after that. *Built 2026-10-10:* `recipes/table.py` (`answer_schema`, one `FieldAnswer` per field under
+  its key; the call is `llm.chat_structured_with_fallback`, constrained decoding, the same model re-asked
+  once, then the unit fails loudly on the step); each value is then checked against its field's type
+  (`checked`: number, date, select, multi-select, checkbox, rating, url, text) and a wrong type is refused
+  for that field alone, the unit's other answers landing; `geo`, `media`, `document_ref` and `claim_ref`
+  fields are not asked. Pinned by `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`.
+- `structured.extract.lands-on-attributes` — **[OK]** answers land as the node's typed
   attribute values through `attribute_sources.write_from_run`, never as an artifact alone; a person's
-  value is never overwritten.
-- `structured.extract.not-found-is-a-status` — **[GAP]** (#5636) not found, illegible and ambiguous
+  value is never overwritten. *Built 2026-10-10:* `attribute_sources.write_answers_from_run`, the unit's
+  answers in one save, through the same `machine_may_set` rule; an `entity_ref` answer is the name as
+  written, `unlinked` (no entity is made, ruled provisional on #5636); pinned by
+  `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`.
+- `structured.extract.not-found-is-a-status` — **[PARTIAL]** (#5636) not found, illegible and ambiguous
   are statuses on the value, distinct from an empty value and from a field nobody filled; counts,
-  filters and exports keep them apart.
+  filters and exports keep them apart. *Built 2026-10-10:* the status on the attribute's source with no
+  value (a value an earlier run set is taken away), counted on the step's account; pinned by
+  `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`. *Not built:* the dataset query's
+  counts and filters, and the exports.
 
 ### Citation (`structured.cite.*`)
 
-- `structured.cite.value-names-its-words` — **[GAP]** (#5636, #5600) every machine value's source
+- `structured.cite.value-names-its-words` — **[PARTIAL]** (#5636, #5600) every machine value's source
   carries `cites` = segment, reading, character span and the words, found exactly or by the closest
   real span (labelled fuzzy); a value whose words are not on the page is kept with `anchor: none`
-  and a reason and is reviewed first.
+  and a reason and is reviewed first. *Built 2026-10-10:* `recipes/table.py` `cite`: the words found
+  exactly, else by `extractors._fuzzy_anchor` (`anchor: fuzzy`, the model's words kept), on the line
+  through `tie_text.line_spans` and `extractors.line_anchor` (segment, reading, span in the line); an
+  entry's words on its page's lines, its own first; words not found keep the value with `anchor: none`
+  and why; pinned by `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`. *Not built:*
+  "reviewed first" (no review queue yet, `structured.review.filters`).
 - `structured.cite.value-records-its-maker` — **[PARTIAL]** (#5636, #5600) each value says who set it:
   a person, or a run with its step, model and answer. *Built:* `workflows/attribute_sources.py`;
-  pinned by `fichero-server/tests/unit/workflows/test_attributes_cite.py`. *Not built:* the status,
-  both confidences and the anchor on the source, and the source on the effective-attributes response.
+  pinned by `fichero-server/tests/unit/workflows/test_attributes_cite.py`; since 2026-10-10 a table
+  value's source also carries the run, step, provider, model, method, input, status, the model's
+  self-reported confidence (`confidence_said`, kept, never acted on) and the anchor, pinned by
+  `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`. *Not built:* the calibrated
+  confidence, and the source on the effective-attributes response.
 - `structured.cite.words-lit-in-preview` — **[GAP]** (#5636) selecting a cell opens its page in the
   Preview with the cited words lit and the Inspector showing the words, line, model and confidence,
   through the one anchor path the claim inspector uses.

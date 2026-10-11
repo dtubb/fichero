@@ -2848,9 +2848,13 @@ The recipe and its format
   dated entries. *Built: the recipe's entries stage (`recipes/runner.py`, the `entries` card), tested in
   `fichero-server/tests/unit/recipes/test_diary_entries_step.py`; the entries as units are
   `source.extract.entries-are-units` [PARTIAL].*
-- `source.job.extract-to-table` — **[GAP]** (#4949, #5365) a step can fill one row per document or entry
+- `source.job.extract-to-table` — **[PARTIAL]** (#4949, #5365, #5636) a step can fill one row per document or entry
   with the project's metadata fields, each value tied to the text it came from, exportable as a
-  spreadsheet.
+  spreadsheet. *Built 2026-10-10: the recipe's `table` card (`recipes/runner.py`, `recipes/table.py`) fills
+  the attributes of each document and entry of the step's prototype, each value citing its words; designed
+  and tagged in `source/structured-data.md` (`structured.extract.*`, `structured.cite.*`), tested in
+  `fichero-server/tests/unit/recipes/test_structured_data_to_spec.py`. Not built: the spreadsheet export
+  with a source per cell (`structured.export.csv-source-per-field`).*
 - `source.job.pull-out-passages` — **[GAP]** (#4949) a step can gather excerpts on a question or theme,
   each with its source and place, into a note or collection.
 - `source.recipe.embedder-by-language` — **[PARTIAL]** (#4948, #4951, #5574) **Built 2026-10-03 (engine):** the smallest local embedder covering the languages, in `assemble()`; since 2026-10-07 the engine's own search embedder first where its card covers them (a library searches one embedding space, so a step naming another is skipped with its fix); the search A/B is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the embedder is the smallest local

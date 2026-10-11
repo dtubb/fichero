@@ -259,6 +259,26 @@ def test_a_persons_value_is_never_overwritten(client, db, deeds, model, tmp_path
     assert doc["attributes"]["price"] == 100
 
 
+def test_words_not_written_exactly_are_found_fuzzy_or_kept_unanchored(client, db, deeds, model, monkeypatch,
+                                                                      tmp_path):
+    """structured.cite.value-names-its-words: words "found exactly or by the closest real span (labelled fuzzy); a
+    value whose words are not on the page is kept with `anchor: none` and a reason"."""
+    monkeypatch.setitem(ANSWERS, "deed-1.jpg", {
+        "seller": ("Juan Pérez", "yo Juan Peres vendo", "found", 0.9),       # a slip of the model's: fuzzy
+        "price": ("100", "ciento veinte ducados", "found", 0.8),             # not on the page
+        "date": ("1795-03-03", "3 de marzo de 1795", "found", 0.7)})
+    _job, step = _run(db, [deeds["deed-1.jpg"].id], tmp_path)
+    assert step["table"]["values"] == 3 and step["table"]["unanchored"] == 1
+    sources = _doc(client, deeds["deed-1.jpg"].id)["metadata"]["attribute_sources"]
+    seller = sources["seller"]["cites"]
+    assert seller["anchor"] == "fuzzy" and seller["model_words"] == "yo Juan Peres vendo"
+    assert "Juan Pérez" in seller["words"] and seller["segment_id"] == _line(db, deeds["deed-1.jpg"].id,
+                                                                              "Juan Pérez")[0].id
+    price = sources["price"]["cites"]
+    assert price["anchor"] == "none" and price["reason"] == "the words are not in the text"
+    assert price["segment_id"] is None and price["words"] == "ciento veinte ducados"
+
+
 def test_entries_of_the_prototype_are_units_cited_on_their_pages_lines(client, db, deeds, model, tmp_path):
     """structured.extract.step-in-a-recipe: the units are "the documents/entries of a chosen prototype" -- an entry
     under a page of no kind is asked from its own text, and its words are cited on its page's line."""

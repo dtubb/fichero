@@ -188,7 +188,10 @@ topics:
     short: >-
       Fills one row per document or entry with your fields (for a sale record: seller, buyer, the
       person sold, price, date, place), each value tied to its text; exports as a spreadsheet.
-    long: The fields come from the project's own metadata, so every row has the same columns.
+    long: >-
+      The fields, and the question each one asks, come from the kind of document you choose, so every
+      row has the same columns. A value a person typed is never replaced; "not on this page" is kept
+      as an answer, never a guess.
   - id: pull-out-passages
     kind: job
     title: Pull out passages
