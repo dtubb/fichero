@@ -250,7 +250,7 @@
   {
    "step": "find-regions",
    "job": "find-regions",
-   "title": "Train a model on your corrected pages",
+   "title": "Train a model of your own for this step",
    "ways": [
     {
      "method": "yolo",
@@ -260,7 +260,13 @@
       {
        "place": "this-mac",
        "name": "this Mac",
-       "starts": "training.start_regions_here"
+       "starts": "training.start_regions_here",
+       "params": {
+        "name": "regions",
+        "scope_ids": [
+         "8f0c2b4e-escribania-1023"
+        ]
+       }
       }
      ],
      "available": true,
@@ -278,22 +284,34 @@
   {
    "step": "read-a-line",
    "job": "read-a-line",
-   "title": "Train a model on your corrected pages",
+   "title": "Train a model of your own for this step",
    "ways": [
     {
      "method": "kraken",
-     "how": "fine-tune",
-     "says": "Fine-tune a Kraken reader on your corrected lines",
+     "how": "distil",
+     "says": "Train a Kraken reader of your own on the lines your reader read",
      "targets": [
       {
        "place": "this-mac",
        "name": "this Mac",
-       "starts": "training.start_here"
+       "starts": "training.start_here",
+       "params": {
+        "scope_ids": [
+         "8f0c2b4e-escribania-1023"
+        ],
+        "teacher": "kraken:kraken-zenodo-21788410"
+       }
       },
       {
        "place": "huggingface-jobs",
        "name": "Hugging Face Jobs",
-       "starts": "training.start"
+       "starts": "training.start",
+       "params": {
+        "scope_ids": [
+         "8f0c2b4e-escribania-1023"
+        ],
+        "teacher": "kraken:kraken-zenodo-21788410"
+       }
       }
      ],
      "available": true,
@@ -307,7 +325,14 @@
       {
        "place": "huggingface-jobs",
        "name": "Hugging Face Jobs",
-       "starts": "training.start_vision_lora"
+       "starts": "training.start_vision_lora",
+       "params": {
+        "scope_ids": [
+         "8f0c2b4e-escribania-1023"
+        ],
+        "teacher": "kraken:kraken-zenodo-21788410",
+        "name": "student"
+       }
       }
      ],
      "available": true,
@@ -329,7 +354,7 @@
   {
    "step": "find-names-tag-words",
    "job": "find-names-tag-words",
-   "title": "Train a model on your corrected pages",
+   "title": "Train a model of your own for this step",
    "ways": [
     {
      "method": "spacy-ner",

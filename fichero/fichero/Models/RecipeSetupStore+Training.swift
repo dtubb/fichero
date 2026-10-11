@@ -1,17 +1,15 @@
 import FicheroAPIClient
 import Foundation
 
-/// Ready's "Offered later: Train a model on your corrected pages" (#5660 item 9, `source.recipe.train-offered-per-step`):
-/// the engine's `train_offers` on the Start plan, one per trainable step, each with its ways, where each runs and how
-/// many more corrected lines or pages it needs, in words. Never run at Start (`source.recipe.train-never-automatic`):
-/// a way starts only on its own button. Kept beside `RecipeSetupStore` so the store's own file stays setup's.
+/// Ready's "Offered later: Train a model of your own for this step" (#5660 item 9,
+/// `source.recipe.train-offered-per-step`): the engine's `train_offers` on the Start plan, one per trainable step, each
+/// with its ways, where each runs, and how many more corrected lines or pages it needs, in words. Never run at Start
+/// (`source.recipe.train-never-automatic`): a way starts only on its own button, by posting the place's action with
+/// the engine's params as-is. Kept beside `RecipeSetupStore` so the store's own file stays setup's.
 extension RecipeSetupStore {
     typealias TrainOffer = Components.Schemas.TrainOffer
     typealias TrainWay = Components.Schemas.TrainWay
     typealias TrainTarget = Components.Schemas.TrainTarget
-
-    /// The audited action that fine-tunes a layout model on this Mac: it needs only the project's pages.
-    nonisolated static let regionsAction = "training.start_regions_here"
 
     /// The offers on the plan shown, in the recipe's order.
     var trainOffers: [TrainOffer] { startPlan?.trainOffers ?? [] }
@@ -23,45 +21,42 @@ extension RecipeSetupStore {
         return readiness["sentence"] as? String ?? "Needs more corrected pages."
     }
 
-    /// Whether the app can post this place's action. The Kraken and vision-model actions also need the reading that
-    /// teaches them, which the offer does not carry yet (the engine will add it as `params`, posted as-is, like a
-    /// download's): when it does, this is the one condition that enables them.
+    /// Whether the app can post this place's action: the engine filled its params. Null params: it cannot yet
+    /// (no reader has read this project's lines, so a distillation has no teacher).
     nonisolated static func canPost(_ target: TrainTarget) -> Bool {
-        target.starts == regionsAction
+        target.params != nil
+    }
+
+    /// Whether this place sends the pages away (Hugging Face Jobs): the person's yes is asked before posting, and
+    /// only then is `pages_may_leave` sent.
+    nonisolated static func sendsPagesAway(_ target: TrainTarget) -> Bool {
+        target.place == "huggingface-jobs"
     }
 
     /// Why this way cannot start now, in words; nil: its buttons start it.
     nonisolated static func trainDisabledReason(_ offer: TrainOffer, _ way: TrainWay) -> String? {
         if !way.available { return way.why ?? "Not available yet." }
         if let need = needSentence(offer) { return need }
-        if !way.targets.contains(where: canPost) {
-            return "Not available yet: Fichero does not yet say which reading teaches this model."
-        }
+        if !way.targets.contains(where: canPost) { return "No reader has read this project's lines yet." }
         return nil
     }
 
-    /// Start one way of training at one place, through its audited action; the job id, or nil with the engine's
-    /// words in `errorMessage`. The pages are the plan's folder, else the whole project (its top-level items).
-    func startTraining(_ offer: TrainOffer, way: TrainWay, at target: TrainTarget) async -> String? {
-        guard Self.trainDisabledReason(offer, way) == nil, Self.canPost(target) else { return nil }
+    /// Start one way of training at one place: its action (`starts`) posted through the audited choke point with
+    /// the engine's params as-is, plus `pages_may_leave` only after the person's yes (`pagesMayLeave`) for a place
+    /// that sends the pages away. The job id, or nil with the engine's words in `errorMessage`.
+    func startTraining(_ offer: TrainOffer, way: TrainWay, at target: TrainTarget,
+                       pagesMayLeave: Bool = false) async -> String? {
+        guard Self.trainDisabledReason(offer, way) == nil, let params = target.params,
+              !Self.sendsPagesAway(target) || pagesMayLeave else { return nil }
         do {
-            let scope: [String]
-            if let folder = startPlanFolderId {
-                scope = [folder]
-            } else if case .ok(let roots) = try await client.api.listRootsApiDocumentsRootsGet(.init()) {
-                scope = try roots.body.json.items.compactMap(\.id)
-            } else {
-                scope = []
-            }
-            guard !scope.isEmpty else {
-                errorMessage = "Could not train: the project has no pages to train on."
-                return nil
-            }
-            switch try await client.api.startRegionsTrainingHereApiTrainingRegionsHerePost(
-                body: .json(.init(name: "regions", scopeIds: scope))
-            ) {
-            case .ok(let started):
-                return try started.body.json.jobId
+            var value = params.additionalProperties.value
+            if Self.sendsPagesAway(target) { value["pages_may_leave"] = true }
+            let request = Components.Schemas.InvokeActionRequest(
+                name: target.starts, params: .init(additionalProperties: try OpenAPIObjectContainer(unvalidatedValue: value)))
+            switch try await client.api.invokeActionApiActionsInvokePost(body: .json(request)) {
+            case .ok(let done):
+                let result = try done.body.json.result.value as? [String: (any Sendable)?]
+                return (result?["job_id"] as? String) ?? ""
             case .unprocessableContent(let error):
                 errorMessage = "Could not train: \((try? error.body.json)?.detail?.description ?? "the engine refused it")."
             case .undocumented(let code, let payload):

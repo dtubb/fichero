@@ -248,7 +248,7 @@ struct RecipeReadyFields: View {
             case .runsByItself: "What runs by itself"
             case .checkOnYourPages: "Check on your pages"
             case .keepAnExport: "Keep an export"
-            case .trainLater: "Offered later: Train a model on your corrected pages"
+            case .trainLater: "Offered later: Train a model of your own for this step"
             }
         }
 
