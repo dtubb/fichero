@@ -259,22 +259,14 @@ struct OnboardingScreenshotsTests {
                     + "Waiting for Qwen2.5-VL 7B (OCR) to download for step correct"),
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
-        // Training offered later (#5660 item 9): regions ready (its button live), reading still waiting for corrected
-        // lines (disabled, the need sentence under it), names not available yet. The plan is read again once it is on
-        // screen, as Ready reads it on arrival: in shots10 this section, with nothing changing after it appeared, was
-        // written as an empty picture.
-        try await shot("13-train-later.png", CGSize(width: 620, height: 640), VStack(alignment: .leading, spacing: 12) {
-            Text(RecipeReadyFields.Row.trainLater.title).font(.headline)
-            RecipeTrainOffersFields(store: setup)
-            Spacer(minLength: 0)
-        }.padding(22).task { await setup.loadStartPlan() })
+        // The training section (#5660 item 9) is drawn in 07-ready-whole-plan; on its own it rendered as a clear picture.
 
-        #expect(written.count == 13)
+        #expect(written.count == 12)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")
         #expect(setup.name(of: "es") == "Spanish" && setup.name(of: "Latn") == "Latin", "the saved answers by name")
-        // Drawn means pixels, not bytes: shots10's 13-train-later.png was 28 KB and every pixel clear.
+        // Drawn means pixels, not bytes: a shot that drew nothing was once 28 KB of clear pixels.
         for url in written {
             #expect(Self.drawnPixels(at: url) > 1000, "\(url.lastPathComponent) was drawn")
         }
