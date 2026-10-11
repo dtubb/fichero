@@ -312,6 +312,8 @@ struct SegmentPassValue: Codable, Hashable, Identifiable {
     /// A georeferencing pass's transformation type (#5122); nil for every other pass. Set means the pass
     /// holds control points and a mask -- it places the page in the world and has no text.
     var transformation: String?
+    /// The pass is marked ground truth (#5513): its corrected text is what a bake-off and an evaluation score against.
+    var groundTruth = false
 
     /// A georeferencing pass, ranked apart from the page's text passes (the engine's `georeferences`).
     var isGeoreferencing: Bool { transformation != nil }
@@ -389,5 +391,6 @@ extension SegmentPassValue {
         self.drawn = generated.drawn ?? false
         self.rank = generated.rank
         self.transformation = generated.transformation
+        self.groundTruth = generated.groundTruth ?? false
     }
 }

@@ -55,14 +55,15 @@ final class EntityTypeMappingTests: XCTestCase {
         let requiredPaths = [
             "/api/claim-links/\\(linkId)",
             "/api/claims/assign-time-period",
-            "/api/claims/batch/transition",
+            // The claim transitions are not hand-rolled here any more (#5613, e444c00ff): the one transition the
+            // app makes goes through the generated client (StatementService.reject), pinned by
+            // ClaimStoreRoutingTests and StatementCorrectionTests; POST …/batch/transition is a recorded coverage gap.
             "/api/claims/queues/curated",
             "/api/claims/queues/rejected",
             "/api/claims/queues/shortlisted",
             "/api/claims/queues/unreviewed",
             "/api/claims/resolve-source",
             "/api/claims/\\(claimId)/related",
-            "/api/claims/\\(claimId)/transition",
             "/api/classifications",
             "/api/classifications/\\(valueId)",
             "/api/entities/alias-map",

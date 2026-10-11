@@ -159,9 +159,10 @@ struct EnvironmentOptionalObservableGuardrailTests {
         // #4703 follow-up
         "Views/Inspector/DisplayAttributesStrip.swift:57 ClaimStore->claimStore",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector+Sections.swift:127 APIClient->apiClient",
+        // Line pins re-synced to source (-1, unrelated shrink above them, 2026-10-11).
+        "Views/Inspector/Document/DocumentInspector+Sections.swift:126 APIClient->apiClient",
         // #4703 follow-up
-        "Views/Inspector/Document/DocumentInspector+Sections.swift:128 StorageService->storageService",
+        "Views/Inspector/Document/DocumentInspector+Sections.swift:127 StorageService->storageService",
         // #4703 follow-up
         // #4902: line pins re-synced to source (+3, unrelated growth above them)
         "Views/Inspector/Document/DocumentInspector.swift:76 DocumentStore->documentStore",

@@ -12,6 +12,7 @@ struct PaneEmptyStateTests {
             #expect(!pane.title.isEmpty && !pane.hint.isEmpty, "\(pane)")
             #expect(pane.title.lowercased() != "no selection", "\(pane)")
         }
-        #expect(PaneEmptyState.reader.hint.contains("Library"))
+        // The middle pane is Items (ruled 2026-10-10, 6e5bcc488): the hint names it by its one constant.
+        #expect(PaneEmptyState.reader.hint.contains(ItemsPane.name))
     }
 }

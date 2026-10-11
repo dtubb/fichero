@@ -136,7 +136,9 @@ struct SegmentMappingTests {
             // The pass the image draws and its place in the engine's ranking (#5467): what Preview orders by.
             "drawn", "rank",
             // A georeferencing pass's transformation type (#5122): what ranks it apart from text passes.
-            "transformation"
+            "transformation",
+            // Marked ground truth (#5513): what the bake-off and evaluation score against.
+            "ground_truth"
         ]
         #expect(declared == accounted, "PassRead's fields changed. Unaccounted: \(declared.subtracting(accounted).sorted()).")
     }

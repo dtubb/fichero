@@ -23,9 +23,18 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertTrue(AlwaysThereProject.isPackage(path: globalPath))
         XCTAssertTrue(AlwaysThereProject.isPackage(path: globalPath + "/"))
         XCTAssertFalse(AlwaysThereProject.isPackage(path: "/Users/x/Fichero/Mosquera.fichero"))
-        // The app's own reference to it, and any Open Recent entry for it, carry no name either.
-        XCTAssertEqual(LibraryManager.shared.globalLibrary?.displayName, "")
+        // The app's own reference to it, and any Open Recent entry for it, carry no name either. Built here rather
+        // than read from `LibraryManager.shared.globalLibrary`, which a test host that has not opened the
+        // always-there project leaves nil (the assertion then compared nil with "").
+        XCTAssertEqual(Self.alwaysThereReference(given: "My Project").displayName, "")
         XCTAssertEqual(LibraryRecents.Entry(path: globalPath, displayName: "My Project").displayName, "")
+    }
+
+    private static func alwaysThereReference(given name: String) -> LibraryManager.LibraryReference {
+        LibraryManager.LibraryReference(
+            url: URL(fileURLWithPath: "/Users/x/Library/Application Support/Fichero/global.fichero"),
+            document: FicheroDocument(), displayName: name, id: LibraryManager.globalLibraryId
+        )
     }
 
     /// Any other project keeps the name it was given, even one the always-there project once had.
@@ -40,7 +49,8 @@ final class ProjectNamingTests: XCTestCase {
     /// The one rename every project has refuses it, and nothing is saved for it.
     func testTheAlwaysThereProjectIsNeverRenamed() throws {
         let manager = LibraryManager.shared
-        let global = try XCTUnwrap(manager.globalLibrary)
+        // The open reference when the host has one, else one built at the same path and id: the refusal is by id.
+        let global = manager.globalLibrary ?? Self.alwaysThereReference(given: "")
         let defaults = EngineConfig.defaults
         let key = LibraryManager.libraryDisplayNamesByPathKey
         let savedNames = defaults.dictionary(forKey: key)

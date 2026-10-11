@@ -20,8 +20,10 @@ extension SidebarSelectionState {
 struct ProjectInspector: View {
     let library: LibraryManager.LibraryReference
 
-    @Environment(LibraryManager.self) private var libraryManager
-    @Environment(AppState.self) private var appState
+    // Optional (#4703): the Inspector is a boundary that does not inherit the window's environment, where a
+    // non-optional read traps. Set Up… falls back to the one LibraryManager; sharing needs the app's state.
+    @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
+    @Environment(AppState.self) private var appState: AppState?
 
     @State private var recipeStore: RecipeSetupStore?
     @State private var stats: Components.Schemas.LibraryStatsResponse?
@@ -64,7 +66,7 @@ struct ProjectInspector: View {
                 if let recipeStore, recipeStore.recipe != nil {
                     InspectorProjectLayers(store: recipeStore)
                 }
-                Button("Set Up…") { libraryManager.requestSetUp(for: library.id) }
+                Button("Set Up…") { (libraryManager ?? LibraryManager.shared).requestSetUp(for: library.id) }
             }
             // The model finder (#5611, `source.find.app-finder-three-hosts`): readers for the
             // project's scripts and languages, read only when opened.
@@ -90,7 +92,9 @@ struct ProjectInspector: View {
         }
         .formStyle(.grouped)
         .sheet(isPresented: $showShareSheet) {
-            ShareLibrarySheet(library: library, usersStore: appState.usersStore)
+            if let appState {
+                ShareLibrarySheet(library: library, usersStore: appState.usersStore)
+            }
         }
         .task(id: library.id) {
             await load()

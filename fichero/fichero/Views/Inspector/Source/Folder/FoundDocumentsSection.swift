@@ -63,7 +63,7 @@ struct FoundDocumentsSection: View {
                 }
                 ForEach(waiting) { item in
                     FoundDocumentRow(
-                        document: item.document,
+                        proposal: item.document,
                         busy: busy,
                         accept: { Task { await accept(item) } },
                         reject: { Task { await reject(item) } }
@@ -79,27 +79,28 @@ struct FoundDocumentsSection: View {
 }
 
 private struct FoundDocumentRow: View {
-    let document: Components.Schemas.ProposedDocument
+    /// A document the engine proposes (#5550): its name is the proposed title, never a stored `Document.name`.
+    let proposal: Components.Schemas.ProposedDocument
     let busy: Bool
     let accept: () -> Void
     let reject: () -> Void
 
     private var pages: String {
-        let first = document.firstPosition + 1, last = document.lastPosition + 1
+        let first = proposal.firstPosition + 1, last = proposal.lastPosition + 1
         return first == last ? "Page \(first)" : "Pages \(first)–\(last)"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
-                Text(document.name).font(.body).lineLimit(2)
+                Text(proposal.name).font(.body).lineLimit(2)
                 Spacer()
-                Text(document.confidence.formatted(.percent.precision(.fractionLength(0))))
+                Text(proposal.confidence.formatted(.percent.precision(.fractionLength(0))))
                     .font(.caption).monospacedDigit().foregroundStyle(.secondary)
             }
-            Text([pages, document.kind].compactMap { $0 }.joined(separator: " · "))
+            Text([pages, proposal.kind].compactMap { $0 }.joined(separator: " · "))
                 .font(.caption).foregroundStyle(.secondary)
-            if let reasons = document.reasons, !reasons.isEmpty {
+            if let reasons = proposal.reasons, !reasons.isEmpty {
                 Text(reasons.joined(separator: "; ")).font(.caption).foregroundStyle(.secondary).lineLimit(3)
             }
             HStack {

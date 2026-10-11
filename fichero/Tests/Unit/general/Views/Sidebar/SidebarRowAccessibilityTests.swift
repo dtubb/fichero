@@ -40,7 +40,8 @@ final class SidebarRowAccessibilityTests: XCTestCase {
     // MARK: - Library header current-state exposure + tooltips
 
     func testCurrentLibraryStateIsSpokenNotJustTinted() {
-        XCTAssertEqual(sidebarLibraryHeaderAccessibilityValue(isCurrent: true), "current library")
+        // Project, never Library, in what people read (ruled 2026-10-10, 55394258e): VoiceOver too.
+        XCTAssertEqual(sidebarLibraryHeaderAccessibilityValue(isCurrent: true), "current project")
         XCTAssertEqual(sidebarLibraryHeaderAccessibilityValue(isCurrent: false), "")
     }
 
