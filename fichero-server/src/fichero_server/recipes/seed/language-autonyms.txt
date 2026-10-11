@@ -1,0 +1,290 @@
+#
+# A language's name in its own language: BCP 47 tag;autonym (Daniel 2026-10-11: "español" must find Spanish).
+# From the Unicode CLDR data macOS 27 ships (Foundation Locale.localizedString(forLanguageCode:) in the
+# language's own locale); only names an English search would not already find. Unicode License v3
+# (https://www.unicode.org/license.txt). Regenerate with a newer CLDR; never edit by hand.
+acf;Kréyòl Matnik
+ain;アイヌ・イタㇰ
+am;አማርኛ
+apw;Nṉee biyátiʼ
+ar;العربية
+arn;Mapudungun
+ars;العربية، النجدية
+as;অসমীয়া
+asa;Kipare
+ast;asturianu
+az;azərbaycan
+ba;башҡорт
+bas;Ɓàsàa
+be;беларуская
+bem;Ichibemba
+ber;ⴰⵎⴰⵣⵉⵖ
+bez;Hibena
+bg;български
+bgc;हरियाणवी
+bho;भोजपुरी
+bla;Niitsi’powashin
+blo;anii kagɩja
+bm;bamanakan
+bn;বাংলা
+bo;བོད་སྐད་
+br;brezhoneg
+brx;बरʼ
+bs;bosanski
+bua;буряад
+byn;ብሊን
+ca;català
+ccp;𑄌𑄋𑄴𑄟𑄳𑄦
+ce;нохчийн
+cgg;Rukiga
+cho;Chahta
+chr;ᏣᎳᎩ
+cic;Chikashshanompaʼ
+ckb;کوردیی ناوەندی
+co;corsu
+com;Nʉmʉ Tekwapʉ̱
+cr;ᓀᐦᐃᖬᐍᐏᐣ
+crj;ᐄᓅ ᐊᔨᒨᓐ
+crk;ᓀᐦᐃᔭᐍᐏᐣ
+crl;ᐄᔨᔫ ᐊᔨᒨᓐ
+crm;ᐃᓕᓖᒧᐎᓐ
+cs;čeština
+csw;ᓀᐦᐃᓇᐍᐏᐣ
+cv;чӑваш чӗлхи
+cwd;ᓀᐦᐃᖬᐍᐏᐣ
+cy;Cymraeg
+da;dansk
+dav;Kitaita
+de;Deutsch
+dje;Zarmaciine
+doi;डोगरी
+dsb;dolnoserbšćina
+dua;duálá
+dv;ދިވެހިބަސް
+dyo;joola
+dz;རྫོང་ཁ་
+ebu;Kĩembu
+ee;eʋegbe
+el;Ελληνικά
+es;español
+et;eesti
+eu;euskara
+ewo;ewondo
+fa;فارسی
+fat;Akan
+ff;Pulaar
+fi;suomi
+fla;Séliš Ql̓ispé
+fo;føroyskt
+fr;français
+fur;furlan
+fy;Frysk
+ga;Gaeilge
+gaa;Gã
+gcf;Kréyòl Gwadloup
+gd;Gàidhlig
+gl;galego
+gn;avañe’ẽ
+gsw;Schwiizertüütsch
+gu;ગુજરાતી
+guz;Ekegusii
+gv;Gaelg
+haw;ʻŌlelo Hawaiʻi
+he;עברית
+hi;हिन्दी
+hmn;𖬌𖬣𖬵
+hr;hrvatski
+hsb;hornjoserbšćina
+ht;Kreyòl Ayisyen
+hu;magyar
+hy;հայերեն
+ia;interlingua
+id;Indonesia
+ii;ꆈꌠꉙ
+inh;ГӀалгӀай мотт
+is;íslenska
+it;italiano
+iu;ᐃᓄᒃᑎᑐᑦ
+ja;日本語
+jbo;la .lojban.
+jgo;Ndaꞌa
+jmc;Kimachame
+jv;Jawa
+ka;ქართული
+kab;Taqbaylit
+kaj;Kaje
+kam;Kikamba
+kcg;Katab
+kde;Chimakonde
+kea;kabuverdianu
+kgp;kanhgág
+khq;Koyra ciini
+ki;Gikuyu
+kio;g̶áuid̶òn̶:gyà
+kk;қазақ тілі
+kkj;kakɔ
+kl;kalaallisut
+km;ខ្មែរ
+kn;ಕನ್ನಡ
+ko;한국어
+kok;कोंकणी
+kpe;Kpɛlɛɛ
+ks;کٲشُر
+ksb;Kishambaa
+ksf;rikpa
+ksh;Kölsch
+ku;kurdî (kurmancî)
+kw;kernewek
+kxv;kuvi
+ky;кыргызча
+lag;Kɨlaangi
+lb;Lëtzebuergesch
+lg;Luganda
+lij;ligure
+lkt;Lakȟólʼiyapi
+ln;lingála
+lo;ລາວ
+lrc;لۊری شومالی
+lt;lietuvių
+lu;Tshiluba
+luo;Dholuo
+lut;dxʷləšucid · txʷəlšucid · xʷəlšucid
+luy;Luluhia
+lv;latviešu
+mai;मैथिली
+mas;Maa
+mer;Kĩmĩrũ
+mfe;kreol morisien
+mgh;Makua
+mgo;metaʼ
+mic;Lʼnuiʼsuti
+mid;ࡌࡀࡍࡃࡀࡉࡀ
+mk;македонски
+ml;മലയാളം
+mn;монгол
+mni;মৈতৈলোন্
+moh;Kanienʼkéha
+mr;मराठी
+ms;Bahasa Melayu
+mt;Malti
+mua;MUNDAŊ
+my;မြန်မာ
+myv;эрзянь кель
+mzn;مازرونی
+naq;Khoekhoegowab
+nb;norsk bokmål
+nd;isiNdebele
+nds;Neddersass’sch
+ne;नेपाली
+nez;nimipuutímt
+nl;Nederlands
+nn;norsk nynorsk
+nnh;Shwóŋò ngiembɔɔn
+nnp;𞋒𞋀𞋉𞋃𞋕
+no;norsk
+nqo;ߒߞߏ
+nso;Sesotho sa Leboa
+nus;Thok Nath
+nv;Diné Bizaad
+nyn;Runyankore
+oc;occitan
+om;Oromoo
+or;ଓଡ଼ିଆ
+os;ирон
+osa;𐓏𐓘𐓻𐓘𐓻𐓟
+pa;ਪੰਜਾਬੀ
+pcm;Naijíriá Píjin
+pl;polski
+pms;piemontèis
+prg;prūsiskan
+ps;پښتو
+pt;português
+qu;Runasimi
+raj;राजस्थानी
+rej;Baso Hejang
+rhg;𐴌𐴗𐴥𐴝𐴙𐴚𐴒𐴙𐴝
+rm;rumantsch
+rn;Ikirundi
+ro;română
+rof;Kihorombo
+ru;русский
+rw;Ikinyarwanda
+rwk;Kiruwa
+sa;संस्कृत भाषा
+sah;саха тыла
+saq;Kisampur
+sat;ᱥᱟᱱᱛᱟᱲᱤ
+sbp;Ishisangu
+sc;sardu
+scn;sicilianu
+sd;سنڌي
+se;davvisámegiella
+seh;sena
+ses;Koyraboro senni
+sg;Sängö
+shi;ⵜⴰⵛⵍⵃⵉⵜ
+shn;တႆး
+si;සිංහල
+sjd;Кӣллт са̄мь кӣлл
+sje;Bidumsámegiella
+sju;Ubmejesámiengiälla
+sk;slovenčina
+sl;slovenščina
+sm;Gagana faʻa Sāmoa
+smn;anarâškielâ
+sn;chiShona
+so;Soomaali
+sq;shqip
+sr;српски
+srs;Tsúùtʼínà
+ss;siSwati
+st;Sesotho
+su;Basa Sunda
+sv;svenska
+sw;Kiswahili
+syr;ܣܘܪܝܝܐ
+szl;ślōnski
+ta;தமிழ்
+te;తెలుగు
+teo;Kiteso
+tg;тоҷикӣ
+th;ไทย
+ti;ትግርኛ
+tig;ትግረ
+tk;türkmen dili
+tn;Setswana
+to;lea fakatonga
+tok;toki pona
+tr;Türkçe
+trv;patas Taroko
+ts;Xitsonga
+tt;татар
+tw;Akan
+twq;Tasawaq senni
+tyv;Тыва
+tzm;Tamaziɣt n laṭlaṣ
+ug;ئۇيغۇرچە
+uk;українська
+ur;اردو
+uz;o‘zbek
+vai;ꕙꔤ
+ve;Tshivenḓa
+vec;veneto
+vi;Tiếng Việt
+vmw;emakhuwa
+vun;Kyivunjo
+wa;walon
+wal;ወላይታቱ
+wuu;上海话
+xh;IsiXhosa
+xnr;कांगड़ी
+xog;Olusoga
+yav;nuasue
+yi;ייִדיש
+yo;Èdè Yorùbá
+yrl;nheẽgatu
+yue;廣東話
+za;Vahcuengh
+zgh;ⵜⴰⵎⴰⵣⵉⵖⵜ
+zh;中文
+zu;isiZulu

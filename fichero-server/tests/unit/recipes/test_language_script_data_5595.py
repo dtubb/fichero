@@ -79,3 +79,14 @@ def test_a_step_with_no_model_is_refused_in_words(client, pages):
     refusals = client.get("/api/recipes/project/start").json()["refusals"]
     assert refusals and not [x for x in refusals if "None" in x or "pinned in a known form" in x], refusals
     assert any("Coptic" in x for x in refusals), refusals
+
+
+def test_a_language_is_found_by_its_own_name_with_or_without_accents():
+    """Daniel 2026-10-11: typing "español" (or "Español", or "espanol") finds Spanish, as "Spanish" does."""
+    from fichero_server.recipes.names import resolve_language, search_languages
+
+    for typed in ("español", "Español", "espanol", "Deutsch", "Runasimi"):
+        assert search_languages(typed, 1), typed
+    assert search_languages("español", 1)[0]["code"] == "es"
+    assert search_languages("Runasimi", 1)[0]["code"] == "qu"
+    assert resolve_language("Español") == "es"

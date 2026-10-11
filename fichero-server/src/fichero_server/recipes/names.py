@@ -21,6 +21,26 @@ SCRIPTS_FILE = SEED / "iso15924.txt"
 GLOTTOLOG_FILE = SEED / "glottolog.txt.gz"
 #: A language's usual script, from Unicode CLDR's likely subtags (#5626, `source.onboard.script-from-language`).
 LANGUAGE_SCRIPTS_FILE = SEED / "language-scripts.txt"
+#: A language's name in its own language ("español"), from Unicode CLDR, so a person can type it.
+AUTONYMS_FILE = SEED / "language-autonyms.txt"
+
+
+def _fold(text: str) -> str:
+    """Lower case without accents, so "espanol" finds "español" and "Español" finds it too."""
+    import unicodedata
+
+    return "".join(c for c in unicodedata.normalize("NFKD", text.lower()) if not unicodedata.combining(c))
+
+
+@lru_cache(maxsize=1)
+def _autonyms() -> dict[str, str]:
+    """BCP 47 tag -> the language's name in its own language."""
+    rows = {}
+    for line in AUTONYMS_FILE.read_text(encoding="utf-8").splitlines():
+        if line and not line.startswith("#"):
+            tag, name = line.split(";", 1)
+            rows[tag] = name
+    return rows
 
 
 @lru_cache(maxsize=1)
@@ -74,10 +94,12 @@ def _languages() -> tuple[tuple[dict, str], ...]:
             continue
         tag_of[lang.pt3] = lang.pt1 or lang.pt3
         gc = glottocode_of.get(lang.pt3)
-        names = [lang.name, _plain(lang.name), glotto[gc][2] if gc else "", *ALSO_CALLED.get(lang.pt3, ())]
+        names = [lang.name, _plain(lang.name), glotto[gc][2] if gc else "", *ALSO_CALLED.get(lang.pt3, ()),
+                 _autonyms().get(tag_of[lang.pt3], "")]
+        names += [_fold(n) for n in names]
         rows.append(({"code": tag_of[lang.pt3], "name": lang.name, "glottocode": gc, "level": "language",
                       "script": usual_script(tag_of[lang.pt3])},
-                     "\n".join(dict.fromkeys(n for n in names if n)).lower()))
+                     "\n".join(dict.fromkeys(n.lower() for n in names if n))))
     for gc, (iso, level, name, language) in glotto.items():
         if iso in tag_of:
             continue  # listed above under its ISO name
@@ -86,7 +108,7 @@ def _languages() -> tuple[tuple[dict, str], ...]:
             row["code"] = tag_of.get(glotto[language][0])
             row["language"] = glotto[language][2]
             row["script"] = usual_script(row["code"]) if row["code"] else None
-        rows.append((row, name.lower()))
+        rows.append((row, "\n".join(dict.fromkeys((name.lower(), _fold(name))))))
     return tuple(rows)
 
 
@@ -127,7 +149,7 @@ def _scripts() -> tuple[tuple[dict, str], ...]:
 
 def _search(rows: tuple[tuple[dict, str], ...], query: str, limit: int) -> list[dict]:
     """Exact code (or glottocode) first, then names starting with the query, then names containing it."""
-    q = query.strip().lower()
+    q = _fold(query.strip())
     if not q:
         return []
     exact, starts, contains = [], [], []
@@ -189,7 +211,7 @@ def resolve_language(value: str) -> str:
     tag = _as_tag(value)
     if tag:
         return tag
-    word = value.strip().lower()
+    word = _fold(value.strip())
     found: dict[str, str] = {}
     for row, text in _languages():
         if row.get("level") == "language" and word in text.split("\n"):
