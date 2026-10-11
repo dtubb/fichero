@@ -111,6 +111,14 @@ def later_step_in_effect(db: Any, audit: Any) -> Any | None:
     return None
 
 
+def _keeps_later_work(audit: Any) -> bool:
+    """The step's action declares that its inverse keeps work done since (`undo_keeps_later_work`): no refusal."""
+    try:
+        return registry.get(audit.action_name).undo_keeps_later_work
+    except ActionNotFoundError:
+        return False
+
+
 def _replay_for(db: Any, audit: Any, ctx: ActionContext) -> tuple[str, dict]:
     """The action and params that take ``audit`` back (undo, or redo when it is an inverse)."""
     from fichero_server.models import ActionAudit
@@ -167,7 +175,7 @@ def _undo_one(db: Any, audit_id: str, ctx: ActionContext) -> Any:
         )
     if audit.undone:
         raise UndoRefused(409, "already-undone", "This step was already taken back.", audit_id)
-    later = later_step_in_effect(db, audit)
+    later = None if _keeps_later_work(audit) else later_step_in_effect(db, audit)
     if later is not None:
         raise UndoRefused(
             409, "changed",

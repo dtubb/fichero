@@ -189,6 +189,11 @@ class ActionRegistration:
     # #5057: also the inverse of a create whose params audit a DIGEST in place of their content
     # (`audit_with_digests`): replaying such a create's audit row would run it without the words.
     redo_via_own_invert: bool = False
+    # The action's own inverse keeps work done since (it writes only where the thing still holds what this step
+    # left, and says it kept the rest), so taking the step back after a later change is safe and is not refused
+    # as overwriting it (`safety.undo.refuses-when-changed`). Set only where the inverse has been read and does
+    # that: `document.write_extracted_date` passes `expected` and keeps a date changed since (#5597).
+    undo_keeps_later_work: bool = False
 
 
 class ActionNotFoundError(KeyError):
@@ -429,6 +434,7 @@ def action(
     atomic: bool = True,
     read_only: bool = False,
     redo_via_own_invert: bool = False,
+    undo_keeps_later_work: bool = False,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -454,6 +460,7 @@ def action(
                 atomic=atomic,
                 read_only=read_only,
                 redo_via_own_invert=redo_via_own_invert,
+                undo_keeps_later_work=undo_keeps_later_work,
             )
         )
         return fn

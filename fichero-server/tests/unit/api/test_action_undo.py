@@ -752,6 +752,31 @@ class TestUndoRefusals:
         _undo(db, first.audit_id)  # the later step taken back: now the earlier one goes
         assert db.get(Document, doc.id).name == "v0"
 
+    def test_only_an_inverse_that_keeps_later_work_skips_the_lock(self, db, spy_emit):
+        """#5597 vs `safety.undo.refuses-when-changed`: an action whose inverse keeps work done since declares
+        it (`undo_keeps_later_work`) and is not refused; every other action still is. The declaration is read
+        from each inverse, not assumed: only Work Out Dates' write passes what it left as `expected`."""
+        keeps = {reg.name for reg in registry.all() if reg.undo_keeps_later_work}
+        assert keeps == {"document.write_extracted_date"}
+
+        doc = Document(name="v0", doc_type=DocType.file)
+        db.save(doc)
+        first = _rename(db, doc, "v1")
+        _rename(db, doc, "v2")
+        with pytest.raises(HTTPException) as refused:
+            _undo(db, first.audit_id)
+        assert refused.value.reason == "changed", "an ordinary action is still refused"
+
+        dated = Document(name="dated", doc_type=DocType.file)
+        db.save(dated)
+        run_write = registry.invoke(db, "document.write_extracted_date", {
+            "doc_id": dated.id, "date_original": "1931", "date_jdn": 2426343, "date_jdn_end": 2426707,
+            "date_meta": {"source": "extracted"}, "expected": {}}, _ctx())
+        registry.invoke(db, "document.set_date", {"doc_id": dated.id, "date_original": "3 September 1931"}, _ctx())
+        taken_back = _undo(db, run_write.audit_id)
+        assert taken_back.result["kept"] == "the page's date changed since; it is kept"
+        assert db.get(Document, dated.id).date_original == "3 September 1931"
+
     def test_an_already_undone_step_says_so(self, db, spy_emit):
         doc = Document(name="v0", doc_type=DocType.file)
         db.save(doc)

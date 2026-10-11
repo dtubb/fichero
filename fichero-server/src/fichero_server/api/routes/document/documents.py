@@ -3505,6 +3505,8 @@ def _invert_write_extracted_date(
     domains=["document"],
     undoable=True,
     invert=_invert_write_extracted_date,
+    # Its inverse passes `expected`, so a date changed since is kept, never written over (#5597).
+    undo_keeps_later_work=True,
 )
 def _action_write_extracted_date(
     db: Database, params: DocumentWriteExtractedDateParams, ctx: ActionContext
