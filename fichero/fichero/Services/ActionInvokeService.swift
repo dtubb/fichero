@@ -129,7 +129,7 @@ extension ActionLibraryService {
     /// as a set of one. Returns the new rows the reversal wrote; taking THOSE back is the redo.
     /// A refusal arrives as `UndoRefusal`, with the engine's sentence and its reason.
     func undoSet(auditIds: [String]) async throws -> [String] {
-        let response = try await client.api.undoActionsApiActionsAuditUndoPost(body: .json(.init(auditIds: auditIds)))
+        let response = try await client.api.undoSetApiActionsAuditUndoPost(body: .json(.init(auditIds: auditIds)))
         switch response {
         case .ok(let okResponse):
             let ids = try okResponse.body.json.auditIds
