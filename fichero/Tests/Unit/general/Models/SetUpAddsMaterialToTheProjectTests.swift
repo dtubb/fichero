@@ -102,11 +102,16 @@ struct SetUpAddsMaterialToTheProjectTests {
         try await withMaterial { folder, file in
             let store = store(.link)
             await store.addMaterial([URL(fileURLWithPath: folder.path, isDirectory: false), file], importer: importer())
-            #expect(AddMaterialURLProtocol.seen.contains { $0.path == "/api/ingest/folder" })
-            let fileImports = AddMaterialURLProtocol.seen.filter { $0.path == "/api/ingest/file" }
-            #expect(fileImports.map { $0.body["path"] as? String } == [file.path], "the file as a file")
-            #expect(!fileImports.contains { ($0.body["path"] as? String) == folder.path }, "a folder is never one file")
-            #expect(AddMaterialURLProtocol.seen.allSatisfy { $0.library?.contains("Colombia-") == true })
+            // The closures are hoisted out of #expect: the macro and a typed-throws closure trip the compiler.
+            let seen = AddMaterialURLProtocol.seen
+            let sawFolderImport = seen.contains(where: { (request: AddMaterialURLProtocol.Seen) in request.path == "/api/ingest/folder" })
+            let filePaths: [String?] = seen.filter({ (request: AddMaterialURLProtocol.Seen) in request.path == "/api/ingest/file" })
+                .map({ (request: AddMaterialURLProtocol.Seen) in request.body["path"] as? String })
+            let allToTheProject = seen.allSatisfy({ (request: AddMaterialURLProtocol.Seen) in request.library?.contains("Colombia-") == true })
+            #expect(sawFolderImport)
+            #expect(filePaths == [file.path], "the file as a file")
+            #expect(!filePaths.contains(folder.path), "a folder is never one file")
+            #expect(allToTheProject)
         }
     }
 
