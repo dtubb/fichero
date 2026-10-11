@@ -148,6 +148,20 @@ class FolderAccessManager {
         }
     }
 
+    /// The Mac's own open panel for adding material (Set Up's Add Files or Folders…): files and folders, several at
+    /// once, answered in place with the app's access to what was chosen. Empty when cancelled. Set Up's importer
+    /// inside its sheet did not hand back what was chosen (2026-10-11); the panel lives here, the app's one AppKit
+    /// bridge for choosing files.
+    @MainActor
+    func chooseMaterial() -> [URL] {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        return panel.runModal() == .OK ? panel.urls : []
+    }
+
     /// The security-scoped bookmarks the SANDBOXED ENGINE needs, as
     /// `{"<path>": "<base64 bookmark>"}` JSON (#3747), or nil if it needs none.
     ///

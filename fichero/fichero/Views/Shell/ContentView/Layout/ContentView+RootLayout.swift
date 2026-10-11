@@ -267,12 +267,8 @@ extension ContentView {
             .focusedSceneValue(\.showDocumentGrid, paneBinding(.grid))
             .focusedSceneValue(\.showDocumentCanvas, paneBinding(.canvas))
             .focusedSceneValue(\.showReadingPane, paneBinding(.reading))
-            .focusedSceneValue(
-                \.navigationUndoAction,
-                FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)
-            )
-            // Back/Forward menu items (#3581) — own focused values so they don't
-            // ride the ⌘Z fallback; per-window scope matches the toolbar buttons.
+            // Back/Forward menu items (#3581); per-window scope matches the toolbar buttons. ⌘Z no longer falls
+            // back to navigating (#5658: it takes back the window's own steps), so no undo key is published here.
             .focusedSceneValue(
                 \.navigateBackAction,
                 FocusedLibraryAction(isEnabled: navigationHistory.canGoBack, run: navigateBack)

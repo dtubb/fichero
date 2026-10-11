@@ -39,7 +39,7 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     "Library/ViewModes/Graph/Ontology/Claim/HeuristicReviewSheet.swift#aa939bcbf4": "DEBT: read-only prediction cards (no per-row tap or selection); no caller outside #4828's orphaned KG views, so migrate or retire with them",
     "Library/ViewModes/Graph/Ontology/SpeakerComparisonView.swift#ffffcf8a29": "DESIGN: per-speaker comparison CARDS under a title, not selectable rows; only its previews construct it today (#4828)",
     "Preview/ImageEditor/ImageEditChainPanel.swift#83a0175036": "DEBT, the #4483 shape: an ordered edit-step list with HAND-ROLLED selection (a Button in stepRow sets selectedStepIndex). check_native_row_containers cannot see it because the tap sits in a helper; List(selection:) would give arrows, focus and onMove",
-    "Library/ViewModes/List/LibraryView+ListView.swift#5acecef157": "DESIGN (#4160): ScrollView is required for the list mode's keyboard handling — List consumes arrow keys before .onKeyPress (rehashed by the #2501 iOS List split, by #3322's 'No date' section, and by the 2026-09-01 per-pass row-chrome hoist — same sanctioned container)",
+    "Library/ViewModes/List/LibraryView+ListView.swift#ffa5a5b9d2": "DESIGN (#4160): ScrollView is required for the list mode's keyboard handling — List consumes arrow keys before .onKeyPress (rehashed by the #2501 iOS List split, by #3322's 'No date' section, by the 2026-09-01 per-pass row-chrome hoist, and 2026-10-11 by the proposed-document header rows of #5550 — same sanctioned container)",
     # Miller columns (#4160 step 4): List is NSTableView-backed and consumes
     # arrow keys before .onKeyPress — the browser's whole keyboard model
     # (up/down in the active column, left/right BETWEEN columns, one shared
@@ -50,7 +50,11 @@ KNOWN_VIOLATIONS: dict[str, str] = {
     # 2026-08-04 wave (#4514 read-only refusal + #4516 shared icon ladder
     # edited rows inside the block). Same sanctioned violation, same lines —
     # only the content hash moved.
-    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#4e411eba60": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file — re-hashed 2026-08-09 twice, 2026-08-10 by the top-level-rooting/preview-width edits, and 2026-09-30 by the simultaneous double-tap (#5276) inside the same grandfathered block)",
+    "Library/ViewModes/Columns/LibraryView+ColumnsView.swift#027c605662": "#4160 step 4 (same keyboard constraint as the list-mode entry; justified in-file — re-hashed 2026-08-09 twice, 2026-08-10 by the top-level-rooting/preview-width edits, 2026-09-30 by the simultaneous double-tap (#5276), and 2026-10-11 by the proposed-document mark of #5550 inside the same grandfathered block)",
+    # 2026-10-11 (#5668, #5665): three reading/setup surfaces whose scroll holds content, not selectable rows.
+    "Onboarding/Stages/OrganiseTryStrip.swift#19ad737867": "DESIGN (#5668): a HORIZONTAL strip of page thumbnails with dashed document groups over it and entries under each page, nothing selectable; a List cannot lay pages side by side",
+    "Onboarding/WhatFicheroRunsFields.swift#ee7bdabfac": "DESIGN (#5668): setup's Models & Services PAGE in one scroll (prose, two cards, a table, account rows with Add…), not a row collection; nothing is selected",
+    "Reader/Disagreement/ReaderDisagreementView.swift#20609fb406": "DESIGN (#5665): a reading surface like MultiSelectionReaderView: the page picture and its lines of words, each word its own control with a popover and the doubtful-word cursor; List would add row selection and separators over reading text",
     "Library/Workspace/WorkspaceItemPicker.swift#2e87b93a6b": "DEBT: a picker of workspace folders where each row is a Button — a tappable row collection that List would give arrows and focus to (tap sits in folderRow, so check_native_row_containers cannot see it)",
     # Same two content hashes as the +Views.swift entries they replace — only
     # the PATH moved. The file was split at its own MARK boundary when

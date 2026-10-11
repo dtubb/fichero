@@ -79,8 +79,7 @@ struct PreviewSelectAllKey: FocusedValueKey {
 }
 
 /// The image editor answering ⌘Z by dropping its last committed edit step
-/// (Daniel, 2026-08-31). Its own key — never a second publisher of
-/// `navigationUndoAction` (two publishers of one key = the per-frame
+/// (Daniel, 2026-08-31). Its own key (two publishers of one key = the per-frame
 /// FocusedValue fault, see `ReaderZoomActionsKey`).
 struct ImageEditUndoActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction

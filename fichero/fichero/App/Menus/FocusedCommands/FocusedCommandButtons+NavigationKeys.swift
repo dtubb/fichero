@@ -4,13 +4,8 @@ import SwiftUI
 //  SOURCE file's, and the path was checked free before writing — both lessons from
 //  earlier batches in this milestone.
 
-struct NavigationUndoActionKey: FocusedValueKey {
-    typealias Value = FocusedLibraryAction
-}
-
-/// FocusedValue keys for the per-window back/forward history (#3581). Distinct
-/// from `navigationUndoAction` — that stays the ⌘Z audited-undo fallback; these
-/// drive the ⌘'/⌘⇧' menu items that mirror the content-column toolbar buttons.
+/// FocusedValue keys for the per-window back/forward history (#3581): they drive the ⌘'/⌘⇧' menu items that
+/// mirror the content-column toolbar buttons.
 struct NavigateBackActionKey: FocusedValueKey {
     typealias Value = FocusedLibraryAction
 }
@@ -109,11 +104,6 @@ extension FocusedValues {
     var navigateToParentAction: NavigateToParentActionKey.Value? {
         get { self[NavigateToParentActionKey.self] }
         set { self[NavigateToParentActionKey.self] = newValue }
-    }
-
-    var navigationUndoAction: NavigationUndoActionKey.Value? {
-        get { self[NavigationUndoActionKey.self] }
-        set { self[NavigationUndoActionKey.self] = newValue }
     }
 
     var navigateBackAction: NavigateBackActionKey.Value? {

@@ -1,6 +1,3 @@
-#if canImport(AppKit)
-import AppKit
-#endif
 import FicheroAPIClient
 import SwiftUI
 import UniformTypeIdentifiers
@@ -167,13 +164,7 @@ struct RecipeMaterialSourceFields: View {
     /// so nothing reached the project. The panel answers in place, with the app's access to what was chosen.
     private func chooseMaterial() {
         #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        panel.prompt = "Add"
-        guard panel.runModal() == .OK else { return }
-        add(panel.urls)
+        add(FolderAccessManager.shared.chooseMaterial())
         #else
         choosingFolder = true
         #endif

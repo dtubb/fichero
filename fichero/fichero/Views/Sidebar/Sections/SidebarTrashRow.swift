@@ -56,7 +56,9 @@ struct SidebarNodeLabel: View {
         HStack(spacing: Self.spacing) {
             Image(systemName: systemImage)
                 .frame(width: Self.iconWidth, alignment: .center)
-            Text(name).lineLimit(1)
+            Text(name)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, alignment: .leading)

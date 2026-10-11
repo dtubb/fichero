@@ -94,7 +94,7 @@ enum SetupStep: Hashable, Identifiable {
 /// Which pages a setup window shows: the app's, a project's, or the app's then a project's (a first launch whose
 /// hand-off chose Set Up a Project). One view for every way in (`source.onboard.project.one-view`).
 struct SetupFlow: Equatable {
-    enum Project: Equatable {
+    enum ProjectPages: Equatable {
         /// No project pages (yet).
         case none
         /// Your project makes one: a first launch's hand-off, the welcome, File › Set Up New Project….
@@ -104,7 +104,7 @@ struct SetupFlow: Equatable {
     }
 
     var includesApp: Bool
-    var project: Project
+    var project: ProjectPages
     /// The chosen stages, in the engine's order.
     var chosenStages: [String] = []
 
