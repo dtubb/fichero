@@ -332,6 +332,13 @@ def heal_default_workflow_tree(db: "Database") -> int:
     if not preset_names:
         return 0
 
+    # A library from before the "Workflows" folder (2026-10-11) holds "Default Workflows" at its root. Its presets
+    # are all homed already, so nothing below re-saves one, and re-saving is the only thing that seeded the
+    # folders. Re-assert them whenever the container exists: idempotent, and it moves the container (and any
+    # loose workflow of the person's) into "Workflows".
+    if db.get(Document, _DEFAULT_WORKFLOWS_CONTAINER_ID) is not None:
+        db._seed_default_workflows_container()
+
     try:
         existing = list(db.all(Workflow))
     except Exception as exc:

@@ -205,3 +205,23 @@ def test_heal_still_skips_user_workflow_with_drifted_folder(temp_db):
     assert heal_default_workflow_tree(temp_db) == 0
     assert temp_db.get(Workflow, workflow.id).is_system is False
     assert temp_db.get(Document, workflow.id).parent_id == before
+
+
+def test_heal_moves_a_root_default_workflows_into_workflows(temp_db):
+    """A library from before the Workflows folder (Daniel's, 2026-10-11): every preset is already homed under a
+    ROOT "Default Workflows", so the heal re-saves nothing and the seeding that makes "Workflows" never runs. On
+    open the top level must still become Workflows, with Default Workflows inside it."""
+    preset = _first_foldered_preset()
+    temp_db.save(Workflow(name=preset["name"], is_system=True, is_template=True, folder_path=preset["folder_path"]))
+    # The older shape: Default Workflows at the root, and no Workflows folder.
+    container = temp_db.get(Document, _DEFAULT_WORKFLOWS_CONTAINER_ID)
+    container.parent_id = None
+    temp_db.save(container)
+    temp_db.delete(temp_db.get(Document, "system-workflows"))
+    assert [d.id for d in temp_db.query(Document, parent_id=None)] == [_DEFAULT_WORKFLOWS_CONTAINER_ID]
+
+    assert heal_default_workflow_tree(temp_db) == 0  # no preset re-homed; the folders are put right
+
+    assert [d.id for d in temp_db.query(Document, parent_id=None)] == ["system-workflows"]
+    assert temp_db.get(Document, "system-workflows").name == "Workflows"
+    assert temp_db.get(Document, _DEFAULT_WORKFLOWS_CONTAINER_ID).parent_id == "system-workflows"
