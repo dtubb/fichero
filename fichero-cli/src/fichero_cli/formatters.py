@@ -149,10 +149,14 @@ def _line(item: Any, indent: int) -> str:
     if not isinstance(item, dict):
         return f"{pad}- {item}"
     parts = [p for p in (_first(item, _ID_KEYS), _first(item, _LABEL_KEYS)) if p]
-    text = "  ".join(parts) or "(item)"
+    # An item with no id or name (a transfer's counts, its cuts) still says what it holds, never "(item)".
+    text = "  ".join(parts) or ", ".join(
+        f"{k}: {v}" for k, v in item.items() if v not in (None, "") and not isinstance(v, (dict, list))) or "(item)"
     detail = _first(item, _DETAIL_KEYS)
     if detail:
         text += f"  [{detail}]"
+    if isinstance(item.get("why"), str) and item["why"]:
+        text += f"  — {item['why']}"  # a Trash row says why it is there ("Moved to Destino on …")
     # #3804: the engine refuses to run an internal component standalone, so a
     # plain list of names is a control that lies — every entry looks runnable.
     # The flag is read from the response, never re-derived here.

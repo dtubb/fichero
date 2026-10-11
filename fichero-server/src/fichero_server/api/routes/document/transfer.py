@@ -353,8 +353,7 @@ async def list_machines(request: Request) -> list[MachineOut]:
 
 
 @machines_router.post("/machines/pair", response_model=MachineOut, summary="Pair with another Mac's Fichero by its pairing code")
-async def pair_machine(request: Request, body: PairMachineRequest,
-                       ctx: ActionContext = Depends(action_context)) -> MachineOut:
+async def pair_machine(request: Request, body: PairMachineRequest) -> MachineOut:
     """`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero
     shows. This engine becomes a paired device there; its token is kept in this Mac's Keychain. The owner
     only. The code is the other Mac's: single use and rate-limited there (`POST /api/pair`)."""
@@ -372,7 +371,10 @@ async def pair_machine(request: Request, body: PairMachineRequest,
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    _record_device_audit(action_name="machine.pair", actor=ctx.actor, params={"address": body.address},
+    from fichero_server.api.auth import actor_from_request
+
+    # Engine-wide, like device pairing: no project is involved, so none is required (#5659 hands-on pass).
+    _record_device_audit(action_name="machine.pair", actor=actor_from_request(request), params={"address": body.address},
                          device_id=found.id, after=found.public())
     return MachineOut(**found.public())
 

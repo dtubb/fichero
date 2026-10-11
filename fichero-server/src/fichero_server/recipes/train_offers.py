@@ -142,11 +142,15 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
         job = step.get("job")
         if job not in WAYS:
             continue
-        if job == "find-regions":
+        ways = _ways(job, stays_local=stays_local, counts=counts)
+        if not any(w["available"] for w in ways):
+            # Nothing here can train it: no count of corrections to ask for (#5659: the names step asked for
+            # 2,000 corrected lines, which no spaCy trainer would read).
+            ready = {"ready": False, "sentence": None}
+        elif job == "find-regions":
             ready = _regions_readiness(counts["region_pages"])
         else:
             ready = readiness(counts["pages"], counts["unmarked"],
                               min_lines=at_least.get(job) or at_least.get(step.get("id")) or TRAIN_OFFERED_FROM_LINES)
-        offers.append({"step": step.get("id", job), "job": job, "title": TITLE,
-                       "ways": _ways(job, stays_local=stays_local, counts=counts), "readiness": ready})
+        offers.append({"step": step.get("id", job), "job": job, "title": TITLE, "ways": ways, "readiness": ready})
     return offers

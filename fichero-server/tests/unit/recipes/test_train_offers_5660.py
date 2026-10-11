@@ -43,6 +43,8 @@ def test_each_trainable_step_is_offered_its_ways_and_where_they_run():
     # No spaCy trainer in the engine: listed, never offered as if it ran.
     assert names["spacy-ner"]["available"] is False and "not available yet" in names["spacy-ner"]["why"]
     assert names["spacy-ner"]["targets"] == []
+    # And so it asks for no count of corrections that nothing here would read (#5659 hands-on pass).
+    assert offers[2]["readiness"] == {"ready": False, "sentence": None}
     places = {t["place"] for o in offers for w in o["ways"] for t in w["targets"]}
     assert places <= {"this-mac", "huggingface-jobs"}
 

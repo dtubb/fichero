@@ -191,3 +191,11 @@ def test_a_pairing_code_pairs_this_engine_once(client, far):
     first = client.post("/api/machines/pair", json={"address": "far-mac.tail1234.ts.net", "code": code})
     again = client.post("/api/machines/pair", json={"address": "far-mac.tail1234.ts.net", "code": code})
     assert first.status_code == 200 and again.status_code == 403 and "refused the pairing code" in again.json()["detail"]
+
+
+def test_pairing_a_machine_needs_no_project(client, far):
+    """Pairing is engine-wide: from the CLI with no project chosen it was refused for a missing library header."""
+    code = client.post("/api/pair/code").json()["code"]
+    r = client.post("/api/machines/pair", json={"address": "far-mac.tail1234.ts.net", "code": code},
+                    headers={HEADER: ""})
+    assert r.status_code == 200, r.text

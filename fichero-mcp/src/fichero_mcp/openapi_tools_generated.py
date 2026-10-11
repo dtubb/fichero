@@ -2145,15 +2145,6 @@ def fichero_documents_land_incoming(
     return _rt.call("POST", f"/api/documents/transfer/incoming/{transfer_id}/land", json=_rt.body({"target_parent_id": target_parent_id}))
 
 
-def fichero_documents_receive_object(
-    *,
-    transfer_id: Annotated[str, Field(description='Transfer Id')],
-    sha256: Annotated[str, Field(description='Sha256')],
-) -> Any:
-    'Receive Object\n\nOne object of a copy arrives; it counts only once re-hashed here and found whole (422 otherwise: send it\nagain). A body longer than the size the copy declared for it is refused (413) before it is kept, and never\nread past that size. ponytail: held in memory up to `remote.MAX_OBJECT_BYTES`; stream to disk if more.\n\nRoute: PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256} (toolset `documents`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}")
-
-
 def fichero_documents_transfer_to_machine(
     *,
     items: Annotated[list[Any], Field(description='Ids of the nodes to copy, in this project; each carries its subtree.')],
@@ -8880,7 +8871,6 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_open_incoming", "documents", "POST", "/api/documents/transfer/incoming", fichero_documents_open_incoming),
     GeneratedTool("fichero_documents_abandon_incoming", "documents", "DELETE", "/api/documents/transfer/incoming/{transfer_id}", fichero_documents_abandon_incoming),
     GeneratedTool("fichero_documents_land_incoming", "documents", "POST", "/api/documents/transfer/incoming/{transfer_id}/land", fichero_documents_land_incoming),
-    GeneratedTool("fichero_documents_receive_object", "documents", "PUT", "/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}", fichero_documents_receive_object),
     GeneratedTool("fichero_documents_transfer_to_machine", "documents", "POST", "/api/documents/transfer/to-machine", fichero_documents_transfer_to_machine),
     GeneratedTool("fichero_documents_list_deleted", "documents", "GET", "/api/documents/trash", fichero_documents_list_deleted),
     GeneratedTool("fichero_documents_preview_empty_trash", "documents", "GET", "/api/documents/trash/empty", fichero_documents_preview_empty_trash),

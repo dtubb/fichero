@@ -4711,19 +4711,6 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("receive-object")
-    def documents_receive_object_put(
-        ctx: typer.Context,
-        transfer_id: str = typer.Argument(..., help='Transfer Id'),
-        sha256: str = typer.Argument(..., help='Sha256'),
-    ) -> None:
-        """Receive Object (PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}"
-            params = None
-            return client.request("PUT", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     @target_app.command("transfer-to-machine")
     def documents_transfer_to_machine_post(
         ctx: typer.Context,

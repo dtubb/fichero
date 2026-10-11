@@ -24,6 +24,8 @@ INTENTIONALLY_UNWIRED_PATHS = {
     "/api/storage/debug/{doc_id}",
     "/api/tasks/health",
     "/api/workflow-execution/stream/{thread_id}",
+    # Raw bytes from another engine's carrier (#5657): a CLI command or MCP tool has no body to send (#5659).
+    "/api/documents/transfer/incoming/{transfer_id}/objects/{sha256}",
 }
 #: The toolset of an operation the contract gives no tag.
 UNTAGGED = "engine"

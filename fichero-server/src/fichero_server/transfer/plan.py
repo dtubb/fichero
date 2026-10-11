@@ -614,14 +614,17 @@ def _with_provenance(plan, row, built, tops, actor, when, source_name):
     path = _package_relative(plan.source_package, row.path)
     if path is not None:
         new_path = _target_file_path(plan, path)
-        update["path"] = str(new_path)
+        # Stored as the source stored it: an import keeps `files/...` relative to its package (the target's, here).
+        stored = str(new_path.relative_to(plan.target_package)) if not Path(row.path).is_absolute() else str(new_path)
+        update["path"] = stored
         for key in ("source_path", "full_path", "local_path"):
             if metadata.get(key) == row.path:
-                metadata[key] = str(new_path)
+                metadata[key] = stored
         for key in [k for k in metadata if "bookmark" in k.lower()]:
             metadata.pop(key)  # a bookmark resolves to the SOURCE's file; the copy is the target's own
-        size = Path(row.path).stat().st_size
-        plan.files.append(PlannedFile(document=row.id, source_path=Path(row.path), relative=new_path.relative_to(plan.target_package), size=size))
+        original = plan.source_package / path
+        plan.files.append(PlannedFile(document=row.id, source_path=original, relative=new_path.relative_to(plan.target_package),
+                                      size=original.stat().st_size))
     elif row.path:
         plan.linked_files.append(row.id)
     return built.model_copy(update=update)
@@ -631,6 +634,8 @@ def _package_relative(package: Path, path: str | None) -> Path | None:
     if not path:
         return None
     candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = package / candidate  # an import stores `files/...` relative to its package
     try:
         relative = candidate.resolve().relative_to(package.resolve())
     except ValueError:
