@@ -180,7 +180,8 @@ struct SetupFourStepsTests {
     @Test("Ready shows the plan, what runs by itself and the two optional rows")
     func readyShowsTheOptionalRows() {
         let rows = RecipeReadyFields.Row.allCases
-        #expect(rows == [.plan, .runsByItself, .checkOnYourPages, .keepAnExport])
+        // Then training, offered later and shown only when the plan offers it (#5660 item 9).
+        #expect(rows == [.plan, .runsByItself, .checkOnYourPages, .keepAnExport, .trainLater])
         #expect(rows.filter(\.isOptional) == [.checkOnYourPages, .keepAnExport])
         #expect(rows.filter(\.isOptional).map(\.title) == ["Check on your pages", "Keep an export"])
     }

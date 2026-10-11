@@ -245,8 +245,15 @@ struct OnboardingScreenshotsTests {
                     + "Waiting for Qwen2.5-VL 7B (OCR) to download for step correct"),
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
+        // Training offered later (#5660 item 9): regions ready (its button live), reading still waiting for corrected
+        // lines (disabled, the need sentence under it), names not available yet.
+        try await shot("13-train-later.png", CGSize(width: 620, height: 640), VStack(alignment: .leading, spacing: 12) {
+            Text(RecipeReadyFields.Row.trainLater.title).font(.headline)
+            RecipeTrainOffersFields(store: setup)
+            Spacer(minLength: 0)
+        }.padding(22))
 
-        #expect(written.count == 12)
+        #expect(written.count == 13)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")
@@ -257,6 +264,10 @@ struct OnboardingScreenshotsTests {
         }
         #expect(setup.recipe?.steps.first?.problem?.kind == "licence-not-accepted", "the fixture's licence step")
         #expect(setup.startPlan?.downloads?.first?.downloading == true, "the fixture's download under way")
+        let offers = setup.trainOffers
+        #expect(offers.map(\.step) == ["find-regions", "read-a-line", "find-names-tag-words"], "the fixture's offers")
+        #expect(offers.first.map { RecipeSetupStore.trainDisabledReason($0, $0.ways[0]) == nil } == true, "one ready")
+        #expect(offers.dropFirst().first.flatMap { RecipeSetupStore.needSentence($0) } != nil, "one still waiting")
     }
 }
 #endif

@@ -104,7 +104,7 @@ final class RecipeSetupStore {
     /// own `TopicStore` where there is one.
     let topics: TopicStore
 
-    private let client: FicheroClient
+    let client: FicheroClient
 
     init(client: FicheroClient, topics: TopicStore? = nil) {
         self.client = client

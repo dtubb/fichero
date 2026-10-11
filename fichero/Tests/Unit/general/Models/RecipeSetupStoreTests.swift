@@ -22,7 +22,9 @@ private final class RecipesMockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var status = 200
     override static func canInit(with request: URLRequest) -> Bool {
         let path = request.url?.path ?? ""
-        return path.contains("/api/recipes") || path.hasPrefix("/api/topics")
+        // Training from Ready (#5660 item 9) also posts a training action and reads the project's top-level items.
+        return path.contains("/api/recipes") || path.hasPrefix("/api/topics") || path.hasPrefix("/api/training")
+            || path == "/api/documents/roots"
     }
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -668,6 +670,100 @@ struct RecipeSetupStoreTests {
         #expect(sent["provider"] as? String == "row-1")
         #expect(sent["card"] == nil)
         #expect(store.errorMessage == nil)
+    }
+}
+
+// MARK: Training offered later (#5660 item 9)
+
+extension RecipeSetupStoreTests {
+    /// A plan offering two steps: reading (Kraken here or on Hugging Face Jobs, ready; spaCy not available) and
+    /// finding regions (YOLO on this Mac), its readiness `regionsReady`.
+    private static func trainPlanJSON(regionsReady: Bool) -> String {
+        let regions = regionsReady
+            ? #"{"ready":true,"pages":3,"min_pages":2,"more_pages":0,"sentence":null}"#
+            : #"{"ready":false,"pages":1,"min_pages":2,"more_pages":1,"sentence":"Needs a person's regions on "#
+                + #"at least 2 pages; this project has them on 1 page. Draw or correct the regions on 1 more page."}"#
+        return """
+        {"runs":[],"skipped":[],"workflows":[],"offered":["train-a-model"],"refusals":[],
+         "estimate":{"pages":9,"runs":[],"total_cost_usd":null},
+         "train_offers":[
+          {"step":"read-a-line","job":"read-a-line","title":"Train a model on your corrected pages",
+           "readiness":{"ready":true,"lines":2400,"pages":3,"sentence":null},
+           "ways":[
+            {"method":"kraken","how":"fine-tune","says":"Fine-tune a Kraken reader on your corrected lines","available":true,
+             "targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_here"},
+                        {"place":"huggingface-jobs","name":"Hugging Face Jobs","starts":"training.start"}]},
+            {"method":"spacy-ner","how":"fine-tune","says":"Fine-tune a spaCy names model","available":false,"targets":[],
+             "why":"not available yet: Fichero has no spaCy trainer"}]},
+          {"step":"find-regions","job":"find-regions","title":"Train a model on your corrected pages",
+           "readiness":\(regions),
+           "ways":[{"method":"yolo","how":"fine-tune","says":"Fine-tune a YOLO layout model on your corrected regions",
+             "available":true,"targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_regions_here"}]}]}]}
+        """
+    }
+
+    /// WHY (#5660 item 9): a way that cannot run yet must say why in the engine's words (its need sentence, or why it
+    /// is not available), never sit as a button that does nothing; and a way the app cannot post (the reading that
+    /// teaches Kraken is not in the offer yet) must stay disabled rather than guess what to send.
+    @Test("each way says why it cannot train yet, in the engine's words; a ready way can")
+    func trainOffersSayWhyNot() async throws {
+        let waiting = makeStore { request in Self.reply(request, 200, Self.trainPlanJSON(regionsReady: false)) }
+        await waiting.loadStartPlan()
+        let offers = waiting.trainOffers
+        #expect(offers.map(\.step) == ["read-a-line", "find-regions"])
+        let reading = try #require(offers.first), regions = try #require(offers.last)
+        #expect(RecipeSetupStore.needSentence(reading) == nil, "enough corrected lines")
+        #expect(RecipeSetupStore.trainDisabledReason(reading, reading.ways[0])?.contains("which reading teaches") == true)
+        #expect(RecipeSetupStore.trainDisabledReason(reading, reading.ways[1])
+                == "not available yet: Fichero has no spaCy trainer")
+        #expect(RecipeSetupStore.trainDisabledReason(regions, regions.ways[0])
+                == RecipeSetupStore.needSentence(regions))
+        #expect(RecipeSetupStore.needSentence(regions)?.hasPrefix("Needs a person's regions on at least 2 pages") == true)
+        #expect(await waiting.startTraining(regions, way: regions.ways[0], at: regions.ways[0].targets[0]) == nil,
+                "a way still waiting starts nothing")
+
+        let ready = makeStore { request in Self.reply(request, 200, Self.trainPlanJSON(regionsReady: true)) }
+        await ready.loadStartPlan()
+        let readyRegions = try #require(ready.trainOffers.last)
+        #expect(RecipeSetupStore.trainDisabledReason(readyRegions, readyRegions.ways[0]) == nil)
+    }
+
+    /// WHY (#5660 item 9): the ready button must start the training through its audited action on the project's
+    /// pages: the folder the plan covers, else the project's top-level items. Training on nothing, or on another
+    /// scope than the plan shown, would train a model nobody asked for.
+    @Test("a ready way posts its action on the plan's folder, else the project's top-level items")
+    func readyWayPostsItsAction() async throws {
+        defer { RecipesMockURLProtocol.requestHandler = nil }
+        let store = makeStore { request in
+            let path = request.url?.path ?? ""
+            if path == "/api/documents/roots" {
+                let item = #"{"id":"%@","name":"Box","expected_thumbnail_path":"","expected_display_path":""}"#
+                let items = ["root-1", "root-2"].map { item.replacingOccurrences(of: "%@", with: $0) }
+                return Self.reply(request, 200, #"{"count":2,"items":["# + items.joined(separator: ",") + "]}")
+            }
+            if path == "/api/training/regions/here" {
+                RecipesMockURLProtocol.calls += 1
+                RecipesMockURLProtocol.bodies["\(RecipesMockURLProtocol.calls)"] =
+                    (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:]
+                return Self.reply(request, 200, #"{"job_id":"job-\#(RecipesMockURLProtocol.calls)"}"#)
+            }
+            return Self.reply(request, 200, Self.trainPlanJSON(regionsReady: true))
+        }
+        await store.loadStartPlan()
+        let regions = try #require(store.trainOffers.last)
+        let yolo = regions.ways[0]
+        #expect(await store.startTraining(regions, way: yolo, at: yolo.targets[0]) == "job-1")
+        #expect(RecipesMockURLProtocol.bodies["1"]?["scope_ids"] as? [String] == ["root-1", "root-2"])
+        #expect(RecipesMockURLProtocol.bodies["1"]?["name"] as? String == "regions")
+
+        await store.loadStartPlan(folderId: "folder-7")
+        #expect(await store.startTraining(regions, way: yolo, at: yolo.targets[0]) == "job-2")
+        #expect(RecipesMockURLProtocol.bodies["2"]?["scope_ids"] as? [String] == ["folder-7"])
+        #expect(store.errorMessage == nil)
+
+        let reading = try #require(store.trainOffers.first)
+        #expect(await store.startTraining(reading, way: reading.ways[0], at: reading.ways[0].targets[0]) == nil)
+        #expect(RecipesMockURLProtocol.calls == 2, "Kraken is not posted until the offer says what to send")
     }
 }
 

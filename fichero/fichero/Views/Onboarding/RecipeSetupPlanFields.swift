@@ -240,7 +240,7 @@ struct RecipeStartFields: View {
 struct RecipeReadyFields: View {
     /// The rows of Ready, in order; the optional ones can be left and done later from the Inspector.
     enum Row: CaseIterable {
-        case plan, runsByItself, checkOnYourPages, keepAnExport
+        case plan, runsByItself, checkOnYourPages, keepAnExport, trainLater
 
         var title: String {
             switch self {
@@ -248,6 +248,7 @@ struct RecipeReadyFields: View {
             case .runsByItself: "What runs by itself"
             case .checkOnYourPages: "Check on your pages"
             case .keepAnExport: "Keep an export"
+            case .trainLater: "Offered later: Train a model on your corrected pages"
             }
         }
 
@@ -265,7 +266,8 @@ struct RecipeReadyFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ForEach(Row.allCases, id: \.self) { row in
+            // Training shows only when the plan offers it (#5660 item 9).
+            ForEach(Row.allCases.filter { $0 != .trainLater || !store.trainOffers.isEmpty }, id: \.self) { row in
                 if row != .plan { Divider() }
                 Text(row.isOptional ? "\(row.title) (optional)" : row.title).font(.headline)
                 content(row)
@@ -306,6 +308,8 @@ struct RecipeReadyFields: View {
                 Text("Keep an up-to-date copy of the work in a folder outside the project.")
                     .font(.callout).foregroundStyle(.secondary)
             }
+        case .trainLater:
+            RecipeTrainOffersFields(store: store)
         }
     }
 
