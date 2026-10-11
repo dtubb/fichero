@@ -1,51 +1,38 @@
 import FicheroAPIClient
 import SwiftUI
 
-// Set Up… › Ready's model rows (#5573, #5592, #5619, #5620): the models to download first, the steps this Mac
-// cannot run, and the steps Start will skip, each with its fix. Downloads go through the one download path
-// (`ModelDownloads`); a model fix opens the model finder for the step.
+// Set Up… › Ready's model rows (#5573, #5592, #5619, #5664): what Start will fetch, the steps this Mac cannot
+// run, and the steps Start will skip, each with its fix. Nobody downloads in setup (ruled 2026-10-11, #5664):
+// Start fetches every model it needs, through the one download path, and its steps wait for them.
 
-/// The models the plan needs that are not on this Mac (#5573): each by name, its size and the
-/// steps it serves, with Download through the one download path (`ModelDownloads`, #5620): the row
-/// then says what the download's Activity job says, or why it failed; Start waits until they are
-/// here, and the plan reads itself again when one is (`model.installed`).
+/// What Start will fetch before its steps run (#5664): the engine's one sentence, each model by the name a person
+/// reads and its size, with the total ("Start downloads Qwen2.5-VL 7B (5.7 GB) and the Kraken reader PP-OCRv6
+/// (60 MB): 5.8 GB in all."). No Download button and no "To download first": pressing Start is the download. A
+/// model already on its way says how far it has got; an installed model the plan could use instead stays one press.
 struct RecipeDownloadRows: View {
     let store: RecipeSetupStore
-    /// The project's downloads; nil without a project (nothing can be downloaded into no project).
-    let downloads: ModelDownloads?
 
     var body: some View {
-        if !store.downloads.isEmpty {
+        let sentence = Self.sentence(store)
+        let underWay = store.downloads.filter(Self.isUnderWay)
+        let instead = store.downloads.filter { !($0.instead ?? []).isEmpty }
+        if sentence != nil || !underWay.isEmpty || !instead.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Text(Self.heading(store.downloads)).font(.subheadline.weight(.semibold))
-                ForEach(store.downloads, id: \.model) { download in
-                    let key = Self.key(download)
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(Self.words(download, store: store)).font(.body)
-                        Spacer()
-                        if downloads?.isActive(key) == true || Self.isUnderWay(download) {
-                            // Already downloading, whoever asked (#5660): Start is not held for it.
-                            ProgressView().controlSize(.small)
-                        } else if let downloads {
-                            Button(ModelFinderCard.failed(downloads.state(key)) ? "Try Again" : "Download") {
-                                Task {
-                                    await downloads.start(key, name: download.name ?? download.model)
-                                    // The plan reads the download as under way, so Start no longer waits for it.
-                                    await store.loadStartPlan(folderId: store.startPlanFolderId)
-                                }
-                            }
-                            .controlSize(.small)
-                            .help("Download it to this Mac; Activity shows the download")
-                        }
-                    }
-                    if let line = downloads?.line(key) ?? Self.engineProgress(download) {
-                        let failed = ModelFinderCard.failed(downloads?.state(key))
-                        Label(line, systemImage: failed ? "exclamationmark.triangle" : "arrow.down.circle")
-                            .font(.caption)
-                            .foregroundStyle(failed ? .orange : .secondary)
-                            .textSelection(.enabled)
-                    }
-                    // The other half of the one choice (#5583): an installed model instead.
+                if let sentence {
+                    Label(sentence, systemImage: "arrow.down.circle")
+                        .font(.body)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("setup.ready.startDownloads")
+                }
+                ForEach(underWay, id: \.model) { download in
+                    Label("\(Self.words(download, store: store)): \(Self.engineProgress(download) ?? "downloading")",
+                          systemImage: "arrow.down.circle.dotted")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                // The other half of the one choice (#5583): an installed model instead of fetching one.
+                ForEach(instead, id: \.model) { download in
                     ForEach(download.instead ?? [], id: \.card) { installed in
                         // A licence that is not open is in the button's words: the press accepts it.
                         let licence = (installed.licence ?? "").isEmpty ? "" : " (licence: \(installed.licence ?? ""))"
@@ -59,27 +46,21 @@ struct RecipeDownloadRows: View {
         }
     }
 
+    /// The engine's sentence for what Start will fetch, or nil when it fetches nothing.
+    static func sentence(_ store: RecipeSetupStore) -> String? {
+        store.startPlan?.startDownloads?.sentence
+    }
+
     /// The engine's plan says this model is already downloading (a `download-model` job under way, #5660).
     static func isUnderWay(_ download: Components.Schemas.StartDownload) -> Bool {
         download.downloading == true
     }
 
     /// What the plan says of a download under way: its job's progress, or that it is downloading; nil for a
-    /// download not started, which shows its Download button instead (#5660: never "download it first" while
-    /// it is downloading).
+    /// download not started, which Start will fetch (#5664).
     static func engineProgress(_ download: Components.Schemas.StartDownload) -> String? {
         guard isUnderWay(download) else { return nil }
         return download.progress ?? "Downloading…"
-    }
-
-    /// "Downloading" when every model is already on its way; "To download first" while one still needs a press.
-    static func heading(_ downloads: [Components.Schemas.StartDownload]) -> String {
-        downloads.allSatisfy(isUnderWay) ? "Downloading" : "To download first"
-    }
-
-    /// A plan's download as the one download path keys it: its runtime and model, as the engine names them.
-    static func key(_ download: Components.Schemas.StartDownload) -> ModelDownloads.Key {
-        .init(runtime: download.runtime, model: download.model)
     }
 
     /// "spaCy model es_core_news_sm · 13 MB · for Find names", or by its name ("Qwen2.5-VL 7B (OCR) · 5653 MB · for
@@ -174,6 +155,12 @@ struct RecipeSkippedRows: View {
         let finderStep = RecipeStepsView.FinderStep(id: step, job: job)
         if route == .finder { findingFor = finderStep } else { reviewingLicence = finderStep }
     }
+}
+
+#Preview("What Start will fetch") {
+    RecipeDownloadRows(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
+        .padding()
+        .frame(width: 480, height: 80)
 }
 
 #Preview("Will not run") {

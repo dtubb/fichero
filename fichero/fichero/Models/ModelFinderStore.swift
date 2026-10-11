@@ -45,7 +45,7 @@ final class ModelFinderStore {
     private(set) var isLoading = false
     var errorMessage: String?
     /// The project's downloads (#5620, `source.find.one-download-path`): the one download path, shared by the
-    /// finder, setup's To download first and Settings; a card says what its download's job says.
+    /// finder and Settings (setup downloads nothing: Start fetches what it needs, #5664); a card says what its download's job says.
     let downloads: ModelDownloads
 
     @ObservationIgnored private var seenInActivity = false

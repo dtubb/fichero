@@ -404,6 +404,21 @@
    "job_id": "download-qwen"
   }
  ],
+ "start_downloads": {
+  "items": [
+   {
+    "name": "Qwen2.5-VL 7B (OCR)",
+    "size_mb": 5653,
+    "steps": [
+     "correct",
+     "translate-transliterate-normalise"
+    ]
+   }
+  ],
+  "total_mb": 5653,
+  "total_known": true,
+  "sentence": "Start downloads Qwen2.5-VL 7B (OCR) (5.5 GB)."
+ },
  "elsewhere": [],
  "estimate": {
   "pages": 92,

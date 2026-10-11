@@ -217,7 +217,7 @@ struct RecipeStartFields: View {
                         .font(.body)
                         .foregroundStyle(.secondary)
                 }
-                RecipeDownloadRows(store: store, downloads: project?.modelFinderStore.downloads)
+                RecipeDownloadRows(store: store)
                 RecipeElsewhereRows(store: store)
                 RecipeSkippedRows(store: store, onFix: onFix, project: project)
             } else if store.recipe != nil, store.errorMessage == nil {

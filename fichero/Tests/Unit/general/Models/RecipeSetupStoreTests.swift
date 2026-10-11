@@ -519,6 +519,8 @@ struct RecipeSetupStoreTests {
             "params":{"runtime":"kraken","model":"blla"},"downloading":true,"progress":"12 MB of 40 MB","job_id":"j1"},
            {"runtime":"spacy","model":"es_core_news_sm","steps":["names"],"size_mb":13,"action":"model.download",
             "params":{"runtime":"spacy","model":"es_core_news_sm"}}],
+         "start_downloads":{"items":[{"name":"the spaCy model es_core_news_sm","size_mb":13,"steps":["names"]}],
+           "total_mb":13,"total_known":true,"sentence":"Start downloads the spaCy model es_core_news_sm (13 MB)."},
          "estimate":{"pages":92,"runs":[],"total_cost_usd":null}}
         """
         let store = makeStore { request in Self.reply(request, 200, plan) }
@@ -532,9 +534,10 @@ struct RecipeSetupStoreTests {
         #expect(RecipeDownloadRows.isUnderWay(downloads[0]))
         #expect(RecipeDownloadRows.engineProgress(downloads[0]) == "12 MB of 40 MB")
         #expect(!RecipeDownloadRows.isUnderWay(downloads[1]))
-        #expect(RecipeDownloadRows.engineProgress(downloads[1]) == nil, "not started: its Download button shows")
-        #expect(RecipeDownloadRows.heading(downloads) == "To download first")
-        #expect(RecipeDownloadRows.heading([downloads[0]]) == "Downloading")
+        #expect(RecipeDownloadRows.engineProgress(downloads[1]) == nil, "not started: Start will fetch it")
+        // #5664 (ruled 2026-10-11): nobody downloads in setup. Ready says what Start will fetch, in the engine's
+        // one sentence, and offers no Download button and no "To download first".
+        #expect(RecipeDownloadRows.sentence(store) == "Start downloads the spaCy model es_core_news_sm (13 MB).")
     }
 
     /// WHY: Start must record the yes in the engine (POST, audited) before the window closes; a
