@@ -500,7 +500,9 @@ struct ActivityRecipeStage: Equatable, Identifiable {
 /// Activity row only words it; nothing here is counted again.
 struct ActivityRunAccount: Equatable {
     struct Failure: Equatable {
-        let page: String
+        /// The failed page's title as the Reader names it ("18590129.pdf › Page 3"): the engine sends a display
+        /// title in the account's `page` field, never a storage name (542d845eb).
+        let title: String
         let reason: String
         /// Failed for a passing cause, was read once more, and failed again.
         let retried: Bool
@@ -528,7 +530,7 @@ struct ActivityRunAccount: Equatable {
         pagesFailed = account.pagesFailed ?? 0
         pagesLeft = account.pagesLeft ?? 0
         failures = (account.failures ?? []).map {
-            Failure(page: $0.page, reason: $0.reason, retried: $0.retried ?? false)
+            Failure(title: $0.page, reason: $0.reason, retried: $0.retried ?? false)
         }
         waitingReason = account.waitingReason
         reason = account.reason

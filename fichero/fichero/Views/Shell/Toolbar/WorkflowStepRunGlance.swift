@@ -31,7 +31,7 @@ enum WorkflowStepRunGlance: Equatable {
     struct Failure: Equatable, Identifiable {
         let id: String
         let threadId: String
-        /// The page that failed, by file name; nil when the run as a whole failed.
+        /// The page that failed, by its title (542d845eb); nil when the run as a whole failed.
         let page: String?
         let reason: String
     }
@@ -113,7 +113,7 @@ enum WorkflowStepRunGlance: Equatable {
     static func failures(threadId: String, state: StagedStepState, tree: ActivityJobNode?) -> [Failure] {
         if let account = tree?.account, !account.failures.isEmpty {
             return account.failures.enumerated().map { index, failure in
-                Failure(id: "\(threadId)#\(index)", threadId: threadId, page: failure.page, reason: failure.reason)
+                Failure(id: "\(threadId)#\(index)", threadId: threadId, page: failure.title, reason: failure.reason)
             }
         }
         if let tree {

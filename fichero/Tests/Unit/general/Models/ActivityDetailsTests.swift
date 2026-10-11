@@ -241,7 +241,7 @@ final class ActivityDetailsTests: XCTestCase {
         let finished = try details(store)  // the same selection, not reopened
         XCTAssertNotEqual(finished.row.phase, .running, "the details follow the row to its end")
         XCTAssertEqual(finished.counts?.text, "2 done · 1 failed · 0 left")
-        XCTAssertEqual(finished.failedPages.map(\.name), ["p1.png"])
+        XCTAssertEqual(finished.failedPages.map(\.title), ["p1.png"])
         let paths = MockTransportURLProtocol.recorded().compactMap(\.url?.path)
         XCTAssertEqual(paths, ["/api/activity/jobs/\(Self.runId)"],
                        "the details open no stream or poll of their own: the table's one tree read")
@@ -308,7 +308,7 @@ final class ActivityDetailsTests: XCTestCase {
 
         let failed = try details(store)
         XCTAssertEqual(failed.failedPages, [
-            ActivityDetails.FailedPage(id: "0", name: "p1.png", reason: "the provider refused this letter")
+            ActivityDetails.FailedPage(id: "0", title: "p1.png", reason: "the provider refused this letter")
         ])
         XCTAssertTrue(failed.actions.contains(.readAgain(label: "Read the 1 page that failed again")))
         XCTAssertFalse(failed.actions.contains(.control(.pause)), "a finished run has no Pause: absent, not disabled")

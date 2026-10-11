@@ -54,6 +54,11 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     /// would force one concrete type on every head. nil keeps the leaf on the
     /// shared `crumbDragPayload`.
     var leafDragItemProvider: (() -> NSItemProvider)?
+    /// Test-only probe (nil in the app), like the region band's `onBandFrame`: the frame of each part of the
+    /// controls capsule that is in the row -- the pane's own controls (`PaneHeadMetrics.controlsIdentifier`)
+    /// and the "…" overflow menu (`PaneHeadMetrics.overflowIdentifier`). The test host's in-process
+    /// accessibility tree is empty, so this is how PaneHeadCollapsesTests sees which rung was chosen.
+    var onPartFrame: ((String, CGRect) -> Void)?
     /// The two-level kind ▾ / lens ▾ control.
     @ViewBuilder var selector: () -> Selector
     /// The few controls that always apply to this pane kind.
@@ -437,11 +442,19 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     private var controlsCapsule: some View {
         capsule {
             ViewThatFits(in: .horizontal) {
-                AnyView(HStack(spacing: 6) { controls(); chromeControls })
-                AnyView(HStack(spacing: 6) { controls(); overflowMenu { chromeControls } })
+                AnyView(HStack(spacing: 6) { inRowControls; chromeControls })
+                AnyView(HStack(spacing: 6) { inRowControls; overflowMenu { chromeControls } })
                 AnyView(overflowMenu { controls(); chromeControls })
             }
         }
+    }
+
+    /// The pane's own controls sitting in the row (not folded), reported to the test probe.
+    private var inRowControls: some View {
+        HStack(spacing: 6) { controls() }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                onPartFrame?(PaneHeadMetrics.controlsIdentifier, $0)
+            }
     }
 
     /// Shared chrome, automatic: the pin TOGGLE (when the pane supplies its state), the split "+" (from the
@@ -476,6 +489,9 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             .help("More controls")
             .accessibilityLabel("More controls")
             .accessibilityIdentifier(PaneHeadMetrics.overflowIdentifier)
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: {
+                onPartFrame?(PaneHeadMetrics.overflowIdentifier, $0)
+            }
     }
 
     /// ONE capsule treatment, so every zone reads as the same material floating
@@ -509,4 +525,6 @@ enum PaneHeadMetrics {
     static let dividerHeight: CGFloat = 14
     /// The overflow "…" menu's accessibility identifier (#5213).
     static let overflowIdentifier = "PaneHeadOverflow"
+    /// The pane's own controls while they sit in the row (the test probe's key, #5213).
+    static let controlsIdentifier = "PaneHeadControls"
 }

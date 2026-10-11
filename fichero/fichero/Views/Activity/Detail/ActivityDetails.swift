@@ -25,7 +25,8 @@ struct ActivityDetails: Equatable {
 
     struct FailedPage: Equatable, Identifiable {
         let id: String
-        let name: String
+        /// The page's title as the Reader names it (the account's titles, 542d845eb; a tree node's display name).
+        let title: String
         let reason: String
     }
 
@@ -168,13 +169,13 @@ extension ActivityDetails {
         }
         if row.kind == .run, let account = row.account, !account.failures.isEmpty {
             failedPages = account.failures.enumerated().map {
-                FailedPage(id: "\($0.offset)", name: $0.element.page,
+                FailedPage(id: "\($0.offset)", title: $0.element.title,
                            reason: $0.element.reason + ($0.element.retried ? " (read twice)" : ""))
             }
             failedCount = max(account.pagesFailed, account.failures.count)
         } else if row.kind != .page {
             failedPages = failedLeaves.map {
-                FailedPage(id: $0.id, name: $0.displayName ?? $0.name, reason: $0.reason ?? "No reason recorded")
+                FailedPage(id: $0.id, title: $0.displayName ?? $0.name, reason: $0.reason ?? "No reason recorded")
             }
             failedCount = max(failedLeaves.count, node?.failed ?? 0)
         } else {

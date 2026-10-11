@@ -234,7 +234,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var accountDetail: String? {
         guard let account else { return nil }
         var lines = account.failures.map { failure in
-            "\(failure.page): \(failure.reason)" + (failure.retried ? " (read twice)" : "")
+            "\(failure.title): \(failure.reason)" + (failure.retried ? " (read twice)" : "")
         }
         if account.pagesFailed > account.failures.count {
             lines.append("and \(account.pagesFailed - account.failures.count) more")

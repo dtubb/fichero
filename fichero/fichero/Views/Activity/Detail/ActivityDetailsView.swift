@@ -208,7 +208,7 @@ private struct ActivityDetailsFailedPages: View {
                 .font(.headline)
             ForEach(details.failedPages) { page in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text(page.name).font(.body.weight(.medium))
+                    Text(page.title).font(.body.weight(.medium))
                     Text(page.reason)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
