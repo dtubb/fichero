@@ -738,10 +738,33 @@ def say_stopping(db: "Database", job_id: str) -> None:
     db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
 
 
+#: Who stopped a job, by its id, for the words its row ends with (`activity.recipe-run.stop-reaches-its-step`):
+#: the person's own Stop reads "Stopped by you"; an agent's or another account's names it. Held in memory: a stop the
+#: engine did not finish is settled on the next open in the person's words.
+_STOPPED_BY: dict[str, str] = {}
+
+
+def note_stopper(job_id: str, actor: str | None, client: str | None = None) -> None:
+    """Remember who asked this job to stop: an account other than the owner by its name; the owner through an
+    agent's client (the MCP server, the command line) as "you, through <client>"."""
+    if actor and actor not in ("owner", "system"):
+        _STOPPED_BY[job_id] = actor
+    elif client:  # the app sends no client name
+        _STOPPED_BY[job_id] = "you, through " + _CLIENT_WORDS.get(client, client)
+
+
+_CLIENT_WORDS = {"fichero-mcp": "an agent (MCP)", "fichero-cli": "the command line"}
+
+
+def stopped_by(job_id: str | None) -> str:
+    """The words a stopped job's row ends with: "Stopped by you", or by whom else asked."""
+    return f"Stopped by {_STOPPED_BY.get(job_id or '', 'you')}"
+
+
 def cancel_waiting(db: "Database", job_id: str) -> None:
-    """End a job that has not started: `cancelled`, "Stopped by you"."""
-    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-               "WHERE id = ? AND state IN ('waiting', 'paused')", [utc_now(), job_id])
+    """End a job that has not started: `cancelled`, "Stopped by you" (or by whom else asked)."""
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ? "
+               "WHERE id = ? AND state IN ('waiting', 'paused')", [stopped_by(job_id), utc_now(), job_id])
 
 
 def enqueue_many(db: "Database", kind: str, subjects: list[str], *,

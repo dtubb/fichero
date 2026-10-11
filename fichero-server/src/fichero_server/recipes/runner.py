@@ -740,7 +740,7 @@ def _run(db: Any, job_id: str) -> dict[str, Any]:
     total = detail["folders_total"]
     folders = f"; {_folders_words(detail)}" if total else ""
     if _stop_asked(job_id):  # the row ends cancelled, saying who stopped it and what was done (#5609)
-        words = f"Stopped by you; {finished} of {len(steps)} steps done{folders}" + (
+        words = f"{jobs.stopped_by(job_id)}; {finished} of {len(steps)} steps done{folders}" + (
             f" ({'; '.join(problems)})" if problems else "")
         jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
         raise jobs.JobCancelled(words)

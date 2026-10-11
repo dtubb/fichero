@@ -481,7 +481,12 @@ workflow by hand: a hand run is a job like any other.
   Before: the cancel answered `running` and the run went on to its next step; then a Find the Documents step and
   the entries, prepare and publish steps ran to their end before the run stopped
   (`fichero-server/tests/unit/jobs/test_cancel_recipe_run_5609.py`,
-  `fichero-server/tests/unit/recipes/test_stop_reaches_inline_steps_5609.py`).
+  `fichero-server/tests/unit/recipes/test_stop_reaches_inline_steps_5609.py`). **(2026-10-11)** Checked live on a
+  scratch engine: Stop on a running recipe run answered `stopping`, its running step's workflow run ended
+  `cancelled` and the run ended `cancelled`, "Stopped by you; 1 of 2 steps done". The row now says who stopped it:
+  the person's own Stop "Stopped by you"; through the MCP server or the command line "Stopped by you, through an
+  agent (MCP)" or "… the command line"; another account by its name (`jobs.note_stopper`, `jobs.stopped_by`;
+  `fichero-server/tests/unit/jobs/test_a_stopped_run_says_who_stopped_it.py`).
 - `activity.job-tree-to-a-depth` — **[OK]** (#5605) `GET /api/activity/jobs/{id}?depth=N` returns the job
   and N levels under it (`depth=1`: a run and its steps); each row it cuts keeps its rolled-up counts and
   says how many children it left out (`children_omitted`). Without `depth`, the whole tree. An agent reads a

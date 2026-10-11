@@ -885,6 +885,7 @@ def _action_job_cancel(db: Database, params: JobControlParams, ctx: ActionContex
     from fichero_server.execution import jobs as job_queue
 
     before = job_queue.row_state(db, params.job_id)
+    job_queue.note_stopper(params.job_id, ctx.actor, ctx.client)  # the row says who stopped it
     state = job_queue.cancel_job(db, params.job_id)
     return {"id": params.job_id, "state": state}, ChangeSpec(
         domains=["activity"], target_ids=[params.job_id], before={"state": before},
