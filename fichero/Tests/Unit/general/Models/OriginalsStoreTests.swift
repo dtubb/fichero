@@ -62,7 +62,7 @@ struct OriginalsStoreTests {
         OriginalsMockURLProtocol.replies = [
             "GET /api/documents/missing-originals": Self.missing,
             "POST /api/documents/relink-originals/plan": Self.plan,
-            "POST /api/actions/invoke": #"{"ok": true, "audit_id": "audit-1", "changed_domains": ["document"]}"#
+            "POST /api/actions/invoke": #"{"ok": true, "result": {}, "audit_id": "audit-1", "changed_domains": ["document"]}"#
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [OriginalsMockURLProtocol.self]

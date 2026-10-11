@@ -10,10 +10,11 @@ struct SetupStageSamples: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("On your pages").font(.headline)
-            ForEach(store.samples, id: \.id) { page in
+            // A sample's name is the engine's for that page ("f. 1r"), never a Document's raw name.
+            ForEach(store.samples, id: \.id) { sample in
                 HStack(alignment: .firstTextBaseline) {
-                    Text(page.name).font(.callout)
-                    Text(page.why).font(.caption).foregroundStyle(.secondary)
+                    Text(sample.name).font(.callout)
+                    Text(sample.why).font(.caption).foregroundStyle(.secondary)
                 }
             }
             HStack {

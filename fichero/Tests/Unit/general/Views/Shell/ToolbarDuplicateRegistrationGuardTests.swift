@@ -250,12 +250,17 @@ final class ToolbarDuplicateRegistrationGuardTests: XCTestCase {
         // wrapped. Two narrower drafts of this were wrong before it: keying on
         // the FIRST binding hit AddProvider, and keying on the first segment
         // mentioning `firstRunSheetArmed` hit its own `@State` declaration.
+        // The first-run conjunct is spelled one of two ways: inline, or through `appWelcomeShowing`
+        // (Fichero › Set Up Fichero…, 2026-10-11), which must itself pass `firstRunCompleted` to the decision.
+        let welcomeReadsFirstRun = source.contains("private var appWelcomeShowing: Bool {")
+            && source.contains("firstRunCompleted: featureManager.firstRunCompleted")
         let gateIsPresent = source
             .components(separatedBy: ".sheet(isPresented: Binding(")
             .contains { segment in
                 segment.contains("firstRunSheetArmed")
                     && segment.contains("appState.isBackendRunning")
-                    && segment.contains("!featureManager.firstRunCompleted")
+                    && (segment.contains("!featureManager.firstRunCompleted")
+                        || (segment.contains("&& appWelcomeShowing") && welcomeReadsFirstRun))
             }
         XCTAssertTrue(
             gateIsPresent,

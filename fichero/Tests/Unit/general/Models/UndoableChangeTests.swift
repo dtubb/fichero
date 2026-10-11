@@ -198,6 +198,19 @@ struct UndoableChangeTests {
         #expect(!steps.canUndo, "a sign-out empties the stack")
     }
 
+    /// WHY: closing ANY project rebuilt every window's stack and dropped its Redo, so a window working in
+    /// another project lost ⇧⌘Z (and, under test, every other test's window lost its redo mid-test).
+    @Test("closing a project the window has no step in leaves its stack, Redo included")
+    func closingAnotherProjectKeepsRedo() async {
+        let steps = WindowSteps()
+        steps.register(["a1"], named: "Move", engine: FakeEngine("/tmp/P.fichero"))
+        steps.undo()
+        await settle(steps)
+        #expect(steps.canRedo)
+        steps.endSteps(forProject: "/tmp/Elsewhere.fichero")
+        #expect(steps.canRedo && steps.redoName == "Move")
+    }
+
     @Test("the project's live service is looked up at undo time (undo.engine-restart)")
     func liveServiceAtUndoTime() async {
         let steps = WindowSteps()

@@ -432,8 +432,8 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
 - `source.disagree.inspector` — **[PARTIAL]** (#5665) the Inspector shows the page's agreement and each line's,
   as percentages labelled agreement, for a page read by two readers or more. **Built 2026-10-11 (app):**
   `ReadingAgreementInspectorSection`; pinned as above.
-- `source.disagree.next-doubtful` — **[PARTIAL]** (#5665) Read › Next Doubtful Word (⌥⌘G) and Previous Doubtful
-  Word (⇧⌥⌘G) move the selection to the next or previous word below unanimous, in reading order (line by
+- `source.disagree.next-doubtful` — **[PARTIAL]** (#5665) Read › Next Doubtful Word (⌃⌘G) and Previous Doubtful
+  Word (⇧⌃⌘G) move the selection to the next or previous word below unanimous, in reading order (line by
   line, word by word), wrapping at the page's end; with none, they are disabled. **Built 2026-10-11 (app):**
   `ReadingDisagreement.doubtful(after:)` / `(before:)` and the Read menu's buttons; pinned as above.
 - `source.disagree.fewer-than-two` — **[PARTIAL]** (#5665) with fewer than two readings the lens says so in one

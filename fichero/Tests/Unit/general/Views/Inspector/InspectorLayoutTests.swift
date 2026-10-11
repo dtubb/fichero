@@ -601,7 +601,7 @@ struct SurfaceChromeTests {
     @Test("ReaderTab conforms to SurfaceTab with complete metadata")
     func readerTabConformsToSurfaceTab() {
         let tabs: [any SurfaceTab] = ReaderTab.allCases
-        #expect(tabs.count == 4)
+        #expect(tabs.count == 5, "Page, Lines, Disagreement (#5665), Knowledge, Notes")
         for tab in ReaderTab.allCases {
             #expect(!tab.title.isEmpty)
             #expect(!tab.icon.isEmpty)

@@ -145,6 +145,9 @@ final class WindowSteps {
     /// End this window's steps in one project (closed, or returned to a snapshot); the others stay, in
     /// their order. The redo side does not survive the rebuild.
     func endSteps(forProject path: String) {
+        // A window with no step in that project keeps its whole stack, redo side included: closing one project must
+        // not take Redo away from a window working in another (nor, under test, from every other test's window).
+        guard recipes.contains(where: { $0.project == path }) else { return }
         let kept = undoSide.filter { $0.recipe.project != path }
         recipes.removeAll { $0.project == path }
         undoManager.removeAllActions()

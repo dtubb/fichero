@@ -50,7 +50,7 @@ struct ICloudPagesStoreTests {
         ICloudMockURLProtocol.bodies = [:]
         ICloudMockURLProtocol.replies = [
             "GET /api/documents/in-icloud": Self.inICloud,
-            "POST /api/actions/invoke": #"{"ok": true, "audit_id": "audit-7", "changed_domains": ["document"]}"#
+            "POST /api/actions/invoke": #"{"ok": true, "result": {}, "audit_id": "audit-7", "changed_domains": ["document"]}"#
         ]
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ICloudMockURLProtocol.self]
