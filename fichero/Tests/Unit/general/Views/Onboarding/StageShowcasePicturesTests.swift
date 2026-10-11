@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -67,9 +68,9 @@ struct StageShowcasePicturesTests {
         let result = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(Self.compared.utf8))
         let columns = StageCandidate.columns(result.candidates)
         #expect(columns.map(\.card) == ["kraken-catmus", "apple-vision", "qwen-vl"], "at most three")
-        #expect(columns[0].measures == ["4.1% character errors", "12 s", "free, on this Mac"])
-        #expect(columns[1].measures == ["72% agreement", "4 s", "free, on this Mac"])
-        #expect(columns[2].measures.last == "about $0.04", "a cloud estimate says so")
+        #expect(columns[0].measureWords == ["4.1% character errors", "12 s", "free, on this Mac"])
+        #expect(columns[1].measureWords == ["72% agreement", "4 s", "free, on this Mac"])
+        #expect(columns[2].measureWords.last == "about $0.04", "a cloud estimate says so")
         #expect(columns[0].showcase?.lines.map(\.text) == ["enel tþo q́ el escriuio"], "each plays its own result")
         #expect(columns[2].showcase?.picture == .sample(pageId: "p1"), "the same page for every column")
     }
@@ -83,4 +84,73 @@ struct StageShowcasePicturesTests {
         #expect(StageShowcaseSection.showcase(result: nil, single: nil)?.isOwnPage == false, "the example")
         #expect(StageComparisonView.pictureSize(columns: 3).width < StageComparisonView.pictureSize(columns: 2).width)
     }
+
+    /// WHY (8f2635889): the engine measures by what the stage makes; the column says it in words of that kind.
+    @Test("measures read in words by kind: text, shapes and items")
+    func measuresByKind() throws {
+        func candidate(_ measures: String) throws -> StageCandidate {
+            try JSONDecoder().decode(StageCandidate.self, from: Data(#"{"card":"c","local":true,"measures":\#(measures)}"#.utf8))
+        }
+        #expect(try candidate(#"{"kind":"text","agreement":0.8,"cer":0.041}"#).quality == "4.1% character errors",
+                "CER on corrected lines first")
+        #expect(try candidate(#"{"kind":"text","agreement":0.8}"#).quality == "80% agreement")
+        #expect(try candidate(#"{"kind":"shapes","agreement":0.8}"#).quality == "80% overlap")
+        #expect(try candidate(#"{"kind":"items","agreement":0.5,"found":12,"only_this_found":3}"#).quality
+                == "found 12, 3 only here")
+        #expect(try candidate(#"{"kind":"items","found":7}"#).quality == "found 7")
+        #expect(try candidate(#"{"kind":"shapes","agreement":0.8}"#).measureWords
+                == ["80% overlap", "free, on this Mac"])
+    }
+
+    @Test("up to three candidates are chosen; none chosen asks for the engine's own")
+    func choosingWhoToCompare() {
+        var chosen: [String] = []
+        for card in ["a", "b", "c", "d"] { chosen = StageCandidateChoice.toggle(card, in: chosen) }
+        #expect(chosen == ["a", "b", "c"], "a fourth is not taken")
+        chosen = StageCandidateChoice.toggle("b", in: chosen)
+        #expect(chosen == ["a", "c"])
+        #expect(StageCandidateChoice.request(chosen) == ["a", "c"])
+        #expect(StageCandidateChoice.request([]) == nil, "none: the engine's own choice")
+    }
+
+    @Test("Compare on These Pages sends the cards chosen, and none when none are")
+    func theTrySendsTheChoice() async throws {
+        let store = SetupStageTryStore(client: CompareTryProtocol.client(), stageId: "read")
+        store.chosenCandidates = ["kraken-catmus", "apple-vision"]
+        await store.tryIt()
+        #expect(CompareTryProtocol.bodies.last?["candidates"] as? [String] == ["kraken-catmus", "apple-vision"])
+        store.chosenCandidates = []
+        await store.tryIt()
+        #expect(CompareTryProtocol.bodies.last?["candidates"] == nil)
+    }
+}
+
+private final class CompareTryProtocol: URLProtocol {
+    nonisolated(unsafe) static var bodies: [[String: Any]] = []
+
+    static func client() -> FicheroClient {
+        bodies = []
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [CompareTryProtocol.self]
+        return FicheroClient(baseURL: URL(string: "https://127.0.0.1:8765")!, libraryPath: "/tmp/Compare.fichero",
+                             session: URLSession(configuration: configuration))
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool { true }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        var json = #"{"state":"done"}"#
+        if request.httpMethod == "POST" {
+            Self.bodies.append((try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any] ?? [:])
+        } else {
+            json = #"{"detail":"not stubbed"}"#
+        }
+        let status = request.httpMethod == "POST" ? 200 : 404
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(json.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

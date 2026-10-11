@@ -15,6 +15,8 @@ struct SetupStagePage: View {
 
     /// The stage's try on the samples, shared by the picture at the top and the samples below.
     @State private var tryStore: SetupStageTryStore?
+    /// The stage's main step's candidates, for choosing who to compare.
+    @State private var candidateFinder: ModelFinderStore?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -56,6 +58,13 @@ struct SetupStagePage: View {
             }
             if stage.sampleable, let tryStore {
                 Divider()
+                // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
+                if let finder = candidateFinder, finder.candidates.count >= 2 {
+                    StageCandidateChooser(
+                        candidates: finder.candidates,
+                        chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 })
+                    )
+                }
                 SetupStageSamples(store: tryStore)
                     .id(stage.id)
                     // The samples' thumbnails come from this project's storage (Organise's strip).
@@ -70,7 +79,20 @@ struct SetupStagePage: View {
             if store.recipe == nil, store.canAssemble { await store.assemble() }
             // The training offers ride on the Start plan.
             if store.startPlan == nil { await store.loadStartPlan() }
+            await loadCandidates()
         }
+    }
+
+    /// The stage's main step's candidates, from the per-step finder (its own store, so the project's finder keeps
+    /// whatever it was showing).
+    private func loadCandidates() async {
+        guard stage.sampleable, let main = store.mainStep(forJobs: stage.jobs) else {
+            candidateFinder = nil
+            return
+        }
+        let finder = candidateFinder ?? ModelFinderStore(client: store.client)
+        candidateFinder = finder
+        await finder.load(store.finderQuery(job: main.job, step: main.id))
     }
 
     /// Use This under a compared candidate: that card for the stage's step (the use-candidate route).

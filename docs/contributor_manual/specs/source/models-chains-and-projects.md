@@ -2862,7 +2862,12 @@ Setup
   and the try refused (402) without `cost_ok`; a candidate Start could not run is a column that says why. Read
   and Find Lines keep the bake-off (its evaluation job over the corrected lines) when no candidates are named and
   the samples hold its ground truth; otherwise they are compared the same way. *Test:*
-  `fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py`.
+  `fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py`. **Built 2026-10-11 (app, the choice
+  and the measures):** the stage page lists its main step's candidates from the per-step finder
+  (`StageCandidateChooser`, up to three ticked, `StageCandidateChoice`); Compare on These Pages sends them as
+  `candidates`, none when none are ticked; each column says how it compared by kind ("4.1% character errors" or
+  "80% agreement" for text, "80% overlap" for shapes, "found 12, 3 only here" for items,
+  `StageCandidate.quality`). Pinned by `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`.
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage.

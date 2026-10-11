@@ -20,6 +20,9 @@ final class SetupStageTryStore {
     /// A try the engine refused, in its words.
     private(set) var refusal: String?
     private(set) var isTrying = false
+    /// The candidates the person chose to compare (card ids, at most three); empty: the engine's own choice
+    /// (`source.onboard.stages.compares-candidates`).
+    var chosenCandidates: [String] = []
 
     /// How often a waiting try is asked again.
     var pollInterval: Duration = .seconds(3)
@@ -49,7 +52,8 @@ final class SetupStageTryStore {
         refusal = nil
         do {
             let response = try await client.api.tryStageApiRecipesStagesStageTryPost(
-                path: .init(stage: stageId), body: .json(.init(costOk: costOK))
+                path: .init(stage: stageId),
+                body: .json(.init(costOk: costOK, candidates: StageCandidateChoice.request(chosenCandidates)))
             )
             switch response {
             case .ok(let success):

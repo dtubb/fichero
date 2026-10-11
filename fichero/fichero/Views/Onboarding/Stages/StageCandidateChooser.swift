@@ -1,0 +1,56 @@
+import FicheroAPIClient
+import SwiftUI
+
+/// Which of the step's candidates Compare on These Pages runs side by side (#5668,
+/// `source.onboard.stages.compares-candidates`): the step's own list from the per-step finder, up to three ticked.
+/// With none ticked, the engine compares the step's own model with its next one or two.
+struct StageCandidateChooser: View {
+    let candidates: [Components.Schemas.ModelCandidate]
+    @Binding var chosen: [String]
+
+    /// How many of the step's candidates are offered here; the finder lists the rest.
+    static let offered = 8
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Compare").font(.headline)
+            Text("Tick up to three to compare on these pages. With none ticked, Fichero compares the step's own "
+                 + "model with the next one or two.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(candidates.prefix(Self.offered), id: \.id) { candidate in
+                Toggle(isOn: Binding(
+                    get: { chosen.contains(candidate.id) },
+                    set: { _ in chosen = StageCandidateChoice.toggle(candidate.id, in: chosen) }
+                )) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(candidate.name).lineLimit(1)
+                        Text(candidate.availabilityWords).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                #if os(macOS)
+                .toggleStyle(.checkbox)
+                #endif
+                .disabled(!chosen.contains(candidate.id) && chosen.count >= StageCandidateChoice.most)
+            }
+        }
+        .accessibilityIdentifier("setup.stage.compareChooser")
+    }
+}
+
+#Preview("Choose who to compare") {
+    @Previewable @State var chosen = ["kraken-catmus"]
+    let json = """
+    [{"id":"kraken-catmus","name":"Kraken (CATMuS Medieval)","source":"rules","offered_because":"","pin":null,"jobs":[],
+      "open_licence":true,"size":"16 MB","measured":false,"in_recipe_rules":true,"runs_where":"this-mac",
+      "availability":"installed","availability_words":"on this Mac"},
+     {"id":"apple-vision","name":"Apple Vision","source":"rules","offered_because":"","pin":null,"jobs":[],
+      "open_licence":false,"size":"built in","measured":false,"in_recipe_rules":true,"runs_where":"this-mac",
+      "availability":"installed","availability_words":"built into macOS"}]
+    """
+    let candidates = (try? JSONDecoder().decode([Components.Schemas.ModelCandidate].self, from: Data(json.utf8))) ?? []
+    StageCandidateChooser(candidates: candidates, chosen: $chosen)
+        .padding()
+        .frame(width: 420)
+}

@@ -51,7 +51,7 @@ struct StageComparisonView: View {
                     if let showcase = candidate.showcase ?? StageShowcaseSource.showcase(for: nil) {
                         StageShowcaseView(stageId: stageId, showcase: showcase, size: size)
                     }
-                    ForEach(candidate.measures, id: \.self) { measure in
+                    ForEach(candidate.measureWords, id: \.self) { measure in
                         Text(measure).font(.caption).foregroundStyle(.secondary)
                     }
                     if let useThis {
