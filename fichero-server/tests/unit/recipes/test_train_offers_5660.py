@@ -1,6 +1,6 @@
 """Training belongs in the recipe (#5660 item 9, `source.recipe.train-offered-per-step`), tested to the spec.
 
-For each step a model can be trained for, the Start plan offers "Train a model on your corrected pages": the
+For each step a model can be trained for, the Start plan offers "Train a model of your own for this step" (was "on your corrected pages": the
 ways (fine-tune or distil), each with the places the engine trains on today and the audited action that starts
 it there; a way with no trainer is listed as not available yet. It is offered later, never run at Start, and
 says how many more corrected lines and pages it needs, counted as the bake-off counts them.
@@ -33,7 +33,7 @@ def test_each_trainable_step_is_offered_its_ways_and_where_they_run():
         ("regions", "find-regions", TITLE), ("read", "read-a-line", TITLE), ("names", "find-names-tag-words", TITLE)]
     regions, read, names = (_ways(o) for o in offers)
 
-    assert read["kraken"]["how"] == "fine-tune" and read["mlx-vision-lora"]["how"] == "distil"
+    assert read["kraken"]["how"] == "distil" and read["mlx-vision-lora"]["how"] == "distil"  # both learn from a teacher
     assert [(t["place"], t["starts"]) for t in read["kraken"]["targets"]] == [
         ("this-mac", "training.start_here"), ("huggingface-jobs", "training.start")]
     assert [(t["place"], t["starts"]) for t in read["mlx-vision-lora"]["targets"]] == [
@@ -92,3 +92,19 @@ def test_the_start_plan_carries_the_offers_counted_on_the_project(client, db, tm
     assert read["readiness"]["lines"] == LINES_PER_PAGE and read["readiness"]["more_pages"] == 1
     assert read["readiness"]["more_lines"] == TRAIN_OFFERED_FROM_LINES - LINES_PER_PAGE
     assert all(r.get("job") != "train-a-model" for r in body["runs"])
+
+
+def test_each_way_carries_what_its_action_needs_and_none_without_a_teacher():
+    """The app posts `starts` with `params` as-is: the engine fills the scope and, for a distillation, the teacher
+    (the reader that read most pages); with no reading yet, a taught way has no params."""
+    from fichero_server.recipes.train_offers import _ways
+
+    counts = {"teacher": "kraken-zenodo-21788410", "scope_ids": ["box-1"]}
+    kraken = next(w for w in _ways("read-a-line", stays_local=False, counts=counts) if w["method"] == "kraken")
+    assert kraken["how"] == "distil"
+    here = next(t for t in kraken["targets"] if t["starts"] == "training.start_here")
+    assert here["params"] == {"scope_ids": ["box-1"], "teacher": "kraken-zenodo-21788410"}
+    regions = _ways("find-regions", stays_local=True, counts=counts)[0]["targets"][0]
+    assert regions["params"] == {"name": "regions", "scope_ids": ["box-1"]}
+    untaught = _ways("read-a-line", stays_local=True, counts={"teacher": None, "scope_ids": ["box-1"]})
+    assert all(t["params"] is None for w in untaught for t in w["targets"])

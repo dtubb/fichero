@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-968/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-978/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -157,17 +157,18 @@
    {
     "step": "read",
     "job": "read-a-line",
-    "title": "Train a model on your corrected pages",
+    "title": "Train a model of your own for this step",
     "ways": [
      {
       "method": "kraken",
-      "how": "fine-tune",
-      "says": "Fine-tune a Kraken reader on your corrected lines",
+      "how": "distil",
+      "says": "Train a Kraken reader of your own on the lines your reader read",
       "targets": [
        {
         "place": "this-mac",
         "name": "this Mac",
-        "starts": "training.start_here"
+        "starts": "training.start_here",
+        "params": null
        }
       ],
       "available": true,
@@ -197,7 +198,7 @@
    {
     "step": "names",
     "job": "find-names-tag-words",
-    "title": "Train a model on your corrected pages",
+    "title": "Train a model of your own for this step",
     "ways": [
      {
       "method": "spacy-ner",

@@ -2827,7 +2827,7 @@ The recipe and its format
   teacher, then fine-tuning a small model); otherwise it is offered when its condition is met and
   runs only when the person starts it.
 - `source.recipe.train-offered-per-step` — **[PARTIAL]** (#5660 item 9) for each step a model can be trained
-  for, the Start plan offers "Train a model on your corrected pages" (`train_offers`), offered later and never
+  for, the Start plan offers "Train a model of your own for this step" (`train_offers`), offered later and never
   run at Start: the line reader (fine-tune a Kraken reader, on this Mac or Hugging Face Jobs; distil into an MLX
   vision model by LoRA, on Hugging Face Jobs), regions (fine-tune YOLO, on this Mac), and names (a spaCy
   fine-tune, listed as not available yet: Fichero has no spaCy trainer). Each way names the places the engine

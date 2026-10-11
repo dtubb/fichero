@@ -1093,6 +1093,10 @@ class TrainTarget(BaseModel):
     place: str = Field(description="this-mac or huggingface-jobs: only the places the engine trains on today")
     name: str
     starts: str = Field(description="the action that starts it, e.g. training.start_here")
+    params: Optional[dict[str, Any]] = Field(default=None, description=(
+        "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot "
+        "fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for "
+        "pages to leave (`pages_may_leave`) is asked at start, never sent here"))
 
 
 class TrainWay(BaseModel):
@@ -1107,7 +1111,7 @@ class TrainWay(BaseModel):
 
 
 class TrainOffer(BaseModel):
-    """'Train a model on your corrected pages' for one trainable step, offered later, never run at Start."""
+    """'Train a model of your own for this step' for one trainable step, offered later, never run at Start."""
 
     step: str
     job: str

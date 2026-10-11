@@ -1,5 +1,5 @@
 """Training in the recipe (#5660 item 9, `source.recipe.train-offered-per-step`): for each step a model can be
-trained for, the Start plan offers "Train a model on your corrected pages", offered later, never run at Start
+trained for, the Start plan offers "Train a model of your own for this step", offered later, never run at Start
 (`source.recipe.train-never-automatic`).
 
 Each offer names the ways to train (fine-tune or distil), and for each the places the engine can run it and the
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-TITLE = "Train a model on your corrected pages"
+TITLE = "Train a model of your own for this step"
 
 THIS_MAC = {"place": "this-mac", "name": "this Mac"}
 HF_JOBS = {"place": "huggingface-jobs", "name": "Hugging Face Jobs"}
@@ -22,7 +22,10 @@ HF_JOBS = {"place": "huggingface-jobs", "name": "Hugging Face Jobs"}
 #: is not one yet (no training path), so neither is listed.
 WAYS: dict[str, list[dict[str, Any]]] = {
     "read-a-line": [
-        {"method": "kraken", "how": "fine-tune", "says": "Fine-tune a Kraken reader on your corrected lines",
+        # The Kraken and MLX trainers learn from a teacher's line readings (`training/kraken_set.py`: no line in
+        # the set is a person's), so both are distillations of the reader the project already uses.
+        {"method": "kraken", "how": "distil",
+         "says": "Train a Kraken reader of your own on the lines your reader read",
          "targets": [(THIS_MAC, "training.start_here"), (HF_JOBS, "training.start")]},
         {"method": "mlx-vision-lora", "how": "distil",
          "says": "Distil a vision model's readings into a small MLX model (LoRA)",
@@ -39,10 +42,35 @@ WAYS: dict[str, list[dict[str, Any]]] = {
 }
 
 
-def _ways(job: str, *, stays_local: bool) -> list[dict[str, Any]]:
+#: The audited actions that need a teacher (the model whose line readings are the lessons).
+_TAUGHT = frozenset({"training.start_here", "training.start", "training.start_vision_lora"})
+
+
+def _params(action: str, job: str, counts: dict[str, Any]) -> dict[str, Any] | None:
+    """What the app posts with `action`, as-is (#5660 item 9): the engine fills it, never the app. None when the
+    engine cannot yet (no teacher: no reader has read this project's lines)."""
+    scope = counts.get("scope_ids") or []
+    if not scope:
+        return None
+    if action == "training.start_regions_here":
+        return {"name": "regions", "scope_ids": scope}
+    if action in _TAUGHT:
+        teacher = counts.get("teacher")
+        if not teacher:
+            return None
+        params = {"scope_ids": scope, "teacher": teacher}
+        if action == "training.start_vision_lora":
+            params["name"] = "student"
+        # Hugging Face Jobs: `pages_may_leave` stays false; the person's yes is asked when they press start.
+        return params
+    return None
+
+
+def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    counts = counts or {}
     out = []
     for way in WAYS[job]:
-        targets = [{**place, "starts": action} for place, action in way["targets"]
+        targets = [{**place, "starts": action, "params": _params(action, job, counts)} for place, action in way["targets"]
                    if not (stays_local and place is not THIS_MAC)]  # pages kept on this Mac never leave it
         why = way.get("why")
         if way["targets"] and not targets:
@@ -72,7 +100,32 @@ def counted(db: Any) -> dict[str, Any]:
     pages, _ = ground_truth(db, None)
     regions = {s.document_id for s in db.query(Segment, provenance_kind="human")
                if s.kind in REGION_KINDS and s.deleted_at is None}
-    return {"pages": pages, "unmarked": unmarked_import_pages(db), "region_pages": len(regions)}
+    return {"pages": pages, "unmarked": unmarked_import_pages(db), "region_pages": len(regions),
+            "teacher": _teacher(db), "scope_ids": _roots(db)}
+
+
+def _teacher(db: Any) -> str | None:
+    """The model that read lines on the most pages here: the reader a distillation learns from. None: nothing read."""
+    from fichero_server.models import Artifact
+    from fichero_server.models.segments import SegmentPass
+
+    # A reader writes a pass of its own, or readings onto the page's lines from its page artifact (#5487), so both
+    # name it (as `training.kraken_set.teacher_pass` matches them). A person's ground-truth pass never teaches here.
+    pages: dict[str, set[str]] = {}
+    for p in db.query(SegmentPass):
+        if not p.deleted_at and p.model and not getattr(p, "ground_truth", False) and p.model not in ("human", "manual"):
+            pages.setdefault(p.model, set()).add(p.document_id)
+    for a in db.query(Artifact, artifact_type="transcription"):
+        if a.model and a.model not in ("human", "manual"):
+            pages.setdefault(a.model, set()).add(a.document_id)
+    return max(pages, key=lambda m: (len(pages[m]), m)) if pages else None
+
+
+def _roots(db: Any) -> list[str]:
+    """The project's top-level live items: what a training run looks through when no folder is chosen."""
+    from fichero_server.models import Document
+
+    return sorted(d.id for d in db.query(Document, parent_id=None) if not d.deleted_at)
 
 
 def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool) -> list[dict[str, Any]]:
@@ -95,5 +148,5 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
             ready = readiness(counts["pages"], counts["unmarked"],
                               min_lines=at_least.get(job) or at_least.get(step.get("id")) or TRAIN_OFFERED_FROM_LINES)
         offers.append({"step": step.get("id", job), "job": job, "title": TITLE,
-                       "ways": _ways(job, stays_local=stays_local), "readiness": ready})
+                       "ways": _ways(job, stays_local=stays_local, counts=counts), "readiness": ready})
     return offers

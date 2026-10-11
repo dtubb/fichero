@@ -88318,7 +88318,7 @@
           "readiness"
         ],
         "title": "TrainOffer",
-        "description": "'Train a model on your corrected pages' for one trainable step, offered later, never run at Start."
+        "description": "'Train a model of your own for this step' for one trainable step, offered later, never run at Start."
       },
       "TrainRegionsHereRequest": {
         "properties": {
@@ -88437,6 +88437,13 @@
             "type": "string",
             "title": "Starts",
             "description": "the action that starts it, e.g. training.start_here"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Params",
+            "description": "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for pages to leave (`pages_may_leave`) is asked at start, never sent here"
           }
         },
         "type": "object",
