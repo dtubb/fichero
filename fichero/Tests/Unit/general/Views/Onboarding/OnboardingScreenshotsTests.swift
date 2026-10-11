@@ -27,13 +27,13 @@ import Testing
 /// The fixture engine: each route setup reads, answered from the onboarding fixture files.
 private final class OnboardingFixtureEngine: URLProtocol {
     nonisolated(unsafe) static var served: [String] = []
-    /// The fixture files by name, read on the main actor before any request (`load()`).
+    /// The fixture files by name, read on the main actor before any request (`loadFixtures()`).
     nonisolated(unsafe) static var files: [String: Data] = [:]
 
     static let names = ["purposes", "jobs", "project", "plan", "assembled", "candidates-read-a-line",
                         "candidates-find-regions"]
 
-    static func load() throws {
+    static func loadFixtures() throws {
         for name in names {
             files[name] = try Data(contentsOf: TestFixtures.sampleFile("onboarding/\(name).json"))
         }
@@ -137,7 +137,7 @@ struct OnboardingScreenshotsTests {
         let folder = try #require(OnboardingScreenshots.directory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let project = Self.project()
-        try OnboardingFixtureEngine.load()
+        try OnboardingFixtureEngine.loadFixtures()
         let setup = project.recipeSetupStore
         // What setup reads when it opens on this project, read first so every screen draws it at once.
         await setup.loadSaved()

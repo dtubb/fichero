@@ -431,8 +431,12 @@ final class RecipeSetupStore {
     @ObservationIgnored private var savedRecipeOverrides: Data?
 
     private func rememberOverrides(from recipeJSON: Data) {
+        // `"overrides": null` arrives as NSNull, and `data(withJSONObject:)` RAISES an Objective-C
+        // exception on a non-collection, which `try?` cannot catch: it ended the process.
         guard let object = try? JSONSerialization.jsonObject(with: recipeJSON) as? [String: Any],
-              let overrides = object["overrides"] else { return }
+              let overrides = object["overrides"], JSONSerialization.isValidJSONObject(overrides) else {
+            return
+        }
         savedRecipeOverrides = try? JSONSerialization.data(withJSONObject: overrides)
     }
 

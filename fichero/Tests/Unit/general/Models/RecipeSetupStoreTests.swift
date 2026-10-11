@@ -79,6 +79,15 @@ struct RecipeSetupStoreTests {
     /// answer, or sent cloud consent the person never gave, the recipe shown
     /// would rest on answers nobody gave; and if it dropped the steps' reasons
     /// and gaps, setup could not say why a step is there or what is missing.
+    @Test("a recipe whose overrides are null is read without ending the app")
+    func nullOverridesDoNotCrash() {
+        let store = makeStore { request in Self.reply(request, 404, "{}") }
+        // `"overrides": null` once raised an Objective-C exception in JSONSerialization (2026-10-10).
+        store.adoptEngineRecipe(Data(#"{"overrides": null}"#.utf8))
+        store.adoptEngineRecipe(Data(#"{"overrides": "x"}"#.utf8))
+        #expect(store.errorMessage != nil)
+    }
+
     @Test("assemble sends the answers and keeps each step's reasons and gaps")
     func assembleSendsAnswersAndKeepsReasonsAndGaps() async throws {
         defer { RecipesMockURLProtocol.requestHandler = nil }
