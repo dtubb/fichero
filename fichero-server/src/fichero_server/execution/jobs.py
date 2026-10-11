@@ -699,6 +699,11 @@ def read_job(db: "Database", job_id: str) -> dict[str, Any] | None:
     return dict(zip(("id", "kind", "subject", "state", "reason", "detail", "created_at", "started_by"), row))
 
 
+def say(db: "Database", job_id: str, reason: str) -> None:
+    """A job's reason in words, as it goes (a run downloading its pages from iCloud, #5669)."""
+    db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [reason, job_id])
+
+
 def save_detail(db: "Database", job_id: str, detail: str, *, reason: str | None = None) -> None:
     """Store a job's `detail` (JSON text) and, when given, its reason in words."""
     db.execute("UPDATE jobs SET detail = ?, reason = COALESCE(?, reason) WHERE id = ?", [detail, reason, job_id])

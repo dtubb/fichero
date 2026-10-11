@@ -844,6 +844,98 @@ async def list_deleted_documents(
     return trash_listing(db, readable, limit=limit, offset=offset)
 
 
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action  # noqa: E402
+
+
+class InIcloud(BaseModel):
+    """Pages whose linked originals are in iCloud and not on this Mac, and the offer to copy them in (#5669)."""
+
+    pages: int
+    of: Optional[int] = Field(default=None, description="the pages the plan covers, for '34 of 92 pages'")
+    bytes: int = Field(description="what they come to")
+    sentence: str = Field(description="e.g. '34 of 92 pages are in iCloud and not on this Mac.'")
+    room: bool = Field(description="false: this disk cannot hold them while keeping its floor free")
+    refusal: Optional[str] = Field(default=None, description="when there is no room, why, with the numbers")
+    offer: str = Field(description="the primary action's words: 'Copy them into the project (1.2 GB, then they "
+                       "stay here)'")
+    action: str = Field(description="document.copy_into_project")
+    params: dict[str, Any] = Field(description="the action's params: the pages' ids")
+
+
+class CopyIntoProjectParams(BaseModel):
+    ids: list[str] = Field(min_length=1, description="pages whose linked originals are copied into the project")
+
+
+class CopiedIntoProject(BaseModel):
+    copied: dict[str, dict[str, str]] = Field(description="each page copied: its original (from) and copy (to)")
+    not_copied: dict[str, str] = Field(description="each page not copied, and why in words")
+
+
+class UncopyParams(BaseModel):
+    copied: dict[str, dict[str, str]]
+
+
+def _invert_copy_into_project(before: dict | None, after: dict | None, ctx: "ActionContext"):
+    copied = (after or {}).get("copied") or {}
+    return ("document.uncopy_from_project", {"copied": copied}) if copied else None
+
+
+@action("document.copy_into_project", CopyIntoProjectParams, domains=["document"], undoable=True,
+        invert=_invert_copy_into_project, atomic=False)  # files first, then one transaction for the pages
+def _action_copy_into_project(db: Database, params: CopyIntoProjectParams, ctx: "ActionContext"):
+    """Copy pages' linked originals into the project (#5669): each brought down from iCloud first, bounded."""
+    from fichero_server.importers.keep_a_copy import copy_into_project
+
+    done = copy_into_project(db, params.ids)
+    spec = ChangeSpec(domains=["document"], target_ids=list(done["copied"]), after=done,
+                      emit_type="document.updated", document_ids=list(done["copied"]),
+                      emit_fn=_emit_document_change_spec)
+    return done, spec
+
+
+@action("document.uncopy_from_project", UncopyParams, domains=["document"])
+def _action_uncopy_from_project(db: Database, params: UncopyParams, ctx: "ActionContext"):
+    """Undo a copy into the project: the pages point at their originals again, and the copies made are removed."""
+    from fichero_server.importers.keep_a_copy import undo_copy_into_project
+
+    back = undo_copy_into_project(db, params.copied)
+    return {"put_back_on_originals": back}, ChangeSpec(domains=["document"], target_ids=back,
+                                                       emit_type="document.updated", document_ids=back,
+                                                       emit_fn=_emit_document_change_spec)
+
+
+@router.get("/in-icloud", response_model=Optional[InIcloud])
+async def pages_in_icloud(
+    db: Database = Depends(get_library_database),
+    folder_id: Optional[str] = Query(None, description="only this folder's pages"),
+) -> Optional[InIcloud]:
+    """The project's pages (or one folder's) whose linked originals are in iCloud and not on this Mac, with the
+    offer to copy them into the project (#5669): what Ready and an import's answer warn of. Null when none."""
+    from fichero_server.importers.keep_a_copy import summary
+    from fichero_server.recipes import runner
+
+    try:
+        within = runner.folder_scope(db, folder_id) if folder_id else None
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    said = await asyncio.to_thread(summary, db, within)
+    return InIcloud(**said) if said else None
+
+
+@router.post("/copy-into-project", response_model=CopiedIntoProject)
+async def copy_pages_into_project(
+    body: CopyIntoProjectParams,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> CopiedIntoProject:
+    """Copy these pages' linked originals into the project, so it keeps its own copies and never depends on iCloud
+    again (#5669, ruled: the primary answer to pages in iCloud). Each original is brought down first (bounded), then
+    copied by the import's Copy path; the page then points at its copy. Audited; undo puts the pages back on their
+    originals and removes the copies. A page that did not come down is not copied, and says why."""
+    invoked = await asyncio.to_thread(registry.invoke, db, "document.copy_into_project", body.model_dump(), ctx)
+    return CopiedIntoProject(**invoked.result)
+
+
 @router.get("/trash/empty", response_model=EmptyTrashPreview)
 async def preview_empty_trash(
     db: Database = Depends(get_library_database),

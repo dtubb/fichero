@@ -27,6 +27,49 @@ from fichero_server.retrieval.graph_rag import GraphAwareRetriever
 logger = logging.getLogger(__name__)
 
 
+def _fetches_first(tool):
+    """A source's pages whose originals are in iCloud are brought down before any step reads them (#5669), bounded
+    and off the event loop, the count said on the run's row in Activity. The last line of defence: Ready offers to
+    copy such pages into the project first. A page still not here after its bound is read by no step; its reader
+    says why in words (`dataless.NOT_FETCHED`)."""
+    import functools
+
+    @functools.wraps(tool)
+    async def wrapped(inputs: dict[str, Any], state: State, llm_config: LLMConfig) -> dict[str, Any]:
+        import asyncio
+
+        from fichero_server.importers import dataless
+
+        result = await tool(inputs, state, llm_config)
+        files = [f for f in (result.get("files") or []) if isinstance(f, str)] if isinstance(result, dict) else []
+        if not files:
+            return result
+        say = _say_on_the_run(state)
+        failed = await asyncio.to_thread(dataless.fetch_first, files, say=say)
+        for path, why in failed.items():
+            logger.warning("Not read, its original is not on this Mac: %s (%s)", path, why)
+        return result
+
+    return wrapped
+
+
+def _say_on_the_run(state: State):
+    """Words on the run's own row in Activity (its id is the run's thread id), quietly nothing without one."""
+    run_id, library = state.get("task_id"), state.get("library_path")
+
+    def say(words: str) -> None:
+        if not run_id or not library:
+            return
+        try:
+            from fichero_server.execution import jobs
+
+            jobs.say(db_manager.get_database(library), run_id, words)
+        except Exception as exc:  # noqa: BLE001 -- a progress line never fails a run
+            logger.debug("Could not say %r on run %s: %s", words, run_id, exc)
+
+    return say
+
+
 def _resolve_abs_path(file_doc: "Document", library_root: "str | None") -> str:
     """Resolve a document's stored path to an absolute on-disk path for downstream
     file tools (vision/transcribe/audio).
@@ -597,6 +640,7 @@ def document_ref(doc: Document) -> dict[str, Any]:
     ],
     sort_order=1,
 )
+@_fetches_first
 async def files_tool(
     inputs: dict[str, Any],
     state: State,
@@ -712,6 +756,7 @@ async def files_tool(
     ],
     sort_order=2,
 )
+@_fetches_first
 async def selection_tool(
     inputs: dict[str, Any],
     state: State,
@@ -801,6 +846,7 @@ async def selection_tool(
     },
     sort_order=2,
 )
+@_fetches_first
 async def collection_tool(
     inputs: dict[str, Any],
     state: State,
@@ -986,6 +1032,7 @@ async def collection_tool(
     },
     sort_order=3,
 )
+@_fetches_first
 async def folder_tool(
     inputs: dict[str, Any],
     state: State,
@@ -1223,6 +1270,7 @@ async def folder_tool(
     },
     sort_order=4,
 )
+@_fetches_first
 async def search_tool(
     inputs: dict[str, Any],
     state: State,

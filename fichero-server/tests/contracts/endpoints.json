@@ -2916,6 +2916,16 @@
       },
       {
         "method": "POST",
+        "path": "/documents/copy-into-project",
+        "operation_id": "copy_pages_into_project_api_documents_copy_into_project_post",
+        "summary": "Copy Pages Into Project",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "CopyIntoProjectParams",
+        "response_model": "CopiedIntoProject"
+      },
+      {
+        "method": "POST",
         "path": "/documents/dataset/query",
         "operation_id": "dataset_query_api_documents_dataset_query_post",
         "summary": "Dataset Query",
@@ -2977,6 +2987,22 @@
         ],
         "request_model": null,
         "response_model": "ImportBatchResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/documents/in-icloud",
+        "operation_id": "pages_in_icloud_api_documents_in_icloud_get",
+        "summary": "Pages In Icloud",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "InIcloud"
       },
       {
         "method": "POST",

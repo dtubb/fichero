@@ -9,7 +9,7 @@ import logging
 import tempfile
 import time
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -182,6 +182,9 @@ class IngestTaskStatus(BaseModel):
         "the folder document the import made (or found already there) for the folder dropped, once it "
         "has finished; null while it runs and for an import that made no one folder "
         "(`importer.folder-status-names-its-folder`, #5584)"))
+    in_icloud: Optional[dict[str, Any]] = Field(default=None, description=(
+        "once finished: the pages it linked whose originals are in iCloud and not on this Mac, with the offer to copy "
+        "them into the project (#5669), shaped as GET /api/documents/in-icloud answers; null when none"))
 
 
 class IngestCancelResponse(BaseModel):
@@ -1257,7 +1260,18 @@ async def get_ingest_status(
     task = _tasks[task_id]
     if task["library_path"] != x_fichero_library_path:
         raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
+    in_icloud = None
+    if task["status"] == "completed" and task.get("document_ids"):
+        # An import from iCloud: the same warning and offer as Ready's (#5669).
+        from fichero_server.db.manager import db_manager
+        from fichero_server.importers.keep_a_copy import summary
+
+        if "in_icloud" not in task:
+            task["in_icloud"] = await asyncio.to_thread(
+                summary, db_manager.get_database(x_fichero_library_path), set(task["document_ids"]))
+        in_icloud = task["in_icloud"]
     return IngestTaskStatus(
+        in_icloud=in_icloud,
         task_id=task_id,
         status=task["status"],
         path=task["path"],

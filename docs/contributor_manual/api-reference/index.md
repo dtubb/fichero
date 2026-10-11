@@ -179,6 +179,19 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   the audited action `document.transfer_in` (undo: `document.untransfer`); or abandon
   it, removing what arrived.
 
+## Pages in iCloud (#5669)
+
+`GET /api/documents/in-icloud` · `POST /api/documents/copy-into-project`
+
+- The project's pages (or one folder's, `folder_id`) whose linked originals are in iCloud and not on this
+  Mac: how many, their size, a sentence, whether this disk has room, and the offer to copy them into the
+  project (`document.copy_into_project` and its params). Null when none. The Start plan (`in_icloud`) and a
+  finished import's status (`in_icloud`) carry the same answer; Start is refused only when the disk cannot
+  hold them.
+- The copy (audited, undoable): each original brought down (bounded), copied by the import's Copy path, the
+  page then pointing at its own copy (`metadata.copied_from` keeps where it was). Undo points the pages back
+  at their originals and removes the copies it made.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

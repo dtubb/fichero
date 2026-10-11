@@ -1162,6 +1162,10 @@ class StartPlan(BaseModel):
         "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, "
         "never used without the person's press (ai.where.fallback-free-and-asked)"))
     estimate: StartEstimate
+    in_icloud: Optional[dict[str, Any]] = Field(default=None, description=(
+        "pages whose linked originals are in iCloud and not on this Mac, with the offer to copy them into the project "
+        "first (`offer`, the action `document.copy_into_project` and its `params`); null when none. Shaped as GET "
+        "/api/documents/in-icloud answers (#5669)"))
     proposed: Optional[ProposedJobs] = Field(default=None, description=(
         "jobs proposed for the material already in the project by a layer added later; once the project has "
         "started, the plan is these alone (source.onboard.add-layer)"))
@@ -1199,6 +1203,12 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
+    # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
+    from fichero_server.importers.keep_a_copy import summary as in_icloud
+
+    plan["in_icloud"] = in_icloud(db, within, of=pages["pages"])
+    if plan["in_icloud"] and not plan["in_icloud"]["room"]:
+        plan["refusals"] = [*plan["refusals"], plan["in_icloud"]["refusal"]]
     plan["started"] = started
     plan["proposed"] = explain(setup["recipe"], proposal)
     plan["addable"] = addable_now(setup["answers"] or {})

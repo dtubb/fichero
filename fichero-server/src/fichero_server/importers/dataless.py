@@ -174,3 +174,114 @@ def _materialize(path: Path, reason: str) -> None:
             f"Finder (keep it downloaded) and import again."
         )
     logger.info("Downloaded and importing: %s", path)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Before a run reads its pages: fetch the evicted ones first (#5669)
+# ---------------------------------------------------------------------------------------------------------------
+
+#: Left free on the disk after every page has come down (`user-machine-always-useful`).
+FETCH_FREE_FLOOR_BYTES = 2 * 1024**3
+#: How often a page waiting to come down is looked at again.
+_FETCH_POLL_SECONDS = 0.5
+#: Pages that did not come down, by path, with why in words: the reader says this instead of its own refusal.
+NOT_FETCHED: dict[str, str] = {}
+
+
+def _size_words(count: int) -> str:
+    return f"{count / 1e9:.1f} GB" if count >= 1e8 else f"{count / 1e6:.0f} MB"
+
+
+def request_download(path: Path) -> None:
+    """Ask macOS to bring a dataless file's bytes down, without waiting for them (the waiting is the caller's,
+    bounded). `brctl download` where it runs; else a read in a daemon thread, the read being the download trigger
+    (the kernel faults the bytes in through fileproviderd). That read may block, but on its own thread, never the
+    run's."""
+    import shutil as _shutil
+    import subprocess
+    import threading
+
+    brctl = _shutil.which("brctl")
+    if brctl:
+        try:
+            done = subprocess.run([brctl, "download", str(path)], capture_output=True, timeout=10)
+            if done.returncode == 0:
+                return
+        except (OSError, subprocess.SubprocessError) as exc:  # sandboxed, or no iCloud: the read below
+            logger.debug("brctl download %s did not run: %s", path, exc)
+
+    def read() -> None:
+        try:
+            with path.open("rb") as fh:
+                while fh.read(_READ_CHUNK):
+                    pass
+        except OSError as exc:
+            logger.debug("Reading %s to download it failed: %s", path, exc)
+
+    threading.Thread(target=read, name=f"icloud-fetch:{path.name}", daemon=True).start()
+
+
+def fetch_first(paths: list[str], *, say=lambda words: None, fetch=None, min_timeout: float = _MIN_TIMEOUT_SECONDS,
+                sleep=None, now=None) -> dict[str, str]:
+    """Bring every page whose bytes are in iCloud down before a run reads it (#5669), bounded, and return the ones
+    still not local, each with why in words ({path: why}); an empty dict when every page is here.
+
+    Each evicted page (`dataless_reason`) is asked for at once (`fetch`, default `request_download`), then waited
+    for, each within its own bound (`min_timeout`, or longer for a large file at an assumed 1 MB/s), the count said
+    as it goes (`say`: "Downloading 88 pages from iCloud: 34 of 88"). Nothing is asked for when the disk would keep
+    less than `FETCH_FREE_FLOOR_BYTES` free: every page then fails, saying how much is needed. Blocking: call it off
+    the event loop (`asyncio.to_thread`)."""
+    import shutil as _shutil
+    import time
+
+    fetch = fetch or request_download
+    sleep = sleep or time.sleep
+    now = now or time.monotonic
+    evicted: list[tuple[Path, int]] = []
+    failed: dict[str, str] = {}
+    for raw in dict.fromkeys(p for p in paths if isinstance(p, str) and p):
+        path = Path(raw)
+        if not path.exists() or dataless_reason(path) is None:
+            continue
+        if path.name.startswith(".") and path.name.endswith(".icloud"):
+            failed[raw] = f"{path.name} is an iCloud placeholder stub, not the page itself: download it in Finder"
+            continue
+        evicted.append((path, getattr(path.stat(), "st_size", 0) or 0))
+    if not evicted:
+        NOT_FETCHED.update(failed)
+        return failed
+    need = sum(size for _, size in evicted)
+    free = _shutil.disk_usage(evicted[0][0].parent).free
+    if need + FETCH_FREE_FLOOR_BYTES > free:
+        why = (f"is in iCloud, and downloading the {len(evicted)} pages that are needs {_size_words(need)}; this "
+               f"disk has {_size_words(free)} free (Fichero keeps {_size_words(FETCH_FREE_FLOOR_BYTES)} free). "
+               "Free some space, then run again")
+        for path, _ in evicted:
+            failed[str(path)] = f"{path.name} {why}"
+        NOT_FETCHED.update(failed)
+        return failed
+    total = len(evicted)
+    plural = "s" if total != 1 else ""
+    say(f"Downloading {total} page{plural} from iCloud: 0 of {total}")
+    deadlines, bounds = {}, {}
+    for path, size in evicted:
+        fetch(path)
+        bounds[path] = max(min_timeout, size / _ASSUMED_BYTES_PER_SECOND)
+        deadlines[path] = now() + bounds[path]
+    pending = {path for path, _ in evicted}
+    done = 0
+    while pending:
+        for path in sorted(pending):
+            if dataless_reason(path) is None:
+                pending.discard(path)
+                done += 1
+                NOT_FETCHED.pop(str(path), None)
+            elif now() > deadlines[path]:
+                pending.discard(path)
+                failed[str(path)] = (f"{path.name} is in iCloud and did not download in {int(bounds[path])} s "
+                                     "(no network?)")
+        say(f"Downloading {total} page{plural} from iCloud: {done} of {total}")
+        if pending:
+            sleep(_FETCH_POLL_SECONDS)
+    NOT_FETCHED.update(failed)
+    return failed

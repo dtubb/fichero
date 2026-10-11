@@ -84,7 +84,7 @@ def test_an_icloud_dataless_file_is_refused_not_downloaded(tmp_path, monkeypatch
     real.write_bytes(b"x")
     _fake_stat_for(monkeypatch, real, _stat(flags=0x40000000))
 
-    with pytest.raises(ValueError, match="stored in iCloud and not downloaded"):
+    with pytest.raises(ValueError, match="is in iCloud and not downloaded to this Mac"):
         vision_base.assert_source_readable(str(real))
 
 
@@ -94,7 +94,7 @@ def test_a_cloud_placeholder_is_refused(tmp_path, monkeypatch) -> None:
     real.write_bytes(b"x")
     _fake_stat_for(monkeypatch, real, _stat(blocks=0, size=999_999))
 
-    with pytest.raises(ValueError, match="cloud placeholder"):
+    with pytest.raises(ValueError, match="is in iCloud and not downloaded to this Mac"):
         vision_base.assert_source_readable(str(real))
 
 
@@ -145,7 +145,7 @@ def test_file_to_data_uri_refuses_a_dataless_source(tmp_path, monkeypatch) -> No
     real.write_bytes(b"x")
     _fake_stat_for(monkeypatch, real, _stat(flags=0x40000000))
 
-    with pytest.raises(ValueError, match="stored in iCloud"):
+    with pytest.raises(ValueError, match="is in iCloud and not downloaded to this Mac"):
         vision_base.file_to_data_uri(str(real))
 
 
@@ -155,7 +155,7 @@ def test_pdf_page_render_refuses_a_dataless_source(tmp_path, monkeypatch) -> Non
     real.write_bytes(b"x")
     _fake_stat_for(monkeypatch, real, _stat(blocks=0, size=1_200_000))
 
-    with pytest.raises(ValueError, match="cloud placeholder"):
+    with pytest.raises(ValueError, match="is in iCloud and not downloaded to this Mac"):
         vision_base._pdf_page_to_data_uri(str(real), page_index=0)
 
 

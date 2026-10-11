@@ -1564,10 +1564,14 @@ def assert_source_readable(path: str) -> None:
         # diagnose; the open below will fail with something specific.
         return
 
-    if hasattr(stat_info, "st_flags") and (stat_info.st_flags & _SF_DATALESS):
-        raise ValueError(f"File is stored in iCloud and not downloaded locally: {path}")
-    if stat_info.st_blocks == 0 and stat_info.st_size > 0:
-        raise ValueError(f"File appears to be a cloud placeholder: {path}")
+    evicted = (hasattr(stat_info, "st_flags") and stat_info.st_flags & _SF_DATALESS) or (
+        stat_info.st_blocks == 0 and stat_info.st_size > 0)
+    if evicted:
+        # The run's source already tried to bring it down, bounded (#5669): say what happened to it, in words.
+        from fichero_server.importers.dataless import NOT_FETCHED
+
+        said = NOT_FETCHED.get(str(path))
+        raise ValueError(said or f"{os.path.basename(path)} is in iCloud and not downloaded to this Mac: {path}")
 
 
 def apple_vision_ocr_with_geometry(

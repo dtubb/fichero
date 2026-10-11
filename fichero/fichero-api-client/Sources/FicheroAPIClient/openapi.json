@@ -17631,6 +17631,118 @@
         }
       }
     },
+    "/api/documents/in-icloud": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Pages In Icloud",
+        "description": "The project's pages (or one folder's) whose linked originals are in iCloud and not on this Mac, with the\noffer to copy them into the project (#5669): what Ready and an import's answer warn of. Null when none.",
+        "operationId": "pages_in_icloud_api_documents_in_icloud_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only this folder's pages",
+              "title": "Folder Id"
+            },
+            "description": "only this folder's pages"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InIcloud",
+                  "nullable": true,
+                  "title": "Response Pages In Icloud Api Documents In Icloud Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/copy-into-project": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Copy Pages Into Project",
+        "description": "Copy these pages' linked originals into the project, so it keeps its own copies and never depends on iCloud\nagain (#5669, ruled: the primary answer to pages in iCloud). Each original is brought down first (bounded), then\ncopied by the import's Copy path; the page then points at its copy. Audited; undo puts the pages back on their\noriginals and removes the copies. A page that did not come down is not copied, and says why.",
+        "operationId": "copy_pages_into_project_api_documents_copy_into_project_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyIntoProjectParams"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopiedIntoProject"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/trash/empty": {
       "get": {
         "tags": [
@@ -56239,6 +56351,53 @@
         "title": "ConversionStatus",
         "description": "The latest run and what is left. `run_id` is None when no run has ever been needed."
       },
+      "CopiedIntoProject": {
+        "properties": {
+          "copied": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Copied",
+            "description": "each page copied: its original (from) and copy (to)"
+          },
+          "not_copied": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Not Copied",
+            "description": "each page not copied, and why in words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "copied",
+          "not_copied"
+        ],
+        "title": "CopiedIntoProject"
+      },
+      "CopyIntoProjectParams": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Ids",
+            "description": "pages whose linked originals are copied into the project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "CopyIntoProjectParams"
+      },
       "CostEstimateItem": {
         "properties": {
           "provider": {
@@ -64564,6 +64723,69 @@
         "title": "ImportBatchResponse",
         "description": "What a dropped set became: its documents, and what happened to each layout file."
       },
+      "InIcloud": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "of": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Of",
+            "description": "the pages the plan covers, for '34 of 92 pages'"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes",
+            "description": "what they come to"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "e.g. '34 of 92 pages are in iCloud and not on this Mac.'"
+          },
+          "room": {
+            "type": "boolean",
+            "title": "Room",
+            "description": "false: this disk cannot hold them while keeping its floor free"
+          },
+          "refusal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Refusal",
+            "description": "when there is no room, why, with the numbers"
+          },
+          "offer": {
+            "type": "string",
+            "title": "Offer",
+            "description": "the primary action's words: 'Copy them into the project (1.2 GB, then they stay here)'"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "document.copy_into_project"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "the action's params: the pages' ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "bytes",
+          "sentence",
+          "room",
+          "offer",
+          "action",
+          "params"
+        ],
+        "title": "InIcloud",
+        "description": "Pages whose linked originals are in iCloud and not on this Mac, and the offer to copy them in (#5669)."
+      },
       "InclusionRequest": {
         "properties": {
           "target_id": {
@@ -65022,6 +65244,13 @@
             "nullable": true,
             "title": "Folder Id",
             "description": "the folder document the import made (or found already there) for the folder dropped, once it has finished; null while it runs and for an import that made no one folder (`importer.folder-status-names-its-folder`, #5584)"
+          },
+          "in_icloud": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "In Icloud",
+            "description": "once finished: the pages it linked whose originals are in iCloud and not on this Mac, with the offer to copy them into the project (#5669), shaped as GET /api/documents/in-icloud answers; null when none"
           }
         },
         "type": "object",
@@ -86836,6 +87065,13 @@
           },
           "estimate": {
             "$ref": "#/components/schemas/StartEstimate"
+          },
+          "in_icloud": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "In Icloud",
+            "description": "pages whose linked originals are in iCloud and not on this Mac, with the offer to copy them into the project first (`offer`, the action `document.copy_into_project` and its `params`); null when none. Shaped as GET /api/documents/in-icloud answers (#5669)"
           },
           "proposed": {
             "$ref": "#/components/schemas/ProposedJobs",

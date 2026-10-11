@@ -4445,6 +4445,23 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("copy-pages-into-project")
+    def documents_copy_pages_into_project_post(
+        ctx: typer.Context,
+        ids: list[str] = typer.Option(..., '--ids', help='pages whose linked originals are copied into the project. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Copy Pages Into Project (POST /api/documents/copy-into-project)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/copy-into-project"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Ids', 'description': 'pages whose linked originals are copied into the project', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("dataset-query")
     def documents_dataset_query_post(
         ctx: typer.Context,
@@ -4560,6 +4577,20 @@ def register_generated_openapi_commands(
             if files is None:
                 raise typer.BadParameter("Provide at least one --field or --upload value.")
             return client.request("POST", endpoint_path, params=params, files=files)
+        invoke(ctx, op_call)
+
+    @target_app.command("pages-in-icloud")
+    def documents_pages_in_icloud_get(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help="only this folder's pages."),
+    ) -> None:
+        """Pages In Icloud (GET /api/documents/in-icloud)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/in-icloud"
+            params = {
+                "folder_id": folder_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("backfill-pdf-pages")

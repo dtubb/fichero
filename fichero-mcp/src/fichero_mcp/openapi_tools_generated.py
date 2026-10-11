@@ -2017,6 +2017,14 @@ def fichero_documents_list_collections(
     return _rt.call("GET", "/api/documents/collections")
 
 
+def fichero_documents_copy_pages_into_project(
+    *,
+    ids: Annotated[list[Any], Field(description='pages whose linked originals are copied into the project.')],
+) -> Any:
+    "Copy Pages Into Project\n\nCopy these pages' linked originals into the project, so it keeps its own copies and never depends on iCloud\nagain (#5669, ruled: the primary answer to pages in iCloud). Each original is brought down first (bounded), then\ncopied by the import's Copy path; the page then points at its copy. Audited; undo puts the pages back on their\noriginals and removes the copies. A page that did not come down is not copied, and says why.\n\nRoute: POST /api/documents/copy-into-project (toolset `documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/documents/copy-into-project", json=_rt.body({"ids": ids}))
+
+
 def fichero_documents_dataset_query(
     *,
     attributed_only: Annotated[Optional[bool], Field(description='Attributed Only. Default: false.')] = None,
@@ -2070,6 +2078,14 @@ def fichero_documents_import_files_together(
 ) -> Any:
     'Import Files Together\n\nImport files dropped together (multipart, one `files` part each): images and their\nPAGE/ALTO/hOCR/TEI/.box/.txt pair exactly as when their folder is dropped. One file sent\nalone cannot pair -- its layout file is not in the request -- so a drop of several files\ncomes here, not to `POST /import` once per file.\n\nRoute: POST /api/documents/import-batch (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/documents/import-batch", params={"parent_id": parent_id}, files=_rt.multipart(fields, uploads))
+
+
+def fichero_documents_pages_in_icloud(
+    *,
+    folder_id: Annotated[Optional[str], Field(description="only this folder's pages")] = None,
+) -> Any:
+    "Pages In Icloud\n\nThe project's pages (or one folder's) whose linked originals are in iCloud and not on this Mac, with the\noffer to copy them into the project (#5669): what Ready and an import's answer warn of. Null when none.\n\nRoute: GET /api/documents/in-icloud (toolset `documents`; reads)."
+    return _rt.call("GET", "/api/documents/in-icloud", params={"folder_id": folder_id})
 
 
 def fichero_documents_backfill_pdf_pages(
@@ -8858,11 +8874,13 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_bulk_create", "documents", "POST", "/api/documents/bulk", fichero_documents_bulk_create),
     GeneratedTool("fichero_documents_cleanup_orphan", "documents", "POST", "/api/documents/cleanup-orphans", fichero_documents_cleanup_orphan),
     GeneratedTool("fichero_documents_list_collections", "documents", "GET", "/api/documents/collections", fichero_documents_list_collections),
+    GeneratedTool("fichero_documents_copy_pages_into_project", "documents", "POST", "/api/documents/copy-into-project", fichero_documents_copy_pages_into_project),
     GeneratedTool("fichero_documents_dataset_query", "documents", "POST", "/api/documents/dataset/query", fichero_documents_dataset_query),
     GeneratedTool("fichero_documents_create_group", "documents", "POST", "/api/documents/groups", fichero_documents_create_group),
     GeneratedTool("fichero_documents_ungroup", "documents", "POST", "/api/documents/groups/{group_id}/ungroup", fichero_documents_ungroup),
     GeneratedTool("fichero_documents_import_file", "documents", "POST", "/api/documents/import", fichero_documents_import_file),
     GeneratedTool("fichero_documents_import_files_together", "documents", "POST", "/api/documents/import-batch", fichero_documents_import_files_together),
+    GeneratedTool("fichero_documents_pages_in_icloud", "documents", "GET", "/api/documents/in-icloud", fichero_documents_pages_in_icloud),
     GeneratedTool("fichero_documents_backfill_pdf_pages", "documents", "POST", "/api/documents/pdfs/backfill-pages", fichero_documents_backfill_pdf_pages),
     GeneratedTool("fichero_documents_reorder", "documents", "POST", "/api/documents/reorder", fichero_documents_reorder),
     GeneratedTool("fichero_documents_list_roots", "documents", "GET", "/api/documents/roots", fichero_documents_list_roots),

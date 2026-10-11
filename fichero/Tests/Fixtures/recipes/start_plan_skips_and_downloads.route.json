@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-1017/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-1024/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -215,7 +215,9 @@
     }
    }
   ],
-  "refusals": [],
+  "refusals": [
+   "steps names need the spacy model es_core_news_sm (16 MB), which is not on this Mac: download it first"
+  ],
   "waiting": [],
   "downloads": [
    {
@@ -230,27 +232,13 @@
      "runtime": "spacy",
      "model": "es_core_news_sm"
     },
-    "name": "the spaCy pipeline es_core_news_sm",
+    "name": null,
     "instead": [],
     "downloading": false,
     "progress": null,
     "job_id": null
    }
   ],
-  "start_downloads": {
-   "items": [
-    {
-     "name": "the spaCy pipeline es_core_news_sm",
-     "size_mb": 16,
-     "steps": [
-      "names"
-     ]
-    }
-   ],
-   "total_mb": 16,
-   "total_known": true,
-   "sentence": "Start downloads the spaCy pipeline es_core_news_sm (16 MB)."
-  },
   "elsewhere": [],
   "estimate": {
    "pages": 2,
@@ -280,6 +268,7 @@
    ],
    "total_cost_usd": 0.0
   },
+  "in_icloud": null,
   "proposed": null,
   "addable": [
    "entities",
