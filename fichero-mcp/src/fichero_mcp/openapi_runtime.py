@@ -74,6 +74,24 @@ def call(method: str, path: str, *, params: dict | None = None, json: Any = None
         raise EngineError(exc.status_code, _detail(exc), f"{method} {path}") from exc
 
 
+def as_tool(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """A generated tool as the MCP server lists it: its answer reaches the agent as ONE block, never none
+    (`openapi.mcp.answers-are-never-empty`). FastMCP turns a list into one block per item and None into no
+    block at all, so an empty list or a null answer read as nothing said (2026-10-11: `GET /api/machines` and
+    `GET /api/documents/in-icloud`). A list or None is handed on as its JSON text; anything else as it was.
+    The function itself, called from Python, still returns the parsed answer."""
+    import functools
+
+    @functools.wraps(fn)
+    def tool(*args: Any, **kwargs: Any) -> Any:
+        answer = fn(*args, **kwargs)
+        if answer is None or isinstance(answer, list):
+            return json.dumps(answer, indent=2, ensure_ascii=False, default=str)
+        return answer
+
+    return tool
+
+
 _IMAGE_SIGNATURES = (
     (b"\x89PNG\r\n\x1a\n", "png"),
     (b"\xff\xd8\xff", "jpeg"),

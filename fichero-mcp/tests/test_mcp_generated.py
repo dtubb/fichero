@@ -302,3 +302,30 @@ def test_an_unreachable_engine_is_a_typed_error_too(monkeypatch):
     with pytest.raises(openapi_runtime.EngineError) as excinfo:
         generated.fichero_hpc_list_clusters()
     assert excinfo.value.status is None and "Is the engine running" in str(excinfo.value.detail)
+
+
+def _call_through_mcp(name: str, arguments: dict) -> types.CallToolResult:
+    handler = mcp_server.mcp._mcp_server.request_handlers[types.CallToolRequest]
+    request = types.CallToolRequest(method="tools/call",
+                                    params=types.CallToolRequestParams(name=name, arguments=arguments))
+    return asyncio.run(handler(request)).root
+
+
+@pytest.mark.parametrize("answer", [[], None, [{"id": "m1"}, {"id": "m2"}]], ids=["empty-list", "null", "list"])
+def test_an_empty_or_list_answer_reaches_the_agent_as_one_json_block(monkeypatch, answer):
+    """WHY (openapi.mcp.answers-are-never-empty, 2026-10-11 hands-on pass): `GET /api/machines` answered [] and
+    `GET /api/documents/in-icloud` null, and the agent got a result with NO content at all (FastMCP turns a list
+    into one block per item and null into none), which reads as nothing said. The answer is one JSON block:
+    "[]", "null", or the whole array."""
+    def answer_with(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=answer)
+
+    monkeypatch.setattr(mcp_server, "_client", _transport_client(answer_with))
+    mcp_server.select_toolsets(mcp_server.parse_toolsets("all"))
+    try:
+        result = _call_through_mcp("fichero_machines_list", {})
+    finally:
+        mcp_server.select_toolsets(mcp_server.DEFAULT_TOOLSETS)
+    assert result.isError is False
+    assert len(result.content) == 1, result.content
+    assert json.loads(result.content[0].text) == answer

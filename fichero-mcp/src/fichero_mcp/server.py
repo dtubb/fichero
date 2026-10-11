@@ -200,7 +200,7 @@ def select_toolsets(toolsets: Iterable[str], server: FastMCP | None = None) -> l
     names: list[str] = []
     for tool in TOOLS:
         if tool.tag in chosen:
-            server.add_tool(tool.fn, name=tool.name)
+            server.add_tool(openapi_runtime.as_tool(tool.fn), name=tool.name)
             names.append(tool.name)
     if ui_control.TOOLSET in chosen:  # the app's UI verbs over AppleScript, not engine routes (#5453)
         for name, fn in ui_control.UI_TOOLS:
@@ -210,7 +210,7 @@ def select_toolsets(toolsets: Iterable[str], server: FastMCP | None = None) -> l
     for alias, route in OPERATOR_ALIASES.items():
         if alias not in hand_written:
             target = _BY_ROUTE[route]
-            server.add_tool(target.fn, name=alias, description=f"Alias of `{target.name}`.\n\n{target.fn.__doc__}")
+            server.add_tool(openapi_runtime.as_tool(target.fn), name=alias, description=f"Alias of `{target.name}`.\n\n{target.fn.__doc__}")
             names.append(alias)
     if server is mcp:
         _SELECTED.extend(names)

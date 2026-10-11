@@ -117,6 +117,12 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   The error text is `{"status", "detail", "route"}` as JSON. Pinned through the MCP protocol by
   `fichero-mcp/tests/test_mcp_generated.py` and against the real routes by
   `fichero-server/tests/unit/mcp/test_generated_mcp_tools_reach_the_engine.py`.
+- `openapi.mcp.answers-are-never-empty` **[OK]** (2026-10-11, the hands-on pass over every read-only tool) a
+  generated tool's answer reaches the agent as one block, never none: an empty list reads `[]`, a null answer
+  `null`, and a list is one JSON array, not one block per item. FastMCP gave `GET /api/machines` (`[]`) and
+  `GET /api/documents/in-icloud` (`null`) as results with no content, which read as nothing said. Built:
+  `openapi_runtime.as_tool`, which the server registers every generated tool and alias through. Pinned by
+  `fichero-mcp/tests/test_mcp_generated.py::test_an_empty_or_list_answer_reaches_the_agent_as_one_json_block`.
 
 ### B. CLI (already generated)
 
