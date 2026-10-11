@@ -338,6 +338,12 @@ def _arm_stall_watchdog(library: str) -> None:
                 return
             done, total = state["done"], state["total"]
             tracker_path = _queue_db_paths.get(library)
+        if not Path(library).exists():
+            # The library was deleted or moved while it was watched: nothing to report, nothing to write into it.
+            with _progress_lock:
+                _progress.pop(library, None)
+                _queue_db_paths.pop(library, None)
+            return
         # A deliberate wait is not a stall (`activity.throttle.power-heat-memory`): while the throttle holds
         # background work (the person at the Mac, battery, heat, memory), the rows already say why. Look again later.
         from fichero_server.execution import throttle

@@ -405,6 +405,9 @@ def import_file_as_pages(db: Database, document: Document, path: Path, ctx: Acti
 
     document.metadata = {**(document.metadata or {}), "pages_without_image": without_image,
                          **({"pages_not_imported": not_imported} if not_imported else {})}
+    # Its text is on its pages now; the raw XML is the file, never the document's text to embed or search
+    # (2026-10-11: the Genji chapter's 55,000 characters of markup took minutes to embed as search text).
+    document.page_content = None
     db.save(document)
     return True
 

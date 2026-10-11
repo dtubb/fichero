@@ -202,7 +202,9 @@ class TestTheSplitAndItsBounds:
 
         from fichero_server.api.routes.ingest import core
 
-        assert "queue_derivatives" in inspect.getsource(core.import_file_impl)
+        # A file's work is queued by its import action once the document is final (2026-10-11: a TEI file
+        # becomes a document of its pages first, and its raw XML is not its text to embed).
+        assert "queue_derivatives" in inspect.getsource(core._action_import_file)
         assert "queue_derivatives" in inspect.getsource(core.import_folder_impl)
 
 

@@ -271,7 +271,11 @@ Rules for every format
   every such page with what it points at (`page 6 (#zone_0006)` names `…/R0000025/…`), so its scan
   can be put with it later. Nothing is left out: the Digital Genji chapter arrives as 24 pages
   holding all 11,240 letters the reader finds in it, the DTA Luther fables as 8 pages holding all
-  15,051 (they used to arrive as one text document of the raw file). One undo takes the document
+  15,051 (they used to arrive as one text document of the raw file). **(2026-10-11)** The document does not
+  keep the raw XML as its own text: its text is on its pages, and its thumbnail and embedding are queued only once
+  it is a document of its pages (the Genji chapter's 55,000 characters of markup took minutes to embed as search
+  text, and the import's watchdog called it stalled; `test_the_document_does_not_keep_the_raw_file_as_its_text`).
+  One undo takes the document
   and its pages away. Two neighbours keep their behaviour: **Import Page** onto an existing page
   takes the first page, or the `pages` named, and names the rest (#5308), and a **folder** holding
   the file and its scans gives each scan the pages that name it (`1bf7fe4b3`).

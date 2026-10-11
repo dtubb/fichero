@@ -241,10 +241,8 @@ def import_file_impl(
             package_path=package_path,
         )
         logger.info(f"Ingested file: {path.name} -> {doc.id}")
-        # Thumbnails happen AFTER the row lands, on their own bounded pool
-        # (#4225). Import stays fast; the row gains its thumbnail in place via
-        # the document.updated the derivative stage emits.
-        queue_derivatives([doc], library_path=package_path, db=db)
+        # Its thumbnail and embedding are queued by the caller once the document is final (#4225): a TEI,
+        # PAGE or ALTO file becomes a document of its pages first, and its raw XML is not its text to embed.
         return doc
     except HTTPException:
         raise
@@ -1385,6 +1383,9 @@ def _action_import_file(
         recorded = Path(doc.path)
         stored = recorded if recorded.is_absolute() else package_path / recorded
     import_file_as_pages(db, doc, stored, ctx)
+    # Thumbnails and the embedding happen AFTER the row is final, on their own lane (#4225): queued only now, so
+    # a file that became a document of its pages is never embedded as its raw XML (2026-10-11, the Genji chapter).
+    queue_derivatives([doc], library_path=package_path, db=db)
     _upsert_sidecar_entities(db, [doc], ctx)
     _apply_sidecar_renditions(db, [doc], package_path)
     spec = ChangeSpec(

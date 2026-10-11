@@ -138,3 +138,16 @@ def test_an_xml_file_that_is_not_interchange_stays_an_ordinary_file(db, tmp_path
     document, _ = _import_alone(db, path, tmp_path)
     assert _pages(db, document) == []
     assert "pages_without_image" not in (document.metadata or {})
+
+
+@pytest.mark.parametrize("source", [GENJI, LUTHER], ids=["genji", "luther"])
+def test_the_document_does_not_keep_the_raw_file_as_its_text(db, tmp_path, monkeypatch, source):
+    """Its text is on its pages; the raw XML is the file, never the document's text to embed or search (2026-10-11:
+    the Genji chapter's 55,000 characters of markup were embedded as search text, three minutes of work the
+    import's watchdog called stalled at 0 of 2)."""
+    import fichero_server.api.routes.ingest.core as core
+
+    queued: list[str] = []
+    monkeypatch.setattr(core, "queue_derivatives", lambda docs, **k: queued.extend(d.id for d in docs))
+    document, _ = _import_alone(db, source, tmp_path)
+    assert not (db.get(Document, document.id).page_content or "").strip(), "the raw XML stayed the document's text"
