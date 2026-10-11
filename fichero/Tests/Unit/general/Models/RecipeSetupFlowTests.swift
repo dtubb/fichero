@@ -83,14 +83,16 @@ struct RecipeSetupFlowTests {
     /// the project is for before saying where its files come from, or reach Start before seeing
     /// the plan; if first run's list drifted from Set Up…'s, a new project and an existing one
     /// would be set up by two flows.
-    @Test("Set Up… starts at Your material, then What you want to do, and ends at Ready")
-    func screensInOrder() {
-        #expect(FirstRunStep.setUpSteps == [.material, .purpose, .ready])
-        let firstRun = FirstRunStep.steps(isCompanionPlatform: false)
-        #expect(Array(firstRun.suffix(FirstRunStep.setUpSteps.count)) == FirstRunStep.setUpSteps)
-        var walked = [FirstRunStep.setUpSteps[0]]
-        while walked.last != .ready { walked.append(walked.last!.next(in: FirstRunStep.setUpSteps)) }
-        #expect(walked == FirstRunStep.setUpSteps, "Continue walks the steps in order and stops at Ready")
+    ///
+    /// Section 7d (2026-10-11, #5668) split the material into Add material and About the material, and the purposes
+    /// into Choose the Stages with a page per chosen stage, then Train.
+    @Test("Set Up… starts at Add material, then the stages, and ends at Train and Ready")
+    @MainActor func screensInOrder() {
+        let setUp = SetupStep.projectSteps(chosenStages: ["read"], isNewProject: false)
+        #expect(setUp == [.addMaterial, .aboutMaterial, .stages, .stage("read"), .train, .ready])
+        var walked = [setUp[0]]
+        while walked.last != .ready { walked.append(walked.last!.next(in: setUp)) }
+        #expect(walked == setUp, "Continue walks the steps in order and stops at Ready")
     }
 
     /// WHY: setup "can be closed at any step with the answers kept as a draft,
@@ -101,9 +103,10 @@ struct RecipeSetupFlowTests {
     @Test("Continue on each step before Ready keeps a draft and never starts")
     func everyScreenBeforeStartKeepsADraft() async {
         let store = RecipeSetupStore(client: makeClient { _ in (200, #"{"answers":{},"recipe":null}"#) })
-        let draftScreens = FirstRunStep.setUpSteps.filter(\.savesDraft)
-        #expect(draftScreens == [.material, .purpose], "every step but Ready saves on Continue")
-        #expect(!FirstRunStep.ready.savesDraft && !FirstRunStep.project.savesDraft)
+        let draftScreens = SetupStep.projectSteps(chosenStages: ["read"], isNewProject: true).filter(\.savesDraft)
+        #expect(draftScreens == [.addMaterial, .aboutMaterial, .stages, .stage("read"), .train],
+                "every step after Your project but Ready saves on Continue")
+        #expect(!SetupStep.ready.savesDraft && !SetupStep.project.savesDraft)
         for _ in draftScreens { #expect(await store.save()) }
         let calls = SetupFlowURLProtocol.seen.map { "\($0.method) \($0.path)" }
         #expect(calls == Array(repeating: "PUT /api/recipes/project", count: draftScreens.count))

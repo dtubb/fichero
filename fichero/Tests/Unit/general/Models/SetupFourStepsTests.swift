@@ -97,24 +97,24 @@ struct SetupFourStepsTests {
 
     // MARK: The steps
 
-    /// WHY (#5492): setup was nine screens plus one per ticked job, too many; the maintainer ruled
-    /// four. First run's setup after Welcome, Permissions and AI must be exactly those four, in
-    /// that order, or a person is walked through screens the ruling took away.
-    @Test("setup is four steps: your project, your material, what you want to do, Ready")
-    func setupIsFourSteps() {
-        let firstRun = FirstRunStep.steps(isCompanionPlatform: false)
-        let setup = Array(firstRun.drop { [FirstRunStep.welcome, .permissions, .cloud].contains($0) })
-        #expect(setup == [.project, .material, .purpose, .ready])
-        #expect(setup.map(\.title) == ["Your Project", "Your Material", "What You Want to Do", "Ready"])
-        #expect(FirstRunStep.newProjectSteps == setup, "Set Up New Project… runs the same four")
+    /// WHY (#5492, then section 7d, 2026-10-11, #5668): setup was nine screens plus one per ticked job, then four;
+    /// the maintainer's walkthrough made it small pages, one step at a time, with a page per chosen stage. With no
+    /// stage chosen, a new project's setup is exactly these pages, named so, in this order.
+    @Test("a new project's setup: your project, add material, about the material, the stages, Train, Ready")
+    func setupIsSmallPages() {
+        let setup = SetupStep.projectSteps(chosenStages: [], isNewProject: true)
+        #expect(setup == [.project, .addMaterial, .aboutMaterial, .stages, .train, .ready])
+        #expect(setup.map { $0.title() }
+                == ["Your Project", "Add Material", "About the Material", "Choose the Stages", "Train", "Ready"])
     }
 
-    /// WHY (section 7b): Set Up… on an existing project starts at step 2, because the project
+    /// WHY (section 7b, kept in 7d): Set Up… on an existing project starts at Add material, because the project
     /// already lives somewhere; asking where it lives again would offer to make a second project.
-    @Test("Set Up… starts at step 2, Your material")
-    func setUpStartsAtStepTwo() {
-        #expect(FirstRunStep.setUpSteps == [.material, .purpose, .ready])
-        #expect(!FirstRunStep.setUpSteps.contains(.project))
+    @Test("Set Up… starts at Add material")
+    func setUpStartsAtAddMaterial() {
+        let setUp = SetupStep.projectSteps(chosenStages: [], isNewProject: false)
+        #expect(setUp.first == .addMaterial)
+        #expect(!setUp.contains(.project))
     }
 
     // MARK: Step 3, what you want to do
@@ -180,8 +180,8 @@ struct SetupFourStepsTests {
     @Test("Ready shows the plan, what runs by itself and the two optional rows")
     func readyShowsTheOptionalRows() {
         let rows = RecipeReadyFields.Row.allCases
-        // Then training, offered later and shown only when the plan offers it (#5660 item 9).
-        #expect(rows == [.plan, .runsByItself, .checkOnYourPages, .keepAnExport, .trainLater])
+        // Training is its own page before Ready since section 7d (2026-10-11), not a row here.
+        #expect(rows == [.plan, .runsByItself, .checkOnYourPages, .keepAnExport])
         #expect(rows.filter(\.isOptional) == [.checkOnYourPages, .keepAnExport])
         #expect(rows.filter(\.isOptional).map(\.title) == ["Check on your pages", "Keep an export"])
     }
@@ -216,7 +216,7 @@ struct SetupFourStepsTests {
         let store = makeStore { request in
             request.url?.path == "/api/recipes/project/start" ? (200, Self.planJSON) : (200, #"{"answers":{},"recipe":null}"#)
         }
-        #expect(FirstRunStep.material.savesDraft && FirstRunStep.purpose.savesDraft)
+        #expect(SetupStep.addMaterial.savesDraft && SetupStep.stages.savesDraft)
         #expect(await store.save())
         #expect(FourStepsURLProtocol.seen.map { "\($0.method) \($0.path)" } == ["PUT /api/recipes/project"])
 

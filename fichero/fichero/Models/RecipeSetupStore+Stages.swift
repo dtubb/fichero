@@ -1,0 +1,61 @@
+import FicheroAPIClient
+import Foundation
+
+// MARK: - The stages (section 7c/7d, #5668)
+
+extension RecipeSetupStore {
+    /// The stages, once, in the engine's order, with this project's choice as the engine has it (a stage is on when
+    /// the project's recipe has any of its jobs). The app works none of it out
+    /// (`source.onboard.stages.stages-list-from-the-engine`).
+    func loadStages() async {
+        guard stages.isEmpty else { return }
+        do {
+            if case .ok(let success) = try await client.api.listStagesApiRecipesStagesGet() {
+                let items = try success.body.json.items
+                stages = items
+                stageChoice = SetupStageChoice(
+                    stages: items.map(Self.choiceStage),
+                    chosen: Set(items.filter(\.on).map(\.id))
+                )
+            }
+        } catch {
+            if error.isCancellationError { return }
+            errorMessage = "Could not read the stages: \(error.localizedDescription)"
+        }
+    }
+
+    /// The chosen stages, in the engine's order: one page each.
+    var chosenStageIds: [String] { stageChoice?.chosenInOrder ?? [] }
+
+    /// Each stage's title, for its page's name in the window's list.
+    var stageTitles: [String: String] {
+        Dictionary(stages.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    func stage(_ id: String) -> Components.Schemas.SetupStage? { stages.first { $0.id == id } }
+
+    /// Tick or untick a stage; the answers follow, so the next recipe has the chosen stages' jobs and no others.
+    func toggle(stage id: String) {
+        stageChoice?.toggle(id)
+        applyStageChoiceToJobs()
+    }
+
+    /// A goal (a purpose) as a shortcut: it ticks the stages that carry its jobs, and stays a goal of the project.
+    func applyGoal(_ purposeId: String) {
+        let jobs = purposeOptions.first { $0.id == purposeId }?.jobs?.map(\.id) ?? []
+        if !purposes.contains(purposeId) { purposes.append(purposeId) }
+        stageChoice?.applyGoal(jobs: jobs)
+        applyStageChoiceToJobs()
+    }
+
+    private func applyStageChoiceToJobs() {
+        guard let choice = stageChoice else { return }
+        let (added, removed) = choice.jobsAddedAndRemoved
+        addedJobs = added
+        removedJobs = removed
+    }
+
+    static func choiceStage(_ stage: Components.Schemas.SetupStage) -> SetupStageChoice.Stage {
+        SetupStageChoice.Stage(id: stage.id, jobs: stage.jobs, needs: stage.needs.map { ($0.stage, $0.why) })
+    }
+}

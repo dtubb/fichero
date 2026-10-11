@@ -3,12 +3,13 @@ import AppKit
 #endif
 import SwiftUI
 
-/// First run, File › Set Up New Project… and Set Up… are one flow in four steps (section 7b,
-/// ruled 2026-10-06, #5492; `source.onboard.screens-in-order`). First run and a new project
-/// begin at Your project, which makes the project; Set Up… begins at Your material on the
-/// project it was asked for. Every step after Your project reads and saves through THAT
-/// project's own store (`LibraryReference.recipeSetupStore`), so the engine always knows which
-/// project (#5477).
+/// Setting up, in one window and one code path (section 7d, ruled 2026-10-11, #5668): the app's pages (Welcome, What
+/// Fichero runs, the hand-off), then Set Up a Project's (Your project, Add material, About the material, Choose the
+/// Stages, one page per chosen stage, Train, Ready). A first launch shows the app's pages and, when the person sets up
+/// a project, the project's after them; File › Set Up New Project… begins at Your project; Project › Set Up… begins
+/// at Add material on the project it was asked for (`source.onboard.project.one-view`). Every page after Your
+/// project reads and saves through THAT project's own store (`LibraryReference.recipeSetupStore`), so the engine
+/// always knows which project (#5477).
 struct FirstRunWindow: View {
     enum Mode {
         case firstRun
@@ -22,39 +23,50 @@ struct FirstRunWindow: View {
     private let featureManager = FeatureManager.shared
     @State private var libraryManager = LibraryManager.shared
 
-    @State private var step: FirstRunStep
-    @State private var documentsPermission = false
-    /// "Choose a Provider" on the AI step no longer ends the flow (the recipe
-    /// steps follow it); the Add Provider sheet opens when the flow finishes.
-    @State private var wantsProviderSetup = false
+    @State private var step: SetupStep
+    @State private var flow: SetupFlow
+    /// Choose a Provider opens its sheet here, while What Fichero runs shows (`source.onboard.app.provider-sheet-in-step`);
+    /// it used to open only once onboarding had finished.
+    @State var showsProviderSheet = false
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
     @State private var isSaving = false
 
-    private let steps: [FirstRunStep]
     private let mode: Mode
     /// Tells the window which project setup made, when setup finishes, so it shows that project.
     private let onProjectReady: (UUID) -> Void
 
     /// `initialStep` and `newProject`: the onboarding screenshots' seam (`OnboardingScreenshotsTests`); the app passes neither.
-    init(mode: Mode = .firstRun, project: LibraryManager.LibraryReference? = nil, initialStep: FirstRunStep? = nil,
+    init(mode: Mode = .firstRun, project: LibraryManager.LibraryReference? = nil, initialStep: SetupStep? = nil,
          newProject: NewProjectStore? = nil, onProjectReady: @escaping (UUID) -> Void = { _ in }) {
-        let steps: [FirstRunStep] = switch mode {
-        case .firstRun: FirstRunStep.steps(isCompanionPlatform: FirstRunStep.isCompanionPlatform)
-        case .newProject: FirstRunStep.newProjectSteps
-        case .setUp: FirstRunStep.setUpSteps
-        }
-        self.steps = steps
+        let flow = Self.flow(for: mode)
         self.mode = mode
         self.onProjectReady = onProjectReady
+        _flow = State(initialValue: flow)
         _project = State(initialValue: project)
-        _step = State(initialValue: initialStep ?? steps.first ?? .welcome)
+        _step = State(initialValue: initialStep ?? flow.steps.first ?? .welcome)
         if let newProject { _newProject = State(initialValue: newProject) }
+    }
+
+    /// The pages each way in starts with (`source.onboard.project.one-view`). Pure, for the tests.
+    static func flow(for mode: Mode, isCompanionPlatform: Bool = SetupFlow.runsOnCompanionPlatform) -> SetupFlow {
+        switch mode {
+        case .firstRun: SetupFlow(includesApp: true, project: .none, isCompanionPlatform: isCompanionPlatform)
+        case .newProject: SetupFlow(includesApp: false, project: .new)
+        case .setUp: SetupFlow(includesApp: false, project: .existing)
+        }
     }
 
     /// The store of the project being set up; nil until Your project has made one.
     var store: RecipeSetupStore? { project?.recipeSetupStore }
+
+    /// The pages, with one per stage chosen so far.
+    private var steps: [SetupStep] {
+        var current = flow
+        current.chosenStages = store?.chosenStageIds ?? []
+        return current.steps
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -71,13 +83,24 @@ struct FirstRunWindow: View {
         .frame(width: 820, height: 600)
         #endif
         // Reopen where the person left off: the project's saved answers and
-        // recipe (GET /api/recipes/project), and the purposes and jobs for their questions.
+        // recipe (GET /api/recipes/project), the purposes, the jobs and the stages.
         .task(id: project?.id) {
             guard let store else { return }
             await store.loadSaved()
             await store.loadPurposes()
             await store.loadJobs()
+            await store.loadStages()
         }
+        .sheet(isPresented: $showsProviderSheet) {
+            AddProviderSheet(onAdd: { await appState.loadProviders() }, isFirstLaunch: true)
+                .environment(appState.providerService)
+        }
+    }
+
+    /// The person chose to set up a project from the app's pages: the project's pages follow them.
+    func setUpAProject() {
+        flow.project = .new
+        step = step.next(in: steps)
     }
 
     /// Advance within the steps; the LAST one finishes (#2807).
@@ -126,11 +149,12 @@ struct FirstRunWindow: View {
                 .font(.title2.weight(.semibold))
                 .padding(.bottom, 12)
 
+            let titles = store?.stageTitles ?? [:]
             List(steps, selection: Binding(get: { step }, set: { if let chosen = $0 { step = chosen } })) { item in
-                Label(item.title, systemImage: item.icon)
+                Label(item.title(stageTitles: titles), systemImage: item.icon)
                     .tag(item)
                     // Nothing after Your project can be reached before there is a project.
-                    .disabled(store == nil && item != .project && !isBeforeProject(item))
+                    .disabled(store == nil && !item.needsNoProject)
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
@@ -138,10 +162,6 @@ struct FirstRunWindow: View {
         .padding(20)
         .frame(width: 230)
         .background(Color(platformColor: .controlBackgroundColor))
-    }
-
-    private func isBeforeProject(_ item: FirstRunStep) -> Bool {
-        [.welcome, .permissions, .cloud].contains(item)
     }
 }
 
@@ -154,95 +174,51 @@ extension FirstRunWindow {
             stepPage(
                 title: "Welcome to Fichero",
                 subtitle: FirstLaunchChoices.welcome,
-                systemImage: "doc.richtext"
+                systemImage: "doc.richtext",
+                showsContinue: false
             ) {
                 // Less is more (Daniel, 2026-10-11): the welcome is its sentence and its two choices; the
-                // steps are in the list beside it, so no card restates them, and no feature pills.
+                // steps are in the list beside it, so no card restates them, and no feature pills. Either choice
+                // goes on to What Fichero runs; the hand-off then leads into the project, or into the app.
                 VStack(spacing: 12) {
                     Spacer()
-                    Button(action: { advance() }) {
+                    Button(action: {
+                        flow.project = .new
+                        advance()
+                    }, label: {
                         Label(FirstLaunchChoices.setUpNewProject, systemImage: "arrow.right")
                             .frame(maxWidth: .infinity)
-                    }
+                    })
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    Button(FirstLaunchChoices.startWithoutProject) { finish() }
+                    Button(FirstLaunchChoices.startWithoutProject) { advance() }
                         .buttonStyle(.bordered)
                 }
             }
-        case .permissions:
+        case .whatFicheroRuns:
             stepPage(
-                title: "Permissions",
-                subtitle: "Grant access only to the locations Fichero should work with.",
-                systemImage: "lock.shield"
+                title: WhatFicheroRuns.title,
+                subtitle: WhatFicheroRuns.subtitle,
+                systemImage: SetupStep.whatFicheroRuns.icon
             ) {
-                firstRunCard(
-                    FirstRunCardConfig(
-                        icon: documentsPermission ? "checkmark.shield" : "lock.shield",
-                        title: "Authorize source locations",
-                        body: documentsPermission
-                            ? "Folder access is ready. That's the only permission Fichero needs to get started."
-                            : "Grant folder access only for the locations Fichero should scan and organize.",
-                        primaryTitle: documentsPermission ? "Continue" : "Choose Folder",
-                        primaryIcon: documentsPermission ? "arrow.right" : "folder.badge.gearshape",
-                        primaryAction: {
-                            if documentsPermission {
-                                advance()
-                            } else {
-                                requestDocumentsAccess()
-                            }
-                        }
-                    ),
-                    footer: {
-                        // #2717 — Folder access is the only permission Fichero needs.
-                        // The app declares no Accessibility entitlement (removed) and
-                        // no Photos usage string; Photos is requested at import time
-                        // only, never up front.
-                        if documentsPermission {
-                            detailPill("Documents ready", icon: "checkmark.circle.fill")
-                        }
-                    }
-                )
+                WhatFicheroRunsFields(providers: appState.providerService,
+                                      chooseProvider: { showsProviderSheet = true },
+                                      onAccountAdded: { await appState.loadProviders() })
             }
-        case .cloud:
+        case .handOff:
             stepPage(
-                title: "AI is optional",
-                subtitle: "Fichero is local-first. Add a provider only when you want AI.",
-                systemImage: "brain"
+                title: flow.project == .none ? "Fichero is ready" : "Next, your project",
+                subtitle: flow.project == .none
+                    ? "Set up a project when you have material, or start in the one Fichero always has."
+                    : "Name it, add your material, and choose what Fichero does with it.",
+                systemImage: SetupStep.handOff.icon
             ) {
-                firstRunCard(
-                    FirstRunCardConfig(
-                        icon: "cpu",
-                        title: "Choose an AI provider",
-                        body: "Run models on-device for free with Apple Intelligence, Ollama, or "
-                            + "LM Studio, or connect a cloud provider — OpenRouter is an easy default, "
-                            + "and OpenAI, Anthropic, or Google work too. Pick your default models; "
-                            + "everything is optional and changeable in Settings.",
-                        primaryTitle: "Choose a Provider",
-                        primaryIcon: "plus",
-                        primaryAction: {
-                            wantsProviderSetup = true
-                            advance()
-                        }
-                    ),
-                    footer: {
-                        // #2718 — local-first, provider-agnostic. Defer to the existing
-                        // Add Provider flow (full catalog + default-model selection),
-                        // which pre-selects a local provider on first launch. No single
-                        // provider is centered.
-                        VStack(alignment: .leading, spacing: 10) {
-                            // #3121 — surface the zero-cloud on-device options with
-                            // their TRUE availability so a fresh user can pick a
-                            // private setup knowingly.
-                            localFirstAIOptions
-                            Text("Prefer to decide later? Skip — you can add providers anytime in Settings.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                )
+                if flow.project == .none {
+                    Button(FirstLaunchChoices.setUpNewProject) { setUpAProject() }
+                        .buttonStyle(.bordered)
+                }
             }
-        case .project, .material, .purpose, .ready:
+        default:
             recipeStepPage(step)
         }
     }
@@ -251,6 +227,7 @@ extension FirstRunWindow {
         title: String,
         subtitle: String,
         systemImage: String,
+        showsContinue: Bool = true,
         @ViewBuilder body: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -279,78 +256,20 @@ extension FirstRunWindow {
                 if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
                 Button("Back") { step = step.previous(in: steps) }
                     .disabled(step == steps.first)
-                Button(step == .ready ? "Start" : step == steps.last ? "Finish" : "Continue") {
-                    advance()
+                // One Continue per step, the footer's (`source.onboard.app.one-continue`); the welcome's choices
+                // are its own buttons.
+                if showsContinue {
+                    Button(step == .ready ? "Start" : step == steps.last ? "Finish" : "Continue") {
+                        advance()
+                    }
+                    .disabled(step == .ready && !(store?.canStart ?? false))
+                    .help(step == .ready ? (store?.startDisabledReason ?? "") : "")
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
                 }
-                .disabled(step == .ready && !(store?.canStart ?? false)).help(step == .ready ? (store?.startDisabledReason ?? "") : "")
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
             }
         }
         .padding(28)
-    }
-
-    private func firstRunCard<Footer: View>(_ config: FirstRunCardConfig, @ViewBuilder footer: () -> Footer) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: config.icon)
-                .font(.largeTitle.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 64, height: 64)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(config.title)
-                    .font(.title3.weight(.semibold))
-                Text(config.body)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            footer()
-
-            Spacer()
-
-            Button(action: config.primaryAction) {
-                Label(config.primaryTitle, systemImage: config.primaryIcon)
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            if let secondary = config.secondary { Button(secondary.title, action: secondary.action).frame(maxWidth: .infinity) }
-        }
-        .padding(22)
-        .frame(maxWidth: .infinity, minHeight: 280, alignment: .leading)
-        .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        }
-        .shadow(color: Color.black.opacity(0.04), radius: 12, x: 0, y: 4)
-    }
-
-    private func detailPill(_ title: String, icon: String) -> some View {
-        Label(title, systemImage: icon)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func requestDocumentsAccess() {
-        #if os(macOS)
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK {
-            documentsPermission = true
-        }
-        #else
-        // iOS: document picker / sandbox access would go here.
-        documentsPermission = true
-        #endif
     }
 
     /// Start closes setup onto the run it queued (#5576, `source.onboard.auto.lands-on-the-run`):
@@ -370,10 +289,8 @@ extension FirstRunWindow {
         return ActivitySelection(jobId: jobId, libraryId: projectId)
     }
 
-    /// #2718 — When the person chose a provider, finishing hands off to the existing local-first Add Provider
-    /// flow (full provider catalog + default-model selection) rather than hardcoding any single provider.
-    /// Setting `isFirstLaunchProviderSetup` makes that sheet pre-select a local provider. A project setup made is
-    /// shown in the window.
+    /// Finishing marks first run done and shows a project setup made in the window. The provider sheet is no longer
+    /// deferred to here: it opens in What Fichero runs.
     private func finish() {
         if mode == .firstRun {
             featureManager.firstRunCompleted = true
@@ -381,10 +298,6 @@ extension FirstRunWindow {
         }
         if mode != .setUp, let made = newProject.created {
             onProjectReady(made.id)
-        }
-        if wantsProviderSetup {
-            appState.isFirstLaunchProviderSetup = true
-            appState.showAddProvider = true
         }
         dismiss()
     }

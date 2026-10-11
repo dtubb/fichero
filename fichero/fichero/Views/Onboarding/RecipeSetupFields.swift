@@ -80,64 +80,6 @@ struct SetupWhereItLivesFields: View {
     }
 }
 
-/// Step 3, "What you want to do" (#5478, #5492): the engine's purposes as checkboxes, any
-/// combination. Ticking one opens, in place under it, one plain sentence of what it does and its
-/// own questions (`RecipeSetupStore.questions(under:)`); an unticked purpose shows nothing more.
-/// Jobs beyond the purposes' are added on Ready ("Also on hand").
-struct RecipePurposeFields: View {
-    @Bindable var store: RecipeSetupStore
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if store.purposeOptions.isEmpty, let error = store.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
-            } else if store.purposeOptions.isEmpty {
-                ProgressView()
-            }
-            ForEach(store.purposeOptions.filter { $0.id != "not-sure" }, id: \.id) { purpose in
-                let ticked = store.purposes.contains(purpose.id)
-                // Ticking the purpose it is listed under may already include it (#5625): shown ticked, fixed.
-                let includedBy = store.includingPurpose(of: purpose.id)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Toggle(purpose.title, isOn: Binding(get: { ticked || includedBy != nil },
-                                                            set: { _ in store.toggle(purpose: purpose.id) }))
-                            .setupCheckbox()
-                            .disabled(includedBy != nil)
-                            .help(purpose.description)
-                        if let includedBy {
-                            Text("Included in \(includedBy.title)").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-                    if ticked {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(purpose.description)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            ForEach(store.questions(under: purpose.id), id: \.self) { job in
-                                JobQuestionFields(store: store, job: job)
-                            }
-                        }
-                        .padding(.leading, 20)
-                    }
-                }
-                // An option is listed indented under the purpose it belongs to (Search under Transcribe;
-                // Entities and Statements under Knowledge graph), in the engine's order (#5625).
-                .padding(.leading, purpose.parent == nil ? 0 : 24)
-            }
-            if store.purposes.isEmpty {
-                Text("Not sure yet: nothing is proposed, and every tool is on hand when you want it.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-        }
-        .task {
-            await store.loadPurposes()
-            await store.loadJobs()
-        }
-    }
-}
-
 /// How sources come in (ruled 2026-10-03 and 2026-10-05, `source.onboard.five-ways-in`): Link,
 /// Copy, Move, Index or Keep arranged, each with what it does to the originals. Link is the
 /// default; Move says plainly that the originals go. Keep arranged (#5480) imports as Index and,
@@ -449,12 +391,6 @@ extension View {
     SetupWhereItLivesFields(store: NewProjectStore(libraryManager: LibraryManager.shared))
         .padding()
         .frame(width: 520, height: 300)
-}
-
-#Preview("What you want to do") {
-    RecipePurposeFields(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
-        .padding()
-        .frame(width: 520, height: 480)
 }
 
 #Preview("Your material") {

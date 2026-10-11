@@ -102,14 +102,51 @@ struct RecipeSetupAnswers: Codable, Equatable {
         var normaliseHowFar: [String] = ["expanded"]
         /// Map places (`place-in-a-gazetteer`): which gazetteer.
         var gazetteer: String = "geonames"
+        /// Every other stage question's answer, by the engine's key (section 7c, `GET /api/recipes/stages`): the
+        /// stage pages ask what the engine lists, so a question the app has no field for is still kept and saved.
+        var other: [String: StageAnswer] = [:]
 
-        enum CodingKeys: String, CodingKey {
+        enum CodingKeys: String, CodingKey, CaseIterable {
             case entityKinds = "entity_kinds"
             case normaliseHowFar = "normalise_how_far"
             case gazetteer
         }
 
         init() {}
+
+        /// One stage question's answer by its engine key: the typed fields for the keys they name, `other` for the
+        /// rest. What a stage page reads and writes.
+        subscript(question key: String) -> StageAnswer? {
+            get {
+                switch key {
+                case CodingKeys.entityKinds.rawValue: .many(entityKinds)
+                case CodingKeys.normaliseHowFar.rawValue: .many(normaliseHowFar)
+                case CodingKeys.gazetteer.rawValue: .text(gazetteer)
+                default: other[key]
+                }
+            }
+            set {
+                switch (key, newValue) {
+                case (CodingKeys.entityKinds.rawValue, .many(let kinds)?): entityKinds = kinds
+                case (CodingKeys.normaliseHowFar.rawValue, .many(let levels)?): normaliseHowFar = levels
+                case (CodingKeys.gazetteer.rawValue, .text(let name)?): gazetteer = name
+                case (CodingKeys.entityKinds.rawValue, _), (CodingKeys.normaliseHowFar.rawValue, _),
+                     (CodingKeys.gazetteer.rawValue, _): break
+                default: other[key] = newValue
+                }
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var values = encoder.container(keyedBy: CodingKeys.self)
+            try values.encode(entityKinds, forKey: .entityKinds)
+            try values.encode(normaliseHowFar, forKey: .normaliseHowFar)
+            try values.encode(gazetteer, forKey: .gazetteer)
+            var rest = encoder.container(keyedBy: StageAnswerKey.self)
+            for (key, answer) in other where CodingKeys(rawValue: key) == nil {
+                try rest.encode(answer, forKey: StageAnswerKey(stringValue: key))
+            }
+        }
 
         /// A field not saved yet keeps its default.
         init(from decoder: Decoder) throws {
@@ -122,6 +159,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
                 normaliseHowFar = [Self.engineLevel(one)]
             }
             gazetteer = try values.decodeIfPresent(String.self, forKey: .gazetteer) ?? gazetteer
+            let rest = try decoder.container(keyedBy: StageAnswerKey.self)
+            for key in rest.allKeys where CodingKeys(rawValue: key.stringValue) == nil {
+                if let answer = try? rest.decode(StageAnswer.self, forKey: key) { other[key.stringValue] = answer }
+            }
         }
 
         /// The levels Into what offers, in the order a reading cascades, with Set Up's words for them.
@@ -190,4 +231,51 @@ struct RecipeSetupAnswers: Codable, Equatable {
         case jobAnswers = "job_answers"
         case removedJobs = "removed_jobs"
     }
+}
+
+/// A stage question's answer (section 7c): one choice or a line of text, several choices, or yes or no. Saved as the
+/// engine keeps it: a string, a list of strings, or a boolean.
+enum StageAnswer: Codable, Equatable, Hashable {
+    case text(String)
+    case many([String])
+    case yesNo(Bool)
+
+    init(from decoder: Decoder) throws {
+        let value = try decoder.singleValueContainer()
+        if let flag = try? value.decode(Bool.self) {
+            self = .yesNo(flag)
+        } else if let list = try? value.decode([String].self) {
+            self = .many(list)
+        } else {
+            self = .text(try value.decode(String.self))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var value = encoder.singleValueContainer()
+        switch self {
+        case .text(let text): try value.encode(text)
+        case .many(let list): try value.encode(list)
+        case .yesNo(let flag): try value.encode(flag)
+        }
+    }
+
+    /// An answer or default as the engine sent it (a JSON value), or nil for none or an unknown shape.
+    static func from(_ value: Any?) -> StageAnswer? {
+        switch value {
+        case let flag as Bool: .yesNo(flag)
+        case let text as String: .text(text)
+        case let list as [String]: .many(list)
+        case let list as [Any]: .many(list.compactMap { $0 as? String })
+        default: nil
+        }
+    }
+}
+
+/// Any key, for the stage answers `JobAnswers`' typed fields do not name.
+struct StageAnswerKey: CodingKey {
+    var stringValue: String
+    var intValue: Int? { nil }
+    init(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { nil }
 }

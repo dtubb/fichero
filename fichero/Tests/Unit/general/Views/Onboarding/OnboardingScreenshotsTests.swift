@@ -242,7 +242,7 @@ struct OnboardingScreenshotsTests {
         try await shot("01-welcome.png", window, FirstRunWindow(mode: .firstRun))
         try await shot("02-your-project.png", window,
                        FirstRunWindow(mode: .firstRun, initialStep: .project, newProject: named))
-        try await shot("03-your-material.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .material))
+        try await shot("03-your-material.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .addMaterial))
         // Your material is longer than its card: all of it, as the card scrolls through it (languages, scripts,
         // what the material is).
         try await shot("04-your-material-whole.png", CGSize(width: 620, height: 620), VStack(alignment: .leading, spacing: 16) {
@@ -252,7 +252,7 @@ struct OnboardingScreenshotsTests {
             Spacer(minLength: 0)
         }.padding(22))
         try await shot("05-what-you-want-to-do.png", window,
-                       FirstRunWindow(mode: .setUp, project: project, initialStep: .purpose))
+                       FirstRunWindow(mode: .setUp, project: project, initialStep: .stages))
         try await shot("06-ready.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .ready))
         // Ready is longer than its card: the whole plan, top to bottom, as the card scrolls through it.
         try await shot("07-ready-whole-plan.png", CGSize(width: 620, height: 4200), VStack {

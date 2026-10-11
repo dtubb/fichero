@@ -1,104 +1,91 @@
 @testable import Fichero
 import XCTest
 
-/// #2807 — iOS first-run parity: the platform-gated step list must skip the
-/// Mac-only steps on companion platforms (iPhone/iPad have no local engine), and the
-/// list-relative navigation must clamp at both ends of WHICHEVER list the platform runs.
+/// Setting up, in one window (section 7d, ruled 2026-10-11, #5668; #2807 for the companion platforms): the app's
+/// pages, then Set Up a Project's, with one page per chosen stage; navigation clamps at both ends of WHICHEVER list
+/// the window runs.
+@MainActor
 final class FirstRunStepSelectionTests: XCTestCase {
 
-    // MARK: - Step selection
+    // MARK: - The two set-ups
 
-    /// The Mac runs the full flow, in declaration order. Setup is part of first run, not a
-    /// second onboarding, in section 7b's four steps (ruled 2026-10-06, #5492): your project,
-    /// your material, what you want to do, Ready. WHY: the files come before the purposes, so a
-    /// person says where the project is and what is in it before what it is for, and nine
-    /// screens plus one per job were too many.
-    func testMacStepListIsTheFullFlowWithMaterialBeforePurpose() {
+    /// `source.onboard.app.steps`: the app is set up in three pages, and Permissions is not one of them (folder access
+    /// is asked when a folder is added).
+    func testTheAppIsWelcomeWhatFicheroRunsAndTheHandOff() {
+        XCTAssertEqual(SetupStep.appSteps, [.welcome, .whatFicheroRuns, .handOff])
+        XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps, SetupStep.appSteps)
+    }
+
+    /// `source.onboard.project.steps`: Set Up a Project runs Your project → Add material → About the material →
+    /// Choose the Stages → one page per chosen stage → Train → Ready; Project › Set Up… starts at Add material.
+    func testAProjectIsSetUpInSmallPagesWithOnePerChosenStage() {
         XCTAssertEqual(
-            FirstRunStep.steps(isCompanionPlatform: false),
-            [.welcome, .permissions, .cloud, .project, .material, .purpose, .ready]
+            SetupStep.projectSteps(chosenStages: [], isNewProject: true),
+            [.project, .addMaterial, .aboutMaterial, .stages, .train, .ready]
+        )
+        XCTAssertEqual(
+            SetupStep.projectSteps(chosenStages: ["find-lines", "read"], isNewProject: false),
+            [.addMaterial, .aboutMaterial, .stages, .stage("find-lines"), .stage("read"), .train, .ready]
         )
     }
 
-    /// Set Up… from a project runs the same setup steps as first run (one code path), starting
-    /// at step 2, Your material (the project already lives somewhere); Set Up New Project…
-    /// adds Your project before them. If either drifted, a new project and an existing one
-    /// would be set up by different flows.
-    func testSetUpStartsAtYourMaterialAndRunsTheFirstRunSteps() {
-        XCTAssertEqual(FirstRunStep.setUpSteps.first, .material)
-        XCTAssertEqual(FirstRunStep.setUpSteps, [.material, .purpose, .ready])
-        XCTAssertEqual(FirstRunStep.newProjectSteps, [.project] + FirstRunStep.setUpSteps)
-        let full = FirstRunStep.steps(isCompanionPlatform: false)
-        XCTAssertEqual(Array(full.suffix(FirstRunStep.newProjectSteps.count)), FirstRunStep.newProjectSteps)
+    /// `source.onboard.project.one-view`: every way in opens the same pages; only where they begin differs.
+    func testEveryWayInOpensTheSamePages() {
+        let fromTheMenu = FirstRunWindow.flow(for: .newProject).steps
+        let fromSetUp = FirstRunWindow.flow(for: .setUp).steps
+        var fromTheWelcome = FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false)
+        fromTheWelcome.project = .new
+        XCTAssertEqual(Array(fromTheWelcome.steps.dropFirst(SetupStep.appSteps.count)), fromTheMenu)
+        XCTAssertEqual(Array(fromTheMenu.dropFirst()), fromSetUp, "Set Up… is the same pages from Add material")
     }
 
-    /// Companion platforms skip every Mac-only step: project location,
-    /// folder permissions, AI provider setup and the recipe all configure a LOCAL
-    /// engine, which the companion does not have.
-    func testCompanionStepListSkipsMacOnlySteps() {
-        XCTAssertEqual(
-            FirstRunStep.steps(isCompanionPlatform: true),
-            [.welcome]
-        )
-    }
-
-    /// The Mac-only marker is the single source of the split — welcome is the
-    /// only shared step; everything else is Mac-only.
-    func testMacOnlyMarkerTruthTable() {
-        for step in FirstRunStep.allCases {
-            XCTAssertEqual(
-                step.isMacOnly,
-                step != .welcome,
-                "\(step)"
-            )
-        }
+    /// Companion platforms have no local engine to set up: the welcome alone.
+    func testCompanionPlatformsShowTheWelcomeAlone() {
+        XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: true).steps, [.welcome])
     }
 
     /// The compile-time platform constant matches the target this test runs on.
     func testIsCompanionPlatformMatchesBuildTarget() {
         #if os(macOS)
-        XCTAssertFalse(FirstRunStep.isCompanionPlatform)
+        XCTAssertFalse(SetupFlow.runsOnCompanionPlatform)
         #else
-        XCTAssertTrue(FirstRunStep.isCompanionPlatform)
+        XCTAssertTrue(SetupFlow.runsOnCompanionPlatform)
         #endif
+    }
+
+    /// Only the pages before a project exists can be reached without one.
+    func testOnlyTheAppPagesAndYourProjectNeedNoProject() {
+        XCTAssertTrue(SetupStep.appSteps.allSatisfy(\.needsNoProject))
+        XCTAssertTrue(SetupStep.project.needsNoProject)
+        XCTAssertFalse(SetupStep.addMaterial.needsNoProject)
+        XCTAssertFalse(SetupStep.stage("read").needsNoProject)
     }
 
     // MARK: - List-relative navigation
 
-    /// Forward navigation walks the full Mac list in order and clamps at the
-    /// last step (the caller finishes there — it never wraps).
-    func testNextWalksMacListAndClampsAtEnd() {
-        let steps = FirstRunStep.steps(isCompanionPlatform: false)
-        var walked = [FirstRunStep.welcome]
+    /// Forward navigation walks the list in order and clamps at the last page (the caller finishes there).
+    func testNextWalksTheListAndClampsAtEnd() {
+        let steps = SetupStep.projectSteps(chosenStages: ["read"], isNewProject: true)
+        var walked = [SetupStep.project]
         while walked.last != .ready { walked.append(walked.last!.next(in: steps)) }
         XCTAssertEqual(walked, steps)
-        XCTAssertEqual(FirstRunStep.ready.next(in: steps), .ready)
+        XCTAssertEqual(SetupStep.ready.next(in: steps), .ready)
     }
 
-    /// Backward navigation clamps at the first step.
-    func testPreviousWalksMacListAndClampsAtStart() {
-        let steps = FirstRunStep.steps(isCompanionPlatform: false)
-        var walked = [FirstRunStep.ready]
+    /// Backward navigation clamps at the first page.
+    func testPreviousWalksTheListAndClampsAtStart() {
+        let steps = SetupStep.appSteps
+        var walked = [SetupStep.handOff]
         while walked.last != .welcome { walked.append(walked.last!.previous(in: steps)) }
         XCTAssertEqual(walked, steps.reversed())
-        XCTAssertEqual(FirstRunStep.welcome.previous(in: steps), .welcome)
+        XCTAssertEqual(SetupStep.welcome.previous(in: steps), .welcome)
     }
 
-    /// On the single-step companion list, navigation is a fixed point in both
-    /// directions — Welcome is first AND last, so the flow's advance action
-    /// finishes rather than stepping into a Mac-only screen.
-    func testCompanionListNavigationIsAFixedPointOnWelcome() {
-        let steps = FirstRunStep.steps(isCompanionPlatform: true)
-        XCTAssertEqual(FirstRunStep.welcome.next(in: steps), .welcome)
-        XCTAssertEqual(FirstRunStep.welcome.previous(in: steps), .welcome)
-        XCTAssertEqual(steps.first, steps.last)
-    }
-
-    /// A step NOT in the platform list (stale @State after a hypothetical list
-    /// change) clamps to the list's boundaries instead of trapping the flow.
-    func testStepOutsideListClampsToBoundaries() {
-        let steps = FirstRunStep.steps(isCompanionPlatform: true)
-        XCTAssertEqual(FirstRunStep.permissions.next(in: steps), .welcome)
-        XCTAssertEqual(FirstRunStep.permissions.previous(in: steps), .welcome)
+    /// A page NOT in the list (a stage unticked while its page showed) clamps to the list's ends instead of
+    /// trapping the flow.
+    func testAPageOutsideTheListClampsToItsEnds() {
+        let steps = SetupStep.projectSteps(chosenStages: [], isNewProject: false)
+        XCTAssertEqual(SetupStep.stage("names").next(in: steps), .ready)
+        XCTAssertEqual(SetupStep.stage("names").previous(in: steps), .addMaterial)
     }
 }

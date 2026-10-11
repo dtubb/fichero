@@ -86,6 +86,10 @@ final class RecipeSetupStore {
 
     /// The purposes setup offers, each with its jobs, from the engine (`GET /api/recipes/purposes`).
     private(set) var purposeOptions: [Components.Schemas.PurposeInfo] = []
+    /// The stages of Set Up, from the engine, in pipeline order (`GET /api/recipes/stages`, section 7c/7d).
+    var stages: [Components.Schemas.SetupStage] = []
+    /// Which stages are chosen (`source.onboard.stages.choose-first`); nil until the stages have loaded.
+    var stageChoice: SetupStageChoice?
     private(set) var recipe: Components.Schemas.AssembledRecipe?
     private(set) var jobs: [String: Components.Schemas.JobInfo] = [:]
     /// The registry's own order, so what is offered after the recipe's steps is stable.

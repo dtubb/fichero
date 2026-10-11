@@ -238,9 +238,10 @@ struct RecipeStartFields: View {
 /// proposed on arrival and kept as a draft whenever it changes, so Start's estimate is the
 /// engine's plan for exactly what is shown.
 struct RecipeReadyFields: View {
-    /// The rows of Ready, in order; the optional ones can be left and done later from the Inspector.
+    /// The rows of Ready, in order; the optional ones can be left and done later from the Inspector. Training is its
+    /// own page before Ready (section 7d, `source.onboard.stages.train-and-ready-last`), not a row here.
     enum Row: CaseIterable {
-        case plan, runsByItself, checkOnYourPages, keepAnExport, trainLater
+        case plan, runsByItself, checkOnYourPages, keepAnExport
 
         var title: String {
             switch self {
@@ -248,7 +249,6 @@ struct RecipeReadyFields: View {
             case .runsByItself: "What runs by itself"
             case .checkOnYourPages: "Check on your pages"
             case .keepAnExport: "Keep an export"
-            case .trainLater: "Offered later: Train a model of your own for this step"
             }
         }
 
@@ -266,8 +266,7 @@ struct RecipeReadyFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Training shows only when the plan offers it (#5660 item 9).
-            ForEach(Row.allCases.filter { $0 != .trainLater || !store.trainOffers.isEmpty }, id: \.self) { row in
+            ForEach(Row.allCases, id: \.self) { row in
                 if row != .plan { Divider() }
                 Text(row.isOptional ? "\(row.title) (optional)" : row.title).font(.headline)
                 content(row)
@@ -308,8 +307,6 @@ struct RecipeReadyFields: View {
                 Text("Keep an up-to-date copy of the work in a folder outside the project.")
                     .font(.callout).foregroundStyle(.secondary)
             }
-        case .trainLater:
-            RecipeTrainOffersFields(store: store)
         }
     }
 

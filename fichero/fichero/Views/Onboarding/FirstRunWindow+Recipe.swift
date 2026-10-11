@@ -1,14 +1,13 @@
 import SwiftUI
 
-// MARK: - Setup's four steps (section 7b, ruled 2026-10-06, #5492; source.onboard.*)
+// MARK: - Set Up a Project's pages (section 7d, ruled 2026-10-11, #5668; source.onboard.project.*)
 
-/// The four setup steps of first run, Set Up New Project… and Set Up… (one flow,
-/// `source.onboard.screens-in-order`). Same page chrome and navigation as the other steps; the
-/// fields scroll because a step can be longer than the card. Every step after Your project
-/// works on the project's own store. One sentence per step; no disclosure (#5481).
+/// Set Up a Project, one small page per step: Your project, Add material, About the material, Choose the Stages, one
+/// page per chosen stage, Train and Ready. Same page chrome and navigation as the app's pages; the fields scroll
+/// because a page can be longer than the card. Every page after Your project works on the project's own store.
 extension FirstRunWindow {
     @ViewBuilder
-    func recipeStepPage(_ step: FirstRunStep) -> some View {
+    func recipeStepPage(_ step: SetupStep) -> some View {
         if step == .project {
             stepPage(
                 title: "Your project",
@@ -20,38 +19,26 @@ extension FirstRunWindow {
         } else if let store {
             setupPage(step, store: store)
         } else {
-            stepPage(title: step.title, subtitle: "Make the project first.", systemImage: step.icon) {
+            stepPage(title: step.title(), subtitle: "Make the project first.", systemImage: step.icon) {
                 EmptyView()
             }
         }
     }
 
     @ViewBuilder
-    private func setupPage(_ step: FirstRunStep, store: RecipeSetupStore) -> some View {
+    private func setupPage(_ step: SetupStep, store: RecipeSetupStore) -> some View {
         switch step {
-        case .material:
+        case .addMaterial, .aboutMaterial:
+            materialPage(step, store: store)
+        case .stages, .stage:
+            stagePage(step, store: store)
+        case .train:
             stepPage(
-                title: "Your material",
-                subtitle: "How your sources come in and what they are; Fichero works out the rest.",
+                title: "Train",
+                subtitle: "Offered later: a model of your own for a step, once the project has corrected pages.",
                 systemImage: step.icon
             ) {
-                recipeCard {
-                    VStack(alignment: .leading, spacing: 16) {
-                        RecipeMaterialSourceFields(
-                            store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
-                        )
-                        Divider()
-                        RecipeAboutFields(store: store)
-                    }
-                }
-            }
-        case .purpose:
-            stepPage(
-                title: "What you want to do",
-                subtitle: "Tick everything this project is for; each one asks only what it needs.",
-                systemImage: step.icon
-            ) {
-                recipeCard { RecipePurposeFields(store: store) }
+                recipeCard { RecipeTrainOffersFields(store: store) }
             }
         default:
             stepPage(
@@ -69,6 +56,60 @@ extension FirstRunWindow {
                     )
                 }
             }
+        }
+    }
+
+    /// Add material and About the material: how it comes in, then what it is (`source.onboard.project.*`).
+    @ViewBuilder
+    private func materialPage(_ step: SetupStep, store: RecipeSetupStore) -> some View {
+        if step == .addMaterial {
+            stepPage(
+                title: "Add material",
+                subtitle: "Add files or folders, and say how they come in.",
+                systemImage: step.icon
+            ) {
+                recipeCard {
+                    RecipeMaterialSourceFields(
+                        store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
+                    )
+                }
+            }
+        } else {
+            stepPage(
+                title: "About the material",
+                subtitle: "What it is, when and where it was written, and in which hand.",
+                systemImage: step.icon
+            ) {
+                recipeCard { RecipeAboutFields(store: store) }
+            }
+        }
+    }
+
+    /// Choose the Stages, and one chosen stage's page (`source.onboard.stages.*`).
+    @ViewBuilder
+    private func stagePage(_ step: SetupStep, store: RecipeSetupStore) -> some View {
+        switch step {
+        case .stages:
+            stepPage(
+                title: "Choose the stages",
+                subtitle: "Tick each stage of the work this project needs; each has its own page next.",
+                systemImage: step.icon
+            ) {
+                recipeCard { SetupStageChooser(store: store) }
+            }
+        case .stage(let stageId):
+            let stage = store.stage(stageId)
+            stepPage(
+                title: stage?.title ?? stageId,
+                subtitle: stage?.sentence ?? "",
+                systemImage: step.icon
+            ) {
+                recipeCard {
+                    if let stage { SetupStagePage(store: store, stage: stage) }
+                }
+            }
+        default:
+            EmptyView()
         }
     }
 
@@ -93,57 +134,6 @@ extension FirstRunWindow {
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        }
-    }
-
-    // MARK: - AI step
-
-    /// #3121 — the two zero-cloud, on-device options with their true state.
-    /// Apple Intelligence availability comes from the `/providers/apple/availability`
-    /// probe (#3118) so an unavailable machine sees the concrete reason instead of
-    /// discovering it at first call. MLX is always offered (Apple-silicon local
-    /// runtime) with a pointer to its setup pane.
-    var localFirstAIOptions: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            appleIntelligenceOption
-            localOptionRow(
-                icon: "cpu",
-                title: "MLX on-device models",
-                detail: "Set up in Settings ▸ Local LLM.",
-                detailTint: .secondary
-            )
-        }
-        .task {
-            await appState.appleAvailabilityStore.load()
-        }
-    }
-
-    @ViewBuilder
-    private var appleIntelligenceOption: some View {
-        let status = appState.appleAvailabilityStore.status
-        localOptionRow(
-            icon: "apple.logo",
-            title: "Apple Intelligence",
-            detail: status.map { $0.available ? "Available" : $0.label } ?? "Checking availability…",
-            detailTint: status?.available == false ? .orange : .secondary
-        )
-    }
-
-    private func localOptionRow(icon: String, title: String, detail: String, detailTint: Color) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .frame(width: 18)
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.body)
-            LocalPrivateBadge()
-            Spacer()
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(detailTint)
-                .textSelection(.enabled)
-                .multilineTextAlignment(.trailing)
         }
     }
 }

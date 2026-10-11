@@ -2713,10 +2713,10 @@ Setup
   Search, each only when chosen), Train, Ready. Set Up… on an existing project starts at Your Material.
   *Test:* pure Swift, the step list for no stage, one stage and all eleven, in that order whatever order
   they were ticked in.
-- `source.onboard.stages.choose-first` — **[GAP]** (#5668) Choose the Stages replaces What You Want
+- `source.onboard.stages.choose-first` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStageChooser` over `GET /api/recipes/stages`; pinned by `SetupStagesTests`. Choose the Stages replaces What You Want
   to Do and is the first decision about the work: every stage is a checkbox, on or off, with its one
   sentence. *Test:* pure Swift over the engine's stages list.
-- `source.onboard.stages.goals-are-shortcuts` — **[GAP]** (#5668) the goals (Transcribe, Search,
+- `source.onboard.stages.goals-are-shortcuts` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStageChoice.applyGoal`; pinned by `SetupStagesTests`. the goals (Transcribe, Search,
   Knowledge graph and the rest of `PURPOSES`) stay, as shortcuts above the stages: choosing one ticks
   the stages it needs (`PURPOSE_STEPS`); unticking a stage by hand is kept. *Test:* pure Swift, a
   goal ticks its stages and a stage unticked afterwards stays unticked.
@@ -2728,14 +2728,14 @@ Setup
   sentences, examples, jobs, questions and needs come from one engine list (`GET /api/recipes/stages`),
   read by setup, the Inspector and the manual; the app works none of it out. *Test:* pytest, every
   registered job that a stage carries exists and every stage's needs are stages; the eleven in order.
-- `source.onboard.stages.page-says-what-it-does` — **[GAP]** (#5668) each stage page opens with what
+- `source.onboard.stages.page-says-what-it-does` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` (the sentence as the page's subtitle, then its example). each stage page opens with what
   the stage does in one sentence, with an example, in the job registry's words (section 7a).
   *Test:* pure Swift, the page's first line is the engine's sentence for that stage.
 - `source.onboard.stages.page-who-runs-it` — **[GAP]** (#5668) each stage page shows who runs each of
   its jobs (the model, where it runs, its size and licence), with Choose a model… (the finder, for
   that job) and its candidates; Read and Find Lines add the comparison of candidates on the person's
   pages (the bake-off). *Test:* pure Swift, the page lists its own steps' rows and no other stage's.
-- `source.onboard.stages.page-asks-its-questions` — **[GAP]** (#5668) each stage page asks its own
+- `source.onboard.stages.page-asks-its-questions` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` and `SetupStageQuestionField`, answers kept by key in `job_answers`; pinned by `SetupStagesTests`. each stage page asks its own
   questions with defaults filled in (Names: which kinds of names, which gazetteer; Dates & Times:
   which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
   the answers; a question belongs to one stage and is asked once. *Test:* pure Swift, each question's
@@ -2779,29 +2779,29 @@ Setup
   search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
   language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand
   carries `kurrent`.
-- `source.onboard.stages.train-and-ready-last` — **[GAP]** (#5668) Train (the offers of
+- `source.onboard.stages.train-and-ready-last` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.projectSteps`; Train left Ready's rows. Train (the offers of
   `source.recipe.train-offered-per-step`) is its own page after the stages, and Ready is last: the plan
   as one list, what runs by itself, what Start will fetch, Keep an export, and Start. *Test:* pure
   Swift, the last two steps are Train and Ready.
 
 **The two set-ups (section 7d, ruled 2026-10-11 afternoon, #5668).**
-- `source.onboard.app.steps` — **[GAP]** (#5668) setting up the app (a first launch, and Fichero › Set
+- `source.onboard.app.steps` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.appSteps`, `FirstRunWindow.flow(for:)`; pinned by `FirstRunStepSelectionTests`. setting up the app (a first launch, and Fichero › Set
   Up Fichero…) is Welcome → What Fichero runs → the hand-off, and no Permissions step: folder access is
   asked when a folder is added. *Test:* pure Swift, the app's steps are exactly those three.
-- `source.onboard.app.what-fichero-runs` — **[GAP]** (#5668) What Fichero runs says what Fichero can do
+- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (the rows, and the two accounts added as providers); pinned by `SetupStagesTests`. What Fichero runs says what Fichero can do
   and with what (reading pages: Kraken, Apple Vision, MLX vision models; regions and lines: YOLO, Kraken;
   names and statements: spaCy; speech: Whisper; remote: OpenRouter, Anthropic, OpenAI, Google), and
   takes a Hugging Face and an OpenRouter account in the step. *Test:* pure Swift, the step's rows and its
   two account fields.
-- `source.onboard.app.provider-sheet-in-step` — **[BROKEN]** (#5668) Choose a Provider opens its sheet
+- `source.onboard.app.provider-sheet-in-step` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the sheet is the window's own (`FirstRunWindow.showsProviderSheet`), no longer deferred to finish. Choose a Provider opens its sheet
   while the step shows; it opened only after onboarding ended. *Test:* pure Swift, the sheet's presented
   state is set by the press, in the step.
-- `source.onboard.app.one-continue` — **[BROKEN]** (#5668) each step has one Continue, the footer's; a
+- `source.onboard.app.one-continue` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the footer's Continue only; the welcome's two choices hide it. each step has one Continue, the footer's; a
   step's body carries none. *Test:* pure Swift, no step body offers Continue.
-- `source.onboard.project.one-view` — **[GAP]** (#5668) Set Up a Project is one view, reached from the
+- `source.onboard.project.one-view` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `FirstRunWindow.flow(for:)` for each way in; pinned by `FirstRunStepSelectionTests`. Set Up a Project is one view, reached from the
   welcome's Set Up a New Project…, File › Set Up New Project… and Project › Set Up…. *Test:* pure Swift,
   each way in opens the same steps.
-- `source.onboard.project.steps` — **[GAP]** (#5668) Set Up a Project runs Your project → Add material →
+- `source.onboard.project.steps` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.projectSteps`, the stage pages from the chosen stages; pinned by `FirstRunStepSelectionTests`, `SetupStagesTests`. Set Up a Project runs Your project → Add material →
   About the material → the stages → one page per chosen stage → Train → Ready, one small page each, any
   of them skippable; Project › Set Up… starts at Add material. *Test:* pure Swift, the step list for no
   stage and for every stage.
@@ -2820,7 +2820,7 @@ Setup
   Images, Find Regions, Find Lines, Read, Normalise, Translate, Organise, Names, Statements, Dates &
   Times, Passages, Structured Data, Search, from the engine's list. *Test:* pytest, the thirteen in that
   order; pure Swift, the chooser shows the engine's order.
-- `source.onboard.stages.explanation-always-shown` — **[GAP]** (#5668) every stage in the chooser shows
+- `source.onboard.stages.explanation-always-shown` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStageRow`. every stage in the chooser shows
   its explanation whether or not it is ticked. *Test:* pure Swift, an unticked stage's row carries its
   sentence.
 - `source.onboard.stages.normalise-and-translate` — **[GAP]** (#5668) Normalise and Translate are two
