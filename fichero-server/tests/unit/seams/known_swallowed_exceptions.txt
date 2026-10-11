@@ -22,6 +22,7 @@ api/routes/citation/rendering.py::_metadata_for_document 2
 api/routes/document/artifacts.py::_action_translate 1
 api/routes/document/artifacts.py::_delete_artifact_impl 2
 api/routes/document/artifacts.py::align_transcript_to_regions 1
+api/routes/document/compare_readings.py::_model_label 1
 api/routes/document/documents.py::import_file 1
 api/routes/document/documents.py::related_documents 2
 api/routes/entity/entities.py::delete_entity_impl 2
@@ -145,6 +146,7 @@ security/keychain.py::_invalidate_llm_api_key_cache 1
 security/path_security.py::configured_library_allowed_roots 1
 security/provider_keys.py::_invalidate_llm_cache 1
 workflows/activity.py::ActivityTracker._save_activity 1
+workflows/activity.py::ActivityTracker._schedule_activity 1
 workflows/activity.py::_recover_stale_runs_bg 1
 workflows/activity.py::_settle_recovered_run_documents 1
 workflows/activity.py::get_activity_tracker 1
@@ -196,6 +198,7 @@ workflows/tools/kg_persist_finalize.py::kg_persist_finalize 1
 workflows/tools/llm_base.py::_save_artifact_sync 2
 workflows/tools/mcp.py::load_mcp_tools_into_registry 1
 workflows/tools/research.py::research_document_fetch 1
+workflows/tools/sources.py::_say_on_the_run.say 1
 workflows/tools/split_chapters.py::_outline_with_pypdf.walk 1
 workflows/tools/transcribe.py::transcribe 1
 workflows/tools/vision_base.py::_build_page_records_for_file 1
