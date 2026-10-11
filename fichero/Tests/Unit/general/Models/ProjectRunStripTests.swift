@@ -314,7 +314,7 @@ final class ProjectRunStripTests: XCTestCase {
         XCTAssertEqual(strip.jobId, jobId)
         XCTAssertFalse(strip.isLive)
         XCTAssertEqual(strip.title, "Recipe run failed")
-        XCTAssertEqual(strip.detail, "Read 2 of 2 pages · Names: 1 People · 1 Places · 1 date · 1 statement")
+        XCTAssertEqual(strip.detail, "Read 2 of 2 pages · Names: 1 People · 1 Places · 1 page dated · 1 date named · 1 statement")
     }
 
     func testRelaunch_aSummaryThePersonClosed_staysClosed() async throws {
