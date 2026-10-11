@@ -2579,6 +2579,13 @@ Projects
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
+- `source.recipe.no-text-found-is-not-a-failure` — **[OK]** (#5668, found by the end-to-end onboarding run)
+  *Built: `vision_base`'s empty-result branch, for Apple's text recognition; pinned by
+  `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py`.* When Apple's text recognition finds no
+  text on a page, that is what it found, said as such ("Apple's text recognition found no text on this
+  page"), not a failed read: it is not counted in the run's failures and not offered to read again (it would
+  find the same nothing). A vision model that answers with nothing is still a failure, as before, in
+  its wording.
 - `source.pages.image-found-wherever-kept` — **[OK]** (#5668, found by the end-to-end onboarding run) *Built:
   `recipes/regions.py`, `recipes/prepare.py`, `finddocs/job.py` (the blank-verso rule and the image cues),
   `training/evaluation.reference_page`, `training/yolo_set.export_region_set`, all through

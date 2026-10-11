@@ -5226,6 +5226,16 @@ async def process_vision(
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)
 
+            if not (text or "").strip() and vision_mode == "apple":
+                # Apple's text recognition found no text on the page: that is what it found, not a failed read,
+                # and reading again would find the same nothing (`source.recipe.no-text-found-is-not-a-failure`,
+                # #5668: a run counted blank versos as failed reads and offered to read them again).
+                notes.append("Apple's text recognition found no text on this page")
+                results.append({"file": file_path, "text": "", "value": ""})
+                texts.append("")
+                values.append(None)
+                return _outcome()
+
             if not (text or "").strip() and vision_mode != "kraken":
                 # Kraken is a SEGMENTER: it reads nothing, so empty text is the
                 # expected result, not a failed transcription — its baseline/

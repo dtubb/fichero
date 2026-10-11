@@ -71,6 +71,50 @@ def test_apple_vision_used_for_read_a_page_is_what_start_runs():
     assert run["runs_on"] == "this-mac"
 
 
+def test_apple_finding_no_text_on_a_page_is_not_a_failed_read(tmp_path, monkeypatch):
+    """`source.recipe.no-text-found-is-not-a-failure`: the run counted 5 pages Apple Vision found no text on as
+    failed reads, "Vision LLM returned no transcription … try a stronger vision model", and offered to read them
+    again."""
+    import asyncio
+    from unittest.mock import patch
+
+    from fichero_server.db.manager import db_manager
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.vision_base import VisionOCRResult
+    from fichero_server.models import DocType, Document, FileType
+    from fichero_server.workflows.tools.sources import files_tool
+    from fichero_server.workflows.tools.transcribe import transcribe
+
+    monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+    library = tmp_path / "Blank.fichero"
+    library.mkdir()
+    db = db_manager.get_database(str(library))
+    png = tmp_path / "22_Hoja_540_Verso.png"
+    Image.new("RGB", (16, 16), (255, 255, 255)).save(png)
+    doc = Document(name=png.name, doc_type=DocType.file, file_type=FileType.image, path=str(png))
+    db.save(doc)
+    config = LLMConfig(provider="apple", model="apple-vision")
+
+    async def read():
+        src = await files_tool(inputs={}, state={"selected_doc_ids": [doc.id], "library_path": str(library)},
+                               llm_config=config)
+        with patch("fichero_server.workflows.tools.vision_base.apple_vision_ocr_with_geometry",
+                   return_value=VisionOCRResult(text="", line_boxes=[], word_boxes=[])):
+            return await transcribe(inputs={"files": src["files"], "documents": src["documents"],
+                                            "vision_mode": "apple"},
+                                    state={"library_path": str(library), "task_id": None}, llm_config=config)
+
+    try:
+        result = asyncio.run(read())
+    finally:
+        db_manager.close_all()
+
+    said = str(result)
+    assert "returned no transcription" not in said and "stronger vision model" not in said, said
+    assert not [r for r in result.get("results") or [] if r.get("error")], result.get("results")
+    assert "found no text" in said, said
+
+
 # --- source.pages.image-found-wherever-kept ----------------------------------------------------------------------
 
 
