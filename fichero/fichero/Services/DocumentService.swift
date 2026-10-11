@@ -413,7 +413,8 @@ extension DocumentService {
         ))
 
         switch response {
-        case .noContent:
+        case .ok:
+            // The answer says where it went (`safety.trash.put-back`); the Trash UI will show it.
             return
         case .unprocessableContent(let error):
             let detail = try? error.body.json

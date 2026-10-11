@@ -862,9 +862,14 @@ class TestDocumentRestoreAction:
         assert audit.action_name == "document.restore"
         assert spy_emit[-1][1]["type"] == "document.updated"
 
-    def test_restore_is_not_undoable(self, db):
-        # restore is the terminal inverse — it has no inverse of its own
-        assert registry.get("document.restore").undoable is False
+    def test_put_back_is_undoable_and_a_snapshot_restore_is_not(self, db):
+        # Put Back (by id) is a recorded step that can be taken back (`safety.trash.put-back`);
+        # restoring snapshots, as the inverse of a delete, has no inverse of its own.
+        reg = registry.get("document.restore")
+        assert reg.undoable is True
+        assert reg.invert(None, {"document_ids": ["d"], "root_id": "d"}, _ctx()) == (
+            "document.delete", {"doc_id": "d"})
+        assert reg.invert(None, {"document_ids": ["d"]}, _ctx()) is None
 
     def test_restore_empty_is_noop(self, db):
         # (d) restoring nothing writes no rows and reports an empty list

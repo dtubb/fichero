@@ -425,6 +425,19 @@ non-image batch ids return `404`.
 - `POST /api/workflow-execution/threads/{thread_id}/read-again` — one new run of the same workflow and model over the pages a run did not do: the pages that failed, or after an interruption the pages not done (#5555).
 - `GET /api/activity/jobs/{job_id}/log` — the log of one Activity row and the rows under it, newest last: a run's activity events, a step's node events, and each job's own lines (started, failed and why, waiting and for what); nothing from another row (#5561).
 
+### The Trash and taking steps back (2026-10-10)
+
+`docs/contributor_manual/specs/safety/trash.md` (#2077, #5243) and `safety/undo.md` (#5242, #5658).
+
+- `GET /api/documents/trash` — the Trash of the project the request names (one per project). Each thing deleted once, newest first: `item_count` (what inside went with it), `deleted_at`, `deleted_by`, where it was (`from_folder_id`, `from_folder_path`, `from_folder_state`: `top`, `live`, `in-trash`, `gone`, and `from_where` in words), and why (`reason`: `deleted` or `moved`; for a move `moved_to_project`, `moved_on`, `transfer_id`; `why` in words, "Moved to Istmina on 10 Oct 2026"). `total` counts every item the caller may see.
+- A move between projects writes the reason by soft-deleting its source through `document.delete` with `moved_to: {project, transfer_id}`.
+- `POST /api/documents/{doc_id}/restore` — Put Back: the item and what was deleted with it return to its old folder, or to the project's Sources folder when that folder is in the Trash or gone. Answers `folder_id`, `folder_name`, `into_sources`, `folder_in_trash_id` (offer to put the folder back too) and `message` ("Put back in Sources: its folder is in the Trash."). Recorded and undoable.
+- `GET /api/documents/trash/empty` — what Empty Trash would remove (`items`, `documents`, `statements`), the moves it would make permanent (`moved`, one line per target project) and the question to ask. Changes nothing.
+- `POST /api/documents/trash/empty` — Empty Trash: one recorded step (`document.empty_trash`), a snapshot first (503 and nothing removed when the snapshot cannot be made). Cannot be undone.
+- While a page is in the Trash, statements resting only on trashed pages, and entities with no live source that no person verified, are left out of `GET /api/claims`, `GET /api/entities`, the graph's neighbourhood and `GET /api/kg/search`. Put Back brings them back; Empty Trash removes them.
+- `POST /api/actions/audit/{audit_id}/undo` — take back one step (a set of one). Refusals are declared: 404 and 409 with `{detail, reason, audit_id}`, `detail` a sentence and `reason` one of `changed` (a later step still in effect touched the same things; the step stays), `already-undone`, `gone`, `not-undoable`.
+- `POST /api/actions/audit/undo` — take back a set of steps (`{audit_ids}`), newest first, in one transaction, all or none; a refusal names the step that refused. The answer's `audit_ids` are the new rows: taking those back as a set is the redo.
+
 ## Sandbox (Mac App Store)
 
 ### `POST /api/sandbox/security-scoped-access`

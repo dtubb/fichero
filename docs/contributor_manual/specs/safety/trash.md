@@ -134,7 +134,7 @@ This is the Trash the app already promises in its delete dialog and does not hav
   already (→ #4960, and documents in exports) is a mark that is written and not read. *Data:*
   none new. *Test:* for each Trash kind, a behaviour test per read surface; and a guardrail
   that refuses a query on a Trash kind's table that names neither the seam nor the Trash.
-- `safety.trash.dependants-go-with-their-source` — **[GAP]** (#5243, #2077, #5657) hidden, not deleted: while a document is in the Trash (deleted, or sent there by a move to another project):
+- `safety.trash.dependants-go-with-their-source` — **[PARTIAL]** (#5243, #2077, #5657) hidden, not deleted: while a document is in the Trash (deleted, or sent there by a move to another project):
   its **statements** that rest only on it are out of view; a statement that rests on other
   sources too stays, and shows that one of its sources is in the Trash; its **search entries**
   are left out of results; its **segments, artifacts, annotations and notes** are out of view
@@ -148,7 +148,13 @@ This is the Trash the app already promises in its delete dialog and does not hav
   two-source statement stays with a mark, search no longer finds its text; Put Back: all of it
   returns, row for row identical. Emptying prunes what rests only on the removed rows through the
   existing cascade (`_cascade_delete_kg_rows`, `documents.py:1729`, each a reversible
-  `MutationLog`).
+  `MutationLog`). *Built (engine, 2026-10-10):* one seam, `knowledge/trash_visibility.py`, worked
+  out when reading; statements and entities are left out of the claims list, the entities list,
+  the graph's neighbourhood and the knowledge search, back on Put Back, pruned on Empty Trash
+  (`fichero-server/tests/unit/api/test_trash.py`, `TestKnowledgeGoesWithItsSource`); document search already leaves trashed pages
+  out. *Not built:* segments, artifacts, annotations and notes; the mark on a two-source
+  statement; the other graph reads (`knowledge/graph.py`); the cascade still removes a
+  two-source statement on purge.
 - `safety.trash.curated-work-is-never-hidden-silently` — **[GAP]** (#5243) when a delete will take
   person-curated statements or notes out of view, the short notice after the delete says how
   many. *Test:* the notice for a document with curated statements names the count.
@@ -157,8 +163,8 @@ This is the Trash the app already promises in its delete dialog and does not hav
 
 - `safety.trash.one-per-project` — **[PARTIAL]** (#2077, #5243) every project has its own Trash: the
   deleted items of that project's file. The always-there project has one too. Built (engine):
-  soft delete and `GET /api/documents/trash` per library. *Not built:* the app's per-project
-  Trash. *Test:* delete in two projects and in the always-there project; each Trash lists only
+  soft delete and `GET /api/documents/trash` per library, pinned by `fichero-server/tests/unit/api/test_trash.py`
+  (`test_each_project_lists_only_its_own_trash`). *Not built:* the app's per-project Trash. *Test:* delete in two projects and in the always-there project; each Trash lists only
   its own.
 - `safety.trash.a-place-in-the-sidebar` — **[GAP]** (#5243, #2077) the Trash is a row named Trash at the
   end of each project's section of the sidebar; the always-there project's is at the end of the
@@ -173,8 +179,11 @@ This is the Trash the app already promises in its delete dialog and does not hav
   whom, where it was (its old folder's path, or "a folder now in the Trash" / "a folder now
   gone"), and why: deleted, or **moved to <project> on <date>** (from the transfer's record in
   this project), or "alias to <item>, moved to <project>" for an alias a move sent there
-  (`transfer.alias.source-aliases`). Built: the listing of every deleted row with
-  `deleted_at`/`deleted_by` (`documents.py:822`). *Not built:* top-level only, from where, why.
+  (`transfer.alias.source-aliases`). Built (engine, 2026-10-10): `GET /api/documents/trash` lists each top-level item once with
+  `item_count`, when, by whom, `from_where`, and `reason`/`why`; a move's soft delete passes
+  `moved_to: {project, transfer_id}` to `document.delete` and the item reads "Moved to <project>
+  on <date>" (`fichero-server/tests/unit/api/test_trash.py`, `TestTheListing`). A delete no longer re-stamps a descendant already
+  in the Trash. *Not built:* the alias label, the app's columns.
   *Test:* a folder trashed with 40 pages lists once with "40 items"; a moved page says "moved to
   Istmina on 10 Oct 2026".
 - `safety.trash.put-back` — **[PARTIAL]** (#5243, #2077) Put Back returns a thing to where it came from,
@@ -182,9 +191,10 @@ This is the Trash the app already promises in its delete dialog and does not hav
   old folder is live, it goes there. When that folder is itself in the Trash, or gone for good,
   the thing goes into the project's **Sources** folder and the notice says so ("Put back in
   Sources: its folder is in the Trash."), offering to put the folder back too when it is in the
-  Trash. Built: `document.restore` (`restore_document_subtree_impl`, `documents.py:1806`). *Not
-  built:* the fallback to Sources (today the thing comes back under a parent that is not shown),
-  the words, the offer. *Test:* each of the three cases.
+  Trash. Built (engine, 2026-10-10): `POST /api/documents/{id}/restore` restores what was deleted with
+  the item (not what was trashed on its own earlier), falls back to Sources when the folder is in
+  the Trash or gone, answers where in words with `folder_in_trash_id` for the offer, and is an
+  undoable recorded step (`fichero-server/tests/unit/api/test_trash.py`, `TestPutBack`). *Not built:* the app's notice and offer. *Test:* each of the three cases.
 - `safety.trash.put-back-a-moved-item` — **[GAP]** (#5657, #2077) Put Back on an item a move sent to
   this Trash asks which is meant: **Undo the Move** (`transfer.action.undo-move`: the item comes
   back here and the target's copy goes to the target's Trash) or **Put Back and Keep the Copy**
@@ -208,16 +218,21 @@ This is the Trash the app already promises in its delete dialog and does not hav
   and stored files with their total size, in words with the count ("Delete 37 items for good?
   This cannot be undone."). The button says "Delete Permanently". *Test:* the sheet's numbers
   equal what is then removed.
-- `safety.trash.empty-names-moved-items` — **[GAP]** (#5657, #2077) when the Trash holds items a move
+- `safety.trash.empty-names-moved-items` — **[PARTIAL]** (#5657, #2077) when the Trash holds items a move
   sent there, Empty Trash and Delete Permanently name them: "N of these were moved to <project>
   on <date>; emptying makes those moves permanent." (one line per target project). After that,
   the move can no longer be undone from either project (`transfer.action.undo-move` is refused in
   words), and the transfer's record in both projects says the move was made permanent, when and
   by whom. *Test:* move 3 pages, empty the source's Trash: the sheet names the 3 and the target;
-  undo of the move is then refused in words in both windows.
-- `safety.trash.empty-is-one-step` — **[GAP]** (#2077, #5243) Empty Trash is one recorded action over
+  undo of the move is then refused in words in both windows. *Built (engine):* the preview
+  `GET /api/documents/trash/empty` and the result name each target project with its count and
+  sentence (`fichero-server/tests/unit/api/test_trash.py`, `TestEmptyTrash`). *Not built:* the transfer's record saying "made
+  permanent" and the refusal of its undo (the transfer, #5657); the app's sheet.
+- `safety.trash.empty-is-one-step` — **[OK]** (#2077, #5243) Empty Trash is one recorded action over
   everything in the Trash (today purge is one call per item), snapshot first, refused if the
   snapshot cannot be made. *Test:* empty a Trash of 50 items: one record row, one snapshot.
+  Built: `POST /api/documents/trash/empty` (`document.empty_trash`), pinned by `fichero-server/tests/unit/api/test_trash.py`
+  (`test_empty_is_one_recorded_step_after_one_snapshot`, `test_no_snapshot_no_empty`).
 - `safety.trash.empty-removes-everything-and-only-that` — **[GAP]** (#5243) emptying removes the rows, the
   dependants that rest only on them, the search entries, the derived images, **and the stored
   original files** (today nothing ever removes those). A stored file shared by a live document

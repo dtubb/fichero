@@ -1440,7 +1440,8 @@ class TestRestoreAndPurgeDocument:
         assert client.delete(f"/api/documents/{doc.id}").status_code == 204
 
         restore = client.post(f"/api/documents/{doc.id}/restore")
-        assert restore.status_code == 204
+        assert restore.status_code == 200
+        assert restore.json()["restored_document_ids"] == [doc.id]
 
         refreshed = db.get(Document, doc.id)
         assert refreshed is not None

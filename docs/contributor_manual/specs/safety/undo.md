@@ -114,7 +114,7 @@ The engine half can ship alone. It makes every client safe at once, including ag
 
 ### B. Never over the top of later work
 
-- `safety.undo.refuses-when-changed` — **[GAP]** (#5242) a step is reversed only if it is still the newest live
+- `safety.undo.refuses-when-changed` — **[PARTIAL]** (#5242) a step is reversed only if it is still the newest live
   step on every thing it touched. If a later step, by anyone, from any window, device, agent or
   run, touched any of the same things and has not itself been taken back, the undo is refused.
   A thing deleted since counts as touched: the refusal says it was deleted and where it is (the
@@ -128,7 +128,10 @@ The engine half can ship alone. It makes every client safe at once, including ag
   byte-identical afterwards; B undoes; now A's undo succeeds. The same with A and B as two
   windows of one account. The test that pins the overwrite today
   (`test_action_undo.py:453`, `test_delete_undo_overwrites_later_claim_mutation_with_snapshot`)
-  is inverted, not deleted.
+  is inverted, not deleted. *Built (2026-10-10):* the record's lock, `later_step_in_effect` in
+  `actions/undo.py`, for undo and redo (`fichero-server/tests/unit/api/test_action_undo.py`, `TestUndoRefusals`). *Not built:* the id
+  index (a later-rows scan today), the words for a thing deleted since, the history offer; the
+  overwrite test at `:453` changes the row outside the record, so it waits for the version lock.
 - `safety.undo.version-is-the-second-lock` — **[GAP]** (#5242) where a kind of thing carries a version number
   (segments today, on the source-model branch; the other kinds of `versions-and-restore.md`
   as they gain versions), the reversal also names the
@@ -137,24 +140,29 @@ The engine half can ship alone. It makes every client safe at once, including ag
   columns of the source-model set; no new store. *Existing data:* kinds without versions rely
   on the first lock alone. *Test:* bump a version behind the record's back; the undo is
   refused.
-- `safety.undo.refusal-loses-nothing` — **[GAP]** (#5242) a refused undo leaves the step where it was in my
+- `safety.undo.refusal-loses-nothing` — **[PARTIAL]** (#5242) a refused undo leaves the step where it was in my
   stack, not skipped and not marked. I can look, decide, and try again. Two refusals are final
   and say so, so that a client can drop the step: the step **was already taken back** (from the
   history list, another window, or another device), and the step **is no longer in the
   project's history** (the project was returned to a snapshot). The refusal carries which of
   the three it is as a field, never only as words. *Data:* `reason` on the refusal: `changed`,
   `already-undone`, `gone`. *Test:* after a `changed` refusal, the same step is still the next
-  one offered; an `already-undone` answer names who took it back and when.
+  one offered; an `already-undone` answer names who took it back and when. *Built:* 404 and 409
+  are declared on both undo routes with `{detail, reason, audit_id}` (also `not-undoable`), the
+  messages rewritten as sentences, and a `changed` refusal leaves the step unmarked
+  (`fichero-server/tests/unit/api/test_action_undo.py`). *Not built:* naming who took it back.
 
 ### C. One step is undone once; a set is undone whole
 
-- `safety.undo.marked-inside-the-transaction` — **[GAP]** (#5242) reversing a step and marking it reversed happen
+- `safety.undo.marked-inside-the-transaction` — **[PARTIAL]** (#5242) reversing a step and marking it reversed happen
   in one transaction. Either both are stored or neither. *Data:* the mark moves inside the
   registry's own transaction; it is written by the registry, not by the route afterwards.
   *Test:* force a failure after the inverse runs; neither the inverse nor the mark is stored.
   Two undo requests for one step at the same moment: exactly one succeeds, the other is refused
-  as already undone.
-- `safety.undo.a-set-is-undone-whole` — **[GAP]** (#5658) the engine reverses a SET of rows in one
+  as already undone. *Built:* the mark is written inside the set's transaction
+  (`fichero-server/tests/unit/api/test_action_undo.py`, `test_a_failure_after_the_inverse_leaves_neither_inverse_nor_mark`). *Not
+  built:* the concurrent test; the row is read before the write gate is taken.
+- `safety.undo.a-set-is-undone-whole` — **[OK]** (#5658) the engine reverses a SET of rows in one
   request: newest first, in one transaction, all or none. If any one is refused (B, A, or a
   restore with nowhere to land), nothing is changed and the refusal names the thing that
   refused. The answer names the new rows the reversal wrote, and reversing THOSE rows as a set
@@ -166,7 +174,8 @@ The engine half can ship alone. It makes every client safe at once, including ag
   back on any inner failure (VERIFIED `db/__init__.py:1830-1845`). *Existing data:* none.
   *Test:* three rows, the second made stale by a later step: the set is refused, all three are
   unchanged, and the refusal names the second; a set of three that succeeds, reversed again as
-  a set, restores all three with their ids.
+  a set, restores all three with their ids. Built: `POST /api/actions/audit/undo`
+  (`fichero-server/tests/unit/api/test_action_undo.py`, `TestASetIsUndoneWhole`).
 
 ### D. Redo brings back the same thing
 

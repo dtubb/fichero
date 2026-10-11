@@ -721,3 +721,126 @@ class TestAuditLogEndpoint:
         # absurd limits are clamped, not rejected
         assert _audit_log(db, limit=0).count >= 0
         assert _audit_log(db, limit=99999).count >= 1
+
+
+# ===========================================================================
+# Refusals with a reason, the record's lock, and a set undone whole
+# (`safety.undo.refuses-when-changed`, `safety.undo.refusal-loses-nothing`,
+#  `safety.undo.a-set-is-undone-whole`, `safety.undo.marked-inside-the-transaction`; #5242, #5658)
+# ===========================================================================
+
+
+def _rename(db, doc, name):
+    return registry.invoke(db, "document.update", {"doc_id": doc.id, "update": {"name": name}}, _ctx())
+
+
+class TestUndoRefusals:
+    def test_a_later_edit_refuses_the_earlier_undo_with_reason_changed(self, db, spy_emit):
+        doc = Document(name="v0", doc_type=DocType.file)
+        db.save(doc)
+        first = _rename(db, doc, "v1")
+        second = _rename(db, doc, "v2")
+
+        with pytest.raises(HTTPException) as refused:
+            _undo(db, first.audit_id)
+
+        assert refused.value.status_code == 409
+        assert refused.value.reason == "changed"
+        assert db.get(Document, doc.id).name == "v2"  # the later work is untouched
+        assert _audit(db, first.audit_id).undone is False  # the step stays where it was
+        _undo(db, second.audit_id)
+        _undo(db, first.audit_id)  # the later step taken back: now the earlier one goes
+        assert db.get(Document, doc.id).name == "v0"
+
+    def test_an_already_undone_step_says_so(self, db, spy_emit):
+        doc = Document(name="v0", doc_type=DocType.file)
+        db.save(doc)
+        step = _rename(db, doc, "v1")
+        _undo(db, step.audit_id)
+        with pytest.raises(HTTPException) as refused:
+            _undo(db, step.audit_id)
+        assert (refused.value.status_code, refused.value.reason) == (409, "already-undone")
+
+    def test_over_http_an_unknown_step_is_404_gone_in_a_sentence(self, client):
+        response = client.post("/api/actions/audit/no-such-step/undo")
+        assert response.status_code == 404
+        body = response.json()
+        assert body["reason"] == "gone"
+        assert body["audit_id"] == "no-such-step"
+        assert "no-such-step" not in body["detail"] and "404" not in body["detail"]
+
+    def test_over_http_a_changed_step_is_409_with_its_reason(self, client, db):
+        doc = Document(name="v0", doc_type=DocType.file)
+        db.save(doc)
+        first = client.post("/api/actions/invoke", json={
+            "name": "document.update", "params": {"doc_id": doc.id, "update": {"name": "v1"}}}).json()
+        client.post("/api/actions/invoke", json={
+            "name": "document.update", "params": {"doc_id": doc.id, "update": {"name": "v2"}}})
+
+        response = client.post(f"/api/actions/audit/{first['audit_id']}/undo")
+
+        assert response.status_code == 409
+        body = response.json()
+        assert body["reason"] == "changed"
+        assert first["audit_id"] not in body["detail"]
+
+    def test_the_contract_declares_404_and_409_on_both_undo_routes(self, client):
+        paths = client.get("/openapi.json").json()["paths"]
+        for path in ("/api/actions/audit/{audit_id}/undo", "/api/actions/audit/undo"):
+            responses = paths[path]["post"]["responses"]
+            assert {"404", "409"} <= set(responses), path
+
+
+class TestASetIsUndoneWhole:
+    def _three(self, db):
+        docs = [Document(name=f"d{i}", doc_type=DocType.file) for i in range(3)]
+        for doc in docs:
+            db.save(doc)
+        steps = [_rename(db, doc, f"renamed-{i}") for i, doc in enumerate(docs)]
+        return docs, steps
+
+    def test_one_stale_step_refuses_the_whole_set_and_changes_nothing(self, db, spy_emit):
+        from fichero_server.actions.undo import UndoRefused, undo_set
+
+        docs, steps = self._three(db)
+        _rename(db, docs[1], "later")  # the second step is now stale
+
+        with pytest.raises(UndoRefused) as refused:
+            undo_set(db, [s.audit_id for s in steps], _ctx())
+
+        assert (refused.value.reason, refused.value.audit_id) == ("changed", steps[1].audit_id)
+        assert [db.get(Document, d.id).name for d in docs] == ["renamed-0", "later", "renamed-2"]
+        assert not any(_audit(db, s.audit_id).undone for s in steps)
+
+    def test_a_set_undone_then_redone_as_a_set(self, db, spy_emit):
+        from fichero_server.actions.undo import undo_set
+
+        docs, steps = self._three(db)
+
+        undone = undo_set(db, [s.audit_id for s in steps], _ctx())
+        assert [db.get(Document, d.id).name for d in docs] == ["d0", "d1", "d2"]
+        assert all(_audit(db, s.audit_id).undone for s in steps)
+
+        undo_set(db, undone.audit_ids, _ctx())  # the redo
+        assert [db.get(Document, d.id).name for d in docs] == ["renamed-0", "renamed-1", "renamed-2"]
+
+    def test_a_failure_after_the_inverse_leaves_neither_inverse_nor_mark(self, db, spy_emit, monkeypatch):
+        from fichero_server.actions import undo as undo_module
+
+        doc = Document(name="v0", doc_type=DocType.file)
+        db.save(doc)
+        step = _rename(db, doc, "v1")
+        real_save = db.save
+
+        def fail_on_the_mark(obj, *a, **k):
+            if isinstance(obj, ActionAudit) and obj.id == step.audit_id and obj.undone:
+                raise RuntimeError("disk full")
+            return real_save(obj, *a, **k)
+
+        monkeypatch.setattr(db, "save", fail_on_the_mark)
+        with pytest.raises(RuntimeError):
+            undo_module.undo_set(db, [step.audit_id], _ctx())
+        monkeypatch.undo()
+
+        assert db.get(Document, doc.id).name == "v1"
+        assert _audit(db, step.audit_id).undone is False

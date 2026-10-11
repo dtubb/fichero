@@ -91,6 +91,12 @@ final class AuditStore {
                 let detail = try? error.body.json
                 statusMessage = detail?.detail?.description ?? "Undo failed"
                 return false
+            case .notFound(let refusal):
+                statusMessage = (try? refusal.body.json)?.detail ?? "This step is no longer in the project's history."
+                return false
+            case .conflict(let refusal):
+                statusMessage = (try? refusal.body.json)?.detail ?? "This step cannot be taken back now."
+                return false
             case .undocumented(let statusCode, _):
                 statusMessage = "Undo failed (\(statusCode))"
                 return false

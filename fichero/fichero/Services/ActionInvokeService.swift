@@ -116,6 +116,15 @@ extension ActionLibraryService {
             let message = (try? error.body.json)?.detail?.description ?? "Undo failed"
             invokeLogger.error("undoAction(\(auditId)) 422: \(message)")
             throw APIError.httpError(statusCode: 422, message: message)
+        case .notFound(let refusal):
+            // Declared refusal (#5658): a sentence, plus a machine reason the window stack reads later.
+            let message = (try? refusal.body.json)?.detail ?? "This step is no longer in the project's history."
+            invokeLogger.error("undoAction(\(auditId)) 404: \(message)")
+            throw APIError.httpError(statusCode: 404, message: message)
+        case .conflict(let refusal):
+            let message = (try? refusal.body.json)?.detail ?? "This step cannot be taken back now."
+            invokeLogger.error("undoAction(\(auditId)) 409: \(message)")
+            throw APIError.httpError(statusCode: 409, message: message)
         case .undocumented(let statusCode, _):
             invokeLogger.error("undoAction(\(auditId)) HTTP \(statusCode)")
             throw APIError.httpError(statusCode: statusCode, message: "Undo failed")
