@@ -243,17 +243,18 @@ involve the company it names. Lessons the tool must carry:
   already makes sees it leave the list or fail (`ActivityStore.findDocumentsRunsEnded`); pinned by
   `fichero/Tests/Unit/general/Models/FindDocumentsRunEndsTests.swift`. *Not built: Columns, and List on
   iPhone and iPad.*
-- `finddocs.review.setup-page` — **[PARTIAL]** (#5550, #5668) Set Up's Organise page says what the stage will
+- `finddocs.review.setup-page` — **[OK]** (#5550, #5668) Set Up's Organise page says what the stage will
   do in the engine's words, and how a run answers: documents at least as sure as the project's level are
   applied by the run (none until the level is switched on, `finddocs.recipe-step`), every other one is
-  proposed for the person to confirm in Items. Trying it on the sample pages shows the grouping it proposes:
-  each proposed document, its pages, its kind and how sure. **Built 2026-10-11 (app):** the page's words
-  (`SetupStagePage.howItAnswers`), and the grouping drawn, each document in a dashed outline, from a try's
-  `documents` (`SetupStageTryResult.documents`) once the engine offers the try; pinned by
-  `fichero/Tests/Unit/general/Models/ProposedDocumentsInItemsTests.swift`. *Not built (engine): Organise
-  cannot be tried on the samples yet (`recipes/stages.sampleable` is false for its jobs, so the page has no
-  samples section); the try needs a run of neighbouring pages of one folder, not scattered samples, and its
-  result a `documents` list (`name`, `page_ids`, `kind`, `confidence`, `reasons`).*
+  proposed for the person to confirm in Items. Trying it shows the grouping it proposes on a run of
+  consecutive pages (`GET /api/recipes/samples?stage=organise`, `source.onboard.stages.organise-tried-on-a-run`):
+  the run as a strip of thumbnails, each proposed document a dashed group over its pages with its name, kind
+  and how sure (its reasons on hover), and the entries Split into entries found listed under the pages they
+  open on. **Built 2026-10-11 (app):** the page's words (`SetupStagePage.howItAnswers`); the stage's own
+  samples (`SetupStageTryStore.load`); the strip (`OrganiseTryStrip`, laid out by `OrganiseTryLayout` from the
+  try's `pages`, `documents` and `entries`). Pinned by
+  `fichero/Tests/Unit/general/Models/ProposedDocumentsInItemsTests.swift` and
+  `fichero/Tests/Unit/general/Models/OrganiseTryStripTests.swift`.
 - `finddocs.review.activity` — **[OK]** (#5550, #5670) a recipe run's details say, under its Organise stage,
   how many documents the run proposed and how many it applied: "N documents proposed, M applied", from the
   run's summary (`documents_proposed`, `documents_accepted`); the engine counts, the app only words it.

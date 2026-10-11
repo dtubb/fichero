@@ -51,23 +51,15 @@ struct SetupStageSamples: View {
                 }
             }
         }
-        // Organise's grouping of the samples (`finddocs.review.setup-page`): each proposed document and its pages.
-        if let documents = result.documents, !documents.isEmpty {
-            Text("Proposed documents").font(.callout.weight(.medium))
-            ForEach(Array(documents.enumerated()), id: \.offset) { _, document in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(document.name).font(.callout)
-                        Text(SetupStageTryResult.detail(of: document)).font(.caption).foregroundStyle(.secondary)
-                    }
-                    Text(document.pageIds.map { store.name(of: $0) }.joined(separator: ", "))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(6)
-                .overlay(RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
-            }
+        // Organise on its run of pages (`finddocs.review.setup-page`): the strip, its proposed documents as dashed
+        // groups over it, its entries under their pages.
+        if result.documents != nil || result.entries != nil {
+            OrganiseTryStrip(
+                pages: result.pages ?? store.samples.map(\.id),
+                documents: result.documents ?? [],
+                entries: result.entries ?? [],
+                name: { store.name(of: $0) }
+            )
         }
         if let names = result.names, !names.isEmpty {
             FlowLayout(spacing: 4) {

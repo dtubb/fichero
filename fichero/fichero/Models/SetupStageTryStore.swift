@@ -32,7 +32,7 @@ final class SetupStageTryStore {
     /// The sample pages, and the stage's last result.
     func load() async {
         do {
-            if case .ok(let success) = try await client.api.getSamplesApiRecipesSamplesGet() {
+            if case .ok(let success) = try await client.api.getSamplesApiRecipesSamplesGet(query: .init(stage: stageId)) {
                 samples = try success.body.json.pages
             }
         } catch {
@@ -132,11 +132,15 @@ struct SetupStageTryResult: Decodable, Equatable {
     let names: [Name]?
     /// Organise's grouping of the samples into documents, when the try made one.
     let documents: [SetupStageProposedDocument]?
+    /// Organise's entries (a diary's or a register's), each under the page it opens on.
+    let entries: [SetupStageEntry]?
+    /// The pages it was tried on, in order: for Organise, the run of consecutive pages.
+    let pages: [String]?
     /// The comparison's id, for Read and Find Lines.
     let bakeoff: String?
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff, documents
+        case state, error, how, names, bakeoff, documents, entries, pages
         case perPage = "per_page"
     }
 
@@ -156,6 +160,58 @@ struct SetupStageTryResult: Decodable, Equatable {
         let statements = page.statements?.count ?? 0
         if statements > 0 { parts.append(statements == 1 ? "1 statement" : "\(statements) statements") }
         return parts.joined(separator: "; ")
+    }
+}
+
+/// An entry Organise's Split into entries found on the samples: its name, its opening words, the page it opens on.
+struct SetupStageEntry: Decodable, Equatable {
+    let pageId: String
+    let name: String
+    let opening: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, opening
+        case pageId = "page_id"
+    }
+}
+
+/// Organise's try laid out over its run of pages (`finddocs.review.setup-page`): the pages in order, each proposed
+/// document a group over its consecutive pages, every other page on its own, and the entries under their pages.
+enum OrganiseTryLayout {
+    enum Segment: Equatable {
+        case document(SetupStageProposedDocument, pages: [String])
+        case page(String)
+    }
+
+    /// The strip's segments, in the run's order: a document's pages that follow one another are one group.
+    static func segments(pages: [String], documents: [SetupStageProposedDocument]) -> [Segment] {
+        var owner: [String: Int] = [:]
+        for (index, document) in documents.enumerated() {
+            for pageId in document.pageIds where owner[pageId] == nil { owner[pageId] = index }
+        }
+        var segments: [Segment] = []
+        for pageId in pages {
+            guard let index = owner[pageId] else {
+                segments.append(.page(pageId))
+                continue
+            }
+            if case .document(let document, let held)? = segments.last, document == documents[index] {
+                segments[segments.count - 1] = .document(document, pages: held + [pageId])
+            } else {
+                segments.append(.document(documents[index], pages: [pageId]))
+            }
+        }
+        return segments
+    }
+
+    /// The entries under each page, in the engine's order.
+    static func entries(_ entries: [SetupStageEntry]) -> [String: [SetupStageEntry]] {
+        Dictionary(grouping: entries, by: \.pageId)
+    }
+
+    /// "Sentencia · 82% sure" over a document's group.
+    static func caption(_ document: SetupStageProposedDocument) -> String {
+        [document.name, SetupStageTryResult.detail(of: document)].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }
 

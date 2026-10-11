@@ -51,6 +51,8 @@ struct SetupStagePage: View {
                 Divider()
                 SetupStageSamples(store: SetupStageTryStore(client: store.client, stageId: stage.id))
                     .id(stage.id)
+                    // The samples' thumbnails come from this project's storage (Organise's strip).
+                    .environment(project?.storageService)
             }
         }
         // The plan's rows come from the recipe: propose it when this page needs it and there is none yet.
