@@ -22,6 +22,7 @@ the rules live here.
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -51,7 +52,7 @@ class TrashItem(BaseModel):
         description="top: it was at the top of the project; live; in-trash: its folder is in the Trash too; gone"
     )
     from_where: str = Field(description="Where it was, in words")
-    reason: Literal["deleted", "moved"]
+    reason: Literal["deleted", "moved", "taken_back"]
     moved_to_project: str | None = None
     moved_on: datetime | None = None
     transfer_id: str | None = None
@@ -200,6 +201,31 @@ def moved_reasons(db: Any, doc_ids: list[str]) -> dict[str, tuple[TrashMovedTo, 
     return reasons
 
 
+def taken_back_reasons(db: Any, doc_ids: list[str]) -> dict[str, tuple[str, datetime, str]]:
+    """For each id, the copy it came in by, when the newest thing that sent it to the Trash was that copy being
+    undone (`document.untransfer`, #5663): (the project it was copied from, when, the transfer)."""
+    from fichero_server.models.transfer import TransferRecord
+
+    if not doc_ids:
+        return {}
+    wanted = set(doc_ids)
+    newest: dict[str, ActionAudit] = {}
+    for row in db.query_json_list_intersects(ActionAudit, "target_ids", list(wanted)):
+        if row.action_name not in ("document.delete", "document.untransfer") or row.undone:
+            continue
+        for target in wanted.intersection(row.target_ids or []):
+            held = newest.get(target)
+            if held is None or row.created_at > held.created_at:
+                newest[target] = row
+    reasons = {}
+    for target, row in newest.items():
+        transfer_id = (row.after or {}).get("transfer_id") if row.action_name == "document.untransfer" else None
+        record = db.get(TransferRecord, transfer_id) if transfer_id else None
+        if record is not None and record.role.value == "target":
+            reasons[target] = (Path(record.source_project).stem, row.created_at, transfer_id)
+    return reasons
+
+
 def trash_listing(
     db: Any,
     keep_readable,
@@ -211,12 +237,17 @@ def trash_listing(
     tops, withheld = keep_readable(tops)
     page = tops[offset : offset + limit] if limit is not None else tops[offset:]
     reasons = moved_reasons(db, [doc.id for doc in page])
+    taken = taken_back_reasons(db, [doc.id for doc in page])
     items = []
     for doc in page:
         state, path, where = _from_where(doc, by_id)
         moved = reasons.get(doc.id)
         count = counts.get(doc.id, 0)
-        if moved:
+        if doc.id in taken:
+            source, when, transfer_id = taken[doc.id]
+            to, on, moved = None, None, None
+            why = f"Taken back: the copy from {source} was undone on {_date_words(when)}"
+        elif moved:
             to, on = moved
             why = f"Moved to {to.project} on {_date_words(on)}"
         else:
@@ -234,10 +265,10 @@ def trash_listing(
                 from_folder_path=path,
                 from_folder_state=state,
                 from_where=where,
-                reason="moved" if moved else "deleted",
+                reason="taken_back" if doc.id in taken else "moved" if moved else "deleted",
                 moved_to_project=to.project if to else None,
                 moved_on=on,
-                transfer_id=to.transfer_id if to else None,
+                transfer_id=taken[doc.id][2] if doc.id in taken else to.transfer_id if to else None,
                 why=why,
                 document=doc,
             )

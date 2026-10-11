@@ -42,8 +42,8 @@
       {
         "method": "POST",
         "path": "/actions/audit/undo",
-        "operation_id": "undo_actions_api_actions_audit_undo_post",
-        "summary": "Undo Actions",
+        "operation_id": "undo_set_api_actions_audit_undo_post",
+        "summary": "Undo Set",
         "path_params": [],
         "query_params": [],
         "request_model": "UndoSetRequest",

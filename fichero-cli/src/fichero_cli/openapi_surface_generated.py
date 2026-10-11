@@ -209,12 +209,12 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
-    @target_app.command("undo")
-    def actions_undo_post(
+    @target_app.command("undo-set")
+    def actions_undo_set_post(
         ctx: typer.Context,
         audit_ids: list[str] = typer.Option(..., '--audit-ids', help='The steps to take back together, all or none. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
-        """Undo Actions (POST /api/actions/audit/undo)."""
+        """Undo Set (POST /api/actions/audit/undo)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/actions/audit/undo"
             params = None
@@ -226,8 +226,8 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("undo-actions-audit-undo")
-    def actions_undo_actions_audit_undo_post(
+    @target_app.command("undo")
+    def actions_undo_post(
         ctx: typer.Context,
         audit_id: str = typer.Argument(..., help='Audit Id'),
     ) -> None:

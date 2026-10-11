@@ -41520,9 +41520,9 @@
           "actions",
           "actions"
         ],
-        "summary": "Undo Actions",
+        "summary": "Undo Set",
         "description": "Take back a set of steps together, newest first, all or none (`safety.undo.a-set-is-undone-whole`).\n\nIf any one step is refused, nothing is changed and the refusal names that step\n(``audit_id``). The answer lists the new rows; taking those back as a set is the redo.",
-        "operationId": "undo_actions_api_actions_audit_undo_post",
+        "operationId": "undo_set_api_actions_audit_undo_post",
         "parameters": [
           {
             "name": "X-Fichero-Origin-Window",
@@ -90341,7 +90341,8 @@
             "type": "string",
             "enum": [
               "deleted",
-              "moved"
+              "moved",
+              "taken_back"
             ],
             "title": "Reason"
           },

@@ -64,7 +64,6 @@ def test_openapi_cli_path_ids_positional__every_path_parameter_is_an_argument():
     every generated command: a `{name}` in its route is a positional argument of the same name."""
     import re
 
-    from click import Argument, Option
 
     root = get_command(cli_main.app)
     checked = 0
@@ -74,8 +73,9 @@ def test_openapi_cli_path_ids_positional__every_path_parameter_is_an_argument():
             if not match:
                 continue
             path_names = re.findall(r"{(\w+)(?::path)?}", match.group(2))
-            arguments = [p.name for p in command.params if isinstance(p, Argument)]
-            options = {p.name for p in command.params if isinstance(p, Option)}
+            # By kind, not by click class: typer 0.27 builds its own parameter classes (#5663).
+            arguments = [p.name for p in command.params if p.param_type_name == "argument"]
+            options = {p.name for p in command.params if p.param_type_name == "option"}
             assert len(arguments) == len(path_names), (command.name, match.group(2), arguments)
             assert not set(arguments) & options
             checked += 1

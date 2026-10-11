@@ -32,7 +32,8 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.security import authz
 from fichero_server.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
-from fichero_server.actions.undo import UndoneSet, undo_set
+from fichero_server.actions.undo import UndoneSet
+from fichero_server.actions.undo import undo_set as undo_steps_together
 from fichero_server.api.auth import action_context, library_access_denial_payload
 from fichero_server.db.app import get_app_db
 from fichero_server.api.main import (
@@ -327,7 +328,7 @@ def _undo_context(ctx: Any, origin_window: str | None, library_path: str | None)
 
 def _undo_set_or_refuse(db: Database, audit_ids: list[str], ctx: ActionContext, request: Request) -> UndoneSet:
     try:
-        return undo_set(db, audit_ids, ctx)
+        return undo_steps_together(db, audit_ids, ctx)
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(
@@ -368,7 +369,7 @@ async def undo_action(
 
 
 @router.post("/audit/undo", response_model=UndoSetResponse, responses=_UNDO_REFUSALS)
-async def undo_actions(
+async def undo_set(
     body: UndoSetRequest,
     request: Request,
     db: Database = Depends(get_library_database_for_write),

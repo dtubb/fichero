@@ -243,6 +243,15 @@ def test_undo_of_a_copy_sends_it_to_the_targets_trash(client, db, tmp_path):
     assert db.get(TransferRecord, record.id).state.value == "undone"
     assert source.get(TransferRecord, record.id).state.value == "undone"
     assert source.get(Document, box.folder.id).deleted_at is None  # the source never changes on a copy's undo
+    # The target's Trash says why, the way a move's source says "Moved to …" (#5663).
+    [row] = [r for r in client.get("/api/documents/trash").json()["items"] if r["id"] == record.copies[0]]
+    assert row["reason"] == "taken_back" and row["transfer_id"] == record.id
+    assert row["why"].startswith("Taken back: the copy from Origen was undone on ")
+    # Put back and deleted again by hand, it is a plain delete once more: the newest reason wins.
+    assert client.post(f"/api/documents/{record.copies[0]}/restore").status_code == 200
+    assert client.delete(f"/api/documents/{record.copies[0]}").status_code in (200, 204)
+    [row] = [r for r in client.get("/api/documents/trash").json()["items"] if r["id"] == record.copies[0]]
+    assert row["reason"] == "deleted" and row["why"].startswith("Deleted")
 
 
 def test_the_target_is_chosen_by_the_library_header(client, db, tmp_path):

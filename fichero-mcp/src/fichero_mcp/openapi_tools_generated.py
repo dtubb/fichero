@@ -43,15 +43,15 @@ def fichero_actions_list_audit_log(
     return _rt.call("GET", "/api/actions/audit", params={"limit": limit})
 
 
-def fichero_actions_undo(
+def fichero_actions_undo_set(
     *,
     audit_ids: Annotated[list[Any], Field(description='The steps to take back together, all or none.')],
 ) -> Any:
-    'Undo Actions\n\nTake back a set of steps together, newest first, all or none (`safety.undo.a-set-is-undone-whole`).\n\nIf any one step is refused, nothing is changed and the refusal names that step\n(``audit_id``). The answer lists the new rows; taking those back as a set is the redo.\n\nRoute: POST /api/actions/audit/undo (toolset `actions`; changes data, as the agent account when one exists).'
+    'Undo Set\n\nTake back a set of steps together, newest first, all or none (`safety.undo.a-set-is-undone-whole`).\n\nIf any one step is refused, nothing is changed and the refusal names that step\n(``audit_id``). The answer lists the new rows; taking those back as a set is the redo.\n\nRoute: POST /api/actions/audit/undo (toolset `actions`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/actions/audit/undo", json=_rt.body({"audit_ids": audit_ids}))
 
 
-def fichero_actions_undo_post(
+def fichero_actions_undo(
     *,
     audit_id: Annotated[str, Field(description='Audit Id')],
 ) -> Any:
@@ -8666,8 +8666,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_actions_list", "actions", "GET", "/api/actions", fichero_actions_list),
     GeneratedTool("fichero_actions_create", "actions", "POST", "/api/actions", fichero_actions_create),
     GeneratedTool("fichero_actions_list_audit_log", "actions", "GET", "/api/actions/audit", fichero_actions_list_audit_log),
-    GeneratedTool("fichero_actions_undo", "actions", "POST", "/api/actions/audit/undo", fichero_actions_undo),
-    GeneratedTool("fichero_actions_undo_post", "actions", "POST", "/api/actions/audit/{audit_id}/undo", fichero_actions_undo_post),
+    GeneratedTool("fichero_actions_undo_set", "actions", "POST", "/api/actions/audit/undo", fichero_actions_undo_set),
+    GeneratedTool("fichero_actions_undo", "actions", "POST", "/api/actions/audit/{audit_id}/undo", fichero_actions_undo),
     GeneratedTool("fichero_actions_list_builtin", "actions", "GET", "/api/actions/builtin", fichero_actions_list_builtin),
     GeneratedTool("fichero_actions_list_categories", "actions", "GET", "/api/actions/categories", fichero_actions_list_categories),
     GeneratedTool("fichero_actions_list_by_category", "actions", "GET", "/api/actions/category/{category}", fichero_actions_list_by_category),
