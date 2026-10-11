@@ -846,6 +846,8 @@ struct ContentView: View {
                 .interactiveDismissDisabled()
         }
         #endif
+        // A drop onto another project, from the sidebar or Items (#2397, #4311).
+        .modifier(ProjectTransferSheetHost(store: windowState.projectTransfer))
         .onKeyPress(.tab, phases: .down) { keyPress in
             // Tab inside an ACTIVE TEXT FIELD belongs to the text (Daniel,
             // 2026-08-10: "tab would be used for editing in text fields

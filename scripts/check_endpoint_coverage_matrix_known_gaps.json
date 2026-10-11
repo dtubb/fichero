@@ -1,5 +1,4 @@
 {
-  "POST /api/documents/transfer": "Transfer between projects (#5657): engine, CLI and MCP first (build orders 2-3); the app's drag between projects (sidebar, Items, canvas) is build order 5, not built yet",
   "GET /api/sync-folders/duplicates": "the dry run of the duplicate repair (#5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "POST /api/sync-folders/duplicates/remove": "the duplicate repair (sync.remove_duplicates, #5495): engine first, reached through the generated CLI and MCP; the app's view of it is not built",
   "GET /api/iiif/iiif/lines/{document_id}": "served to IIIF viewers through a manifest's canvas annotations, not called by the app (#5326)",
@@ -49,7 +48,6 @@
   "GET /api/chains/presets/paleography": "no Swift call for the /api/chains/* family (3 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/citations/graph": "no Swift call for the /api/citations/* family (3 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/claims/{claim_id}/links": "no Swift call for the /api/claims/* family (2 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
-  "GET /api/documents/trash": "#2075 backend; UI tracked in #2077",
   "GET /api/documents/{doc_id}/annotations.jsonld": "backend/CLI annotation export; Swift store wiring tracked as annotation export UI backlog",
   "GET /api/documents/{doc_id}/notes": "no Swift call for the /api/documents/* family (13 operation(s) here); reached from the engine and the CLI only, with no Mac surface yet",
   "GET /api/documents/{doc_id}/page-ranges": "backend #1377 prototypes / #1378 page-ranges; SwiftUI surfacing tracked as doc-prototypes/page-range UI backlog (reason carried from check_ui_wiring's swiftui allowlist, #5105)",
@@ -295,8 +293,6 @@
   "POST /api/claims/batch/transition": "#5613: the only Swift call was the hand-rolled entityService.batchTransitionClaims, uncalled and sending `state` where the engine takes `to_state` (it would have 422'd), so it was deleted; reached from the CLI and MCP; a Mac surface adds it through the generated client with its caller",
   "GET /api/recipes/project/automatic": "what runs by itself (#5362): the engine read first, served to the CLI and MCP; the app's setup and Activity do not show it yet",
   "POST /api/training/regions/here": "fine-tuning a layout model on this Mac (#5525): engine, CLI and MCP (fichero_training_start_regions_here) first; the app's Train button on a folder's regions is the next slice",
-  "GET /api/documents/trash/empty": "Empty Trash (#2077): engine, CLI and MCP built; the app's TrashStore and sidebar Trash rows are being built (worker B, 2026-10-11)",
-  "POST /api/documents/trash/empty": "Empty Trash (#2077): engine, CLI and MCP built; the app's TrashStore and sidebar Trash rows are being built (worker B, 2026-10-11)",
   "POST /api/actions/audit/undo": "undo a set of steps whole (#5658 safety.undo.a-set-is-undone-whole): the app's per-window step helper that calls it is undo slice 2",
   "DELETE /api/documents/transfer/incoming/{transfer_id}": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
   "GET /api/machines": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",

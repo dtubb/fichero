@@ -218,6 +218,13 @@ extension LibraryView {
         into parentId: String?
     ) async {
         guard let library = activeLibraryReference else { return }
+        // Another project's items onto this pane: a transfer into the folder shown, or its Sources folder (#2397).
+        if windowState.projectTransfer.beginIfAcrossProjects(
+            prefixedIds: prefixedIDs, operation: operation, into: library, parentId: parentId,
+            openLibraries: libraryManager.openLibraries
+        ) {
+            return
+        }
         let ids = prefixedIDs
             .map { extractActualId(from: $0) }
             .filter { !$0.isEmpty && $0 != parentId }

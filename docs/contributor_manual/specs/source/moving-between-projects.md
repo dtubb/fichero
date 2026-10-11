@@ -658,7 +658,7 @@ Nothing in the project changes.
   the Make Alias menu items. *Not built: the check that the drop's target is in the same project.*
 - `transfer.alias.not-between-projects` — **[PARTIAL]** (#5657) a ⌘⌥-drop onto another project or another
   machine is refused in words, "Aliases stay within a project.", with a Copy button; the engine refuses
-  an alias in a transfer's items the same way. Built (build orders 2-3): the engine refuses an alias in a transfer's items, "Aliases stay within a project."; `test_transfer_refusals.py`. *Not built: the app's ⌘⌥-drop refusal and its Copy button.*
+  an alias in a transfer's items the same way. Built (build orders 2-3): the engine refuses an alias in a transfer's items, "Aliases stay within a project."; `test_transfer_refusals.py`. Built (build order 5): the app refuses a ⌘⌥-drop onto another project in those words, before asking the engine, with Copy Instead; `ProjectTransferStoreTests`::anAliasIsRefused. *Not built: the same between machines.*
 - `transfer.alias.inside-set-rewritten` — **[OK]** (#5657) an alias in the set whose target is in the
   set travels with its target id rewritten; one whose target is not in the set does not travel and is
   listed. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
@@ -762,22 +762,35 @@ Nothing in the project changes.
 
 ### The app
 
-- `transfer.app.drag-sidebar` — **[GAP]** (#5657, #2397) dragging items onto a folder or the header of
+- `transfer.app.drag-sidebar` — **[PARTIAL]** (#5657, #2397) dragging items onto a folder or the header of
   another project's section in the sidebar moves them; ⌥ copies; ⌘⌥ is refused
-  (`transfer.alias.not-between-projects`); the cursor badge shows which before the drop.
-- `transfer.app.drag-items-and-canvas` — **[GAP]** (#5657) dragging from Items (every mode, the canvas
+  (`transfer.alias.not-between-projects`); the cursor badge shows which before the drop. Built (build order 5): a
+  folder row and a project's row start the transfer (`ProjectTransferStore.beginIfAcrossProjects`, called first by
+  `handleDropIntoFolder` and `handleLibraryHeaderItemDrop`; a project's row lands in its Sources folder);
+  `ProjectTransferStoreTests`, `ProjectTransferDropGrammarTests`. *Not built: the cursor badge across projects (the
+  hover cannot read which project the drag came from, so ⌘⌥ still shows the alias badge until the drop refuses it).*
+- `transfer.app.drag-items-and-canvas` — **[PARTIAL]** (#5657) dragging from Items (every mode, the canvas
   included) onto another project's row behaves the same, through the one drop grammar
-  (`sidebarDropOperation`) extended with the project check.
-- `transfer.app.drop-checks-project` — **[GAP]** (#5657, #2397) the drop path compares the dragged item's
-  project with the target's: same project, today's move/copy/alias; another project, the transfer.
+  (`sidebarDropOperation`) extended with the project check. Built (build order 5): Items' rows drag onto another
+  project's sidebar row as above, and Items' folder cells and pane take a drop of another project's items the same
+  way (`applyCellDrop`, `applyPaneDrop`). *Not built: the canvas's own drops.*
+- `transfer.app.drop-checks-project` — **[OK]** (#5657, #2397) the drop path compares the dragged item's
+  project with the target's: same project, today's move/copy/alias; another project, the transfer. Built (build
+  order 5): `ProjectTransferStore.sourceProject` finds the open project whose loaded documents hold every dragged
+  id (ids are UUIDs; the drag payload is unchanged); `ProjectTransferStoreTests`::ownItemsAreNotATransfer
 - `transfer.app.progress-in-activity` — **[GAP]** (#5657, #4311) a transfer is one row in Activity with
   its phase in words (checking, copying N of M, verifying, sending the source to its Trash) and Stop
   (which rolls back).
-- `transfer.app.result-sheet` — **[GAP]** (#5657) when a transfer cut anything or proposed a merge, a
+- `transfer.app.result-sheet` — **[PARTIAL]** (#5657) when a transfer cut anything or proposed a merge, a
   result sheet lists it (cuts by kind, proposals with Review…, types made); otherwise a quiet line
-  ("Moved 12 items to Istmina. Undo").
-- `transfer.app.undo-both-windows` — **[GAP]** (#5657) ⌘Z right after a transfer undoes it from the
-  source's or the target's window.
+  ("Moved 12 items to Istmina. Undo"). Built (build order 5): every drop opens a small sheet
+  (`ProjectTransferSheet`) with the dry run's plan (what goes, what is cut and listed, the merges proposed), then
+  Move or Copy and the result in words; a refusal shows the engine's sentence; `OnboardingScreenshotsTests` writes
+  `13-move-between-projects.png`. *Not built: Review… on a proposal, and the types made.*
+- `transfer.app.undo-both-windows` — **[PARTIAL]** (#5657) ⌘Z right after a transfer undoes it from the
+  source's or the target's window. Built (build order 5): the window the drop was made in registers the step
+  (`ActionUndo`, the target's audit row the result names, undone through the target);
+  `ProjectTransferStoreTests`::undoTakesItBack. *Not built: ⌘Z from the other project's window.*
 - `transfer.app.drag-to-finder` — **[GAP]** (#4311) dragging items to the Desktop or a Finder window
   writes their originals through file promises streamed from the engine (folders as folders, notes as
   Markdown); nothing in the project changes.

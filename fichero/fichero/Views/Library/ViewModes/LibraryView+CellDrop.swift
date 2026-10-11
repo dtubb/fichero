@@ -290,6 +290,13 @@ extension LibraryView {
         into folder: Document
     ) async {
         guard let library = activeLibraryReference else { return }
+        // Another project's items onto this folder: a transfer, not a move here (#2397).
+        if windowState.projectTransfer.beginIfAcrossProjects(
+            prefixedIds: prefixedIDs, operation: operation, into: library, parentId: folder.id,
+            openLibraries: libraryManager.openLibraries
+        ) {
+            return
+        }
         let bareIds = prefixedIDs.map { extractActualId(from: $0) }.filter { !$0.isEmpty }
         // #4980: same self-check the sidebar row uses (SidebarDropFeedback) —
         // refused before any move is attempted, no alert, just a trace.

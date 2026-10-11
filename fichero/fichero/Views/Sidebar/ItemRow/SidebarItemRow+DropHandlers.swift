@@ -203,6 +203,15 @@ extension SidebarItemRow {
         // Sampled ONCE at the drop moment: ⌥-drop copies document payloads,
         // ⌘⌥-drop makes aliases at the target (Finder modifier grammar).
         let modifiersAtDrop = SidebarDropModifiers.current()
+        // Another project's items onto this folder: a transfer (move, ⌥ copy, ⌘⌥ refused), not a move here
+        // (#2397, `transfer.app.drop-checks-project`).
+        if targetKind == .document, windowState.projectTransfer.beginIfAcrossProjects(
+            prefixedIds: itemIDs, operation: sidebarDropOperation(modifiers: modifiersAtDrop, kind: .document),
+            into: library, parentId: extractActualId(from: targetFolder.id),
+            openLibraries: LibraryManager.shared.openLibraries
+        ) {
+            return true
+        }
         // The Inbox drag sentinel is an empty id — never a real row, so it
         // must not count as a "skipped item" in the user-facing summary.
         for itemID in itemIDs where !itemID.isEmpty {

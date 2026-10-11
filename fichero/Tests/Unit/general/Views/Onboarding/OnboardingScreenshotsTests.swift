@@ -150,6 +150,31 @@ struct OnboardingScreenshotsTests {
         return url
     }
 
+    /// Three pages of this box dragged onto another project, as the engine's dry run answers it: what goes, a link
+    /// cut and listed, a person proposed as a merge.
+    private static func transferDrop(from project: LibraryManager.LibraryReference) throws -> ProjectTransferStore.Pending {
+        // On the fixture engine too, so the second project asks nothing of a real one.
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [OnboardingFixtureEngine.self]
+        let target = LibraryManager.LibraryReference(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent("Istmina.fichero"),
+            document: FicheroDocument(), displayName: "Istmina, Chocó", session: URLSession(configuration: configuration))
+        let plan = try JSONDecoder().decode(Components.Schemas.TransferResult.self, from: Data("""
+        {"transfer_id":"t1","mode":"move","dry_run":true,"state":"planned","source":"a","target":"b",
+         "target_parent_id":"sources","actor":"owner",
+         "counts":[{"kind":"Document","planned":3},{"kind":"Segment","planned":214},{"kind":"ContentRepresentation","planned":428}],
+         "files":3,"bytes":9437184,
+         "cuts":[{"kind":"TypedLink","row":"l1","field":"to_id","points_to":"p9","name":"See also: f. 12r",
+                  "reason":"its other end stays in Escribanía 1023"}],
+         "proposals":[{"carried_entity":"e1","name":"Juan de la Cruz","entity_type":"person","target_entity":"e7",
+                       "target_name":"Juan de la Cruz","reason":"same name and type"}]}
+        """.utf8))
+        var drop = ProjectTransferStore.Pending(source: project, target: target, items: ["p1", "p2", "p3"],
+                                                targetParentId: nil, mode: .move)
+        drop.plan = plan
+        return drop
+    }
+
     /// How many pixels of the PNG at `url` are not clear, counting every fourth pixel of every fourth row.
     private static func drawnPixels(at url: URL) -> Int {
         guard let rep = NSBitmapImageRep(data: (try? Data(contentsOf: url)) ?? Data()), rep.hasAlpha,
@@ -260,8 +285,12 @@ struct OnboardingScreenshotsTests {
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
         // The training section (#5660 item 9) is drawn in 07-ready-whole-plan; on its own it rendered as a clear picture.
+        // A drop onto another project (#2397): the dry run's plan, before Move.
+        try await shot("13-move-between-projects.png", CGSize(width: 440, height: 420),
+                       ProjectTransferSheet(store: ProjectTransferStore(), drop: try Self.transferDrop(from: project),
+                                            undoManager: nil))
 
-        #expect(written.count == 12)
+        #expect(written.count == 13)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")

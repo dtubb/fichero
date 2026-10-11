@@ -211,6 +211,13 @@ extension SidebarView {
             return
         }
         let operation = sidebarDropOperation(modifiers: modifiers, kind: .document)
+        // Another project's items onto this project's row: a transfer into its Sources folder (#2397).
+        if windowState.projectTransfer.beginIfAcrossProjects(
+            prefixedIds: droppedIds, operation: operation, into: library, parentId: nil,
+            openLibraries: libraryManager.openLibraries
+        ) {
+            return
+        }
         if operation != .move {
             // Same executor the insertion line uses; empty children/offset 0
             // skips the positioning diff — the header has no insertion point.

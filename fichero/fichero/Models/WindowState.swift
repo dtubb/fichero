@@ -73,6 +73,10 @@ class WindowState {
     /// windows' marquees must never mix. See `PreviewMarqueeSelection`.
     let previewMarquees = PreviewMarqueeSelection()
 
+    /// A drop of library items onto another project, waiting in this window's sheet (#2397, #4311). Per window,
+    /// like the marquees: the sidebar and Items both start it, and the window's one sheet shows it.
+    let projectTransfer = ProjectTransferStore()
+
     /// The annotation bar's ARMED tool (Daniel, 2026-08-30: "when we change
     /// tools for markup… leave it selected"). Sticky: the tool stays armed
     /// across uses until toggled off or another tool is armed; canvases read

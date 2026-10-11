@@ -51,8 +51,9 @@ extension DocumentStore: ObservableDomainStore {
     }
 
     /// Remove the given document ids in place from every list/cache that holds
-    /// them. Purely local — no network — so it runs synchronously inside `apply`.
-    private func removeDocuments(ids: Set<String>) {
+    /// them. Purely local — no network — so it runs synchronously inside `apply`. Internal for a move between
+    /// projects (`ProjectTransferStore`), which takes the moved rows out of the source in place.
+    func removeDocuments(ids: Set<String>) {
         lastChangedDocumentIds = ids
         // Mark these as genuinely deleted so the sidebar selection-resilience
         // filter drops a just-deleted selected row instead of treating its
