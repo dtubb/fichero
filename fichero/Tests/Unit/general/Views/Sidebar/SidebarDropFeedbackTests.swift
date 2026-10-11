@@ -158,7 +158,8 @@ struct SidebarDropFeedbackTests {
         // executor (SidebarDropOperation) — assert it there, not in the
         // per-row handlers file.
         let executor = try appSource("Views/Sidebar/ItemRow/SidebarDropOperation.swift")
-        #expect(executor.contains(#"name: "document.duplicate""#))
+        // Through the one undo helper since #5658: the same audited action, now a step ⌘Z takes back.
+        #expect(executor.range(of: #"UndoableChange\.invoke\(\s*"document\.duplicate""#, options: .regularExpression) != nil)
         // The engine owns cycle/lock rules; failures surface on the banner.
         #expect(handlers.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
     }

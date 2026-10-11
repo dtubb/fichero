@@ -315,34 +315,10 @@ final class RecipeSetupStore {
     /// instead (#5592, `ai.where.fallback-free-and-asked`).
     var elsewhere: [Components.Schemas.StartElsewhere] { startPlan?.elsewhere ?? [] }
 
-    /// The downloads asked for here, by model, while the engine fetches them (a `download-model` job).
-    private(set) var downloading: Set<String> = []
-
     /// A skipped step by its title in the recipe ("Find names"), else by its id.
     func title(ofStepId step: String) -> String {
         guard let found = recipe?.steps.first(where: { $0.id == step }) else { return title(ofJob: step) }
         return title(of: found)
-    }
-
-    /// Fetch a model the plan needs, through the one download route (`POST /api/local-models/download/{runtime}/{model}`):
-    /// the step waits for it, Start not held (#5660); the engine then says `model.installed` and the plan is read again.
-    func download(_ download: Components.Schemas.StartDownload) async {
-        do {
-            let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
-                path: .init(modelType: download.runtime, modelId: download.model)
-            )
-            switch response {
-            case .ok:
-                downloading.insert(download.model)
-            case .unprocessableContent:
-                errorMessage = "Could not download \(download.model)."
-            case .undocumented(let code, _):
-                errorMessage = "Could not download \(download.model) (HTTP \(code))."
-            }
-        } catch {
-            if error.isCancellationError { return }
-            errorMessage = "Could not download \(download.model): \(error.localizedDescription)"
-        }
     }
 
     /// Use the installed model the plan offers instead of a download (#5583,

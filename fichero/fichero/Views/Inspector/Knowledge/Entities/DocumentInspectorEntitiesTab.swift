@@ -29,8 +29,6 @@ struct DocumentInspectorEntitiesTab: View {
     /// observes the store and routes mutations through its named actions; the
     /// store (and, once it emits, the change-stream) republishes the list.
     @Environment(EntityStore.self) var entityStore
-    /// The window's step stack: a merge is one undoable step in this window (#5658).
-    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     @Environment(EntityService.self) var entityService
     /// Per-window entity-search bus (#3437).
     @Environment(EntitySearchState.self) var entitySearchState: EntitySearchState?
@@ -38,6 +36,9 @@ struct DocumentInspectorEntitiesTab: View {
     @Environment(KGFocusState.self) var kgFocusState
     /// Document tree — supplies a folder's children for aggregation (#3450).
     @Environment(DocumentStore.self) var documentStore
+    /// The window's step stack: a merge is one undoable step in this window (#5658); declared after the pinned reads
+    /// above so the #4703 allowlist's line pins stay true.
+    @Environment(WindowSteps.self) var windowSteps: WindowSteps?
     /// Shared with the KG tab: aggregate across a folder's children when on.
     @AppStorage("inspector.scope.includeChildren") var includeChildren = false
 

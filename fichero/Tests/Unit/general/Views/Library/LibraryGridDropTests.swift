@@ -101,7 +101,8 @@ final class LibraryContextMenuParityTests: XCTestCase {
         XCTAssertTrue(source.contains("Label(\"Make Alias\""))
         XCTAssertTrue(source.contains("Label(\"Delete\""))
         // Same audited action + alias semantics as the sidebar row.
-        XCTAssertTrue(source.contains("name: \"document.duplicate\""))
+        // Through the one undo helper since #5658: the same audited action, now a step ⌘Z takes back.
+        XCTAssertNotNil(source.range(of: #"UndoableChange\.invoke\(\s*"document\.duplicate""#, options: .regularExpression))
         XCTAssertTrue(source.contains("document.isAlias ? (document.aliasTargetId ?? document.id) : document.id"))
         // Delete honors the multi-selection when the clicked row is in it.
         XCTAssertTrue(source.contains("selection.contains(document.id)"))

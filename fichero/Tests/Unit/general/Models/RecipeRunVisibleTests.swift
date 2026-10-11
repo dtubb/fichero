@@ -118,16 +118,15 @@ final class RecipeRunVisibleTests: XCTestCase {
 
     // MARK: - source.onboard.auto.plan-shows-what-will-not-run (#5573)
 
-    func testReady_showsEverySkippedStepWithWhyAndFix_andEveryDownloadWithSizeAndDownload() async throws {
+    func testReady_showsEverySkippedStepWithWhyAndFix_andWhatStartWillFetch() async throws {
         // WHY: the app read only the plan's refusals, so a person pressed Start never seeing that names
-        // would not run (no model) or that a check would not (the project keeps its pages here), and with
-        // no way to fetch the spaCy model the names step needed.
+        // would not run (no model) or that a check would not (the project keeps its pages here). Since #5664
+        // (ruled 2026-10-11) nobody downloads in setup: Start fetches the model the names step needs, and Ready
+        // says so in the engine's sentence, with no Download button and Start not held for it.
         let store = RecipeSetupStore(client: Self.client())
         MockTransportURLProtocol.reset([
             Stub(path: "/api/recipes/project/start", method: "GET", status: 200,
-                 body: try Self.recorded("start_plan_skips_and_downloads")),
-            Stub(path: "/api/local-models/download/spacy/es_core_news_sm", method: "POST", status: 200,
-                 body: Data(#"{"status":"queued","model_type":"spacy","model_id":"es_core_news_sm","job_id":"j-1"}"#.utf8))
+                 body: try Self.recorded("start_plan_skips_and_downloads"))
         ])
         await store.loadStartPlan()
 
@@ -140,13 +139,12 @@ final class RecipeRunVisibleTests: XCTestCase {
 
         let download = try XCTUnwrap(store.downloads.first { $0.model == "es_core_news_sm" })
         XCTAssertEqual(download.steps, ["names"])
-        XCTAssertTrue(RecipeDownloadRows.words(download, store: store).hasPrefix("spaCy model es_core_news_sm"))
-        XCTAssertFalse(store.canStart, "Start waits for the download")
-
-        await store.download(download)
-        let posted = MockTransportURLProtocol.recorded().filter { $0.httpMethod == "POST" }.compactMap(\.url?.path)
-        XCTAssertEqual(posted, ["/api/local-models/download/spacy/es_core_news_sm"], "the one download route")
-        XCTAssertTrue(store.downloading.contains("es_core_news_sm"), "Ready says it is downloading")
+        XCTAssertFalse(RecipeDownloadRows.isUnderWay(download), "not started: Start will fetch it")
+        XCTAssertEqual(RecipeDownloadRows.sentence(store), "Start downloads the spaCy pipeline es_core_news_sm (16 MB).",
+                       "Ready says what Start will fetch, by name and size")
+        XCTAssertTrue(store.canStart, "Start is not held for a model it fetches itself")
+        XCTAssertTrue(MockTransportURLProtocol.recorded().allSatisfy { $0.httpMethod != "POST" },
+                      "reading the plan downloads nothing")
         XCTAssertNil(store.errorMessage)
     }
 

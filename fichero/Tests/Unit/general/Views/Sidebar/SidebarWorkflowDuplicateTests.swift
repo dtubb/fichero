@@ -21,7 +21,8 @@ final class SidebarWorkflowDuplicateTests: XCTestCase {
         // Each duplicable kind calls its one existing endpoint; failures
         // surface on the drop banner.
         XCTAssertTrue(row.contains("try await store.duplicateWorkflow(workflow.id)"))
-        XCTAssertTrue(row.contains(#"name: "document.duplicate""#))
+        // The audited document.duplicate, through the one undo helper since #5658 (a step ⌘Z takes back).
+        XCTAssertNotNil(row.range(of: #"UndoableChange\.invoke\(\s*"document\.duplicate""#, options: .regularExpression))
         XCTAssertTrue(row.contains("try await service.duplicateSavedSearch(search.id)"))
         XCTAssertTrue(row.contains("try await service.duplicateConversation(conversation.id)"))
         XCTAssertTrue(row.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
