@@ -257,6 +257,22 @@ struct SetupStagesTests {
         #expect(store.pages == 92, "the count replaces the guess")
     }
 
+    @Test("source.onboard.stages.page-trains: a stage page offers training for its own steps only")
+    func stagePageTrainsItsOwnSteps() async {
+        StagesMockURLProtocol.replies = ["GET /api/recipes/project/start": (200, """
+        {"runs":[],"skipped":[],"workflows":[],"offered":[],"refusals":[],
+         "estimate":{"pages":92,"runs":[],"total_cost_usd":0},
+         "train_offers":[
+           {"step":"s2","job":"read-a-line","title":"Read each line","ways":[],"readiness":{"ready":false}},
+           {"step":"s5","job":"find-names-tag-words","title":"Find names","ways":[],"readiness":{"ready":false}}]}
+        """)]
+        let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
+        await store.loadStartPlan()
+        #expect(store.trainOffers(forJobs: ["read-a-line", "correct"]).map(\.job) == ["read-a-line"])
+        #expect(store.trainOffers(forJobs: ["work-out-dates"]).isEmpty, "a stage with nothing to train offers nothing")
+        #expect(store.trainOffers(forJobs: nil).count == 2, "the Train page offers every step's")
+    }
+
     // MARK: What Fichero runs
 
     @Test("source.onboard.app.what-fichero-runs: what Fichero does and with what, and the two accounts it suggests")

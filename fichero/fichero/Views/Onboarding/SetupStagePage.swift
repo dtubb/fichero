@@ -35,6 +35,13 @@ struct SetupStagePage: View {
                     )
                 }
             }
+            // Train or fine-tune a model of the project's own for this stage's steps (Kraken, spaCy, Core ML, MLX
+            // LoRA), where the engine offers it (`source.onboard.stages.page-trains`); offered, never run at Start.
+            if !store.trainOffers(forJobs: Set(stage.jobs)).isEmpty {
+                Divider()
+                Text("Train your own").font(.headline)
+                RecipeTrainOffersFields(store: store, onlyJobs: Set(stage.jobs))
+            }
             if stage.sampleable {
                 Divider()
                 SetupStageSamples(store: SetupStageTryStore(client: store.client, stageId: stage.id))
@@ -44,6 +51,8 @@ struct SetupStagePage: View {
         // The plan's rows come from the recipe: propose it when this page needs it and there is none yet.
         .task(id: stage.id) {
             if store.recipe == nil, store.canAssemble { await store.assemble() }
+            // The training offers ride on the Start plan.
+            if store.startPlan == nil { await store.loadStartPlan() }
         }
     }
 

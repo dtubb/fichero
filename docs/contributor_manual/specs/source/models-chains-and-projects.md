@@ -2808,7 +2808,7 @@ Setup
 - `source.onboard.project.add-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** its own page, Add Files or Folders…, the line about adding later gone. *The chooser still picks a folder only.* Add material offers Add Files or Folders…
   and then how it comes in (Copy, the default; Link, Move, Index, Keep arranged), separate from what the
   material is. *Test:* pure Swift, the ways in and the default.
-- `source.onboard.project.about-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** when written, where written (`answers.place`) and which hand (`RecipeWhenWhereHandFields`); pinned by `SetupStagesTests`. *Not built: the pages counted from what was added; the kinds beyond handwriting, print and typescript, which the engine's `MATERIALS` refuses today.* About the material holds the pages
+- `source.onboard.project.about-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** when written, where written (`answers.place`) and which hand (`RecipeWhenWhereHandFields`); pinned by `SetupStagesTests`. Pages counted from what was added (`RecipeSetupStore.countPages`, the Start plan's count). *Not built: the kinds beyond handwriting, print and typescript, which the engine's `MATERIALS` refuses today.* About the material holds the pages
   counted from what was added, languages, scripts, kinds (handwriting, print, typescript, tables and
   forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
   page's fields in that order.
@@ -2827,7 +2827,7 @@ Setup
   stages: Normalise offers as written, abbreviations expanded, normalised spelling and modernised;
   Translate's target is any language, found by the language search. *Test:* pytest, the two stages and
   their questions; pure Swift, Translate's target field is the language search.
-- `source.onboard.stages.page-trains` — **[GAP]** (#5668) each stage page offers training or fine-tuning
+- `source.onboard.stages.page-trains` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the stage page shows the engine's train offers for its own jobs (`RecipeTrainOffersFields(onlyJobs:)`, `RecipeSetupStore.trainOffers(forJobs:)`); pinned by `SetupStagesTests`. each stage page offers training or fine-tuning
   for its step (Kraken, spaCy, Core ML, MLX LoRA) where the step can be trained. *Test:* pure Swift, a
   trainable stage's page offers it and another's does not.
 - `source.onboard.ready.words-not-engine-errors` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeStartFields.words(for:title:)` names the step by its title and says a model the engine cannot run as what to do; pinned by `SetupStagesTests`. The engine's own words are the fuller fix. Ready says the plan in words and
@@ -2840,7 +2840,7 @@ Setup
   search are that step's own: Find statements never lists page readers or says it searched for readers.
   *Test:* engine, the candidates for `find-statements` carry that job; pure Swift, the search label
   names the step.
-- `source.onboard.models.licence-accepted-once` — **[BROKEN]** (#5668) Find Regions has a default under an
+- `source.onboard.models.licence-accepted-once` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** one tick accepts the licence, then Accept and Use works (`LicenceReviewSheet.canAccept`), and the sheet no longer inherits a disabled presenter; pinned by `SetUpButtonsActTests`. *Not built: an open-licence default for Find Regions (engine).* Find Regions has a default under an
   open licence, and a model under a licence that needs accepting is accepted once, after which Accept and
   Use for This Step works. *Test:* pure Swift, accepting enables the button.
 
