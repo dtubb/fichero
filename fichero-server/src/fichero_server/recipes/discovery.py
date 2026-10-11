@@ -795,7 +795,8 @@ def _gguf_only(model: dict[str, Any]) -> bool:
 
 
 async def search_hugging_face(languages: frozenset[str],
-                              progress: Callable[[str], None] = lambda _: None) -> tuple[list[Card], int]:
+                              progress: Callable[[str], None] = lambda _: None,
+                              hand_tags: tuple[str, ...] | list[str] = ()) -> tuple[list[Card], int]:
     """(reader candidates on the Hub for these languages, how many builds this Mac runs were left out as
     not readers). Only builds this Mac can run, only readers by their listing (`reads_text`), each saying
     why it fits. `progress` is told each query in words. Network: call only behind the egress check.
@@ -857,7 +858,11 @@ async def search_hugging_face(languages: frozenset[str],
     # The HTR models made for manuscripts (TrOCR fine-tunes, VLMs trained on old hands): by the tags they are
     # published under, alone and with each project language (ruled 2026-10-11), then by name (#5660 item 3).
     langs = sorted({t.split("-")[0] for t in languages})
-    tag_asks = [[tag] for tag in HTR_TAGS] + [[lang, tag] for lang in langs for tag in (*HTR_TAGS, "ocr")]
+    # The hand answered in Your Material joins them (#5668, `source.onboard.material.feeds-the-reader-search`):
+    # a Kurrent hand asks for `kurrent`, alone and with each language.
+    hands = [t for t in dict.fromkeys(hand_tags) if t not in HTR_TAGS]
+    tag_asks = ([[tag] for tag in (*HTR_TAGS, *hands)]
+                + [[lang, tag] for lang in langs for tag in (*HTR_TAGS, "ocr", *hands)])
     asks = len(tag_asks) * len(HF_READER_TASKS)
     for n, (tags, task) in enumerate(((t, k) for t in tag_asks for k in HF_READER_TASKS), 1):
         progress(f"Searching Hugging Face by tag ({n} of {asks})")
@@ -1187,6 +1192,20 @@ def search(db: Any, languages: frozenset[str]) -> dict[str, Any]:
     return jobs.find_jobs(db, kinds=[SEARCH_KIND], job_id=job_id)[0]
 
 
+def _project_hand_tags(db: Any) -> list[str]:
+    """The Hugging Face tags of the hand the open project's Your Material answered (#5668); none without one."""
+    from pathlib import Path
+
+    from fichero_server.recipes.hands import tags_for
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        answers = read_project_setup(Path(db.path).parent)["answers"] or {}
+    except Exception:  # noqa: BLE001 -- a search without the project's answers asks without a hand
+        return []
+    return tags_for(answers.get("hands"))
+
+
 def _run_search(db: Any, subject: str) -> dict[str, Any]:
     """The job's work: search, keep what was found, and keep what each source did on the job's row."""
     from fichero_server.execution import jobs
@@ -1196,7 +1215,7 @@ def _run_search(db: Any, subject: str) -> dict[str, Any]:
     def say(words: str) -> None:
         jobs.save_detail(db, job_id, json.dumps({"doing": words}, ensure_ascii=False), reason=words)
 
-    result = search_online(_languages_of(subject), progress=say)
+    result = search_online(_languages_of(subject), progress=say, hand_tags=_project_hand_tags(db))
     jobs.save_detail(db, job_id, json.dumps(result, ensure_ascii=False))
     failed = [s["detail"] for s in result["sources"].values() if s["state"] == "failed"]
     if len(failed) == len(result["sources"]):
@@ -1204,7 +1223,8 @@ def _run_search(db: Any, subject: str) -> dict[str, Any]:
     return result
 
 
-def search_online(languages: frozenset[str], progress: Callable[[str], None] = lambda _: None) -> dict[str, Any]:
+def search_online(languages: frozenset[str], progress: Callable[[str], None] = lambda _: None,
+                  hand_tags: tuple[str, ...] | list[str] = ()) -> dict[str, Any]:
     """Fetch Kraken's repository listing when the kept one is a day old, and search Hugging Face for these
     languages, keeping both in the model store's `discovery/` folder; return what each source did. Network:
     run only as the `find-models` job. Refused when this engine works offline."""
@@ -1226,7 +1246,7 @@ def search_online(languages: frozenset[str], progress: Callable[[str], None] = l
     else:
         sources["kraken-repository"] = {"state": "cached", "detail": f"{len(cached['records'])} found on Zenodo"}
     try:
-        found, left_out = asyncio.run(search_hugging_face(languages, progress))
+        found, left_out = asyncio.run(search_hugging_face(languages, progress, hand_tags))
         keep_hub(found, languages, left_out)
         sources["hugging-face"] = {"state": "searched", "count": len(found), "left_out": left_out,
                                    "detail": f"{len(found)} found on Hugging Face"}

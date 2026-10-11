@@ -215,6 +215,15 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   needs and why in words, and whether it can be tried on the sample pages (by the bake-off, or by its
   workflow). Without an open project every stage is off and every answer its default.
 
+`GET /api/recipes/hands` · `GET`/`PUT /api/recipes/samples` · `POST`/`GET /api/recipes/stages/{stage}/try`
+
+- Which hand: the curated hands for a script, those of the period's centuries, each with its Hugging Face tags
+  (they join the reader search); the answers keep `period` and `hands` (typed hands kept as typed).
+- The sample pages: the person's choice, else 3 to 5 proposed across the material, each with why.
+- Try a stage on them: Read and Find Lines start the bake-off on the samples; any other stage runs its own
+  steps on a copy of the samples (a `try-a-stage` job), its result kept beside the setup, never the
+  project's work; a stage using the cloud is refused (402) with its cost until `cost_ok`.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

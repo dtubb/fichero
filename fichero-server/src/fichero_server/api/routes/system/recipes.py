@@ -6,6 +6,7 @@ read the same answers from the engine (four architecture rules: logic in the eng
 """
 from __future__ import annotations
 
+import asyncio
 import os
 from enum import Enum
 from pathlib import Path
@@ -122,6 +123,12 @@ class AssembleRequest(BaseModel):
         "script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own "
         "(source.onboard.direction-chosen)"))
     pages: int = Field(default=0, ge=0, description="roughly how many pages")
+    period: Optional[str] = Field(default=None, description=(
+        "when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed "
+        "(GET /api/recipes/hands reads it; source.onboard.material.when-written)"))
+    hands: list[str] = Field(default_factory=list, description=(
+        "which hand: curated hand ids (GET /api/recipes/hands), anything else typed and kept as typed, or 'not-sure'; "
+        "their tags join the reader search (source.onboard.material.which-hand)"))
     cloud_allowed: bool = Field(default=False, description='Whether a step may use a cloud model; false keeps every step on this Mac.')
     mac_memory_gb: Optional[float] = Field(default=None, description="defaults to this machine's memory")
     layers: list[str] = Field(default_factory=list, description="layers added beyond the purposes' "
@@ -353,6 +360,120 @@ async def list_stages(request: Request) -> SetupStageList:
     setup = read_project_setup(library) if library else {"recipe": None, "answers": None}
     items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
     return SetupStageList(items=items, count=len(items))
+
+
+class SamplePage(BaseModel):
+    id: str
+    name: str
+    why: str = Field(description="why it is a sample: your first page, the largest image, chosen by you…")
+
+
+class SamplePages(BaseModel):
+    chosen_by: Literal["fichero", "you"]
+    pages: list[SamplePage]
+
+
+class ChooseSamples(BaseModel):
+    ids: list[str] = Field(default_factory=list, description="the pages chosen; empty: back to Fichero's proposal")
+
+
+class TryStageRequest(BaseModel):
+    page_ids: list[str] = Field(default_factory=list, description="the pages to try it on; empty: the samples")
+    cost_ok: bool = Field(default=False, description="the person's yes to a cost the try said first (cloud steps)")
+
+
+@router.get("/samples", response_model=SamplePages)
+async def get_samples(db: Database = Depends(get_library_database)) -> SamplePages:
+    """The sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the
+    person's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then
+    evenly spaced), each with why."""
+    from fichero_server.recipes import samples
+
+    return SamplePages(**await asyncio.to_thread(samples.chosen, db))
+
+
+@router.put("/samples", response_model=SamplePages)
+async def choose_samples(body: ChooseSamples, db: Database = Depends(get_library_database_for_write)) -> SamplePages:
+    """Choose the sample pages by hand (kept beside the setup, for every stage); none: back to the proposal."""
+    from fichero_server.recipes import samples
+
+    try:
+        return SamplePages(**await asyncio.to_thread(samples.choose, db, body.ids))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/stages/{stage}/try")
+async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
+                    db: Database = Depends(get_library_database_for_write),
+                    ctx: ActionContext = Depends(action_context)) -> dict[str, Any]:
+    """Try a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`): Read
+    and Find Lines start the bake-off on them (its evaluation job); any other stage runs its own steps of the recipe
+    on a copy of the samples (one `try-a-stage` job in Activity). The result is the stage's, kept beside the setup
+    and replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and
+    is refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422)."""
+    from fichero_server.recipes import samples
+
+    body = body or TryStageRequest()
+    setup = read_project_setup(_library(db))
+    try:
+        return await asyncio.to_thread(
+            samples.start_try, db, stage, setup, page_ids=body.page_ids or None, cost_ok=body.cost_ok,
+            started_by=ctx.actor or "owner",
+            run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=402, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/stages/{stage}/try")
+async def stage_try_result(stage: str, db: Database = Depends(get_library_database)) -> dict[str, Any]:
+    """The stage's sample result, as its last try left it (the bake-off's table for Read and Find Lines); 404 when
+    it has not been tried, or is no longer chosen (a stage unticked clears it)."""
+    from fichero_server.recipes import samples
+
+    result = await asyncio.to_thread(samples.read_result, db, stage, read_project_setup(_library(db))["recipe"])
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"{stage} has no sample result")
+    return result
+
+
+class HandOption(BaseModel):
+    id: str
+    title: str
+    script: str
+    centuries: str = Field(description="when it was written, in words: '15th–16th century'")
+    tags: list[str] = Field(description="the Hugging Face tags readers made for it carry")
+    looks: str = Field(description="what it looks like, in a few words, until each hand has its picture")
+
+
+class HandList(BaseModel):
+    items: list[HandOption]
+    period_years: Optional[list[int]] = Field(default=None, description="the years the period answer means, when read")
+    not_sure: str = Field(default="not-sure", description="the answer 'Not sure'")
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+@router.get("/hands", response_model=HandList)
+async def list_hands(script: str = Query("Latn", description="ISO 15924 script code"),
+                     period: Optional[str] = Query(None, description="'16th century', '1650–1700' or a year")) -> HandList:
+    """Which hand: the curated hands for a script, those written in the period's centuries when it is read, each with
+    its Hugging Face tags and what it looks like (section 7c, `source.onboard.material.which-hand`). Anything else can
+    be typed and is kept as typed; 'not-sure' is an answer."""
+    from fichero_server.recipes.hands import hands_for, period_years
+
+    years = period_years(period)
+    items = [HandOption(id=h.id, title=h.title, script=h.script, tags=list(h.tags), looks=h.looks,
+                        centuries=(f"{_ordinal(h.from_century)} century" if h.from_century == h.to_century
+                                   else f"{_ordinal(h.from_century)}–{_ordinal(h.to_century)} century"))
+             for h in hands_for(script, period)]
+    return HandList(items=items, period_years=list(years) if years else None)
 
 
 @router.get("/purposes", response_model=PurposeListResponse)

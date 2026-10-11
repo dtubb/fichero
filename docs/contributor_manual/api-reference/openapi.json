@@ -13725,6 +13725,245 @@
         }
       }
     },
+    "/api/recipes/samples": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Get Samples",
+        "description": "The sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the\nperson's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then\nevenly spaced), each with why.",
+        "operationId": "get_samples_api_recipes_samples_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamplePages"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Choose Samples",
+        "description": "Choose the sample pages by hand (kept beside the setup, for every stage); none: back to the proposal.",
+        "operationId": "choose_samples_api_recipes_samples_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChooseSamples"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SamplePages"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/stages/{stage}/try": {
+      "post": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Try Stage",
+        "description": "Try a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`): Read\nand Find Lines start the bake-off on them (its evaluation job); any other stage runs its own steps of the recipe\non a copy of the samples (one `try-a-stage` job in Activity). The result is the stage's, kept beside the setup\nand replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and\nis refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422).",
+        "operationId": "try_stage_api_recipes_stages__stage__try_post",
+        "parameters": [
+          {
+            "name": "stage",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stage"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TryStageRequest",
+                "nullable": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Try Stage Api Recipes Stages  Stage  Try Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Stage Try Result",
+        "description": "The stage's sample result, as its last try left it (the bake-off's table for Read and Find Lines); 404 when\nit has not been tried, or is no longer chosen (a stage unticked clears it).",
+        "operationId": "stage_try_result_api_recipes_stages__stage__try_get",
+        "parameters": [
+          {
+            "name": "stage",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Stage"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Stage Try Result Api Recipes Stages  Stage  Try Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/hands": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "List Hands",
+        "description": "Which hand: the curated hands for a script, those written in the period's centuries when it is read, each with\nits Hugging Face tags and what it looks like (section 7c, `source.onboard.material.which-hand`). Anything else can\nbe typed and is kept as typed; 'not-sure' is an answer.",
+        "operationId": "list_hands_api_recipes_hands_get",
+        "parameters": [
+          {
+            "name": "script",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "ISO 15924 script code",
+              "default": "Latn",
+              "title": "Script"
+            },
+            "description": "ISO 15924 script code"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "'16th century', '1650\u20131700' or a year",
+              "title": "Period"
+            },
+            "description": "'16th century', '1650\u20131700' or a year"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/purposes": {
       "get": {
         "tags": [
@@ -49353,6 +49592,20 @@
             "description": "roughly how many pages",
             "default": 0
           },
+          "period": {
+            "type": "string",
+            "nullable": true,
+            "title": "Period",
+            "description": "when the material was written: a century or a range of years ('16th century', '1650\u20131700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)"
+          },
+          "hands": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Hands",
+            "description": "which hand: curated hand ids (GET /api/recipes/hands), anything else typed and kept as typed, or 'not-sure'; their tags join the reader search (source.onboard.material.which-hand)"
+          },
           "cloud_allowed": {
             "type": "boolean",
             "title": "Cloud Allowed",
@@ -53283,6 +53536,20 @@
         ],
         "title": "CheckpointSnapshot",
         "description": "A single checkpoint in the execution history."
+      },
+      "ChooseSamples": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids",
+            "description": "the pages chosen; empty: back to Fichero's proposal"
+          }
+        },
+        "type": "object",
+        "title": "ChooseSamples"
       },
       "CircleNavigationDirection": {
         "type": "string",
@@ -64188,6 +64455,37 @@
         ],
         "title": "HandCreateParams"
       },
+      "HandList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HandOption"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "period_years": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Period Years",
+            "description": "the years the period answer means, when read"
+          },
+          "not_sure": {
+            "type": "string",
+            "title": "Not Sure",
+            "description": "the answer 'Not sure'",
+            "default": "not-sure"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "HandList"
+      },
       "HandListResponse": {
         "properties": {
           "items": {
@@ -64203,6 +64501,50 @@
           "items"
         ],
         "title": "HandListResponse"
+      },
+      "HandOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "script": {
+            "type": "string",
+            "title": "Script"
+          },
+          "centuries": {
+            "type": "string",
+            "title": "Centuries",
+            "description": "when it was written, in words: '15th\u201316th century'"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "the Hugging Face tags readers made for it carry"
+          },
+          "looks": {
+            "type": "string",
+            "title": "Looks",
+            "description": "what it looks like, in a few words, until each hand has its picture"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "script",
+          "centuries",
+          "tags",
+          "looks"
+        ],
+        "title": "HandOption"
       },
       "HealthResponse": {
         "properties": {
@@ -82210,6 +82552,55 @@
         "title": "RunUsageResponse",
         "description": "What one run actually spent (2026-09-03).\n\nThree states, kept apart on purpose. `priced` with a `cost_usd` is the\ncost. `priced` with `cost_usd == 0` means the run was genuinely free \u2014\nevery call ran on-device. `priced == false` means nobody could price the\nmodels in `unpriced_models`, and `cost_usd` is null: a UI that renders\nthat as \"$0.00\" is asserting something the server never said."
       },
+      "SamplePage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "why it is a sample: your first page, the largest image, chosen by you\u2026"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "why"
+        ],
+        "title": "SamplePage"
+      },
+      "SamplePages": {
+        "properties": {
+          "chosen_by": {
+            "type": "string",
+            "enum": [
+              "fichero",
+              "you"
+            ],
+            "title": "Chosen By"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/SamplePage"
+            },
+            "type": "array",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "chosen_by",
+          "pages"
+        ],
+        "title": "SamplePages"
+      },
       "SavedSearchCreate": {
         "properties": {
           "query": {
@@ -91831,6 +92222,26 @@
           "count"
         ],
         "title": "TriggerResponseList"
+      },
+      "TryStageRequest": {
+        "properties": {
+          "page_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Page Ids",
+            "description": "the pages to try it on; empty: the samples"
+          },
+          "cost_ok": {
+            "type": "boolean",
+            "title": "Cost Ok",
+            "description": "the person's yes to a cost the try said first (cloud steps)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "TryStageRequest"
       },
       "TypedLinkWrite": {
         "properties": {

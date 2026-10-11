@@ -2651,11 +2651,11 @@ Setup
   Knowledge graph and the rest of `PURPOSES`) stay, as shortcuts above the stages: choosing one ticks
   the stages it needs (`PURPOSE_STEPS`); unticking a stage by hand is kept. *Test:* pure Swift, a
   goal ticks its stages and a stage unticked afterwards stays unticked.
-- `source.onboard.stages.needs-are-ticked` — **[GAP]** (#5668) a stage another chosen stage needs is
+- `source.onboard.stages.needs-are-ticked` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine half): each stage's `needs` with its words, checked against the job registry; pinned by `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`. a stage another chosen stage needs is
   ticked with its reason in words ("Dates & Times needs Names") and cannot be unticked while it is
   needed, as the plan's own steps are today (`needed_by`). *Test:* engine, the stages list carries
   each stage's needs; pure Swift, the chooser locks a needed stage.
-- `source.onboard.stages.stages-list-from-the-engine` — **[GAP]** (#5668) the stages, their titles,
+- `source.onboard.stages.stages-list-from-the-engine` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/stages.py`, `GET /api/recipes/stages`; pinned by `fichero-server/tests/unit/recipes/test_setup_stages_5668.py`. *Not built: the app (B).* the stages, their titles,
   sentences, examples, jobs, questions and needs come from one engine list (`GET /api/recipes/stages`),
   read by setup, the Inspector and the manual; the app works none of it out. *Test:* pytest, every
   registered job that a stage carries exists and every stage's needs are stages; the eleven in order.
@@ -2671,12 +2671,12 @@ Setup
   which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
   the answers; a question belongs to one stage and is asked once. *Test:* pure Swift, each question's
   stage; pytest, the answers round-trip.
-- `source.onboard.stages.samples-proposed` — **[GAP]** (#5668) Fichero proposes 3 to 5 sample pages,
+- `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage.
   *Test:* pytest, the proposal on a folder of 1, 4 and 200 pages; pure Swift, a page picked by hand
   replaces a proposed one.
-- `source.onboard.stages.sample-result` — **[GAP]** (#5668) Try on These Pages runs the stage on the
+- `source.onboard.stages.sample-result` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine half): a try whose steps use the cloud is refused (402) with its cost until `cost_ok`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the result drawn in place (B).* Try on These Pages runs the stage on the
   samples and shows its result in place: lines drawn on the page, the text read, names marked, dates
   normalised, the table filled. It runs locally and free where it can; a stage that would use the
   cloud says its cost and time first and runs only on that press. *Test:* click-around per stage;
@@ -2684,29 +2684,29 @@ Setup
 - `source.onboard.stages.read-compares-readers` — **[GAP]** (#5668, #5665) the Read stage's result
   is the readers compared on the samples, line by line, with the disagreement heat map (#5665).
   *Test:* pure Swift over a recorded comparison.
-- `source.onboard.stages.sample-run-reuses` — **[GAP]** (#5668) the engine's one sample run (try this
+- `source.onboard.stages.sample-run-reuses` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `POST`/`GET /api/recipes/stages/{stage}/try`; Read and Find Lines start the bake-off on the samples, the others run their own steps' Start cards through the recipe runner's `_run_workflow` on a copy of the samples (`transfer` copy into a scratch project beside the setup, removed after), one `try-a-stage` job on the recipes lane; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py` (the bake-off seam is faked; Names' run is faked at `_run_workflow`). the engine's one sample run (try this
   stage on these pages) reuses the bake-off and its evaluation job for Read and Find Lines, and runs
   the stage's workflow on the samples for the others; one route, `POST /api/recipes/stages/{stage}/try`,
   with its result read back by `GET`. *Test:* pytest, Read's try writes one evaluation job; Names'
   try runs its workflow on the samples only.
-- `source.onboard.stages.samples-are-not-the-work` — **[GAP]** (#5668) a sample result is kept as the
+- `source.onboard.stages.samples-are-not-the-work` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): what the copy's run made is kept as `recipe/samples/<stage>.json` (per page: readings, segments by kind, statements; the names), the project's passes, readings and names unchanged, and a stage no longer chosen loses it; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. a sample result is kept as the
   stage's, beside `recipe/setup.yaml` (with the samples and the models used), replaced when the stage is
   tried again and cleared when it is unticked; it is
   never written as the project's passes, readings, names, dates or statements, and Start does not
   count it as done. *Test:* pytest, after a try the project's passes, readings and claims are
   unchanged and Start's plan runs on every page.
-- `source.onboard.material.when-written` — **[GAP]** (#5668) Your Material asks when the material was
+- `source.onboard.material.when-written` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `answers.period`, kept as typed, read by `recipes/hands.period_years`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the suggestion from the sample pages.* Your Material asks when the material was
   written, as a century or a range of years ("16th century", "1650–1700"), proposed from the sample
   pages where a local model can look and labelled "suggested from your pages"; saved with the answers.
   *Test:* pure Swift, a century and a range round-trip; pytest, the answers carry it.
-- `source.onboard.material.which-hand` — **[GAP]** (#5668) Your Material asks which hand, from a
+- `source.onboard.material.which-hand` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): `recipes/hands.py` and `GET /api/recipes/hands` (Latin, Arabic and Hebrew hands, each with its centuries, its tags and what it looks like), `answers.hands` kept as typed; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the pictures (each hand says what it looks like in words until then).* Your Material asks which hand, from a
   curated list of hands per script and century kept by the engine (Latin: Caroline minuscule, Gothic
   textualis, Gothic cursiva, Secretary, Humanistic, Italic, Kurrent, Copperplate…), each shown with a
   picture example and mapped to the Hugging Face tags readers carry; anything else is typed and kept as
   typed, and "Not sure" is an answer. *Test:* pytest, the hands offered for Latin script in the 15th
   century and in the 18th, each with its picture and tags; pure Swift, a listed hand and a typed one
   round-trip as tokens.
-- `source.onboard.material.feeds-the-reader-search` — **[GAP]** (#5668) the period and the hand feed the
+- `source.onboard.material.feeds-the-reader-search` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): the hand's tags join the Hugging Face tag search (`discovery.search_hugging_face(hand_tags)`, from the open project's answers in the search job); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the period in the search.* the period and the hand feed the
   search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
   language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand
   carries `kurrent`.

@@ -8991,6 +8991,27 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/hands",
+        "operation_id": "list_hands_api_recipes_hands_get",
+        "summary": "List Hands",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "period",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "script",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "HandList"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/jobs",
         "operation_id": "list_jobs_api_recipes_jobs_get",
         "summary": "List Jobs",
@@ -9227,6 +9248,26 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/samples",
+        "operation_id": "get_samples_api_recipes_samples_get",
+        "summary": "Get Samples",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SamplePages"
+      },
+      {
+        "method": "PUT",
+        "path": "/recipes/samples",
+        "operation_id": "choose_samples_api_recipes_samples_put",
+        "summary": "Choose Samples",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ChooseSamples",
+        "response_model": "SamplePages"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/scripts",
         "operation_id": "search_scripts_api_recipes_scripts_get",
         "summary": "Search Scripts",
@@ -9255,6 +9296,30 @@
         "query_params": [],
         "request_model": null,
         "response_model": "SetupStageList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/stages/{stage}/try",
+        "operation_id": "stage_try_result_api_recipes_stages__stage__try_get",
+        "summary": "Stage Try Result",
+        "path_params": [
+          "stage"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/recipes/stages/{stage}/try",
+        "operation_id": "try_stage_api_recipes_stages__stage__try_post",
+        "summary": "Try Stage",
+        "path_params": [
+          "stage"
+        ],
+        "query_params": [],
+        "request_model": "TryStageRequest",
+        "response_model": null
       }
     ],
     "references": [

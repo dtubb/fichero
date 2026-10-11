@@ -12945,6 +12945,7 @@ def register_generated_openapi_commands(
         cloud_allowed: Optional[bool] = typer.Option(None, '--cloud-allowed/--no-cloud-allowed', help='Whether a step may use a cloud model; false keeps every step on this Mac. Default: false.'),
         directions: Optional[str] = typer.Option(None, '--directions', help='script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen) JSON.'),
         faded_pages: Optional[bool] = typer.Option(None, '--faded-pages/--no-faded-pages', help="the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"),
+        hands: Optional[list[str]] = typer.Option(None, '--hands', help="which hand: curated hand ids (GET /api/recipes/hands), anything else typed and kept as typed, or 'not-sure'; their tags join the reader search (source.onboard.material.which-hand) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         job_answers: Optional[str] = typer.Option(None, '--job-answers', help='the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read) JSON.'),
         jobs: Optional[list[str]] = typer.Option(None, '--jobs', help="jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         languages: list[str] = typer.Option(..., '--languages', help="BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag) A list: repeat the flag, or give the values comma-separated, or as JSON."),
@@ -12954,6 +12955,7 @@ def register_generated_openapi_commands(
         material: Optional[str] = typer.Option(None, '--material', help='a single material, as before 2026-10-05.'),
         materials: Optional[list[str]] = typer.Option(None, '--materials', help="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         pages: Optional[int] = typer.Option(None, '--pages', help='roughly how many pages. Default: 0.'),
+        period: Optional[str] = typer.Option(None, '--period', help="when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)"),
         purpose: Optional[str] = typer.Option(None, '--purpose', help='a single purpose, as before 2026-10-05: read as a list of one.'),
         purposes: Optional[list[str]] = typer.Option(None, '--purposes', help="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers) A list: repeat the flag, or give the values comma-separated, or as JSON."),
         removed_jobs: Optional[list[str]] = typer.Option(None, '--removed-jobs', help='steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
@@ -12967,6 +12969,7 @@ def register_generated_openapi_commands(
                 "cloud_allowed": cloud_allowed,
                 "directions": directions,
                 "faded_pages": faded_pages,
+                "hands": hands,
                 "job_answers": job_answers,
                 "jobs": jobs,
                 "languages": languages,
@@ -12976,6 +12979,7 @@ def register_generated_openapi_commands(
                 "material": material,
                 "materials": materials,
                 "pages": pages,
+                "period": period,
                 "purpose": purpose,
                 "purposes": purposes,
                 "removed_jobs": removed_jobs,
@@ -12984,6 +12988,7 @@ def register_generated_openapi_commands(
                 "cloud_allowed": {'type': 'boolean', 'title': 'Cloud Allowed', 'description': 'Whether a step may use a cloud model; false keeps every step on this Mac.', 'default': False, 'x-cli-required': False},
                 "directions": {'additionalProperties': {'type': 'string'}, 'type': 'object', 'title': 'Directions', 'description': 'script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)', 'x-cli-required': False},
                 "faded_pages": {'type': 'boolean', 'nullable': True, 'title': 'Faded Pages', 'description': "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)", 'x-cli-required': False},
+                "hands": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Hands', 'description': "which hand: curated hand ids (GET /api/recipes/hands), anything else typed and kept as typed, or 'not-sure'; their tags join the reader search (source.onboard.material.which-hand)", 'x-cli-required': False},
                 "job_answers": {'additionalProperties': True, 'type': 'object', 'title': 'Job Answers', 'description': 'the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)', 'x-cli-required': False},
                 "jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Jobs', 'description': "jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)", 'x-cli-required': False},
                 "languages": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Languages', 'description': "BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)", 'x-cli-required': True},
@@ -12993,6 +12998,7 @@ def register_generated_openapi_commands(
                 "material": {'type': 'string', 'nullable': True, 'title': 'Material', 'description': 'a single material, as before 2026-10-05', 'x-cli-required': False},
                 "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting", 'x-cli-required': False},
                 "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
+                "period": {'type': 'string', 'nullable': True, 'title': 'Period', 'description': "when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)", 'x-cli-required': False},
                 "purpose": {'type': 'string', 'nullable': True, 'title': 'Purpose', 'description': 'a single purpose, as before 2026-10-05: read as a list of one', 'x-cli-required': False},
                 "purposes": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Purposes', 'description': "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)", 'x-cli-required': False},
                 "removed_jobs": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Removed Jobs', 'description': 'steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable)', 'x-cli-required': False},
@@ -13056,6 +13062,22 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/recipes/derived"
             params = {
                 "scripts": scripts,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-hands")
+    def recipes_list_hands_get(
+        ctx: typer.Context,
+        period: Optional[str] = typer.Option(None, '--period', help="'16th century', '1650–1700' or a year."),
+        script: Optional[str] = typer.Option(None, '--script', help='ISO 15924 script code.'),
+    ) -> None:
+        """List Hands (GET /api/recipes/hands)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/hands"
+            params = {
+                "period": period,
+                "script": script,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13362,6 +13384,34 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-samples")
+    def recipes_get_samples_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Samples (GET /api/recipes/samples)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/samples"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-samples")
+    def recipes_choose_samples_put(
+        ctx: typer.Context,
+        ids: Optional[list[str]] = typer.Option(None, '--ids', help="the pages chosen; empty: back to Fichero's proposal. A list: repeat the flag, or give the values comma-separated, or as JSON."),
+    ) -> None:
+        """Choose Samples (PUT /api/recipes/samples)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/samples"
+            params = None
+            payload = _build_json_payload({
+                "ids": ids,
+            }, {
+                "ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Ids', 'description': "the pages chosen; empty: back to Fichero's proposal", 'x-cli-required': False},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("search-scripts")
     def recipes_search_scripts_get(
         ctx: typer.Context,
@@ -13387,6 +13437,39 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/recipes/stages"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("stage-try-result")
+    def recipes_stage_try_result_get(
+        ctx: typer.Context,
+        stage: str = typer.Argument(..., help='Stage'),
+    ) -> None:
+        """Stage Try Result (GET /api/recipes/stages/{stage}/try)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/stages/{stage}/try"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("try-stage")
+    def recipes_try_stage_post(
+        ctx: typer.Context,
+        stage: str = typer.Argument(..., help='Stage'),
+        cost_ok: Optional[bool] = typer.Option(None, '--cost-ok/--no-cost-ok', help="the person's yes to a cost the try said first (cloud steps) Default: false."),
+        page_ids: Optional[list[str]] = typer.Option(None, '--page-ids', help='the pages to try it on; empty: the samples. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Try Stage (POST /api/recipes/stages/{stage}/try)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/recipes/stages/{stage}/try"
+            params = None
+            payload = _build_json_payload({
+                "cost_ok": cost_ok,
+                "page_ids": page_ids,
+            }, {
+                "cost_ok": {'type': 'boolean', 'title': 'Cost Ok', 'description': "the person's yes to a cost the try said first (cloud steps)", 'default': False, 'x-cli-required': False},
+                "page_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Page Ids', 'description': 'the pages to try it on; empty: the samples', 'x-cli-required': False},
+            }, required=False)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('references')

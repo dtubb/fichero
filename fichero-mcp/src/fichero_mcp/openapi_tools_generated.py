@@ -6125,6 +6125,7 @@ def fichero_recipes_assemble(
     cloud_allowed: Annotated[Optional[bool], Field(description='Whether a step may use a cloud model; false keeps every step on this Mac. Default: false.')] = None,
     directions: Annotated[Optional[dict[str, Any]], Field(description='script code -> ltr, rtl, ttb (columns right to left) or ttb-lr; a script left out takes its own (source.onboard.direction-chosen)')] = None,
     faded_pages: Annotated[Optional[bool], Field(description="the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)")] = None,
+    hands: Annotated[Optional[list[Any]], Field(description="which hand: curated hand ids (GET /api/recipes/hands), anything else typed and kept as typed, or 'not-sure'; their tags join the reader search (source.onboard.material.which-hand)")] = None,
     job_answers: Annotated[Optional[dict[str, Any]], Field(description='the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the step it configures (source.onboard.auto.job-answers-read)')] = None,
     jobs: Annotated[Optional[list[Any]], Field(description="jobs ticked on their own, beyond the purposes' (GET /api/recipes/jobs)")] = None,
     languages: Annotated[list[Any], Field(description="BCP 47 language tags; a language's name is resolved to its tag when exactly one language has it, and refused in words otherwise (source.onboard.language-stored-as-tag)")],
@@ -6134,13 +6135,14 @@ def fichero_recipes_assemble(
     material: Annotated[Optional[str], Field(description='a single material, as before 2026-10-05.')] = None,
     materials: Annotated[Optional[list[Any]], Field(description="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting.")] = None,
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
+    period: Annotated[Optional[str], Field(description="when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)")] = None,
     purpose: Annotated[Optional[str], Field(description='a single purpose, as before 2026-10-05: read as a list of one.')] = None,
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
     removed_jobs: Annotated[Optional[list[Any]], Field(description='steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable)')] = None,
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
     "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "hands": hands, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "period": period, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
 
 
 def fichero_recipes_model_candidates(
@@ -6172,6 +6174,15 @@ def fichero_recipes_derived_facts(
 ) -> Any:
     "Derived Facts\n\nWhat setup works out instead of asking, each fact saying where it came from\n(`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical\nand its bundled font; this Mac's chip and memory; which providers have a key; where work\ncan run.\n\nRoute: GET /api/recipes/derived (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/derived", params={"scripts": scripts})
+
+
+def fichero_recipes_list_hands(
+    *,
+    period: Annotated[Optional[str], Field(description="'16th century', '1650–1700' or a year")] = None,
+    script: Annotated[Optional[str], Field(description='ISO 15924 script code')] = None,
+) -> Any:
+    "List Hands\n\nWhich hand: the curated hands for a script, those written in the period's centuries when it is read, each with\nits Hugging Face tags and what it looks like (section 7c, `source.onboard.material.which-hand`). Anything else can\nbe typed and is kept as typed; 'not-sure' is an answer.\n\nRoute: GET /api/recipes/hands (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/hands", params={"period": period, "script": script})
 
 
 def fichero_recipes_list_jobs(
@@ -6329,6 +6340,20 @@ def fichero_recipes_routes_for_volume(
     return _rt.call("GET", "/api/recipes/routes", params={"local_reader": local_reader, "pages": pages, "sample_pages": sample_pages, "teacher": teacher})
 
 
+def fichero_recipes_get_samples(
+) -> Any:
+    "Get Samples\n\nThe sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the\nperson's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then\nevenly spaced), each with why.\n\nRoute: GET /api/recipes/samples (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/samples")
+
+
+def fichero_recipes_choose_samples(
+    *,
+    ids: Annotated[Optional[list[Any]], Field(description="the pages chosen; empty: back to Fichero's proposal.")] = None,
+) -> Any:
+    'Choose Samples\n\nChoose the sample pages by hand (kept beside the setup, for every stage); none: back to the proposal.\n\nRoute: PUT /api/recipes/samples (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/recipes/samples", json=_rt.body({"ids": ids}))
+
+
 def fichero_recipes_search_scripts(
     *,
     limit: Annotated[Optional[int], Field(description='Limit')] = None,
@@ -6342,6 +6367,24 @@ def fichero_recipes_list_stages(
 ) -> Any:
     "List Stages\n\nThe eleven stages of Set Up in order (section 7c, `source.onboard.stages.stages-list-from-the-engine`): each\nwith its jobs, its own questions (this project's answer, else the default), whether this project's recipe has\nit on, the stages it needs and why, and whether it can be tried on the sample pages. The app works none of it\nout. Without an open project every stage is off and every answer its default.\n\nRoute: GET /api/recipes/stages (toolset `recipes`; reads)."
     return _rt.call("GET", "/api/recipes/stages")
+
+
+def fichero_recipes_stage_try_result(
+    *,
+    stage: Annotated[str, Field(description='Stage')],
+) -> Any:
+    "Stage Try Result\n\nThe stage's sample result, as its last try left it (the bake-off's table for Read and Find Lines); 404 when\nit has not been tried, or is no longer chosen (a stage unticked clears it).\n\nRoute: GET /api/recipes/stages/{stage}/try (toolset `recipes`; reads)."
+    return _rt.call("GET", f"/api/recipes/stages/{stage}/try")
+
+
+def fichero_recipes_try_stage(
+    *,
+    stage: Annotated[str, Field(description='Stage')],
+    cost_ok: Annotated[Optional[bool], Field(description="the person's yes to a cost the try said first (cloud steps) Default: false.")] = None,
+    page_ids: Annotated[Optional[list[Any]], Field(description='the pages to try it on; empty: the samples.')] = None,
+) -> Any:
+    "Try Stage\n\nTry a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`): Read\nand Find Lines start the bake-off on them (its evaluation job); any other stage runs its own steps of the recipe\non a copy of the samples (one `try-a-stage` job in Activity). The result is the stage's, kept beside the setup\nand replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and\nis refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422).\n\nRoute: POST /api/recipes/stages/{stage}/try (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/recipes/stages/{stage}/try", json=_rt.body({"cost_ok": cost_ok, "page_ids": page_ids}))
 
 
 def fichero_references_list(
@@ -9343,6 +9386,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
+    GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
@@ -9362,8 +9406,12 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_use_candidate_for_step", "recipes", "POST", "/api/recipes/project/steps/use-candidate", fichero_recipes_use_candidate_for_step),
     GeneratedTool("fichero_recipes_list_purposes", "recipes", "GET", "/api/recipes/purposes", fichero_recipes_list_purposes),
     GeneratedTool("fichero_recipes_routes_for_volume", "recipes", "GET", "/api/recipes/routes", fichero_recipes_routes_for_volume),
+    GeneratedTool("fichero_recipes_get_samples", "recipes", "GET", "/api/recipes/samples", fichero_recipes_get_samples),
+    GeneratedTool("fichero_recipes_choose_samples", "recipes", "PUT", "/api/recipes/samples", fichero_recipes_choose_samples),
     GeneratedTool("fichero_recipes_search_scripts", "recipes", "GET", "/api/recipes/scripts", fichero_recipes_search_scripts),
     GeneratedTool("fichero_recipes_list_stages", "recipes", "GET", "/api/recipes/stages", fichero_recipes_list_stages),
+    GeneratedTool("fichero_recipes_stage_try_result", "recipes", "GET", "/api/recipes/stages/{stage}/try", fichero_recipes_stage_try_result),
+    GeneratedTool("fichero_recipes_try_stage", "recipes", "POST", "/api/recipes/stages/{stage}/try", fichero_recipes_try_stage),
     GeneratedTool("fichero_references_list", "references", "GET", "/api/references", fichero_references_list),
     GeneratedTool("fichero_references_delete", "references", "DELETE", "/api/references/{reference_id}", fichero_references_delete),
     GeneratedTool("fichero_references_get", "references", "GET", "/api/references/{reference_id}", fichero_references_get),
