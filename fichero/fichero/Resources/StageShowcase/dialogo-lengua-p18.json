@@ -1,0 +1,566 @@
+{
+ "image": "dialogo-lengua-p18",
+ "width": 669,
+ "height": 994,
+ "title": "Diálogo de la Lengua, manuscript p. 18",
+ "credit": "Imagen procedente de los fondos de la Biblioteca Nacional de España. Transcription after DILE (dile.dragoman.org), CC BY-SA 4.0: M. T. Carrasco Benitez, dir.; Alba Agraz Ortiz and Sara Sánchez Hernández.",
+ "licence": "Manuscript public domain (BNE Digital, reuse with the credit above); transcription CC BY-SA 4.0",
+ "source": "https://dile.dragoman.org/1/18.pdf",
+ "short_credit": "Example: BNE · DILE, CC BY-SA 4.0",
+ "licence_url": "https://creativecommons.org/licenses/by-sa/4.0/",
+ "regions": [
+  {
+   "kind": "text",
+   "box": [
+    146,
+    92,
+    414,
+    808
+   ]
+  },
+  {
+   "kind": "margin",
+   "box": [
+    80,
+    130,
+    64,
+    440
+   ]
+  },
+  {
+   "kind": "folio",
+   "box": [
+    598,
+    22,
+    40,
+    40
+   ]
+  },
+  {
+   "kind": "catchword",
+   "box": [
+    480,
+    892,
+    56,
+    26
+   ]
+  }
+ ],
+ "lines": [
+  {
+   "box": [
+    160,
+    96,
+    352,
+    28
+   ],
+   "baseline": [
+    [
+     160,
+     120
+    ],
+    [
+     512,
+     120
+    ]
+   ],
+   "text": "enel tþo q́ el escriuio, yental caso"
+  },
+  {
+   "box": [
+    150,
+    134,
+    364,
+    28
+   ],
+   "baseline": [
+    [
+     150,
+     158
+    ],
+    [
+     514,
+     158
+    ]
+   ],
+   "text": "noseriadino de reprehension o q́"
+  },
+  {
+   "box": [
+    158,
+    173,
+    363,
+    28
+   ],
+   "baseline": [
+    [
+     158,
+     197
+    ],
+    [
+     521,
+     197
+    ]
+   ],
+   "text": "quiso acomodar su estilo al tþo en"
+  },
+  {
+   "box": [
+    153,
+    208,
+    347,
+    28
+   ],
+   "baseline": [
+    [
+     153,
+     232
+    ],
+    [
+     500,
+     232
+    ]
+   ],
+   "text": "que dize q́ aconteçio Su Historia"
+  },
+  {
+   "box": [
+    156,
+    247,
+    385,
+    28
+   ],
+   "baseline": [
+    [
+     156,
+     271
+    ],
+    [
+     541,
+     271
+    ]
+   ],
+   "text": "y esto seria cosa muy fuera depropo="
+  },
+  {
+   "box": [
+    160,
+    289,
+    377,
+    28
+   ],
+   "baseline": [
+    [
+     160,
+     313
+    ],
+    [
+     537,
+     313
+    ]
+   ],
+   "text": "sito por q́ el dize q́ aq́lla su historia"
+  },
+  {
+   "box": [
+    156,
+    328,
+    362,
+    28
+   ],
+   "baseline": [
+    [
+     156,
+     352
+    ],
+    [
+     518,
+     352
+    ]
+   ],
+   "text": "aconteçio poco despues dela paßion"
+  },
+  {
+   "box": [
+    150,
+    367,
+    369,
+    28
+   ],
+   "baseline": [
+    [
+     150,
+     391
+    ],
+    [
+     519,
+     391
+    ]
+   ],
+   "text": "de nro Redentor y la lengua en q́ el"
+  },
+  {
+   "box": [
+    150,
+    403,
+    358,
+    28
+   ],
+   "baseline": [
+    [
+     150,
+     427
+    ],
+    [
+     508,
+     427
+    ]
+   ],
+   "text": "escriue nose hablo en españa hasta"
+  },
+  {
+   "box": [
+    150,
+    440,
+    383,
+    28
+   ],
+   "baseline": [
+    [
+     150,
+     464
+    ],
+    [
+     533,
+     464
+    ]
+   ],
+   "text": "muchos Años despues, esto mesmo"
+  },
+  {
+   "box": [
+    164,
+    477,
+    343,
+    28
+   ],
+   "baseline": [
+    [
+     164,
+     501
+    ],
+    [
+     507,
+     501
+    ]
+   ],
+   "text": "se puede dezir delos vocablos"
+  },
+  {
+   "box": [
+    150,
+    515,
+    394,
+    28
+   ],
+   "baseline": [
+    [
+     150,
+     539
+    ],
+    [
+     544,
+     539
+    ]
+   ],
+   "text": "delos vocablos quãto ala Ortografia"
+  },
+  {
+   "box": [
+    161,
+    552,
+    384,
+    28
+   ],
+   "baseline": [
+    [
+     161,
+     576
+    ],
+    [
+     545,
+     576
+    ]
+   ],
+   "text": "nodigo nada porq́ la culpa se puede"
+  },
+  {
+   "box": [
+    164,
+    594,
+    356,
+    28
+   ],
+   "baseline": [
+    [
+     164,
+     618
+    ],
+    [
+     520,
+     618
+    ]
+   ],
+   "text": "atribuir alos Impresores y no al"
+  },
+  {
+   "box": [
+    158,
+    642,
+    358,
+    28
+   ],
+   "baseline": [
+    [
+     158,
+     666
+    ],
+    [
+     516,
+     666
+    ]
+   ],
+   "text": "Autor del libro. M. ora sus no per="
+  },
+  {
+   "box": [
+    159,
+    677,
+    384,
+    28
+   ],
+   "baseline": [
+    [
+     159,
+     701
+    ],
+    [
+     543,
+     701
+    ]
+   ],
+   "text": "damos tþo en esto, sino teneis libros"
+  },
+  {
+   "box": [
+    165,
+    709,
+    382,
+    28
+   ],
+   "baseline": [
+    [
+     165,
+     733
+    ],
+    [
+     547,
+     733
+    ]
+   ],
+   "text": "en Castellano con cuya Autoridad"
+  },
+  {
+   "box": [
+    157,
+    749,
+    389,
+    28
+   ],
+   "baseline": [
+    [
+     157,
+     773
+    ],
+    [
+     546,
+     773
+    ]
+   ],
+   "text": "nos podais satisfazer alo q́ de vras"
+  },
+  {
+   "box": [
+    156,
+    794,
+    400,
+    28
+   ],
+   "baseline": [
+    [
+     156,
+     818
+    ],
+    [
+     556,
+     818
+    ]
+   ],
+   "text": "cartas, os preguntaremos alomenos"
+  },
+  {
+   "box": [
+    159,
+    832,
+    383,
+    28
+   ],
+   "baseline": [
+    [
+     159,
+     856
+    ],
+    [
+     542,
+     856
+    ]
+   ],
+   "text": "satisfazednos conlas razones que"
+  },
+  {
+   "box": [
+    150,
+    868,
+    375,
+    28
+   ],
+   "baseline": [
+    [
+     150,
+     892
+    ],
+    [
+     525,
+     892
+    ]
+   ],
+   "text": "os mueuen aescrevir alguas cosas"
+  }
+ ],
+ "names": [
+  {
+   "line": 7,
+   "start": 7,
+   "end": 15,
+   "kind": "person"
+  },
+  {
+   "line": 8,
+   "start": 22,
+   "end": 28,
+   "kind": "place"
+  },
+  {
+   "line": 14,
+   "start": 17,
+   "end": 19,
+   "kind": "person"
+  },
+  {
+   "line": 13,
+   "start": 14,
+   "end": 24,
+   "kind": "organisation"
+  }
+ ],
+ "dates": [
+  {
+   "line": 9,
+   "start": 0,
+   "end": 19,
+   "value": "many years later"
+  }
+ ],
+ "statements": [
+  {
+   "subject": {
+    "line": 3,
+    "start": 25,
+    "end": 33
+   },
+   "object": {
+    "line": 7,
+    "start": 7,
+    "end": 15
+   },
+   "label": "happened after the Passion of"
+  }
+ ],
+ "passage": {
+  "lines": [
+   14,
+   15
+  ]
+ },
+ "normalise": [
+  {
+   "line": 0,
+   "written": "tþo",
+   "expanded": "tiempo"
+  },
+  {
+   "line": 0,
+   "written": "q́",
+   "expanded": "que"
+  }
+ ],
+ "translation": {
+  "line": 9,
+  "text": "many years later; and the same"
+ },
+ "table": [
+  {
+   "field": "Work",
+   "value": "Diálogo de la Lengua",
+   "from": {
+    "line": 16,
+    "start": 3,
+    "end": 13
+   }
+  },
+  {
+   "field": "Speaker",
+   "value": "M.",
+   "from": {
+    "line": 14,
+    "start": 17,
+    "end": 19
+   }
+  },
+  {
+   "field": "Folio",
+   "value": "8",
+   "box": [
+    598,
+    22,
+    40,
+    40
+   ]
+  }
+ ],
+ "search": {
+  "query": "historia",
+  "matches": [
+   {
+    "line": 3,
+    "start": 25,
+    "end": 33
+   },
+   {
+    "line": 5,
+    "start": 33,
+    "end": 41
+   }
+  ]
+ }
+}
