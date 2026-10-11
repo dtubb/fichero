@@ -224,9 +224,9 @@ extension View {
     ///     the CURSOR badge (the delegate's `dropUpdated` proposal), never to
     ///     the platter color — "the way the drop target changes for alias,
     ///     copy, move is the cursor".
-    ///   - selected     → grey platter, accent name+icon (Finder). Painting
-    ///     it ourselves replaces the native emphasized accent platter, which
-    ///     read as a solid green block.
+    ///   - selected     → grey platter, primary name, the icon its own colour
+    ///     (Finder, 2026-10-11). Painted here because the native emphasized
+    ///     platter is the accent, which the sidebar never shows.
     ///   - otherwise    → clear.
     ///
     /// `.listRowBackground` is the List's own full-row canvas — full width,
@@ -242,46 +242,79 @@ extension View {
         mergeAbove: Bool = false,
         mergeBelow: Bool = false
     ) -> some View {
+        self.listRowBackground(
+            SidebarRowPlatter(dropTarget: active, selected: selected, mergeAbove: mergeAbove, mergeBelow: mergeBelow)
+        )
+    }
+}
+
+/// The platter `sidebarDropHighlight` paints: Finder's selection (Daniel, 2026-10-11), a grey rounded fill inset from
+/// the sidebar's edges, darker while the window is key and lighter while it is not; or the drop target's accent.
+struct SidebarRowPlatter: View {
+    let dropTarget: Bool
+    let selected: Bool
+    var mergeAbove = false
+    var mergeBelow = false
+
+    @Environment(\.appearsActive) private var windowIsKey
+
+    var body: some View {
         // Contiguous multi-selection reads as ONE platter (Daniel,
         // 2026-08-09: 'they should not have the divots between rows — the
         // rounded squircles should be around the entire selection'):
         // merged edges square off and bleed over the List's inter-row gap.
         let radius = SidebarConstants.cornerRadius
-        self.listRowBackground(
-            UnevenRoundedRectangle(
-                topLeadingRadius: mergeAbove ? 0 : radius,
-                bottomLeadingRadius: mergeBelow ? 0 : radius,
-                bottomTrailingRadius: mergeBelow ? 0 : radius,
-                topTrailingRadius: mergeAbove ? 0 : radius,
-                style: .continuous
-            )
-            .fill(
-                active
-                    ? Color.accentColor
-                    : selected ? SidebarConstants.selectedRowFill : Color.clear
-            )
-            .padding(.horizontal, 4)
-            .padding(.top, mergeAbove ? -3 : 0)
-            .padding(.bottom, mergeBelow ? -3 : 0)
-            .allowsHitTesting(false)
+        UnevenRoundedRectangle(
+            topLeadingRadius: mergeAbove ? 0 : radius,
+            bottomLeadingRadius: mergeBelow ? 0 : radius,
+            bottomTrailingRadius: mergeBelow ? 0 : radius,
+            topTrailingRadius: mergeAbove ? 0 : radius,
+            style: .continuous
         )
+        .fill(
+            dropTarget
+                ? Color.accentColor
+                : selected ? SidebarConstants.selectedRowFill(windowIsKey: windowIsKey) : Color.clear
+        )
+        .padding(.horizontal, SidebarConstants.selectionInset)
+        .padding(.top, mergeAbove ? -3 : 0)
+        .padding(.bottom, mergeBelow ? -3 : 0)
+        .allowsHitTesting(false)
     }
 }
 
 extension SidebarConstants {
-    /// Finder's sidebar selection grey — the platter for a selected row in
-    /// EVERY focus state (#4563). Never the accent (#137: "it's never a row
-    /// green color, except when you're a drop target").
+    /// How far the selected fill sits in from the sidebar's edges, as Finder's does (Daniel, 2026-10-11: the 4-point
+    /// inset read as too wide). ponytail: matched to Finder by eye on macOS 27; measure it if it ever drifts.
+    static let selectionInset: CGFloat = 10
+
+    /// Finder's sidebar selection grey: the platter for a selected row in every
+    /// focus state (#4563), never the accent (#137: "it's never a row green
+    /// color, except when you're a drop target"; Daniel, 2026-10-11: never
+    /// blue, whichever pane has focus).
     ///
-    /// MUST be OPAQUE: the platter paints OVER the native emphasized accent
-    /// selection, and the translucent tertiarySystemFill tried for #116
-    /// ("grey might be too dark") let the accent bleed through — "bright
-    /// green again" (#137). Lighter AND opaque: the window background
-    /// blended halfway toward the unemphasized selection grey.
-    ///
-    /// The system's unemphasized selection grey itself (Daniel, 2026-10-11): the blend halfway toward the
-    /// window background was so light it read as no fill at all on the sidebar's material.
-    static var selectedRowFill: Color {
-        LibrarySelectionStyle.fill
+    /// Darker while the window is key, lighter while it is not, as Finder's
+    /// (2026-10-11): the system's unemphasized selection grey, and that grey
+    /// blended halfway toward the window background. Both OPAQUE: a translucent
+    /// fill let an accent beneath it bleed through (#137).
+    static func selectedRowFill(windowIsKey: Bool) -> Color {
+        #if os(macOS)
+        if windowIsKey { return LibrarySelectionStyle.fill }
+        return Color(nsColor: NSColor.windowBackgroundColor.blended(
+            withFraction: 0.5, of: .unemphasizedSelectedContentBackgroundColor
+        ) ?? .unemphasizedSelectedContentBackgroundColor)
+        #else
+        return LibrarySelectionStyle.fill
+        #endif
     }
+}
+
+#Preview("Sidebar platters: selected, drop target, plain") {
+    List {
+        Label("Sources", systemImage: "folder").sidebarDropHighlight(false, selected: true)
+        Label("Workflows", systemImage: "folder").sidebarDropHighlight(true)
+        Label("Letters", systemImage: "folder").sidebarDropHighlight(false)
+    }
+    .listStyle(.sidebar)
+    .frame(width: 240, height: 140)
 }

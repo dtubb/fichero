@@ -114,9 +114,41 @@ struct SidebarSelectionStyleTests {
         // The platter is the system's unemphasized selection grey (Daniel,
         // 2026-10-11: the lighter blend read as no fill), never the accent
         // (#137: "it's never a row green color, except when you're a drop target").
-        #expect(SidebarConstants.selectedRowFill == LibrarySelectionStyle.fill)
-        #expect(SidebarConstants.selectedRowFill != Color.accentColor)
+        #expect(SidebarConstants.selectedRowFill(windowIsKey: true) == LibrarySelectionStyle.fill)
+        #expect(SidebarConstants.selectedRowFill(windowIsKey: true) != Color.accentColor)
+        #expect(SidebarConstants.selectedRowFill(windowIsKey: false) != Color.accentColor)
     }
+
+    /// Finder's two states (Daniel, 2026-10-11): darker grey while the window is
+    /// key, lighter while it is not; inset from the sidebar's edges.
+    @Test("the selected fill is darker in the key window than in a background one, and inset like Finder's")
+    func selectedFillFollowsTheKeyWindow() {
+        #expect(SidebarConstants.selectedRowFill(windowIsKey: true) != SidebarConstants.selectedRowFill(windowIsKey: false))
+        #expect(SidebarConstants.selectionInset == 10)
+    }
+
+    #if os(macOS)
+    /// Never blue, in ANY focus state (Daniel, 2026-10-11: Sources showed the
+    /// accent fill and white text while the sidebar held focus). The native
+    /// emphasized selection is what paints that, and `.none` turns it off for
+    /// the focused, key-window state as much as for the others. The List put
+    /// its own style back after a one-time set, so the setting must hold
+    /// against anything that changes it afterwards.
+    @Test("the sidebar table's native selection stays off, even after something turns it back on")
+    func nativeSelectionStaysOff() {
+        let table = NSTableView()
+        table.style = .sourceList
+        table.selectionHighlightStyle = .regular
+        let observation = SidebarNativeSelectionSilencer.Probe.keepSilenced(table)
+        #expect(table.selectionHighlightStyle == .none)
+        // What the List does on its next update: puts the native highlight back.
+        table.selectionHighlightStyle = .regular
+        #expect(table.selectionHighlightStyle == .none, "the focused (emphasized) accent selection cannot return")
+        table.selectionHighlightStyle = .sourceList
+        #expect(table.selectionHighlightStyle == .none)
+        observation.invalidate()
+    }
+    #endif
 
     @Test("the two selection languages are DELIBERATELY different — do not unify")
     func libraryAndSidebarStayAsymmetric() {

@@ -117,7 +117,7 @@ extension SidebarView {
         // keeps its normal dark-grey template rendering instead of
         // invisible white. Selection TRACKING is unaffected — our
         // listRowBackground platter is the one selected look.
-        .background(SidebarNativeSelectionSilencer())
+        .background(SidebarNativeSelectionSilencer(selectionToken: selectionState.selectedDestinations.hashValue))
         #endif
         #if os(macOS)
         // Double-click expands or collapses the row (#5278; it opened a new tab
