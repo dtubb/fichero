@@ -13731,8 +13731,20 @@
           "recipes"
         ],
         "summary": "Get Samples",
-        "description": "The sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the\nperson's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then\nevenly spaced), each with why.",
+        "description": "The sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the\nperson's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then\nevenly spaced), each with why. With `stage=organise`, the run of up to 12 consecutive pages of one folder that\nOrganise is tried on (`source.onboard.stages.organise-tried-on-a-run`).",
         "operationId": "get_samples_api_recipes_samples_get",
+        "parameters": [
+          {
+            "name": "stage",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "Stage"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -13740,6 +13752,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SamplePages"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -13754,14 +13776,14 @@
         "description": "Choose the sample pages by hand (kept beside the setup, for every stage); none: back to the proposal.",
         "operationId": "choose_samples_api_recipes_samples_put",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ChooseSamples"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {

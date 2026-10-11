@@ -9274,7 +9274,13 @@
         "operation_id": "get_samples_api_recipes_samples_get",
         "summary": "Get Samples",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "stage",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "SamplePages"
       },

@@ -2769,6 +2769,19 @@ Setup
   the stage's workflow on the samples for the others; one route, `POST /api/recipes/stages/{stage}/try`,
   with its result read back by `GET`. *Test:* pytest, Read's try writes one evaluation job; Names'
   try runs its workflow on the samples only.
+- `source.onboard.stages.organise-tried-on-a-run` — **[PARTIAL]** (#5668, B's Organise review) *Built (engine): `samples.propose_run`, `GET /api/recipes/samples?stage=organise`, the try running `finddocs.find_documents` and the entries splitter on the copy (`samples._organise`); pinned by `fichero-server/tests/unit/recipes/test_organise_try_5668.py`. Not built: the documents and entries drawn in the window (B).* Organise can
+  be tried on sample pages. Finding where one document ends and the next begins needs neighbouring pages
+  of one folder, which 3 to 5 pages spread across the material are not. So for Organise, Fichero proposes
+  one run of consecutive pages instead: up to 12 in the folder's own order, from the folder with the
+  most pages, starting at its first page, each saying why (`GET /api/recipes/samples?stage=organise`).
+  The person may try it on pages of their own choosing instead (`page_ids`). The try copies the run into
+  a scratch project, as every try does, and runs Find the Documents there with nothing accepted by
+  itself (`accept_above` none), and Split into entries with the step's model where the recipe has it.
+  The result, `recipe/samples/organise.json`, holds the documents proposed (`documents`: each with its
+  page ids, name, kind, confidence and reasons, in the project's own page ids) and the entries split from
+  pages with text (`entries`: each with its page id, name and opening words). *Test:* pytest, the run
+  proposed for a folder of 30 pages and of 5; a try writes the documents proposed in the project's ids
+  and changes nothing in the project.
 - `source.onboard.stages.samples-are-not-the-work` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): what the copy's run made is kept as `recipe/samples/<stage>.json` (per page: readings, segments by kind, statements; the names), the project's passes, readings and names unchanged, and a stage no longer chosen loses it; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. a sample result is kept as the
   stage's, beside `recipe/setup.yaml` (with the samples and the models used), replaced when the stage is
   tried again and cleared when it is unticked; it is

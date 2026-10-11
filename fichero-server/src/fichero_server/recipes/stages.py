@@ -130,6 +130,9 @@ STAGES: tuple[Stage, ...] = (
 #: The stages a sample run can try (`POST /api/recipes/stages/{stage}/try`): Find Lines and Read by the bake-off, the
 #: others by their workflow on the samples.
 TRIED_BY_THE_BAKEOFF = frozenset({"find-lines", "read"})
+#: Tried by their own steps run straight on the copy, not through a workflow: Organise's Find the Documents and
+#: Split into entries (`source.onboard.stages.organise-tried-on-a-run`, #5668).
+TRIED_ON_ITS_OWN = frozenset({"organise"})
 
 
 def get_stage(stage_id: str) -> Stage | None:
@@ -143,7 +146,8 @@ def stage_of(job: str) -> Stage | None:
 def sampleable(stage: Stage) -> bool:
     from fichero_server.recipes.start import WORKFLOW_FOR_JOB
 
-    return stage.id in TRIED_BY_THE_BAKEOFF or any(j in WORKFLOW_FOR_JOB for j in stage.jobs)
+    return (stage.id in TRIED_BY_THE_BAKEOFF or stage.id in TRIED_ON_ITS_OWN
+            or any(j in WORKFLOW_FOR_JOB for j in stage.jobs))
 
 
 def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None) -> list[dict[str, Any]]:

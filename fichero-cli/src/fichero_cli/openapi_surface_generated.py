@@ -13427,11 +13427,14 @@ def register_generated_openapi_commands(
     @target_app.command("get-samples")
     def recipes_get_samples_get(
         ctx: typer.Context,
+        stage: Optional[str] = typer.Option(None, '--stage', help='Stage.'),
     ) -> None:
         """Get Samples (GET /api/recipes/samples)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/samples"
-            params = None
+            params = {
+                "stage": stage,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

@@ -26,6 +26,8 @@ from typing import Any
 SAMPLES_FILE = "samples.json"
 TRY_KIND = "try-a-stage"
 MAX_SAMPLES, MIN_SAMPLES = 5, 3
+#: Organise's sample is one run of neighbouring pages, at most this long (`organise-tried-on-a-run`).
+RUN_LENGTH = 12
 
 
 def _folder(library: Path) -> Path:
@@ -71,10 +73,34 @@ def propose(db: Any) -> list[dict[str, str]]:
     return [{"id": i, "name": by_id[i].name, "why": why} for i, why in sorted(picks.items(), key=lambda kv: order[kv[0]])]
 
 
-def chosen(db: Any) -> dict[str, Any]:
-    """The samples: the person's choice when there is one, else Fichero's proposal."""
+def propose_run(db: Any) -> list[dict[str, str]]:
+    """Organise's sample (`source.onboard.stages.organise-tried-on-a-run`): one run of up to `RUN_LENGTH` consecutive
+    pages in their folder's own order, from the folder with the most pages, from its first page; each says why. Where
+    a document ends is only seen on neighbouring pages, which pages spread across the material are not."""
+    from fichero_server.finddocs.job import scopes
     from fichero_server.models import Document
 
+    pages = _pages(db)
+    if not pages:
+        return []
+    folder_id, run = max(scopes(db, [p.id for p in pages]).items(), key=lambda kv: len(kv[1]))
+    folder = db.get(Document, folder_id) if folder_id else None
+    where = f"“{folder.name}”" if folder is not None else "your pages"
+    run = run[:RUN_LENGTH]
+    return [{"id": p.id, "name": p.name,
+             "why": f"page {i} of {len(run)} in a row from {where}: Organise looks for where one document ends "
+                    "and the next begins"} for i, p in enumerate(run, 1)]
+
+
+def chosen(db: Any, stage: str | None = None) -> dict[str, Any]:
+    """The samples: the person's choice when there is one, else Fichero's proposal. For Organise, the run of
+    consecutive pages it is tried on (`propose_run`): pages chosen across the material cannot show a document's
+    end."""
+    from fichero_server.models import Document
+    from fichero_server.recipes.stages import TRIED_ON_ITS_OWN
+
+    if stage in TRIED_ON_ITS_OWN:
+        return {"chosen_by": "fichero", "pages": propose_run(db)}
     library = Path(db.path).parent
     try:
         kept = json.loads((_folder(library) / SAMPLES_FILE).read_text(encoding="utf-8"))
@@ -175,7 +201,7 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         raise ValueError(f"{stage.title} is not chosen for this project: choose it first")
     if not sampleable(stage):
         raise ValueError(f"{stage.title} cannot be tried on sample pages yet")
-    ids = page_ids or [p["id"] for p in chosen(db)["pages"]]
+    ids = page_ids or [p["id"] for p in chosen(db, stage_id)["pages"]]
     if not ids:
         raise ValueError("This project has no pages to try it on yet")
     now = utc_now_iso(timespec="seconds")
@@ -198,7 +224,7 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
     if plan["refusals"]:
         raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(plan["refusals"]))
     cost = plan["estimate"]["total_cost_usd"]
-    clouded = [w for w in plan["workflows"] if str(w["runs_on"]).startswith("cloud")]
+    clouded = [w for w in [*plan["workflows"], *plan["runs"]] if str(w.get("runs_on")).startswith("cloud")]
     if clouded and not cost_ok:
         said = f"about ${cost:.2f}" if isinstance(cost, (int, float)) else "a cost that is not known"
         raise PermissionError(f"Trying {stage.title} on {len(ids)} pages uses the cloud and costs {said}: "
@@ -273,6 +299,12 @@ def _run_try(db: Any, subject: str) -> dict[str, Any]:
         before = _snapshot(copy)
         ran = []
         for card in cards:
+            if card.get("card") in ("find-documents", "entries"):
+                jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}")
+                made_here, state, why = _organise(copy, card, pages, back)
+                result.update(made_here)
+                ran.append({"steps": card["steps"], "state": state, "why": why})
+                continue
             if card.get("card") != "workflow":
                 ran.append({"steps": card.get("steps"), "state": "skipped", "why": "not tried on samples yet"})
                 continue
@@ -288,6 +320,35 @@ def _run_try(db: Any, subject: str) -> dict[str, Any]:
         shutil.rmtree(scratch, ignore_errors=True)
     _write(library, stage_id, result)
     return result
+
+
+def _organise(copy: Any, card: dict[str, Any], pages: list[str],
+              back: dict[str, str]) -> tuple[dict[str, Any], str, str | None]:
+    """Organise's steps on the copy (`organise-tried-on-a-run`): Find the Documents proposes, accepting nothing by
+    itself; Split into entries splits the pages with text with the step's model. What they made, in the project's
+    own page ids."""
+    import asyncio
+
+    from fichero_server.models import Document
+
+    if card["card"] == "find-documents":
+        from fichero_server.finddocs.job import find_documents
+
+        documents = [{"page_ids": [back.get(i, i) for i in d.page_ids], "name": d.name, "kind": d.kind,
+                      "confidence": d.confidence, "reasons": list(d.reasons)}
+                     for proposal in find_documents(copy, pages) for d in proposal.documents]
+        return {"documents": documents}, "done", None
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.diary_entries import split_pages_into_entries
+
+    with_text = [d for d in (copy.get(Document, i) for i in pages) if d is not None and (d.page_content or "").strip()]
+    if not with_text:
+        return {"entries": []}, "done", "no page has text to split yet: Read comes first"
+    made, _totals, errors, _lines = asyncio.run(split_pages_into_entries(
+        copy, with_text, LLMConfig(provider=card["provider"], model=card["model"])))
+    entries = [{"page_id": back.get(e.parent_id or "", e.parent_id), "name": e.name,
+                "opening": (e.page_content or "").strip()[:200]} for e in made]
+    return {"entries": entries}, ("failed" if errors and not made else "done"), "; ".join(errors) or None
 
 
 def _collect(copy: Any, before: dict[str, set[str]], back: dict[str, str]) -> dict[str, Any]:

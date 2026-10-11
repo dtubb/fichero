@@ -6360,9 +6360,11 @@ def fichero_recipes_routes_for_volume(
 
 
 def fichero_recipes_get_samples(
+    *,
+    stage: Annotated[Optional[str], Field(description='Stage')] = None,
 ) -> Any:
-    "Get Samples\n\nThe sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the\nperson's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then\nevenly spaced), each with why.\n\nRoute: GET /api/recipes/samples (toolset `recipes`; reads)."
-    return _rt.call("GET", "/api/recipes/samples")
+    "Get Samples\n\nThe sample pages every stage page tries itself on (section 7c, `source.onboard.stages.samples-proposed`): the\nperson's choice, else 3 to 5 proposed across the material (first, last, the largest and smallest images, then\nevenly spaced), each with why. With `stage=organise`, the run of up to 12 consecutive pages of one folder that\nOrganise is tried on (`source.onboard.stages.organise-tried-on-a-run`).\n\nRoute: GET /api/recipes/samples (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/samples", params={"stage": stage})
 
 
 def fichero_recipes_choose_samples(
