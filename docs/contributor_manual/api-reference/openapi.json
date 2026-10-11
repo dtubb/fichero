@@ -85797,6 +85797,24 @@
             "type": "array",
             "title": "Instead",
             "description": "installed models this Mac can serve for the same steps, each usable instead in one press (POST /api/recipes/project/start/use-instead; source.onboard.auto.installed-model-first)"
+          },
+          "downloading": {
+            "type": "boolean",
+            "title": "Downloading",
+            "description": "a download-model job is already fetching it: Start is not refused for it, and its steps wait for it to land (#5660)",
+            "default": false
+          },
+          "progress": {
+            "type": "string",
+            "nullable": true,
+            "title": "Progress",
+            "description": "how far the download has got, as its job last said it"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "the download-model job fetching it, while downloading"
           }
         },
         "type": "object",
@@ -86068,6 +86086,14 @@
             "type": "array",
             "title": "Refusals",
             "description": "Start is refused while this is not empty"
+          },
+          "waiting": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Waiting",
+            "description": "steps that wait for a model already downloading, in words; Start is not refused for them, and they run when it lands (#5660)"
           },
           "downloads": {
             "items": {
