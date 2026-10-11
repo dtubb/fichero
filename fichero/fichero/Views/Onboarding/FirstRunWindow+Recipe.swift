@@ -70,7 +70,8 @@ extension FirstRunWindow {
             ) {
                 recipeCard {
                     RecipeMaterialSourceFields(
-                        store: store, importer: project?.importService, syncFolders: project?.syncFolderStore
+                        store: store, importer: project?.importService, syncFolders: project?.syncFolderStore,
+                        icloud: project?.icloudStore, actionsService: project?.actionsService
                     )
                 }
             }

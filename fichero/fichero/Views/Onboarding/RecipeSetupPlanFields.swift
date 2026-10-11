@@ -219,6 +219,11 @@ struct RecipeStartFields: View {
                         .foregroundStyle(.secondary)
                 }
                 RecipeDownloadRows(store: store)
+                // Pages in iCloud, said before Start, with Copy into the Project (#5669).
+                if let icloud = project?.icloudStore {
+                    ICloudPagesNotice(store: icloud, actionsService: project?.actionsService)
+                        .task(id: plan.inIcloud == nil) { icloud.adopt(fromPlan: store.startPlan) }
+                }
                 RecipeElsewhereRows(store: store)
                 RecipeSkippedRows(store: store, onFix: onFix, project: project)
             } else if store.recipe != nil, store.errorMessage == nil {

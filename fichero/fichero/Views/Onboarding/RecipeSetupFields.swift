@@ -122,6 +122,9 @@ struct RecipeMaterialSourceFields: View {
     let importer: ImportService?
     /// The project's synced folders: an Index folder is tied there and shown below (#5480).
     var syncFolders: SyncFolderStore?
+    /// What of the added material is in iCloud and not on this Mac, with Copy into the Project (#5669).
+    var icloud: ICloudPagesStore?
+    var actionsService: ActionsService?
     @State private var choosingFolder = false
     @State private var adding = false
 
@@ -136,6 +139,7 @@ struct RecipeMaterialSourceFields: View {
                           : adding ? "Adding the material…" : "Choose files or folders of material to add")
                 if adding { ProgressView().controlSize(.small) }
             }
+            if let icloud { ICloudPagesNotice(store: icloud, actionsService: actionsService) }
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.body)
             }
@@ -155,6 +159,7 @@ struct RecipeMaterialSourceFields: View {
                 await store.addMaterial(urls, importer: importer, syncFolders: syncFolders)
                 adding = false
                 await store.countPages()
+                await icloud?.load()
             }
         }
     }
