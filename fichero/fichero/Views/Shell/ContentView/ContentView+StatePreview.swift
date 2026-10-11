@@ -338,3 +338,12 @@ extension ContentView {
         }
     }
 }
+
+extension ContentView {
+    /// A new window's shape (Daniel, 2026-10-11): about 1400 by 900 points, the sidebar about 225 wide, the
+    /// Inspector about 270; between them the Items-and-Reader column (`BuiltInWorkspaceLayout.read`) about 265 and
+    /// the Preview taking the rest (about 640). Defaults for a window with no saved frame or widths.
+    nonisolated static let defaultWindowSize = CGSize(width: 1400, height: 900)
+    nonisolated static let defaultSidebarWidth: Double = 225
+    nonisolated static let defaultInspectorWidth: Double = 270
+}

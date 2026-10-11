@@ -57,6 +57,12 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
 
     /// The default ⌘⌥N slot (1-based declaration position) — the built-in half of the
     /// slot→workspace map. ⌘⌥7–9 (beyond the six) are user-assignable.
+    /// Read's Items pane: about 330 of the ~850 points under the toolbar of a new 900-point window.
+    static let readItemsHeightFraction = 0.39
+    /// Read's Preview: about 640 of the ~905 points between a new window's sidebar and Inspector, which leaves the
+    /// Items-and-Reader column about 265.
+    static let readPreviewWidthFraction = 0.71
+
     var defaultSlot: Int { (Self.allCases.firstIndex(of: self) ?? 0) + 1 }
 
     /// The composition. Every node uses `.stableLeaf`/`.stableSplit`, NOT the plain `.leaf`/
@@ -80,13 +86,19 @@ enum BuiltInWorkspaceLayout: String, CaseIterable, Identifiable, Sendable {
             // of its own; it's the LAST child of this split so it just flexes into the remaining
             // 60% (WorkspaceSplitStack's "last child flexes" rule) — one number to tune, not two
             // that could drift apart.
+            //
+            // A new window's shape (Daniel, 2026-10-11): the Items-and-Reader column about 265 points of the
+            // ~905 between the sidebar and the Inspector, Items about 330 tall over the Reader, and the Preview
+            // the rest (about 640). The column is a split, which carries no size of its own, so the Preview
+            // holds its share and the column flexes into the remainder.
             return PaneList([
                 .stableSplit(.vertical, named: "\(rawValue).topSplit", [
                     .stableLeaf(.library, named: "\(rawValue).library",
-                                config: PaneConfig(libraryLayout: "table", paneFraction: 0.4)),
+                                config: PaneConfig(libraryLayout: "table", paneFraction: Self.readItemsHeightFraction)),
                     .stableLeaf(.reading, named: "\(rawValue).reading")
                 ]),
-                .stableLeaf(.preview, named: "\(rawValue).preview")
+                .stableLeaf(.preview, named: "\(rawValue).preview",
+                            config: PaneConfig(paneFraction: Self.readPreviewWidthFraction))
             ])
         case .browse:
             // Icon view (vertical column), then preview, then reader — "like we had it".

@@ -87,7 +87,7 @@ extension ContentView {
                 }
                 .inspectorColumnWidth(
                     min: CGFloat(ContentView.inspectorMinWidth),
-                    ideal: 300,
+                    ideal: CGFloat(ContentView.defaultInspectorWidth),
                     max: CGFloat(ContentView.inspectorMaxWidth)
                 )
             #endif

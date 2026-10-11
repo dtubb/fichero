@@ -411,7 +411,7 @@ struct FicheroApp: App {
             // the sequence, which is what shouldReuseExistingConnection existed to
             // suppress (#3394/#3407). That guard is now unreachable from the app.
         }
-        .defaultSize(width: 1400, height: 900)
+        .defaultSize(ContentView.defaultWindowSize)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
@@ -577,7 +577,7 @@ struct FicheroApp: App {
         WindowGroup("Fichero", for: WindowSeed.self) { $seed in
             libraryWindowRoot(seed: seed)
         }
-        .defaultSize(width: 1400, height: 900)
+        .defaultSize(ContentView.defaultWindowSize)
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified(showsTitle: false))
         // #4331: every scene WITHOUT this synthesizes SwiftUI's default
