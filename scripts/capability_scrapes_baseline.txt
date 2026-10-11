@@ -302,3 +302,5 @@ fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift
 # Setup round 2 (#5481): one forbidden-pattern absence check (no DisclosureGroup in Views/Onboarding);
 # every other test in the file drives RecipeSetupStore through recorded engine responses.
 fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift
+fichero/Tests/Unit/general/App/ProjectNamingTests.swift
+fichero/Tests/Unit/general/App/SaveLogsForSupportTests.swift

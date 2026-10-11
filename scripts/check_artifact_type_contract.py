@@ -87,6 +87,9 @@ CONSUMER_ALLOWLIST: dict[str, str] = {}
 # Adding an entry is a claim: "this type is read generically, by design."
 _ORPHAN_BASELINE: frozenset[str] = frozenset(
     {
+        # "finddocs_score" (#5550 S4) is read by its own route, GET /api/find-documents/score, by
+        # kind; the app shows the score through that route, never by artifact name.
+        "finddocs_score",
         # "catalogue.chunk" is a GENERIC read: catalogue.py writes per-chunk
         # summaries and the inspector's artifact list renders them like any
         # other artifact, with no by-name query. Baselined, not deleted — the

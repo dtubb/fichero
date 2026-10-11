@@ -25,6 +25,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/actions/chat_tools.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/highlight_reanchor.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/page_text_cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/registry.py
+$(SRCROOT)/../fichero-server/src/fichero_server/actions/undo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/_startup.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/auth.py
@@ -89,6 +90,8 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/segments.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/source_settings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/sources.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/transfer.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/trash.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/typed_links.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/document/view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/routes/entity/__init__.py
@@ -256,9 +259,11 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
 $(SRCROOT)/../fichero-server/src/fichero_server/export_service.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/accept.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/adjust.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/cues.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/propose.py
+$(SRCROOT)/../fichero-server/src/fichero_server/finddocs/score.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/store.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/formats/abbreviation_markup.py
@@ -334,6 +339,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/spacy_ner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/spacy_svo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/svo_cleanup.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/svo_quality.py
+$(SRCROOT)/../fichero-server/src/fichero_server/knowledge/trash_visibility.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/triangulation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/triples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/knowledge/units.py
@@ -425,6 +431,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/rights.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/segments.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/source_declarations.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/transfer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/typed_links.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/word_spans.py
 $(SRCROOT)/../fichero-server/src/fichero_server/observability/__init__.py
@@ -459,6 +466,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/recip
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/topics.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/sorting.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
@@ -593,6 +601,11 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/reasons_job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/vision_bases.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_local.py
 $(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_set.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/copy.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/id_map_classification.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/membership.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/plan.py
 $(SRCROOT)/../fichero-server/src/fichero_server/verification_targets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/action_store.py

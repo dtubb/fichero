@@ -120,7 +120,7 @@ final class SaveLogsForSupportTests: XCTestCase {
         XCTAssertLessThan(gate.lowerBound, item.lowerBound)
 
         let button = try String(
-            contentsOf: AppSource.root().appendingPathComponent("App/Menus/SaveLogsForSupport.swift"),
+            contentsOf: AppSource.root().appendingPathComponent("App/Menus/Help/SaveLogsForSupport.swift"),
             encoding: .utf8
         )
         XCTAssertTrue(button.contains("Button(\"Save Logs for Support…\")"))
