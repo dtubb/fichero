@@ -98,8 +98,10 @@ final class LibraryOutlineModel {
         let fetched = childDocumentsByParentId[document.id]
         let rollup = rollups[document.id]
         if fetched == nil && rollup == nil { return nil }
+        // A subfolder carries what is known of its own contents, so it discloses in place as the sidebar does
+        // (Daniel, 2026-10-11); expanding it fetches them (`expansionBinding`). Finite: only fetched rows recurse.
         var nodes = (fetched ?? []).filter { $0.docType != .page }
-            .map { LibraryOutlineNode.document($0, children: nil) }
+            .map { LibraryOutlineNode.document($0, children: childNodes(for: $0)) }
         let pages = pagesByParentId[document.id] ?? (fetched ?? []).filter { $0.docType == .page }
         nodes += pages.sorted { ($0.sequence ?? 0) < ($1.sequence ?? 0) }
             .map { LibraryOutlineNode.pageItem($0, parent: document) }

@@ -51,19 +51,37 @@ extension LibraryView {
     /// expression is also how `LibraryWindow.body` earned its type-check
     /// timeout — the type this returns grows with the nesting, and the checker
     /// pays for it twice if it appears twice.
+    ///
+    /// Folders disclose in place, as the sidebar's do (Daniel, 2026-10-11): a folder, a folder in it, and that
+    /// folder's items. ponytail: three levels, since a row builder cannot recurse (its type would be infinite);
+    /// a deeper folder opens with a double-click. Add a level here if a project nests deeper as a rule.
     @TableRowBuilder<LibraryOutlineNode>
     private func outlineRows(for node: LibraryOutlineNode) -> some TableRowContent<LibraryOutlineNode> {
         if nodeCanExpand(node) {
             DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
                 ForEach(node.children ?? []) { childGroup in
-                    if nodeCanExpand(childGroup) {
-                        DisclosureTableRow(childGroup, isExpanded: expansionBinding(for: childGroup)) {
-                            ForEach(childGroup.children ?? []) { child in
-                                TableRow(child)
+                    outlineChildRows(for: childGroup)
+                }
+            }
+        } else {
+            TableRow(node)
+        }
+    }
+
+    /// A disclosed row's own rows: it discloses its children in turn, one level further.
+    @TableRowBuilder<LibraryOutlineNode>
+    private func outlineChildRows(for node: LibraryOutlineNode) -> some TableRowContent<LibraryOutlineNode> {
+        if nodeCanExpand(node) {
+            DisclosureTableRow(node, isExpanded: expansionBinding(for: node)) {
+                ForEach(node.children ?? []) { child in
+                    if nodeCanExpand(child) {
+                        DisclosureTableRow(child, isExpanded: expansionBinding(for: child)) {
+                            ForEach(child.children ?? []) { grandchild in
+                                TableRow(grandchild)
                             }
                         }
                     } else {
-                        TableRow(childGroup)
+                        TableRow(child)
                     }
                 }
             }

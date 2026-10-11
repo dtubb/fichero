@@ -204,6 +204,30 @@ struct LibraryOutlineModelTests {
         #expect(children.allSatisfy { if case .document = $0.kind { return true }; return false })
     }
 
+    /// Daniel, 2026-10-11: the Items table discloses folders in place, as the sidebar does. A subfolder in an
+    /// expanded folder carries its own fetched contents, so it discloses in turn; before, it was built with no
+    /// children and its chevron opened onto nothing.
+    @Test("A subfolder of an expanded folder discloses its own contents in place")
+    @MainActor func subfolderDisclosesInPlace() {
+        let model = makeModel()
+        let box = Document(id: "box", docType: .folder, name: "Box 3")
+        let caciques = Document(id: "caciques", parentId: "box", docType: .folder, name: "CACIQUES")
+        model.childDocumentsByParentId["box"] = [caciques]
+        // Not yet fetched: the subfolder discloses (its count says it holds something) but is empty.
+        #expect(model.childNodes(for: box)?.first?.children == nil)
+        // Fetched (what expanding it does): its pages are its rows, in order.
+        model.childDocumentsByParentId["caciques"] = [
+            makePage(id: "p2", parentId: "caciques", sequence: 2), makePage(id: "p1", parentId: "caciques", sequence: 1)
+        ]
+        let sub = model.childNodes(for: box)?.first
+        #expect(sub?.canExpand == true)
+        let pages = (sub?.children ?? []).compactMap { node -> String? in
+            guard case .pageItem(let page) = node.kind else { return nil }
+            return page.id
+        }
+        #expect(pages == ["p1", "p2"])
+    }
+
     @Test("Entity and claim child node IDs are stable")
     func entityAndClaimNodeIdsAreStable() {
         let parent = makeDoc(id: "parent-3")
