@@ -241,6 +241,10 @@ struct ActivityJob: Identifiable, Equatable {
     /// The job this one belongs to (a page's step, a step's run), #5353;
     /// `nil` for a job of its own, which is what the Activity table lists.
     let parentId: String?
+    /// What the row offers (#5615): "Resume" on a job set aside after its interruptions, done by its retry.
+    let offer: String?
+    /// The workflow run a page's work is for (#5615); `nil` for a row not under a run.
+    let runId: String?
 
     init(_ job: Components.Schemas.BackgroundJob) {
         self.id = job.id
@@ -253,6 +257,8 @@ struct ActivityJob: Identifiable, Equatable {
         self.state = State(raw: job.state)
         self.reason = job.reason
         self.parentId = job.parentId
+        self.offer = job.offer
+        self.runId = job.runId
     }
 
     /// Test/preview seam — construct without the generated schema.
@@ -266,7 +272,9 @@ struct ActivityJob: Identifiable, Equatable {
         percent: Double = 0,
         state: State = .running,
         reason: String? = nil,
-        parentId: String? = nil
+        parentId: String? = nil,
+        offer: String? = nil,
+        runId: String? = nil
     ) {
         self.id = id
         self.taskType = taskType
@@ -278,6 +286,8 @@ struct ActivityJob: Identifiable, Equatable {
         self.state = state
         self.reason = reason
         self.parentId = parentId
+        self.offer = offer
+        self.runId = runId
     }
 
     /// A determinate bar is only meaningful once the backend knows the total.

@@ -77,12 +77,14 @@ struct ActivityMonitorRow: Identifiable, Equatable {
 
     /// What a row's Pause, Resume, Stop and Retry buttons offer.
     enum Control: String, Identifiable {
-        case pause, resume, stop, retry
+        /// `carryOn` is the engine's offer on a job set aside after its interruptions (#5615): it reads Resume and
+        /// is done by the job's retry, which carries it on from where it was.
+        case pause, resume, stop, retry, carryOn
         var id: String { rawValue }
         var label: String {
             switch self {
             case .pause: "Pause"
-            case .resume: "Resume"
+            case .resume, .carryOn: "Resume"
             case .stop: "Stop"
             case .retry: "Retry"
             }
@@ -90,11 +92,13 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         var systemImage: String {
             switch self {
             case .pause: "pause.fill"
-            case .resume: "play.fill"
+            case .resume, .carryOn: "play.fill"
             case .stop: "stop.fill"
             case .retry: "arrow.counterclockwise"
             }
         }
+        /// Done by the job's retry (`POST /api/activity/jobs/{id}/retry`).
+        var isRetry: Bool { self == .retry || self == .carryOn }
     }
 
     /// Unique across levels and projects.
@@ -139,6 +143,8 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// A job of its own's id (an embedding queue): what its details read
     /// (#5561); the same as its `jobId`, which its Pause and Stop act on (#5621).
     var ownJobId: String?
+    /// What the engine offers on the row (#5615): "Resume" on a job set aside after its interruptions.
+    var offer: String?
 
     // MARK: - Icons (#5560)
 
@@ -286,8 +292,11 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         switch phase {
         case .running, .waiting: return jobId == nil ? [] : [.pause, .stop]
         case .paused: return jobId == nil ? [] : [.resume, .stop]
-        // #5356: a failed or stopped row, a job of its own too, offers Retry.
-        case .failed, .cancelled: return retryJobId == nil ? [] : [.retry]
+        // #5356: a failed or stopped row, a job of its own too, offers Retry; one the engine set aside after its
+        // interruptions offers Resume instead, as the engine says (#5615).
+        case .failed, .cancelled:
+            guard retryJobId != nil else { return [] }
+            return offer == "Resume" ? [.carryOn] : [.retry]
         case .done: return []
         }
     }
@@ -395,7 +404,8 @@ extension ActivityMonitorRow {
             isLive: false,
             children: nil,
             engineKind: job.taskType,
-            ownJobId: job.id
+            ownJobId: job.id,
+            offer: job.offer
         )
     }
 

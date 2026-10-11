@@ -483,6 +483,26 @@ struct RecipeSetupStoreTests {
         #expect(RecipeStartFields.cost(nil) == "price unknown")
     }
 
+    /// WHY (#5616): a step the last run did not finish runs again at Start; Ready says so under the step, with
+    /// why, so the person is not surprised it runs again (and knows why it did not before).
+    @Test("Ready says what the last run left undone under the step, and that it runs again")
+    func readySaysWhatTheLastRunLeft() async {
+        let plan = """
+        {"runs":[{"steps":["lines","read"],"job":"read-a-line","card":"workflow","runs_on":"this-mac",
+                  "last_run":"not run","last_why":"the run was stopped before this step"},
+                 {"steps":["names"],"job":"find-names-tag-words","card":"workflow","runs_on":"this-mac"}],
+         "skipped":[],"workflows":[],"offered":[],"refusals":[],
+         "estimate":{"pages":92,"runs":[],"total_cost_usd":null}}
+        """
+        let store = makeStore { request in Self.reply(request, 200, plan) }
+        await store.loadStartPlan()
+
+        #expect(store.lastRunWords(stepId: "read") == "Not run last time (the run was stopped before this step); runs again")
+        #expect(store.lastRunWords(stepId: "lines") == store.lastRunWords(stepId: "read"), "one run, both its steps")
+        #expect(store.lastRunWords(stepId: "names") == nil, "done last time, or never ran: nothing said")
+        #expect(store.lastRunWords(stepId: "missing") == nil)
+    }
+
     /// WHY (#5660 item 6, the maintainer's Set Up test of 2026.10.10): the needed models began downloading by
     /// themselves, yet Ready kept Start disabled and said "not on this Mac: download it first". A model already
     /// downloading is not a refusal: Start stays pressable, and the plan says it is downloading, with its progress.

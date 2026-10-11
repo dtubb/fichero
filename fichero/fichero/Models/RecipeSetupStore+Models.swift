@@ -76,3 +76,16 @@ extension RecipeSetupStore {
         }
     }
 }
+
+// What the last run left undone, under the step in Ready (#5616).
+extension RecipeSetupStore {
+    /// "Not run last time (the run was stopped before this step); runs again", from the plan's run that carries the
+    /// step (`last_run`, `last_why`); nil when the last run did it, or it never ran.
+    func lastRunWords(stepId: String) -> String? {
+        guard let run = startPlan?.runs.first(where: { $0.steps.contains(stepId) && $0.lastRun != nil }),
+              let outcome = run.lastRun else { return nil }
+        let said = outcome.prefix(1).uppercased() + outcome.dropFirst()
+        let why = run.lastWhy.map { " (\($0))" } ?? ""
+        return "\(said) last time\(why); runs again"
+    }
+}

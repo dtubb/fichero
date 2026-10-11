@@ -143,7 +143,7 @@ struct BakeoffSection: View {
             TableColumn("WER") { row in Text(BakeoffStore.wordErrorRate(row)).monospacedDigit() }
                 .width(min: 44, ideal: 50)
             TableColumn("Time") { row in Text(BakeoffStore.time(row)).monospacedDigit() }
-                .width(min: 50, ideal: 64)
+                .width(min: 80, ideal: 90)
             TableColumn("") { row in useButton(row) }
                 .width(min: 70, ideal: 76)
             TableColumn("Cost for all pages") { row in wrapping(BakeoffStore.cost(row)) }

@@ -40,6 +40,9 @@ struct RecipeStepsView: View {
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
                               onFix: fixHandler(for: step))
+                if onFix != nil, let words = store.lastRunWords(stepId: step.id) {  // Ready: what the last run left (#5616)
+                    Label(words, systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.secondary)
+                }
                 if onFix != nil { planEditControls(for: step) }  // Ready only: take a step out (#5627)
                 if onFix != nil, finder != nil, store.readsMaterial(step.job) {
                     Button("Find a Reader…") { findingFor = FinderStep(id: step.id, job: step.job) }

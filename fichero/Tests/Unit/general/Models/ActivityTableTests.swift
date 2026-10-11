@@ -497,6 +497,23 @@ final class ActivityTableTests: XCTestCase {
         XCTAssertEqual(paused.controls, [.resume, .stop])
     }
 
+    func testActivityWindowTable_aJobSetAsideOffersResumeThroughItsRetry() {
+        // WHY (#5615): a job the engine set aside after its interruptions says so and offers Resume, which carries
+        // it on from where it was through the job's retry; a row named by its recipe reads that name, not its kind.
+        let setAside = ActivityMonitorRow.job(
+            ActivityJob(id: "recipe-1", taskType: "run-a-recipe", name: "Run the recipe: Spanish handwriting",
+                        total: 92, state: .failed,
+                        reason: "Interrupted 3 times: the engine stopped while it ran …; set aside. Resume carries it on",
+                        offer: "Resume"),
+            libraryId: Self.libraryId, projectName: nil)
+        XCTAssertEqual(setAside.controls, [.carryOn])
+        XCTAssertEqual(ActivityMonitorRow.Control.carryOn.label, "Resume")
+        XCTAssertTrue(ActivityMonitorRow.Control.carryOn.isRetry, "Resume on a set-aside job is its retry")
+        XCTAssertFalse(ActivityMonitorRow.Control.resume.isRetry, "Resume on a paused job is not")
+        XCTAssertEqual(setAside.retryJobId, "recipe-1")
+        XCTAssertEqual(setAside.name, "Run the recipe: Spanish handwriting")
+    }
+
     func testActivityWindowTable_pauseOnTheImportRowGoesToItsIdAndTheJobsReadFollows() async throws {
         // WHY (#5621): Pause on the import's row reaches the engine by the row's id, and
         // the row, which has no tree node to patch, is read again from the jobs read.
