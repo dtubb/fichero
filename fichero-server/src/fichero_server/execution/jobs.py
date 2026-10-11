@@ -714,6 +714,12 @@ def end_cancelled(db: "Database", job_id: str, reason: str) -> None:
                [reason, utc_now(), job_id])
 
 
+def come_back_after(db: "Database", job_id: str, seconds: float) -> None:
+    """A job about to raise `JobDeferred` asks not to be taken up again for `seconds` (a download whose
+    connection broke on every try waits a while before it tries again, #5660)."""
+    db.execute("UPDATE jobs SET run_after = ? WHERE id = ?", [utc_now() + timedelta(seconds=seconds), job_id])
+
+
 def say_stopping(db: "Database", job_id: str) -> None:
     """A running job asked to stop says so until it does (#5609)."""
     db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING, job_id])
@@ -1354,8 +1360,9 @@ def retry_job(db: "Database", job_id: str) -> str:
         raise ValueError("The same work is already waiting to run")
     detail = json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0] or "{}")
     detail.pop("cancel", None)
+    detail.pop("interrupted", None)  # a download's rounds of broken connections start again (#5660)
     db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
-               "cleared_at = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
+               "cleared_at = NULL, run_after = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return "waiting"

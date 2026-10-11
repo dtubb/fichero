@@ -7,12 +7,16 @@ from dataclasses import dataclass
 import os
 import re
 from pathlib import Path
+import logging
 import shutil
+import threading
 from typing import Any, Callable
 
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
 from fichero_server.db.paths import model_store_root
 from fichero_server.llm.providers import ProviderType
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -271,6 +275,8 @@ class MLXModelStore:
         self._jobs: dict[str, ManagedModelDownloadJob] = {}
         self._job_tasks: dict[str, asyncio.Task[None]] = {}
         self._job_processes: dict[str, asyncio.subprocess.Process] = {}
+        #: A stop asked of an in-process download, read between its tries (#5660 item 12).
+        self._job_stops: dict[str, threading.Event] = {}
         self._model_jobs: dict[str, str] = {}
 
     def env(self) -> dict[str, str]:
@@ -416,7 +422,8 @@ class MLXModelStore:
             say_installed("mlx", spec.model_id)
 
     async def download_and_wait(
-        self, model_id: str, on_progress: Callable[[ManagedModelDownloadJob], None]
+        self, model_id: str, on_progress: Callable[[ManagedModelDownloadJob], None],
+        should_stop: Callable[[], bool] = lambda: False,
     ) -> ManagedModelDownloadJob:
         """Download a model and wait for it, telling `on_progress` how far it has got every few seconds: the
         `download-model` job's MLX half (`source.find.one-download-path`, #5620), so an MLX download is an
@@ -431,15 +438,34 @@ class MLXModelStore:
             return job
         # The task may belong to another event loop (Settings started the same model): its state is read, never
         # awaited, and a task that ended without saying so (it raised) ends the wait.
+        name = self.spec(model_id).display_name
         while job.state in {"queued", "running"} and not task.done():
+            if should_stop():
+                await self.cancel(job.job_id)
+                from fichero_server.llm.model_downloads import DownloadStopped
+
+                raise DownloadStopped(name)
             on_progress(job)
             await asyncio.sleep(DOWNLOAD_PROGRESS_POLL_SECONDS)
         if task.done() and not task.cancelled() and task.exception() is not None:
-            raise RuntimeError(f"{job.model_id} did not download: {task.exception()}") from task.exception()
+            from fichero_server.llm.model_downloads import DownloadInterrupted, is_transient
+
+            failure = task.exception()
+            if is_transient(failure):
+                raise DownloadInterrupted(name, failure) from failure
+            raise RuntimeError(f"The download of {name} could not be done: {failure}") from failure
         if job.state == "failed":
-            raise RuntimeError(f"{job.model_id} did not download: {job.error or job.message}")
+            from fichero_server.llm.model_downloads import DownloadInterrupted
+
+            if job.error and job.error.startswith(f"The download of {name} stopped part-way"):
+                raise DownloadInterrupted(name)
+            raise RuntimeError(job.error or f"The download of {name} could not be done.")
+        if job.state == "cancelled":
+            from fichero_server.llm.model_downloads import DownloadStopped
+
+            raise DownloadStopped(name)
         if job.state != "completed":
-            raise RuntimeError(f"{job.model_id} did not download: {job.message or job.state}")
+            raise RuntimeError(f"The download of {name} did not finish ({job.message or job.state}).")
         return job
 
     def job(self, job_id: str) -> ManagedModelDownloadJob | None:
@@ -447,6 +473,9 @@ class MLXModelStore:
 
     async def cancel(self, job_id: str) -> ManagedModelDownloadJob:
         job = self._jobs[job_id]
+        stop = self._job_stops.get(job_id)
+        if stop is not None:
+            stop.set()  # the in-process fetch tries no more after the file it is on
         process = self._job_processes.get(job_id)
         if process is not None and process.returncode is None:
             process.terminate()
@@ -698,6 +727,37 @@ class MLXModelStore:
         python_path = str(get_mlx_runtime().require_python_path())
         self.root.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        from fichero_server.llm import model_downloads
+
+        pauses = model_downloads.BACKOFF_SECONDS
+        for attempt in range(len(pauses) + 1):
+            returncode, excerpt = await self._run_download_process(job, spec, python_path)
+            if returncode == 0:
+                job.current = job.total
+                job.state = "completed"
+                job.message = "Download complete"
+                return
+            if job.state == "cancelled":
+                return
+            broken = any(marker in excerpt for marker in model_downloads.TRANSIENT_MARKERS)
+            logger.warning("download of %s exited %s: %s", spec.model_id, returncode, excerpt[-2000:])
+            if not broken:
+                job.state = "failed"
+                job.error = f"The download of {spec.display_name} could not be done; the engine's log says why."
+                job.message = "Download failed"
+                return
+            if attempt == len(pauses):
+                job.state = "failed"
+                job.error = model_downloads.interrupted_sentence(spec.display_name)
+                job.message = job.error
+                return
+            job.message = f"The connection broke while downloading {spec.display_name}; trying again"
+            await asyncio.sleep(pauses[attempt])
+
+    async def _run_download_process(
+        self, job: ManagedModelDownloadJob, spec: ManagedModelSpec, python_path: str
+    ) -> tuple[int, str]:
+        """One try of the separate-Python download (it continues Hugging Face's `.incomplete` files)."""
         self._note_progress(job, spec)
         process = await asyncio.create_subprocess_exec(
             python_path,
@@ -719,15 +779,8 @@ class MLXModelStore:
                 self._note_progress(job, spec)
         stdout, stderr = communicating.result()
         self._job_processes.pop(job.job_id, None)
-        if process.returncode != 0:
-            job.state = "failed"
-            excerpt = (stderr or stdout).decode("utf-8", errors="replace").strip()
-            job.error = excerpt or f"download exited {process.returncode}"
-            job.message = "Download failed"
-            return
-        job.current = job.total
-        job.state = "completed"
-        job.message = "Download complete"
+        excerpt = (stderr or stdout or b"").decode("utf-8", errors="replace").strip()
+        return int(process.returncode or 0), excerpt
 
     async def _run_download_in_process(self, job: ManagedModelDownloadJob, spec: ManagedModelSpec) -> None:
         """The weights fetched by the engine itself (huggingface_hub is bundled), with the same progress
@@ -741,17 +794,36 @@ class MLXModelStore:
         os.environ.update(self.env())
         self._note_progress(job, spec)
         ignore = list(spec.ignore_patterns) or None
-        fetching = asyncio.ensure_future(asyncio.to_thread(
-            snapshot_download, repo_id=spec.repo_id, revision=spec.revision, cache_dir=models_path, ignore_patterns=ignore))
+        from fichero_server.llm import model_downloads
+
+        stopped = self._job_stops.setdefault(job.job_id, threading.Event())
+
+        def fetch() -> object:
+            # Again after a broken connection, continuing Hugging Face's `.incomplete` files (#5660 item 12).
+            return model_downloads.with_retries(
+                lambda: snapshot_download(repo_id=spec.repo_id, revision=spec.revision, cache_dir=models_path, ignore_patterns=ignore),
+                name=spec.display_name, should_stop=stopped.is_set)
+
+        fetching = asyncio.ensure_future(asyncio.to_thread(fetch))
         while not fetching.done():
             await asyncio.wait({fetching}, timeout=DOWNLOAD_PROGRESS_POLL_SECONDS)
             if not fetching.done():
                 self._note_progress(job, spec)
         try:
             fetching.result()
-        except Exception as exc:  # noqa: BLE001 -- the job says why; the row shows it
+        except model_downloads.DownloadStopped:
+            job.state = "cancelled"
+            job.message = "Download cancelled"
+            return
+        except model_downloads.DownloadInterrupted as exc:
             job.state = "failed"
-            job.error = str(exc) or type(exc).__name__
+            job.error = str(exc)
+            job.message = str(exc)
+            return
+        except Exception as exc:  # noqa: BLE001 -- the job says why in words; the log keeps the exception
+            logger.warning("download of %s failed: %r", spec.model_id, exc)
+            job.state = "failed"
+            job.error = f"The download of {spec.display_name} could not be done; the engine's log says why."
             job.message = "Download failed"
             return
         job.current = job.total

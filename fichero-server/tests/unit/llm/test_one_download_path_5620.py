@@ -130,7 +130,8 @@ def test_a_kraken_reader_downloads_by_the_same_path(client, db, held, monkeypatc
     """"… for every runtime": Settings' Kraken reader rows use the one route too, so a Kraken reader is a
     `download-model` job, fetched by the job and then said installed; one that is not a reader is refused at once."""
     fetched, said = [], []
-    monkeypatch.setattr("fichero_server.llm.kraken_runtime.download_recognition_model", fetched.append)
+    monkeypatch.setattr("fichero_server.llm.kraken_runtime.download_recognition_model",
+                        lambda model, **resumable: fetched.append(model))  # it also hears stop and progress (#5660)
     monkeypatch.setattr(local_models, "say_installed", lambda runtime, model: said.append((runtime, model)))
     r = client.post("/api/local-models/download/kraken/kraken-mccatmus")
     assert r.status_code == 200, r.text

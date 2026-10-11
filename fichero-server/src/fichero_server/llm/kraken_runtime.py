@@ -943,11 +943,52 @@ def read_given_lines(
         raise KrakenSegmentationError(f"Kraken could not read the lines: {exc}") from exc
 
 
+def record_files(doi: str) -> list[dict[str, object]]:
+    """The files of a reader's record in Kraken's repository, each {url, size}: htrmopo's own lookup
+    (its OAI record, a concept DOI resolved through Zenodo's API), without its download, which wrote
+    in one pass and lost the file when the connection broke (#5660 item 12). Network."""
+    import requests
+    from htrmopo.repo import sickle
+    from htrmopo.util import _doi_to_oai_id, _doi_to_zenodo_id, get_repo_url
+
+    oai_id = _doi_to_oai_id(doi)
+    if oai_id is None:
+        raise ValueError(f"{doi} is not a valid DOI")
+    try:
+        record = sickle.GetRecord(identifier=oai_id, metadataPrefix="dcat")
+    except requests.HTTPError:
+        found = requests.get(f"{get_repo_url()}records/{_doi_to_zenodo_id(doi)}", timeout=60)
+        found.raise_for_status()
+        record = sickle.GetRecord(identifier=_doi_to_oai_id(found.json()["doi"]), metadataPrefix="dcat")
+    return [{"url": f["url"], "size": f.get("size")} for f in record.metadata["distribution"]]
+
+
+def recognition_display_name(model_id: str) -> str:
+    """A reader as a person reads it (#5660 item 10): its card's name (the note's first clause, "PP-OCRv6
+    (medium)"), else the catalogue's, never its id."""
+    from fichero_server.recipes.cards import all_seed_cards, kraken_reader_for
+
+    for card in all_seed_cards():
+        pin = card.pin if isinstance(card.pin, dict) else {}
+        if pin.get("zenodo") and kraken_reader_for(pin) == model_id and card.note:
+            return card.note.strip().split(". ")[0].split(", ")[0].strip().rstrip(".")
+    row = KRAKEN_RECOGNITION_MODELS.get(model_id) or {}
+    if row.get("display_name"):
+        return str(row["display_name"])
+    card = trained_reader_card(model_id)
+    if card and card.get("name"):
+        return str(card["name"])
+    match = _ZENODO_READER.match(model_id or "")
+    return f"the reader from Kraken's repository (record {match.group(1)})" if match else "the Kraken reader"
+
+
 def download_recognition_model(
     model_id: str,
     home: Path | None = None,
     *,
     run_call: Callable[[Callable[[], object]], object] | None = None,
+    should_stop: Callable[[], bool] = lambda: False,
+    on_bytes: Callable[[int, int | None], None] | None = None,
 ) -> None:
     """Fetch a recognition model and record its path. Raises rather than
     half-succeeding: a fetch that quietly does nothing is the shape a user
@@ -982,12 +1023,34 @@ def download_recognition_model(
     data_home.mkdir(parents=True, exist_ok=True)
 
     def _fetch() -> object:
-        from htrmopo import get_model
+        # Each file resumed after a broken connection and checked against the record's size (#5660 item 12).
+        from urllib.parse import urlsplit
 
-        return get_model(str(spec["doi"]), path=str(data_home))
+        from fichero_server.llm.model_downloads import fetch_file
 
-    caller = run_call or _kraken_call
-    caller(_fetch)
+        name = recognition_display_name(model_id)
+        files = record_files(str(spec["doi"]))
+        total = sum(int(f["size"] or 0) for f in files) or None
+        done = 0
+        for file in files:
+            dest = (data_home / Path(urlsplit(str(file["url"])).path).name).resolve()
+            if not dest.is_relative_to(data_home.resolve()):
+                continue  # a name that would land outside the reader's folder (htrmopo skips these too)
+            size = int(file["size"]) if file.get("size") else None
+            before = done
+            fetch_file(str(file["url"]), dest, name=name, size=size, should_stop=should_stop,
+                       on_bytes=(lambda have, _t, b=before: on_bytes(b + have, total)) if on_bytes else None)
+            done = before + (size or dest.stat().st_size)
+        return data_home
+
+    if run_call is not None:
+        run_call(_fetch)
+    else:
+        # A download is not Kraken work: it never takes Kraken's lock or its memory check (it used to, through
+        # `_kraken_call`, so a page being read held up the download and the other way round). A reader is
+        # of no use without Kraken, so its absence is still said first.
+        require_installed()
+        _fetch()
 
     found = [p for p in data_home.rglob("*") if p.suffix in (".mlmodel", ".safetensors")]
     if len(found) != 1:

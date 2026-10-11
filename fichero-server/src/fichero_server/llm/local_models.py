@@ -746,53 +746,163 @@ def register_job_kinds() -> None:
     from fichero_server.execution import jobs
 
     if DOWNLOAD_KIND not in jobs.KINDS or jobs.KINDS[DOWNLOAD_KIND].run is None:
+        # The network lane runs four at a time: models download TOGETHER, up to four, one job per model
+        # (`enqueue_download` never queues a second for a model already waiting). Stop on a running one is
+        # heard at its next chunk (`request_stop`); Retry continues it from what it had (#5660 item 11).
         jobs.register_kind(DOWNLOAD_KIND, lambda db, subject: _run_download(subject, db), model=None,
-                           lane="network", name="Download a model")
+                           lane="network", name="Download a model", cancel=request_stop)
 
 
 #: How often a running download's row is told how far it has got (its reason, which Activity and the row that
 #: asked for it show).
 PROGRESS_EVERY_SECONDS = 2.0
+#: A download whose connection broke on every try (`model_downloads.BACKOFF_SECONDS`) comes back by itself this
+#: many times, waiting this long each time, before it is failed (#5660 item 12).
+COME_BACK_ROUNDS = 5
+COME_BACK_AFTER_SECONDS = 300.0
 
 
-def _say_progress(db, words: str) -> None:
-    """The running job's reason, in words ("Downloading Qwen2.5-VL 7B: 1.2 GB of 5.6 GB"); nothing outside a job."""
+def model_display_name(runtime: str, model: str) -> str:
+    """A model as a person sees it in Settings and Set Up (#5660 item 10): its card's or catalogue's name,
+    never an id like kraken-zenodo-21788410; and never "Kraken", which ships inside the app."""
+    try:
+        if runtime == "kraken":
+            from fichero_server.llm.kraken_runtime import recognition_display_name
+
+            return recognition_display_name(model)
+        if runtime == "mlx":
+            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+            store = get_mlx_model_store()
+            model_id = store.canonical_id(model)
+            if model_id is not None:
+                return store.spec(model_id).display_name
+        if runtime == "yolo":
+            from fichero_server.llm.yolo_runtime import YOLO_MODELS
+
+            if model in YOLO_MODELS:
+                return f"the layout model {YOLO_MODELS[model][2].split(',')[0]}"
+        if runtime == "whisper" and model in WHISPER_MLX_MODELS:
+            return f"the transcriber {WHISPER_MLX_MODELS[model].display_name}"
+        if runtime == "embeddings":
+            return f"the search model {model.split('/')[-1]}"
+        if runtime == "spacy":
+            return f"the language pipeline {model}"
+    except Exception as exc:  # noqa: BLE001 -- a name is never worth failing a download for
+        logger.warning("no display name for %s:%s: %s", runtime, model, exc)
+    return "the model"
+
+
+def _job_detail(db) -> tuple[str | None, dict]:
     from fichero_server.execution import jobs
 
     job_id = jobs.current_job_id()
-    if db is not None and job_id is not None:
-        jobs.save_detail(db, job_id, json.dumps({"progress": words}), reason=words)
+    if db is None or job_id is None:
+        return job_id, {}
+    row = jobs.read_job(db, job_id)
+    try:
+        return job_id, json.loads((row or {}).get("detail") or "{}")
+    except ValueError:
+        return job_id, {}
+
+
+def _say_progress(db, words: str) -> None:
+    """The running job's reason, in words ("Downloading Qwen2.5-VL 7B: 1.2 GB of 5.6 GB"); nothing outside a job.
+    Kept beside the rest of the row's detail: a stop asked of it is in there."""
+    from fichero_server.execution import jobs
+
+    job_id, detail = _job_detail(db)
+    if job_id is not None:
+        detail["progress"] = words
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=words)
+
+
+def _stop_asked(db) -> bool:
+    return bool(_job_detail(db)[1].get("cancel"))
+
+
+def request_stop(db, job_id: str) -> str:
+    """Stop on a download's row: a waiting one ends now; a running one at its next chunk, keeping what it had."""
+    from fichero_server.execution import jobs
+
+    row = jobs.read_job(db, job_id)
+    state = (row or {}).get("state")
+    if state in ("waiting", "paused"):
+        jobs.cancel_waiting(db, job_id)
+        return "cancelled"
+    if state == "running":
+        detail = json.loads((row or {}).get("detail") or "{}")
+        detail["cancel"] = True
+        jobs.save_detail(db, job_id, json.dumps(detail))
+        jobs.say_stopping(db, job_id)
+    return state or "done"
 
 
 def _run_download(subject: str, db=None) -> None:
     """One `download-model` job: the model of its runtime fetched, then `model.installed` said. Its reason says how
-    far it has got; a failure raises with why, which the row keeps (`source.find.one-download-path`, #5620)."""
+    far it has got, naming the model as a person sees it. A broken connection is tried again with pauses and the
+    file continued (`model_downloads`); after the last try the row says so in one sentence and comes back later by
+    itself; any other failure raises with why, which the row keeps (`source.find.one-download-path`, #5620)."""
+    import time
+
+    from fichero_server.execution import jobs
+    from fichero_server.llm.model_downloads import (
+        DownloadInterrupted,
+        DownloadStopped,
+        progress_words,
+        with_retries,
+    )
+
     runtime, _, name = subject.partition(":")
-    if runtime == "mlx":
-        _run_mlx_download(name, db)
-        return
-    if runtime == "kraken":
-        from fichero_server.llm.kraken_runtime import download_recognition_model
+    person = model_display_name(runtime, name)
+    def should_stop() -> bool:
+        return _stop_asked(db)
 
-        _say_progress(db, f"Downloading the Kraken reader {name}")
-        download_recognition_model(name)
-        say_installed(runtime, name)
-        return
-    if runtime == "yolo":
-        from fichero_server.llm.yolo_runtime import download
+    said = {"at": 0.0}
 
-        _say_progress(db, f"Downloading the layout model {name}")
-        download(name)
-        say_installed(runtime, name)
-        return
-    if runtime not in _DOWNLOADABLE:
-        raise ValueError(f"no download for {subject!r}")
-    _say_progress(db, f"Downloading the {runtime} model {name}")
-    LocalModelManager().download_model(runtime, name)
+    def on_bytes(have: int, total: int | None) -> None:
+        now = time.monotonic()
+        if now - said["at"] >= PROGRESS_EVERY_SECONDS:
+            said["at"] = now
+            _say_progress(db, progress_words(person, have, total))
+
+    try:
+        if runtime == "mlx":
+            _run_mlx_download(name, db, should_stop)
+        elif runtime == "kraken":
+            from fichero_server.llm.kraken_runtime import download_recognition_model
+
+            _say_progress(db, f"Downloading {person}")
+            download_recognition_model(name, should_stop=should_stop, on_bytes=on_bytes)
+        elif runtime == "yolo":
+            from fichero_server.llm.yolo_runtime import download
+
+            _say_progress(db, f"Downloading {person}")
+            with_retries(lambda: download(name), name=person, should_stop=should_stop)
+        elif runtime in _DOWNLOADABLE:
+            _say_progress(db, f"Downloading {person}")
+            with_retries(lambda: LocalModelManager().download_model(runtime, name), name=person, should_stop=should_stop)
+        else:
+            raise ValueError(f"no download for {subject!r}")
+    except DownloadStopped as stopped:
+        raise jobs.JobCancelled(str(stopped)) from stopped
+    except DownloadInterrupted as broken:
+        job_id, detail = _job_detail(db)
+        if job_id is None:
+            raise
+        rounds = int(detail.get("interrupted", 0)) + 1
+        detail["interrupted"] = rounds
+        if rounds > COME_BACK_ROUNDS:
+            jobs.save_detail(db, job_id, json.dumps(detail))
+            raise RuntimeError(f"The download of {person} could not finish; try it again when the connection is "
+                               "back.") from broken
+        jobs.save_detail(db, job_id, json.dumps(detail), reason=str(broken))
+        jobs.come_back_after(db, job_id, COME_BACK_AFTER_SECONDS)
+        raise jobs.JobDeferred(str(broken)) from broken
     say_installed(runtime, name)
 
 
-def _run_mlx_download(name: str, db) -> None:
+def _run_mlx_download(name: str, db, should_stop=lambda: False) -> None:
     """An MLX model fetched by this Mac's model store, the job waiting on it and saying its progress."""
     import asyncio
     import time
@@ -807,7 +917,7 @@ def _run_mlx_download(name: str, db) -> None:
             said.update(at=now, words=job.message)
             _say_progress(db, job.message)
 
-    asyncio.run(get_mlx_model_store().download_and_wait(name, progress))
+    asyncio.run(get_mlx_model_store().download_and_wait(name, progress, should_stop))
 
 
 def _check_mlx(name: str) -> str:
