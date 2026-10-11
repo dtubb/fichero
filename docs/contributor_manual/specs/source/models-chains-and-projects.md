@@ -2827,12 +2827,12 @@ Setup
   again on Replay, 3 to 5 seconds; with Reduce Motion it shows its last frame still. It plays on the
   person's own sample page when the stage was tried (the sample's picture and what the try made), else on
   the example page shipped with the app (Diálogo de la Lengua, p. 18: regions, lines, reading, names and
-  dates worked out once and kept with its licence and credit). Drawn in SwiftUI; one Metal shader, a light
+  dates worked out once and kept with its licence and credit). Drawn in SwiftUI alone (no Metal shader, so no build needs the Metal toolchain); a light
   sweeping the page, for Prepare Images and Read. *Test:* pure Swift, the try's page is chosen over the
   example; every stage has a picture; Reduce Motion gives the last frame; the example's data decodes and
   every box lies on its image. **Built 2026-10-11 (app), not yet seen:** `StageShowcaseSection` at the top of
   `SetupStagePage`; `StageShowcaseView` plays it (a TimelineView, Replay, Reduce Motion's last frame); the thirteen
-  pictures in `StagePictures+Page.swift` and `StagePictures+Knowledge.swift` over `StagePageLayer`; `ScanSweep.metal`;
+  pictures in `StagePictures+Page.swift` and `StagePictures+Knowledge.swift` over `StagePageLayer`; the light's sweep a SwiftUI gradient band (`scanSweep`);
   the example in `Resources/StageShowcase` with its credit shown under it (`ShowcaseCredit`). Pinned by
   `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift` and
   `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`.

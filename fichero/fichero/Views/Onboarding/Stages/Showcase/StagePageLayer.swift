@@ -87,11 +87,21 @@ enum ShowcasePictures {
 }
 
 extension View {
-    /// A light sweeping down the page, `progress` 0 at the top to 1 at the foot (the one Metal shader,
-    /// `ScanSweep.metal`, used by Prepare Images and Read).
-    func scanSweep(progress: Double, height: CGFloat, band: CGFloat = 26, lift: Double = 0.28) -> some View {
-        colorEffect(ShaderLibrary.scanSweep(.float(Float(progress) * Float(height)), .float(Float(band)),
-                                            .float(Float(lift))))
+    /// A light sweeping down the page, `progress` 0 at the top to 1 at the foot (Prepare Images and Read): a soft
+    /// white band, clear at its edges, over the view and clipped to its frame. SwiftUI only, so no build needs the
+    /// Metal toolchain for it.
+    func scanSweep(progress: Double, height: CGFloat, band: CGFloat = 26, lift: Double = 0.35) -> some View {
+        overlay(alignment: .top) {
+            LinearGradient(
+                stops: [.init(color: .clear, location: 0), .init(color: .white.opacity(lift), location: 0.5),
+                        .init(color: .clear, location: 1)],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: band * 2)
+            .offset(y: CGFloat(progress) * height - band)
+            .allowsHitTesting(false)
+        }
+        .clipped()
     }
 }
 
