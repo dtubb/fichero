@@ -1004,6 +1004,16 @@ def _opening_caller() -> str:
             return f"{path.rsplit('/fichero_server/', 1)[-1]}:{frame.lineno} {frame.name}"
     return "unknown"
 
+
+_REPAIR_LOCKS: dict[str, threading.Lock] = {}
+_REPAIR_LOCKS_GUARD = threading.Lock()
+
+
+def _repair_lock(path: str) -> threading.Lock:
+    """The one lock a library's index repair runs under (`Database._repair_indexes_once`)."""
+    with _REPAIR_LOCKS_GUARD:
+        return _REPAIR_LOCKS.setdefault(path, threading.Lock())
+
 class Database(DatabaseEmbeddingMixin):
     """Simple Pythonic wrapper for DuckDB + LanceDB."""
 
@@ -1165,7 +1175,15 @@ class Database(DatabaseEmbeddingMixin):
         """Rebuild the secondary indexes once for every library, repairing any a replay wrote stale
         before the fix (#5644; why, measured: `core/duckdb_session.py`'s note). After a crash the
         rebuild already happened in `connect_utc`; this is the library's own record that it is sound.
+
+        One thread at a time per library: two embedding workers opening the same project at once
+        each dropped and re-created its indexes together, and DuckDB crashed the process
+        (segmentation fault in `rebuild_secondary_indexes`, M4 suite 2026-10-11).
         """
+        with _repair_lock(str(self.path)):
+            self._repair_indexes_once_locked()
+
+    def _repair_indexes_once_locked(self) -> None:
         conn = self.conn
         has_settings = bool(conn.execute(
             "SELECT 1 FROM duckdb_tables() WHERE table_name = 'librarysettings'"
