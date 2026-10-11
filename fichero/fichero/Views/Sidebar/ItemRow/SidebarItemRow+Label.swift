@@ -95,8 +95,15 @@ extension SidebarItemRow {
             documentProcessing: documentIsProcessing,
             containerProgress: activity.progress,
             containerSummary: activity.summary,
-            isDefaultWorkflowFolder: item.isDefaultWorkflowFolder
+            // The purple workflow-folder look: Default Workflows and what is in it, and the Workflows folder that
+            // holds them (2026-10-11), which has no lock (`rowIsLocked`).
+            isDefaultWorkflowFolder: item.isDefaultWorkflowFolder || rowIsWorkflowsFolder
         )
+    }
+
+    var rowIsWorkflowsFolder: Bool {
+        if case .document(let doc) = item.itemType { return doc.isWorkflowsFolder }
+        return false
     }
 
     /// System-seeded rows are read-only — the trailing lock says so at a

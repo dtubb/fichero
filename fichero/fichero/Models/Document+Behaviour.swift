@@ -96,7 +96,7 @@ extension Document {
     /// The purple "system/workflow" icon treatment — a VISUAL family cue,
     /// deliberately separate from the lock: every workflow node is purple,
     /// locked or not.
-    var usesWorkflowTint: Bool { isWorkflowNode || isReadOnly }
+    var usesWorkflowTint: Bool { isWorkflowNode || isReadOnly || isWorkflowsFolder }
 
     /// A folder the user may drop items INTO. A read-only system folder is
     /// not one: the engine 403s the move, so lighting the cell and then
@@ -114,7 +114,7 @@ extension Document {
     /// a legacy preset folder RE-HOMED under the container without a
     /// backfilled `read_only` (#4200); everything else needs no argument.
     func displaySymbol(treatAsLockedFolder: Bool = false) -> String {
-        if docType == .folder, treatAsLockedFolder || isReadOnly {
+        if docType == .folder, treatAsLockedFolder || isReadOnly || isWorkflowsFolder {
             return "folder.badge.gearshape"
         }
         if isWorkspace { return "square.grid.2x2" }
@@ -161,6 +161,14 @@ extension Document {
     /// its system subfolders are ids in the `"\(id):…"` namespace. Mirrors
     /// `_DEFAULT_WORKFLOWS_CONTAINER_ID` in `fichero-server/src/fichero_server/db/__init__.py`.
     static let defaultWorkflowsContainerID = "system-default-workflows"
+
+    /// Stable id of the engine's "Workflows" root folder, which holds the person's workflows and the locked Default
+    /// Workflows (`_WORKFLOWS_CONTAINER_ID`).
+    static let workflowsFolderID = "system-workflows"
+
+    /// The Workflows folder: drawn with the workflow-folder look Default Workflows has, without its lock (Daniel,
+    /// 2026-10-11). It is not read-only, so it takes drops and a rename like any folder.
+    var isWorkflowsFolder: Bool { id == Self.workflowsFolderID && docType == .folder }
 
     /// The container itself, or a subfolder the engine SEEDED into its id
     /// namespace. A fast path only: it says where a row's id came from, not
