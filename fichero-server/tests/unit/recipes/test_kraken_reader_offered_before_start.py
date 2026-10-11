@@ -9,14 +9,14 @@ of it" -- it held for spaCy pipelines only.
 from __future__ import annotations
 
 from fichero_server.recipes.start import _kraken_reader_here as REAL_CHECK  # before conftest's autouse stands in
-from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save
+from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save, pages  # noqa: F401 (fixture)
 
 READER = "kraken-zenodo-21788410"
 READ = {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.21788410"}}
 LINES = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"}}
 
 
-def test_a_kraken_reader_not_on_this_mac_is_offered_and_start_waits(client, tmp_path, monkeypatch):
+def test_a_kraken_reader_not_on_this_mac_is_offered_and_start_waits(client, pages, tmp_path, monkeypatch):
     from fichero_server.recipes import start
 
     monkeypatch.setattr(start, "_kraken_reader_here", lambda name: False)

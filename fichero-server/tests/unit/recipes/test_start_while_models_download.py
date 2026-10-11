@@ -17,7 +17,7 @@ from fichero_server.execution import jobs
 from fichero_server.llm.local_models import DOWNLOAD_KIND
 from fichero_server.recipes import runner
 from tests.unit.recipes.test_kraken_reader_offered_before_start import LINES, READ, READER
-from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save
+from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save, pages  # noqa: F401 (fixture)
 
 PROGRESS = "Downloading the Kraken reader kraken-zenodo-21788410: 12 MB of 40 MB"
 
@@ -41,7 +41,7 @@ def _plan(client, tmp_path, monkeypatch):
 
 
 def test_a_model_downloading_does_not_refuse_start_and_says_it_is_downloading(
-        jobs_run_by_the_test, client, db, tmp_path, monkeypatch):
+        jobs_run_by_the_test, client, db, pages, tmp_path, monkeypatch):
     download_job = _downloading(db)
 
     plan = _plan(client, tmp_path, monkeypatch)
@@ -62,7 +62,7 @@ def test_a_model_downloading_does_not_refuse_start_and_says_it_is_downloading(
 
 
 def test_a_model_neither_here_nor_downloading_is_fetched_by_start(
-        jobs_run_by_the_test, client, db, tmp_path, monkeypatch):
+        jobs_run_by_the_test, client, db, pages, tmp_path, monkeypatch):
     """#5664: Ready says what Start will fetch; Start queues the download itself and the steps on it wait."""
     finished = _downloading(db)
     _end(db, finished, "failed", "the network went away")  # an ended download is not under way
@@ -88,7 +88,7 @@ def test_a_model_neither_here_nor_downloading_is_fetched_by_start(
 
 
 def test_a_model_that_cannot_be_downloaded_still_refuses_start(
-        jobs_run_by_the_test, client, db, tmp_path, monkeypatch):
+        jobs_run_by_the_test, client, db, pages, tmp_path, monkeypatch):
     from fichero_server.llm import local_models
 
     def cannot(db, runtime, name, **kw):

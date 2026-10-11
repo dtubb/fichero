@@ -1395,6 +1395,11 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local)
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
+    elif within is None and not pages["pages"]:
+        # Nothing to run on: said, not run (seen 2026-10-11, a Start whose material never arrived ran every step
+        # on nothing and failed each, "not run on 1 of 0 folders").
+        plan["refusals"] = [*plan["refusals"], "the project has no pages yet: add a folder or files to it, then "
+                                               "press Start"]
     annotate(db, plan, unfinished, within)
     return plan
 

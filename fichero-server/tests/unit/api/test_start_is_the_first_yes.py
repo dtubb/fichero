@@ -75,6 +75,7 @@ def test_the_plan_is_shown_before_anything_runs_with_the_page_count(client, db):
 def test_start_records_the_first_yes_and_can_be_taken_back(client, db, test_package):
     """The yes names the recipe version it was given on, lives in the project folder, and is
     undoable like every change."""
+    _pages(db)  # a project with no pages refuses Start (2026-10-11)
     _save(client, RECIPE)
     r = client.post("/api/recipes/project/start")
     assert r.status_code == 200, r.text
@@ -116,19 +117,21 @@ def test_a_recipe_the_app_saves_from_assemble_is_a_whole_recipe(client):
     assert client.post("/api/recipes/check", json={"recipe": recipe}).json()["problems"] == []
 
 
-def test_the_default_spanish_handwriting_recipe_starts_as_assembled(client):
+def test_the_default_spanish_handwriting_recipe_starts_as_assembled(client, db):
     """Setup proposes only readers this Mac can run (a Kraken reader outside its catalogue, such as
     PP-OCRv6, is not a candidate), so the recipe the rules assemble for Spanish handwriting can be
     started as proposed: a recipe setup offers and Start then refuses is a broken promise."""
+    _pages(db)
     _save(client, _assembled(client))
     plan = client.get("/api/recipes/project/start").json()
     assert plan["refusals"] == [], plan["refusals"]
     assert plan["workflows"]
 
 
-def test_with_a_reader_this_mac_can_fetch_the_default_recipe_starts_and_records_its_version(client):
+def test_with_a_reader_this_mac_can_fetch_the_default_recipe_starts_and_records_its_version(client, db):
     """Swap the reader for McCATMuS (as a person can in the Inspector) and the same assembled
     recipe starts: the yes names the recipe's version and both runs."""
+    _pages(db)
     recipe = _assembled(client)
     for step in recipe["steps"]:
         if step["job"] == "read-a-line":
