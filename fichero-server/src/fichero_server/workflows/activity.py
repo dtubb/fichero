@@ -139,7 +139,7 @@ class ActivityTracker:
             try:
                 self.store.save_now(activity)
             except Exception:  # noqa: BLE001 -- a status row must never fail the work it describes
-                logger.error("Activity could not be saved: %s", activity.message, exc_info=True)
+                logger.exception("Activity could not be saved: %s", activity.message)
             return
 
         if self._event_loop is not running_loop:
