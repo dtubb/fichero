@@ -173,6 +173,9 @@ Both issues are already on this milestone (#291); no new issues were needed.
   no other type has the soft-delete/restore/purge pattern. This is the FRONTEND-and-other-types
   remainder `delete.subtree-only`/`.selection-safe`/`.multi` above don't cover — those pin the
   Document-delete MECHANICS; this pins whether a deleted item can be found and undone again.
+  **Designed 2026-10-10 in `source/trash.md`** (`trash.*`: a Trash per project and for the
+  always-there project, the sidebar row, Put Back, Empty Trash, knowledge on trashed pages), the
+  sibling of `source/moving-between-projects.md`, whose moves send their source to the Trash.
 
 ### Legacy milestone fold — three issues redirected from "UX - Library & Reading Surface"
 
