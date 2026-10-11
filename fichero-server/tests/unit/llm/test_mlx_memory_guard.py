@@ -63,8 +63,9 @@ def test_a_model_too_big_for_this_mac_is_refused_with_a_smaller_model():
 
 
 def test_no_smaller_model_is_suggested_when_none_fits():
+    # 2 GB: below every vision model in the catalogue (the COMMA reader, #5665, needs 4 GB and fits a 4 GB Mac).
     with pytest.raises(LocalModelMemoryUnavailableError) as refusal:
-        assert_fits(BIG, free_gb=1, ram_gb=4)
+        assert_fits(BIG, free_gb=1, ram_gb=2)
     assert "smaller model" not in str(refusal.value)
 
 

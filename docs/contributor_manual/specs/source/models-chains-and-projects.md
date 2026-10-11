@@ -1480,9 +1480,10 @@ combinations the rules propose:
 
 - **Combinations, not single models.** For each chain of steps (find lines then read; read then
   correct), the bake-off ranks whole candidate pipelines: for example three line finders by three
-  readers. The rules prune first, so it stays small: the top three per step by rule rank, then at
-  most **nine combinations**, keeping those with the best summed rule rank. All run on the same
-  pages.
+  readers. It stays small: at most **two of each kind** per step (Kraken, Apple Vision, an MLX vision
+  model, a cloud reader), drawn from everything the finder found, then at most **nine combinations**.
+  All run on the same pages. **Ruled 2026-10-11: no fixed ranking decides; the bake-off does.** The rules'
+  order only chooses which two of a kind take part; the default is whichever is measured best.
 - **Tesseract is in every bake-off for print and typescript**, as the fast local baseline, when it
   has data for the language; never for handwriting.
 - The table shows, per combination: accuracy per hand and page kind, cost for the whole volume,
@@ -3141,7 +3142,13 @@ Trying another option
   combination's) choice for the project or for one folder, stored as an override on the recipe.
 - `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
   options and can be run again later.
-- `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951, #5660) **Built 2026-10-11 (engine,
+- `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951, #5660) **Changed 2026-10-11 (ruled: search
+  wide, the bake-off decides):** the readers taking part are at most two of each kind (`bakeoff.PER_KIND`) from
+  what the finder found (shipped cards, the models here, Kraken's repository, Hugging Face, and the person's
+  remote endpoints), those that can be scored here first; there is no rules' top three, and a language with no
+  Kraken reader still has its Hugging Face and remote contenders. `GET /api/recipes/project/bakeoffs` says who
+  would take part and what reading the sample would cost before it starts (`next_run`: each candidate's
+  `run_cost_usd`, the total, a sentence). Pinned by `fichero-server/tests/unit/recipes/test_reader_search_wide_5660.py`. **Built 2026-10-11 (engine,
   #5660 item 7):** one of each kind of reader beside the rules' top three (Kraken, Apple Vision read on this Mac,
   an MLX vision model, a cloud reader only where pages may leave; a kind that cannot read here listed with why,
   never faked), each row with WER beside CER; the line finders compared with `step: find-lines` (Kraken's
@@ -3298,6 +3305,18 @@ Finding models
   answers. Since #5593 (2026-10-08) what a search finds is kept and the rules choose from it
   (`in_recipe_rules: true`; `source.find.found-reader-downloads`). Residue: the Hub's listing states
   no size or memory for a found build.*
+- `source.find.wide-every-time` — **[PARTIAL]** (#5660, ruled 2026-10-11; #5665) the finder searches every time, not as a
+  fallback: Kraken's repository, Hugging Face, and the person's remote endpoints (their provider rows' vision
+  models, a source of its own, `discovery.remote_reader_cards`, offered and never the rules'). On Hugging Face it
+  asks by the tags HTR models are published under (`discovery.HTR_TAGS`: htr, handwritten-text-recognition, catmus,
+  palaeography, paleography, manuscripts; and ocr with a language), alone and with each project language, as well
+  as by name; it ranks a language match first, then downloads; each listing says how it can run here (an MLX build,
+  Fichero's MLX catalogue, or "transformers only" / "a GGUF build": cannot run yet). The COMMA reader
+  (`wjbmattingly/comma-qwen-3.5-0.8b-full-33k`, medieval Latin, CATMuS, Apache-2.0) is a shipped card fetched by
+  Fichero's MLX catalogue as its Hugging Face checkpoint (mlx-vlm 0.6.17 reads `qwen3_5`), untested inside Fichero
+  yet. Pinned by `fichero-server/tests/unit/recipes/test_reader_search_wide_5660.py` (a Latin project finds the COMMA reader by its tags; a German one finds trocr-kurrent and says
+  it cannot run yet). *Not built: running a transformers-only reader; converting one with `mlx_vlm.convert` on
+  download.*
 - `source.find.hub-readers-only` — **[OK]** (#5594; built 2026-10-08: `discovery.reads_text`, `left_out` in `keep_hub` and the source; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`) a Hugging Face result is a reader candidate only
   when its listing says it reads text from images: published as image-to-text, or a vision-language
   model (image-text-to-text) whose tags or name say OCR, HTR, text recognition or document reading. A

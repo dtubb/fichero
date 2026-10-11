@@ -14668,7 +14668,7 @@
           "recipes"
         ],
         "summary": "Start Bakeoff",
-        "description": "Compare the readers on the project's corrected sample pages: the top three by rule rank, one of each kind\nbeside them (Kraken, Apple Vision, an MLX vision model, a cloud reader where a provider is set up and pages may\nleave; a kind that cannot read here is listed with why), and Tesseract for print when it has the language,\neach scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With\n`step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a\n`compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages\n(saying how many more), for a project not set up, or when no candidate can be scored on this Mac.",
+        "description": "Compare the readers on the project's corrected sample pages: at most two of each kind from what the finder\nfound (Kraken, Apple Vision, an MLX vision model from this Mac or Hugging Face, a cloud reader at the person's\nremote endpoints where pages may leave; ruled 2026-10-11, no fixed ranking: the measured best wins; a kind that\ncannot read here is listed with why; `GET` says who and the cost first), and Tesseract for print when it has the\nlanguage,\neach scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With\n`step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a\n`compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages\n(saying how many more), for a project not set up, or when no candidate can be scored on this Mac.",
         "operationId": "start_bakeoff_api_recipes_project_bakeoffs_post",
         "parameters": [
           {
@@ -50077,6 +50077,51 @@
         ],
         "title": "BackgroundPauseResponse"
       },
+      "BakeoffContender": {
+        "properties": {
+          "card": {
+            "type": "string",
+            "title": "Card"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local"
+          },
+          "not_scored": {
+            "type": "string",
+            "nullable": true,
+            "title": "Not Scored",
+            "description": "why it would be listed but not scored"
+          },
+          "run_cost_usd": {
+            "$ref": "#/components/schemas/Figure",
+            "description": "reading the sample pages: nothing on this Mac, the price list in the cloud"
+          }
+        },
+        "type": "object",
+        "required": [
+          "card",
+          "role",
+          "runs_on",
+          "local",
+          "run_cost_usd"
+        ],
+        "title": "BakeoffContender",
+        "description": "A reader that would take part in a bake-off started now, and what reading the sample would cost."
+      },
       "BakeoffLeftOut": {
         "properties": {
           "document_id": {
@@ -50106,6 +50151,11 @@
           },
           "readiness": {
             "$ref": "#/components/schemas/BakeoffReadiness"
+          },
+          "next_run": {
+            "$ref": "#/components/schemas/BakeoffNextRun",
+            "nullable": true,
+            "description": "who would take part in a bake-off started now and what it would cost; null before setup"
           }
         },
         "type": "object",
@@ -50114,6 +50164,46 @@
           "readiness"
         ],
         "title": "BakeoffList"
+      },
+      "BakeoffNextRun": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/BakeoffContender"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the sample pages it would read"
+          },
+          "run_cost_usd": {
+            "type": "number",
+            "title": "Run Cost Usd",
+            "description": "the cloud readers' cost on the sample; 0 when every reader is local"
+          },
+          "cost_known": {
+            "type": "boolean",
+            "title": "Cost Known",
+            "description": "false when a cloud reader's price is not known: the total is a lower bound"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidates",
+          "pages",
+          "run_cost_usd",
+          "cost_known",
+          "sentence"
+        ],
+        "title": "BakeoffNextRun",
+        "description": "Who would take part in a bake-off started now and what it would cost, said before it starts (ruled\n2026-10-11): at most two readers of each kind, from what the finder found."
       },
       "BakeoffPage": {
         "properties": {
@@ -50347,7 +50437,7 @@
               "contender"
             ],
             "title": "Role",
-            "description": "why it takes part: the rules' top three, the print baseline, or one of each kind of reader or line finder beside them (Kraken, Apple Vision, an MLX vision model, a cloud reader; #5660 item 7)"
+            "description": "why it takes part: a contender of its kind (at most two of each: Kraken, Apple Vision, an MLX vision model, a cloud reader; ruled 2026-10-11, no fixed ranking), or the print baseline. 'rule rank' only in a bake-off kept from before"
           },
           "rule_rank": {
             "type": "integer",
@@ -51670,7 +51760,9 @@
               "shipped",
               "installed",
               "kraken-repository",
-              "hugging-face"
+              "hugging-face",
+              "remote",
+              "remote-endpoints"
             ],
             "title": "Source"
           },
@@ -71673,7 +71765,9 @@
               "shipped",
               "installed",
               "kraken-repository",
-              "hugging-face"
+              "hugging-face",
+              "remote",
+              "remote-endpoints"
             ],
             "title": "Source"
           },
