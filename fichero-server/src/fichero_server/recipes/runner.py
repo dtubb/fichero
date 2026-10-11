@@ -798,26 +798,37 @@ def _halted(cards: list[dict[str, Any]], steps: list[dict[str, Any]]) -> str | N
 
 
 def _failures_words(db: Any, cards: list[dict[str, Any]], steps: list[dict[str, Any]], total: int) -> str:
-    """"step lines, read failed on 1 of 4 folders (B: why)", for each step with a batch it failed or did not run."""
+    """"step lines, read failed on 1 of 4 folders (B: why)": each cause said once, with every step it failed or
+    did not run ("2 steps (correct; translate) did not run: why"), never once a step (seen 2026-10-11: one download
+    failure said eight times). With no folders counted, no count ("1 of 0 folders" was said)."""
     from fichero_server.models import Document
 
     def name(folder: str | None) -> str:
         doc = db.get(Document, folder) if folder else None
         return doc.name if doc is not None else "pages in no folder"
 
-    out = []
+    # (verb, why) -> the steps, and the folders, it was said of; in the order first met.
+    causes: dict[tuple[str, str], dict[str, dict]] = {}
     for card, step in zip(cards, steps):
-        for state, verb in (("failed", "failed"), ("not run", "not run")):
-            bad = [b for b in step.get("failed_batches") or [] if b["state"] == state]
-            if not bad:
-                continue
-            by_folder: dict[str | None, str] = {}
-            for b in bad:
-                by_folder.setdefault(b["folder"], b["why"] or "no reason given")
-            shown = [f"{name(f)}: {why}" for f, why in list(by_folder.items())[:3]]
-            more = f"; and {len(by_folder) - 3} more" if len(by_folder) > 3 else ""
-            out.append(f"step {', '.join(card['steps'])} {verb} on {len(by_folder)} of {total} "
-                       f"{'folder' if total == 1 else 'folders'} ({'; '.join(shown)}{more})")
+        named = ", ".join(card["steps"])
+        for state, verb in (("failed", "failed"), ("not run", "did not run")):
+            for b in step.get("failed_batches") or []:
+                if b["state"] != state:
+                    continue
+                cause = causes.setdefault((verb, b["why"] or "no reason given"), {"steps": {}, "folders": {}})
+                cause["steps"][named] = None
+                cause["folders"][b["folder"]] = None
+    out = []
+    for (verb, why), cause in causes.items():
+        named = list(cause["steps"])
+        head = f"step {named[0]}" if len(named) == 1 else f"{len(named)} steps ({'; '.join(named)})"
+        if not total:
+            out.append(f"{head} {verb}: {why}")
+            continue
+        folders = list(cause["folders"])
+        shown = ", ".join(name(f) for f in folders[:3]) + (f" and {len(folders) - 3} more" if len(folders) > 3 else "")
+        out.append(f"{head} {verb} on {len(folders)} of {total} {'folder' if total == 1 else 'folders'} "
+                   f"({shown}: {why})")
     return "; ".join(out)
 
 

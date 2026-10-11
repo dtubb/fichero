@@ -2496,7 +2496,11 @@ Projects
   batch does not end the run: the step's failed batches are kept on it (`failed_batches`: the folder, the step's
   job on it, why), and the run carries on to the next batch, so one bad page no longer holds an 800-folder run at
   the same folder on every Start. A run with failures ends failed, its row saying "Done with failures: step
-  lines, read failed on 1 of 4 folders (B: why)" and how many folders it finished; its summary lists each failed
+  lines, read failed on 1 of 4 folders (B: why)" and how many folders it finished. **(2026-10-11)** Each cause
+  is said once, with every step it stopped ("2 steps (correct; translate-transliterate-normalise) did not run:
+  why"), never once a step, and with no folders counted the row names no count (it said "1 of 0 folders"; seen on a
+  first-run onboarding, one download failure said eight times; `runner._failures_words`,
+  `fichero-server/tests/unit/recipes/test_one_failure_one_line.py`). Its summary lists each failed
   batch's pages with Read Again for just those (`source.onboard.auto.results-summary`), and the next Start offers
   the step again (`source.recipe.done-is-not-redone` skips the pages it did). A step that fails **outright** on a
   batch (it did none of the batch's pages: a missing model, the step itself crashing) on 3 batches in a row stops
