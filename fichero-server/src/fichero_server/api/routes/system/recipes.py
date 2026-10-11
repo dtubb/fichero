@@ -1003,6 +1003,11 @@ class StartDownload(BaseModel):
     instead: list[StartInstead] = Field(default_factory=list, description=(
         "installed models this Mac can serve for the same steps, each usable instead in one press "
         "(POST /api/recipes/project/start/use-instead; source.onboard.auto.installed-model-first)"))
+    downloading: bool = Field(default=False, description=(
+        "a download-model job is already fetching it: Start is not refused for it, and its steps wait for it to "
+        "land (#5660)"))
+    progress: Optional[str] = Field(default=None, description="how far the download has got, as its job last said it")
+    job_id: Optional[str] = Field(default=None, description="the download-model job fetching it, while downloading")
 
 
 class ProposedStep(BaseModel):
@@ -1031,6 +1036,9 @@ class StartPlan(BaseModel):
     skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
     offered: list[str] = Field(description="steps offered later (training), never run at Start")
     refusals: list[str] = Field(description="Start is refused while this is not empty")
+    waiting: list[str] = Field(default_factory=list, description=(
+        "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
+        "when it lands (#5660)"))
     downloads: list[StartDownload] = Field(default_factory=list, description=(
         "models the steps are pinned to that are not on this Mac, each offered as a download "
         "(source.recipe.missing-model-offered)"))
@@ -1069,7 +1077,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     # added layer proposes for the material already there, and what did not finish.
     only = set(proposal["steps"]) | set(unfinished) if started and proposal else None
     plan = plan_start(setup["recipe"], stays_local=stays_local, only=only,
-                      job_answers=(setup["answers"] or {}).get("job_answers"))
+                      job_answers=(setup["answers"] or {}).get("job_answers"), db=db)
     within = runner.folder_scope(db, folder_id) if folder_id else None
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])

@@ -63,16 +63,19 @@ def _plan(db: Any) -> dict[str, Any]:
     stays_local = not answers.get("cloud_allowed", False)
     # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
     return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
-                      job_answers=answers.get("job_answers"))
+                      job_answers=answers.get("job_answers"), db=db)
 
 
 def enqueue(db: Any, plan: dict[str, Any], *, documents: list[str] | None, started_by: str,
             redo: list[str] | None = None, folder_id: str | None = None) -> str:
     """Queue one run of the plan; `documents` None is all the project's material, or with `folder_id` that
     folder's (`source.recipe.folder-scoped-start`); `redo` names the steps to run again on pages that already have
-    their output (`source.recipe.done-is-not-redone`)."""
+    their output (`source.recipe.done-is-not-redone`). The downloads the plan found under way are kept on the run,
+    so each step on one waits for it to land (`awaited`, #5660)."""
+    awaited = [{"steps": d["steps"], "job_id": d["job_id"], "name": d.get("name") or d["model"]}
+               for d in plan.get("downloads") or [] if d.get("downloading")]
     detail = {"runs": plan["runs"], "skipped": plan["skipped"], "documents": documents, "redo": list(redo or []),
-              "folder_id": folder_id}
+              "folder_id": folder_id, "awaited": awaited}
     words = "Waiting to run the recipe" + (f" on {len(documents)} new pages" if documents is not None else
                                            " on one folder" if folder_id else "")
     return jobs.enqueue_remote(db, KIND, f"recipe:{uuid.uuid4()}", target="this-mac", detail=json.dumps(detail),
@@ -498,6 +501,32 @@ def run(db: Any, subject: str) -> dict[str, Any]:
 STOPPED_BEFORE = "the run was stopped before this step"
 
 
+def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any]) -> str | None:
+    """Wait for the downloads this card's steps need that were under way when Start was pressed (`awaited`, #5660):
+    the step runs once each has landed. Why it cannot run, in words, when one ended without landing or the run was
+    stopped while waiting; None to run it. A download that has landed is noted, so later batches do not wait."""
+    for entry in detail.get("awaited") or []:
+        if entry.get("landed") or not set(entry["steps"]) & set(card["steps"]):
+            continue
+        said = False
+        while True:
+            _closed_stops_the_recipe(db, parent=job_id)
+            if _stop_asked(job_id):
+                return STOPPED_BEFORE
+            row = jobs.read_job(db, entry["job_id"])
+            if row is None or row["state"] == "done":  # a row cleared away is a download that finished
+                entry["landed"] = True
+                break
+            if row["state"] in ("failed", "cancelled"):
+                return f"its model {entry['name']} did not download: {row['reason'] or row['state']}"
+            if not said:
+                jobs.save_detail(db, job_id, json.dumps(detail),
+                                 reason=f"Waiting for {entry['name']} to download for step {', '.join(card['steps'])}")
+                said = True
+            time.sleep(_CHECK_POLL_SECONDS)
+    return None
+
+
 #: ponytail: the most pages a batch hands a step at once (`source.recipe.batch-at-archive-scale`, rule 9 of
 #: `compute/jobs-and-fine-tuning.md`): a batch is one folder, or this many of its pages, whichever is smaller. A
 #: photograph cut into pages counts once (its pages go with it), so a batch can hold a few more pages than this.
@@ -770,7 +799,7 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             here[index]["state"] = "not run"
             _settle(step, "not run", None, STOPPED_BEFORE)
             continue
-        blocked = _blocked(cards, here, index)
+        blocked = _blocked(cards, here, index) or _await_downloads(db, job_id, detail, card)
         if blocked:
             here[index]["state"] = "not run"
             _settle(step, "not run", None, blocked)

@@ -178,7 +178,8 @@ def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | Non
 
 
 def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None = None,
-               automatic: dict | None = None, job_answers: dict | None = None) -> dict[str, Any]:
+               automatic: dict | None = None, job_answers: dict | None = None,
+               db: Any = None) -> dict[str, Any]:
     """What Start would run, in order, what it skips and why, and what refuses it outright.
 
     Returns `{"runs": [...], "workflows": [...], "skipped": [...], "offered": [...], "refusals": [...]}`.
@@ -194,12 +195,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     (`answers.automatic`), given for a run new material starts by itself (an import after Start), never for Start:
     with Nothing runs automatically every step is skipped, else every step not ticked (#5478). `job_answers` are
     setup's answers under a purpose (`answers.job_answers`): each reaches the step it configures as its setting
-    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478).
+    (`JOB_ANSWER_SETTINGS`) where the recipe does not already set it (#5478). With the project's `db`, a model
+    already downloading does not refuse Start: its download is marked `downloading` (with its progress), `waiting`
+    says so in words, and the run's steps on it wait for it to land (#5660, #5583).
     """
     from fichero_server.recipes.recipe import check_recipe
 
     if not recipe:
-        return {"runs": [], "workflows": [], "skipped": [], "offered": [],
+        return {"runs": [], "workflows": [], "skipped": [], "offered": [], "waiting": [],
                 "refusals": ["this project has no recipe yet: run setup first"]}
     runs: list[dict[str, Any]] = []
     skipped: list[dict[str, str | None]] = []
@@ -372,7 +375,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     refusals = check_recipe(recipe)
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
     downloads = missing_models(every) + local_models_to_download(every)
-    refusals += [_waits_for(d) for d in downloads]
+    if db is not None:
+        mark_downloads_under_way(db, downloads)
+    # A model that is downloading does not refuse Start: its steps wait for it (#5660); one that is neither here
+    # nor downloading still does.
+    refusals += [_waits_for(d) for d in downloads if not d.get("downloading")]
+    waiting = [_downloading(d) for d in downloads if d.get("downloading")]
     cannot = local_models_this_mac_cannot_serve(every)
     elsewhere = places_elsewhere(every, stays_local=stays_local)
     for entry in elsewhere:  # the refusal of a model this Mac cannot run says what other place, if any, is offered
@@ -384,7 +392,38 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         refusals.append("What runs by itself is “Nothing runs automatically”: new material waits for a run by hand"
                         if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
-            "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere}
+            "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
+            "waiting": waiting}
+
+
+#: A download-model job still under way: waiting for the network lane, fetching, or paused.
+_UNDER_WAY = frozenset({"waiting", "running", "paused"})
+
+
+def mark_downloads_under_way(db: Any, downloads: list[dict[str, Any]]) -> None:
+    """Mark each download the project's queue is already fetching (a `download-model` job not yet ended):
+    `downloading`, its `job_id`, and its `progress` as the job last said it ("Downloading Qwen2.5-VL 7B: 1.2 GB of
+    5.6 GB"), or None (#5660). The job's subject is `<runtime>:<model>`, as `enqueue_download` names it."""
+    from fichero_server.execution import jobs
+    from fichero_server.llm.local_models import DOWNLOAD_KIND
+
+    by_subject = {f"{d['runtime']}:{d['model']}": d for d in downloads}
+    if not by_subject:
+        return
+    for row in sorted(jobs.jobs_on_subjects(db, list(by_subject)), key=lambda r: str(r["created_at"])):
+        if row["kind"] != DOWNLOAD_KIND or row["state"] not in _UNDER_WAY:
+            continue
+        download = by_subject[row["subject"]]
+        download.update(downloading=True, job_id=row["id"], progress=row["reason"] or None)
+
+
+def _downloading(download: dict[str, Any]) -> str:
+    """The plan's words for a download under way: its steps wait for it and run when it lands (#5660)."""
+    steps = ", ".join(download["steps"])
+    name = download.get("name") or download["model"]
+    progress = download.get("progress")
+    return (f"steps {steps} wait for {name}, which is downloading"
+            + (f" ({progress})" if progress else "") + ": they run when it lands")
 
 
 def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
