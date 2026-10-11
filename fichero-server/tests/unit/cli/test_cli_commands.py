@@ -866,6 +866,14 @@ def test_generated_document_commands_attach_to_docs_app():
     assert "list-collections" in result.output
 
 
+def test_a_folders_children_are_listed_by_docs_get_children():
+    """#5678: the CLI lists a folder's children, as the MCP's fichero_documents_get_children does, under the docs
+    group the generated documents commands join (`fichero docs get-children <id>`)."""
+    result = runner.invoke(cli.app, ["--json", "docs", "get-children", "folder-1"])
+    assert result.exit_code == 0, result.output
+    assert _last_client().calls[-1][:3] == ("request", "GET", "/api/documents/folder-1/children")
+
+
 def test_plural_document_group_is_not_exposed_when_docs_app_exists():
     result = runner.invoke(cli.app, ["documents", "--help"])
     assert result.exit_code != 0
