@@ -34,7 +34,7 @@ struct RecipeTrainOffersFields: View {
                             isPresented: Binding(get: { askingToSend != nil }, set: { if !$0 { askingToSend = nil } }),
                             presenting: askingToSend) { pending in
             Button("Send the Pages and Train") { start(pending, pagesMayLeave: true) }
-            Button("Cancel", role: .cancel) {}
+            Button("Cancel", role: .cancel) { askingToSend = nil }
         } message: { pending in
             Text("The project's pages and their lines go to \(pending.target.name) to train the model there.")
         }
