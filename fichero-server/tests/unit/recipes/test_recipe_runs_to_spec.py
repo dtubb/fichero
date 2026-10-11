@@ -197,7 +197,7 @@ def test_a_failed_step_stops_only_the_steps_that_need_it(client, db, pages, step
     assert state[("names",)]["state"] == "failed"
     waiting = state[("statements",)]
     assert waiting["state"] == "not run" and "mentions" in waiting["why"] and "names failed" in waiting["why"]
-    assert run["state"] == "failed" and "correct failed" in run["reason"] and "statements not run" in run["reason"]
+    assert run["state"] == "failed" and "correct failed" in run["reason"] and "statements did not run" in run["reason"]
 
 
 def test_failed_steps_stay_in_the_plan_to_run_again(client, db, pages, steps):

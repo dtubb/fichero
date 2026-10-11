@@ -49,7 +49,7 @@ def test_an_unpinned_model_and_an_unknown_condition_are_refused():
     r["steps"][3]["model"] = {"hf": "some/model"}  # no revision
     r["steps"][3]["when"] = {"moon_phase": "full"}
     found = check_recipe(r, FLAGSHIP)
-    assert any("step 4 (correct): the model" in p for p in found)
+    assert any("step 4 (correct): its model is not named in a way Fichero knows" in p for p in found)
     assert any("moon_phase" in p for p in found)
 
 
