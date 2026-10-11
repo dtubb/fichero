@@ -49,15 +49,18 @@ ENTRIES = [
 ]
 
 
-def _page_xml(width: int, height: int) -> str:
+def _page_xml(width: int, height: int, *, with_words: bool = False) -> str:
+    """The page's lines as Kraken found them: outlines and baselines, no words of their own (`with_words`: a PAGE
+    file that gives each line its words too)."""
     lines = []
     for i, text in enumerate(LINES):
         top = 20 + i * 60
+        words = f"<TextEquiv><Unicode>{text}</Unicode></TextEquiv>" if with_words else ""
         lines.append(
             f'<TextLine id="l{i}" custom="readingOrder {{index:{i};}}">'
             f'<Coords points="20,{top} 580,{top} 580,{top + 40} 20,{top + 40}"/>'
             f'<Baseline points="20,{top + 32} 580,{top + 32}"/>'
-            f"<TextEquiv><Unicode>{text}</Unicode></TextEquiv></TextLine>"
+            f"{words}</TextLine>"
         )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
@@ -72,9 +75,7 @@ def _page_xml(width: int, height: int) -> str:
     )
 
 
-@pytest.fixture
-def page(db, tmp_path, jobs_run_by_the_test):
-    """A diary page whose lines Kraken found, read whole by a model (the page's only text)."""
+def _diary_page(db, tmp_path, *, with_words: bool):
     folder = Document(name="Diary 1942", doc_type=DocType.folder)
     db.save(folder)
     size = (600, 340)
@@ -84,7 +85,7 @@ def page(db, tmp_path, jobs_run_by_the_test):
                    parent_id=folder.id, status=Status.completed)
     db.save(doc)
     xml = tmp_path / "diary.xml"
-    xml.write_text(_page_xml(*size), encoding="utf-8")
+    xml.write_text(_page_xml(*size, with_words=with_words), encoding="utf-8")
     registry.invoke(db, "format.import", {"document_id": doc.id, "path": str(xml)}, BOOT)
     (kraken,) = db.query(SegmentPass, document_id=doc.id)
     kraken.model = "kraken-blla"
@@ -97,6 +98,21 @@ def page(db, tmp_path, jobs_run_by_the_test):
                        provider="openrouter")
     db.save(reading)
     return {"folder": folder, "doc": doc, "kraken": kraken, "text": text, "reading": reading}
+
+
+@pytest.fixture
+def page(db, tmp_path, jobs_run_by_the_test, reader):
+    """A diary page whose lines Kraken found (no words of their own), read whole by a model: the page's only text
+    is that reading, so its lines carry no text until the tie puts the reading on them. Kraken's rough read of
+    each line (the tie's seam) reads its words."""
+    reader.plan = lambda lines: dict(enumerate(LINES))
+    return _diary_page(db, tmp_path, with_words=False)
+
+
+@pytest.fixture
+def page_with_words(db, tmp_path, jobs_run_by_the_test):
+    """The same page, its PAGE file giving each line its own words (as a Transkribus export does)."""
+    return _diary_page(db, tmp_path, with_words=True)
 
 
 def _ok(response):
@@ -179,3 +195,20 @@ async def test_a_page_not_tied_keeps_the_copied_text_and_says_so_until_a_rerun_p
     assert [e["id"] for e in after] == [first["id"], second["id"]]
     assert [e["metadata"]["lines"] for e in after] == [line[:3], line[3:]]
     assert {e["metadata"]["text_from"] for e in after} == {TEXT_FROM_LINES}
+
+
+@pytest.mark.asyncio
+async def test_a_page_whose_lines_carry_their_own_words_is_split_onto_them_without_a_tie(
+        client, db, test_package, page_with_words):
+    """#5654 item 4 (`tie_text.own_line_spans`) beside #5601: a page whose lines carry their own words (a PAGE or
+    ALTO file gave them, or Kraken read them line by line) has no page reading to tie: its text IS its lines'
+    readings, so a split puts each entry on its lines at once. WHY: this test's sibling above once expected such
+    a page to be "not on lines" until a tie ran (its fixture imported the lines with their words); the lines
+    carrying the text is exactly what "on lines" means."""
+    line = [row.id for row in _lines(db, page_with_words["kraken"].id)]
+    result = await _split(test_package, page_with_words)
+    assert result["created_count"] == 2
+    first, second = _entries(client, page_with_words)
+    assert first["metadata"]["lines"] == line[:3] and second["metadata"]["lines"] == line[3:]
+    assert first["metadata"]["text_from"] == second["metadata"]["text_from"] == TEXT_FROM_LINES
+    assert second["page_content"] == "Rain all day. The convoy did not arrive."

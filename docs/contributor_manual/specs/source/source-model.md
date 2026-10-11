@@ -481,10 +481,13 @@ level it was made for.
   (`diary_entries.split_pages_into_entries`) records the lines each entry covers, in order
   (`metadata.lines`, the tied lines under the entry's span of the tied page reading), and the
   documents routes (`GET /api/documents/{id}` and `/children`) read the entry's text from those lines'
-  counting readings, so a correction on a line is the entry's text without a re-run; a page not tied
-  keeps the copied text and the entry says it is not on lines (`metadata.text_from`); a re-run matches
-  the entries and updates their lines. Pinned by `fichero-server/tests/unit/workflows/
-  test_entries_over_lines_5601.py` (2 tests). Not built: the date as the mention on the heading, the
+  counting readings, so a correction on a line is the entry's text without a re-run; a page whose lines
+  carry their own words (a PAGE or ALTO file gave them, or Kraken read them line by line) is on its lines
+  without a tie, its text being its lines' readings (`tie_text.own_line_spans`, #5654 item 4), so a split
+  puts its entries on them at once; a page whose text is only a whole-page reading not yet tied keeps the
+  copied text and the entry says it is not on lines (`metadata.text_from`); a re-run matches the entries
+  and updates their lines. Pinned by `fichero-server/tests/unit/workflows/test_entries_over_lines_5601.py`
+  (3 tests). Not built: the date as the mention on the heading, the
   entry as its own unit row (it is still a child node with a stored text snapshot that search and
   export read), a line shared by two entries split at the heading, and entries split before the tie
   (they gain lines only when re-run).* An entry is a logical unit over the lines it covers; its text is
