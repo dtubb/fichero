@@ -4262,8 +4262,9 @@ class Database(DatabaseEmbeddingMixin):
             return
 
         self._execute(
-            "DELETE FROM documents WHERE node_kind = $kind",
-            {"kind": _WORKFLOW_CONTAINER_NODE_KIND},
+            # "Workflows" shares the kind but holds the person's own workflows: never dropped here.
+            "DELETE FROM documents WHERE node_kind = $kind AND id <> $keep",
+            {"kind": _WORKFLOW_CONTAINER_NODE_KIND, "keep": _WORKFLOWS_CONTAINER_ID},
         )
 
     def _ensure_default_workflows_subfolder(self, folder_path: str | None) -> str:

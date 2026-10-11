@@ -1655,6 +1655,19 @@ class TestWorkflowFold:
         original_mirror = temp_db.get(Document, preset.id)
         assert original_mirror.attributes["read_only"] is True
 
+    def test_dropping_default_workflows_keeps_the_persons_workflows(self, temp_db):
+        """Healing a project of the old presets drops "Default Workflows", never "Workflows" (same node kind)."""
+        temp_db.save(Workflow(name="Catalogue", is_system=True, is_template=True))
+        mine = Workflow(name="My reading")
+        temp_db.save(mine)
+        assert temp_db.get(Document, mine.id).parent_id == "system-workflows"
+
+        temp_db.delete_default_workflow_container_nodes()
+
+        assert temp_db.get(Document, "system-default-workflows") is None
+        assert temp_db.get(Document, "system-workflows") is not None
+        assert temp_db.get(Document, mine.id).parent_id == "system-workflows"
+
     # -- Read-only enforcement ("yes, enforce") -----------------
 
     def test_update_is_system_workflow_rejected_403(self, temp_db):
