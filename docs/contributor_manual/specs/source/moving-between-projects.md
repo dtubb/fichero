@@ -7,7 +7,11 @@
 > themselves); undoing a move; copying to another Mac or a server; dragging items out to the Finder;
 > the Trash (`safety/trash.md`).
 >
-> **Status: DRAFT — 2026-10-10.** Issues: #2397 (move between projects), #4311 (copy between projects,
+> **Status: DRAFT — 2026-10-10, revised the same day** after an adversarial review (eleven
+> findings: tables the id map forgot, the pending move's visibility in the source, Empty Trash and
+> undo durability, linked files between machines, synced folders, episodes, vocabulary with one
+> key and different fields); the id map's inventory is now code
+> (`fichero_server/transfer/id_map_classification.py`). Issues: #2397 (move between projects), #4311 (copy between projects,
 > and dragging out to the Finder), tracked by #5657. Written to be implemented next: every claim about
 > the code is **VERIFIED** on disk at `52b7b1f65` with a path, or marked **INFERRED**. Related:
 > `safety/trash.md` (the per-project Trash a move sends its source to), `ui/sidebar-crud.md` (drag
@@ -169,7 +173,26 @@ All paths below are under `fichero-server/src/fichero_server/`.
 - **Canvases.** `CanvasLayout` (`models/canvas.py:118`): one position per (folder, item), id
   `"{folder_id}::{item_id}"`; `CanvasItem` (`:160`): standalone content on a folder's canvas.
   A workspace is a document whose curated items point at entities or documents by id
-  (`documents.py:1176`, `patch_workspace_items`).
+  (`documents.py:1176`, `patch_workspace_items`). A canvas **link** item joins two other items by
+  `source_item_id` / `target_item_id`, which may name documents, entities, claims or other canvas
+  items (`models/canvas.py:160-186`). The retained 3D spatial rooms: `SpatialNode.source_id` names
+  the item a node shows, `SpatialConnection.source_node_id` / `target_node_id` join two nodes, and
+  a room id doubles as a folder id (`models/canvas.py:37-100`, #2293).
+- **Palaeography and signs** (VERIFIED at `99adaab9a`). `HandAttribution` (`models/hands.py:55`:
+  `hand_id`, `segment_id`) says which hand wrote a segment; `LetterformDescription`
+  (`models/letterforms.py:55`: `segment_id`, `allograph_id`, `hand_id`, and `character`, which is
+  text or a declared sign's id) describes one mark. `Hand` and `Allograph` are project records
+  shared across sources. `DeclaredSign` (`models/signs.py:56`) is a sign in the project's sign list
+  whose picture is a real segment on a real page (`picture_segment_id`).
+- **Correction episodes** (VERIFIED at `99adaab9a`). The episode ledger is append-only JSONL inside
+  the package, `<package>/episodes/YYYY-MM.jsonl` (`observability/episodes.py:65`), not a table. A
+  record carries `episode_id`, `subject` (`document_id`, `document_ids`, `line_ids`, `artifact_id`,
+  `stale_artifact_ids`, `target_id`, by caller), `run` (`thread_id`, `workflow_id`), and for a
+  correction `corrects_episode_id`, for an invalidation `caused_by_episode_id`. `CheckVerdict`
+  (`models/checking.py`) names an `episode_id`.
+- **Synced folders** (VERIFIED at `99adaab9a`). `sync_files` (`sync_folder.py:112`, hand-written
+  SQL, per library) ties a file in a synced folder to a `document_id`.
+- **Every persisted id field, classified** (built at `af6fb01b6`): see "The id map" below.
 - **Between machines.** The transfer core exists, pure and tested, for library sync
   (`workflows/library_sync.py`: content-addressed `SyncObject`, `SyncManifest`, `diff_manifests`,
   `SyncCheckpoint`; `library_sync_io.py` lands an object atomically with its hash re-checked), with two
@@ -239,6 +262,15 @@ written and verified **before** the source changes, and the source only ever cha
   target as `writing`; after verification `verified`; after the source's delete `done`. On opening a
   project, a transfer left `writing` is rolled back (its new rows and files removed by the id map); one
   left `verified` for a move resumes step 5 if the source is open, else waits and says so in Activity.
+- **The pending step is visible in the source too.** Before writing the target, the engine also
+  writes a **mirror journal row** in the source's `transfers` (same id, state `sending`, the items
+  and the target); it becomes `verified` with the target's and `done` after the source's delete.
+  Opening the source while a move is `verified`-not-`done` shows the pending step in the source's
+  Activity, in words ("Moving 12 items to Istmina: copied and checked there; removing them here
+  is waiting.", with Finish Now and Roll Back), and resumes it when the target is open. While a
+  move of an item is pending, a second drag of that item (or of a folder holding it, or into it)
+  is refused in words: "These items are already being moved to Istmina." The mirror row is what
+  makes the refusal checkable from the source alone.
 - **If the target write or verification fails,** every row and file the transfer wrote in the target is
   removed by the id map (they are new rows only this transfer made), the vocabulary entries it made are
   removed if nothing else uses them, and the source is untouched. The result says what failed.
@@ -248,6 +280,27 @@ written and verified **before** the source changes, and the source only ever cha
 
 ### The id map
 
+**The source of truth is code, not this paragraph:**
+`fichero-server/src/fichero_server/transfer/id_map_classification.py` classifies every persisted id
+field — every field ending `_id`/`_ids` of every model in `Database._all_schema_models` and of every
+model nested in one (an anchor inside a segment, a support inside a claim), the id-bearing fields
+with other names (`Document.curated_items`, `PageLineMap.id`, `CanvasLayout.id`, a letterform's
+`character`, …), every id column of every hand-written SQL table, and every id key of the episode
+ledger — into one of five buckets, each with a one-line reason:
+
+| Bucket | What the transfer does | Entries at `af6fb01b6` |
+|---|---|---|
+| `MAPPED` | the row travels with the page; the id is re-pointed through the map; when it names something outside the set, that edge is cut and listed | 162 |
+| `CUT` | the row stays in the source (a research workspace, a chat, a synced folder, a prediction queue); when it names a moved item, that entry is cut in the source on a move and listed | 21 |
+| `RECOMPUTED` | a derived id, computed again in the target (legacy pass and segment ids, the canvas layout's composite id, a reading pair's shared key, audit pointers re-pointed to the transfer's audit row) | 6 |
+| `PROJECT_VOCAB` | names a per-project record (a hand, an allograph, a declared sign, an interpretive framework, a bibliography entry, a sign map's signs): matched by key in the target, made there if missing | 11 |
+| `NOT_DOCUMENT_SCOPED` | an engine-wide record, a person, an external identifier, or the source's own history (runs, jobs, the audit chain, the knowledge-graph undo log): never re-pointed; kept as text naming the source project where its row travels | 98 |
+
+`fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py`
+(`transfer.inventory.every-id-classified`) fails when a new id field appears unclassified, and
+when a classified one no longer exists. The plan step (build order 2) and the "no dangling id"
+scan of `test_transfer_cuts.py` read the same table. The paragraph below is its summary.
+
 Every row in the set gets a new id; nothing keeps a source id in the target except
 `metadata.transferred_from`. The map re-points, inside the set: `parent_id`, `alias_target_id`,
 `document_id`, `pass_id`, `parent_segment_id`, `source_artifact_id`, `rendition_id`, segment ids inside
@@ -255,7 +308,9 @@ anchors and reading-order entries (`order_id`, `segment_id`, `parent_entry_id`),
 pairs, segment versions' `old_segment_id`, reading choices, typed-link ends, canvas `folder_id` and
 `item_id` (and the composite id), workspace item targets, claim `source_document_id`/`source_ids` and
 entity ids, annotation and note targets, `metadata.attribute_sources` references to runs and proposals
-that travel. Special cases:
+that travel, hand attributions' and letterform descriptions' `segment_id`, canvas link items'
+`source_item_id`/`target_item_id` and spatial nodes' `source_id` and connections' node ids (both
+ends in the set), and the episode ledger's ids. Special cases:
 
 - **Derived ids** (`legacy_pass_id`, `legacy_segment_id`) are computed again from the new artifact id,
   never mapped as plain strings.
@@ -266,6 +321,14 @@ that travel. Special cases:
 - **Run ids** (`run_id`, workflow runs, job ids) name runs recorded in the source; they are kept as
   text with the source project named, not re-pointed (a run is history, not a row that travels).
 - **An id outside the set** is never written into the target: the edge is cut and listed.
+- **Project vocabulary** (hands, allographs, declared signs, reading kinds and levels, document
+  types, link types, entity types, interpretive frameworks, bibliography entries) is never mapped
+  as a string: each record used by the set is matched in the target by its key (a hand's label, an
+  allograph's character and name, a sign's code point or sign-list reference, a kind's key, a
+  type's key) and made there if missing. **Same key, different fields:** the target's record is
+  kept as it is, and the result lists the difference ("reading level `line` here has label
+  'Line'; in <source> 'Renglón'") — the carried rows point at the target's record
+  (`transfer.page.vocab-same-key-differs`).
 
 ### What travels with a page (always)
 
@@ -275,7 +338,10 @@ that travel. Special cases:
 | the file | the original | in-package: copied byte for byte, sha256 checked; linked: the reference (path, bookmark) only |
 | pictures | thumbnails, display images | regenerated in the target (caches keyed by id) |
 | passes and lines | `SegmentPass`, `Segment`, `SegmentMatch`, `SegmentForwarding`, `SegmentCarry`, `SegmentVersion`, `SegmentPassChoice`, `PageLineMap` | ids mapped; the chosen pass stays chosen |
-| readings | `ContentRepresentation` at every level and kind, `ReadingChoice` | the counted reading stays counted; kinds and levels matched by key, made if missing |
+| readings | `ContentRepresentation` at every level and kind, `ReadingChoice`, `ContentRepresentationRevision`, `EditorialFact`, campaigns (`Campaign`, `CampaignMembership`, `ReadingCampaigns`) | the counted reading stays counted; kinds and levels matched by key, made if missing; same key with different fields keeps the target's and lists the difference |
+| hands and letterforms | `HandAttribution`, `LetterformDescription` | travel with their segments, `segment_id` mapped; the `Hand` and `Allograph` they name are project vocabulary, matched by label (a hand) or character and name (an allograph) in the target, made if missing |
+| declared signs | `DeclaredSign` whose `picture_segment_id` is a moved segment, or used by a moved reading's `sign_map` or a letterform's `character` | carried like a document type: matched in the target by code point or sign-list reference, made if missing with its picture (the target's `picture_segment_id` is the carried segment's new id); on a move the source's sign keeps a still of its picture and reads "picture moved to <project>" — never a dangling id |
+| correction episodes | the lines of `<package>/episodes/*.jsonl` whose `subject` names a moved page, segment or artifact, and the corrections and invalidations that cite them | copied into the target's ledger with new `episode_id`s, every id in them mapped; a `CheckVerdict`'s `episode_id` follows the map; on a move the source's lines stay (the ledger is append-only) and a `transferred` line records the move |
 | reading orders | `ReadingOrder`, `ReadingOrderEntry` | an order on a page travels; an order spanning pages left behind is cut and listed |
 | artifacts | `Artifact` | every one, proposals included; derived ids recomputed |
 | anchors, marks | `SourceAnchor` in rows, `Annotation` | travel with the page they mark |
@@ -323,7 +389,17 @@ Cut in the source (a move) or simply not carried (a copy), and listed in the res
 - a group (#5303) only partly moved: the moved pages leave the group; the group stays with what is left;
 - an entry in a research workspace's inclusions (`ProjectInclusion`) naming a moved item;
 - an alias in the source pointing at a moved item (`transfer.alias.source-aliases`);
-- a recipe override or Find the Documents proposal in the source naming a moved folder.
+- a recipe override or Find the Documents proposal in the source naming a moved folder;
+- a **canvas link item** (`CanvasItem`, kind `link`) whose one end moves and whose other end stays:
+  cut in the source, not carried; a link whose both ends move travels with both ids mapped;
+- a **spatial node** (`SpatialNode`) in a room that stays whose `source_id` names a moved item, and
+  every `SpatialConnection` touching it; a connection whose both nodes travel is mapped;
+- a moved document's **tie to a synced folder** (its `sync_files` row): severed in the source, the
+  file left on disk as it is, and listed ("no longer synced to <folder>"); the target does not
+  inherit the folder (it is the source's), so the moved document is not synced there until a
+  person ties it again;
+- a research workspace's notes, a chat's scope, a graph-inclusion setting, a prediction review or a
+  pattern naming a moved item (the `CUT` bucket of the id map).
 
 ### Aliases
 
@@ -351,6 +427,15 @@ button that performs the copy. On a transfer:
   is refused in words.
 - Undo is offered in both projects' windows (⌘Z right after, and the action history), because the
   transfer's record lives in both.
+- **Undo is durable** (this spec's decision, flagged for the maintainer to confirm): undo of a
+  transfer is not a ⌘Z-session reflex; it survives quitting the app and restarting the engine,
+  because it is read from the action history and the `transfers` record in both projects. A move
+  stays undoable from either project for as long as its source items are in the source's Trash.
+  Emptying them makes the move permanent: Empty Trash says so before it runs
+  (`safety.trash.empty-names-moved-items`), the record in both projects then says "made permanent
+  on <date>", and undo is refused in words. A copy stays undoable while the copy is live in the
+  target. *Why durable:* a move is a large act on two files; the person who finds a mistake
+  tomorrow must still be able to take it back, and the Trash already holds everything undo needs.
 
 ### The result report
 
@@ -401,6 +486,11 @@ or Hugging Face holds work packages, not projects, and is not a transfer target.
   (`compute.target.mac-pages-stay-yours`); a project marked "may not leave this machine" cannot be
   copied off it (`compute.leave.stays-local-is-absolute`); restricted material is refused by the one
   gate.
+- **Linked files.** An item whose original is linked (kept at its own path outside the package)
+  travels as its reference only. Between machines that path is a path on the source machine: the
+  result says so per item ("linked file: the original stays at /Users/… on <source machine> and may
+  not open here"), and the far side shows the item as linked-elsewhere until a person relinks or
+  copies the original in. Nothing pretends the file arrived.
 - **A copy, always.** The source is never changed. If the connection drops, objects already sent are
   kept and the send resumes from the checkpoint when the far side is back; nothing lands until every
   object has arrived and been verified; landing is all or nothing on the far side (it has everything
@@ -453,6 +543,24 @@ Nothing in the project changes.
   (the auto-throttle rule), with progress per batch.
 - `transfer.action.selection-is-one-transfer` — **[GAP]** (#5657) a multi-item selection is one
   transfer, one record, one undo, one result.
+- `transfer.action.pending-visible-in-source` — **[GAP]** (#5657) a move writes a mirror journal row in
+  the source (same id, `sending` → `verified` → `done`) before it writes the target; opening the
+  source while the move is `verified`-not-`done` shows the pending step in the source's Activity in
+  words, with Finish Now and Roll Back, and resumes it when the target is open.
+- `transfer.action.second-drag-refused` — **[GAP]** (#5657) while a move of an item is pending, a
+  second transfer of that item, of a folder holding it, or into it, is refused in words ("These
+  items are already being moved to <project>."), checked from the source's mirror row alone.
+- `transfer.action.undo-durable` — **[GAP]** (#5657) undo of a transfer survives quitting the app and
+  restarting the engine: it is found from the action history and the `transfers` record in either
+  project, and a move stays undoable while its source items are in the source's Trash; once they
+  are emptied (`safety.trash.empty-names-moved-items`) the record says "made permanent" and undo is
+  refused in words. Decided in this spec, flagged for the maintainer (open question 9). *Test:*
+  move, restart the engine, undo from the target's window: both sides restored.
+- `transfer.inventory.every-id-classified` — **[OK]** (#5657) every persisted id field (model fields
+  ending `_id`/`_ids` with nested models, id-bearing fields with other names, hand-written SQL id
+  columns, episode-ledger id keys) is in one bucket of
+  `fichero_server/transfer/id_map_classification.py` with a reason; a new unclassified one, or a
+  stale entry, fails `fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py`.
 
 ### What travels with a page
 
@@ -479,6 +587,22 @@ Nothing in the project changes.
   re-pointed to the transfer's audit row in the target, the original kept as `metadata.source_audit_id`.
 - `transfer.page.re-embedded` — **[GAP]** (#5657) the target embeds the carried pages in the background;
   search finds them there when it is done.
+- `transfer.page.hands-and-letterforms` — **[GAP]** (#5657) every `HandAttribution` and
+  `LetterformDescription` on a moved segment travels with its `segment_id` mapped; the hands and
+  allographs they name are matched in the target by label (a hand) or character and name (an
+  allograph) and made there if missing; rival attributions all travel.
+- `transfer.page.declared-signs` — **[GAP]** (#5657) a declared sign whose picture segment moves, or
+  that a moved reading or letterform uses, is carried into the target like a document type:
+  matched by code point or sign-list reference, made if missing with its picture pointing at the
+  carried segment's new id; on a move the source's sign keeps a still of its picture and says
+  "picture moved to <project>". No sign in either project names a segment that is not there.
+- `transfer.page.episodes` — **[GAP]** (#5657) the correction-episode ledger lines whose subject is a
+  moved page, segment or artifact, and the corrections and invalidations citing them, are copied
+  into the target's ledger with new `episode_id`s and every id mapped; a `CheckVerdict`'s
+  `episode_id` follows the map; the source's lines stay (append-only) with a `transferred` line.
+- `transfer.page.vocab-same-key-differs` — **[GAP]** (#5657) a reading kind or level, document type,
+  link type, hand or other project vocabulary with the same key in the target but different fields
+  keeps the target's record; the carried rows point at it and the result lists the difference.
 
 ### Knowledge
 
@@ -510,6 +634,15 @@ Nothing in the project changes.
   listed; the workspace stays.
 - `transfer.cut.partial-group` — **[GAP]** (#5657) moving some pages of a group takes them out of the
   group; the group keeps the rest; listed.
+- `transfer.cut.canvas-links` — **[GAP]** (#5657) a canvas link item (`CanvasItem.source_item_id` /
+  `target_item_id`) travels with both ends mapped when both ends move; when one end stays, the
+  link is cut in the source (a move) or not carried (a copy) and listed.
+- `transfer.cut.spatial-nodes` — **[GAP]** (#5657) a spatial node whose `source_id` names a moved item
+  travels mapped when its room (a moved folder) travels, else is cut and listed; a
+  `SpatialConnection` is mapped when both its nodes travel and cut and listed when one stays.
+- `transfer.cut.sync-folder-tie` — **[GAP]** (#5657) a moved document's tie to a synced folder
+  (`sync_files`) is severed in the source, its file left on disk untouched, and listed; the target
+  does not inherit the tie.
 
 ### Aliases
 
@@ -564,6 +697,9 @@ Nothing in the project changes.
 - `transfer.machine.drop-resumes-or-rolls-back` — **[GAP]** (#5657) a dropped connection resumes from the
   checkpoint; nothing lands until every object is verified; landing is all or nothing on the far side;
   an abandoned transfer removes its partial objects there and says so.
+- `transfer.machine.linked-files-said` — **[GAP]** (#5657) a copy to another machine of an item whose
+  original is linked says, per item, that the path is on the source machine and may not open
+  there; the far side shows it as linked elsewhere until relinked or copied in.
 - `transfer.machine.not-to-clusters` — **[GAP]** (#5657) a cluster or Hugging Face is not a transfer
   target (it holds work packages, not projects); refused in words.
 
@@ -609,6 +745,10 @@ Nothing in the project changes.
 
 | Leg | Pins | File |
 |---|---|---|
+| Backend (pytest), **built** | every persisted id field classified in one bucket with a reason; unclassified or stale entries fail (`transfer.inventory.every-id-classified`) | `fichero-server/tests/unit/transfer/test_every_id_field_is_classified.py` |
+| Backend, to write | hand attributions, letterform descriptions, a declared sign's picture, episodes and campaigns travel with their segments; vocabulary matched by key, same key with different fields listed | `fichero-server/tests/unit/transfer/test_transfer_a_page_whole.py` |
+| Backend, to write | the source's mirror journal row; the pending step in the source's Activity; a second drag refused; undo after an engine restart; undo refused after the source's Trash is emptied | `fichero-server/tests/unit/transfer/test_transfer_is_never_half_done.py` |
+| Backend, to write | canvas link items, spatial nodes and connections, a synced-folder tie: mapped with both ends, cut and listed with one | `fichero-server/tests/unit/transfer/test_transfer_cuts.py` |
 | Backend (pytest), to write | a page with two passes, readings at three levels, a chosen reading, artifacts with legacy ids, a reading order, notes, a kind, claims and entities moves whole; counts and sha256 match; source in Trash labelled moved; undo restores both sides | `fichero-server/tests/unit/transfer/test_transfer_a_page_whole.py` |
 | Backend, to write | verification failure rolls the target back; source delete failure compensates; a `writing` journal rolls back on open; a `verified` move resumes | `fichero-server/tests/unit/transfer/test_transfer_is_never_half_done.py` |
 | Backend, to write | entity matched by Wikidata URI, by name, by none; proposals not merges; person marks kept; source keeps a still-mentioned entity, hides an unmentioned one | `fichero-server/tests/unit/transfer/test_transfer_knowledge.py` |
@@ -635,12 +775,19 @@ Nothing in the project changes.
 5. **Name already used in the target folder.** *Recommend:* keep the name (folders already allow two
    items of one name, as `document.duplicate` into a folder does); workflows alone get " 2" because
    their names are looked up.
-6. **Correction episodes (training data) for moved pages.** *Recommend:* they travel with the pages
-   (ids mapped) so the target can train on them; the source's go to the Trash with their pages.
+6. **Correction episodes (training data) for moved pages.** *Resolved in this spec (2026-10-10):*
+   they travel with the pages, ids mapped (`transfer.page.episodes`), so the target can train on
+   them. The ledger is append-only JSONL (`<package>/episodes/YYYY-MM.jsonl`), so the source's
+   lines are not deleted: a `transferred` line names the move, and the source's training export
+   leaves out lines whose subject is only in its Trash.
 7. **Copying the same item twice into one project.** *Recommend:* a second, separate copy (the
    Finder's rule); `metadata.transferred_from` lets the result say "already copied here on <date>".
 8. **Pulling from another machine** (dragging from a remote project into this one). *Recommend:* the
    same copy, the far engine packaging; waits on a host per project (#2573).
+9. **Undo durability.** *Decided in this spec, for the maintainer to confirm:* durable across
+   restarts from the action history in both projects, while the source items are in its Trash
+   (`transfer.action.undo-durable`); emptying the source's Trash makes the move permanent and says
+   so first.
 
 ## Build order
 
