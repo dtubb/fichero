@@ -114,6 +114,30 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   cheaply; a prototype that no longer resolves reports its error string
   under `_unresolved`.
 
+## Transfer between projects (#5657)
+
+`POST /api/documents/transfer`
+
+- Purpose: copy a selection (each item with its live subtree) from another open
+  project into this one — the library header names the TARGET, the body names the
+  `source` package, `items`, `target_parent_id` (absent: the target's Sources
+  folder), `mode` and `dry_run`. Runs the audited action `document.transfer` in the
+  target (undo: `document.untransfer`, which sends the copies to the target's Trash
+  and withdraws the merges it proposed).
+- `dry_run: true` writes nothing in either project and returns the plan.
+- Answer (`TransferResult`): counts by kind (planned, and written after the
+  read-back), files and bytes copied, linked originals (the reference travels, not
+  the file), vocabulary matched by key or made, entity matches proposed as
+  `EntityMatchCandidate` (method `transfer`, never merged by the transfer), every
+  edge cut and why, items left behind, the new top-level ids (`copies`) and the
+  `audit` row to undo (`POST /api/actions/audit/{audit}/undo`).
+- Refused in words, changing nothing: source not open (409), same project (400),
+  unknown item (404), trashed item or alias ("Aliases stay within a project.",
+  409), locked node (403), target not a folder (400), `mode: move` (409, not built
+  yet). A failure while writing rolls the target back (500, the reason in words);
+  the record (`TransferRecord`, one per project) keeps the journal.
+- Spec: `docs/contributor_manual/specs/source/moving-between-projects.md`.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

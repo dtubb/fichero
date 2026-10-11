@@ -16833,6 +16833,70 @@
         }
       }
     },
+    "/api/documents/transfer": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Transfer Documents",
+        "description": "Copy items (each with its subtree) from the source project into this one, or plan it.\n\n`dry_run: true` writes nothing and returns the plan: counts by kind, files and bytes, vocabulary\nmatched or to be made, entity matches to be proposed, every cut, everything left behind.\nOtherwise the copy is written, verified and recorded in both projects; undo (`POST\n/api/actions/audit/{audit_id}/undo` in this project) sends the copies to this project's Trash.\nRefused in words, changing nothing: the source not open, the same project, an unknown or trashed\nitem, an alias, a locked node, a target that is not a folder, a move (not built yet).",
+        "operationId": "transfer_documents_api_documents_transfer_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents": {
       "get": {
         "tags": [
@@ -88614,6 +88678,377 @@
         ],
         "title": "TrainingStatus",
         "description": "Training job status."
+      },
+      "TransferCount": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "planned": {
+            "type": "integer",
+            "title": "Planned"
+          },
+          "written": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Written"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "planned"
+        ],
+        "title": "TransferCount",
+        "description": "How many rows of one kind travel (planned) and, after a copy, were written and read back."
+      },
+      "TransferCut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "The kind of row the edge belongs to (TypedLink, KnowledgeClaim, CanvasItem, ...)."
+          },
+          "row": {
+            "type": "string",
+            "title": "Row",
+            "description": "The source row's id."
+          },
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "The field that named something left behind."
+          },
+          "points_to": {
+            "type": "string",
+            "title": "Points To",
+            "description": "What it named, in the source."
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "title": "Name",
+            "description": "A readable name for the row, when it has one."
+          },
+          "whole_row": {
+            "type": "boolean",
+            "title": "Whole Row",
+            "description": "True when the row itself does not travel; false when it travels without this edge.",
+            "default": false
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "row",
+          "field",
+          "points_to",
+          "reason"
+        ],
+        "title": "TransferCut",
+        "description": "An edge that crosses the edge of the set, cut on purpose and listed (`transfer.cut.listed-never-silent`)."
+      },
+      "TransferEntityProposal": {
+        "properties": {
+          "carried_entity": {
+            "type": "string",
+            "title": "Carried Entity",
+            "description": "The carried entity's id in the source."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "target_entity": {
+            "type": "string",
+            "title": "Target Entity",
+            "description": "The target's entity it may be the same as."
+          },
+          "target_name": {
+            "type": "string",
+            "title": "Target Name"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "\"same Wikidata Q-id \u2026\", \"same name and type\"."
+          },
+          "proposal": {
+            "type": "string",
+            "nullable": true,
+            "title": "Proposal",
+            "description": "The EntityMatchCandidate id in the target (absent in a dry run)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "carried_entity",
+          "name",
+          "entity_type",
+          "target_entity",
+          "target_name",
+          "reason"
+        ],
+        "title": "TransferEntityProposal",
+        "description": "A carried entity matched in the target: written new, and offered as a merge a person decides."
+      },
+      "TransferLeftBehind": {
+        "properties": {
+          "item": {
+            "type": "string",
+            "title": "Item"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item",
+          "name",
+          "reason"
+        ],
+        "title": "TransferLeftBehind",
+        "description": "A node of the selection's subtree that stays in the source, and why."
+      },
+      "TransferMode": {
+        "type": "string",
+        "enum": [
+          "copy",
+          "move"
+        ],
+        "title": "TransferMode",
+        "description": "The Finder's grammar between projects: a drag moves, \u2325-drag copies."
+      },
+      "TransferRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Items",
+            "description": "Ids of the nodes to transfer, in the source project; each carries its subtree."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "The source project's package path (an open .fichero)."
+          },
+          "target_parent_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target Parent Id",
+            "description": "The folder in the target the items land in; absent: the target's Sources folder."
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TransferMode",
+            "default": "copy"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "description": "Plan only: write nothing and return what would happen.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "source"
+        ],
+        "title": "TransferRequest",
+        "description": "The drop, as the app (or the CLI, or MCP) sends it. The target project is the library header."
+      },
+      "TransferResult": {
+        "properties": {
+          "transfer_id": {
+            "type": "string",
+            "title": "Transfer Id"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TransferMode"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TransferState"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "target_parent_id": {
+            "type": "string",
+            "title": "Target Parent Id"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "when": {
+            "type": "string",
+            "format": "date-time",
+            "title": "When"
+          },
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/TransferCount"
+            },
+            "type": "array",
+            "title": "Counts"
+          },
+          "files": {
+            "type": "integer",
+            "title": "Files",
+            "default": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes",
+            "default": 0
+          },
+          "linked_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Linked Files",
+            "description": "Items whose original is linked: the reference travels, not the file."
+          },
+          "vocabulary": {
+            "items": {
+              "$ref": "#/components/schemas/TransferVocabulary"
+            },
+            "type": "array",
+            "title": "Vocabulary"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/TransferEntityProposal"
+            },
+            "type": "array",
+            "title": "Proposals"
+          },
+          "entities_new": {
+            "type": "integer",
+            "title": "Entities New",
+            "default": 0
+          },
+          "cuts": {
+            "items": {
+              "$ref": "#/components/schemas/TransferCut"
+            },
+            "type": "array",
+            "title": "Cuts"
+          },
+          "left_behind": {
+            "items": {
+              "$ref": "#/components/schemas/TransferLeftBehind"
+            },
+            "type": "array",
+            "title": "Left Behind"
+          },
+          "copies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Copies",
+            "description": "The new ids of the top-level items in the target (empty in a dry run)."
+          },
+          "audit": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit",
+            "description": "The target's audit row of this transfer: undo it (`POST /api/actions/audit/{audit}/undo`)."
+          },
+          "error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "transfer_id",
+          "mode",
+          "dry_run",
+          "state",
+          "source",
+          "target",
+          "target_parent_id",
+          "actor"
+        ],
+        "title": "TransferResult",
+        "description": "The report: stored on the record, returned by the route, printed by the CLI and MCP."
+      },
+      "TransferState": {
+        "type": "string",
+        "enum": [
+          "planned",
+          "sending",
+          "writing",
+          "verified",
+          "done",
+          "rolled_back",
+          "undone"
+        ],
+        "title": "TransferState",
+        "description": "The journal (`transfer.action.journal-recovers`): where a transfer got to.\n\n``planned`` is a dry run's answer; ``sending`` the source's mirror before the target is written;\n``writing`` the target's record before any row; ``verified`` after the read-back; ``done`` at the\nend; ``rolled_back`` after a failure removed everything the transfer wrote; ``undone`` after undo."
+      },
+      "TransferVocabulary": {
+        "properties": {
+          "vocabulary": {
+            "type": "string",
+            "title": "Vocabulary",
+            "description": "reading_kind, reading_level, document_type, link_type, hand, allograph, framework"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "made": {
+            "type": "boolean",
+            "title": "Made",
+            "description": "True when the target had none and the transfer makes (made) it."
+          },
+          "difference": {
+            "type": "string",
+            "nullable": true,
+            "title": "Difference",
+            "description": "Same key, different fields: the target's is kept and the difference named."
+          }
+        },
+        "type": "object",
+        "required": [
+          "vocabulary",
+          "key",
+          "made"
+        ],
+        "title": "TransferVocabulary",
+        "description": "A project vocabulary entry the carried rows use, matched by key in the target (`transfer.page.kind-matched-by-key`)."
       },
       "TransformationBody": {
         "properties": {

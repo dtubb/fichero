@@ -4603,6 +4603,35 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("transfer")
+    def documents_transfer_post(
+        ctx: typer.Context,
+        dry_run: Optional[bool] = typer.Option(None, '--dry-run/--no-dry-run', help='Plan only: write nothing and return what would happen. Default: false.'),
+        items: list[str] = typer.Option(..., '--items', help='Ids of the nodes to transfer, in the source project; each carries its subtree. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        mode: Optional[str] = typer.Option(None, '--mode', help="The Finder's grammar between projects: a drag moves, ⌥-drag copies. One of: copy, move."),
+        source: str = typer.Option(..., '--source', help="The source project's package path (an open .fichero)."),
+        target_parent_id: Optional[str] = typer.Option(None, '--target-parent-id', help="The folder in the target the items land in; absent: the target's Sources folder."),
+    ) -> None:
+        """Transfer Documents (POST /api/documents/transfer)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/transfer"
+            params = None
+            payload = _build_json_payload({
+                "dry_run": dry_run,
+                "items": items,
+                "mode": mode,
+                "source": source,
+                "target_parent_id": target_parent_id,
+            }, {
+                "dry_run": {'type': 'boolean', 'title': 'Dry Run', 'description': 'Plan only: write nothing and return what would happen.', 'default': False, 'x-cli-required': False},
+                "items": {'items': {'type': 'string'}, 'type': 'array', 'minItems': 1, 'title': 'Items', 'description': 'Ids of the nodes to transfer, in the source project; each carries its subtree.', 'x-cli-required': True},
+                "mode": {'type': 'string', 'enum': ['copy', 'move'], 'title': 'TransferMode', 'description': "The Finder's grammar between projects: a drag moves, ⌥-drag copies.", 'x-cli-required': False},
+                "source": {'type': 'string', 'title': 'Source', 'description': "The source project's package path (an open .fichero).", 'x-cli-required': True},
+                "target_parent_id": {'type': 'string', 'nullable': True, 'title': 'Target Parent Id', 'description': "The folder in the target the items land in; absent: the target's Sources folder.", 'x-cli-required': False},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-deleted")
     def documents_list_deleted_get(
         ctx: typer.Context,

@@ -200,8 +200,12 @@ All paths below are under `fichero-server/src/fichero_server/`.
   Fichero and the list of paired machines are designed, not built (`compute.transfer.https-write-half`,
   `compute.target.add-fichero-mac`). Device pairing exists (`api/routes/auth/pairing.py`: a code, a
   paired device's own token). A host per library is not built (#2573).
-- **Nothing transfers today.** No route, action, job or app surface moves or copies anything between
-  two projects or two machines; nothing drags out to the Finder (no file promise in the app).
+- **Copy within one engine is built (build orders 2-3, 2026-10-10).** `POST /api/documents/transfer`
+  (`api/routes/document/transfer.py`, action `document.transfer`, inverse `document.untransfer`) plans
+  (`dry_run`) or copies a selection into another open project: `transfer/plan.py` gathers the set by
+  `transfer/membership.py`'s join table and re-points every id by the classification;
+  `transfer/copy.py` writes, verifies and records it (`TransferRecord`, `models/transfer.py`). Not
+  built: a move, the background job, the app's drag, between machines, out to the Finder.
 
 ## Design
 
@@ -509,31 +513,31 @@ Nothing in the project changes.
 
 ### The action (engine)
 
-- `transfer.action.one-route` — **[GAP]** (#5657, #2397) `POST /api/documents/transfer` runs one audited
+- `transfer.action.one-route` — **[PARTIAL]** (#5657, #2397) `POST /api/documents/transfer` runs one audited
   action `document.transfer` (items, source, target, target parent, mode, dry run); the app, MCP and CLI
   call it and nothing else; it runs as one background job beyond a handful of nodes and `GET
-  /api/documents/transfer/{id}` returns its state and result.
-- `transfer.action.dry-run` — **[GAP]** (#5657) `dry_run: true` writes nothing and returns the plan:
-  counts by kind, files and bytes, vocabulary to be made, entity matches, every cut, every refusal.
-- `transfer.action.refusals-in-words` — **[GAP]** (#5657) refused in words, changing nothing: a project
+  /api/documents/transfer/{id}` returns its state and result. Built (build orders 2-3): the route and the audited action `document.transfer` (`api/routes/document/transfer.py`), generated into the CLI and MCP; `test_transfer_a_page_whole.py`. *Not built: the background job and `GET /api/documents/transfer/{id}`; a move.*
+- `transfer.action.dry-run` — **[OK]** (#5657) `dry_run: true` writes nothing and returns the plan:
+  counts by kind, files and bytes, vocabulary to be made, entity matches, every cut, every refusal. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_dry_run_writes_nothing_and_says_what_a_copy_would
+- `transfer.action.refusals-in-words` — **[PARTIAL]** (#5657) refused in words, changing nothing: a project
   not open (`DatabaseManager.is_open`), no write permission in the target (or the source, for a move), a
   locked node (`_reject_if_document_read_only`), a target that is not a live folder, the same project
-  as source and target (that is `document.move`/`document.duplicate`), an alias between projects.
-- `transfer.action.verify-then-delete` — **[GAP]** (#5657, #2397) a move soft-deletes the source's items
+  as source and target (that is `document.move`/`document.duplicate`), an alias between projects. Built (build orders 2-3): not open, same project, unknown or trashed item, alias, locked node, target not a folder, a move (not built yet); `test_transfer_refusals.py`. *Not pinned: no write permission in the target (the registry's write check refuses it, untested here).*
+- `transfer.action.verify-then-delete` — **[PARTIAL]** (#5657, #2397) a move soft-deletes the source's items
   only after the target's copy is written and verified (counts per kind, sha256 per file, every mapped
-  id resolving); a failed verification rolls the target back and leaves the source untouched.
+  id resolving); a failed verification rolls the target back and leaves the source untouched. Built for a copy (build orders 2-3): per-kind counts, sha256 per file and every mapped id resolving, read back inside the target's transaction; a failure rolls it back; `test_transfer_is_never_half_done.py`. *Not built: the source's soft delete (a move).*
 - `transfer.action.compensates` — **[GAP]** (#5657) if the source's soft delete fails after
   verification, it is retried once, then the target's copy is rolled back and the move reported as not
   done with the reason; a move never ends as a silent copy.
-- `transfer.action.journal-recovers` — **[GAP]** (#5657) the transfer's record is written in the target
+- `transfer.action.journal-recovers` — **[PARTIAL]** (#5657) the transfer's record is written in the target
   as `writing` before any row, `verified` after verification, `done` after the source's delete; on
-  opening a project a `writing` transfer is rolled back and a `verified` move resumes its source step.
-- `transfer.action.record-in-both` — **[GAP]** (#5657) each transfer is one record in each project
-  (same id): the id map, files and proposals in the target; items, mode and target in the source.
-- `transfer.action.provenance` — **[GAP]** (#5657) every node written by a transfer records
-  `metadata.transferred_from` (source project id, node id, transfer id, when, who).
-- `transfer.action.undo-copy` — **[GAP]** (#5657, #4311) undoing a copy sends the copy to the target's
-  Trash and withdraws its entity proposals; redo copies again.
+  opening a project a `writing` transfer is rolled back and a `verified` move resumes its source step. Built (build orders 2-3): the target's record is `writing` before any row and `done` after; on opening a project a `writing` transfer is rolled back (its files removed) and a copy left `verified` is closed; `test_transfer_is_never_half_done.py`. *Not built: a `verified` move resuming its source step.*
+- `transfer.action.record-in-both` — **[OK]** (#5657) each transfer is one record in each project
+  (same id): the id map, files and proposals in the target; items, mode and target in the source. Built (build orders 2-3): `TransferRecord` in each project, same id; `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
+- `transfer.action.provenance` — **[OK]** (#5657) every node written by a transfer records
+  `metadata.transferred_from` (source project id, node id, transfer id, when, who). Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
+- `transfer.action.undo-copy` — **[PARTIAL]** (#5657, #4311) undoing a copy sends the copy to the target's
+  Trash and withdraws its entity proposals; redo copies again. Built (build orders 2-3): undo (`document.untransfer`) sends the copies to the target's Trash and withdraws its proposals; redo replays the copy; `test_transfer_a_page_whole.py`::test_undo_of_a_copy_sends_it_to_the_targets_trash. *Not built: removing vocabulary the copy made when nothing else uses it.*
 - `transfer.action.undo-move` — **[GAP]** (#5657, #2397) undoing a move puts the items back in the source
   from its Trash, restores the cut edges from the record and sends the target's copy to the target's
   Trash; offered from either project; refused in words when the source's items were emptied since;
@@ -564,33 +568,33 @@ Nothing in the project changes.
 
 ### What travels with a page
 
-- `transfer.page.whole-subtree` — **[GAP]** (#5657, #2397) a node travels with its live descendants;
-  trashed descendants stay in the source's Trash and are listed.
-- `transfer.page.files` — **[GAP]** (#5657, #4311) an in-package original is copied byte for byte under
+- `transfer.page.whole-subtree` — **[OK]** (#5657, #2397) a node travels with its live descendants;
+  trashed descendants stay in the source's Trash and are listed. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole (a trashed page stays and is listed)
+- `transfer.page.files` — **[OK]** (#5657, #4311) an in-package original is copied byte for byte under
   the target's `files/` and checked by sha256; a linked original travels as its reference (path and
-  bookmark) and the result says it is linked; thumbnails and display images regenerate in the target.
-- `transfer.page.passes-and-lines` — **[GAP]** (#5657) every pass and segment travels with its matches,
-  forwardings, carries, versions, pass choice and line map, ids mapped; the chosen pass stays chosen.
-- `transfer.page.readings-every-level` — **[GAP]** (#5657) every reading (`ContentRepresentation`) at
+  bookmark) and the result says it is linked; thumbnails and display images regenerate in the target. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole (in-package copied and sha256-checked; linked travels as its reference); pictures regenerate from the copy
+- `transfer.page.passes-and-lines` — **[PARTIAL]** (#5657) every pass and segment travels with its matches,
+  forwardings, carries, versions, pass choice and line map, ids mapped; the chosen pass stays chosen. Built (build orders 2-3): built for every row the join table names (`transfer/membership.py`); pinned for passes, segments and parents, `test_transfer_a_page_whole.py`. *Matches, forwardings, carries, versions and the line map are carried by the same code but not pinned by a test.*
+- `transfer.page.readings-every-level` — **[OK]** (#5657) every reading (`ContentRepresentation`) at
   every level and kind travels, with its `ReadingChoice`; a reading kind or level missing in the target
-  is made there.
-- `transfer.page.artifacts` — **[GAP]** (#5657) every artifact travels; `legacy_pass_id` and
-  `legacy_segment_id` ids are derived again from the new artifact id, never mapped as strings.
-- `transfer.page.attributes-and-sources` — **[GAP]** (#5657) attributes travel with their
-  `attribute_sources` (who set each, a person's mark kept as a person's).
-- `transfer.page.kind-matched-by-key` — **[GAP]** (#5657) the node's document type is matched by key in
-  the target; a missing type is made with its fields and parent chain; the result lists types made.
-- `transfer.page.notes-and-marks` — **[GAP]** (#5657) notes, annotations and anchors on the page travel.
-- `transfer.page.reading-orders` — **[GAP]** (#5657) a reading order wholly in the set travels; entries
-  pointing outside the set are cut and listed.
-- `transfer.page.audit-pointers` — **[GAP]** (#5657) a segment version's or forwarding's `audit_id` is
-  re-pointed to the transfer's audit row in the target, the original kept as `metadata.source_audit_id`.
+  is made there. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole (two levels, a level made in the target, the counted reading)
+- `transfer.page.artifacts` — **[PARTIAL]** (#5657) every artifact travels; `legacy_pass_id` and
+  `legacy_segment_id` ids are derived again from the new artifact id, never mapped as strings. Built (build orders 2-3): every artifact travels; legacy pass and segment ids are derived again from the new artifact id (`transfer/plan.py`, `_allocate`); `test_transfer_a_page_whole.py` pins the artifact. *The legacy-id derivation is not pinned by a test.*
+- `transfer.page.attributes-and-sources` — **[PARTIAL]** (#5657) attributes travel with their
+  `attribute_sources` (who set each, a person's mark kept as a person's). Built (build orders 2-3): `attributes` travel as they are and `metadata` (with `attribute_sources`) has every id of the set re-pointed. *Not pinned by a test.*
+- `transfer.page.kind-matched-by-key` — **[OK]** (#5657) the node's document type is matched by key in
+  the target; a missing type is made with its fields and parent chain; the result lists types made. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole (a missing type made with its parent chain)
+- `transfer.page.notes-and-marks` — **[PARTIAL]** (#5657) notes, annotations and anchors on the page travel. Built (build orders 2-3): annotations, notes and anchors by the join table; `test_transfer_a_page_whole.py` pins an annotation and anchors. *Notes on a page are carried but not pinned.*
+- `transfer.page.reading-orders` — **[PARTIAL]** (#5657) a reading order wholly in the set travels; entries
+  pointing outside the set are cut and listed. Built (build orders 2-3): an order and its entries travel; an entry naming a segment left behind is cut and listed (`membership.JOINS`). *Not pinned by a test.*
+- `transfer.page.audit-pointers` — **[PARTIAL]** (#5657) a segment version's or forwarding's `audit_id` is
+  re-pointed to the transfer's audit row in the target, the original kept as `metadata.source_audit_id`. Built (build orders 2-3): a carried version's or forwarding's `audit_id` points at the transfer's own audit row. *The original is kept on the target's `TransferRecord.source_audits`, not `metadata.source_audit_id` (neither row has a metadata field); not pinned by a test.*
 - `transfer.page.re-embedded` — **[GAP]** (#5657) the target embeds the carried pages in the background;
   search finds them there when it is done.
-- `transfer.page.hands-and-letterforms` — **[GAP]** (#5657) every `HandAttribution` and
+- `transfer.page.hands-and-letterforms` — **[PARTIAL]** (#5657) every `HandAttribution` and
   `LetterformDescription` on a moved segment travels with its `segment_id` mapped; the hands and
   allographs they name are matched in the target by label (a hand) or character and name (an
-  allograph) and made there if missing; rival attributions all travel.
+  allograph) and made there if missing; rival attributions all travel. Built (build orders 2-3): attributions and descriptions travel with their segments; hands matched by label, allographs by character and name, made if missing; `test_transfer_a_page_whole.py` pins a hand made in the target. *Letterform descriptions are not pinned.*
 - `transfer.page.declared-signs` — **[GAP]** (#5657) a declared sign whose picture segment moves, or
   that a moved reading or letterform uses, is carried into the target like a document type:
   matched by code point or sign-list reference, made if missing with its picture pointing at the
@@ -600,33 +604,33 @@ Nothing in the project changes.
   moved page, segment or artifact, and the corrections and invalidations citing them, are copied
   into the target's ledger with new `episode_id`s and every id mapped; a `CheckVerdict`'s
   `episode_id` follows the map; the source's lines stay (append-only) with a `transferred` line.
-- `transfer.page.vocab-same-key-differs` — **[GAP]** (#5657) a reading kind or level, document type,
+- `transfer.page.vocab-same-key-differs` — **[OK]** (#5657) a reading kind or level, document type,
   link type, hand or other project vocabulary with the same key in the target but different fields
-  keeps the target's record; the carried rows point at it and the result lists the difference.
+  keeps the target's record; the carried rows point at it and the result lists the difference. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole (reading level `as_written`)
 
 ### Knowledge
 
-- `transfer.entities.claims-travel` — **[GAP]** (#5657) every claim resting on a moved page
-  (`source_document_id` or `source_ids`) travels with its curation state and maker.
-- `transfer.entities.match-authority-then-name` — **[GAP]** (#5657) each carried entity is matched in the
+- `transfer.entities.claims-travel` — **[OK]** (#5657) every claim resting on a moved page
+  (`source_document_id` or `source_ids`) travels with its curation state and maker. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
+- `transfer.entities.match-authority-then-name` — **[PARTIAL]** (#5657) each carried entity is matched in the
   target first by a shared `same_as` authority URI, then by type and name; every match is named with its
-  reason.
-- `transfer.entities.match-is-proposed` — **[GAP]** (#5657) a match is written as an
+  reason. Built (build orders 2-3): authority id (`same_as`), then type and name; `test_transfer_a_page_whole.py` pins the Wikidata match. *The match by name is not pinned.*
+- `transfer.entities.match-is-proposed` — **[OK]** (#5657) a match is written as an
   `EntityMatchCandidate` pairing the carried entity (written new) with the target's; never merged by the
-  transfer; accepting is the existing audited merge; rejecting is remembered.
-- `transfer.entities.no-match-is-new` — **[GAP]** (#5657) an entity with no match is written new.
-- `transfer.entities.person-marks-kept` — **[GAP]** (#5657) confirmations, corrections, rejections and
-  the merge history of carried entities and claims travel as a person set them.
+  transfer; accepting is the existing audited merge; rejecting is remembered. Built (build orders 2-3): `EntityMatchCandidate`, method `transfer`; `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
+- `transfer.entities.no-match-is-new` — **[PARTIAL]** (#5657) an entity with no match is written new. Built (build orders 2-3): every carried entity is written new; with no match none is proposed (`result.entities_new`). *Not pinned on its own.*
+- `transfer.entities.person-marks-kept` — **[PARTIAL]** (#5657) confirmations, corrections, rejections and
+  the merge history of carried entities and claims travel as a person set them. Built (build orders 2-3): rows travel as they are; `test_transfer_a_page_whole.py` pins an entity's verified state, a claim's state and maker. *Merge records not pinned.*
 - `transfer.entities.source-keeps-while-mentioned` — **[GAP]** (#5657) on a move the source keeps an
   entity while a live page still mentions it; one whose every mention is in the Trash is hidden with them
   and pruned only when the Trash is emptied.
 
 ### Cuts
 
-- `transfer.cut.listed-never-silent` — **[GAP]** (#5657) every edge that crosses the set's edge (links,
+- `transfer.cut.listed-never-silent` — **[PARTIAL]** (#5657) every edge that crosses the set's edge (links,
   note links, citations, research-workspace inclusions, recipe overrides, proposals naming a moved
   folder) is cut and listed in the result by name; nothing in either project points at an id that is
-  not there.
+  not there. Built for a copy (build orders 2-3): every edge out of the set is not carried and is listed (whole row, or the one field); no carried row names a row the target lacks; `test_transfer_a_page_whole.py`::test_no_carried_row_names_a_missing_row. *Not built: cuts in the source (a move).*
 - `transfer.cut.canvas-position` — **[GAP]** (#5657) the moved items' positions on the source folder's
   canvas are dropped; positions inside a moved folder's own canvas travel; items land in the target by
   its canvas's arrange.
@@ -634,9 +638,9 @@ Nothing in the project changes.
   listed; the workspace stays.
 - `transfer.cut.partial-group` — **[GAP]** (#5657) moving some pages of a group takes them out of the
   group; the group keeps the rest; listed.
-- `transfer.cut.canvas-links` — **[GAP]** (#5657) a canvas link item (`CanvasItem.source_item_id` /
+- `transfer.cut.canvas-links` — **[PARTIAL]** (#5657) a canvas link item (`CanvasItem.source_item_id` /
   `target_item_id`) travels with both ends mapped when both ends move; when one end stays, the
-  link is cut in the source (a move) or not carried (a copy) and listed.
+  link is cut in the source (a move) or not carried (a copy) and listed. Built for a copy (build orders 2-3): both ends moved, mapped; one end left behind, not carried and listed; `test_transfer_a_page_whole.py`. *Not built: the cut in the source (a move).*
 - `transfer.cut.spatial-nodes` — **[GAP]** (#5657) a spatial node whose `source_id` names a moved item
   travels mapped when its room (a moved folder) travels, else is cut and listed; a
   `SpatialConnection` is mapped when both its nodes travel and cut and listed when one stays.
@@ -649,12 +653,12 @@ Nothing in the project changes.
 - `transfer.alias.within-a-project` — **[PARTIAL]** (#5657) Make Alias and ⌘⌥-drag make an alias within
   a project. Built: `models/node_aliases.py`, the bookmarks route, `sidebarDropOperation`'s ⌘⌥ case and
   the Make Alias menu items. *Not built: the check that the drop's target is in the same project.*
-- `transfer.alias.not-between-projects` — **[GAP]** (#5657) a ⌘⌥-drop onto another project or another
+- `transfer.alias.not-between-projects` — **[PARTIAL]** (#5657) a ⌘⌥-drop onto another project or another
   machine is refused in words, "Aliases stay within a project.", with a Copy button; the engine refuses
-  an alias in a transfer's items the same way.
-- `transfer.alias.inside-set-rewritten` — **[GAP]** (#5657) an alias in the set whose target is in the
+  an alias in a transfer's items the same way. Built (build orders 2-3): the engine refuses an alias in a transfer's items, "Aliases stay within a project."; `test_transfer_refusals.py`. *Not built: the app's ⌘⌥-drop refusal and its Copy button.*
+- `transfer.alias.inside-set-rewritten` — **[OK]** (#5657) an alias in the set whose target is in the
   set travels with its target id rewritten; one whose target is not in the set does not travel and is
-  listed.
+  listed. Built (build orders 2-3): `test_transfer_a_page_whole.py`::test_a_copied_folder_arrives_whole
 - `transfer.alias.source-aliases` — **[GAP]** (#5657) an alias in the source pointing at a moved item goes
   to the source's Trash labelled "alias to <item>, moved to <project>", is listed, and comes back on undo
   (recommended, open question 2).
@@ -735,9 +739,9 @@ Nothing in the project changes.
 
 ### MCP and CLI
 
-- `transfer.mcp-cli.generated` — **[GAP]** (#5657) the transfer route, its dry run and its result are
+- `transfer.mcp-cli.generated` — **[PARTIAL]** (#5657) the transfer route, its dry run and its result are
   generated into the MCP (a `fichero_documents_transfer` tool) and the CLI (`fichero documents
-  transfer`), printing the result report; no hand-written client.
+  transfer`), printing the result report; no hand-written client. Built (build orders 2-3): the route, its dry run and its result are generated into the MCP and the CLI (`fichero-mcp`/`fichero-cli` generated surfaces). *Not pinned by an MCP/CLI test.*
 - `transfer.mcp-cli.result-readable` — **[GAP]** (#5657) an agent can read a transfer's state and result
   by id and review its entity proposals with the existing knowledge-graph tools.
 

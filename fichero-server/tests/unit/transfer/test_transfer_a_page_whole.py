@@ -84,8 +84,13 @@ def test_a_copied_folder_arrives_whole(client, db, tmp_path):
     sources_folder = db.get(Document, folder.parent_id)
     assert folder.name == "Box 1" and sources_folder.name == "Sources"
     pages = {d.name: d for d in db.query(Document, parent_id=folder_id)}
-    assert set(pages) == {"p1.png", "p2.png"}
+    assert set(pages) == {"p1.png", "p2.png", "p1 alias"}
     page1, page2 = pages["p1.png"], pages["p2.png"]
+    # An alias inside the set travels pointing at the copy; one to the page left behind stays, listed.
+    assert pages["p1 alias"].alias_target_id == page1.id
+    assert any(c["kind"] == "Document" and c["name"] == "elsewhere alias" and c["whole_row"] for c in result["cuts"])
+    # A trashed page stays in the source's Trash, and the result says so.
+    assert [(b["name"], "Trash" in b["reason"]) for b in result["left_behind"]] == [("torn.png", True)]
     assert page1.id != box.page1.id
     assert page1.metadata["transferred_from"]["node"] == box.page1.id
     assert page1.metadata["transferred_from"]["transfer"] == result["transfer_id"]
@@ -208,7 +213,7 @@ def test_a_dry_run_writes_nothing_and_says_what_a_copy_would(client, db, tmp_pat
     assert not db.all(TransferRecord) and not source.all(TransferRecord)
 
     counts = {c["kind"]: c["planned"] for c in plan["counts"]}
-    assert counts["Document"] == 3 and counts["Segment"] == 2 and counts["KnowledgeEntity"] == 1
+    assert counts["Document"] == 4 and counts["Segment"] == 2 and counts["KnowledgeEntity"] == 1
     assert plan["files"] == 1 and plan["bytes"] == Path(box.page1.path).stat().st_size
     assert [p["target_entity"] for p in plan["proposals"]] == [box.target_entity.id]
     assert any(v["vocabulary"] == "document_type" and v["key"] == "carta" and v["made"] for v in plan["vocabulary"])

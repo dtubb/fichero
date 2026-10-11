@@ -2096,6 +2096,18 @@ def fichero_documents_get_run_history(
     return _rt.call("GET", "/api/documents/run-history", params={"ids": ids})
 
 
+def fichero_documents_transfer(
+    *,
+    dry_run: Annotated[Optional[bool], Field(description='Plan only: write nothing and return what would happen. Default: false.')] = None,
+    items: Annotated[list[Any], Field(description='Ids of the nodes to transfer, in the source project; each carries its subtree.')],
+    mode: Annotated[Optional[str], Field(description="The Finder's grammar between projects: a drag moves, ⌥-drag copies. One of: copy, move.")] = None,
+    source: Annotated[str, Field(description="The source project's package path (an open .fichero).")],
+    target_parent_id: Annotated[Optional[str], Field(description="The folder in the target the items land in; absent: the target's Sources folder.")] = None,
+) -> Any:
+    "Transfer Documents\n\nCopy items (each with its subtree) from the source project into this one, or plan it.\n\n`dry_run: true` writes nothing and returns the plan: counts by kind, files and bytes, vocabulary\nmatched or to be made, entity matches to be proposed, every cut, everything left behind.\nOtherwise the copy is written, verified and recorded in both projects; undo (`POST\n/api/actions/audit/{audit_id}/undo` in this project) sends the copies to this project's Trash.\nRefused in words, changing nothing: the source not open, the same project, an unknown or trashed\nitem, an alias, a locked node, a target that is not a folder, a move (not built yet).\n\nRoute: POST /api/documents/transfer (toolset `documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/documents/transfer", json=_rt.body({"dry_run": dry_run, "items": items, "mode": mode, "source": source, "target_parent_id": target_parent_id}))
+
+
 def fichero_documents_list_deleted(
     *,
     limit: Annotated[Optional[int], Field(description='Max results (no limit if not specified)')] = None,
@@ -8774,6 +8786,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_reorder", "documents", "POST", "/api/documents/reorder", fichero_documents_reorder),
     GeneratedTool("fichero_documents_list_roots", "documents", "GET", "/api/documents/roots", fichero_documents_list_roots),
     GeneratedTool("fichero_documents_get_run_history", "documents", "GET", "/api/documents/run-history", fichero_documents_get_run_history),
+    GeneratedTool("fichero_documents_transfer", "documents", "POST", "/api/documents/transfer", fichero_documents_transfer),
     GeneratedTool("fichero_documents_list_deleted", "documents", "GET", "/api/documents/trash", fichero_documents_list_deleted),
     GeneratedTool("fichero_documents_list_workspaces", "documents", "GET", "/api/documents/workspaces", fichero_documents_list_workspaces),
     GeneratedTool("fichero_documents_delete", "documents", "DELETE", "/api/documents/{doc_id}", fichero_documents_delete),

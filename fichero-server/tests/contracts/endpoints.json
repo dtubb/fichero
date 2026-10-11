@@ -3032,6 +3032,16 @@
         "response_model": "RunHistoryResponse"
       },
       {
+        "method": "POST",
+        "path": "/documents/transfer",
+        "operation_id": "transfer_documents_api_documents_transfer_post",
+        "summary": "Transfer Documents",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "TransferRequest",
+        "response_model": "TransferResult"
+      },
+      {
         "method": "GET",
         "path": "/documents/trash",
         "operation_id": "list_deleted_documents_api_documents_trash_get",

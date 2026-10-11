@@ -101,8 +101,16 @@ def build_box(source, target, tmp_path: Path) -> Box:
     linked = png(tmp_path / "outside" / "p2.png", "blue")
     page2 = Document(name="p2.png", parent_id=folder.id, doc_type=DocType.file, file_type=FileType.image,
                      path=str(linked), sort_order=1)
-    for doc in (shelf, folder, elsewhere, page1, page2):
+    # In the folder too: a page in the Trash (stays), an alias to a page that travels (rewritten) and
+    # an alias to the page left behind (would dangle: stays, listed).
+    trashed = Document(name="torn.png", parent_id=folder.id, doc_type=DocType.file, deleted_by="maker")
+    alias_in = Document(name="p1 alias", parent_id=folder.id, node_kind="alias", alias_target_id=page1.id)
+    alias_out = Document(name="elsewhere alias", parent_id=folder.id, node_kind="alias", alias_target_id=elsewhere.id)
+    for doc in (shelf, folder, elsewhere, page1, page2, alias_in, alias_out):
         source.save(doc)
+    from fichero_server.core.timeutil import utc_now
+
+    source.save(trashed.model_copy(update={"deleted_at": utc_now()}))
     source.save(ClassificationValue(dimension=ClassificationDimension.document_prototype, key="carta", label="Carta"))
 
     pass_row = SegmentPass(document_id=page1.id, name="mine", provenance_kind=ProvenanceKind.human)
