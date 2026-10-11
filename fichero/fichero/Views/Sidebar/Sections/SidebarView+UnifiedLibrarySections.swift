@@ -204,15 +204,20 @@ extension SidebarView {
             // The project's own nodes after its items, in `SidebarProjectNode.order`; Trash last (#5243).
             ForEach(SidebarProjectNode.order, id: \.self) { node in
                 switch node {
+                // Each paints the selected fill itself, as the item rows do: the table's own selection is
+                // silenced (`SidebarNativeSelectionSilencer`).
                 case .knowledge:
                     // Each knowledge row draws only while it holds an item (#5413); the bottom bar's
                     // control hides them all.
-                    SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore, libraryId: libraryId)
+                    SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore, libraryId: libraryId,
+                                             selection: selectionState.selectedDestinations)
                 case .models:
                     // Training is a node of the project (#5439); it draws nothing until a model is trained.
-                    SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId)
+                    SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId,
+                                        selection: selectionState.selectedDestinations)
                 case .trash:
-                    SidebarTrashRow(store: library.trashStore, libraryId: libraryId)
+                    SidebarTrashRow(store: library.trashStore, libraryId: libraryId,
+                                    isSelected: selectionState.selectedDestinations.contains(.trash(libraryId: libraryId)))
                 }
             }
         }

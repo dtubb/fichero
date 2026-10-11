@@ -45,13 +45,16 @@ enum SidebarKnowledgeRows {
 struct SidebarKnowledgeRowsNode: View {
     let store: KnowledgeRowCountsStore
     let libraryId: UUID
+    var selection: Set<SidebarDestination> = []
 
     @AppStorage(SidebarKnowledgeRows.shownKey) private var shown = true
 
     var body: some View {
         ForEach(SidebarKnowledgeRows.rows(of: store, shown: shown), id: \.self) { kind in
+            let destination = SidebarDestination.knowledgeCollection(kind, libraryId: libraryId)
             Label(SidebarKnowledgeRows.title(kind), systemImage: SidebarKnowledgeRows.systemImage(kind))
-                .tag(SidebarDestination.knowledgeCollection(kind, libraryId: libraryId))
+                .sidebarDropHighlight(false, selected: selection.contains(destination))
+                .tag(destination)
                 .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
         }
     }

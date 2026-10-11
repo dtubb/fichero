@@ -278,13 +278,10 @@ extension SidebarConstants {
     /// ("grey might be too dark") let the accent bleed through — "bright
     /// green again" (#137). Lighter AND opaque: the window background
     /// blended halfway toward the unemphasized selection grey.
+    ///
+    /// The system's unemphasized selection grey itself (Daniel, 2026-10-11): the blend halfway toward the
+    /// window background was so light it read as no fill at all on the sidebar's material.
     static var selectedRowFill: Color {
-        #if os(macOS)
-        Color(nsColor: NSColor.windowBackgroundColor.blended(
-            withFraction: 0.55, of: .unemphasizedSelectedContentBackgroundColor
-        ) ?? .unemphasizedSelectedContentBackgroundColor)
-        #else
-        Color(.secondarySystemFill)
-        #endif
+        LibrarySelectionStyle.fill
     }
 }

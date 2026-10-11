@@ -177,15 +177,10 @@ extension SidebarItemRow {
             // #4544: menu built at OPEN, not per render — see
             // SidebarDeferredMenuContent.
             .contextMenu { SidebarDeferredMenuContent { rowContextMenu } }
-            // Chevron stays ACCENT on a selected row (Daniel, 2026-08-10:
-            // "the chevron turns white though. white is invisible on tahoe
-            // and golden gate. make it the same green"). The native selection
-            // still marks the row emphasized even though our grey platter
-            // covers its platter, so system chrome (the disclosure chevron)
-            // flips to white. Standard prominence + the accent tint keep it
-            // the same accent as the name and icon.
+            // Standard prominence keeps the disclosure chevron its normal grey on a selected row (Daniel,
+            // 2026-08-10: a white chevron is invisible); it is no longer tinted accent, since the selected
+            // row's name and icon no longer are (2026-10-11).
             .environment(\.backgroundProminence, .standard)
-            .tint(Color.accentColor)
         } else if isFolder {
             folderLabel
         } else {

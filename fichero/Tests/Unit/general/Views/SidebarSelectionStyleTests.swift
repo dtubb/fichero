@@ -25,36 +25,19 @@ struct SidebarSelectionStyleTests {
 
     // MARK: - Finder's selection grammar (Daniel, 2026-08-08)
 
-    /// Supersedes #4371's "selection changes nothing": like Finder's sidebar
-    /// and Mail's mailbox list, the grey fill carries the ROW and the NAME
-    /// takes the system accent when selected. Weight never changes — the
-    /// accent is the signal, and white-on-accent stays reserved for the
-    /// DROP target.
-    @Test("a selected label takes the accent colour, an unselected one stays primary")
-    func selectionTintsTheLabelAccent() {
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false).color == .primary)
-    }
-
-    /// macOS inactive-selection (Daniel, 2026-09-06: "when the sidebar is
-    /// selected but the actual focus is the library, the sidebar should be
-    /// selected but GRAY, and vice versa"). The row stays selected — the native
-    /// grey platter persists — but its accent name+icon drops to `.secondary`
-    /// while the sidebar is not the focused pane, so you can tell which pane has
-    /// keyboard focus. Mirrors the library's own `labelTint(focused:)`.
-    @Test("an unfocused sidebar selection keeps the row but greys the accent label")
-    func unfocusedSidebarSelectionGoesGrey() {
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: true).color == .accentColor)
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).color == .secondary)
-        // The grey is never neutral primary — it must read as SELECTED-but-inactive,
-        // the same `.secondary` the library uses, not the unselected primary.
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).color != .primary)
-        // Focus never touches an UNSELECTED row — it stays primary either way.
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false, paneFocused: false).color == .primary)
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: false, paneFocused: true).color == .primary)
-        // And the grey label is still never white or bolded.
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).color != .white)
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true, paneFocused: false).weight == .regular)
+    /// Finder's sidebar (Daniel, 2026-10-11, "less is more"; supersedes the
+    /// accent name of 2026-08-08 and the grey-when-unfocused name of
+    /// 2026-09-06): the grey rounded fill alone says selected. The name stays
+    /// primary, selected or not, focused or not.
+    @Test("a selected sidebar label stays primary in every focus state; the fill says selected")
+    func selectionLeavesTheLabelPrimary() {
+        for isSelected in [true, false] {
+            for paneFocused in [true, false] {
+                let style = LibrarySelectionStyle.sidebarLabel(isSelected: isSelected, paneFocused: paneFocused)
+                #expect(style.color == .primary, "isSelected: \(isSelected), paneFocused: \(paneFocused)")
+                #expect(style.weight == .regular)
+            }
+        }
     }
 
     @Test("the label is never white — the inversion belongs to the drop target only")
@@ -124,21 +107,24 @@ struct SidebarSelectionStyleTests {
         #expect(LibrarySelectionStyle.rowContent(selected: true, focused: false) == .primary)
     }
 
-    @Test("SIDEBAR selection is GREEN text on a light grey platter — never the accent fill")
-    func sidebarSelectionIsGreenOnGrey() {
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+    @Test("SIDEBAR selection is PRIMARY text on the system's grey platter — never the accent")
+    func sidebarSelectionIsPrimaryOnGrey() {
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .primary)
         #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).weight == .regular)
-        // The platter must never be the accent (#137: "it's never a row
-        // green color, except when you're a drop target").
+        // The platter is the system's unemphasized selection grey (Daniel,
+        // 2026-10-11: the lighter blend read as no fill), never the accent
+        // (#137: "it's never a row green color, except when you're a drop target").
+        #expect(SidebarConstants.selectedRowFill == LibrarySelectionStyle.fill)
         #expect(SidebarConstants.selectedRowFill != Color.accentColor)
     }
 
     @Test("the two selection languages are DELIBERATELY different — do not unify")
     func libraryAndSidebarStayAsymmetric() {
-        // Library focused-selected content is white; sidebar selected label
-        // is accent. If either line fails, someone unified the treatments.
+        // Library focused-selected content is white on accent; the sidebar's
+        // selected label is primary on grey. If either line fails, someone
+        // unified the treatments.
         #expect(LibrarySelectionStyle.rowContent(selected: true, focused: true) == .white)
-        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .accentColor)
+        #expect(LibrarySelectionStyle.sidebarLabel(isSelected: true).color == .primary)
     }
 
     // MARK: - Structural: no second selection language in the sidebar
@@ -228,9 +214,10 @@ struct SidebarSelectionStyleTests {
         let shell = try Self.appSource("Views/Shell/ContentView/Layout/ContentView+SidebarLayout.swift")
         // The row reads the pane-focus environment value…
         #expect(row.contains("@Environment(\\.sidebarPaneActive)"))
-        // …and feeds it to BOTH the name style and the icon tint.
+        // …and feeds it to the name style (which, since 2026-10-11, keeps the
+        // name primary in both states; the icon keeps its own colour).
         #expect(label.contains("paneFocused: sidebarPaneActive"))
-        #expect(label.contains("sidebarPaneActive ? .accentColor : .secondary"))
+        #expect(!label.contains("sidebarPaneActive ? .accentColor : .secondary"))
         // The shell publishes it from the same focusedPane/hint pair the
         // library's center-pane tint uses.
         #expect(shell.contains(".environment(\\.sidebarPaneActive,"))

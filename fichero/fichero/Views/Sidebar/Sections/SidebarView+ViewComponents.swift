@@ -50,8 +50,13 @@ extension SidebarView {
             filteredLibraryHeaders, libraryId: { $0.libraryId }, alwaysThereId: LibraryManager.globalLibraryId
         )
         List(selection: sidebarSelectionBinding) {
+            // Its own section with no heading, so the Projects section after it is a peer, as Finder's
+            // Favourites and Locations are (Daniel, 2026-10-11): a sidebar list draws a section's heading
+            // between sections.
             if let top = sections.top {
-                alwaysThereProjectItems(top)
+                Section {
+                    alwaysThereProjectItems(top)
+                }
             }
             if !sections.projects.isEmpty {
                 Section {

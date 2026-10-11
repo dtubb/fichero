@@ -102,17 +102,11 @@ enum LibrarySelectionStyle {
     /// `.secondary` grey while focus is elsewhere. Defaults to `true` so
     /// previews and tests that don't model focus render the focused look.
     static func sidebarLabel(isSelected: Bool, paneFocused: Bool = true) -> SidebarRowLabel {
-        // Finder's selection grammar (Daniel, 2026-08-08, screenshots on
-        // file — supersedes #4371's "selection changes nothing"): the grey
-        // fill carries the ROW, and the NAME and icon take the system accent,
-        // exactly like Finder's sidebar and Mail's mailbox list. Weight stays
-        // regular — the accent is the signal, never bolding, and never the
-        // white-on-accent inversion (that is reserved for the DROP target).
-        // When the sidebar is NOT the focused pane the accent drops to grey —
-        // the selection persists (the native grey platter stays), only its
-        // colour signal goes quiet, so you can tell which pane has focus.
-        let color: Color = isSelected ? (paneFocused ? .accentColor : .secondary) : .primary
-        return SidebarRowLabel(color: color, weight: .regular)
+        // Finder's sidebar (Daniel, 2026-10-11, "less is more"; supersedes the accent name of 2026-08-08 and
+        // its grey-when-unfocused rule of 2026-09-06): the grey rounded fill alone says selected. The name
+        // stays primary in every focus state and the icon keeps its own colour; never bold, and white only
+        // over the drop target's accent.
+        SidebarRowLabel(color: .primary, weight: .regular)
     }
 }
 

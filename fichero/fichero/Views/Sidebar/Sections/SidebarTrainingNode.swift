@@ -15,6 +15,7 @@ struct SidebarTrainingNode: View {
 
     let store: TrainedModelsStore
     let libraryId: UUID
+    var selection: Set<SidebarDestination> = []
 
     @State private var isExpanded = true
 
@@ -22,9 +23,11 @@ struct SidebarTrainingNode: View {
         if store.showsTrainingNode {
             DisclosureGroup(isExpanded: $isExpanded) {
                 ForEach(store.models, id: \.id) { model in
+                    let destination = SidebarDestination.trainedModel(model.id, libraryId: libraryId)
                     Label(model.name, systemImage: "brain")
                         .help(ModelNodeFacts.kindName(model.kind))
-                        .tag(SidebarDestination.trainedModel(model.id, libraryId: libraryId))
+                        .sidebarDropHighlight(false, selected: selection.contains(destination))
+                        .tag(destination)
                         .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
                 }
             } label: {

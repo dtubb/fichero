@@ -25,18 +25,16 @@ struct SidebarTrashRow: View {
 
     let store: TrashStore
     let libraryId: UUID
+    var isSelected = false
 
     var body: some View {
-        // Drawn as the folder rows above it are (Daniel's first launch, 2026-10-11: the Trash sat out of line with
-        // Sources and Workflows): a disclosure row with nothing in it keeps the strip the folders' chevrons sit in,
-        // with no chevron, and the name sits beside a 16-point icon at the folder rows' spacing
-        // (`SidebarItemRow.itemLabel`).
-        DisclosureGroup(isExpanded: .constant(false)) {
-            EmptyView()
-        } label: {
-            SidebarNodeLabel(name: Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
-        }
-        .tag(SidebarDestination.trash(libraryId: libraryId))
+        // A plain row, no chevron (Daniel, 2026-10-11), drawn as a top-level file row is: the outline keeps the
+        // chevrons' strip for every row at a level, so the name lines up with Sources and Workflows when it sits
+        // beside a 16-point icon at the folder rows' spacing (`SidebarNodeLabel`). The Label it was had a wider
+        // icon slot, which pushed its name right.
+        SidebarNodeLabel(name: Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
+            .sidebarDropHighlight(false, selected: isSelected)
+            .tag(SidebarDestination.trash(libraryId: libraryId))
         .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Self.name)

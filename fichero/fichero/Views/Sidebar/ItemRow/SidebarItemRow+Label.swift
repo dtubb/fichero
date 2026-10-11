@@ -187,12 +187,7 @@ extension SidebarItemRow {
         // Drop target: white over the solid accent platter — same rule as
         // the name (rowContentColor, #4563).
         if isDropTargeted { return .white }
-        // Selection: accent icon on the grey row fill (Finder) while the
-        // sidebar is focused; grey (.secondary) when focus is in the library,
-        // in step with the name (Daniel, 2026-09-06 inactive-selection).
-        if selectedDestinations.contains(item.destination) {
-            return sidebarPaneActive ? .accentColor : .secondary
-        }
+        // Selection leaves the icon its own colour: the grey fill says selected (Daniel, 2026-10-11).
         switch item.sidebarTint {
         case .accent: return .accentColor
         case .teal: return .teal
