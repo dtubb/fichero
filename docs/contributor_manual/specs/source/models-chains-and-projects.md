@@ -2539,6 +2539,15 @@ Projects
   steps still run. A recipe with nothing runnable, or one that fails the recipe check, never starts.
 
 Profiles (the defaults section of a recipe)
+- `source.onboard.icloud-pages-warned` — **[PARTIAL]** (#5669) *Built: `importers/keep_a_copy.summary`, the
+  Start plan's and an import's `in_icloud`, `document.copy_into_project`. Not built: Ready's and the import
+  sheet's Swift (B).* Before Start, and in an import's answer, Fichero says how many of the project's pages are
+  linked to originals that are in iCloud and not on this Mac ("34 of 92 pages are in iCloud and not on this
+  Mac") and offers, first, to copy them into the project. Only a page's own file is counted: a folder is never
+  "a page in iCloud" (a directory reports a size with no blocks of its own, which is not a placeholder), and
+  pages copied into the project are never counted. *Test:*
+  `fichero-server/tests/unit/importers/test_dataless_sources.py` (a directory is not dataless) and
+  `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py` (a Copy import of a folder warns of nothing).
 - `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
   Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
   and the plan offers the download (`downloads`, each a `download-model` job on the network lane). **Changed

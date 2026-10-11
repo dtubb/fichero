@@ -87,6 +87,16 @@ class TestTheDetection:
     def test_a_file_merely_named_icloud_is_fine(self):
         assert dataless_reason_from_stat("icloud-notes.txt", FakeStat()) is None
 
+    def test_a_directory_is_never_a_placeholder(self, tmp_path):
+        """A directory on APFS reports a size and no blocks of its own (measured 2026-10-11: 3008 bytes, 0
+        blocks, on a corpus folder): that is not a cloud placeholder, and a folder was counted as "a page in
+        iCloud" after a Copy import (`source.onboard.icloud-pages-warned`)."""
+        folder = FakeStat(size=3008, blocks=0)
+        folder.st_mode = 0o040755
+        assert dataless_reason_from_stat("CACIQUES_INDIOS,17,D.5", folder) is None
+        (tmp_path / "a.jpg").write_bytes(b"x")
+        assert dataless_reason(tmp_path) is None
+
     def test_a_platform_without_st_flags_still_works(self):
         """Linux stat has no st_flags; the block check must carry it."""
 

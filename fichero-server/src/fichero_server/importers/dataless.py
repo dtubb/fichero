@@ -41,6 +41,7 @@ Detection, in confidence order:
 from __future__ import annotations
 
 import logging
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +83,11 @@ def dataless_reason_from_stat(name: str, st: Any) -> str | None:
 
     size = getattr(st, "st_size", 0) or 0
     blocks = getattr(st, "st_blocks", None)
-    if size > 0 and blocks == 0 and not flags & UF_COMPRESSED:
+    mode = getattr(st, "st_mode", None)
+    # Only a regular file can be a zero-block placeholder: a directory on APFS reports a size and no blocks of its
+    # own (a corpus folder was counted as "a page in iCloud", #5668).
+    regular = mode is None or stat.S_ISREG(mode)
+    if regular and size > 0 and blocks == 0 and not flags & UF_COMPRESSED:
         return (
             f"the file reports {size} bytes but has ZERO allocated blocks — a "
             "cloud placeholder whose bytes are not on this machine"
