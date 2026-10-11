@@ -378,6 +378,12 @@ final class RecipeSetupStore {
     /// engine sets it as the step's reader, kept as the project's override, and saves the recipe
     /// (audited, undoable); the changed step replaces its own in place, as with `useInstead`.
     func useCandidate(_ candidate: Components.Schemas.ModelCandidate, forStep step: String) async {
+        await useCard(candidate.id, named: candidate.name, forStep: step)
+    }
+
+    /// Use for This Step by card: the finder's candidates and a stage comparison's columns (Use This) alike.
+    func useCard(_ card: String, named name: String, forStep step: String) async {
+        let candidate = (id: card, name: name)
         do {
             switch try await client.api.useCandidateForStepApiRecipesProjectStepsUseCandidatePost(
                 body: .json(.init(step: step, card: candidate.id))

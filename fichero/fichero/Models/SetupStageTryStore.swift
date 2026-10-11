@@ -138,9 +138,12 @@ struct SetupStageTryResult: Decodable, Equatable {
     let pages: [String]?
     /// The comparison's id, for Read and Find Lines.
     let bakeoff: String?
+    /// The same samples done by each of 2 or 3 candidates (`source.onboard.stages.compares-candidates`), when the
+    /// engine compared them.
+    let candidates: [StageCandidate]?
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff, documents, entries, pages
+        case state, error, how, names, bakeoff, documents, entries, pages, candidates
         case perPage = "per_page"
     }
 

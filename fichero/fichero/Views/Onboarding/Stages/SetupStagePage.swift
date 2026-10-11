@@ -13,8 +13,15 @@ struct SetupStagePage: View {
     var bakeoff: BakeoffSection.Context?
     var project: LibraryManager.LibraryReference?
 
+    /// The stage's try on the samples, shared by the picture at the top and the samples below.
+    @State private var tryStore: SetupStageTryStore?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // What the stage does, played on the person's own sample page when it was tried, else on the example
+            // (`source.onboard.stages.shows-what-it-does`); the candidates side by side when compared.
+            StageShowcaseSection(stageId: stage.id, result: tryStore?.result, useThis: useThis)
+                .environment(project?.storageService)
             if !stage.example.isEmpty {
                 Text(stage.example)
                     .font(.callout)
@@ -47,9 +54,9 @@ struct SetupStagePage: View {
                 Text("Train your own").font(.headline)
                 RecipeTrainOffersFields(store: store, onlyJobs: Set(stage.jobs))
             }
-            if stage.sampleable {
+            if stage.sampleable, let tryStore {
                 Divider()
-                SetupStageSamples(store: SetupStageTryStore(client: store.client, stageId: stage.id))
+                SetupStageSamples(store: tryStore)
                     .id(stage.id)
                     // The samples' thumbnails come from this project's storage (Organise's strip).
                     .environment(project?.storageService)
@@ -57,10 +64,20 @@ struct SetupStagePage: View {
         }
         // The plan's rows come from the recipe: propose it when this page needs it and there is none yet.
         .task(id: stage.id) {
+            if tryStore?.stageId != stage.id {
+                tryStore = stage.sampleable ? SetupStageTryStore(client: store.client, stageId: stage.id) : nil
+            }
             if store.recipe == nil, store.canAssemble { await store.assemble() }
             // The training offers ride on the Start plan.
             if store.startPlan == nil { await store.loadStartPlan() }
         }
+    }
+
+    /// Use This under a compared candidate: that card for the stage's step (the use-candidate route).
+    private var useThis: ((StageCandidate) -> Void)? {
+        guard let step = store.stepId(forJobs: stage.jobs) else { return nil }
+        let setup = store
+        return { candidate in Task { await setup.useCard(candidate.card, named: candidate.title, forStep: step) } }
     }
 
     /// Who runs it (`source.onboard.stages.page-who-runs-it`): this stage's own steps of the plan, with the model

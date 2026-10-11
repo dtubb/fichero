@@ -2822,7 +2822,7 @@ Setup
   which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
   the answers; a question belongs to one stage and is asked once. *Test:* pure Swift, each question's
   stage; pytest, the answers round-trip.
-- `source.onboard.stages.shows-what-it-does` — **[GAP]** (#5668) each stage page opens with a picture of
+- `source.onboard.stages.shows-what-it-does` — **[PARTIAL]** (#5668) each stage page opens with a picture of
   its work (section 7d, the table there), about 360 by 220 points, played once as the page appears and
   again on Replay, 3 to 5 seconds; with Reduce Motion it shows its last frame still. It plays on the
   person's own sample page when the stage was tried (the sample's picture and what the try made), else on
@@ -2830,15 +2830,24 @@ Setup
   dates worked out once and kept with its licence and credit). Drawn in SwiftUI; one Metal shader, a light
   sweeping the page, for Prepare Images and Read. *Test:* pure Swift, the try's page is chosen over the
   example; every stage has a picture; Reduce Motion gives the last frame; the example's data decodes and
-  every box lies on its image.
-- `source.onboard.stages.compares-candidates` — **[GAP]** (#5668) a stage page shows the same sample page
+  every box lies on its image. **Built 2026-10-11 (app), not yet seen:** `StageShowcaseSection` at the top of
+  `SetupStagePage`; `StageShowcaseView` plays it (a TimelineView, Replay, Reduce Motion's last frame); the thirteen
+  pictures in `StagePictures+Page.swift` and `StagePictures+Knowledge.swift` over `StagePageLayer`; `ScanSweep.metal`;
+  the example in `Resources/StageShowcase` with its credit shown under it (`ShowcaseCredit`). Pinned by
+  `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift` and
+  `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`.
+- `source.onboard.stages.compares-candidates` — **[PARTIAL]** (#5668) a stage page shows the same sample page
   done by 2 or 3 of the step's candidates side by side, each column playing the stage's picture on its own
   result with its measures under it (agreement or character error rate, time, cost: "free, on this Mac" or
   the cloud price) and Use This (the use-candidate route); Compare on These Pages runs them, the step's top
   2 or 3 by default, the person free to change which; one candidate is one column. The engine's answer is
   the try's, with `candidates: [...]`, each the bake-off row's fields (`card`, `name`, `runs_on`, `local`,
   `cer` or `agreement`, `seconds`, `cost_usd`, `why`) and its own `per_page` and `names`. *Test:* pure Swift,
-  one column per candidate, its measures in words, Use This sends its card for the step.
+  one column per candidate, its measures in words, Use This sends its card for the step. **Built 2026-10-11 (app),
+  against that shape:** `StageCandidate` (read from the try's `candidates`), `StageComparisonView`, Use This through
+  `RecipeSetupStore.useCard(_:named:forStep:)`; the button reads Compare on These Pages. Pinned by
+  `StageShowcasePicturesTests`. *Not built: the engine's `candidates` on the try (worker A), and choosing which 2 or 3
+  candidates the try runs (the request carries no candidates yet).*
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage.

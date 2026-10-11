@@ -34,6 +34,8 @@ struct ShowcaseGeometry: Equatable {
 /// boxes) shows its picture and nothing is drawn on it.
 struct StagePageLayer<Overlay: View>: View {
     let showcase: StageShowcase
+    /// False: only the marks, placed for the same page (a layer over another picture of it).
+    var drawsPicture = true
     @ViewBuilder var overlay: (ShowcaseGeometry) -> Overlay
 
     /// A page's proportions when its size is not known (a sample page): a portrait leaf.
@@ -43,11 +45,13 @@ struct StagePageLayer<Overlay: View>: View {
         GeometryReader { proxy in
             let geometry = ShowcaseGeometry(imageSize: showcase.size ?? Self.portrait, in: proxy.size)
             ZStack(alignment: .topLeading) {
-                picture
-                    .frame(width: geometry.drawn.width, height: geometry.drawn.height)
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
-                    .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-                    .position(x: geometry.drawn.midX, y: geometry.drawn.midY)
+                if drawsPicture {
+                    picture
+                        .frame(width: geometry.drawn.width, height: geometry.drawn.height)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+                        .position(x: geometry.drawn.midX, y: geometry.drawn.midY)
+                }
                 overlay(geometry)
             }
         }

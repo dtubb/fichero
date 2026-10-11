@@ -2,7 +2,7 @@ import FicheroAPIClient
 import SwiftUI
 
 /// A stage's result on 3 to 5 of the person's pages, before Start (section 7c, #5668): the proposed pages with why
-/// each was chosen, Try on These Pages (a cloud try says its cost first and runs only on a yes), and what it made per
+/// each was chosen, Compare on These Pages (a cloud try says its cost first and runs only on a yes), and what it made per
 /// page. Read and Find Lines are tried by the comparison of candidates, which the page shows under its steps.
 struct SetupStageSamples: View {
     @State var store: SetupStageTryStore
@@ -18,13 +18,13 @@ struct SetupStageSamples: View {
                 }
             }
             HStack {
-                Button("Try on These Pages") { Task { await store.tryIt() } }
+                Button("Compare on These Pages") { Task { await store.tryIt() } }
                     .disabled(store.isTrying || store.samples.isEmpty || store.result?.isUnderWay == true)
                 if store.isTrying || store.result?.isUnderWay == true { ProgressView().controlSize(.small) }
             }
             if let costQuestion = store.costQuestion {
                 Text(costQuestion).font(.callout).foregroundStyle(.secondary)
-                Button("Try, at That Cost") { Task { await store.tryIt(costOK: true) } }
+                Button("Compare, at That Cost") { Task { await store.tryIt(costOK: true) } }
             }
             if let refusal = store.refusal {
                 Label(refusal, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)

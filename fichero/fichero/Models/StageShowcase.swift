@@ -14,7 +14,7 @@ struct StageShowcase: Equatable {
     }
 
     /// A stretch of one line's text: a name, a date, a match.
-    struct Mark: Equatable, Decodable {
+    struct Mark: Hashable, Decodable {
         let line: Int
         let start: Int
         let end: Int
@@ -73,12 +73,15 @@ struct StageShowcase: Equatable {
     let licenceURL: URL?
 
     static func == (lhs: StageShowcase, rhs: StageShowcase) -> Bool {
-        lhs.picture == rhs.picture && lhs.size == rhs.size && lhs.regions == rhs.regions && lhs.lines == rhs.lines
-            && lhs.names == rhs.names && lhs.dates == rhs.dates && lhs.statements == rhs.statements
-            && lhs.passage == rhs.passage && lhs.expansions == rhs.expansions
-            && lhs.translation?.line == rhs.translation?.line && lhs.translation?.text == rhs.translation?.text
-            && lhs.table == rhs.table && lhs.search?.query == rhs.search?.query
-            && lhs.search?.matches == rhs.search?.matches && lhs.credit == rhs.credit
+        // One comparison per line: a single chain of a dozen `&&` can outrun the type checker.
+        guard lhs.picture == rhs.picture, lhs.size == rhs.size, lhs.regions == rhs.regions else { return false }
+        guard lhs.lines == rhs.lines, lhs.names == rhs.names, lhs.dates == rhs.dates else { return false }
+        guard lhs.statements == rhs.statements, lhs.passage == rhs.passage else { return false }
+        guard lhs.expansions == rhs.expansions, lhs.table == rhs.table, lhs.credit == rhs.credit else { return false }
+        let sameTranslation: Bool = lhs.translation?.line == rhs.translation?.line
+            && lhs.translation?.text == rhs.translation?.text
+        let sameSearch: Bool = lhs.search?.query == rhs.search?.query && lhs.search?.matches == rhs.search?.matches
+        return sameTranslation && sameSearch
     }
 
     /// Whether the person's own page is shown (not the example).
@@ -195,10 +198,16 @@ struct StageShowcaseExample: Decodable, Equatable {
     /// Every box and baseline lies on the picture.
     var fitsImage: Bool {
         let frame = CGRect(x: 0, y: 0, width: width, height: height)
-        let boxes = regions.map(\.box) + lines.map(\.box) + table.compactMap(\.box)
-        let points = lines.flatMap(\.baseline)
-        return boxes.allSatisfy { $0.count == 4 && frame.contains(Self.rect($0)) }
-            && points.allSatisfy { $0.count == 2 && frame.contains(CGPoint(x: $0[0], y: $0[1])) }
+        var boxes: [[Double]] = regions.map(\.box)
+        boxes += lines.map(\.box)
+        boxes += table.compactMap(\.box)
+        for box in boxes where box.count != 4 || !frame.contains(Self.rect(box)) { return false }
+        for line in lines {
+            for point in line.baseline where point.count != 2 || !frame.contains(CGPoint(x: point[0], y: point[1])) {
+                return false
+            }
+        }
+        return true
     }
 
     static func rect(_ box: [Double]) -> CGRect {
@@ -208,21 +217,31 @@ struct StageShowcaseExample: Decodable, Equatable {
 
     /// The example as the pictures draw it.
     func showcase(imageURL: URL) -> StageShowcase {
-        StageShowcase(
-            picture: .bundled(imageURL),
-            size: CGSize(width: width, height: height),
-            regions: regions.map { .init(kind: $0.kind, box: Self.rect($0.box)) },
-            lines: lines.map {
-                .init(box: Self.rect($0.box), baseline: $0.baseline.map { CGPoint(x: $0[0], y: $0[1]) }, text: $0.text)
-            },
-            names: names, dates: dates,
-            statements: statements.map { .init(subject: $0.subject, object: $0.object, label: $0.label) },
-            passage: passage.lines,
-            expansions: normalise.map { .init(line: $0.line, written: $0.written, expanded: $0.expanded) },
-            translation: (translation.line, translation.text),
-            table: table.map { .init(field: $0.field, value: $0.value, from: $0.from, box: $0.box.map(Self.rect)) },
-            search: (search.query, search.matches),
-            credit: shortCredit, licenceURL: URL(string: licenceUrl)
+        // Typed one by one: one long initializer of mapping closures can outrun the type checker.
+        let shownRegions: [StageShowcase.Region] = regions.map { region in
+            StageShowcase.Region(kind: region.kind, box: Self.rect(region.box))
+        }
+        var shownLines: [StageShowcase.Line] = []
+        for line in lines {
+            let baseline: [CGPoint] = line.baseline.map { point in CGPoint(x: point[0], y: point[1]) }
+            shownLines.append(StageShowcase.Line(box: Self.rect(line.box), baseline: baseline, text: line.text))
+        }
+        let shownStatements: [StageShowcase.Statement] = statements.map { said in
+            StageShowcase.Statement(subject: said.subject, object: said.object, label: said.label)
+        }
+        let shownExpansions: [StageShowcase.Expansion] = normalise.map { expansion in
+            StageShowcase.Expansion(line: expansion.line, written: expansion.written, expanded: expansion.expanded)
+        }
+        let shownTable: [StageShowcase.Cell] = table.map { cell in
+            StageShowcase.Cell(field: cell.field, value: cell.value, from: cell.from, box: cell.box.map(Self.rect))
+        }
+        let shownTranslation: (line: Int, text: String) = (translation.line, translation.text)
+        let shownSearch: (query: String, matches: [StageShowcase.Mark]) = (search.query, search.matches)
+        return StageShowcase(
+            picture: .bundled(imageURL), size: CGSize(width: width, height: height),
+            regions: shownRegions, lines: shownLines, names: names, dates: dates, statements: shownStatements,
+            passage: passage.lines, expansions: shownExpansions, translation: shownTranslation, table: shownTable,
+            search: shownSearch, credit: shortCredit, licenceURL: URL(string: licenceUrl)
         )
     }
 }
@@ -234,14 +253,22 @@ struct StageShowcaseExample: Decodable, Equatable {
 enum StageShowcaseSource {
     /// The sample page the try read, with its reading, names and statements; nil when the try made nothing to show.
     static func own(from result: SetupStageTryResult?) -> StageShowcase? {
-        guard let result, let page = (result.perPage ?? []).first(where: { !($0.readings ?? []).isEmpty })
-            ?? (result.perPage ?? []).first else { return nil }
-        let reading = page.readings?.first?.text ?? ""
-        let lines = reading.split(separator: "\n", omittingEmptySubsequences: true).map {
-            StageShowcase.Line(box: nil, baseline: nil, text: String($0))
-        }
-        let names = (result.names ?? []).flatMap { name in marks(of: name.name, kind: name.type, in: lines) }
-        let statements = (page.statements ?? []).map { StageShowcase.Statement(subject: nil, object: nil, label: $0) }
+        guard let result else { return nil }
+        return own(pages: result.perPage ?? [], names: result.names ?? [])
+    }
+
+    /// A sample page from a try's pages and names (a try's, or one candidate's).
+    static func own(pages: [SetupStageTryResult.Page], names found: [SetupStageTryResult.Name]) -> StageShowcase? {
+        let read: SetupStageTryResult.Page? = pages.first { page in !(page.readings ?? []).isEmpty }
+        guard let page = read ?? pages.first else { return nil }
+        let reading: String = page.readings?.first?.text ?? ""
+        let pieces: [Substring] = reading.split(separator: "\n", omittingEmptySubsequences: true)
+        var lines: [StageShowcase.Line] = []
+        for piece in pieces { lines.append(StageShowcase.Line(box: nil, baseline: nil, text: String(piece))) }
+        var names: [StageShowcase.Mark] = []
+        for name in found { names += marks(of: name.name, kind: name.type, in: lines) }
+        var statements: [StageShowcase.Statement] = []
+        for said in page.statements ?? [] { statements.append(StageShowcase.Statement(subject: nil, object: nil, label: said)) }
         return StageShowcase(
             picture: .sample(pageId: page.id), size: nil, regions: [], lines: lines, names: names, dates: [],
             statements: statements, passage: [], expansions: [], translation: nil, table: [], search: nil,
