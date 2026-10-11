@@ -17,15 +17,10 @@
     "fichero-server/tests/unit/api/test_reader_edit_keeps_word_boxes.py": "A test the DRAFT spec editable-reader.md (#5289) plans; it lands with the build once the spec is ruled.",
     "fichero-server/tests/unit/api/test_reader_edits_any_reading.py": "A test the DRAFT spec editable-reader.md (#5289) plans; it lands with the build once the spec is ruled.",
     "scripts/check_undo_one_path.py": "planned guardrail named by the undo-everywhere spec (#5658); written with undo slice 2",
-    "fichero/fichero/Views/Components/UndoRefusalNotice.swift": "planned view named by the undo-everywhere spec (#5658): the window's refusal sentence, built with undo slice 2",
     "fichero-server/tests/unit/transfer/test_transfer_between_engines.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
     "fichero-server/tests/unit/transfer/test_transfer_cuts.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
     "fichero-server/tests/unit/transfer/test_transfer_knowledge.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
-    "fichero-server/tests/unit/transfer/test_transfer_other_items.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built",
-    "fichero/Tests/Unit/general/App/WindowStepsTypingTests.swift": "planned in undo slice 2 (#5658): named by the undo-everywhere spec before it is built",
-    "fichero/Tests/Unit/general/Models/UndoableChangeTests.swift": "planned in undo slice 2 (#5658): named by the undo-everywhere spec before it is built",
-    "fichero/fichero/Models/UndoableChange.swift": "planned in undo slice 2 (#5658): named by the undo-everywhere spec before it is built",
-    "fichero/fichero/Models/WindowSteps.swift": "planned in undo slice 2 (#5658): named by the undo-everywhere spec before it is built"
+    "fichero-server/tests/unit/transfer/test_transfer_other_items.py": "planned in a later slice of the transfer spec (#5657): named by the spec before it is built"
   },
   "known_absent_paths": [
     "build/verify_all_needs_fixing.json",
