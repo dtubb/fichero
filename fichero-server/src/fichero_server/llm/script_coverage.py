@@ -242,8 +242,10 @@ def load_tokenizer(model_id: str, allow_download: bool = True) -> Tokenizer | No
     try:
         # Fetches tokenizer files only (never weights). A gated/vision-only/
         # unpublished model raises here -> None -> honest unknown, never a crash.
+        from fichero_server.db.paths import hf_hub_dir
+
         return AutoTokenizer.from_pretrained(  # type: ignore[return-value]
-            model_id, local_files_only=not allow_download
+            model_id, local_files_only=not allow_download, cache_dir=str(hf_hub_dir())
         )
     except Exception:
         return None

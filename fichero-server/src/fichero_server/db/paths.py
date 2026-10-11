@@ -56,6 +56,35 @@ def model_store_root(home: Path | None = None) -> Path:
     return server_state_dir(home)
 
 
+# Every Hugging Face download and lookup lands in Fichero's own model store (`runtime.models-in-the-store`, ruled
+# 2026-10-11: Daniel found 4.2 GB of the TrOCR reader tridis in ~/.cache/huggingface, where a `from_pretrained` with
+# no cache_dir had put it). Each load names `hf_hub_dir()`; and at engine start (`fichero_server/__init__.py`, the
+# first module uvicorn and the embedded engine both import, before any Hugging Face library reads them) the cache
+# variables point into the store unless already set, so no library falls back to ~/.cache by itself. Here, not in a
+# module of their own, so the engine's import budget (#3950) pays nothing for them.
+HF_CACHE_ENV = {"HF_HOME": "", "HF_HUB_CACHE": "hub", "TRANSFORMERS_CACHE": "hub",
+                "SENTENCE_TRANSFORMERS_HOME": "sentence-transformers"}
+
+
+def hf_store_dir() -> Path:
+    """Fichero's own Hugging Face folder: `model_store_root()/models/hf`."""
+    return model_store_root() / "models" / "hf"
+
+
+def hf_hub_dir() -> Path:
+    """Where a Hugging Face model is downloaded and found: the `cache_dir` every load in the engine names."""
+    return hf_store_dir() / "hub"
+
+
+def pin_hf_caches() -> dict[str, str]:
+    """Point the Hugging Face cache variables into the store, each unless already set. Returns them as they stand."""
+    root = hf_store_dir()
+    for name, sub in HF_CACHE_ENV.items():
+        if not os.environ.get(name, "").strip():
+            os.environ[name] = str(root / sub) if sub else str(root)
+    return {name: os.environ[name] for name in HF_CACHE_ENV}
+
+
 def is_global_library_package(package_path: Path | str) -> bool:
     """Whether this package is the engine's global library.
 

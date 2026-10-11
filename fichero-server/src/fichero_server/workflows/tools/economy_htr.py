@@ -143,9 +143,13 @@ def _load_trocr(model_id: str) -> tuple[Any, Any, str]:
             "economy_htr trocr backend needs the 'transformers' and 'torch' "
             f"packages (not fichero dependencies): {exc}"
         ) from exc
+    from fichero_server.db.paths import hf_hub_dir
+
     device = "mps" if torch.backends.mps.is_available() else "cpu"
-    processor = TrOCRProcessor.from_pretrained(model_id)
-    model = VisionEncoderDecoderModel.from_pretrained(model_id).to(device).eval()
+    # Into Fichero's store, never ~/.cache (`runtime.models-in-the-store`: 4.2 GB of tridis was found there).
+    store = str(hf_hub_dir())
+    processor = TrOCRProcessor.from_pretrained(model_id, cache_dir=store)
+    model = VisionEncoderDecoderModel.from_pretrained(model_id, cache_dir=store).to(device).eval()
     _TROCR_CACHE[model_id] = (processor, model, device)
     return _TROCR_CACHE[model_id]
 

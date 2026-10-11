@@ -253,6 +253,13 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 
 ### B. Shipping in the sandboxed build
 
+- `runtime.models-in-the-store` — **[OK]** (2026-10-11) every model the engine downloads or finds lives in
+  Fichero's own store (`model_store_root()`), never in ~/.cache: each load that can download names the store
+  (`db.paths.hf_hub_dir()` as `cache_dir`; TrOCR in `economy_htr` and a tokenizer in `script_coverage` did not, and
+  4.2 GB of tridis landed in ~/.cache/huggingface), and at engine start `HF_HOME`, `HF_HUB_CACHE`,
+  `TRANSFORMERS_CACHE` and `SENTENCE_TRANSFORMERS_HOME` point into `model_store_root()/models/hf` unless already
+  set, so a library that resolves a model by itself finds the store. Scripts run on a remote machine (a Hugging Face
+  Job, a cluster) are the named exceptions. Guarded by `fichero-server/tests/unit/llm/test_models_live_in_the_store.py`.
 - `runtime.code-ships-at-build-time` — **[PARTIAL]** (#5367, #4973) every runtime's code is in the
   app at build time; only weights and `traineddata` download. **Built 2026-10-09:** MLX, mlx-lm, mlx-vlm and
   mlx-whisper (`[tool.fichero.mlx_bundle]`), Kraken, spaCy and Ultralytics are bundled; MLX runs in the engine's
