@@ -240,8 +240,15 @@ extension DocumentStore {
             children: childrenCache.reduce(into: 0) { $0 += $1.value.count }
         )
         if let memo = sidebarDocumentsMemo, memo.key == key { return memo.docs }
+        // A folder's cached listing wins over a roots copy of the same document: `loadCollections()` clears
+        // the cache, so every listing in it was fetched after the roots. A root the engine has since moved
+        // into a folder (Default Workflows into Workflows, 2026-10-11) then sits in that folder, not also at
+        // the top level.
+        let nested = childrenCache.values.flatMap { $0 }
+        let nestedIds = Set(nested.lazy.filter { $0.parentId != nil }.map(\.id))
+        let roots = collections.filter { $0.parentId != nil || !nestedIds.contains($0.id) }
         var seen = Set<String>()
-        let docs = (collections + childrenCache.values.flatMap { $0 })
+        let docs = (roots + nested)
             .filter { seen.insert($0.id).inserted }
         sidebarDocumentsMemo = (key, docs)
         return docs

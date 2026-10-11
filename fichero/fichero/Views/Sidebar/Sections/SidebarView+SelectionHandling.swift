@@ -28,6 +28,16 @@ extension SidebarView {
         if lastHandledSelectionDestination == destination {
             return
         }
+        // The always-there project's root is never a destination: whatever selects it (a restore, the
+        // empty-area menu's New Folder or Import) selects its Sources instead (Daniel, 2026-10-11).
+        let routed = OpeningSelection.destination(
+            for: destination,
+            alwaysThereRoots: libraryManager.getLibrary(id: LibraryManager.globalLibraryId)?.documentStore.collections ?? []
+        )
+        if routed != destination {
+            selectedItemId = routed?.serializedID
+            return
+        }
         lastHandledSelectionDestination = destination
         handleSelectionDestination(destination)
         // The routed `sidebarMode`/`viewMode` are written: the click is

@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import SwiftUI
 import Testing
@@ -79,15 +80,55 @@ struct FirstLaunchLooksRightTests {
 
     // MARK: 4. An empty folder looks like an empty Finder window
 
-    @Test("an empty folder: the table's header and stripes in list and table, blank in icon, '0 items', and a drop target")
+    @Test("an empty folder: the table's header and stripes in list and table, blank in icon, '0 items', no words")
     func emptyFolder() {
         #expect(LibraryEmptyFolder.showsTable(.list) && LibraryEmptyFolder.showsTable(.table))
         #expect(!LibraryEmptyFolder.showsTable(.icon))
         #expect(LibraryEmptyFolder.footer(count: 0) == "0 items")
         #expect(LibraryEmptyFolder.footer(count: 1) == "1 item")
-        #expect(LibraryEmptyFolder.dropHint == "Drop files or folders here to import")
         #expect(LibraryEmptyFolder.looksLikeAnEmptyFolder(.noCollectionSelected), "a folder being browsed")
         #expect(!LibraryEmptyFolder.looksLikeAnEmptyFolder(.filteredOut(query: "x")), "a filter keeps its message")
         #expect(!LibraryEmptyFolder.looksLikeAnEmptyFolder(.searchFoundNothing(query: "x")))
+    }
+
+    // MARK: 5. The always-there project's root is never a destination
+
+    @Test("whatever selects the always-there project's root selects its Sources; anything else routes as itself")
+    func alwaysThereRootRoutesToSources() {
+        let sources = Document(id: "src", docType: .folder, name: OpeningSelection.sourcesFolderName)
+        let workflows = Document(id: SidebarTopOrder.workflowsFolderId, docType: .folder, name: "Workflows")
+        let root = SidebarDestination.library(LibraryManager.globalLibraryId)
+        #expect(OpeningSelection.destination(for: root, alwaysThereRoots: [workflows, sources]) == .document("src"))
+        // Before its top level loads there is nowhere to go, so nothing is selected, never the root.
+        #expect(OpeningSelection.destination(for: root, alwaysThereRoots: []) == nil)
+        // Another project's root, and any other row, route as themselves.
+        let project = SidebarDestination.library(UUID())
+        #expect(OpeningSelection.destination(for: project, alwaysThereRoots: [sources]) == project)
+        #expect(OpeningSelection.destination(for: .document("x"), alwaysThereRoots: [sources]) == .document("x"))
+        // A window that restored the root opens on Sources instead.
+        #expect(root.serializedID == OpeningSelection.alwaysThereRootId)
+        #expect(OpeningSelection.selectionId(restoredId: OpeningSelection.alwaysThereRootId, viewModeType: "library",
+                                             roots: [workflows, sources]) == "doc:src")
+    }
+
+    // MARK: 6. Workflows › Default Workflows, never a second top-level row
+
+    @Test("a root the engine has moved into a folder sits in that folder only, by the folder's newer listing")
+    func movedRootFollowsItsFolder() {
+        let store = DocumentStore(apiClient: APIClient(client: FicheroClient(libraryPath: nil)))
+        let defaults = Document(id: Document.defaultWorkflowsContainerID, docType: .folder, name: "Default Workflows")
+        let workflows = Document(id: SidebarTopOrder.workflowsFolderId, docType: .folder, name: "Workflows")
+        let sources = Document(id: "src", docType: .folder, name: OpeningSelection.sourcesFolderName)
+        // Roots fetched before the move still list Default Workflows at the top; the Workflows folder's listing,
+        // fetched since, has it inside.
+        store.collections = [sources, workflows, defaults]
+        var moved = defaults
+        moved.parentId = workflows.id
+        store.childrenCache[workflows.id] = [moved]
+        let docs = store.sidebarDocuments
+        #expect(docs.filter { $0.id == defaults.id }.map(\.parentId) == [workflows.id])
+        let tree = SidebarItemBuilder.buildLibraryHierarchy(from: docs, libraryId: Self.lib)
+        #expect(tree.map(\.name).sorted() == ["Sources", "Workflows"])
+        #expect(tree.first { $0.name == "Workflows" }?.children?.map(\.name) == ["Default Workflows"])
     }
 }

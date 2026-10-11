@@ -45,10 +45,21 @@ enum OpeningSelection {
     /// window that was on Activity with no run; otherwise, for Items, the project's Sources
     /// folder (nil until the project's top level has loaded, or when it has no Sources).
     static func selectionId(restoredId: String?, viewModeType: String, roots: [Document]) -> String? {
-        if let restoredId { return restoredId }
+        if let restoredId, restoredId != alwaysThereRootId { return restoredId }
         if viewModeType == "activity" { return "activity-browser" }
         guard viewModeType == "library" else { return nil }
         return sourcesFolder(in: roots).map { "doc:\($0.id)" }
+    }
+
+    /// The always-there project's own root, as a selection id. It is never a destination (Daniel, 2026-10-11):
+    /// it has no row, and an Items list of its top level (Sources, Workflows) is not a place.
+    static let alwaysThereRootId = "library:\(LibraryManager.globalLibraryId.uuidString)"
+
+    /// What a selection routes to: itself, except the always-there project's root, which routes to that
+    /// project's Sources (nil, so nothing, until its top level has loaded).
+    static func destination(for selected: SidebarDestination, alwaysThereRoots: [Document]) -> SidebarDestination? {
+        guard selected == .library(LibraryManager.globalLibraryId) else { return selected }
+        return sourcesFolder(in: alwaysThereRoots).map { .document($0.id) }
     }
 
     /// A first launch: first run not done and no project known but the always-there one
