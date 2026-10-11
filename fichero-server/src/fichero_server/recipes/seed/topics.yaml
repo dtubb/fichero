@@ -159,7 +159,13 @@ topics:
     kind: job
     title: Work out dates
     short: Turns dates as written (feast days, regnal years, any calendar) into exact dates.
-    long: The date as written is kept beside the worked-out one, with how certain it is.
+    long: >-
+      How it works: rules, not a model. Fichero reads the date at the head of each page (or the
+      date its catalogue gives), and converts it through tested calendar libraries (Julian,
+      Hebrew, Islamic, French Republican) and tables of regnal years and eras. A date known only
+      to the month or the year is kept as a span, so it still sorts in the right place. The date as
+      written stays beside the worked-out one, with how certain it is; a page that says it is
+      undated ("s.f.") is marked so, never given a guess. Runs on this Mac, free.
   - id: link-to-authorities
     kind: job
     title: Link to authorities

@@ -32,3 +32,8 @@ def live_chunks_of(db: Any, parent_ids: list[str]) -> dict[str, list[str]]:
             f"AND parent_id IN ({marks}) ORDER BY created_at, id", parent_ids):
         cut.setdefault(parent, []).append(doc_id)
     return cut
+
+
+def trashed_ids(db: Any) -> set[str]:
+    """Every document in the project's Trash (its `deleted_at` set): what knowledge reads hide behind."""
+    return {row[0] for row in db.execute_fetchall("SELECT id FROM documents WHERE deleted_at IS NOT NULL") or []}

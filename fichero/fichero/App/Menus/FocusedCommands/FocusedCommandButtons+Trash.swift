@@ -11,7 +11,7 @@ struct TrashActionsTarget: Equatable {
     let selection: Set<String>
 
     /// The selected items, in the order the Trash lists them.
-    var selectedIds: [String] { store.entries.map(\.id).filter(selection.contains) }
+    @MainActor var selectedIds: [String] { store.entries.map(\.id).filter(selection.contains) }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.store === rhs.store && lhs.selection == rhs.selection

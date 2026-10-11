@@ -17,14 +17,12 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from fichero_server.models import Document
 
 
 def trashed_document_ids(db: Any) -> set[str]:
-    rows = db.execute_fetchall(
-        f"SELECT id FROM {db._sql_table_name(Document)} WHERE deleted_at IS NOT NULL"
-    )
-    return {row[0] for row in rows or []}
+    from fichero_server.db.document_tree import trashed_ids
+
+    return trashed_ids(db)
 
 
 def claim_sources(claim: Any) -> set[str]:
