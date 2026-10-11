@@ -123,7 +123,7 @@ struct ActivityPopoverRunTests {
         let ledger = ActivityErrorLedger(defaults: defaults)
         ledger.note(failed: [ActivityJob(id: "e1", name: "Read", state: .failed)])
         #expect(ledger.window().isRecent("e1"))
-        ledger.markSeen(["e1"])
+        ledger.markSeen([ActivityJob(id: "e1", name: "Read", state: .failed)])
         #expect(!ledger.window().isRecent("e1"))
         #expect(!ActivityErrorLedger(defaults: defaults).window().isRecent("e1"), "across launches")
     }
@@ -149,6 +149,26 @@ struct ActivityPopoverRunTests {
         // Retried and failed again: the new failed_at replaces the old one.
         ledger.note(failed: [ActivityJob(id: "yesterday", name: "Read", state: .failed, failedAt: now)], now: now)
         #expect(ledger.window(now: now).isRecent("yesterday"))
+    }
+
+    /// WHY: the seen record was kept by job id, so a job retried after it was seen and failing again never showed.
+    @Test("a failure seen, retried and failed again shows again; the same failure stays seen")
+    func reFailureShowsAgain() throws {
+        let defaults = try #require(UserDefaults(suiteName: "activity-errors-\(UUID().uuidString)"))
+        let ledger = ActivityErrorLedger(defaults: defaults)
+        let now = Date(timeIntervalSince1970: 3_000_000)
+        let first = ActivityJob(id: "read", name: "Read", state: .failed, failedAt: now.addingTimeInterval(-600))
+        ledger.note(failed: [first], now: now)
+        ledger.markSeen([first])
+        #expect(!ledger.window(now: now).isRecent("read"), "seen")
+        let relaunched = ActivityErrorLedger(defaults: defaults)
+        relaunched.note(failed: [first], now: now)
+        #expect(!relaunched.window(now: now).isRecent("read"), "still seen after a relaunch")
+
+        let again = ActivityJob(id: "read", name: "Read", state: .failed, failedAt: now.addingTimeInterval(-30))
+        ledger.note(failed: [again], now: now)
+        #expect(ledger.window(now: now).isRecent("read"), "retried and failed again: a new failure")
+        #expect(ActivityErrorWindow.seenKey("read", failedAt: nil) == "read", "no failed_at: keyed by the job alone")
     }
 
     @Test("the jobs list's failed_at is read into the job")

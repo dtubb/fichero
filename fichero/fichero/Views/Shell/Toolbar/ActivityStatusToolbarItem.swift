@@ -187,7 +187,7 @@ struct ActivityStatusToolbarItem: View {
             errorLedger.note(failed: activityStore.failedJobs)
             errorWindow = errorLedger.window()
         }
-        .onDisappear { errorLedger.markSeen(failedIds) }
+        .onDisappear { errorLedger.markSeen(activityStore.failedJobs) }
         // A recipe run in hand reads as one run with its stages: its tree, read once when shown (the store
         // follows it from then on, as the Activity window's rows do).
         .task {
@@ -213,9 +213,6 @@ struct ActivityStatusToolbarItem: View {
             errorWindow: errorWindow
         )
     }
-
-    /// The failures the engine lists now.
-    private var failedIds: [String] { activityStore.backgroundJobs.filter(\.state.isFailed).map(\.id) }
 
     private var accessibilityLabel: String {
         if let importError { return importError }
