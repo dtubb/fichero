@@ -138,7 +138,7 @@ def test_source_recipe_done_is_not_redone(client, db, pages, tmp_path, lines):  
 
     plan = client.get("/api/recipes/project/start").json()
     read_card, check_card = plan["runs"]
-    assert (read_card["done"], read_card["of"]) == (2, 2) and "already done on 2 of 2 pages" in read_card["note"]
+    assert (read_card["done"], read_card["of"]) == (2, 2) and "already done on all 2 pages; nothing to run" in read_card["note"]
     assert check_card["done"] is None and "every page" in check_card["note"]
     again = _finished(client, _start(client))
     assert again["state"] == "done" and lines.read_calls == first, "nothing read twice"

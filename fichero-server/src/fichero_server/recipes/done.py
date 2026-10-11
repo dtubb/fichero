@@ -223,6 +223,17 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str]) -> tuple[list[st
     return todo, len(pages) - len(todo)
 
 
+def _note(done: int | None, of: int, unit: str) -> str:
+    """What Start will do on this run's pages, in words (#5616): never "done on 0 ...; runs on the rest"."""
+    if done is None:
+        return f"cannot tell what is done; runs on every page ({of})"
+    if done == 0:
+        return f"runs on all {of} {unit}"
+    if done >= of:
+        return f"already done on all {of} {unit}; nothing to run"
+    return f"already done on {done} of {of} {unit}; runs on the other {of - done}"
+
+
 def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None,
              within: set[str] | None = None) -> dict[str, Any]:
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
@@ -233,8 +244,7 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         _todo, done = split_done(db, card, pages)
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
-        card["note"] = (f"already done on {done} of {len(pages)} {unit}; runs on the rest" if done is not None
-                        else f"cannot tell what is done; runs on every page ({len(pages)})")
+        card["note"] = _note(done, len(pages), unit)
         last = next(((sid, (unfinished or {})[sid]) for sid in card["steps"] if sid in (unfinished or {})), None)
         if last is not None:
             sid, outcome = last
