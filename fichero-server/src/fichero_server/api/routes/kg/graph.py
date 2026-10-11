@@ -437,7 +437,10 @@ def neighborhood_impl(
     # focus is a hub. Instead we collect everything in this hop budget,
     # then rank + truncate at the end. (#993 — scaling-review
     # bottleneck 5)
-    claims_all = db.query(KnowledgeClaim)
+    from fichero_server.knowledge.trash_visibility import visible_claims
+
+    # Statements resting only on trashed pages draw no edges (`safety.trash.dependants-go-with-their-source`).
+    claims_all = visible_claims(db, db.query(KnowledgeClaim))
     candidate_edges: list[NeighborhoodEdge] = []
     candidate_neighbor_ids: dict[str, int] = {}  # entity_id → hop
     frontier: set[str] = {entity_id}

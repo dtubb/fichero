@@ -677,7 +677,8 @@ class TestUndoEndpointGuards:
         with pytest.raises(HTTPException) as exc:
             _undo(db, restored.audit_id)
         assert exc.value.status_code == 409
-        assert "not undoable" in exc.value.detail
+        assert exc.value.reason == "not-undoable"
+        assert exc.value.detail == "This step cannot be taken back."
 
 
 # ===========================================================================

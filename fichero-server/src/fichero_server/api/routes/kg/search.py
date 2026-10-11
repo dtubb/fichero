@@ -68,8 +68,16 @@ async def search_kg(
     hits: list[KGSearchHit] = []
     counts: dict[str, int] = {"entity": 0, "claim": 0, "note": 0, "annotation": 0}
 
+    from fichero_server.knowledge.trash_visibility import (
+        trashed_document_ids,
+        visible_claims,
+        visible_entities,
+    )
+
+    # Knowledge resting only on trashed pages is not found (`safety.trash.dependants-go-with-their-source`).
+    trashed = trashed_document_ids(db)
     if "entity" in requested:
-        for e in db.query(KnowledgeEntity):
+        for e in visible_entities(db, db.query(KnowledgeEntity), trashed):
             name = (e.canonical_name or "").lower()
             aliases = " ".join(e.aliases or []).lower()
             description = (e.description or "").lower()
@@ -85,7 +93,7 @@ async def search_kg(
                 counts["entity"] += 1
 
     if "claim" in requested:
-        for c in db.query(KnowledgeClaim):
+        for c in visible_claims(db, db.query(KnowledgeClaim), trashed):
             text = (c.text or "").lower()
             excerpt = (c.source_excerpt or "").lower()
             if needle in text or needle in excerpt:

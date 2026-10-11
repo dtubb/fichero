@@ -22,6 +22,17 @@ from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
 from fichero_server.api.main import get_library_database, get_library_database_for_write, readable_rows
 from fichero_server.api.routes.ingest.iiif import build_document_annotation_page
+from fichero_server.api.routes.document.trash import (
+    EmptyTrashPreview,
+    EmptyTrashResult,
+    PutBackResponse,
+    TrashListResponse,
+    TrashMovedTo,
+    empty_preview,
+    empty_trash,
+    put_back,
+    trash_listing,
+)
 from fichero_server.db import Database
 from fichero_server.db.node_levels import NodeLevel, resolve_level
 from fichero_server.models.knowledge import (
@@ -818,7 +829,7 @@ async def list_workspaces(
     return DocumentListResponse(items=items, count=len(items), withheld=withheld)
 
 
-@router.get("/trash")
+@router.get("/trash", response_model=TrashListResponse)
 async def list_deleted_documents(
     db: Database = Depends(get_library_database),
     limit: Optional[int] = Query(
@@ -826,11 +837,31 @@ async def list_deleted_documents(
     ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
     readable=Depends(readable_rows),
-) -> DocumentListResponse:
-    """List soft-deleted documents for the future Trash view."""
-    docs, withheld = readable(_ordered_by_sort_order(_list_documents(db, only_deleted=True)))
-    items = docs[offset : offset + limit] if limit is not None else docs[offset:]
-    return DocumentListResponse(items=items, count=len(items), withheld=withheld)
+) -> TrashListResponse:
+    """This project's Trash (`safety.trash.lists-what-and-why`): each thing deleted listed once,
+    newest first, with how many things inside it went with it, when, by whom, where it was, and
+    why (deleted, or moved to another project on a date)."""
+    return trash_listing(db, readable, limit=limit, offset=offset)
+
+
+@router.get("/trash/empty", response_model=EmptyTrashPreview)
+async def preview_empty_trash(
+    db: Database = Depends(get_library_database),
+) -> EmptyTrashPreview:
+    """What Empty Trash would remove, in numbers, and the moves it would make permanent
+    (`safety.trash.empty-names-moved-items`). Changes nothing."""
+    return empty_preview(db)
+
+
+@router.post("/trash/empty", response_model=EmptyTrashResult)
+async def empty_the_trash(
+    db: Database = Depends(get_library_database_for_write),
+    ctx: "ActionContext" = Depends(action_context),
+) -> EmptyTrashResult:
+    """Remove everything in this project's Trash for good: one recorded step, a snapshot first,
+    refused if the snapshot cannot be made (`safety.trash.empty-is-one-step`). Cannot be undone."""
+    result = await _run_document_write(registry.invoke, db, "document.empty_trash", {}, ctx)
+    return EmptyTrashResult.model_validate(result.result)
 
 
 class RunHistoryEntry(BaseModel):
@@ -1834,20 +1865,23 @@ async def delete_document(
     )
 
 
-@router.post("/{doc_id}/restore", status_code=204)
+@router.post("/{doc_id}/restore", response_model=PutBackResponse)
 async def restore_document(
     doc_id: str,
     db: Database = Depends(get_library_database_for_write),
     ctx: "ActionContext" = Depends(action_context),
-):
-    """Restore a soft-deleted document subtree."""
-    await _run_document_write(
+) -> PutBackResponse:
+    """Put Back (`safety.trash.put-back`): the item and what was deleted with it return to its
+    old folder, or to the project's Sources folder when that folder is in the Trash or gone. The
+    answer says where, in words."""
+    result = await _run_document_write(
         registry.invoke,
         db,
         "document.restore",
         {"doc_id": doc_id},
         ctx,
     )
+    return PutBackResponse.model_validate(result.result["put_back"])
 
 
 @router.delete("/{doc_id}/purge", status_code=204)
@@ -2885,14 +2919,18 @@ def delete_document_impl(
     # Workflows container or a preset mirror — must fail loudly. Deleting the
     # container would soft-delete every mirror inside it in one call.
     _reject_if_document_read_only(doc, "deleted")
-    to_delete_ids = _descendant_document_ids(db, doc.id, include_deleted=True)
-
     deleted_at = utc_now()
     before_snapshots: list[dict[str, Any]] = []
-    for current_id in to_delete_ids:
+    to_delete_ids: list[str] = []
+    for current_id in _descendant_document_ids(db, doc.id, include_deleted=True):
         current_doc = _get_document_row(db, current_id, include_deleted=True)
         if current_doc is None:
             continue
+        if current_doc.deleted_at is not None:
+            # Already in the Trash on its own: it keeps its own when and who, and stays its own
+            # item there (`safety.trash.lists-what-and-why`); Put Back of this folder leaves it.
+            continue
+        to_delete_ids.append(current_id)
         before_snapshots.append(current_doc.model_dump(mode="json"))
         current_doc.deleted_at = deleted_at
         current_doc.deleted_by = actor
@@ -3058,6 +3096,13 @@ class DocumentDeleteParams(BaseModel):
     """Params for document.delete — also the inverse of document.create."""
 
     doc_id: str = Field(description="Document id to delete (cascades to subtree)")
+    moved_to: TrashMovedTo | None = Field(
+        default=None,
+        description=(
+            "Set by a move between projects: the target project's name and the transfer's id. The "
+            "Trash then lists the item as 'moved to <project> on <date>' (`safety.trash.lists-what-and-why`)."
+        ),
+    )
 
 
 class DocumentMoveParams(BaseModel):
@@ -3156,6 +3201,10 @@ class DocumentRestoreParams(BaseModel):
         default_factory=list,
         description="Artifact snapshots deleted alongside the documents.",
     )
+
+
+class DocumentEmptyTrashParams(BaseModel):
+    """Empty Trash takes nothing: it is always the whole Trash of the project the request names."""
 
 
 class DocumentTrashListParams(BaseModel):
@@ -3911,34 +3960,55 @@ def _action_upsert_page_ranges(
     return response.model_dump(mode="json"), spec
 
 
+def _invert_put_back(
+    before: dict | None, after: dict | None, ctx: ActionContext
+) -> tuple[str, dict] | None:
+    """A Put Back is taken back by sending the same item to the Trash again."""
+    root_id = (after or {}).get("root_id")
+    return ("document.delete", {"doc_id": root_id}) if root_id else None
+
+
 @action(
     "document.restore",
     DocumentRestoreParams,
     domains=["document"],
-    undoable=False,
+    undoable=True,
+    invert=_invert_put_back,
 )
 def _action_restore_documents(
     db: Database, params: DocumentRestoreParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    doc_ids = list(params.doc_ids)
+    answer = None
+    put_back_before: dict[str, Any] | None = None
+    restored_ids: list[str] = []
     if params.doc_id:
-        doc_ids.extend(
-            _descendant_document_ids(db, params.doc_id, include_deleted=True)
-        )
-    restored_ids = restore_documents_impl(
-        db,
-        doc_ids=doc_ids,
-        documents=params.documents,
-        artifacts=params.artifacts,
-    )
+        answer, put_back_before = put_back(db, params.doc_id)
+        restored_ids.extend(answer.restored_document_ids)
+    if params.doc_ids or params.documents or params.artifacts:
+        for doc_id in restore_documents_impl(
+            db,
+            doc_ids=list(params.doc_ids),
+            documents=params.documents,
+            artifacts=params.artifacts,
+        ):
+            if doc_id not in restored_ids:
+                restored_ids.append(doc_id)
+    after: dict[str, Any] = {"document_ids": restored_ids}
+    if answer is not None and put_back_before is not None:
+        after["root_id"] = put_back_before["root_id"]
+        after["folder_id"] = answer.folder_id
     spec = ChangeSpec(
         domains=["document"],
         target_ids=restored_ids,
-        after={"document_ids": restored_ids},
+        before={"put_back": put_back_before} if put_back_before else None,
+        after=after,
         emit_type="document.updated",
         document_ids=restored_ids,
     )
-    return {"restored_document_ids": restored_ids}, spec
+    result: dict[str, Any] = {"restored_document_ids": restored_ids}
+    if answer is not None:
+        result["put_back"] = answer.model_dump(mode="json")
+    return result, spec
 
 
 @action(
@@ -4015,6 +4085,36 @@ def _action_cleanup_orphans(
 
 
 @action(
+    "document.empty_trash",
+    DocumentEmptyTrashParams,
+    domains=["document"],
+    undoable=False,
+)
+def _action_empty_trash(
+    db: Database, params: DocumentEmptyTrashParams, ctx: ActionContext
+) -> tuple[dict, ChangeSpec]:
+    """Empty Trash: everything in this project's Trash, removed for good in one recorded step.
+    A snapshot first; no snapshot, nothing removed (#5070's rule, once for the whole Trash)."""
+    if ctx.library_path:
+        try:
+            auto_snapshot_before_risky_operation(ctx.library_path, reason="Before emptying the Trash")
+        except SnapshotRefused as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+    result = empty_trash(db)
+    spec = ChangeSpec(
+        domains=["document"],
+        target_ids=result.deleted_document_ids,
+        after={
+            "document_ids": result.deleted_document_ids,
+            "moved": [group.model_dump(mode="json") for group in result.moved],
+        },
+        emit_type="document.deleted" if result.deleted_document_ids else None,
+        document_ids=result.deleted_document_ids,
+    )
+    return result.model_dump(mode="json"), spec
+
+
+@action(
     "document.list_trash",
     DocumentTrashListParams,
     domains=["document"],
@@ -4023,16 +4123,8 @@ def _action_cleanup_orphans(
 def _action_list_document_trash(
     db: Database, params: DocumentTrashListParams, ctx: ActionContext
 ) -> tuple[dict, ChangeSpec]:
-    docs = _ordered_by_sort_order(_list_documents(db, only_deleted=True))
-    items = (
-        docs[params.offset : params.offset + params.limit]
-        if params.limit is not None
-        else docs[params.offset :]
-    )
-    return {
-        "items": [doc.model_dump(mode="json") for doc in items],
-        "count": len(items),
-    }, ChangeSpec(domains=["document"])
+    listing = trash_listing(db, lambda rows: (rows, 0), limit=params.limit, offset=params.offset)
+    return listing.model_dump(mode="json"), ChangeSpec(domains=["document"])
 
 
 # ---------------------------------------------------------------------------

@@ -1230,7 +1230,10 @@ def list_claims_impl(
     ``GET /api/claims`` route and the read-only ``claim.list`` action the chat
     agent calls run the SAME filtering + pagination. Returns the page of claims.
     """
-    claims = db.all(KnowledgeClaim)
+    from fichero_server.knowledge.trash_visibility import visible_claims
+
+    # A statement resting only on pages in the Trash is out of view (`safety.trash.dependants-go-with-their-source`).
+    claims = visible_claims(db, db.all(KnowledgeClaim))
 
     # Apply filters
     if q:

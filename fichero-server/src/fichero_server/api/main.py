@@ -45,6 +45,7 @@ from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
 from fichero_server.db.manager import LibraryNotFoundError
+from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
 from fichero_server.security import authz
 from fichero_server.security.discovery import start_bonjour_advertiser
@@ -1155,6 +1156,12 @@ async def _handle_missing_module(_request: Request, exc: ModuleNotFoundError):
                    "Reinstall the engine's dependencies."},
         status_code=503,
     )
+
+
+@app.exception_handler(UndoRefused)
+async def _handle_undo_refused(_request: Request, exc: UndoRefused):
+    """A step not taken back: a sentence and a machine reason (`safety.undo.refusal-loses-nothing`)."""
+    return JSONResponse(exc.refusal_body, status_code=exc.status_code)
 
 
 @app.exception_handler(LibraryNotFoundError)
@@ -2531,9 +2538,11 @@ def install_tier_aware_not_found(target_app: FastAPI, active_tier: str) -> None:
                 },
             )
         detail = getattr(exc, "detail", None) or "Not Found"
+        # A refusal that carries its own body (an undo's `reason`, #5658) keeps it.
+        body = getattr(exc, "refusal_body", None)
         return JSONResponse(
             status_code=404,
-            content={"detail": detail},
+            content=body if isinstance(body, dict) else {"detail": detail},
             headers=getattr(exc, "headers", None),
         )
 

@@ -1260,6 +1260,10 @@ def list_entities_impl(
     # — otherwise a successful merge looks like it did nothing (#1849). Mirrors
     # the soft-delete exclusion already done in kg_review / cleanup.
     entities = [entity for entity in entities if entity.merged_into_id is None]
+    from fichero_server.knowledge.trash_visibility import visible_entities
+
+    # An entity resting only on pages in the Trash is out of view with them (#5243).
+    entities = visible_entities(db, entities)
     if run_id:  # the entities one run named (`kg.entity.says-who-made-it`)
         entities = [entity for entity in entities if run_id in entity_run_ids(entity)]
 

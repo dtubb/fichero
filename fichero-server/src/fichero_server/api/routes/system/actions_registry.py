@@ -23,7 +23,7 @@ cannot be forged through request bodies or headers.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -32,6 +32,7 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.security import authz
 from fichero_server.actions import ActionContext, ActionNotFoundError, ChangeSpec, action, registry
 from fichero_server.actions.registry import ActionRefused
+from fichero_server.actions.undo import UndoneSet, undo_set
 from fichero_server.api.auth import action_context, library_access_denial_payload
 from fichero_server.db.app import get_app_db
 from fichero_server.api.main import (
@@ -281,126 +282,52 @@ async def list_audit_log(
     return AuditLogResponse(items=items, count=len(items))
 
 
-@router.post("/audit/{audit_id}/undo", response_model=ActionResultResponse)
-async def undo_action(
-    audit_id: str,
-    request: Request,
-    db: Database = Depends(get_library_database_for_write),
-    ctx: ActionContext = Depends(action_context),
-    x_fichero_library_path: str | None = Depends(optional_library_path),
-    x_fichero_origin_window: str | None = Header(
-        default=None, alias="X-Fichero-Origin-Window"
-    ),
-) -> ActionResultResponse:
-    """Reverse an action — or redo, when the target audit is itself an inverse.
+class UndoRefusalResponse(BaseModel):
+    """Why a step was not taken back (`safety.undo.refusal-loses-nothing`)."""
 
-    Two paths, both registry-driven and both producing a fresh audit row so the
-    chain stays reversible indefinitely:
-
-    * **Undo a forward action** (``inverse_of is None``): look the action up in the
-      registry, call its ``invert(before, after, ctx) -> (name, params)``, and
-      ``invoke`` that inverse, tagged ``inverse_of=this audit`` so it can be redone.
-    * **Undo an inverse / redo** (``inverse_of`` set): by default, replay the
-      ORIGINAL forward action's ``action_name``, with its recorded ``params``
-      freshened by :func:`_refresh_replay_expected_versions` (#4957) so a
-      versioned action's ``expected_version``/``expected_versions`` compare
-      against the state the undo just left, not the value recorded back when
-      the action first ran. No per-action redo logic and no need for inverse
-      actions (restore/unmerge/unsplit/uncarry) to be independently
-      ``undoable``. When THIS row's own action opts in via
-      ``redo_via_own_invert`` (segment actions that mint a new id/row on a
-      plain replay), undo it through its OWN ``invert(before, after, ctx)``
-      instead — see :attr:`fichero_server.actions.registry.ActionRegistration.redo_via_own_invert`.
-    """
-    audit = db.get(ActionAudit, audit_id)
-    if audit is None:
-        raise HTTPException(
-            status_code=404, detail=f"Audit record not found: {audit_id}"
+    detail: str = Field(description="What happened, as a sentence for a person")
+    reason: Literal["changed", "already-undone", "gone", "not-undoable"] = Field(
+        description=(
+            "changed: something later touched the same things (the step stays; try again after "
+            "taking that back); already-undone: it was already taken back; gone: it is no longer "
+            "in the project's history; not-undoable: this kind of step cannot be taken back"
         )
-    if audit.undone:
-        raise HTTPException(status_code=409, detail="This action was already undone")
-    if not isinstance(ctx, ActionContext):
-        # Direct unit calls bypass FastAPI dependency injection.
-        ctx = ActionContext(
-            actor="system",
-            origin_window=x_fichero_origin_window,
-            library_path=x_fichero_library_path,
-        )
+    )
+    audit_id: str | None = Field(default=None, description="The step that refused")
 
-    if audit.inverse_of is not None:
-        # Redo: this row is an inverse. Two strategies, per THIS row's OWN
-        # action registration (#4957):
-        acting_reg = None
-        try:
-            acting_reg = registry.get(audit.action_name)
-        except ActionNotFoundError:
-            pass
-        if acting_reg is not None and acting_reg.redo_via_own_invert and acting_reg.invert is not None:
-            # Opt-in (segment actions that MINT a new id/row on a plain
-            # replay -- create, merge, split, carry, pass_create's inverse
-            # pass_delete, match_propose): undo THIS row through its OWN
-            # invert, computed from ITS OWN recorded `after`, never from an
-            # earlier row's now-stale params. This is what makes redoing a
-            # create come back as an undelete of the SAME id, and what stops
-            # a second undo of a redone merge/split/carry from acting on
-            # ids/versions an intervening redo already replaced.
-            derived = acting_reg.invert(audit.before, audit.after, ctx)
-            if derived is None:
-                raise HTTPException(
-                    status_code=409, detail="Action did not yield a redo to apply"
-                )
-            replay_name, replay_params = derived
-        else:
-            # Default: replay the ORIGINAL forward action's action_name, with
-            # its recorded params freshened by
-            # `_refresh_replay_expected_versions` (#4957) so a versioned
-            # action's `expected_version`/`expected_versions` compare
-            # against the state the undo just left, not the value recorded
-            # back when the action first ran. Correct for update/delete/
-            # undelete/restore_version (traced across arbitrarily many
-            # undo/redo laps) and for every non-segment action, with no
-            # need for inverse actions (restore/unmerge/unsplit/uncarry) to
-            # be independently `undoable`.
-            original = db.get(ActionAudit, audit.inverse_of)
-            if original is None:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Original audit gone, cannot redo: {audit.inverse_of}",
-                )
-            replay_name = original.action_name
-            replay_params = _refresh_replay_expected_versions(original.params, audit.after)
-    else:
-        # Undo: derive the inverse action from the forward action's invert().
-        try:
-            reg = registry.get(audit.action_name)
-        except ActionNotFoundError:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Action no longer registered: {audit.action_name}",
-            )
-        if not reg.undoable or reg.invert is None:
-            raise HTTPException(
-                status_code=409, detail=f"Action is not undoable: {audit.action_name}"
-            )
-        inverse = reg.invert(audit.before, audit.after, ctx)
-        if inverse is None:
-            raise HTTPException(
-                status_code=409, detail="Action did not yield an inverse to apply"
-            )
-        replay_name, replay_params = inverse
 
+_UNDO_REFUSALS: dict[int | str, dict[str, Any]] = {
+    404: {"model": UndoRefusalResponse, "description": "The step is not in the project's history (reason `gone`)."},
+    409: {
+        "model": UndoRefusalResponse,
+        "description": "The step cannot be taken back now (reason `changed`, `already-undone` or `not-undoable`).",
+    },
+}
+
+
+class UndoSetRequest(BaseModel):
+    audit_ids: list[str] = Field(min_length=1, description="The steps to take back together, all or none")
+
+
+class UndoSetResponse(BaseModel):
+    ok: bool
+    audit_ids: list[str] = Field(
+        description="The new rows the reversal wrote, newest step's first; taking THESE back as a set is the redo"
+    )
+    results: list[Any]
+    changed_domains: list[str]
+
+
+def _undo_context(ctx: Any, origin_window: str | None, library_path: str | None) -> ActionContext:
+    if isinstance(ctx, ActionContext):
+        return ctx
+    # Direct unit calls bypass FastAPI dependency injection.
+    return ActionContext(actor="system", origin_window=origin_window, library_path=library_path)
+
+
+def _undo_set_or_refuse(db: Database, audit_ids: list[str], ctx: ActionContext, request: Request) -> UndoneSet:
     try:
-        result = registry.invoke(
-            db, replay_name, replay_params, ctx, inverse_of=audit.id
-        )
-    except ActionNotFoundError:
-        raise HTTPException(
-            status_code=409, detail=f"Inverse/replay action unknown: {replay_name}"
-        )
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.errors())
-    except ActionRefused as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return undo_set(db, audit_ids, ctx)
     except authz.AuthorizationError as exc:
         raise LibraryAccessDeniedError(
             library_access_denial_payload(
@@ -411,14 +338,58 @@ async def undo_action(
             )
         ) from exc
 
-    audit.undone = True
-    db.save(audit)
 
+@router.post("/audit/{audit_id}/undo", response_model=ActionResultResponse, responses=_UNDO_REFUSALS)
+async def undo_action(
+    audit_id: str,
+    request: Request,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> ActionResultResponse:
+    """Take back one step, or redo it when the step is itself a taking-back.
+
+    A set of one (`POST /api/actions/audit/undo`): the inverse and the step's "undone" mark are
+    written in one transaction, and the step is refused, changing nothing, when a later step
+    still in effect touched the same things. Refusals answer 404 or 409 with a sentence and a
+    machine ``reason`` (see ``fichero_server.actions.undo``).
+    """
+    ctx = _undo_context(ctx, x_fichero_origin_window, x_fichero_library_path)
+    done = _undo_set_or_refuse(db, [audit_id], ctx, request)
     return ActionResultResponse(
-        ok=result.ok,
-        result=result.result,
-        audit_id=result.audit_id,
-        changed_domains=result.changed_domains,
+        ok=True,
+        result=done.results[0],
+        audit_id=done.audit_ids[0],
+        changed_domains=done.changed_domains,
+    )
+
+
+@router.post("/audit/undo", response_model=UndoSetResponse, responses=_UNDO_REFUSALS)
+async def undo_actions(
+    body: UndoSetRequest,
+    request: Request,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+    x_fichero_library_path: str | None = Depends(optional_library_path),
+    x_fichero_origin_window: str | None = Header(
+        default=None, alias="X-Fichero-Origin-Window"
+    ),
+) -> UndoSetResponse:
+    """Take back a set of steps together, newest first, all or none (`safety.undo.a-set-is-undone-whole`).
+
+    If any one step is refused, nothing is changed and the refusal names that step
+    (``audit_id``). The answer lists the new rows; taking those back as a set is the redo.
+    """
+    ctx = _undo_context(ctx, x_fichero_origin_window, x_fichero_library_path)
+    done = _undo_set_or_refuse(db, body.audit_ids, ctx, request)
+    return UndoSetResponse(
+        ok=True,
+        audit_ids=done.audit_ids,
+        results=done.results,
+        changed_domains=done.changed_domains,
     )
 
 
