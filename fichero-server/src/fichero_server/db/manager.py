@@ -246,6 +246,14 @@ class DatabaseManager:
 
                 with self._lock:
                     self._databases[cache_key] = db
+                # A move a crash left between its checked copy and its source step (#5657): finished
+                # now if the other project is open too (it needs both, so after this one is registered).
+                from fichero_server.transfer.move import resume_pending_moves
+
+                try:
+                    resume_pending_moves(db)
+                except Exception:
+                    logger.exception("Could not finish an interrupted move")
                 opened_in = _time.monotonic() - open_started
                 # The whole open, named when slow (#5228): the steps inside are timed one by one
                 # in Database; this catches the manager's own migrations and seeding too.

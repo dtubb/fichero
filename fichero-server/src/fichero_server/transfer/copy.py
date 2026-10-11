@@ -137,6 +137,17 @@ def _remove_files(paths: list[str]) -> None:
             logger.warning("transfer roll-back could not remove %s: %s", path, exc)
 
 
+def remove_target_rows(target_db, record: TransferRecord) -> None:
+    """Delete every row a COMMITTED transfer wrote in the target, by the record (a move's compensation).
+
+    They are new rows only this transfer made (new ids), so removing them takes nothing else."""
+    models = {model.__name__: model for model in target_db._all_schema_models()}
+    with target_db.transaction():
+        for kind, ids in reversed(list(record.written.items())):
+            for row in target_db.query_in(models[kind], "id", ids):
+                target_db.delete(row)
+
+
 def roll_back_target(target_db, record: TransferRecord, reason: str) -> None:
     """Remove what a transfer wrote in the target that a transaction cannot (its files); record why.
 
@@ -169,8 +180,12 @@ def recover_interrupted_transfers(db) -> list[str]:
     return touched
 
 
-def copy_into_target(source_db, target_db, plan: TransferPlan, *, mode: TransferMode, actor: str) -> TransferResult:
-    """Write the plan into the target, verify, and record it in both projects. Raises `TransferFailed`."""
+def copy_into_target(source_db, target_db, plan: TransferPlan, *, mode: TransferMode, actor: str,
+                     finish: bool = True) -> TransferResult:
+    """Write the plan into the target, verify, and record it in both projects. Raises `TransferFailed`.
+
+    ``finish=False`` (a move) stops at ``verified``: the target's record stays there, the source is not
+    written, and the result says ``verified``; `move.py` takes the source step and closes both."""
     from fichero_server.models.knowledge import EntityMatchCandidate, PendingMatchMethod
 
     source_name, target_name = plan.source_package.stem, plan.target_package.stem
@@ -197,14 +212,11 @@ def copy_into_target(source_db, target_db, plan: TransferPlan, *, mode: Transfer
             for match in plan.matches
         ]
         with target_db.transaction():
-            if plan.parent_to_make is not None:
-                _save_row(target_db, plan.parent_to_make)
-            for made in plan.vocabulary_to_make:
-                _save_row(target_db, made)
-            for _kind, row in plan.built:
+            rows: list[BaseModel] = [*([plan.parent_to_make] if plan.parent_to_make is not None else []),
+                                     *plan.vocabulary_to_make, *(row for _kind, row in plan.built), *proposals]
+            for row in rows:
                 _save_row(target_db, row)
-            for proposal in proposals:
-                _save_row(target_db, proposal)
+                record.written.setdefault(type(row).__name__, []).append(row.id)
             written = _verify(target_db, plan)
             record.proposals = [p.id for p in proposals]
             record.state = TransferState.verified
@@ -222,10 +234,15 @@ def copy_into_target(source_db, target_db, plan: TransferPlan, *, mode: Transfer
             f"and {source_name} is unchanged. ({reason})", result) from exc
 
     proposal_ids = dict(zip((m.carried for m in plan.matches), record.proposals))
-    result = result_of(plan, mode=mode, dry_run=False, state=TransferState.done, actor=actor,
-                       source=source_name, target=target_name, written=written)
+    result = result_of(plan, mode=mode, dry_run=False, state=TransferState.done if finish else TransferState.verified,
+                       actor=actor, source=source_name, target=target_name, written=written)
     for proposal in result.proposals:
         proposal.proposal = proposal_ids.get(proposal.carried_entity)
+    if not finish:
+        record.result = result.model_dump(mode="json")
+        record.updated_at = utc_now()
+        target_db.save(record)
+        return result
     record.state = TransferState.done
     record.result = result.model_dump(mode="json")
     record.updated_at = utc_now()

@@ -287,6 +287,36 @@ def untie(db: Any, folder_id: str) -> None:
     _unwatch(folder_id)
 
 
+_TIE_COLUMNS = ("folder_id", "rel_path", "document_id", "format", "sha256", "written_at", "state", "exported_sha256")
+
+
+def sever(db: Any, document_ids: list[str]) -> list[dict[str, Any]]:
+    """Documents moved to another project leave every synced folder of this one (#5657,
+    `transfer.cut.sync-folder-tie`): their rows go, their files stay on disk as they are. Returns the
+    rows removed, as they were, so undoing the move can put them back (`retie`)."""
+    _ensure(db)
+    if not document_ids:
+        return []
+    marks = ", ".join("?" for _ in document_ids)
+    rows = db.execute_fetchall(
+        f"SELECT {', '.join(_TIE_COLUMNS)} FROM sync_files WHERE document_id IN ({marks})", list(document_ids))
+    db.execute(f"DELETE FROM sync_files WHERE document_id IN ({marks})", list(document_ids))
+    return [
+        {name: (value.isoformat() if hasattr(value, "isoformat") else value) for name, value in zip(_TIE_COLUMNS, row)}
+        for row in rows
+    ]
+
+
+def retie(db: Any, rows: list[dict[str, Any]]) -> None:
+    """Put back the ties `sever` removed (undo of a move)."""
+    _ensure(db)
+    for row in rows:
+        db.execute(
+            f"INSERT INTO sync_files ({', '.join(_TIE_COLUMNS)}) VALUES ({', '.join('?' for _ in _TIE_COLUMNS)}) "
+            "ON CONFLICT (folder_id, rel_path) DO NOTHING",
+            [row.get(name) for name in _TIE_COLUMNS])
+
+
 def queue_rewrites(db: Any, document_ids: list[str], *, watched: bool = False) -> None:
     """A change touched these pages: rewrite their files in every tied folder after the quiet period,
     in the change's own transaction. Cheap when nothing is tied. `watched`: a person made the change

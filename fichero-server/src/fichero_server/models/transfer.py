@@ -166,6 +166,12 @@ class TransferRecord(BaseModel):
     #: A carried segment version's or forwarding's original audit pointer, by its new row id
     #: (`transfer.page.audit-pointers`: the row itself points at this transfer's audit row).
     source_audits: dict[str, str] = Field(default_factory=dict)
+    #: In the target: every row the transfer wrote, by kind (what a move's compensation removes).
+    written: dict[str, list[str]] = Field(default_factory=dict)
+    #: In the source (a move): the nodes the move sent to the Trash, alive until then (what undo puts back).
+    trashed: list[str] = Field(default_factory=list)
+    #: In the source (a move): each edge cut there, as it was, so undo can put it back.
+    source_cuts: list[dict[str, Any]] = Field(default_factory=list)
     result: dict[str, Any] | None = None
     error: str | None = None
     created_by: str | None = None
