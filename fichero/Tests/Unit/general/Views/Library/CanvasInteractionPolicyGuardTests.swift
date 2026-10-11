@@ -47,7 +47,10 @@ struct CanvasInteractionPolicyGuardTests {
         let source = try appSource(sceneViewPath)
         // Both halves stand down: the marquee (.updating) resets its rect and
         // the pan (.onChanged) returns while a card drag or resize is live.
-        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld else {"))
+        // 572719bca widened the marquee's guard (a press ON a card or a handle is that card's drag, never
+        // a rubber band), so it no longer ends at `!spaceHeld else {`; its stand-down is pinned instead.
+        #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, !spaceHeld,"))
+        #expect(source.contains("if state != nil { state = nil }"))
         #expect(source.contains("guard resizeHandle == nil, draggingNodeId == nil, spaceHeld else { return }"))
     }
 

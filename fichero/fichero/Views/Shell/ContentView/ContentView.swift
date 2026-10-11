@@ -76,6 +76,16 @@ final class WorkflowSyncBaseline {
     var value: Workflow?
 }
 
+/// The folder-canvas pick (#5305 focus, #5303 selection), boxed out of `ContentView`'s own layout for the
+/// `ViewValueSizeTests` byte budget: an inline `@State var Document?` is a whole `Document` (~424 bytes)
+/// copied on every graph update, and it took ContentView to 6416 against its 6064 ceiling. `@Observable`,
+/// unlike `WorkflowSyncBaseline`, because the Inspector and the Reader RENDER `focus`.
+@Observable
+final class FolderCanvasPick {
+    var focus: Document?
+    var selection: [Document] = []
+}
+
 struct ContentView: View {
     /// The preview pane's lens (Daniel, 2026-08-23: "preview and edit").
     /// Never changes WHICH document shows, only how.
@@ -392,9 +402,17 @@ struct ContentView: View {
     /// The card selected on a folder's canvas in the Preview (#5305): the Inspector and the Reader
     /// show it while the Preview keeps the folder's board. Honoured only while its parent is the
     /// folder being shown, so a stale one from another folder is ignored.
-    @State var folderCanvasFocus: Document?
+    /// Boxed (see `FolderCanvasPick`): the two names below read and write through it unchanged.
+    @State var folderCanvasPick = FolderCanvasPick()
+    var folderCanvasFocus: Document? {
+        get { folderCanvasPick.focus }
+        nonmutating set { folderCanvasPick.focus = newValue }
+    }
     /// Every card selected on that canvas, for Group (#5303).
-    @State var folderCanvasSelection: [Document] = []
+    var folderCanvasSelection: [Document] {
+        get { folderCanvasPick.selection }
+        nonmutating set { folderCanvasPick.selection = newValue }
+    }
     /// Coalesces the swipe→sidebar-highlight write (2026-08-09): re-rendering
     /// the sidebar per page-turn is a ~250ms childrenList pass, which is the
     /// white-flash budget. The library selection still moves per turn; the

@@ -78,8 +78,10 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // …and does NOT cascade a fetch per subfolder. `loadSidebarChildren`
         // must not prefetch the expanded folder's children's children.
         XCTAssertFalse(prefetch.contains("prefetchChildContainerChildren(of: children)"))
-        // The roots-level prefetch still fetches only containers.
-        XCTAssertTrue(prefetch.contains("$0.docType == .folder"))
+        // The roots-level prefetch still fetches only containers — folders and,
+        // since #5570, groups (`isFolderLike`). The filter's behaviour is pinned
+        // in SidebarPrefetchBatchingTests / GroupsAreContainersTests.
+        XCTAssertTrue(prefetch.contains("$0.isFolderLike && cache[$0.id] == nil"))
     }
 
     func testSidebarRowOptionClickExpandsWholeSubtree() throws {
@@ -238,9 +240,11 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
         // The forced assignment inside `handleSidebarSelectionChange`'s
         // knowledge-collection branch is GONE. Bounded by the branch's own
         // closing brace (`return\n        }`), a structural marker, not a
-        // character count.
+        // character count. The branch also takes a project's Trash row since
+        // b5d0afaf6 (`|| SidebarDestination.trashLibraryId(...)`), so the marker
+        // stops at the `||`.
         let afterBranchOpen = try XCTUnwrap(
-            stateSource.components(separatedBy: "SidebarDestination.isKnowledgeCollectionId(id) {")
+            stateSource.components(separatedBy: "SidebarDestination.isKnowledgeCollectionId(id) ||")
                 .dropFirst().first
         )
         let branchScope = AppSource.codeOnly(

@@ -336,7 +336,10 @@ struct CanvasArrangeWiringGuardTests {
     func bothRenderersAnimate() throws {
         for paths in renderers {
             let source = try combined(paths)
-            #expect(source.contains("CanvasMoveAnimation.duration(for: ops)"), "\(paths) picked its own timing")
+            // The call grew `opening:` in 730ad66c3 (#5629: an opening board is placed, not animated);
+            // the timing still comes off the diff, from the one shared function.
+            #expect(source.contains("CanvasMoveAnimation.duration(for: ops, opening: needsFitOnNextContent)"),
+                    "\(paths) picked its own timing")
             #expect(source.contains("duration: moveDuration"), "\(paths) teleports cards")
             // The 3D teleport this replaced: a bare position assignment.
             #expect(!source.contains("?.position = Canvas3DProjection.scenePosition(position)"))

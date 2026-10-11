@@ -231,11 +231,14 @@ struct CanvasCameraCommandGuardTests {
             let source = try combined(paths)
             #expect(source.contains("focusedSceneValue(\\.canvasViewActions, canvasCommandActions)"),
                     "\(paths) does not publish its camera commands")
-            // Recorded on the jumps worth returning from — zoom-to-fit and the
-            // double-click focus — and NOWHERE else: a pose per pan frame would
-            // fill the stack with places nobody chose to go.
-            #expect(source.components(separatedBy: "jumpHistory.record(").count - 1 == 2,
-                    "\(paths) records a pose somewhere other than the two jump sites")
+            // Recorded on the jumps worth returning from — zoom-to-fit, the
+            // double-click focus and Actual Size (a command jump since 670eb43ff,
+            // #5632) — and NOWHERE else: a pose per pan frame would fill the
+            // stack with places nobody chose to go.
+            #expect(source.components(separatedBy: "jumpHistory.record(").count - 1 == 3,
+                    "\(paths) records a pose somewhere other than the three jump sites")
+            #expect(source.contains("case .actualSize:\n            jumpHistory.record(renderer.cameraSnapshot())"),
+                    "\(paths): Actual Size is the third site")
             #expect(source.contains("jumpHistory.jumpBack(from: renderer.cameraSnapshot())"))
             #expect(source.contains("jumpHistory.jumpForward(from: renderer.cameraSnapshot())"))
         }

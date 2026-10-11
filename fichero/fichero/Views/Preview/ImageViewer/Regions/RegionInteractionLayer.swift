@@ -63,6 +63,10 @@ struct RegionInteractionLayer: View {
     /// pan, pinch and the swipes never reached the scroll view. nil in
     /// headless hosts (the layer is then display-only).
     var pointer: PreviewPointerFeed?
+    /// Where the rubber band is laid out, in the host's top-left coordinates, each time it changes.
+    /// Nil in the app. A hosted test reads the band here: walked in-process, SwiftUI's accessibility
+    /// tree came back empty (2026-10-11 full run), so the identifier below never found the band (#5214).
+    var onBandFrame: ((CGRect) -> Void)?
     /// Commit a moved region: (full-list index, new normalized bbox).
     let onMoveCommit: (Int, [Double]) -> Void
     /// Save the drawn marquees as regions: (name, marquee index). An empty
@@ -120,6 +124,9 @@ struct RegionInteractionLayer: View {
                             .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, dash: [4]))
                             .background(Color.accentColor.opacity(0.12))
                             .frame(width: rect.width, height: rect.height)
+                            // Measured INSIDE the offset, so the frame is where the band is drawn
+                            // after the offset and the layer's alignment, not where layout put it.
+                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { onBandFrame?($0) }
                             .offset(x: rect.minX, y: rect.minY)
                             .accessibilityElement()
                             .accessibilityIdentifier(Self.liveBandIdentifier)

@@ -268,9 +268,13 @@ struct CanvasTintWiringGuardTests {
             #expect(!source.contains("CanvasControlStrip()"), "\(path) grew its own strip back")
             #expect(source.contains("state.tint = tint"))
         }
+        // The producer moved into `CanvasBoard.tint` in dee1a5449 (#5629), so the Library's canvases and
+        // the Preview's folder canvas colour from ONE function; the host forwards what it produces.
         let host = try appSource("Views/Library/LibraryView+CanvasModes.swift")
-        #expect(host.contains("CanvasTint.byValue("))
-        #expect(host.contains("SpatialLibraryProjector.nodeId(forDocument:"))
+        #expect(host.contains("CanvasBoard.tint(of:"))
         #expect(host.components(separatedBy: "tint: canvasTint").count - 1 == 2)
+        let board = try appSource("Views/Library/ViewModes/Canvas/Engine/Opening/CanvasBoard.swift")
+        #expect(board.contains("CanvasTint.byValue("))
+        #expect(board.contains("SpatialLibraryProjector.nodeId(forDocument:"))
     }
 }
