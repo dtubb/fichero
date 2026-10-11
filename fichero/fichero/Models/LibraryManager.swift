@@ -193,6 +193,8 @@ class LibraryManager {
         /// This project's bake-off (#4951, Check on your pages): started in setup or the project
         /// Inspector, it runs as a job in Activity and is read back from here by both.
         @ObservationIgnored lazy var bakeoffStore = BakeoffStore(client: ficheroClient)
+        /// The line finders' comparison for Find lines (#5660 item 7), kept apart from the readers'.
+        @ObservationIgnored lazy var lineBakeoffStore = BakeoffStore(client: ficheroClient, step: BakeoffStore.lineStep)
 
         /// This project's model finder (#5611): the reader candidates the engine gathers, shown in the
         /// project's Inspector, Set Up… › Ready and Settings › AI; its online search is this project's

@@ -364,4 +364,85 @@ struct BakeoffStoreTests {
         #expect(store.notReadySentence == nil)
         #expect(store.canRun, "offered again once there are enough corrected lines")
     }
+
+    // MARK: #5660 item 7: every kind of reader, WER, and the line finders
+
+    /// The two comparisons as `GET …/bakeoffs` lists them, newest first: the line finders', then the readers'.
+    private static let bothComparisons = """
+    {"items":[
+      {"id":"bake-lines","job_id":"job-lines","step":"find-lines","started_at":"2026-10-11T08:52:00Z","state":"done",
+       "pages":[{"document_id":"p1","name":"f. 12r","lines":61}],"left_out":[],"lines":61,"winner":null,
+       "rows":[
+        {"rank":1,"card":"kraken:builtin/blla@bundled","name":"Kraken's line finder","role":"contender","runs_on":"this-mac",
+         "local":true,"cost_usd":{"value":0,"basis":"measured","from":"runs on this Mac"},"trainable":false,"size_gb":0,
+         "measured":true,"seconds":14,"lines_found":57,"lines_checked":61,"extra_lines":3},
+        {"rank":2,"card":"apple:vision/recognize-text@os","name":"Apple Vision's text lines","role":"contender",
+         "runs_on":"this-mac","local":true,"cost_usd":{"value":0,"basis":"measured","from":"runs on this Mac"},
+         "trainable":false,"size_gb":0,"measured":true,"seconds":6,"lines_found":50,"lines_checked":61,"extra_lines":9},
+        {"rank":3,"card":"yolo:hf/hantian/yolo-doclaynet@main","name":"The YOLO layout model","role":"contender",
+         "runs_on":"this-mac","local":true,"cost_usd":{"value":0,"basis":"measured","from":"runs on this Mac"},
+         "trainable":false,"size_gb":0,"measured":false,"why":"not available yet: it finds regions, not lines"}]},
+      {"id":"bake-readers","job_id":"job-readers","step":"read-a-line","started_at":"2026-10-11T08:40:00Z",
+       "state":"done","pages":[{"document_id":"p1","name":"f. 12r","lines":61}],"left_out":[],"lines":61,
+       "winner":null,"rows":[
+        {"rank":1,"card":"kraken:zenodo/catmus@1","name":"CATMuS Medieval","role":"rule rank","rule_rank":2,
+         "reader":"kraken","runs_on":"this-mac","local":true,"cer":0.071,"wer":0.214,"measured":true,"seconds":38,
+         "cost_usd":{"value":0,"basis":"measured","from":"runs on this Mac"},"trainable":true,"size_gb":0.02},
+        {"rank":2,"card":"apple:vision/recognize-text@os","name":"Apple Vision's text recognition","role":"contender",
+         "reader":"vision","runs_on":"this-mac","local":true,"cer":0.386,"wer":0.712,"measured":true,"seconds":9,
+         "cost_usd":{"value":0,"basis":"measured","from":"runs on this Mac"},"trainable":false,"size_gb":0},
+        {"rank":3,"card":"anthropic:claude@settings","name":"Claude (Anthropic), in the cloud","role":"contender",
+         "reader":"vision","runs_on":"cloud:anthropic","local":false,
+         "cost_usd":{"value":null,"basis":"estimate","from":"price list"},"trainable":false,"size_gb":0,
+         "why":"not available yet: add Claude in Settings › AI"}]}],
+     "readiness":{"ready":true,"lines":119,"pages":2,"min_lines":100,"min_pages":2,"more_lines":0,"more_pages":0}}
+    """
+
+    /// WHY (#5660 item 7, the maintainer's question "are these the best models for this script?"): the readers'
+    /// table tries one of each kind beside the rules' picks, scores each by CER and WER with its time and cost, and
+    /// a kind that cannot read here says why rather than being left out or faked.
+    @Test func everyKindOfReaderIsShownWithCerWerTimeAndWhy() async throws {
+        let client = makeClient { request in Self.reply(request, 200, Self.bothComparisons) }
+        let store = BakeoffStore(client: client)
+        await store.loadLatest()
+
+        let rows = try #require(store.comparison?.rows)
+        #expect(store.comparison?.step == "read-a-line", "the readers' store reads the readers' comparison")
+        #expect(rows.map(BakeoffStore.role) == ["The rules' pick 2", "Also tried", "Also tried"])
+        #expect(rows.map(BakeoffStore.errorRate) == ["7.1%", "38.6%", "—"])
+        #expect(rows.map(BakeoffStore.wordErrorRate) == ["21.4%", "71.2%", "—"])
+        #expect(rows.map(BakeoffStore.time) == ["38 s", "9 s", "—"])
+        #expect(BakeoffStore.note(rows[2]) == "not available yet: add Claude in Settings › AI")
+        #expect(BakeoffStore.useRefusal(rows[0], comparesLines: false) == nil)
+        #expect(BakeoffStore.useRefusal(rows[2], comparesLines: false)?.contains("add Claude in Settings") == true)
+    }
+
+    /// WHY (#5660 item 7): Find lines gets its own comparison, started with step=find-lines and kept apart from the
+    /// readers'. Each row says the checked lines it found and its extra lines; Use This is offered only where the
+    /// engine accepts it (Kraken's, which the line step runs) and says why elsewhere.
+    @Test func theLineFindersAreComparedForFindLines() async throws {
+        let client = makeClient { request in
+            if request.httpMethod == "POST" {
+                return Self.reply(request, 200, """
+                {"id":"bake-lines","job_id":"job-lines","step":"find-lines","started_at":"2026-10-11T08:52:00Z",
+                 "state":"waiting","pages":[],"left_out":[],"lines":61,"rows":[]}
+                """)
+            }
+            return Self.reply(request, 200, Self.bothComparisons)
+        }
+        let store = BakeoffStore(client: client, step: BakeoffStore.lineStep)
+        await store.loadLatest()
+
+        let rows = try #require(store.comparison?.rows)
+        #expect(store.comparesLines && store.comparison?.step == "find-lines")
+        #expect(rows.map(BakeoffStore.linesFound) == ["57 of 61", "50 of 61", "—"])
+        #expect(rows.map(BakeoffStore.extraLines) == ["3", "9", "—"])
+        #expect(BakeoffStore.useRefusal(rows[0], comparesLines: true) == nil, "Kraken's is the line step's own")
+        #expect(BakeoffStore.useRefusal(rows[1], comparesLines: true)?.contains("Kraken's line finder only") == true)
+        #expect(BakeoffStore.useRefusal(rows[2], comparesLines: true)?.contains("finds regions, not lines") == true)
+
+        #expect(await store.start())
+        let posted = try #require(BakeoffMockURLProtocol.seen.last { $0.method == "POST" })
+        #expect(posted.body["step"] as? String == "find-lines", "started with step=find-lines")
+    }
 }

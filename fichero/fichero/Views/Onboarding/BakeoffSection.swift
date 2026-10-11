@@ -15,6 +15,18 @@ struct BakeoffSection: View {
         let store: BakeoffStore
         let activity: ActivityStore?
         let folders: [BakeoffStore.Folder]
+        /// The line finders' comparison, for Find lines (#5660 item 7); nil where there is none.
+        var lineStore: BakeoffStore?
+
+        /// The context for a step's own comparison: the readers' for a reading step, the line finders' for Find
+        /// lines; nil for a step nothing compares.
+        func forStep(_ job: String) -> Context? {
+            switch job {
+            case BakeoffStore.step: self
+            case BakeoffStore.lineStep: lineStore.map { Context(store: $0, activity: activity, folders: folders) }
+            default: nil
+            }
+        }
     }
 
     let context: Context
@@ -40,14 +52,16 @@ struct BakeoffSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Compare readers on your corrected pages").font(.callout.weight(.semibold))
+            Text(store.comparesLines ? "Compare the line finders on your corrected pages"
+                 : "Compare readers on your corrected pages").font(.callout.weight(.semibold))
             if let sentence = store.notReadySentence {
                 Text(sentence)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             } else if store.canRun {
-                Button(store.comparison == nil ? "Compare Readers" : "Compare Again") {
+                Button(store.comparison == nil ? (store.comparesLines ? "Compare the Line Finders" : "Compare Readers")
+                       : "Compare Again") {
                     confirmation = nil
                     Task { await store.start() }
                 }
@@ -62,8 +76,11 @@ struct BakeoffSection: View {
                 } else if let reason = comparison.reason, comparison.state != "done" {
                     Text(reason).font(.callout).foregroundStyle(.secondary)
                 }
-                Text(Self.basis(comparison)).font(.caption).foregroundStyle(.secondary)
-                table(comparison)
+                Text(Self.basis(comparison, lines: store.comparesLines)).font(.caption).foregroundStyle(.secondary)
+                if store.comparesLines { lineTable(comparison) } else { table(comparison) }
+                if let why = comparison.noWinnerWhy {
+                    Text(why).font(.caption).foregroundStyle(.secondary)
+                }
                 if !context.folders.isEmpty {
                     Picker("Use for", selection: $scope) {
                         Text("This project").tag(BakeoffStore.Scope.project)
@@ -102,7 +119,8 @@ struct BakeoffSection: View {
 
     @ViewBuilder
     private func progress(_ comparison: BakeoffStore.Comparison) -> some View {
-        let label = "Comparing readers on \(comparison.pages.count) pages. It runs in Activity; you can carry on."
+        let label = "Comparing \(store.comparesLines ? "the line finders" : "readers") on \(comparison.pages.count) pages. "
+            + "It runs in Activity; you can carry on."
         if let job, job.total > 0 {
             ProgressView(value: Double(job.current), total: Double(job.total)) {
                 Text(label).font(.body)
@@ -117,38 +135,72 @@ struct BakeoffSection: View {
 
     private func table(_ comparison: BakeoffStore.Comparison) -> some View {
         Table(of: BakeoffStore.Row.self) {
-            TableColumn("Reader") { row in
-                Text(BakeoffStore.name(of: row))
-            }
-            .width(min: 140, ideal: 200)
-            TableColumn("Error rate") { row in Text(BakeoffStore.errorRate(row)).monospacedDigit() }
-                .width(min: 60, ideal: 70)
-            TableColumn("Where") { row in Text(BakeoffStore.place(row)) }
-                .width(min: 60, ideal: 70)
-            TableColumn("Speed") { row in Text(BakeoffStore.speed(row)) }
-                .width(min: 80, ideal: 110)
+            TableColumn("Reader") { row in nameCell(row) }
+                .width(min: 150, ideal: 210)
+            TableColumn("CER") { row in Text(BakeoffStore.errorRate(row)).monospacedDigit() }
+                .width(min: 46, ideal: 56)
+            TableColumn("WER") { row in Text(BakeoffStore.wordErrorRate(row)).monospacedDigit() }
+                .width(min: 46, ideal: 56)
+            TableColumn("Time") { row in Text(BakeoffStore.time(row)).monospacedDigit() }
+                .width(min: 56, ideal: 70)
             TableColumn("Cost for all pages") { row in Text(BakeoffStore.cost(row)) }
-                .width(min: 90, ideal: 130)
+                .width(min: 80, ideal: 120)
             TableColumn("Why not scored") { row in
                 Text(BakeoffStore.note(row)).foregroundStyle(.secondary).help(BakeoffStore.note(row))
             }
             .width(min: 120, ideal: 200)
-            TableColumn("") { row in
-                Button("Use This") { use(row) }
-                    .controlSize(.small)
-                    .disabled(row.cer == nil || store.usingCard != nil)
-                    .help(row.cer == nil ? "Not scored on these pages: \(BakeoffStore.note(row))"
-                          : store.usingCard != nil ? "Setting another reader; wait for it to finish"
-                          : "Use this reader for the step")
-            }
-            .width(min: 70, ideal: 80)
+            TableColumn("") { row in useButton(row) }
+                .width(min: 70, ideal: 80)
         } rows: {
             // The engine's order, as it ranked them; the app never re-sorts.
             ForEach(comparison.rows) { row in
                 TableRow(row)
             }
         }
+        .frame(height: CGFloat(comparison.rows.count) * 40 + 34)
+    }
+
+    /// The line finders (#5660 item 7): the checked lines each found, its extra lines and its time.
+    private func lineTable(_ comparison: BakeoffStore.Comparison) -> some View {
+        Table(of: BakeoffStore.Row.self) {
+            TableColumn("Line finder") { row in Text(BakeoffStore.name(of: row)) }
+                .width(min: 150, ideal: 210)
+            TableColumn("Lines found") { row in Text(BakeoffStore.linesFound(row)).monospacedDigit() }
+                .width(min: 70, ideal: 90)
+            TableColumn("Extra lines") { row in Text(BakeoffStore.extraLines(row)).monospacedDigit() }
+                .width(min: 60, ideal: 80)
+            TableColumn("Time") { row in Text(BakeoffStore.time(row)).monospacedDigit() }
+                .width(min: 56, ideal: 70)
+            TableColumn("Why not compared") { row in
+                Text(row.why ?? "").foregroundStyle(.secondary).help(row.why ?? "")
+            }
+            .width(min: 120, ideal: 200)
+            TableColumn("") { row in useButton(row) }
+                .width(min: 70, ideal: 80)
+        } rows: {
+            ForEach(comparison.rows) { row in
+                TableRow(row)
+            }
+        }
         .frame(height: CGFloat(comparison.rows.count) * 28 + 34)
+    }
+
+    /// A reader by name, and why it takes part (the rules' pick, or one of each kind tried beside them).
+    private func nameCell(_ row: BakeoffStore.Row) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(BakeoffStore.name(of: row))
+            Text(BakeoffStore.role(row)).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Use This, where the engine accepts it; disabled, saying why, where it does not.
+    private func useButton(_ row: BakeoffStore.Row) -> some View {
+        let refusal = BakeoffStore.useRefusal(row, comparesLines: store.comparesLines)
+        return Button("Use This") { use(row) }
+            .controlSize(.small)
+            .disabled(refusal != nil || store.usingCard != nil)
+            .help(refusal ?? (store.usingCard != nil ? "Setting another one; wait for it to finish"
+                              : "Use this for the step"))
     }
 
     private func use(_ row: BakeoffStore.Row) {
@@ -167,10 +219,12 @@ struct BakeoffSection: View {
     }
 
     /// What the table rests on, in one line.
-    static func basis(_ comparison: BakeoffStore.Comparison) -> String {
+    static func basis(_ comparison: BakeoffStore.Comparison, lines: Bool = false) -> String {
         let pages = comparison.pages.count
-        return "Measured on \(comparison.lines) corrected lines on \(pages) page\(pages == 1 ? "" : "s"), "
-            + "ranked by error rate, then this Mac before the cloud, cost and speed."
+        let sample = "\(comparison.lines) corrected lines on \(pages) page\(pages == 1 ? "" : "s")"
+        return lines
+            ? "Measured on \(sample), ranked by the share of checked lines found, then fewer extra lines, then time."
+            : "Measured on \(sample), ranked by error rate, then this Mac before the cloud, cost and speed."
     }
 }
 
@@ -179,7 +233,8 @@ extension BakeoffSection.Context {
     @MainActor
     init(project: LibraryManager.LibraryReference) {
         self.init(store: project.bakeoffStore, activity: project.activityStore,
-                  folders: BakeoffStore.Folder.folders(in: project.documentStore.collections))
+                  folders: BakeoffStore.Folder.folders(in: project.documentStore.collections),
+                  lineStore: project.lineBakeoffStore)
     }
 }
 

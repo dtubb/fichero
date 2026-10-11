@@ -46,8 +46,10 @@ struct RecipeStepsView: View {
                         .controlSize(.small)
                         .help("The readers for this project's scripts and languages, and where to get them")
                 }
-                if step.job == BakeoffStore.step, let bakeoff {
-                    BakeoffSection(context: bakeoff, setup: store)
+                // Each step with a comparison offers it: the readers under the reading step, the line finders
+                // under Find lines (#5660 item 7).
+                if let context = bakeoff?.forStep(step.job) {
+                    BakeoffSection(context: context, setup: store)
                 }
             }
             // The recipe's own check, in the rules' words: the Inspector only.
@@ -80,42 +82,6 @@ struct RecipeStepsView: View {
             let route = Self.fixRoute(fix, hasProject: finder != nil), here = FinderStep(id: step.id, job: step.job)
             if route == .finder { findingFor = here } else if route == .licence { reviewingLicence = here } else { onFix(fix) }
         }
-    }
-}
-
-/// Set Up… › Ready's model finder for one step (#5611, #5619): the finder for the step's job, the
-/// project's scripts and languages and its first material, with Use for This Step where the plan
-/// offers an installed reader instead of the step's download.
-struct ModelFinderSheet: View {
-    let project: LibraryManager.LibraryReference
-    let setup: RecipeSetupStore
-    let step: RecipeStepsView.FinderStep
-    let onDone: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(Self.title(job: step.job, step: setup.title(ofStepId: step.id), setup: setup)).font(.headline)
-            ScrollView {
-                ModelFinderView(
-                    store: project.modelFinderStore,
-                    query: setup.finderQuery(job: step.job, step: step.id),
-                    activity: project.activityStore,
-                    step: .init(id: step.id, setup: setup)
-                )
-            }
-            HStack {
-                Spacer()
-                Button("Done", action: onDone).keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding()
-        .frame(minWidth: 480, minHeight: 420)
-    }
-
-    /// "Find a Reader for Read each line" for a step that reads the material, else "Choose a Model for Find
-    /// statements" (#5619: the finder answers for any step's job).
-    static func title(job: String, step: String, setup: RecipeSetupStore) -> String {
-        setup.readsMaterial(job) ? "Find a Reader for \(step)" : "Choose a Model for \(step)"
     }
 }
 

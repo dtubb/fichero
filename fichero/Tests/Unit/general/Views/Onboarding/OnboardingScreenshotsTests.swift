@@ -216,7 +216,7 @@ struct OnboardingScreenshotsTests {
                        FirstRunWindow(mode: .setUp, project: project, initialStep: .purpose))
         try await shot("06-ready.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .ready))
         // Ready is longer than its card: the whole plan, top to bottom, as the card scrolls through it.
-        try await shot("07-ready-whole-plan.png", CGSize(width: 620, height: 3200), VStack {
+        try await shot("07-ready-whole-plan.png", CGSize(width: 620, height: 4200), VStack {
             RecipeReadyFields(store: setup, onFix: { _ in }, keptExports: project.keptExportStore, project: project)
             Spacer(minLength: 0)
         }.padding(22))
@@ -231,7 +231,14 @@ struct OnboardingScreenshotsTests {
         try await shot("10-review-the-licence.png", sheet,
                        LicenceReviewSheet(finder: project.modelFinderStore, setup: setup,
                                           step: .init(id: "find-regions", job: "find-regions"), onDone: {}))
-        try await shot("11-run-strip-after-start.png", CGSize(width: 1100, height: 44), ProjectRunStripRow(
+        // A finished bake-off (#5660 item 7): every kind of reader by CER and WER, then the line finders.
+        let compared = BakeoffSection.Context(project: project)
+        try await shot("11-compare-on-your-pages.png", CGSize(width: 900, height: 760), VStack(alignment: .leading, spacing: 18) {
+            BakeoffSection(context: compared, setup: setup)
+            if let lines = compared.forStep(BakeoffStore.lineStep) { BakeoffSection(context: lines, setup: setup) }
+            Spacer(minLength: 0)
+        }.padding(22))
+        try await shot("12-run-strip-after-start.png", CGSize(width: 1100, height: 44), ProjectRunStripRow(
             strip: ProjectRunStrip(
                 jobId: "recipe-run", isLive: true, title: "Find lines · stage 1 of 5",
                 detail: "12 done · 0 failed · 80 left · 9 min left · "
@@ -239,7 +246,7 @@ struct OnboardingScreenshotsTests {
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
 
-        #expect(written.count == 11)
+        #expect(written.count == 12)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")

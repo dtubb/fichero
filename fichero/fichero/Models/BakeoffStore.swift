@@ -19,8 +19,14 @@ final class BakeoffStore {
     typealias Comparison = Components.Schemas.BakeoffResult
     typealias Row = Components.Schemas.BakeoffRow
 
-    /// The recipe step the bake-off compares (`recipes/bakeoff.STEP`): the reader.
+    /// The recipe step the readers' bake-off compares (`recipes/bakeoff.STEP`): the reader.
     nonisolated static let step = "read-a-line"
+    /// The step the line finders' comparison is for (`recipes/bakeoff.LINES_STEP`, #5660 item 7).
+    nonisolated static let lineStep = "find-lines"
+
+    /// Which step's models this store compares: the readers, or the line finders.
+    let comparedStep: String
+    var comparesLines: Bool { comparedStep == Self.lineStep }
 
     /// Where Use This applies (section 8a): the project, or just one folder.
     enum Scope: Hashable {
@@ -49,8 +55,9 @@ final class BakeoffStore {
 
     private let client: FicheroClient
 
-    init(client: FicheroClient) {
+    init(client: FicheroClient, step: String = BakeoffStore.step) {
         self.client = client
+        self.comparedStep = step
     }
 
     /// Still waiting for, or inside, its evaluation job.
@@ -80,7 +87,8 @@ final class BakeoffStore {
         do {
             let list = try await client.api.listBakeoffsApiRecipesProjectBakeoffsGet().ok.body.json
             readiness = list.readiness
-            comparison = list.items.first
+            // The newest comparison of this store's step: the readers' and the line finders' are kept apart.
+            comparison = list.items.first { $0.step == comparedStep }
         } catch {
             if error.isCancellationError { return }
             errorMessage = "Could not read this project's comparisons: \(error.localizedDescription)"
@@ -119,7 +127,9 @@ final class BakeoffStore {
         errorMessage = nil
         defer { isStarting = false }
         do {
-            switch try await client.api.startBakeoffApiRecipesProjectBakeoffsPost() {
+            let body: Operations.StartBakeoffApiRecipesProjectBakeoffsPost.Input.Body? = comparesLines
+                ? .json(.init(step: .findLines)) : nil
+            switch try await client.api.startBakeoffApiRecipesProjectBakeoffsPost(body: body) {
             case .ok(let success):
                 comparison = try success.body.json
                 refusal = nil
@@ -150,7 +160,7 @@ final class BakeoffStore {
     /// sees; the recipe the engine then saved updates that one step in `setup`, in place.
     @discardableResult
     func use(_ row: Row, scope: Scope, in setup: RecipeSetupStore) async -> Bool {
-        guard let id = comparison?.id, row.cer != nil else { return false }
+        guard let id = comparison?.id, Self.useRefusal(row, comparesLines: comparesLines) == nil else { return false }
         usingCard = row.card
         errorMessage = nil
         defer { usingCard = nil }
@@ -220,6 +230,51 @@ extension BakeoffStore {
     static func errorRate(_ row: Row) -> String {
         guard let cer = row.cer else { return "—" }
         return cer.formatted(.percent.precision(.fractionLength(1)))
+    }
+
+    /// The word error rate beside it (#5660 item 7), or a dash.
+    static func wordErrorRate(_ row: Row) -> String {
+        guard let wer = row.wer else { return "—" }
+        return wer.formatted(.percent.precision(.fractionLength(1)))
+    }
+
+    /// Why it takes part, under its name: the rules' pick, the print baseline, or one of each kind tried beside them.
+    static func role(_ row: Row) -> String {
+        switch row.role {
+        case .ruleRank: row.ruleRank.map { "The rules' pick \($0)" } ?? "The rules' pick"
+        case .baselineForPrint: "Baseline for print"
+        case .contender: "Also tried"
+        }
+    }
+
+    /// The time it took on the sample pages, measured in this run: "45 s", "3 min 20 s"; a dash when not run.
+    static func time(_ row: Row) -> String {
+        guard let seconds = row.seconds else { return "—" }
+        let whole = Int(seconds.rounded())
+        return whole < 60 ? "\(max(whole, 1)) s" : "\(whole / 60) min \(whole % 60) s"
+    }
+
+    /// A line finder's checked lines found: "57 of 61"; a dash when not scored.
+    static func linesFound(_ row: Row) -> String {
+        guard let found = row.linesFound, let checked = row.linesChecked else { return "—" }
+        return "\(found) of \(checked)"
+    }
+
+    /// Its lines that match no checked line, or a dash.
+    static func extraLines(_ row: Row) -> String {
+        row.extraLines.map(String.init) ?? "—"
+    }
+
+    /// Why Use This is not offered for a row, in words; nil when it is. A reader must have a score; a line finder
+    /// must have been measured, and the line step runs Kraken's line finder only so far (the engine's rule,
+    /// `bakeoff.use_this`), so another finder is compared but not offered.
+    static func useRefusal(_ row: Row, comparesLines: Bool) -> String? {
+        if comparesLines {
+            guard row.measured == true else { return "Not compared on these pages: \(row.why ?? "no score")" }
+            return row.card.hasPrefix("kraken:") ? nil
+                : "The line step runs Kraken's line finder only so far: this one is compared, not offered."
+        }
+        return row.cer == nil ? "Not scored on these pages: \(row.why ?? "no score")" : nil
     }
 
     static func place(_ row: Row) -> String { row.local ? "This Mac" : "Cloud" }
