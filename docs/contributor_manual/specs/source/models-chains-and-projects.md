@@ -3175,6 +3175,9 @@ The recipe and its format
   pinned (Hugging Face repository and revision, Zenodo DOI, package and version, Kraken built-in
   and version, or a cloud provider's model id with the date measured) or a role default, and where
   it runs: `this-mac`, `cloud`, `cluster` or `gpu-service`.
+  **(2026-10-11)** A YOLO layout model is pinned by its catalogue name (`{yolo: yolo-doclaynet-11n}`), the form
+  the shipped card writes, and the recipe check knows it; a pin the check does not know is said in words, never
+  as a list of its keys (`recipes/recipe.PIN_FORMS`; `fichero-server/tests/unit/recipes/test_yolo_pin_is_a_known_form.py`).
 - `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
   and an unbound step waits with "No cluster is set up".

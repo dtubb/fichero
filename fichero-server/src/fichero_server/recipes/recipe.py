@@ -33,6 +33,8 @@ PIN_FORMS = (
     frozenset({"builtin"}),
     frozenset({"cloud", "model"}),
     frozenset({"role"}),
+    # A YOLO layout model by its catalogue name (`yolo_runtime.YOLO_MODELS`), as the shipped card pins it (#5525).
+    frozenset({"yolo"}),
 )
 
 #: Keys that would make a recipe carry code, credentials or capabilities. Refused anywhere.
@@ -68,10 +70,10 @@ def _walk_forbidden(node: Any, path: str, parent: str, out: list[str]) -> None:
 
 def _check_model(label: str, model: Any, out: list[str]) -> None:
     if not isinstance(model, dict) or frozenset(model) not in PIN_FORMS:
-        keys = sorted(model) if isinstance(model, dict) else model
-        out.append(f"{label}: the model {keys!r} is not pinned in a known form "
-                   "(a Hugging Face repo and revision, a Zenodo DOI, a spaCy package and version, a "
-                   "Kraken built-in and version, Tesseract data, a built-in, a cloud provider and model, or a role)")
+        # Said in words, never as the pin's keys (#5664 onboarding: "the model ['yolo'] is not pinned …").
+        out.append(f"{label}: its model is not named in a way Fichero knows. Name it by a Hugging Face "
+                   "repository and revision, a Zenodo DOI, a spaCy package and version, a Kraken model and "
+                   "version, Tesseract data, a built-in, a YOLO layout model, a provider and model, or a role")
 
 
 def _check_prompt(label: str, folder: Path | None, prompt: str, out: list[str]) -> None:
