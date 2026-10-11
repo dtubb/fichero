@@ -72,6 +72,18 @@ def test_a_translation_asked_beside_the_levels_is_a_translation_run(mac):
     assert "into English" in configs[1]["prompt"]
 
 
+def test_a_step_run_per_level_is_named_once_where_it_waits_for_its_model(mac):
+    """Two levels are two runs of one step: the download they wait for, and the refusal that names it, list the
+    step once (B found "steps correct, translate-transliterate-normalise, translate-transliterate-normalise")."""
+    recipe = _normalise(["as_written", "expanded"])
+    recipe["steps"].insert(2, {"id": "correct", "job": "correct", "model": QWEN, "runs_on": "this-mac"})
+    plan = plan_start(recipe, stays_local=True)
+    [download] = [d for d in plan["downloads"] if d["runtime"] == "mlx"]
+    assert download["steps"] == ["correct", "normalise"]
+    said = " ".join(plan["refusals"])
+    assert said.count("normalise") == 1, said
+
+
 def test_set_up_carries_the_list_to_the_step(client, db, pages, mac):
     answers = {"purposes": ["translate-normalise"], "languages": ["es"], "scripts": ["Latn"],
                "materials": ["handwriting"], "mac_memory_gb": 32,

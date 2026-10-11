@@ -130,6 +130,14 @@ def _shipped(key: str) -> tuple[str, str]:
     return preset["name"], preset_workflow_id(preset["name"])
 
 
+def _add_steps(into: list, more: list) -> None:
+    """Add a run's step ids to a download's or a place's list, each once, in order: the normalise step runs once per
+    level (#5660 item 1), so several runs carry the same step and the list said it twice."""
+    for sid in more:
+        if sid not in into:
+            into.append(sid)
+
+
 def _kraken_reader_for(pin: dict) -> str | None:
     from fichero_server.recipes.cards import kraken_reader_for
 
@@ -514,7 +522,7 @@ def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         entry = out.setdefault(name, {"runtime": runtime, "model": name, "steps": [], "size_mb": size_mb,
                                       "action": "model.download", "params": {"runtime": runtime, "model": name}})
-        entry["steps"] += run["steps"]
+        _add_steps(entry["steps"], run["steps"])
     return list(out.values())
 
 
@@ -582,7 +590,7 @@ def local_models_to_download(runs: list[dict[str, Any]]) -> list[dict[str, Any]]
                              "action": "model.download", "params": {"runtime": "mlx", "model": model_id},
                              "instead": instead}
         else:
-            entry["steps"] += run["steps"]
+            _add_steps(entry["steps"], run["steps"])
             fits = {i["card"] for i in instead}
             entry["instead"] = [i for i in entry["instead"] if i["card"] in fits]
     return list(out.values())
@@ -712,7 +720,7 @@ def places_elsewhere(runs: list[dict[str, Any]], *, stays_local: bool) -> list[d
             continue
         model_id = store.canonical_id(model)
         if model_id in out:
-            out[model_id]["steps"] += run["steps"]
+            _add_steps(out[model_id]["steps"], run["steps"])
             continue
         spec = store.spec(model_id)
         free, paid = ([], []) if stays_local else _places_running({model, model_id, spec.repo_id})
