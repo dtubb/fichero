@@ -162,6 +162,11 @@ class RecipeRunSummary(BaseModel):
     entries: Optional[int] = Field(default=None, description=(
         "the dated entries the entries stage split the pages into (made, or found again); null when it did not "
         "run in this run"))
+    pages_with_lines: Optional[int] = Field(default=None, description=(
+        "of the run's pages, the ones with lines; null when the run had no Find Lines (#5668)"))
+    pages_with_regions: Optional[int] = Field(default=None, description=(
+        "of the run's pages, the ones with regions; null when the run had neither Find Regions nor Find Lines (whose "
+        "segmenter finds regions too)"))
     lines: list[str] = Field(default_factory=list, description=(
         "the summary in the engine's words, one line per figure, shown as given"))
     failed: list[StageFailures] = Field(description="each stage's failed pages, with Read Again")
@@ -249,19 +254,57 @@ def _entries(steps: list[dict[str, Any]]) -> tuple[Optional[int], int]:
             sum(e.get("pages", 0) for e in made))
 
 
+def _jobs_of_the_run(db: Any, steps: list[dict[str, Any]]) -> set[str]:
+    """The jobs of the steps this run had, by the project's recipe (a step's id names it there)."""
+    from pathlib import Path
+
+    from fichero_server.recipes.project import read_project_setup
+
+    try:
+        recipe = read_project_setup(Path(db.path).parent)["recipe"] or {}
+    except Exception:  # noqa: BLE001 -- no setup to read: the jobs the run's steps carry themselves
+        recipe = {}
+    job_of = {str(s.get("id")): str(s.get("job")) for s in recipe.get("steps") or []}
+    ids = {sid for step in steps for sid in step.get("steps") or []}
+    return {job_of.get(sid, sid) for sid in ids} | {str(step.get("job")) for step in steps if step.get("job")}
+
+
+def _pages_with(db: Any, pages: list[str], kind: str) -> int:
+    from fichero_server.models.segments import Segment
+
+    return sum(1 for p in pages if any(seg.kind == kind for seg in db.query(Segment, document_id=p)))
+
+
 def _plural(count: int, noun: str, nouns: str | None = None) -> str:
     return f"{count} {noun if count == 1 else (nouns or noun + 's')}"
 
 
-def _lines(s: RecipeRunSummary, pages_split: int) -> list[str]:
-    """The summary in words, one line per figure (#5577): the app shows them as given."""
-    lines = [f"Read {s.pages_read} of {_plural(s.pages, 'page')}"]
+def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -> list[str]:
+    """The summary in words, one line per figure (#5577): the app shows them as given. `ran`: the run's jobs; a
+    figure for a stage the run did not have has no line (#5668). None: every figure, as before."""
+    lines = []
+    shapes = []
+    if s.pages_with_lines is not None:
+        shapes.append(f"Lines on {s.pages_with_lines} of {_plural(s.pages, 'page')}")
+    if s.pages_with_regions is not None:
+        shapes.append(f"regions on {s.pages_with_regions} of {_plural(s.pages, 'page')}")
+    if shapes:
+        said = " · ".join(shapes)
+        lines.append(said[0].upper() + said[1:])
+    lines.append(f"Read {s.pages_read} of {_plural(s.pages, 'page')}")
     names = [n for n in s.names if n.count > 0]
-    lines.append("Names: " + " · ".join(f"{n.count} {n.label}" for n in names) if names else "No names found")
+    if ran is None or "find-names-tag-words" in ran or names:
+        lines.append("Names: " + " · ".join(f"{n.count} {n.label}" for n in names) if names else "No names found")
     # Work out dates writes each page's own date, not a named date; a Spanish spaCy pipeline names no dates at
-    # all, so "0 dates" read as a step that did nothing while 92 pages had their date (2026-10-11).
-    lines.append(f"{_plural(s.pages_dated, 'page')} dated · {_plural(s.dates, 'date')} named · "
-                 f"{_plural(s.statements, 'statement')}")
+    # all, so "0 dates" read as a step that did nothing while 92 pages had their date (2026-10-11). A figure is
+    # said when the run had its stage, or when it is not zero (#5668: "0 pages dated · 0 dates named · 0
+    # statements" on a run with none of those stages).
+    knowledge = [words for job, count, words in (
+        ("work-out-dates", s.pages_dated, f"{_plural(s.pages_dated, 'page')} dated"),
+        ("find-names-tag-words", s.dates, f"{_plural(s.dates, 'date')} named"),
+        ("find-statements", s.statements, _plural(s.statements, "statement"))) if ran is None or job in ran or count]
+    if knowledge:
+        lines.append(" · ".join(knowledge))
     if s.documents_proposed is not None:
         lines.append(f"{_plural(s.documents_proposed, 'document')} proposed, {s.documents_accepted} accepted")
         lines.append(f"{_plural(s.groups_proposed or 0, 'group')} proposed")
@@ -304,5 +347,10 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
         not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in ("failed", "not run", "cancelled")],
     )
-    made.lines = _lines(made, pages_split)
+    ran = _jobs_of_the_run(db, status["steps"])
+    if "find-lines" in ran:
+        made.pages_with_lines = _pages_with(db, pages, "line")
+    if ran & {"find-lines", "find-regions"}:
+        made.pages_with_regions = _pages_with(db, pages, "region")
+    made.lines = _lines(made, pages_split, ran)
     return made

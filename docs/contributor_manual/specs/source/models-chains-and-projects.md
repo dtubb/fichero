@@ -1049,6 +1049,12 @@ plan's peak memory across steps. Ready shows none of it.
   **Built 2026-10-08 (app), not yet seen:** the Activity details' What this run made and the project window's
   strip show `lines` as given (`ActivityDetails.summary`; none when the engine sends none, never a line the app
   builds), pinned by `RecipeRunVisibleTests` and `ProjectRunStripTests` against the recorded summary.
+  **Built 2026-10-11 (engine, #5668, found by the end-to-end onboarding run):** a run with Find Lines or Find
+  Regions says how many pages have them, "Lines on 92 of 92 pages · regions on 90 of 92 pages"
+  (`pages_with_lines`, `pages_with_regions`, null for a stage the run did not have); and the dates and
+  statements line names only the figures of stages the run had (Work out dates: pages dated; Names: dates
+  named; Find statements: statements) or that are not zero, so a run without them no longer says "0 pages dated · 0 dates named ·
+  0 statements". Pinned by `fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`.
   *Not built:* lines (of text); each figure opening what it counts.
 - `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
   the pages that failed inside its steps and offers Read Again for them. Built: per workflow run

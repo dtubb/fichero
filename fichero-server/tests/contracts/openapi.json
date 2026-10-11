@@ -80122,6 +80122,18 @@
             "title": "Entries",
             "description": "the dated entries the entries stage split the pages into (made, or found again); null when it did not run in this run"
           },
+          "pages_with_lines": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages With Lines",
+            "description": "of the run's pages, the ones with lines; null when the run had no Find Lines (#5668)"
+          },
+          "pages_with_regions": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages With Regions",
+            "description": "of the run's pages, the ones with regions; null when the run had neither Find Regions nor Find Lines (whose segmenter finds regions too)"
+          },
           "lines": {
             "items": {
               "type": "string"

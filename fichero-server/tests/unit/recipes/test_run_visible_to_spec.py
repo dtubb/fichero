@@ -173,8 +173,9 @@ def test_source_onboard_auto_results_summary(client, db, pages, tmp_path, engine
     skipped = {s["step"]: s["fix"] for s in summary["skipped"]}
     assert skipped["check"] == "allow-cloud" and skipped["names"] == "choose-model"
     # In the engine's words, one line per figure, shown as given; no line for a stage the run did not have.
-    assert summary["lines"] == ["Read 2 of 2 pages", "Names: 1 People · 1 Places",
-                                "1 page dated · 1 date named · 1 statement"]
+    # The run had Find Lines: it says how many pages have lines and regions (#5668; the fake run drew no regions).
+    assert summary["lines"] == ["Lines on 2 of 2 pages · regions on 0 of 2 pages", "Read 2 of 2 pages",
+                                "Names: 1 People · 1 Places", "1 page dated · 1 date named · 1 statement"]
     assert (summary["documents_proposed"], summary["groups_proposed"], summary["entries"]) == (None, None, None)
     tree = client.get(f"/api/activity/jobs/{job_id}").json()
     assert tree["summary"] == summary, "Activity's details show the same summary"
@@ -230,7 +231,9 @@ def test_source_onboard_auto_results_summary__documents_groups_and_entries(clien
         (proposed, proposed, groups), "accepted by the run's own setting (everything at or above 0)"
     assert summary["entries"] == 4  # two dated entries on each of the two pages
     docs = "document" if proposed == 1 else "documents"
-    assert summary["lines"][3:] == [f"{proposed} {docs} proposed, {proposed} accepted",
+    # No Names, Dates or Statements stage and nothing of theirs found: no line for them (#5668).
+    assert not [line for line in summary["lines"] if "dated" in line or "Names" in line]
+    assert summary["lines"][-3:] == [f"{proposed} {docs} proposed, {proposed} accepted",
                                     f"{groups} {'group' if groups == 1 else 'groups'} proposed",
                                     "4 entries from 2 pages"]
     assert client.get(f"/api/activity/jobs/{job_id}").json()["summary"]["lines"] == summary["lines"]
