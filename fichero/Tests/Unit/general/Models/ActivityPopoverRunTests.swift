@@ -44,7 +44,8 @@ struct ActivityPopoverRunTests {
         let summary = ActivityPopoverSummary(jobs: Self.jobs, paused: false, runTrees: ["r1": try Self.recipeTree()])
         let run = try #require(summary.runs.first)
         #expect(summary.runs.count == 1)
-        #expect(run.stages.map(\.title) == ["Find lines", "Transcribe (Kraken)", "Write the synced folder"])
+        // By Set Up's stages (#5670): "Read", not the workflow's "Transcribe (Kraken)"; a step no stage carries, its own.
+        #expect(run.stages.map(\.title) == ["Find Lines", "Read", "Write the synced folder"])
         #expect(run.stages.map(\.done) == [91, 36, 0])
         #expect(run.stages.map(\.total) == [91, 91, 0], "a bar per stage, from its own pages")
         #expect(run.stages[1].isRunning && !run.stages[0].isRunning)
@@ -57,8 +58,9 @@ struct ActivityPopoverRunTests {
         let summary = ActivityPopoverSummary(jobs: Self.jobs, paused: false, runTrees: ["r1": try Self.recipeTree()])
         #expect(summary.errorCount == 1)
         #expect(summary.recentErrors.map(\.id) == ["e-run"])
-        #expect(summary.recentErrors.first?.detail == "Could not read a page: the image is damaged",
-                "in words, without the file's path")
+        // The engine's words (its failure is one line per cause, 1bef3cd4d), never rewritten in Swift.
+        #expect(summary.recentErrors.first?.fullText
+                == "Could not read /Users/ana/EAP 1740/img_0042_Recto.JPG: the image is damaged")
     }
 
     @Test("with no run in hand, the newest errors show, at most three, and the badge counts them all")
@@ -80,5 +82,57 @@ struct ActivityPopoverRunTests {
         #expect(worded("No such file: /Users/ana/models/kraken/blla.mlmodel") == "No such file: a file")
         #expect(worded("~/Library/Fichero/out.xml could not be written") == "a file could not be written")
         #expect(worded("Kraken not installed") == "Kraken not installed", "words without a path stay as they are")
+    }
+
+    // MARK: Daniel, 2026-10-11: one line each, recent only, a bar per running job
+
+    @Test("an error is one line: its job and the cause's first sentence; the whole is its tooltip")
+    func errorIsOneLine() throws {
+        let job = ActivityJob(id: "e1", taskType: "workflow", name: "Read", state: .failed,
+                              reason: "A page could not be read: the image is damaged. 40 pages failed the same way.\nMore")
+        let item = try #require(ActivityPopoverSummary(jobs: [job], paused: false).recentErrors.first)
+        #expect(item.detail == "A page could not be read: the image is damaged.")
+        #expect(ActivityPopoverSummaryView.oneLine(item) == "Read: A page could not be read: the image is damaged.")
+        #expect(item.fullText?.contains("40 pages failed the same way") == true, "the whole, for the tooltip")
+        #expect(ActivityPopoverSummary.firstSentence("Kraken not installed") == "Kraken not installed")
+    }
+
+    @Test("only recent errors: the last hour, or since the popover was last opened, whichever is shorter; at most 3")
+    func onlyRecentErrors() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let window = ActivityErrorWindow(
+            seen: ["seen"],
+            firstSeen: ["old": now.addingTimeInterval(-2 * 60 * 60), "new": now.addingTimeInterval(-5 * 60),
+                        "seen": now.addingTimeInterval(-60)],
+            now: now
+        )
+        #expect(!window.isRecent("old"), "older than an hour")
+        #expect(!window.isRecent("seen"), "seen at the last opening, however new")
+        #expect(window.isRecent("new") && window.isRecent("never-noted"))
+        let jobs = ["old", "seen", "new", "a", "b", "c"].map {
+            ActivityJob(id: $0, taskType: "workflow", name: $0, state: .failed, reason: "why")
+        }
+        let summary = ActivityPopoverSummary(jobs: jobs, paused: false, errorWindow: window)
+        #expect(summary.errorCount == 4)
+        #expect(summary.recentErrors.map(\.id) == ["new", "a", "b"], "at most three")
+    }
+
+    @Test("a closed popover's errors are seen, and do not come back")
+    func closedErrorsAreSeen() throws {
+        let defaults = try #require(UserDefaults(suiteName: "activity-errors-\(UUID().uuidString)"))
+        let ledger = ActivityErrorLedger(defaults: defaults)
+        ledger.note(failedIds: ["e1"])
+        #expect(ledger.window().isRecent("e1"))
+        ledger.markSeen(["e1"])
+        #expect(!ledger.window().isRecent("e1"))
+        #expect(!ActivityErrorLedger(defaults: defaults).window().isRecent("e1"), "across launches")
+    }
+
+    @Test("a running job shows its count on one line over a bar of its own")
+    func runningJobHasABar() throws {
+        let job = ActivityJob(id: "j1", taskType: "embed", name: "Embedding pages", current: 27, total: 92, state: .running)
+        let item = try #require(ActivityPopoverSummary(jobs: [job], paused: false).running.first)
+        #expect(item.done == 27 && item.total == 92)
+        #expect(ActivityPopoverRunningRow.label(item) == "Embedding pages · 27 of 92")
     }
 }

@@ -27,8 +27,13 @@ struct ActivityPopoverSummary: Equatable {
     struct Item: Equatable, Identifiable {
         let id: String
         let name: String
-        /// A running item's step or counts; a failed item's reason.
+        /// A running item's step or counts; a failed item's cause, its first sentence (the engine's words).
         let detail: String?
+        /// A failed item's whole reason, as the engine wrote it, for the row's tooltip.
+        var fullText: String?
+        /// A running item's pages done and in all, for its bar (#5666); 0 of 0 when it has none.
+        var done = 0
+        var total = 0
     }
 
     /// A run this window started and is watching (`WorkflowExecution`).
@@ -80,7 +85,8 @@ struct ActivityPopoverSummary: Equatable {
     }
 
     init(jobs: [ActivityJob], paused: Bool, machine: Components.Schemas.MachineState? = nil, liveRuns: [LiveRun] = [],
-         runTrees: [String: ActivityJobNode] = [:], processCpuPercent: Double? = nil, cpuCount: Int = 0) {
+         runTrees: [String: ActivityJobNode] = [:], processCpuPercent: Double? = nil, cpuCount: Int = 0,
+         errorWindow: ActivityErrorWindow? = nil) {
         // A recipe run in hand, and everything under it: said once, by the run (#5666).
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs
@@ -97,17 +103,22 @@ struct ActivityPopoverSummary: Equatable {
                 // A page under a run is that run's work, said once by the run.
                 guard job.parentId == nil, seen.insert(job.id).inserted else { continue }
                 running.append(Item(id: job.id, name: job.name,
-                                    detail: job.showsProgress ? "\(job.current) of \(job.total)" : nil))
+                                    detail: job.showsProgress ? "\(job.current) of \(job.total)" : nil,
+                                    done: job.current, total: job.total))
             case .waiting:
                 let count = max(job.total, 1)
                 waitingCount += count
                 if let reason = job.reason, !reason.isEmpty { reasons[reason, default: 0] += count }
             case .failed:
-                // Only recent ones (#5666): while a run is in hand, its own failures; else every one listed.
-                guard Self.isRecent(job, inRun: inRun) else { continue }
+                // Only recent ones (#5666): while a run is in hand, its own; and only those from the last hour or
+                // since the popover was last opened, whichever is shorter (`ActivityErrorWindow`).
+                guard Self.isRecent(job, inRun: inRun), errorWindow?.isRecent(job.id) ?? true else { continue }
                 errorCount += 1
                 if recentErrors.count < Self.errorsShown {
-                    recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.worded)))
+                    // The engine's words (its failure is one line per cause, 1bef3cd4d): the first sentence shown,
+                    // the whole in the tooltip.
+                    recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.firstSentence),
+                                             fullText: job.reason))
                 }
             case .paused, .completed, .other:
                 continue
@@ -155,7 +166,8 @@ struct ActivityPopoverSummary: Equatable {
         let words = ActivityDetails.stages(of: node)
         let stages = zip(node?.stages ?? [], words).map { stage, word in
             ActivityPopoverStage(
-                id: word.id, title: word.title,
+                // By Set Up's stage ("Read"), as the run's details read (#5670); a step no stage carries, its own.
+                id: word.id, title: stage.steps.first.flatMap(SetupStages.stage(of:))?.title ?? word.title,
                 state: word.waitingFor.map { "Waiting: \(worded($0))" } ?? worded(word.state),
                 done: stage.account?.pagesDone ?? 0, total: stage.account?.pagesTotal ?? 0,
                 isRunning: stage.state == "running", isFailed: word.isFailed
@@ -168,6 +180,14 @@ struct ActivityPopoverSummary: Equatable {
 
     private static func ids(under node: ActivityJobNode) -> [String] {
         node.children.flatMap { [$0.id] + ids(under: $0) }
+    }
+
+    /// A cause's first sentence: up to its first full stop followed by a space, or its first line (the engine's own
+    /// words; nothing is rewritten).
+    static func firstSentence(_ text: String) -> String {
+        let line = text.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? text
+        if let stop = line.range(of: ". ") { return String(line[..<stop.lowerBound]) + "." }
+        return line.trimmingCharacters(in: .whitespaces)
     }
 
     /// A reason in words, without file paths or file names (#5666): a path or an image's name becomes
@@ -265,6 +285,8 @@ struct ActivityPopoverSummaryView: View {
     let summary: ActivityPopoverSummary
     /// No import or engine task is showing above, so an empty summary says so.
     let nothingElseRunning: Bool
+    /// A failure's row was pressed: open Activity's details for that job.
+    var openDetails: (String) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -272,15 +294,7 @@ struct ActivityPopoverSummaryView: View {
                 ActivityPopoverRunView(run: run)
             }
             ForEach(summary.running) { item in
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name).font(.callout).lineLimit(1)
-                        if let detail = item.detail {
-                            Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                    }
-                }
+                ActivityPopoverRunningRow(item: item)
             }
             if summary.running.isEmpty && summary.runs.isEmpty && nothingElseRunning {
                 Text("Nothing running.").font(.callout).foregroundStyle(.secondary)
@@ -300,8 +314,8 @@ struct ActivityPopoverSummaryView: View {
                 ActivityMacStateRow(readings: summary.macReadings)
             }
             if summary.errorCount > 0 {
-                // A count that opens the detail (#5666): errors never crowd out the work in hand.
-                ActivityPopoverErrorsBadge(summary: summary)
+                // One line each, at most three, recent only (#5666): errors never crowd out the work in hand.
+                ActivityPopoverErrorRows(summary: summary, openDetails: openDetails)
             }
         }
     }
@@ -323,34 +337,6 @@ struct ActivityPopoverSummaryView: View {
     }
 }
 
-/// This Mac's state as one compact row of symbols with short values
-/// (`activity.popover.mac-state-row`, #5635): each says its full reading in
-/// its help and to accessibility; only a problem is tinted.
-struct ActivityMacStateRow: View {
-    let readings: [ActivityPopoverSummary.MacReading]
-
-    var body: some View {
-        HStack(spacing: 12) {
-            ForEach(readings) { reading in
-                HStack(spacing: 3) {
-                    Image(systemName: reading.symbol)
-                    Text(reading.value).monospacedDigit()
-                }
-                .font(.caption)
-                .foregroundStyle(reading.isProblem ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
-                .help(reading.help)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(reading.help)
-                .accessibilityIdentifier("activity.popover.macState.\(reading.id)")
-            }
-        }
-        .fixedSize()
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("This Mac")
-        .accessibilityIdentifier("activity.popover.macState")
-    }
-}
-
 #Preview("Popover summary") {
     ActivityPopoverSummaryView(
         summary: ActivityPopoverSummary(
@@ -369,22 +355,4 @@ struct ActivityMacStateRow: View {
     )
     .padding()
     .frame(width: 300)
-}
-
-#Preview("This Mac: all well, then hot with memory tight") {
-    VStack(alignment: .leading, spacing: 12) {
-        ActivityMacStateRow(readings: ActivityPopoverSummary(
-            jobs: [], paused: false,
-            machine: Components.Schemas.MachineState(memoryPressure: .normal, thermalState: .nominal, onBattery: false,
-                                                     inUse: false, whyWait: nil),
-            processCpuPercent: 2, cpuCount: 8
-        ).macReadings)
-        ActivityMacStateRow(readings: ActivityPopoverSummary(
-            jobs: [], paused: false,
-            machine: Components.Schemas.MachineState(memoryPressure: .critical, thermalState: .serious, onBattery: true,
-                                                     inUse: true, whyWait: "the Mac is hot"),
-            processCpuPercent: 412, cpuCount: 8
-        ).macReadings)
-    }
-    .padding()
 }

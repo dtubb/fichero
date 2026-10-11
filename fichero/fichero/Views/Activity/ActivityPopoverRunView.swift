@@ -32,13 +32,10 @@ struct ActivityPopoverRunView: View {
                 Image(systemName: symbol(stage))
                     .foregroundStyle(stage.isFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                     .frame(width: 14)
-                Text(stage.title).font(.caption).lineLimit(1)
-                Spacer(minLength: 4)
-                if stage.total > 0 {
-                    Text("\(stage.done) of \(stage.total)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
+                // "Read · 27 of 92": the stage by Set Up's name, and its count (#5666, #5670).
+                Text(stage.total > 0 ? "\(stage.title) · \(stage.done) of \(stage.total)" : stage.title)
+                    .font(.caption.monospacedDigit())
+                    .lineLimit(1)
             }
             if stage.total > 0 {
                 ProgressView(value: Double(min(stage.done, stage.total)), total: Double(stage.total))
@@ -65,51 +62,63 @@ struct ActivityPopoverRunView: View {
     }
 }
 
-/// The popover's errors as a count that opens their detail (#5666): a red badge, "2 errors", and when opened
-/// each error wrapped, by name and in words (no file paths), never a red line running past the popover's edge.
-struct ActivityPopoverErrorsBadge: View {
+/// The popover's errors (#5666, Daniel 2026-10-11): ONE line each, its job and the cause's first sentence,
+/// truncated; the whole in the tooltip; the row opens Activity's details for that job. At most three, recent only.
+struct ActivityPopoverErrorRows: View {
     let summary: ActivityPopoverSummary
-    @State private var isOpen = false
+    let openDetails: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                isOpen.toggle()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                    Text(summary.errorCount == 1 ? "1 error" : "\(summary.errorCount) errors")
-                    Image(systemName: isOpen ? "chevron.up" : "chevron.down").font(.caption2)
-                }
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(Color.red.opacity(0.15)))
-                .foregroundStyle(.red)
-            }
-            .buttonStyle(.plain)
-            .help(isOpen ? "Hide the errors" : "Show the errors")
-            .accessibilityIdentifier("activity.popover.errorBadge")
-            if isOpen {
-                ForEach(summary.recentErrors) { item in
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(item.name).font(.caption.weight(.semibold))
-                        if let detail = item.detail, !detail.isEmpty {
-                            Text(detail).font(.caption).foregroundStyle(.secondary)
-                        }
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(summary.recentErrors) { item in
+                Button { openDetails(item.id) } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                        Text(ActivityPopoverSummaryView.oneLine(item))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
-                    .fixedSize(horizontal: false, vertical: true)
-                    .help(ActivityPopoverSummaryView.oneLine(item))
+                    .font(.caption)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                if summary.errorCount > summary.recentErrors.count {
-                    Text("And \(summary.errorCount - summary.recentErrors.count) more in the Activity window.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                .buttonStyle(.plain)
+                .help([item.name, item.fullText ?? item.detail ?? ""].filter { !$0.isEmpty }.joined(separator: ": "))
+                .accessibilityIdentifier("activity.popover.error.\(item.id)")
+            }
+            if summary.errorCount > summary.recentErrors.count {
+                Text("And \(summary.errorCount - summary.recentErrors.count) more in the Activity window.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("activity.popover.errors")
+    }
+}
+
+/// A job running outside a recipe run: its name and count on one line, "Embedding pages · 42 of 100", over a small
+/// bar of its own (#5666).
+struct ActivityPopoverRunningRow: View {
+    let item: ActivityPopoverSummary.Item
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(ActivityPopoverRunningRow.label(item)).font(.caption).lineLimit(1)
+            if item.total > 0 {
+                ProgressView(value: Double(min(item.done, item.total)), total: Double(item.total))
+                    .controlSize(.small)
+            } else {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "Read · 27 of 92": the name, then the count when there is one, else what it is doing.
+    static func label(_ item: ActivityPopoverSummary.Item) -> String {
+        if item.total > 0 { return "\(item.name) · \(item.done) of \(item.total)" }
+        return [item.name, item.detail].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
@@ -129,10 +138,11 @@ struct ActivityPopoverErrorsBadge: View {
     var summary = ActivityPopoverSummary(jobs: [], paused: false)
     summary.errorCount = 1
     summary.recentErrors = [.init(id: "e1", name: "Transcribe (Kraken)",
-                                  detail: ActivityPopoverSummary.worded("Could not read …_Recto.JPG: the image is damaged"))]
+                                  detail: "A page could not be read: the image is damaged.",
+                                  fullText: "A page could not be read: the image is damaged. 12 pages of this kind.")]
     return VStack(alignment: .leading, spacing: 10) {
         ActivityPopoverRunView(run: run)
-        ActivityPopoverErrorsBadge(summary: summary)
+        ActivityPopoverErrorRows(summary: summary, openDetails: { _ in })
     }
     .padding()
     .frame(width: 320)

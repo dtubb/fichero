@@ -31,6 +31,9 @@ struct ActivityStatusToolbarItem: View {
     @Binding var importError: String?
 
     @State private var showPopover = false
+    /// The failures the popover may show, fixed as it opens (#5666): the last hour, or since it was last opened.
+    @State private var errorWindow = ActivityErrorWindow()
+    private let errorLedger = ActivityErrorLedger.shared
 
     private var activeWorkflows: [WorkflowExecution] {
         executionObserver.map { Array($0.activeExecutions.values) } ?? []
@@ -51,8 +54,10 @@ struct ActivityStatusToolbarItem: View {
     /// An in-window import error OR any background job the backend reports as
     /// FAILED — a failed Kraken "Detect Regions" must light the error glyph so
     /// it isn't re-run in the dark (Daniel ran it three times).
+    /// The red glyph is for a failure the popover would still show (#5666), not every failure ever listed.
     private var hasError: Bool {
-        importError != nil || !activityStore.failedJobs.isEmpty
+        let window = errorLedger.window()
+        return importError != nil || activityStore.failedJobs.contains { window.isRecent($0.id) }
     }
 
     var body: some View {
@@ -117,6 +122,8 @@ struct ActivityStatusToolbarItem: View {
         .popover(isPresented: $showPopover) {
             popoverContent
         }
+        // When each failure was first seen, the stand-in for when it failed (the job list carries no time).
+        .onChange(of: failedIds, initial: true) { _, ids in errorLedger.note(failedIds: ids) }
         .accessibilityLabel(accessibilityLabel)
     }
 
@@ -153,7 +160,13 @@ struct ActivityStatusToolbarItem: View {
             // rows themselves are the Activity window's.
             ActivityPopoverSummaryView(
                 summary: summary,
-                nothingElseRunning: !isImporting && activityStore.backendWork == nil
+                nothingElseRunning: !isImporting && activityStore.backendWork == nil,
+                openDetails: { jobId in
+                    // A failure's row opens Activity's details for that job.
+                    showPopover = false
+                    ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
+                    openWindow(id: ActivityWindowSelectionState.detailWindowID)
+                }
             )
 
             Divider()
@@ -168,6 +181,13 @@ struct ActivityStatusToolbarItem: View {
         // A bounded width, so an error or a stage's wait wraps instead of running past the edge (#5666).
         .frame(minWidth: 260, maxWidth: 360, alignment: .leading)
         .accessibilityIdentifier("activity.popover")
+        // Recent errors only (#5666): the window is fixed as the popover opens, and what it could show is seen
+        // when it closes, so an error shows once and never piles up.
+        .onAppear {
+            errorLedger.note(failedIds: failedIds)
+            errorWindow = errorLedger.window()
+        }
+        .onDisappear { errorLedger.markSeen(failedIds) }
         // A recipe run in hand reads as one run with its stages: its tree, read once when shown (the store
         // follows it from then on, as the Activity window's rows do).
         .task {
@@ -189,9 +209,13 @@ struct ActivityStatusToolbarItem: View {
             runTrees: activityStore.runTrees,
             // The process CPU from the same jobs read joins the Mac's row of symbols (#5635).
             processCpuPercent: activityStore.processCpuPercent,
-            cpuCount: activityStore.cpuCount
+            cpuCount: activityStore.cpuCount,
+            errorWindow: errorWindow
         )
     }
+
+    /// The failures the engine lists now.
+    private var failedIds: [String] { activityStore.backgroundJobs.filter(\.state.isFailed).map(\.id) }
 
     private var accessibilityLabel: String {
         if let importError { return importError }
