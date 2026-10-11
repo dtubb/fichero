@@ -239,8 +239,10 @@ extension LibraryManager {
         return getLibrary(id: created.id) ?? created
     }
 
-    /// Ask the window showing `libraryId` to open setup for it (`source.onboard.reachable`).
-    func requestSetUp(for libraryId: UUID) {
+    /// Ask the window showing `libraryId` to open setup for it (`source.onboard.reachable`), at `stage`'s page
+    /// when one is named (#5670: a run's stage's Open Set Up…).
+    func requestSetUp(for libraryId: UUID, stage: String? = nil) {
+        setUpRequestedStage = stage
         setUpRequestedLibraryId = libraryId
     }
 

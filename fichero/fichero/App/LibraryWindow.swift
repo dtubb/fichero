@@ -296,9 +296,17 @@ struct LibraryWindow: View {
                         firstRunShowing: !featureManager.firstRunCompleted && windowLibraryIsLoadedAndEmpty
                     )
             },
-            set: { if !$0 { libraryManager.setUpRequestedLibraryId = nil } }
+            set: {
+                if !$0 {
+                    libraryManager.setUpRequestedLibraryId = nil
+                    libraryManager.setUpRequestedStage = nil
+                }
+            }
         )) {
-            FirstRunWindow(mode: .setUp, project: windowState.library)
+            // ponytail: a stage asked for opens Ready, whose plan lists each step with its fix, until Set Up has a
+            // page per stage (#5668, §7c); then it opens that stage's page.
+            FirstRunWindow(mode: .setUp, project: windowState.library,
+                           initialStep: libraryManager.setUpRequestedStage == nil ? nil : .ready)
                 .environment(appState)
         }
         // #4064: the supervised backend dropped AND auto-restart ran out — show a

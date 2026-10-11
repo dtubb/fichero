@@ -19,8 +19,8 @@ struct ActivityDetails: Equatable {
         case showTrace(threadId: String)
         /// A recipe run's stage's failed pages, read again (#5577): that stage's run's offer.
         case readStageAgain(threadId: String, label: String)
-        /// A skipped step's fix: the project's setup, whose Ready shows the plan with each fix (#5577).
-        case openSetUp
+        /// A skipped step's fix: the project's setup at that stage (#5577, #5670); nil, setup as it opens.
+        case openSetUp(stage: String?)
     }
 
     struct FailedPage: Equatable, Identifiable {
@@ -75,6 +75,8 @@ struct ActivityDetails: Equatable {
     let stages: [Stage]
     /// What a recipe run made, once it has ended (#5577); nil otherwise.
     let summary: Summary?
+    /// A recipe run by Set Up's stages (#5670): one card per stage it ran or skipped; empty for any other row.
+    let stageCards: [StageCard]
 
     /// The job the details read and the log is keyed by.
     var jobId: String { row.detailsJobId ?? node?.id ?? row.id }
@@ -223,6 +225,7 @@ extension ActivityDetails {
         let recipeStages = Self.stages(of: node)
         stages = recipeStages.isEmpty ? Self.queueStages(of: node) : recipeStages
         summary = Self.summary(of: node)
+        stageCards = node?.kind == ActivityStore.recipeRunKind ? Self.stageCards(of: node) : []
     }
 
     static let runKinds: Set<String> = ["workflow", "workflow-step", "batch"]

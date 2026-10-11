@@ -52,11 +52,18 @@ struct ActivityDetailsView: View {
                 if let counts = details.counts {
                     ActivityDetailsProgress(counts: counts)
                 }
-                if let summary = details.summary {
-                    ActivityDetailsSummary(summary: summary, perform: { action in Task { await perform(action, details) } })
-                }
-                if !details.stages.isEmpty {
-                    ActivityDetailsStages(stages: details.stages)
+                if !details.stageCards.isEmpty {
+                    // A recipe run by Set Up's stages (#5670): what each made, and why one did not run, under it.
+                    ActivityDetailsStageCards(
+                        cards: details.stageCards, perform: { action in Task { await perform(action, details) } }
+                    )
+                } else {
+                    if let summary = details.summary {
+                        ActivityDetailsSummary(summary: summary, perform: { action in Task { await perform(action, details) } })
+                    }
+                    if !details.stages.isEmpty {
+                        ActivityDetailsStages(stages: details.stages)
+                    }
                 }
                 if !details.failedPages.isEmpty {
                     ActivityDetailsFailedPages(details: details)
@@ -116,9 +123,9 @@ struct ActivityDetailsView: View {
         case .readStageAgain(let threadId, _):
             failure = await store.readPagesAgain(runThreadId: threadId)
                 .map { "Couldn't read the pages again: \($0)" }
-        case .openSetUp:
+        case .openSetUp(let stage):
             if let libraryId = selection.libraryId {
-                LibraryManager.shared.requestSetUp(for: libraryId)
+                LibraryManager.shared.requestSetUp(for: libraryId, stage: stage)
             } else {
                 failure = "Couldn't open the project's setup: open it with Project › Set Up…"
             }
@@ -349,7 +356,7 @@ private struct ActivityDetailsSummary: View {
                     Text(step.text).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
                 }
                 if summary.skipped.contains(where: \.hasFix) {
-                    Button("Open Set Up…") { perform(.openSetUp) }
+                    Button("Open Set Up…") { perform(.openSetUp(stage: nil)) }
                         .controlSize(.small)
                         .accessibilityIdentifier("activity.details.summary.setUp")
                 }

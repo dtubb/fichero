@@ -75,6 +75,8 @@ class LibraryManager {
     /// presents setup and clears this when it closes. Never gated on
     /// `FeatureManager.firstRunCompleted`, which governs only the app's first launch.
     var setUpRequestedLibraryId: UUID?
+    /// The Set Up stage that request is for (`SetupStages`), or nil for setup as it opens (#5670).
+    var setUpRequestedStage: String?
 
     /// File › Set Up New Project… was chosen with no window to show it (#4530): the window that
     /// opens next presents setup from Your project, and clears this.

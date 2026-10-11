@@ -289,8 +289,12 @@ struct OnboardingScreenshotsTests {
         try await shot("13-move-between-projects.png", CGSize(width: 440, height: 420),
                        ProjectTransferSheet(store: ProjectTransferStore(), drop: try Self.transferDrop(from: project),
                                             steps: nil))
+        // A finished recipe run's details by Set Up's stages (#5670): what each made, and why Statements was skipped.
+        try await shot("14-run-by-stage.png", CGSize(width: 460, height: 720), ScrollView {
+            ActivityDetailsStageCards(cards: try ActivityStageCardsTests.cards(), perform: { _ in }).padding(22)
+        })
 
-        #expect(written.count == 13)
+        #expect(written.count == 14)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")
