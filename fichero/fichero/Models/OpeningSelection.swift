@@ -5,6 +5,33 @@ import Foundation
 /// material lands, never Workflows. A first launch opens on Sources, in the sidebar's top section
 /// (the always-there project's); a project opened with no saved selection opens on its Sources too. The engine makes the folder
 /// (`sidebar.project.has-a-sources-folder`) and names it; the app finds it by that name.
+/// The order of a section's top-level items (ruled 2026-10-11, Daniel's first launch): Sources, then Workflows,
+/// then the rest in the engine's own order; the section's Trash row is drawn after them all. The engine makes both
+/// folders (Sources by name, `sidebar.project.has-a-sources-folder`; Workflows as `system-workflows`, which holds the
+/// person's workflows and the locked Default Workflows folder inside it).
+enum SidebarTopOrder {
+    /// The engine's root Workflows folder.
+    nonisolated static let workflowsFolderId = "system-workflows"
+
+    /// 0 for Sources, 1 for Workflows, 2 for anything else; only a top-level folder can be either.
+    nonisolated static func rank(_ document: Document) -> Int {
+        guard document.parentId == nil, document.docType == .folder else { return 2 }
+        if document.name == OpeningSelection.sourcesFolderName { return 0 }
+        return document.id == workflowsFolderId ? 1 : 2
+    }
+
+    /// The items with Sources first and Workflows second; everything else keeps its order.
+    static func ordered(_ items: [SidebarItem]) -> [SidebarItem] {
+        func rank(_ item: SidebarItem) -> Int {
+            if case .document(let document) = item.itemType { return Self.rank(document) }
+            return 2
+        }
+        return items.enumerated()
+            .sorted { lhs, rhs in (rank(lhs.element), lhs.offset) < (rank(rhs.element), rhs.offset) }
+            .map(\.element)
+    }
+}
+
 enum OpeningSelection {
     /// The name the engine gives every project's Sources folder (`importers/sources_folder.py`).
     static let sourcesFolderName = "Sources"
@@ -22,6 +49,23 @@ enum OpeningSelection {
         if viewModeType == "activity" { return "activity-browser" }
         guard viewModeType == "library" else { return nil }
         return sourcesFolder(in: roots).map { "doc:\($0.id)" }
+    }
+
+    /// A first launch: first run not done and no project known but the always-there one
+    /// (`firstLaunchOffersSetUp`, ruled 2026-10-10).
+    static func isFirstLaunch(firstRunCompleted: Bool, knownProjectPaths: [String]) -> Bool {
+        firstLaunchOffersSetUp(firstRunCompleted: firstRunCompleted, knownProjectPaths: knownProjectPaths)
+    }
+
+    /// What a window's stored state is reset to on a first launch (Daniel, 2026-10-11): the sidebar shown
+    /// (`.all`), the Items view, and no selection of its own, so the window selects the Sources folder as any
+    /// project opens on it (`selectionId`, `collectionToOpen`). An old window's collapsed sidebar, its
+    /// Workflows or Activity selection, never carry into a first launch.
+    struct FirstLaunchState: Equatable {
+        var columnVisibilityRaw = 2
+        var viewModeType = "library"
+        var viewModeItemId: String?
+        var selectedItemId: String?
     }
 
     /// The folder a project's store opens on when nothing is selected: its Sources, else its first

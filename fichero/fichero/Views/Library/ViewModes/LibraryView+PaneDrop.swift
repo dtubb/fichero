@@ -47,9 +47,12 @@ struct LibraryPaneDrop: ViewModifier {
                     onDropProviders: onDropProviders
                 )
             )
+            // The drop highlight (2026-10-11): a wash and an accent edge while a drag is over the pane, so an empty
+            // folder reads as the place files go.
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.accentColor, lineWidth: 2)
+                    .fill(Color.accentColor.opacity(0.08))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.accentColor, lineWidth: 2))
                     .opacity(isTargeted ? 1 : 0)
                     .allowsHitTesting(false)
             )

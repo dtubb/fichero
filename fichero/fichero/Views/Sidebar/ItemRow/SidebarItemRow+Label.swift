@@ -53,7 +53,8 @@ extension SidebarItemRow {
         // comparable, SwiftUI skips the ~200 rows whose inputs are
         // unchanged and re-renders only the rows entering/leaving the
         // selection.
-        HStack(spacing: 6) {
+        // The spacing the project's node rows (Trash) share, so their names line up (2026-10-11).
+        HStack(spacing: SidebarNodeLabel.spacing) {
             if renameState.renamingItemId == item.id {
                 labelCore(iconOnly: true)
                 renameField

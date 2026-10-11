@@ -130,6 +130,20 @@ extension ContentView {
 
     func restorePersistedState() {
         wipeImplicitFolderDisplayModesOnce()
+        // A first launch (no project known yet) opens with the sidebar shown and Sources selected, whatever
+        // window state an earlier install left behind (Daniel's first-launch test, 2026-10-11).
+        if OpeningSelection.isFirstLaunch(
+            firstRunCompleted: featureManager.firstRunCompleted,
+            knownProjectPaths: libraryManager.openLibraries.map(\.url.path) + libraryManager.getSavedLibraryPaths()
+                + LibraryRecents.shared.entries.map(\.path)
+        ) {
+            let fresh = OpeningSelection.FirstLaunchState()
+            columnVisibilityRaw = fresh.columnVisibilityRaw
+            storedViewModeType = fresh.viewModeType
+            storedViewModeItemId = fresh.viewModeItemId
+            selectedSidebarItemId = fresh.selectedItemId
+            browserSelectionData = Data()
+        }
         columnVisibility = Self.restoredColumnVisibility(from: columnVisibilityRaw)
         // Derive explicit left-sidebar state from persisted split-view visibility.
         // In this app's layout, `.doubleColumn` means sidebar + content.

@@ -120,7 +120,10 @@ extension LibraryView {
             // folder click or a drop showed "No Documents" and then relaid out
             // when the data landed (#4235). Show what is already in flight.
             let placeholder = emptyCollectionPlaceholder
-            if placeholder == .empty {
+            if placeholder == .empty, LibraryEmptyFolder.looksLikeAnEmptyFolder(emptyReason) {
+                // An empty folder looks like an empty Finder window (2026-10-11): header, stripes, "0 items".
+                emptyFolderView
+            } else if placeholder == .empty {
                 emptyState
             } else {
                 contentPlaceholderState(placeholder)

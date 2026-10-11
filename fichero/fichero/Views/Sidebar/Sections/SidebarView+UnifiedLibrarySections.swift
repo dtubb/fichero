@@ -32,11 +32,11 @@ extension SidebarView {
     /// buckets. Pure over the header, so it can be memoised per library.
     static func computeLibraryItemBuckets(from libraryHeader: SidebarItem) -> CachedLibraryItemBuckets {
         let allChildren = libraryHeader.children ?? []
-        let documentItems = allChildren.filter { item in
+        let documentItems = SidebarTopOrder.ordered(allChildren.filter { item in
             if case .document = item.itemType { return true }
             if case .folder = item.itemType, item.category == .folder { return true }
             return false
-        }
+        })
         let searchItems = allChildren.filter { item in
             if case .savedSearch = item.itemType { return true }
             if case .folder = item.itemType, item.category == .search { return true }

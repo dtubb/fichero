@@ -27,10 +27,41 @@ struct SidebarTrashRow: View {
     let libraryId: UUID
 
     var body: some View {
-        Label(Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
-            .tag(SidebarDestination.trash(libraryId: libraryId))
-            .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
-            .accessibilityValue(store.isEmpty ? "Empty" : "\(store.entries.count) items")
+        // Drawn as the folder rows above it are (Daniel's first launch, 2026-10-11: the Trash sat out of line with
+        // Sources and Workflows): a disclosure row with nothing in it keeps the strip the folders' chevrons sit in,
+        // with no chevron, and the name sits beside a 16-point icon at the folder rows' spacing
+        // (`SidebarItemRow.itemLabel`).
+        DisclosureGroup(isExpanded: .constant(false)) {
+            EmptyView()
+        } label: {
+            SidebarNodeLabel(name: Self.name, systemImage: Self.systemImage(isEmpty: store.isEmpty))
+        }
+        .tag(SidebarDestination.trash(libraryId: libraryId))
+        .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Self.name)
+        .accessibilityValue(store.isEmpty ? "Empty" : "\(store.entries.count) items")
+    }
+}
+
+/// A project node's icon and name, composed as the item rows compose theirs (`SidebarItemRow.itemLabel`: an
+/// `HStack` at spacing 6, the icon 16 points wide), so a node row's name lines up with the folders' names.
+struct SidebarNodeLabel: View {
+    /// The spacing and icon width `SidebarItemRow.itemLabel` and `SidebarRowLabelCore` use.
+    nonisolated static let spacing: CGFloat = 6
+    nonisolated static let iconWidth: CGFloat = 16
+
+    let name: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: Self.spacing) {
+            Image(systemName: systemImage)
+                .frame(width: Self.iconWidth, alignment: .center)
+            Text(name).lineLimit(1)
+        }
+        .padding(.vertical, 1)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

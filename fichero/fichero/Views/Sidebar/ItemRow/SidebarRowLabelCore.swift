@@ -105,7 +105,7 @@ struct SidebarRowLabelCore: View, Equatable {
             ProgressView()
                 .controlSize(.small)
                 .scaleEffect(0.8)
-                .frame(width: 16, alignment: .center)
+                .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
                 .tint(.accentColor)
                 .accessibilityLabel("Loading items")
         } else if workflowRunning {
@@ -135,7 +135,7 @@ struct SidebarRowLabelCore: View, Equatable {
             ProgressView()
                 .controlSize(.small)
                 .scaleEffect(0.8)
-                .frame(width: 16, alignment: .center)
+                .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
                 // See above (#4371): the List tint is a fill colour, not an
                 // accent, so progress restates its own.
                 .tint(.accentColor)
@@ -148,7 +148,7 @@ struct SidebarRowLabelCore: View, Equatable {
                 .progressViewStyle(.circular)
                 .controlSize(.small)
                 .scaleEffect(0.8)
-                .frame(width: 16, alignment: .center)
+                .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
                 .tint(.secondary)
                 .help(containerSummary ?? "")
                 .accessibilityLabel(containerSummary ?? "")
@@ -182,7 +182,7 @@ struct SidebarRowLabelCore: View, Equatable {
                     .background(Circle().fill(.background))
                     .offset(x: 4, y: 4)
             }
-            .frame(width: 16, alignment: .center)
+            .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
         } else if isDefaultWorkflowFolder {
             // Locked "Default Workflows" container/subfolders: a colored,
             // gear-badged folder icon so they read as system/default and
@@ -192,12 +192,12 @@ struct SidebarRowLabelCore: View, Equatable {
             Image(systemName: icon.isEmpty ? "folder.badge.gearshape" : icon)
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(.purple)
-                .frame(width: 16, alignment: .center)
+                .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
         } else {
             // Defensive empty-icon guard — see comment above. (#1015)
             Image(systemName: icon.isEmpty ? "doc" : icon)
                 .foregroundStyle(iconTint)
-                .frame(width: 16, alignment: .center)
+                .frame(width: SidebarNodeLabel.iconWidth, alignment: .center)
         }
     }
 }
