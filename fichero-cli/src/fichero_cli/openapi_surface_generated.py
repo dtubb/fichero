@@ -5787,6 +5787,7 @@ def register_generated_openapi_commands(
         checked: Optional[str] = typer.Option(None, '--checked', help="The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`)."),
         held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help="The pages to score on. None given: the pages every trained candidate's card says were held out of its training. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         language: Optional[str] = typer.Option(None, '--language', help="The pages' language, given to a vision model."),
+        remote_allowed: Optional[bool] = typer.Option(None, '--remote-allowed/--no-remote-allowed', help="A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words. Default: false."),
     ) -> None:
         """Score trained and out-of-the-box models on the held-out checked pages, as one job (POST /api/evaluation/runs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5798,12 +5799,14 @@ def register_generated_openapi_commands(
                 "checked": checked,
                 "held_out_ids": held_out_ids,
                 "language": language,
+                "remote_allowed": remote_allowed,
             }, {
                 "add_out_of_the_box": {'type': 'boolean', 'title': 'Add Out Of The Box', 'description': "Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac.", 'default': True, 'x-cli-required': False},
                 "candidates": {'items': {'$ref': '#/components/schemas/EvaluationCandidate'}, 'type': 'array', 'minItems': 1, 'title': 'Candidates', 'description': 'The models to score: the trained one(s) and any others.', 'x-cli-required': True},
                 "checked": {'type': 'string', 'nullable': True, 'title': 'Checked', 'description': "The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).", 'x-cli-required': False},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': "The pages to score on. None given: the pages every trained candidate's card says were held out of its training.", 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to a vision model.", 'x-cli-required': False},
+                "remote_allowed": {'type': 'boolean', 'title': 'Remote Allowed', 'description': "A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words.", 'default': False, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -12923,6 +12926,7 @@ def register_generated_openapi_commands(
     def recipes_start_bakeoff_post(
         ctx: typer.Context,
         page_ids: Optional[list[str]] = typer.Option(None, '--page-ids', help='the sample pages; none: every page with a pass a person made. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        step: Optional[str] = typer.Option(None, '--step', help='which step\'s models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7) One of: read-a-line, find-lines. Default: "read-a-line".'),
     ) -> None:
         """Start Bakeoff (POST /api/recipes/project/bakeoffs)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12930,8 +12934,10 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "page_ids": page_ids,
+                "step": step,
             }, {
                 "page_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Page Ids', 'description': 'the sample pages; none: every page with a pass a person made', 'x-cli-required': False},
+                "step": {'type': 'string', 'enum': ['read-a-line', 'find-lines'], 'title': 'Step', 'description': "which step's models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7)", 'default': 'read-a-line', 'x-cli-required': False},
             }, required=False)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

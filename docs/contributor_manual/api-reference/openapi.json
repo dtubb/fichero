@@ -14668,7 +14668,7 @@
           "recipes"
         ],
         "summary": "Start Bakeoff",
-        "description": "Compare the readers on the project's corrected sample pages: the top three by rule rank (and Tesseract\nfor print, when it has the language), each scored by the evaluation job (`evaluation.run`, audited) on\nthe same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying\nhow many more), for a project not set up, or when no candidate can be scored on this Mac.",
+        "description": "Compare the readers on the project's corrected sample pages: the top three by rule rank, one of each kind\nbeside them (Kraken, Apple Vision, an MLX vision model, a cloud reader where a provider is set up and pages may\nleave; a kind that cannot read here is listed with why), and Tesseract for print when it has the language,\neach scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With\n`step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a\n`compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages\n(saying how many more), for a project not set up, or when no candidate can be scored on this Mac.",
         "operationId": "start_bakeoff_api_recipes_project_bakeoffs_post",
         "parameters": [
           {
@@ -49688,9 +49688,11 @@
             "type": "string",
             "enum": [
               "rule rank",
-              "baseline for print"
+              "baseline for print",
+              "contender"
             ],
-            "title": "Role"
+            "title": "Role",
+            "description": "why it takes part: the rules' top three, the print baseline, or one of each kind of reader or line finder beside them (Kraken, Apple Vision, an MLX vision model, a cloud reader; #5660 item 7)"
           },
           "rule_rank": {
             "type": "integer",
@@ -49800,6 +49802,30 @@
             "nullable": true,
             "title": "Why",
             "description": "why it has no score (not on this Mac, not in this build, remote, still running, or 'not measured: read N of M pages (why)')"
+          },
+          "wer": {
+            "type": "number",
+            "nullable": true,
+            "title": "Wer",
+            "description": "a reader's word error rate over the pages it read (#5660)"
+          },
+          "lines_found": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines Found",
+            "description": "a line finder: the checked lines it found"
+          },
+          "lines_checked": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines Checked",
+            "description": "a line finder: the checked lines on the pages"
+          },
+          "extra_lines": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Extra Lines",
+            "description": "a line finder: its lines that match no checked one"
           }
         },
         "type": "object",
@@ -49825,6 +49851,16 @@
             "type": "array",
             "title": "Page Ids",
             "description": "the sample pages; none: every page with a pass a person made"
+          },
+          "step": {
+            "type": "string",
+            "enum": [
+              "read-a-line",
+              "find-lines"
+            ],
+            "title": "Step",
+            "description": "which step's models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7)",
+            "default": "read-a-line"
           }
         },
         "additionalProperties": false,
@@ -61012,7 +61048,7 @@
           "provider": {
             "type": "string",
             "title": "Provider",
-            "description": "vision: the provider; only this Mac's (`omlx`) is built. A remote model target is not built yet and is refused.",
+            "description": "vision: the provider: this Mac's models (`omlx`), Apple Vision (`apple`, model `apple-vision`), or a cloud provider set up in Settings \u203a AI, which reads only when the request allows pages to leave this Mac (`remote_allowed`, #5660 item 7).",
             "default": "omlx"
           }
         },
@@ -61059,6 +61095,12 @@
             "nullable": true,
             "title": "Language",
             "description": "The pages' language, given to a vision model."
+          },
+          "remote_allowed": {
+            "type": "boolean",
+            "title": "Remote Allowed",
+            "description": "A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words.",
+            "default": false
           }
         },
         "type": "object",

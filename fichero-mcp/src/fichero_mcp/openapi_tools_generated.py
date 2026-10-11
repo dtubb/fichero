@@ -2727,9 +2727,10 @@ def fichero_evaluation_start(
     checked: Annotated[Optional[str], Field(description="The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).")] = None,
     held_out_ids: Annotated[Optional[list[Any]], Field(description="The pages to score on. None given: the pages every trained candidate's card says were held out of its training.")] = None,
     language: Annotated[Optional[str], Field(description="The pages' language, given to a vision model.")] = None,
+    remote_allowed: Annotated[Optional[bool], Field(description="A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words. Default: false.")] = None,
 ) -> Any:
     "Score trained and out-of-the-box models on the held-out checked pages, as one job\n\nQueue an `evaluate-models` job on the local model lane: each candidate (and, unless asked not to, the\nout-of-the-box readers of the same kind on this Mac) reads the checked pass's lines on the held-out\npages, and is scored with Fichero's one CER under every normalisation policy; the scores are appended\nto each model's card. Refused (422) in words when a trained model's card names no held-out page, a\nnamed page is not held out from a trained candidate, no page has a checked reading, a model is not\non this Mac, or the model is remote (not built yet). Through `evaluation.run`.\n\nRoute: POST /api/evaluation/runs (toolset `evaluation`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/evaluation/runs", json=_rt.body({"add_out_of_the_box": add_out_of_the_box, "candidates": candidates, "checked": checked, "held_out_ids": held_out_ids, "language": language}))
+    return _rt.call("POST", "/api/evaluation/runs", json=_rt.body({"add_out_of_the_box": add_out_of_the_box, "candidates": candidates, "checked": checked, "held_out_ids": held_out_ids, "language": language, "remote_allowed": remote_allowed}))
 
 
 def fichero_evaluation_status(
@@ -6119,9 +6120,10 @@ def fichero_recipes_list_bakeoffs(
 def fichero_recipes_start_bakeoff(
     *,
     page_ids: Annotated[Optional[list[Any]], Field(description='the sample pages; none: every page with a pass a person made.')] = None,
+    step: Annotated[Optional[str], Field(description='which step\'s models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7) One of: read-a-line, find-lines. Default: "read-a-line".')] = None,
 ) -> Any:
-    "Start Bakeoff\n\nCompare the readers on the project's corrected sample pages: the top three by rule rank (and Tesseract\nfor print, when it has the language), each scored by the evaluation job (`evaluation.run`, audited) on\nthe same pages. Refused (422) in words, with nothing run, below 100 corrected lines on two pages (saying\nhow many more), for a project not set up, or when no candidate can be scored on this Mac.\n\nRoute: POST /api/recipes/project/bakeoffs (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/bakeoffs", json=_rt.body({"page_ids": page_ids}))
+    "Start Bakeoff\n\nCompare the readers on the project's corrected sample pages: the top three by rule rank, one of each kind\nbeside them (Kraken, Apple Vision, an MLX vision model, a cloud reader where a provider is set up and pages may\nleave; a kind that cannot read here is listed with why), and Tesseract for print when it has the language,\neach scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With\n`step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a\n`compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages\n(saying how many more), for a project not set up, or when no candidate can be scored on this Mac.\n\nRoute: POST /api/recipes/project/bakeoffs (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/recipes/project/bakeoffs", json=_rt.body({"page_ids": page_ids, "step": step}))
 
 
 def fichero_recipes_bakeoff_result(

@@ -2903,7 +2903,14 @@ Trying another option
   combination's) choice for the project or for one folder, stored as an override on the recipe.
 - `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
   options and can be run again later.
-- `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-05 (engine, readers
+- `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951, #5660) **Built 2026-10-11 (engine,
+  #5660 item 7):** one of each kind of reader beside the rules' top three (Kraken, Apple Vision read on this Mac,
+  an MLX vision model, a cloud reader only where pages may leave; a kind that cannot read here listed with why,
+  never faked), each row with WER beside CER; the line finders compared with `step: find-lines` (Kraken's
+  segmenter, Apple Vision's text lines; YOLO named as finding regions, not lines), scored by the checked lines
+  each finds; pinned by `fichero-server/tests/unit/recipes/test_bakeoff_contenders_5660.py`. *Not built: the
+  app's table for them (B), and Use This for a line finder other than Kraken's (the line step runs Kraken's
+  only).* **Built 2026-10-05 (engine, readers
   only):** `recipes/bakeoff.py` runs the evaluation job (`training/evaluation.py`, `evaluation.run`) on the
   corrected sample pages (each page's newest pass a person made), so there is one comparison code path:
   the top three `read-a-line` readers by the rules' own rank, plus Tesseract for print or typescript when
