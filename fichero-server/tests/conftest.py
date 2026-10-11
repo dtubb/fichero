@@ -1138,9 +1138,21 @@ async def _count_queries_per_request(request, call_next):
         import perf_ratchet
 
         perf_ratchet.note_query_count(
-            f"queries.{request.method}.{route.path}", get_query_count()
+            f"queries.{request.method}.{_route_template(request.scope, route)}", get_query_count()
         )
     return response
+
+
+def _route_template(scope, route) -> str:
+    """The matched route's FULL template ("/api/tasks/{task_id}"), the endpoint's stable name (#5674).
+
+    FastAPI 0.141 includes a router without copying its routes (`_IncludedRouter`): `scope["route"]` is the
+    router's own APIRoute, whose `path` lacks the include prefix ("" for GET /api/tasks), so every router's
+    root collapsed onto one key, "queries.GET.", and the ratchet compared unrelated endpoints. The prefixed
+    template is on the request's effective route context; older FastAPI copied the routes, so `route.path`
+    is already whole there."""
+    effective = (scope.get("fastapi") or {}).get("effective_route_context")
+    return getattr(effective, "path", None) or route.path
 
 
 def _verify_query_counting_wired() -> None:
