@@ -1,5 +1,6 @@
 import FicheroAPIClient
 import Foundation
+import OpenAPIRuntime
 
 /// Ready's "Offered later: Train a model of your own for this step" (#5660 item 9,
 /// `source.recipe.train-offered-per-step`): the engine's `train_offers` on the Start plan, one per trainable step, each
