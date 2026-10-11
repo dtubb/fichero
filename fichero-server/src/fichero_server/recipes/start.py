@@ -30,11 +30,29 @@ WORKFLOW_FOR_JOB = {
     "find-statements": "catalogue_stage_3_extract_svo",
     # The same rule extractor as the Extract Date tool, one code path (#5514).
     "work-out-dates": "work_out_dates",
+    # Each level asked under "Into what" is one run of the Modernización workflow's analyze node, its prompt and
+    # its reading level set per run: it reads the page and its transcription and writes a transcription at that
+    # level, or a translation (#5660 item 1, the page model's levels #5651, #5653).
+    "translate-transliterate-normalise": "paleo_modernizacion",
 }
+#: What each level's run asks the step's model (#5660 item 1). The reading lands as a transcription at that level.
+LEVEL_PROMPTS = {
+    "as_written": ("Transcribe this page exactly as written, in its own language: keep the scribe's spelling, "
+                   "abbreviations, word division and punctuation; do not expand or modernise anything."),
+    "expanded": ("Transcribe this page with every abbreviation expanded into the full word the scribe meant "
+                 "(for example dha -> dicha), and the spelling otherwise exactly as written."),
+    "regularised": ("Transcribe this page in normalised spelling: expand the abbreviations, regularise u/v, i/j and "
+                    "long s and the word division, and keep the period's words and grammar."),
+    "modernised": ("Give a modernised reading of this page for a reader who cannot handle the period orthography: "
+                   "modern spelling and accents, every abbreviation expanded, the words and their order kept."),
+}
+_LEVEL_TAIL = (" Use the existing transcription as context where it is given; read the image where it is silent. "
+               "Return only the text, line by line.")
 #: Kraken finds the lines and the step's vision model (a cloud or MLX pin) reads each one (the line reader).
 READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
-_OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements"})
+_OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements",
+                            "translate-transliterate-normalise"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`), the page text tied to
 #: its lines (a check run of kind `tie-text-to-lines`, #5444: free, on this Mac, with a Kraken reader) and the
 #: project's synced folder (`source.sync.*`).
@@ -65,7 +83,6 @@ EMBED_JOB = "make-a-vector"
 START_JOBS = frozenset(WORKFLOW_FOR_JOB) | frozenset(OTHER_CARDS) | {EMBED_JOB, "train-a-model"}
 #: What to use instead, by hand, for a job Start cannot run by itself (the shipped workflow or tool that does it).
 BY_HAND_FIX = {
-    "translate-transliterate-normalise": "run the Translate workflow (or Modernización, for Spanish) by hand",
     "link-to-authorities": "link each name to an authority from its Inspector",
     "place-in-a-gazetteer": "run the Extract Geo workflow by hand: it finds the places and puts them on the map",
     "describe-for-the-catalogue": "run the Catalogue Description workflow by hand",
@@ -354,6 +371,27 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # Kraken finds its own lines before reading them: one run carries both steps.
             if job == "read-a-line" and runs and runs[-1]["job"] == "find-lines":
                 entry["steps"] = runs.pop()["steps"] + entry["steps"]
+        if job == "translate-transliterate-normalise":
+            # One run per level asked under "Into what" (a list; a project saved with one value reads as one), each
+            # writing its reading level; a translation is a reading of kind translation (#5660 item 1).
+            from fichero_server.recipes.answers import TRANSLATION_PREFIX, normalise_levels
+
+            asked, _ = normalise_levels(settings.get("target") or ["regularised"])
+            for target in asked:
+                if target.startswith(TRANSLATION_PREFIX):
+                    from fichero_server.recipes.names import language_name
+
+                    language = target[len(TRANSLATION_PREFIX):]
+                    config = {"reading_kind": "translation", "reading_level": None,
+                              "prompt": f"Translate this page into {language_name(language)}." + _LEVEL_TAIL}
+                elif target in LEVEL_PROMPTS:
+                    config = {"reading_kind": "transcription", "reading_level": target,
+                              "prompt": LEVEL_PROMPTS[target] + _LEVEL_TAIL}
+                else:
+                    skip(sid, f"{label}: Fichero has no level {target!r} to write", None)
+                    continue
+                runs.append({**entry, "tool_config": {"analyze": config}})
+            continue
         if job == "find-names-tag-words" and settings.get("kinds"):
             # Setup's kinds of names reach the entity extraction as its sections (#5478).
             sections = [_ENTITY_SECTIONS[k] for k in settings["kinds"] if k in _ENTITY_SECTIONS]

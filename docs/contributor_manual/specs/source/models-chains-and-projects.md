@@ -1153,8 +1153,13 @@ plan's peak memory across steps. Ready shows none of it.
   (which kinds of names, which gazetteer, how far to normalise) are read by the steps they configure.
   Built: saved as `answers.job_answers`; each becomes its step's setting (`start.JOB_ANSWER_SETTINGS`), at
   assembly when sent and in the Start plan from the saved answers; the kinds of names reach the names step as
-  the sections its entity extraction finds (tested in `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py`). Not built: the gazetteer and how far
-  to normalise reach no step, because placing in a gazetteer and translating are not steps Start runs yet
+  the sections its entity extraction finds (tested in `fichero-server/tests/unit/recipes/test_every_step_runs_to_spec.py`).
+  Built 2026-10-11 (#5660 item 1): "Into what" is a list of reading levels (as written, abbreviations
+  expanded, normalised spelling, modernised, and `translation:<tag>`), a single saved value read as a list of
+  one (`answers.normalise_levels`); the normalise step runs once per level asked, each run writing a
+  transcription at that level (or a translation) with the step's model (`start.LEVEL_PROMPTS`, the
+  Modernización workflow's analyze node); pinned by `fichero-server/tests/unit/recipes/test_set_up_steps_5660.py`.
+  Not built: the gazetteer reaches no step, because placing in a gazetteer is not a step Start runs yet
   (`by_hand`); setup's gazetteers (GeoNames, Wikidata, the project's list) are not the engine's (a small
   offline list, then Nominatim).
 - `source.onboard.auto.models-fetched-first` — **[PARTIAL]** (#5367, #5537) every model the plan needs
@@ -3123,6 +3128,12 @@ Finding models
   online search looks for readers only, so for any other job it is not run and the source says so.
   *Test:* `fichero-server/tests/unit/recipes/test_models_ux_5619.py` (candidates for find-statements);
   `fichero/Tests/Unit/general/Models/ModelsUXTests.swift` (the fix opens the finder for the step).
+  Built 2026-10-11 (#5660 item 4): for Find names and the other text jobs the finder also offers Apple
+  Intelligence (said "Fichero cannot run it yet" where this build or this Mac lacks it), the catalogue's MLX
+  text models to download, and the cloud models of the person's provider rows (with none, a Claude card
+  that says to add it in Settings › AI first); spaCy stays the default, these are the person's to choose
+  (`discovery.other_text_cards`), and use-candidate keeps the choice, which the Start plan runs with
+  (`fichero-server/tests/unit/recipes/test_set_up_steps_5660.py`).
 - `source.recipe.local-text-models-are-cards` — **[PARTIAL]** (#5619) a text model already on this Mac
   is a card for the jobs that send a model text alone and that the shipped cards do not cover
   (`find-statements`, `split-into-entries`): every MLX model complete in this Mac's model store that

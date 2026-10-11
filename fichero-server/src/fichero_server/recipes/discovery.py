@@ -172,7 +172,10 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
 
 #: The jobs that send a model the text alone and that no shipped card covers: a text model already here does them
 #: (`source.recipe.local-text-models-are-cards`, #5619).
-TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries"})
+TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries",
+                             # Find names too (#5660 item 4): spaCy's shipped pipelines are its default; a text model
+                             # here, Apple Intelligence or a cloud model is the person's to choose instead.
+                             "find-names-tag-words"})
 #: Model servers the person runs, whose enabled models are cards for those jobs (the engine's own MLX server is
 #: its model store's, read above).
 _TEXT_SERVERS = frozenset({"ollama", "lmstudio"})
@@ -219,6 +222,93 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
         )
     out.update({f"row:{c.id}": c for c in _server_text_cards()})
     return sorted(out.values(), key=lambda c: c.id)
+
+
+#: Apple Intelligence as a card: the on-device Foundation Models through this build's fm-bridge (`llm.providers`,
+#: provider `apple`, the text model `apple-intelligence` the factory defaults name).
+APPLE_INTELLIGENCE_PIN = {"cloud": "apple", "model": "apple-intelligence"}
+#: The cloud model a person adds for text work when none is configured (#5660 item 4: "a cloud model (Claude)").
+CLAUDE_PROVIDER = "anthropic"
+
+
+def other_text_cards() -> list[Card]:
+    """The text models a person may choose for a text job beyond spaCy and the models already here (#5660 item 4):
+    offered by the finder and kept by use-candidate, never chosen by the rules by themselves (a step with no text
+    model here still says so, `source.recipe.local-text-models-are-cards`),
+    each said plainly where it cannot run yet rather than offered as if it could: Apple Intelligence (this Mac's
+    Foundation Models; not available where this build or this Mac lacks it), the catalogue's MLX text models still
+    to download, and the cloud models of the person's provider rows (Claude, when none is configured, as a card that
+    says to add it in Settings › AI)."""
+    from fichero_server.llm.local_model_choice import apple_intelligence_in_this_build
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
+
+    try:
+        apple_here = bool(apple_intelligence_in_this_build())
+    except Exception as exc:  # noqa: BLE001 -- unreadable: said as not available, never offered as if it ran
+        logger.info("Apple Intelligence could not be checked: %s", exc)
+        apple_here = False
+    out = [Card(
+        id="apple:intelligence/foundation-models@os", pin=dict(APPLE_INTELLIGENCE_PIN), jobs=TEXT_MODEL_JOBS,
+        scripts=None, languages=None, material=frozenset(), open_licence=True, licence="system",
+        note="Apple Intelligence, on this Mac", source="installed", runs_here=apple_here,
+        cannot_run_because="" if apple_here else "Apple Intelligence is not available in this build or on this Mac",
+        offered_because="Apple's on-device model (Foundation Models): free, and the pages stay on this Mac",
+    )]
+    store = get_mlx_model_store()
+    for name, spec in MANAGED_MLX_MODELS.items():
+        if "text" not in spec.capabilities or store.is_complete(spec):
+            continue  # one already here is `local_text_cards`'
+        out.append(Card(
+            id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
+            jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
+            licence="", size_gb=round(spec.download_size_bytes / 1e9, 3),
+            memory_gb=round(spec.min_memory_bytes / 1024**3, 2), note=spec.display_name, source="shipped",
+            installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
+        ))
+    out += _cloud_text_cards()
+    return out
+
+
+def _cloud_text_cards() -> list[Card]:
+    """The enabled models of the person's cloud provider rows, as cards for `TEXT_MODEL_JOBS`: they run through the
+    provider settings already there, and the rules take one only where the project lets pages leave this Mac. With no
+    Claude row, a Claude card that says to add it first (never one that pretends to run)."""
+    from fichero_server.db.app import get_app_db
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.places import PROVIDER, place_of
+
+    out = []
+    try:
+        app_db = get_app_db()
+        rows = app_db.list_providers()
+    except Exception as exc:  # noqa: BLE001 -- no app database (a bare tool run): no rows, said in the log
+        logger.info("cloud text cards: the provider rows could not be read: %s", exc)
+        rows = []
+    seen_types = set()
+    for row in rows:
+        ptype = row.provider_type.value
+        if not row.enabled or place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base)) != PROVIDER:
+            continue
+        seen_types.add(ptype)
+        for model in app_db.list_models(row.id):
+            if not model.enabled or _is_embedder(model):
+                continue
+            out.append(Card(
+                id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
+                jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+                runs_on=f"cloud:{ptype}", open_licence=True, licence="",
+                note=f"{model.name or model.model_id} ({row.name})", source="installed",
+                offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
+            ))
+    if CLAUDE_PROVIDER not in seen_types:
+        out.append(Card(
+            id="anthropic:claude@settings", pin={"cloud": CLAUDE_PROVIDER, "model": "claude"}, jobs=TEXT_MODEL_JOBS,
+            scripts=None, languages=None, material=frozenset(), runs_on=f"cloud:{CLAUDE_PROVIDER}",
+            open_licence=True, licence="", note="Claude (Anthropic), in the cloud", source="installed",
+            runs_here=False, cannot_run_because="add Claude (Anthropic) in Settings › AI first",
+            offered_because="a cloud model through your provider settings: its pages leave this Mac",
+        ))
+    return out
 
 
 def _server_text_cards() -> list[Card]:
@@ -880,9 +970,9 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                     "detail": f"{len(shipped)} ship with Fichero"})
     if job in TEXT_MODEL_JOBS:
         # A job a text model does: the text models here and on the person's own servers (#5619).
-        installed = local_text_cards(seed)
+        installed = [*local_text_cards(seed), *other_text_cards()]
         sources.append({"source": "installed", "state": "read", "count": len(installed),
-                        "detail": f"{len(installed)} on this Mac or your own servers"})
+                        "detail": f"{len(installed)} on this Mac, your servers or the cloud"})
     else:
         installed = installed_cards(seed)
         sources.append({"source": "installed", "state": "read", "count": len(installed),

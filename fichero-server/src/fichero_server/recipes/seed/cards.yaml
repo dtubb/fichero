@@ -124,7 +124,7 @@ cards:
   - id: mlx:hf/mlx-community/Qwen2.5-VL-7B-Instruct-4bit@unpinned
     pin: {hf: mlx-community/Qwen2.5-VL-7B-Instruct-4bit, revision: main}
     pin_verified: false
-    jobs: [correct, read-a-page]
+    jobs: [correct, read-a-page, translate-transliterate-normalise]  # reads the page and writes each level (#5660)
     scripts: [Latn, Cyrl, Hani, Arab]
     languages: [en, zh, es, fr, de, it, pt, ru, ar]
     material: [handwriting, print, typescript]
@@ -136,7 +136,7 @@ cards:
   - id: mlx:hf/mlx-community/Qwen2.5-VL-3B-Instruct-4bit@unpinned
     pin: {hf: mlx-community/Qwen2.5-VL-3B-Instruct-4bit, revision: main}
     pin_verified: false
-    jobs: [correct, read-a-page]
+    jobs: [correct, read-a-page, translate-transliterate-normalise]  # reads the page and writes each level (#5660)
     scripts: [Latn, Cyrl, Hani, Arab]
     languages: [en, zh, es, fr, de, it, pt, ru, ar]
     material: [handwriting, print, typescript]

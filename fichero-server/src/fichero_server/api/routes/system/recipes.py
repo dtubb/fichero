@@ -1305,7 +1305,11 @@ async def use_candidate_for_step(
         a = _answers(setup["answers"]) if setup["answers"] else None
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    card = next((c for c in known_cards(a) if c.id == request.card), None)
+    from fichero_server.recipes.discovery import other_text_cards
+
+    # The rules' cards, and the text models the finder offers a person beyond them (#5660 item 4) that can run.
+    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here)]
+    card = next((c for c in offered if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail=f"{request.card} is not a model Fichero has found here: list "
                                                     "the candidates (online, to search) and choose one of them")

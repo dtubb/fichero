@@ -100,6 +100,53 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
 
         known = [s for s in scripts if not unknown_scripts([s])]
         out["directions"] = {s: chosen.get(s) or default_direction(s) for s in known}
+    job_answers = out.get("job_answers")
+    if isinstance(job_answers, dict) and "normalise_how_far" in job_answers:
+        levels, refused = normalise_levels(job_answers["normalise_how_far"])
+        problems += refused
+        out["job_answers"] = {**job_answers, "normalise_how_far": levels}
     if strict and problems:
         raise ValueError(" ".join(problems))
     return out
+
+
+#: The levels "Translate or normalise › Into what" may ask for (#5660 item 1): the page model's reading levels a
+#: person writes towards (#5651, #5653), in the order a reading cascades.
+NORMALISE_LEVELS: tuple[str, ...] = ("as_written", "expanded", "regularised", "modernised")
+#: Set Up's own words for them, where they are not the engine's spelling.
+_SETUP_WORDS = {"abbreviations_expanded": "expanded", "normalised_spelling": "regularised",
+                "normalized_spelling": "regularised"}
+#: A translation asked beside them: `translation:<language tag>`.
+TRANSLATION_PREFIX = "translation:"
+
+
+def normalise_levels(value: Any) -> tuple[list[str], list[str]]:
+    """(the levels asked, in cascade order, then any translations; the problems in words). "Into what" is a list: a
+    project saved with one value (`"normalised"`) reads as a list of one. Each level is spelled the engine's way
+    (`as-written` -> `as_written`, `normalised` -> `regularised`); a translation is `translation:<tag>`, its
+    language resolved to its tag. A value Fichero does not know is kept and named as a problem."""
+    from fichero_server.models.readings import canonical_reading_level
+    from fichero_server.recipes.names import resolve_language
+
+    levels: list[str] = []
+    translations: list[str] = []
+    problems: list[str] = []
+    for item in _list(value):
+        text = str(item).strip()
+        if text.lower().startswith(TRANSLATION_PREFIX):
+            try:
+                translations.append(TRANSLATION_PREFIX + resolve_language(text[len(TRANSLATION_PREFIX):]))
+            except ValueError as exc:
+                problems.append(str(exc))
+                translations.append(text)
+            continue
+        level = canonical_reading_level(text)
+        level = _SETUP_WORDS.get(level or "", level)
+        if level not in NORMALISE_LEVELS:
+            problems.append(f"Fichero has no level {text!r} to normalise into; choose from as written, "
+                            "abbreviations expanded, normalised spelling or modernised.")
+            levels.append(text)
+            continue
+        levels.append(level)
+    ordered = [lv for lv in NORMALISE_LEVELS if lv in levels] + [lv for lv in levels if lv not in NORMALISE_LEVELS]
+    return list(dict.fromkeys(ordered + translations)), problems
