@@ -682,11 +682,16 @@ extension ActivityStore {
     /// words, or nil.
     func retryJob(jobId: String, runThreadId: String?) async -> String? {
         do {
-            let state = try await activityService.retryJob(id: jobId)
-            patchJobState(state, jobId: jobId, runThreadId: runThreadId)
-            if backgroundJobs.contains(where: { $0.id == jobId }) {
-                await refreshBackgroundJobs()
+            let answer = try await activityService.retryJob(id: jobId)
+            let listed = backgroundJobs.contains { $0.id == jobId }
+            if let old = answer.replaces, old != answer.id {
+                // A retried workflow run is a NEW run (#5555's read-again path): the old row becomes it, in place,
+                // and nothing is set on the old id, which the engine no longer lists.
+                replaceRetriedRun(old, with: answer.id, state: answer.state)
+            } else {
+                patchJobState(answer.state, jobId: jobId, runThreadId: runThreadId)
             }
+            if listed { await refreshBackgroundJobs() }
             return nil
         } catch {
             return error.localizedDescription
@@ -835,6 +840,21 @@ extension ActivityStore {
             if jobLogs[jobId] != lines { jobLogs[jobId] = lines }
         } catch {
             log.debug("ActivityStore: log for \(jobId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// The old run's rows become the new run's, where they stood: its jobs-list row, its run row, its tree (dropped, to
+    /// be read for the new run), the project's run strip and the details' selection.
+    private func replaceRetriedRun(_ old: String, with new: String, state: String) {
+        let jobs = Self.swapping(backgroundJobs, old: old, new: new, state: state)
+        if jobs != backgroundJobs { backgroundJobs = jobs }
+        let swappedRuns = Self.swapping(runs, old: old, new: new, state: state)
+        if swappedRuns.map(\.id) != runs.map(\.id) { runs = swappedRuns }
+        if runTrees[old] != nil { runTrees[old] = nil }
+        if projectRunId == old { projectRunId = new }
+        let selection = ActivityWindowSelectionState.shared
+        if selection.selection?.jobId == old {
+            selection.select(ActivitySelection(jobId: new, libraryId: selection.selection?.libraryId))
         }
     }
 

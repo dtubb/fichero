@@ -603,11 +603,20 @@ extension ActivityService {
     /// goes back to waiting and carries on from its own checkpoint. Returns the
     /// job's state after the request. A refusal (409: work a run hands in, a
     /// training on Hugging Face, work already waiting) throws the engine's words.
-    func retryJob(id: String) async throws -> String {
+    /// What a retry answered: the job's state, and for a retried workflow run, the NEW run's id and the run it
+    /// replaces (`replaces`), which is no longer listed.
+    struct RetryAnswer: Equatable {
+        let id: String
+        let state: String
+        let replaces: String?
+    }
+
+    func retryJob(id: String) async throws -> RetryAnswer {
         let response = try await client.api.retryJobApiActivityJobsJobIdRetryPost(path: .init(jobId: id))
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json.state
+            let answer = try okResponse.body.json
+            return RetryAnswer(id: answer.id, state: answer.state, replaces: answer.replaces)
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")

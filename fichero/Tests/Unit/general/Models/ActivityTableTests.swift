@@ -457,6 +457,65 @@ final class ActivityTableTests: XCTestCase {
                        "a retried row waits again, and offers Pause and Stop")
     }
 
+    func testActivityWindowTable_retryOnAWorkflowRunSwapsTheOldRowForTheNewRunInPlace() async throws {
+        // WHY (47b7a0788): Retry on a failed workflow run answers a NEW run's id with `replaces` naming the old one,
+        // which the engine no longer lists. Setting the state on the old id made a ghost row beside the new run.
+        let store = Self.storeWithMockTransport()
+        let old = Self.runId, new = "thread-5e0c1d2a9b77"
+        func row(_ id: String, _ state: String) -> String {
+            #"{"id":"\#(id)","task_type":"workflow","name":"Transcribe (Kraken)","library":"/tmp/x","current":0,"#
+                + #""total":40,"percent":0,"state":"\#(state)","reason":null,"parent_id":null}"#
+        }
+        func jobs(_ rows: [String]) -> Data {
+            Data((#"{"jobs":[\#(rows.joined(separator: ","))],"count":\#(rows.count),"cpu_count":8,"paused":false,"#
+                + #""mode":"automatic","machine":\#(Self.idleMachine)}"#).utf8)
+        }
+        MockTransportURLProtocol.reset([
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: jobs([row("embed", "running"), row(old, "failed"), row("later", "waiting")]), once: true),
+            Stub(pathContains: "/api/activity/jobs/\(old)", method: "GET", status: 200,
+                 body: Self.treeJSON(runState: "failed", stepState: "failed")),
+            Stub(pathContains: "/api/activity/jobs/\(old)/retry", method: "POST", status: 200,
+                 body: Data(#"{"id":"\#(new)","state":"waiting","replaces":"\#(old)"}"#.utf8)),
+            Stub(pathContains: "/api/activity/jobs", method: "GET", status: 200,
+                 body: jobs([row("embed", "running"), row(new, "running"), row("later", "waiting")]))
+        ])
+        await store.refreshBackgroundJobs()
+        _ = try await loadedTree(store, old)
+        XCTAssertEqual(store.backgroundJobs.map(\.id), ["embed", old, "later"])
+
+        let failure = await store.retryJob(jobId: old, runThreadId: old)
+
+        XCTAssertNil(failure)
+        XCTAssertEqual(store.backgroundJobs.map(\.id), ["embed", new, "later"], "one row, where the old one stood")
+        XCTAssertFalse(store.backgroundJobs.contains { $0.id == old }, "no row is left for the old run")
+        XCTAssertNil(store.runTrees[old], "no state was set on the old id: its tree is gone, the new run's is read")
+    }
+
+    func testActivityRetry_theSwapKeepsThePlaceAndTheNewRunWaits() {
+        let jobs = [ActivityJob(id: "a", name: "A"), ActivityJob(id: "old", taskType: "workflow", name: "Read", total: 40,
+                                                                  state: .failed, reason: "engine stopped"),
+                    ActivityJob(id: "b", name: "B")]
+        let swapped = ActivityStore.swapping(jobs, old: "old", new: "new", state: "waiting")
+        XCTAssertEqual(swapped.map(\.id), ["a", "new", "b"])
+        XCTAssertEqual(swapped[1].state, .waiting)
+        XCTAssertNil(swapped[1].reason, "the old failure is not the new run's")
+        XCTAssertEqual(swapped[1].name, "Read")
+        XCTAssertEqual(ActivityStore.swapping(jobs, old: "missing", new: "new", state: "waiting"), jobs)
+        let twice = ActivityStore.swapping(jobs + [ActivityJob(id: "new", name: "Read")], old: "old", new: "new",
+                                           state: "running")
+        XCTAssertEqual(twice.map(\.id), ["a", "new", "b"], "a jobs read that already lists the new run keeps one row")
+
+        let run = ActivityRun(id: "lib|old", runId: "old", workflowId: "w", threadId: "old", workflowName: "Read",
+                              timestamp: nil, status: .failed, progress: nil, currentStep: nil, errorCount: 1,
+                              fileCount: 40, isLive: false, failureReason: "engine stopped")
+        let retried = ActivityStore.swapping([run], old: "old", new: "new", state: "waiting")
+        XCTAssertEqual(retried.map(\.id), ["lib|new"])
+        XCTAssertEqual(retried.first?.threadId, "new")
+        XCTAssertEqual(retried.first?.status, .running)
+        XCTAssertNil(retried.first?.failureReason)
+    }
+
     func testActivityWindowTable_aRefusedRetrySaysTheEnginesWordsAndChangesNothing() async throws {
         // WHY: "a refusal shows the engine's words": a training on Hugging Face,
         // work a run hands in, or work already waiting cannot be retried (409).
