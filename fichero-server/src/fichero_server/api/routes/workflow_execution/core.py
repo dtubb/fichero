@@ -683,6 +683,17 @@ async def read_pages_again(
         404: no record of the run, or its workflow is gone
         409: the run has nothing to read again (it is still going, or every page was done)
     """
+    new_thread, workflow, pages = await read_again(db, thread_id)
+    base_url = str(http_request.base_url).rstrip("/")
+    return ReadAgainResponse(
+        thread_id=new_thread, from_thread_id=thread_id, workflow_id=workflow.id, workflow_name=workflow.name,
+        pages=pages, stream_url=f"{base_url}/api/workflow-execution/stream/{new_thread}")
+
+
+async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
+    """Start a run that reads the pages a run did not do: (its thread id, the workflow, how many pages). The one way a
+    run is run again, from `read-again` and from Retry on the run's row in Activity (`activity.retry.one-row`).
+    HTTPException 404 for no such run or workflow, 409 for a run with nothing to read again."""
     from fichero_server.execution.runner import start_run  # noqa: PLC0415
     from fichero_server.workflows import run_account as accounts  # noqa: PLC0415
     from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
@@ -713,9 +724,10 @@ async def read_pages_again(
         force_recompute=bool(started_with.get("force_recompute")),
     )
     _validate_workflow_for_execution(workflow, request, db)
-    await start_run(db, workflow, request, new_thread, started_by=f"read-again:{thread_id}")
+    await start_run(db, workflow, request, new_thread, started_by=f"{READ_AGAIN_PREFIX}{thread_id}")
     accounts.forget(thread_id)
-    base_url = str(http_request.base_url).rstrip("/")
-    return ReadAgainResponse(
-        thread_id=new_thread, from_thread_id=thread_id, workflow_id=workflow.id, workflow_name=workflow.name,
-        pages=len(account.not_done_ids), stream_url=f"{base_url}/api/workflow-execution/stream/{new_thread}")
+    return new_thread, workflow, len(account.not_done_ids)
+
+
+#: How a run started by reading another's pages again says so (`started_by`): the run it reads again follows.
+READ_AGAIN_PREFIX = "read-again:"

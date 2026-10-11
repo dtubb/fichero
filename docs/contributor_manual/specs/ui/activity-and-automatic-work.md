@@ -1264,6 +1264,13 @@ and node, not by job); a retry action for failed pages.
   and Find the Documents' runners were not registered when the queue first looked after a restart, so their rows
   waited with no runner, named by their id and with no Resume (`jobs._KIND_MODULES`, guarded). Pinned by
   `fichero-server/tests/unit/jobs/test_a_job_that_dies_with_the_engine.py`.
+- `activity.retry.one-row` — **[OK]** (2026-10-11) Retry on a failed row (`POST /api/activity/jobs/{id}/retry`) runs it
+  again and Activity still shows one row: a queued job's row goes back to waiting with the same work, its
+  `failed_at` cleared; a failed or stopped workflow run is run again over the pages it did not do, with the same
+  workflow and model, as a new run (the answer's `id`, with `replaces` naming the old run) that takes the old one's
+  place in the list (`workflow_execution.core.read_again`, shared with Read Again). Before, Retry on an interrupted
+  workflow run's row was refused as "work a workflow run handed in", though the row was the run. Pinned by
+  `fichero-server/tests/unit/jobs/test_retry_is_one_row.py` and `test_a_job_that_dies_with_the_engine.py`.
 - `activity.durable.paused-stays-paused` — **[OK]** (#5357) a paused job is still
   paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`) and,
   since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only

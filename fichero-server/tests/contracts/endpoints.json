@@ -495,7 +495,7 @@
         ],
         "query_params": [],
         "request_model": null,
-        "response_model": "JobStateResponse"
+        "response_model": "RetryResponse"
       },
       {
         "method": "GET",

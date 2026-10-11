@@ -322,7 +322,7 @@ def fichero_activity_retry_job(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
 ) -> Any:
-    'Retry Job\n\nRun a failed or stopped job again: it goes back to waiting and carries on from its own\ncheckpoint where it keeps one. A page a workflow run waits for, a training on Hugging Face, or\nwork that is already waiting again cannot be retried here (409, with the reason).\n\nRoute: POST /api/activity/jobs/{job_id}/retry (toolset `activity`; changes data, as the agent account when one exists).'
+    'Retry Job\n\nRun a failed or stopped job again: it goes back to waiting and carries on from its own\ncheckpoint where it keeps one (the same row: one row in Activity, its `failed_at` cleared). A failed\nor stopped workflow run is run again over the pages it did not do, as a new run that takes its place\nin the list (`replaces`; `activity.retry.one-row`). A page a workflow run waits for, a training on\nHugging Face, or work that is already waiting again cannot be retried here (409, with the reason).\n\nRoute: POST /api/activity/jobs/{job_id}/retry (toolset `activity`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/activity/jobs/{job_id}/retry")
 
 

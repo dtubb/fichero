@@ -1417,6 +1417,9 @@ def retry_job(db: "Database", job_id: str) -> str:
     if kind not in KINDS:
         load_kinds()  # a project opened with nothing waiting: its kinds not yet registered by a lane (#5615)
     registered = KINDS.get(kind)
+    if kind == "workflow":  # the row IS a run: it is run again as a new run over its pages (`activity.retry.one-row`)
+        raise ValueError("A workflow run is run again over the pages it did not do, as a new run: Retry on its row "
+                         "in Activity, or Read Again, does that")
     if registered is None or registered.run is None:
         raise ValueError("This is work a workflow run (or a training) handed in and waits for: retry that instead")
     if registered.no_retry:

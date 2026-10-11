@@ -708,7 +708,7 @@
           "activity"
         ],
         "summary": "Retry Job",
-        "description": "Run a failed or stopped job again: it goes back to waiting and carries on from its own\ncheckpoint where it keeps one. A page a workflow run waits for, a training on Hugging Face, or\nwork that is already waiting again cannot be retried here (409, with the reason).",
+        "description": "Run a failed or stopped job again: it goes back to waiting and carries on from its own\ncheckpoint where it keeps one (the same row: one row in Activity, its `failed_at` cleared). A failed\nor stopped workflow run is run again over the pages it did not do, as a new run that takes its place\nin the list (`replaces`; `activity.retry.one-row`). A page a workflow run waits for, a training on\nHugging Face, or work that is already waiting again cannot be retried here (409, with the reason).",
         "operationId": "retry_job_api_activity_jobs__job_id__retry_post",
         "parameters": [
           {
@@ -747,7 +747,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JobStateResponse"
+                  "$ref": "#/components/schemas/RetryResponse"
                 }
               }
             }
@@ -82380,6 +82380,31 @@
         "type": "object",
         "title": "ResumeWorkflowRequest",
         "description": "Request to resume a paused workflow."
+      },
+      "RetryResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "the job's state after the request: waiting, paused, running, cancelled, \u2026"
+          },
+          "replaces": {
+            "type": "string",
+            "nullable": true,
+            "title": "Replaces",
+            "description": "a retried workflow run: the run this new one reads the pages of again (`id` is the new run's); the old one is no longer listed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "RetryResponse"
       },
       "ReviewListResponse": {
         "properties": {

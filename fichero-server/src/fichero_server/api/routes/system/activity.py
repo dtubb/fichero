@@ -451,8 +451,14 @@ async def list_background_jobs(
         runs = await tracker.store.list_workflow_runs(limit=50)
         from fichero_server.workflows.run_account import run_account
 
+        # A failed run whose pages were read again by a newer run (Retry, or Read Again) is that run's now: one
+        # row, not two (`activity.retry.one-row`).
+        read_again = {row[0][len("read-again:"):] for row in db.execute_fetchall(
+            "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'")}
         for run in runs:
             status = (run.status or "").lower()
+            if status == "failed" and run.thread_id in read_again:
+                continue
             # A paused run is listed too (#5357): it waits for its Resume, after a relaunch as before.
             if status not in ("running", "paused", "failed"):
                 continue
@@ -784,6 +790,12 @@ class JobStateResponse(BaseModel):
     state: str = Field(description="the job's state after the request: waiting, paused, running, cancelled, …")
 
 
+class RetryResponse(JobStateResponse):
+    replaces: Optional[str] = Field(default=None, description=(
+        "a retried workflow run: the run this new one reads the pages of again (`id` is the new run's); the old "
+        "one is no longer listed"))
+
+
 def _control_job(db: Database, ctx: ActionContext, name: str, params: dict) -> JobStateResponse:
     try:
         result = registry.invoke(db, name, params, ctx)
@@ -819,16 +831,29 @@ async def cancel_job(
     return _control_job(db, ctx, "job.cancel", {"job_id": job_id})
 
 
-@router.post("/jobs/{job_id}/retry", response_model=JobStateResponse)
+@router.post("/jobs/{job_id}/retry", response_model=RetryResponse, response_model_exclude_none=True)
 async def retry_job(
     job_id: str,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> JobStateResponse:
+) -> RetryResponse:
     """Run a failed or stopped job again: it goes back to waiting and carries on from its own
-    checkpoint where it keeps one. A page a workflow run waits for, a training on Hugging Face, or
-    work that is already waiting again cannot be retried here (409, with the reason)."""
-    return _control_job(db, ctx, "job.retry", {"job_id": job_id})
+    checkpoint where it keeps one (the same row: one row in Activity, its `failed_at` cleared). A failed
+    or stopped workflow run is run again over the pages it did not do, as a new run that takes its place
+    in the list (`replaces`; `activity.retry.one-row`). A page a workflow run waits for, a training on
+    Hugging Face, or work that is already waiting again cannot be retried here (409, with the reason)."""
+    from fichero_server.execution import jobs as job_queue
+
+    try:
+        kind, _state = job_queue._job_row(db, job_id)
+    except KeyError:
+        kind = None
+    if kind == "workflow":
+        from fichero_server.api.routes.workflow_execution.core import read_again
+
+        new_thread, _workflow, _pages = await read_again(db, job_id)
+        return RetryResponse(id=new_thread, state="running", replaces=job_id)
+    return RetryResponse(**_control_job(db, ctx, "job.retry", {"job_id": job_id}).model_dump())
 
 
 class ClearFailedResponse(BaseModel):
