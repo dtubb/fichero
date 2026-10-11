@@ -2415,6 +2415,7 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (schedules.router, "/api", ["schedules"]),
     (triggers.router, "/api", ["triggers"]),
     (iiif.router, "/api/iiif", ["iiif"]),
+    (iiif.source_router, "/api/iiif", ["iiif"]),
 ]
 
 _VALID_FEATURE_TIERS = ("release", "beta", "alpha", "dev")

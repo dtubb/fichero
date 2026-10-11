@@ -3513,6 +3513,14 @@ def fichero_hpc_test_cluster(
     return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/test")
 
 
+def fichero_iiif_refresh_folder(
+    *,
+    folder_id: Annotated[str, Field(description='Folder Id')],
+) -> Any:
+    "Refresh a folder bound to a IIIF source\n\nRead the folder's IIIF source again (one job): canvases the institution added appear; ones already here are\nnot made twice; ones it no longer lists are counted, never deleted.\n\nRoute: POST /api/iiif/folders/{folder_id}/refresh (toolset `iiif`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/iiif/folders/{folder_id}/refresh")
+
+
 def fichero_iiif_get_document_image(
     *,
     document_id: Annotated[str, Field(description='Document Id')],
@@ -3558,6 +3566,16 @@ def fichero_iiif_serve_image(
 ) -> Any:
     'IIIF Image Request\n\nServe image region via IIIF Image API. Reference: https://iiif.io/api/image/2.1/\n\nRoute: GET /api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format} (toolset `iiif`; reads).'
     return _rt.call("GET", f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}")
+
+
+def fichero_iiif_import_from(
+    *,
+    folder_id: Annotated[Optional[str], Field(description='the folder to bind; absent: the one bound to this URL, else a new folder named after the source.')] = None,
+    max_manifests: Annotated[Optional[int], Field(description='stop after this many manifests: a sample.')] = None,
+    url: Annotated[str, Field(description='a IIIF Presentation 2 or 3 manifest or collection URL.')],
+) -> Any:
+    'Import a IIIF manifest or collection by reference\n\nImport a manifest or collection (Presentation 2 or 3) into a folder bound to it, by reference, as one job in\nActivity (#5671): each canvas a page with its canvas id, label, size and Image API service; no image is fetched\nuntil a step or a view needs it. Importing the same source again refreshes its folder: new canvases are added,\nnone is made twice. Only https sources.\n\nRoute: POST /api/iiif/import (toolset `iiif`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/iiif/import", json=_rt.body({"folder_id": folder_id, "max_manifests": max_manifests, "url": url}))
 
 
 def fichero_images_batch_apply_operation(
@@ -9104,11 +9122,13 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_hpc_get_cluster", "hpc", "GET", "/api/hpc/clusters/{cluster_id}", fichero_hpc_get_cluster),
     GeneratedTool("fichero_hpc_dry_run_submit", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/dry-run-submit", fichero_hpc_dry_run_submit),
     GeneratedTool("fichero_hpc_test_cluster", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/test", fichero_hpc_test_cluster),
+    GeneratedTool("fichero_iiif_refresh_folder", "iiif", "POST", "/api/iiif/folders/{folder_id}/refresh", fichero_iiif_refresh_folder),
     GeneratedTool("fichero_iiif_get_document_image", "iiif", "GET", "/api/iiif/iiif/image/{document_id}", fichero_iiif_get_document_image),
     GeneratedTool("fichero_iiif_get_lines_annotation_page", "iiif", "GET", "/api/iiif/iiif/lines/{document_id}", fichero_iiif_get_lines_annotation_page),
     GeneratedTool("fichero_iiif_get_manifest", "iiif", "GET", "/api/iiif/iiif/manifest/{document_id}", fichero_iiif_get_manifest),
     GeneratedTool("fichero_iiif_get_image_info", "iiif", "GET", "/api/iiif/iiif/{identifier}/info.json", fichero_iiif_get_image_info),
     GeneratedTool("fichero_iiif_serve_image", "iiif", "GET", "/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}", fichero_iiif_serve_image),
+    GeneratedTool("fichero_iiif_import_from", "iiif", "POST", "/api/iiif/import", fichero_iiif_import_from),
     GeneratedTool("fichero_images_batch_apply_operation", "images", "POST", "/api/images/batch-apply", fichero_images_batch_apply_operation),
     GeneratedTool("fichero_images_undo_batch_operation", "images", "POST", "/api/images/batch-apply/{batch_id}/undo", fichero_images_undo_batch_operation),
     GeneratedTool("fichero_images_batch_crop", "images", "POST", "/api/images/crops/batch", fichero_images_batch_crop),

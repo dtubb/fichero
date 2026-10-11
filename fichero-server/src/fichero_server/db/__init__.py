@@ -2102,8 +2102,12 @@ class Database(DatabaseEmbeddingMixin):
         if auto_embed and hasattr(obj, "page_content") and obj.page_content:
             self.embed(obj)
 
-    def save_many(self, objs: Sequence[BaseModel]) -> int:
+    def save_many(self, objs: Sequence[BaseModel], *, new: bool = False) -> int:
         """Batch-upsert many same-typed Pydantic objects in ONE transaction.
+
+        ``new=True`` is for rows the caller has just made (fresh ids): a plain multi-row INSERT, because DuckDB 1.5
+        holds ~32 KB per column for every row an ON CONFLICT statement inserts until commit (duckdb#26830, ~1.35 MB
+        a Document), and an id that already exists fails the whole batch rather than overwriting it.
 
         Additive bulk path for the 100k-image save problem (#2542): instead of
         N separate ``save`` calls (N lock acquisitions + N autocommitted
@@ -2188,7 +2192,11 @@ class Database(DatabaseEmbeddingMixin):
                                 batch = param_rows[start : start + 500]
                                 row_placeholders = f"({', '.join('?' for _ in cols)})"
                                 placeholders = ", ".join(row_placeholders for _ in batch)
-                                sql = self._upsert_sql(sql_table, cols, placeholders)
+                                sql = (
+                                    f"INSERT INTO {sql_table} ({', '.join(cols)}) VALUES {placeholders}"
+                                    if new
+                                    else self._upsert_sql(sql_table, cols, placeholders)
+                                )
                                 self.conn.execute(sql, [value for row in batch for value in row])
                 return len(param_rows)
             except duckdb.Error as exc:

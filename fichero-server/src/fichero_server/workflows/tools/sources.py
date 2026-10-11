@@ -86,6 +86,14 @@ def _resolve_abs_path(file_doc: "Document", library_root: "str | None") -> str:
     from fichero_server.db.storage import resolve_source
 
     resolved = resolve_source(file_doc, library_root=library_root)
+    if not resolved and not file_doc.path and library_root and (file_doc.metadata or {}).get("iiif_service"):
+        # A page imported by reference (#5671): fetched now, at the size a step reads it, into the bounded cache.
+        from pathlib import Path
+
+        from fichero_server.importers.iiif_source import step_image
+
+        fetched = step_image(file_doc, Path(library_root))
+        return str(fetched) if fetched else ""
     return str(resolved) if resolved else (file_doc.path or "")
 
 

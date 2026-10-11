@@ -5112,6 +5112,18 @@
     ],
     "iiif": [
       {
+        "method": "POST",
+        "path": "/iiif/folders/{folder_id}/refresh",
+        "operation_id": "refresh_iiif_folder_api_iiif_folders__folder_id__refresh_post",
+        "summary": "Refresh a folder bound to a IIIF source",
+        "path_params": [
+          "folder_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "IIIFImportStarted"
+      },
+      {
         "method": "GET",
         "path": "/iiif/iiif/image/{document_id}",
         "operation_id": "get_document_image_api_iiif_iiif_image__document_id__get",
@@ -5185,6 +5197,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/iiif/import",
+        "operation_id": "import_from_iiif_api_iiif_import_post",
+        "summary": "Import a IIIF manifest or collection by reference",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "IIIFImportRequest",
+        "response_model": "IIIFImportStarted"
       }
     ],
     "images": [

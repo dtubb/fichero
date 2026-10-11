@@ -203,13 +203,13 @@ sharing toggles stay the only two).
 In:
 - `iiif.import.by-reference` — **[PARTIAL]** (#5324) *Built (c8dcfb28a): a manifest or collection URL (Presentation 2 or 3, nested collections) becomes image pages keeping canvas id, Image API service and canvas size, fetching only the manifests; `fichero import-iiif --iiif <URL>`; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: pasting a link in the app.* a pasted manifest or collection link adds its
   canvases as pages at once, without downloading their images.
-- `iiif.folder.source` — **[GAP]** (#5324) a folder can be bound to a IIIF collection or manifest URL; its
+- `iiif.folder.source` — **[PARTIAL]** (#5324, #5671) *Built: `POST /api/iiif/import` makes (or reuses) a folder that remembers its source URL (`metadata.iiif_source`); `POST /api/iiif/folders/{id}/refresh` imports it again, adding new canvases in the source's order and never making one twice (matched by canvas id); canvases the source no longer lists are counted (`iiif_withdrawn`) and kept; pinned by `fichero-server/tests/unit/importers/test_iiif_source_5671.py`. Not built: a withdrawn page marked as such in the app; a scheduled refresh.* a folder can be bound to a IIIF collection or manifest URL; its
   contents are that collection by reference, and it follows the source: additions appear,
   withdrawals are shown as withdrawn, never silently deleted.
 - `iiif.folder.published` — **[GAP]** (#5327) a folder can be published as a IIIF collection (served when
   the library is shared, written in a static export); putting a document in publishes it,
   taking it out unpublishes it; withheld material stays out.
-- `iiif.scale.million-pages` — **[GAP]** (#5324) a collection of a million canvases imports by reference as a
+- `iiif.scale.million-pages` — **[PARTIAL]** (#5324, #5671) *Built: the import is a job in Activity (`import-iiif`, network lane) that fetches only manifests, through the polite fetcher (a few requests per host, backoff on 429 and 503), and writes canvases as reference rows in batches of 1,000 (canvas id, label, size, Image API service); a restarted job resumes, since a canvas already in the folder is skipped; 30,000 canvases from a fixture import with one request, and a second import makes nothing; pinned by `fichero-server/tests/unit/importers/test_iiif_source_5671.py`. Not built: measured at a million; opening a folder of a million pages.* a collection of a million canvases imports by reference as a
   throttled, resumable background job that respects the source's rate limits; the library holds
   only per-canvas metadata, and opening a folder of a million pages is as fast as one of a hundred.
 - `iiif.scale.no-advance-thumbnails` — **[PARTIAL]** (#5324) *Built (c8dcfb28a): import warms no preview; a viewed page is fetched once at display size into storage; pinned by `fichero-server/tests/unit/importers/test_iiif_by_reference.py`. Not built: the bounded cache's eviction.* no thumbnail of a remote page is made in advance;
@@ -228,10 +228,12 @@ In:
   local and remote pages answer one storage call (ruled 2026-10-04, #5323).
 - `iiif.coords.canvas-space` — **[PARTIAL]** (#5324) *Built (b6fd6a8bb): a remote run's lines are scaled from the fetched size to the canvas on landing; pinned by `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py` and `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: segments drawn in the app on a remote page.* segments on a remote page are stored in canvas
   coordinates and stay put whatever resolution was fetched.
-- `iiif.run.records-pixels-seen` — **[PARTIAL]** (#5324) *Built for remote runs: the runner names the exact Image API request and the size it read as the PAGE file's `imageFilename`/`imageWidth`/`imageHeight`, and that file is what landing keeps as the pass's evidence (`import_original`); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. Not built: a run on this Mac reading a remote page.* a model run on a remote page fetches what it
+- `iiif.run.records-pixels-seen` — **[PARTIAL]** (#5324) *Built for remote runs: the runner names the exact Image API request and the size it read as the PAGE file's `imageFilename`/`imageWidth`/`imageHeight`, and that file is what landing keeps as the pass's evidence (`import_original`); pinned by `fichero-server/tests/unit/remote_read/test_reading_at_scale.py`. A step on this Mac now fetches a remote page itself, at the step's size (`iiif.run.local-step-fetches-its-size`). Not built: that local run recording the Image API request it read in its provenance.* a model run on a remote page fetches what it
   needs and records the image URI and size it saw in its provenance.
 - `iiif.keep-local-copy` — **[PARTIAL]** (#5324) a source can be kept locally, after saying how much
   it will download. **Built:** today's loader always downloads, capped at 1500 px.
+- `iiif.run.local-step-fetches-its-size` — **[PARTIAL]** (#5671) *Built: a step on this Mac reading a page imported by reference fetches it through the Image API at the step's size (longest side 2,400 px), once, politely, into a cache under the project's storage that drops the least recently used past a share of free disk with a floor (ruled 2026-10-04); pinned by `fichero-server/tests/unit/importers/test_iiif_source_5671.py`. Not built: a step asking a size of its own.* a step run on this Mac fetches
+  only the remote pages it reads, at the size it reads them, never the whole source in advance.
 - `iiif.offline-is-said` — **[GAP]** (#5324) an unreachable remote page shows its last thumbnail and
   says it is remote and unreachable.
 - `iiif.change-is-detected` — **[GAP]** (#5325) a remote image that changed is reported, and the
@@ -297,6 +299,11 @@ library and into the one it came from), against real manifests from at least two
 ## Open questions
 
 All four answered 2026-10-04 by taking each recommendation; see Rulings. Kept for the reasoning.
+
+5. **Open** (#5671): **Straight to Hugging Face.** Should a IIIF source be sent to a training or
+   reading job on Hugging Face directly, with the images fetched there from the source, rather than
+   through this Mac? Out of scope for #5671; it decides whether a remote run's package may name a
+   Hugging Face destination.
 
 1. **Answered** (maintainer 2026-10-04: IIIF approved as recommended): As the spec recommends. **Cache size.** A fixed cap (for example 2 GB) with least-recently-used eviction, or a share
    of free disk? Recommendation: a share of free disk with a floor, because the Air showed how

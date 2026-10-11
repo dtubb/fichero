@@ -7486,6 +7486,19 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='iiif')
         existing_apps['iiif'] = target_app
 
+    @target_app.command("refresh-a-folder-bound-to-a-source", hidden=True)
+    @target_app.command("refresh-folder")
+    def iiif_refresh_folder_post(
+        ctx: typer.Context,
+        folder_id: str = typer.Argument(..., help='Folder Id'),
+    ) -> None:
+        """Refresh a folder bound to a IIIF source (POST /api/iiif/folders/{folder_id}/refresh)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/iiif/folders/{folder_id}/refresh"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("direct-image-access", hidden=True)
     @target_app.command("get-document-image")
     def iiif_get_document_image_get(
@@ -7559,6 +7572,30 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/iiif/iiif/{identifier}/{region}/{size}/{rotation}/{quality}.{format}"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("import-a-manifest-or-collection-by-reference", hidden=True)
+    @target_app.command("import-from")
+    def iiif_import_from_post(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help='the folder to bind; absent: the one bound to this URL, else a new folder named after the source.'),
+        max_manifests: Optional[int] = typer.Option(None, '--max-manifests', help='stop after this many manifests: a sample.'),
+        url: str = typer.Option(..., '--url', help='a IIIF Presentation 2 or 3 manifest or collection URL.'),
+    ) -> None:
+        """Import a IIIF manifest or collection by reference (POST /api/iiif/import)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/iiif/import"
+            params = None
+            payload = _build_json_payload({
+                "folder_id": folder_id,
+                "max_manifests": max_manifests,
+                "url": url,
+            }, {
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'the folder to bind; absent: the one bound to this URL, else a new folder named after the source', 'x-cli-required': False},
+                "max_manifests": {'type': 'integer', 'minimum': 1.0, 'nullable': True, 'title': 'Max Manifests', 'description': 'stop after this many manifests: a sample', 'x-cli-required': False},
+                "url": {'type': 'string', 'title': 'Url', 'description': 'a IIIF Presentation 2 or 3 manifest or collection URL', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('images')

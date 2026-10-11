@@ -780,3 +780,70 @@ async def get_document_image(
     except Exception as exc:
         logger.error(f"Image resize failed: {exc}")
         raise HTTPException(status_code=500, detail=f"Image processing failed: {exc}")
+
+
+# --------------------------------------------------------------------------------------------------
+# Import from IIIF into a bound folder, as a job; refresh it (#5671, `iiif.folder.source`).
+# --------------------------------------------------------------------------------------------------
+
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry  # noqa: E402
+from fichero_server.api.auth import action_context  # noqa: E402
+from fichero_server.api.main import get_library_database_for_write  # noqa: E402
+
+
+#: Import and refresh sit at /api/iiif/... directly; `router` keeps its "/iiif" for the served IIIF URLs that exported
+#: manifests already name (/api/iiif/iiif/...).
+source_router = APIRouter(tags=["iiif"])
+
+
+class IIIFImportRequest(BaseModel):
+    url: str = Field(description="a IIIF Presentation 2 or 3 manifest or collection URL")
+    folder_id: str | None = Field(default=None, description="the folder to bind; absent: the one bound to this "
+                                  "URL, else a new folder named after the source")
+    max_manifests: int | None = Field(default=None, ge=1, description="stop after this many manifests: a sample")
+
+
+class IIIFImportStarted(BaseModel):
+    job_id: str = Field(description="the import-iiif job in Activity")
+    url: str
+
+
+@action("iiif.import", IIIFImportRequest, domains=["document"], undoable=False)
+def _action_import(db: Database, params: IIIFImportRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    from fichero_server.importers.iiif_source import start
+
+    job_id = start(db, params.url, folder_id=params.folder_id, started_by=ctx.actor or "owner",
+                   max_manifests=params.max_manifests)
+    return {"job_id": job_id, "url": params.url}, ChangeSpec(domains=["document"], target_ids=[job_id],
+                                                              after={"job_id": job_id, "url": params.url})
+
+
+@source_router.post("/import", response_model=IIIFImportStarted, summary="Import a IIIF manifest or collection by reference")
+async def import_from_iiif(body: IIIFImportRequest, db: Database = Depends(get_library_database_for_write),
+                           ctx: ActionContext = Depends(action_context)) -> IIIFImportStarted:
+    """Import a manifest or collection (Presentation 2 or 3) into a folder bound to it, by reference, as one job in
+    Activity (#5671): each canvas a page with its canvas id, label, size and Image API service; no image is fetched
+    until a step or a view needs it. Importing the same source again refreshes its folder: new canvases are added,
+    none is made twice. Only https sources."""
+    import asyncio
+
+    if not body.url.lower().startswith("https://"):
+        raise HTTPException(status_code=422, detail=f"A IIIF source is an https address: {body.url}")
+    invoked = await asyncio.to_thread(registry.invoke, db, "iiif.import", body.model_dump(), ctx)
+    return IIIFImportStarted(**invoked.result)
+
+
+@source_router.post("/folders/{folder_id}/refresh", response_model=IIIFImportStarted,
+             summary="Refresh a folder bound to a IIIF source")
+async def refresh_iiif_folder(folder_id: str, db: Database = Depends(get_library_database_for_write),
+                              ctx: ActionContext = Depends(action_context)) -> IIIFImportStarted:
+    """Read the folder's IIIF source again (one job): canvases the institution added appear; ones already here are
+    not made twice; ones it no longer lists are counted, never deleted."""
+    import asyncio
+
+    folder = db.get(Document, folder_id)
+    url = (folder.metadata or {}).get("iiif_source") if folder is not None else None
+    if not url:
+        raise HTTPException(status_code=404, detail=f"{folder_id} is not a folder bound to a IIIF source")
+    invoked = await asyncio.to_thread(registry.invoke, db, "iiif.import", {"url": url, "folder_id": folder_id}, ctx)
+    return IIIFImportStarted(**invoked.result)
