@@ -706,6 +706,9 @@ extension RecipeSetupStore {
     /// The name of a tag or code where setup knows it; else the code itself.
     func name(of code: String) -> String { names[code] ?? code }
 
+    /// Keep a found language's name, so a tag chosen elsewhere (Translate into) shows by its name.
+    func remember(_ choice: CodeChoice) { names[choice.code] = choice.name }
+
     /// Remove a token.
     func remove(_ code: String, fromScripts: Bool) {
         if fromScripts {

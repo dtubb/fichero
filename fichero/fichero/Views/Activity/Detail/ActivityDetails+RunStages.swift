@@ -1,12 +1,13 @@
 import FicheroAPIClient
 import Foundation
 
-/// Set Up's stages (`source/models-chains-and-projects.md` §7c, ruled 2026-10-11, #5668), in Set Up's order, by the
-/// jobs each carries. A recipe run's details, the Activity popover and the run strip read a run by these stages, so a
-/// run reads the same everywhere (#5670).
+/// Set Up's stages (`source/models-chains-and-projects.md` §7c and §7d, ruled 2026-10-11, #5668), in pipeline
+/// order, by the jobs each carries: thirteen, as the engine's `recipes/stages.py` lists them. A recipe run's
+/// details, the Activity popover and the run strip read a run by these stages, so a run reads the same everywhere
+/// (#5670).
 ///
-/// ponytail: a table in the app until the engine's stages list (`GET /api/recipes/stages`, #5668) lands; replace
-/// `all` with that list, read once, and nothing else changes.
+/// ponytail: a table in the app, kept in step with the engine's list by hand; Set Up reads that list itself
+/// (`RecipeSetupStore.loadStages`). Read it here too when Activity has a store to hold it.
 enum SetupStages {
     struct Stage: Equatable {
         let id: String
@@ -15,11 +16,14 @@ enum SetupStages {
     }
 
     static let all: [Stage] = [
-        Stage(id: "clean-up-images", title: "Clean Up Images", jobs: ["split-pages", "prepare-the-image"]),
-        Stage(id: "find-lines", title: "Find Lines", jobs: ["find-regions", "find-lines", "put-in-order", "refine-shapes"]),
+        Stage(id: "prepare-images", title: "Prepare Images", jobs: ["split-pages", "prepare-the-image"]),
+        Stage(id: "find-regions", title: "Find Regions", jobs: ["find-regions"]),
+        Stage(id: "find-lines", title: "Find Lines", jobs: ["find-lines", "put-in-order", "refine-shapes"]),
         Stage(id: "read", title: "Read",
               jobs: ["read-a-line", "read-a-page", "correct", "tie-text-to-lines", "transcribe-speech"]),
-        Stage(id: "translate", title: "Translate", jobs: ["translate-transliterate-normalise"]),
+        Stage(id: "normalise", title: "Normalise", jobs: ["translate-transliterate-normalise"]),
+        // Translate shares Normalise's job in the engine until it has its own: a run's step reads under Normalise.
+        Stage(id: "translate", title: "Translate", jobs: []),
         Stage(id: "organise", title: "Organise", jobs: ["find-documents-in-a-folder", "split-into-entries"]),
         Stage(id: "names", title: "Names", jobs: ["find-names-tag-words", "place-in-a-gazetteer", "link-to-authorities"]),
         Stage(id: "statements", title: "Statements", jobs: ["find-statements"]),

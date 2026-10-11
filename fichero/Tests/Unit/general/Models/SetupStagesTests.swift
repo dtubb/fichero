@@ -151,6 +151,19 @@ struct SetupStagesTests {
         #expect(store.removedJobs.isEmpty)
     }
 
+    @Test("source.onboard.stages.normalise-and-translate: Translate's target is a language question, kept as its tag")
+    func translateIntoAnyLanguage() throws {
+        let into = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+        {"key": "translate_into", "ask": "Into which language?", "kind": "language", "default": "en",
+         "answer": null, "read_by_a_step": true}
+        """.utf8))
+        #expect(into.kind == .language)
+        var answers = RecipeSetupAnswers.JobAnswers()
+        #expect(SetupStagePage.answer(to: into, in: answers) == .text("en"))
+        answers[question: "translate_into"] = .text("es")
+        #expect(SetupStagePage.answer(to: into, in: answers) == .text("es"))
+    }
+
     // MARK: On your pages
 
     @Test("source.onboard.stages.samples-proposed: the samples, with why; a cloud try asks its cost before it runs")

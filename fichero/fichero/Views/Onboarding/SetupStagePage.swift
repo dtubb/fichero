@@ -27,6 +27,7 @@ struct SetupStagePage: View {
                 ForEach(stage.questions, id: \.key) { question in
                     SetupStageQuestionField(
                         question: question,
+                        store: store,
                         answer: Binding(
                             get: { Self.answer(to: question, in: store.jobAnswers) },
                             set: { store.jobAnswers[question: question.key] = $0 }
@@ -83,6 +84,8 @@ extension RecipeSetupAnswers.JobAnswers {
 /// One stage question, by its kind: one choice, several, yes or no, or a line of text.
 struct SetupStageQuestionField: View {
     let question: Components.Schemas.StageQuestion
+    /// For a language question: the engine's language search (`GET /api/recipes/languages`).
+    var store: RecipeSetupStore?
     @Binding var answer: StageAnswer?
 
     var body: some View {
@@ -123,7 +126,53 @@ struct SetupStageQuestionField: View {
                     set: { answer = .text($0) }
                 ))
                 .textFieldStyle(.roundedBorder)
+            case .language:
+                // Any language, by the same search as the material's languages (Translate into, section 7d).
+                if let store {
+                    StageLanguageField(store: store, answer: $answer)
+                }
             }
+        }
+    }
+}
+
+/// A language question's field: type to find any language (by its name in English or its own, with or without
+/// accents); the pick is kept as its tag (`source.onboard.stages.normalise-and-translate`).
+struct StageLanguageField: View {
+    let store: RecipeSetupStore
+    @Binding var answer: StageAnswer?
+    @State private var query = ""
+    @State private var matches: [RecipeSetupStore.CodeChoice] = []
+
+    private var chosen: String? { if case .text(let tag) = answer, !tag.isEmpty { tag } else { nil } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let chosen {
+                HStack {
+                    Text(store.name(of: chosen))
+                    Button("Change") { answer = nil }.controlSize(.small)
+                }
+            } else {
+                TextField("Language", text: $query, prompt: Text("Type to find, e.g. English"))
+                    .textFieldStyle(.roundedBorder)
+                ForEach(matches.prefix(8), id: \.self) { match in
+                    Button(match.name) {
+                        store.remember(match)
+                        answer = .text(match.code)
+                        query = ""
+                        matches = []
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .task(id: query) {
+            let needle = query.trimmingCharacters(in: .whitespaces)
+            guard !needle.isEmpty else { matches = []; return }
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            matches = await store.searchLanguages(needle)
         }
     }
 }

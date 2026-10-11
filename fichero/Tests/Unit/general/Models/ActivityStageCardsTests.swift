@@ -45,7 +45,7 @@ struct ActivityStageCardsTests {
     @Test("a run reads as Set Up's stages, in Set Up's order, and never by a step id")
     func stagesInSetUpsOrder() throws {
         let cards = try Self.cards()
-        #expect(cards.map(\.title) == ["Clean Up Images", "Find Lines", "Read", "Names", "Statements", "Dates & Times"])
+        #expect(cards.map(\.title) == ["Prepare Images", "Find Lines", "Read", "Names", "Statements", "Dates & Times"])
         let words = cards.flatMap { [$0.title] + $0.made + [$0.why ?? ""] }.joined(separator: " ")
         for stepId in ["prepare-the-image", "read-a-line", "find-statements", "work-out-dates"] {
             #expect(!words.contains(stepId), "no step id: \(stepId)")
@@ -87,7 +87,10 @@ struct ActivityStageCardsTests {
     func stepsMapToOneStage() {
         let jobs = SetupStages.all.flatMap(\.jobs)
         #expect(Set(jobs).count == jobs.count, "a job belongs to one stage")
-        #expect(SetupStages.all.count == 11)
+        // Thirteen since section 7d (2026-10-11): Find Regions apart from Find Lines, Normalise apart from Translate.
+        #expect(SetupStages.all.map(\.id) == ["prepare-images", "find-regions", "find-lines", "read", "normalise",
+                                              "translate", "organise", "names", "statements", "dates", "passages",
+                                              "structured-data", "search"])
         #expect(SetupStages.stage(of: "work-out-dates")?.title == "Dates & Times")
         #expect(SetupStages.stage(of: "check") == nil && SetupStages.stage(of: "export") == nil)
     }

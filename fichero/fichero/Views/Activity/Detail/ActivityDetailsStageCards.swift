@@ -94,7 +94,7 @@ struct ActivityDetailsStageCards: View {
 #Preview("A finished recipe run, by stage") {
     ScrollView {
         ActivityDetailsStageCards(cards: [
-            .init(id: "clean-up-images", title: "Clean Up Images", state: .done, done: 92, total: 92, made: [],
+            .init(id: "prepare-images", title: "Prepare Images", state: .done, done: 92, total: 92, made: [],
                   why: nil, offersSetUp: false, failed: nil),
             .init(id: "read", title: "Read", state: .done, done: 91, total: 92, made: ["Read 91 of 92 pages"],
                   why: nil, offersSetUp: false,
