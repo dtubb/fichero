@@ -423,6 +423,10 @@ struct FicheroApp: App {
             }
             #endif
             CommandGroup(after: .appInfo) {
+                // The app's welcome, again: beside Settings, as File › Set Up New Project… is for a project.
+                Button("Set Up Fichero…") { libraryManager.appSetUpRequested = true }
+                Divider()
+
                 // Sparkle auto-update is the DMG/Developer-ID channel only. The
                 // Mac App Store forbids Sparkle's helpers and does its own
                 // updates, so the MAS build (which defines APP_STORE and doesn't

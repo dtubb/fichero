@@ -33,6 +33,13 @@ func libraryIsLoadedAndEmpty(isLoaded: Bool, rootCollections: [Document]) -> Boo
     }
 }
 
+/// Whether a window presents the app's welcome (`FirstRunWindow(mode: .firstRun)`): Fichero › Set Up
+/// Fichero… asked for it and this is the window in front, or it is the app's first launch in an empty
+/// project (#4017b). Asked for, it shows whatever the project holds (Daniel, 2026-10-11).
+func appWelcomeIsDue(requested: Bool, isFrontWindow: Bool, firstRunCompleted: Bool, libraryIsLoadedAndEmpty: Bool) -> Bool {
+    requested ? isFrontWindow : (!firstRunCompleted && libraryIsLoadedAndEmpty)
+}
+
 /// Whether a window presents setup (`FirstRunWindow(mode: .setUp)`) now: setup was asked for the
 /// project THIS window shows, and the app's own first run is not already showing (it runs the
 /// same recipe steps). Deliberately never reads `firstRunCompleted`, which governs only the app's
@@ -263,15 +270,14 @@ struct LibraryWindow: View {
             get: {
                 firstRunSheetArmed
                     && appState.isBackendRunning
-                    && !featureManager.firstRunCompleted
-                    // #4017b: and the library is VERIFIED empty. The flag alone
-                    // said "nobody set a boolean", which is not the same fact as
-                    // "this user has nothing yet" — so onboarding presented over
-                    // a loaded library full of documents.
-                    && windowLibraryIsLoadedAndEmpty
+                    // #4017b: on its own, a first launch shows only over a VERIFIED empty library.
+                    // The flag alone said "nobody set a boolean", which is not the same fact as
+                    // "this user has nothing yet".
+                    && appWelcomeShowing
             },
             set: {
                 guard !$0 else { return }
+                libraryManager.appSetUpRequested = false
                 featureManager.firstRunCompleted = true
                 // First run already ran the recipe steps; a setup asked for this project is done.
                 if libraryManager.setUpRequestedLibraryId == windowState.libraryId {
@@ -293,7 +299,7 @@ struct LibraryWindow: View {
                     && projectSetUpIsDue(
                         requestedLibraryId: libraryManager.setUpRequestedLibraryId,
                         windowLibraryId: windowState.libraryId,
-                        firstRunShowing: !featureManager.firstRunCompleted && windowLibraryIsLoadedAndEmpty
+                        firstRunShowing: appWelcomeShowing
                     )
             },
             set: {
@@ -340,6 +346,15 @@ struct LibraryWindow: View {
     }
 
     /// #4017b: VERIFIED loaded and empty, or a first launch (2026-10-10). Read by first run and setup.
+    private var appWelcomeShowing: Bool {
+        appWelcomeIsDue(
+            requested: libraryManager.appSetUpRequested,
+            isFrontWindow: libraryManager.currentLibraryId == windowState.libraryId,
+            firstRunCompleted: featureManager.firstRunCompleted,
+            libraryIsLoadedAndEmpty: windowLibraryIsLoadedAndEmpty
+        )
+    }
+
     private var windowLibraryIsLoadedAndEmpty: Bool {
         firstLaunchDue || libraryIsLoadedAndEmpty(
             isLoaded: libraryManager.loadedLibraryIds.contains(windowState.libraryId),

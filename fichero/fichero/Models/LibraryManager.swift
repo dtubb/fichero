@@ -82,6 +82,9 @@ class LibraryManager {
     /// opens next presents setup from Your project, and clears this.
     var newProjectSetUpRequested = false
 
+    /// Fichero › Set Up Fichero… was chosen: the front window shows the app's welcome again (`appWelcomeIsDue`).
+    var appSetUpRequested = false
+
     /// Inside Fichero: where a project lives when the person does not choose a place (section 7b
     /// screen 1, ruled 2026-10-05), beside the app's own Local project in the app's data folder
     /// (`~/Library/Application Support/Fichero`, or the container's, which the engine serves).

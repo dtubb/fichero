@@ -285,4 +285,14 @@ extension LibraryManagerCreateProjectTests {
             "a filtered-out body is hidden, not empty"
         )
     }
+
+    /// Fichero › Set Up Fichero… shows the app's welcome again in the front window, whatever the project
+    /// holds; without it, only a first launch over an empty project shows it (Daniel, 2026-10-11).
+    func testSetUpFicheroShowsTheWelcomeInTheFrontWindowOnly() {
+        XCTAssertTrue(appWelcomeIsDue(requested: true, isFrontWindow: true, firstRunCompleted: true, libraryIsLoadedAndEmpty: false))
+        XCTAssertFalse(appWelcomeIsDue(requested: true, isFrontWindow: false, firstRunCompleted: true, libraryIsLoadedAndEmpty: true))
+        XCTAssertTrue(appWelcomeIsDue(requested: false, isFrontWindow: false, firstRunCompleted: false, libraryIsLoadedAndEmpty: true))
+        XCTAssertFalse(appWelcomeIsDue(requested: false, isFrontWindow: true, firstRunCompleted: true, libraryIsLoadedAndEmpty: true))
+        XCTAssertFalse(appWelcomeIsDue(requested: false, isFrontWindow: true, firstRunCompleted: false, libraryIsLoadedAndEmpty: false))
+    }
 }
