@@ -2759,6 +2759,13 @@ def create_document_impl(db: Database, doc: "DocumentCreate") -> Document:
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if doc.path and doc.doc_type == DocType.file:
+        stored = Path(doc.path).expanduser()
+        stored = stored if stored.is_absolute() else Path(db.path).parent / stored
+        if stored.is_dir():  # `importer.a-folder-is-never-one-file`
+            from fichero_server.api.routes.ingest.core import folder_is_not_a_file
+
+            raise HTTPException(status_code=400, detail=folder_is_not_a_file(stored.name))
     new_doc = Document(
         name=doc.name,
         parent_id=doc.parent_id,

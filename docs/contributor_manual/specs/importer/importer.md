@@ -114,6 +114,12 @@ in the file's own status), never a silent nothing.
   `activity.lane.thumbnails-first` in `ui/activity-and-automatic-work.md`), and a folder the import
   fills is laid out on its canvas as filed (#5585, `library.canvas.arranged-at-import` in
   `ui/library-view-modes.md`).
+- `importer.a-folder-is-never-one-file` — **[OK]** (2026-10-11) a folder is never recorded as a single file:
+  the files import (`POST /api/ingest/file`, `/files`) and document create refuse a folder in words ("Not a
+  file: X is a folder. Add it as a folder, and its files come in one by one."), and a document already recorded
+  that way has no picture made, said once, not a failed open on every ask (seen in a dev engine's log: "Image
+  generation failed for CACIQUES_INDIOS,17,D.5 (.5): Is a directory", again and again). `folder_is_not_a_file`,
+  `storage._generate_image`; `fichero-server/tests/unit/importers/test_a_folder_is_never_one_file.py`.
 - `importer.embeddings-auto-at-import` — **[OK]**
   a document with text is embedded automatically after import, no opt-in needed. The
   `auto_embed` request flag defaults `False`, but that flag means "embed INLINE, blocking

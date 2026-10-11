@@ -932,6 +932,10 @@ def _generate_pdf_image(
         return None
 
 
+#: Folders already said to have no picture (a folder recorded as a file), so each is said once.
+_folders_said: set[str] = set()
+
+
 def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | None:
     """Generate a resized image.
 
@@ -944,6 +948,13 @@ def _generate_image(source: Path, dest: Path, size: tuple[int, int]) -> Path | N
         Path to generated image, or None on failure
     """
     _load_pil()
+    if source.is_dir():
+        # A folder recorded as a file (`importer.a-folder-is-never-one-file`): no picture, said once a folder,
+        # never a failed open on every ask.
+        if str(source) not in _folders_said:
+            _folders_said.add(str(source))
+            logger.warning("No picture for %s: it is a folder, not an image file", source.name)
+        return None
     # Text-based formats get a rendered text thumbnail.
     _text_suffixes = {".json", ".txt", ".md", ".rst", ".csv", ".xml", ".yaml", ".yml", ".toml"}
     if source.suffix.lower() in _text_suffixes:

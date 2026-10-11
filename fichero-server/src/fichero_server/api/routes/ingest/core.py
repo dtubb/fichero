@@ -198,6 +198,12 @@ class IngestCancelResponse(BaseModel):
 # exact behavior the routes had before the extraction.
 
 
+def folder_is_not_a_file(name: str) -> str:
+    """A folder is never recorded as one file (`importer.a-folder-is-never-one-file`; seen 2026-10-11, a document
+    whose file was a folder, its picture failing "Is a directory" on every ask)."""
+    return f"Not a file: {name} is a folder. Add it as a folder, and its files come in one by one."
+
+
 def import_file_impl(
     db: Database,
     request: IngestFileRequest,
@@ -216,6 +222,8 @@ def import_file_impl(
         raise HTTPException(status_code=400, detail=f"File not found: {request.path}")
     if path.is_symlink():
         raise HTTPException(status_code=400, detail=f"Refusing to ingest symlinked file: {request.path}")
+    if path.is_dir():
+        raise HTTPException(status_code=400, detail=folder_is_not_a_file(path.name))
     if not path.is_file():
         raise HTTPException(status_code=400, detail=f"Not a file: {request.path}")
 
@@ -896,6 +904,8 @@ async def ingest_files(
         path = Path(raw)
         if path.is_symlink():
             raise HTTPException(status_code=400, detail=f"Refusing to ingest a symlinked file: {raw}")
+        if path.is_dir():
+            raise HTTPException(status_code=400, detail=folder_is_not_a_file(path.name))
         if not path.is_file():
             raise HTTPException(status_code=400, detail=f"Not a file: {raw}")
         files.append(path.resolve())
