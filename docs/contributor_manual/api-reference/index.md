@@ -192,6 +192,19 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   page then pointing at its own copy (`metadata.copied_from` keeps where it was). Undo points the pages back
   at their originals and removes the copies it made.
 
+## Locate Originals (#5672)
+
+`GET /api/documents/missing-originals` · `POST /api/documents/relink-originals/plan` ·
+`POST /api/documents/relink-originals`
+
+- Linked pages whose originals are not where the project says, said once with the folders they were in
+  (null when none).
+- With the folder the originals are in now (`new_root`, optionally one `folder_id`): the plan matches each
+  missing original by its path below the old root (the longest tail), ties broken by size and checksum, never
+  by name alone; lists the ones not found and the ambiguous ones; and names the folders whose root moves with
+  them. The action (`document.relink_originals`, audited, undoable) repoints the matched pages and folders and
+  their recorded source paths. Server paths: owner only, inside an allowed location.
+
 ## Fold endpoints documented here
 
 The node-model fold shipped backend storage changes this session, but the API

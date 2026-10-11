@@ -3005,6 +3005,22 @@
         "response_model": "InIcloud"
       },
       {
+        "method": "GET",
+        "path": "/documents/missing-originals",
+        "operation_id": "missing_originals_api_documents_missing_originals_get",
+        "summary": "Missing Originals",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "folder_id",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "MissingOriginals"
+      },
+      {
         "method": "POST",
         "path": "/documents/pdfs/backfill-pages",
         "operation_id": "backfill_pdf_pages_api_documents_pdfs_backfill_pages_post",
@@ -3013,6 +3029,26 @@
         "query_params": [],
         "request_model": null,
         "response_model": "PdfBackfillResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/relink-originals",
+        "operation_id": "relink_originals_api_documents_relink_originals_post",
+        "summary": "Relink Originals",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RelinkRequest",
+        "response_model": "RelinkPlan"
+      },
+      {
+        "method": "POST",
+        "path": "/documents/relink-originals/plan",
+        "operation_id": "plan_relink_originals_api_documents_relink_originals_plan_post",
+        "summary": "Plan Relink Originals",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "RelinkRequest",
+        "response_model": "RelinkPlan"
       },
       {
         "method": "POST",

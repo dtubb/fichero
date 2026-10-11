@@ -17743,6 +17743,160 @@
         }
       }
     },
+    "/api/documents/missing-originals": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Missing Originals",
+        "description": "Linked pages whose originals are not where the project says, in one place with the folders they were in\n(#5672): what the app shows with a Locate\u2026 button, instead of each step failing page by page. Null when none.",
+        "operationId": "missing_originals_api_documents_missing_originals_get",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only this folder's pages",
+              "title": "Folder Id"
+            },
+            "description": "only this folder's pages"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MissingOriginals",
+                  "nullable": true,
+                  "title": "Response Missing Originals Api Documents Missing Originals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/relink-originals/plan": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Plan Relink Originals",
+        "description": "What Locate Originals would do with this folder, writing nothing: each missing original matched by its path\nbelow the old root (the longest tail), ties broken by size and checksum, never by name alone; the ones not\nfound and the ambiguous ones listed; the folders whose root moves with them.",
+        "operationId": "plan_relink_originals_api_documents_relink_originals_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelinkPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/documents/relink-originals": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Relink Originals",
+        "description": "Locate Originals (#5672): repoint the matched pages' and folders' paths to where they are now, as one audited,\nundoable action, `document.relink_originals`. The ones not found or ambiguous are listed and left alone.",
+        "operationId": "relink_originals_api_documents_relink_originals_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelinkPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/documents/trash/empty": {
       "get": {
         "tags": [
@@ -71448,6 +71602,42 @@
         "title": "MigrationValidationResponse",
         "description": "Validation result for a migration."
       },
+      "MissingOriginals": {
+        "properties": {
+          "pages": {
+            "type": "integer",
+            "title": "Pages"
+          },
+          "folders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Folders",
+            "description": "where the project thinks they are (up to 20 folders)"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Ids"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pages",
+          "folders",
+          "ids",
+          "sentence"
+        ],
+        "title": "MissingOriginals",
+        "description": "Linked pages whose originals are not where the project says, said once (#5672)."
+      },
       "ModeRequest": {
         "properties": {
           "mode": {
@@ -79855,6 +80045,132 @@
         ],
         "title": "ReleaseLibraryResponse",
         "description": "What releasing a project did (#5563). The project stays registered; opening it again\n(any request naming it) reopens its connection and resumes its jobs."
+      },
+      "RelinkEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "from": {
+            "type": "string",
+            "title": "From"
+          },
+          "to": {
+            "type": "string",
+            "nullable": true,
+            "title": "To"
+          },
+          "by": {
+            "type": "string",
+            "nullable": true,
+            "title": "By",
+            "description": "how it matched: path, name and size, name"
+          },
+          "why": {
+            "type": "string",
+            "nullable": true,
+            "title": "Why"
+          },
+          "candidates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "from"
+        ],
+        "title": "RelinkEntry"
+      },
+      "RelinkPlan": {
+        "properties": {
+          "new_root": {
+            "type": "string",
+            "title": "New Root"
+          },
+          "matched": {
+            "items": {
+              "$ref": "#/components/schemas/RelinkEntry"
+            },
+            "type": "array",
+            "title": "Matched"
+          },
+          "not_found": {
+            "items": {
+              "$ref": "#/components/schemas/RelinkEntry"
+            },
+            "type": "array",
+            "title": "Not Found"
+          },
+          "ambiguous": {
+            "items": {
+              "$ref": "#/components/schemas/RelinkEntry"
+            },
+            "type": "array",
+            "title": "Ambiguous"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/RelinkEntry"
+            },
+            "type": "array",
+            "title": "Folders",
+            "description": "folders whose source root moves with their pages"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "e.g. '88 matched, 3 not found, 1 ambiguous.'"
+          },
+          "relinked": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Relinked",
+            "description": "after the action: the pages and folders repointed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new_root",
+          "matched",
+          "not_found",
+          "ambiguous",
+          "folders",
+          "sentence"
+        ],
+        "title": "RelinkPlan"
+      },
+      "RelinkRequest": {
+        "properties": {
+          "new_root": {
+            "type": "string",
+            "title": "New Root",
+            "description": "the folder the originals are in now (the app holds its bookmark)"
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id",
+            "description": "only this folder's pages; absent: the project"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new_root"
+        ],
+        "title": "RelinkRequest"
       },
       "RemoteBackendHealth": {
         "properties": {

@@ -4593,6 +4593,20 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("missing-originals")
+    def documents_missing_originals_get(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help="only this folder's pages."),
+    ) -> None:
+        """Missing Originals (GET /api/documents/missing-originals)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/missing-originals"
+            params = {
+                "folder_id": folder_id,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("backfill-pdf-pages")
     def documents_backfill_pdf_pages_post(
         ctx: typer.Context,
@@ -4602,6 +4616,46 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/documents/pdfs/backfill-pages"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("relink-originals")
+    def documents_relink_originals_post(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help="only this folder's pages; absent: the project."),
+        new_root: str = typer.Option(..., '--new-root', help='the folder the originals are in now (the app holds its bookmark)'),
+    ) -> None:
+        """Relink Originals (POST /api/documents/relink-originals)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/relink-originals"
+            params = None
+            payload = _build_json_payload({
+                "folder_id": folder_id,
+                "new_root": new_root,
+            }, {
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': "only this folder's pages; absent: the project", 'x-cli-required': False},
+                "new_root": {'type': 'string', 'title': 'New Root', 'description': 'the folder the originals are in now (the app holds its bookmark)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("plan-relink-originals")
+    def documents_plan_relink_originals_post(
+        ctx: typer.Context,
+        folder_id: Optional[str] = typer.Option(None, '--folder-id', help="only this folder's pages; absent: the project."),
+        new_root: str = typer.Option(..., '--new-root', help='the folder the originals are in now (the app holds its bookmark)'),
+    ) -> None:
+        """Plan Relink Originals (POST /api/documents/relink-originals/plan)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/documents/relink-originals/plan"
+            params = None
+            payload = _build_json_payload({
+                "folder_id": folder_id,
+                "new_root": new_root,
+            }, {
+                "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': "only this folder's pages; absent: the project", 'x-cli-required': False},
+                "new_root": {'type': 'string', 'title': 'New Root', 'description': 'the folder the originals are in now (the app holds its bookmark)', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("reorder")

@@ -2088,10 +2088,36 @@ def fichero_documents_pages_in_icloud(
     return _rt.call("GET", "/api/documents/in-icloud", params={"folder_id": folder_id})
 
 
+def fichero_documents_missing_originals(
+    *,
+    folder_id: Annotated[Optional[str], Field(description="only this folder's pages")] = None,
+) -> Any:
+    'Missing Originals\n\nLinked pages whose originals are not where the project says, in one place with the folders they were in\n(#5672): what the app shows with a Locate… button, instead of each step failing page by page. Null when none.\n\nRoute: GET /api/documents/missing-originals (toolset `documents`; reads).'
+    return _rt.call("GET", "/api/documents/missing-originals", params={"folder_id": folder_id})
+
+
 def fichero_documents_backfill_pdf_pages(
 ) -> Any:
     'Backfill Pdf Pages\n\nFind PDFs without page children and create the page Documents.\n\nThis affects PDFs ingested before _create_pdf_page_children\nlanded (or where Kreuzberg silently failed at ingest time): the\nsidebar shows the PDF as a leaf with no expandable child pages.\n\nFor each PDF in the library, check whether it already has child\ndocuments with doc_type=page. If not, run the same _create_pdf_page_children\nhelper that ingest uses now. Idempotent — re-running on a fully\nbackfilled library is a no-op.\n\nRoute: POST /api/documents/pdfs/backfill-pages (toolset `documents`; changes data, as the agent account when one exists).'
     return _rt.call("POST", "/api/documents/pdfs/backfill-pages")
+
+
+def fichero_documents_relink_originals(
+    *,
+    folder_id: Annotated[Optional[str], Field(description="only this folder's pages; absent: the project.")] = None,
+    new_root: Annotated[str, Field(description='the folder the originals are in now (the app holds its bookmark)')],
+) -> Any:
+    "Relink Originals\n\nLocate Originals (#5672): repoint the matched pages' and folders' paths to where they are now, as one audited,\nundoable action, `document.relink_originals`. The ones not found or ambiguous are listed and left alone.\n\nRoute: POST /api/documents/relink-originals (toolset `documents`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", "/api/documents/relink-originals", json=_rt.body({"folder_id": folder_id, "new_root": new_root}))
+
+
+def fichero_documents_plan_relink_originals(
+    *,
+    folder_id: Annotated[Optional[str], Field(description="only this folder's pages; absent: the project.")] = None,
+    new_root: Annotated[str, Field(description='the folder the originals are in now (the app holds its bookmark)')],
+) -> Any:
+    'Plan Relink Originals\n\nWhat Locate Originals would do with this folder, writing nothing: each missing original matched by its path\nbelow the old root (the longest tail), ties broken by size and checksum, never by name alone; the ones not\nfound and the ambiguous ones listed; the folders whose root moves with them.\n\nRoute: POST /api/documents/relink-originals/plan (toolset `documents`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/documents/relink-originals/plan", json=_rt.body({"folder_id": folder_id, "new_root": new_root}))
 
 
 def fichero_documents_reorder(
@@ -8881,7 +8907,10 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_documents_import_file", "documents", "POST", "/api/documents/import", fichero_documents_import_file),
     GeneratedTool("fichero_documents_import_files_together", "documents", "POST", "/api/documents/import-batch", fichero_documents_import_files_together),
     GeneratedTool("fichero_documents_pages_in_icloud", "documents", "GET", "/api/documents/in-icloud", fichero_documents_pages_in_icloud),
+    GeneratedTool("fichero_documents_missing_originals", "documents", "GET", "/api/documents/missing-originals", fichero_documents_missing_originals),
     GeneratedTool("fichero_documents_backfill_pdf_pages", "documents", "POST", "/api/documents/pdfs/backfill-pages", fichero_documents_backfill_pdf_pages),
+    GeneratedTool("fichero_documents_relink_originals", "documents", "POST", "/api/documents/relink-originals", fichero_documents_relink_originals),
+    GeneratedTool("fichero_documents_plan_relink_originals", "documents", "POST", "/api/documents/relink-originals/plan", fichero_documents_plan_relink_originals),
     GeneratedTool("fichero_documents_reorder", "documents", "POST", "/api/documents/reorder", fichero_documents_reorder),
     GeneratedTool("fichero_documents_list_roots", "documents", "GET", "/api/documents/roots", fichero_documents_list_roots),
     GeneratedTool("fichero_documents_get_run_history", "documents", "GET", "/api/documents/run-history", fichero_documents_get_run_history),

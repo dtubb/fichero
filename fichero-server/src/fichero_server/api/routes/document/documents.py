@@ -936,6 +936,150 @@ async def copy_pages_into_project(
     return CopiedIntoProject(**invoked.result)
 
 
+# --- Locate Originals (#5672) ------------------------------------------------------------------------------------
+
+
+class MissingOriginals(BaseModel):
+    """Linked pages whose originals are not where the project says, said once (#5672)."""
+
+    pages: int
+    folders: list[str] = Field(description="where the project thinks they are (up to 20 folders)")
+    ids: list[str]
+    sentence: str
+
+
+class RelinkRequest(BaseModel):
+    new_root: str = Field(description="the folder the originals are in now (the app holds its bookmark)")
+    folder_id: Optional[str] = Field(default=None, description="only this folder's pages; absent: the project")
+
+
+class RelinkEntry(BaseModel):
+    id: str
+    name: str
+    path_from: str = Field(alias="from")
+    to: Optional[str] = None
+    by: Optional[str] = Field(default=None, description="how it matched: path, name and size, name")
+    why: Optional[str] = None
+    candidates: list[str] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+class RelinkPlan(BaseModel):
+    new_root: str
+    matched: list[RelinkEntry]
+    not_found: list[RelinkEntry]
+    ambiguous: list[RelinkEntry]
+    folders: list[RelinkEntry] = Field(description="folders whose source root moves with their pages")
+    sentence: str = Field(description="e.g. '88 matched, 3 not found, 1 ambiguous.'")
+    relinked: list[str] = Field(default_factory=list, description="after the action: the pages and folders repointed")
+
+
+class RelinkParams(BaseModel):
+    new_root: str
+    folder_id: Optional[str] = None
+
+
+class UnrelinkParams(BaseModel):
+    moved: dict[str, dict[str, Any]]
+
+
+def _relink_scope(db: Database, folder_id: Optional[str]) -> Optional[set[str]]:
+    from fichero_server.recipes import runner
+
+    try:
+        return runner.folder_scope(db, folder_id) if folder_id else None
+    except LookupError as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def _invert_relink(before: dict | None, after: dict | None, ctx: "ActionContext"):
+    moved = (after or {}).get("moved") or {}
+    return ("document.unrelink_originals", {"moved": moved}) if moved else None
+
+
+@action("document.relink_originals", RelinkParams, domains=["document"], undoable=True, invert=_invert_relink)
+def _action_relink_originals(db: Database, params: RelinkParams, ctx: "ActionContext"):
+    """Point the project's missing originals at where they are now (#5672): planned again here, never trusted from
+    the caller, and only the matched pages and their folders are changed."""
+    from fichero_server.importers import relink
+
+    plan = relink.relink_plan(db, params.new_root, _relink_scope(db, params.folder_id))
+    moved = relink.apply(db, plan)
+    result = {**plan, "relinked": list(moved)}
+    spec = ChangeSpec(domains=["document"], target_ids=list(moved), after={"moved": moved},
+                      emit_type="document.updated", document_ids=list(moved), emit_fn=_emit_document_change_spec)
+    return result, spec
+
+
+@action("document.unrelink_originals", UnrelinkParams, domains=["document"])
+def _action_unrelink_originals(db: Database, params: UnrelinkParams, ctx: "ActionContext"):
+    """Undo Locate Originals: each page and folder points where it pointed before."""
+    from fichero_server.importers import relink
+
+    back = relink.undo(db, params.moved)
+    return {"put_back": back}, ChangeSpec(domains=["document"], target_ids=back, emit_type="document.updated",
+                                          document_ids=back, emit_fn=_emit_document_change_spec)
+
+
+def _checked_root(request: Request, db: Database, new_root: str) -> None:
+    """The folder picked is a real folder this engine may read, picked by someone who may read server paths."""
+    from fichero_server.api.routes.ingest.core import _require_ingest_owner, _validate_ingest_path
+
+    _require_ingest_owner(request, str(Path(db.path).parent))
+    _validate_ingest_path(new_root)
+    root = Path(new_root)
+    if root.is_symlink() or not root.is_dir():
+        raise HTTPException(status_code=400, detail=f"Not a folder: {new_root}")
+
+
+@router.get("/missing-originals", response_model=Optional[MissingOriginals])
+async def missing_originals(
+    db: Database = Depends(get_library_database),
+    folder_id: Optional[str] = Query(None, description="only this folder's pages"),
+) -> Optional[MissingOriginals]:
+    """Linked pages whose originals are not where the project says, in one place with the folders they were in
+    (#5672): what the app shows with a Locate… button, instead of each step failing page by page. Null when none."""
+    from fichero_server.importers import relink
+
+    try:
+        within = _relink_scope(db, folder_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    said = await asyncio.to_thread(relink.missing_originals, db, within)
+    return MissingOriginals(**said) if said else None
+
+
+@router.post("/relink-originals/plan", response_model=RelinkPlan, response_model_by_alias=True)
+async def plan_relink_originals(request: Request, body: RelinkRequest,
+                                db: Database = Depends(get_library_database_for_write)) -> RelinkPlan:
+    """What Locate Originals would do with this folder, writing nothing: each missing original matched by its path
+    below the old root (the longest tail), ties broken by size and checksum, never by name alone; the ones not
+    found and the ambiguous ones listed; the folders whose root moves with them."""
+    from fichero_server.importers import relink
+
+    _checked_root(request, db, body.new_root)
+    try:
+        within = _relink_scope(db, body.folder_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return RelinkPlan(**await asyncio.to_thread(relink.relink_plan, db, body.new_root, within))
+
+
+@router.post("/relink-originals", response_model=RelinkPlan, response_model_by_alias=True)
+async def relink_originals(request: Request, body: RelinkRequest,
+                           db: Database = Depends(get_library_database_for_write),
+                           ctx: "ActionContext" = Depends(action_context)) -> RelinkPlan:
+    """Locate Originals (#5672): repoint the matched pages' and folders' paths to where they are now, as one audited,
+    undoable action, `document.relink_originals`. The ones not found or ambiguous are listed and left alone."""
+    _checked_root(request, db, body.new_root)
+    try:
+        invoked = await asyncio.to_thread(registry.invoke, db, "document.relink_originals", body.model_dump(), ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return RelinkPlan(**invoked.result)
+
+
 @router.get("/trash/empty", response_model=EmptyTrashPreview)
 async def preview_empty_trash(
     db: Database = Depends(get_library_database),
