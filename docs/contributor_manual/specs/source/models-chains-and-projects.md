@@ -1226,9 +1226,11 @@ runs on the project before Start: the sample results are the stage's, never the 
    and direction (unchanged), and two new questions, each with examples:
    - **When were they written**: a century or a range of years ("16th century", "1650–1700"),
      proposed from the sample pages where a local model can look, labelled "suggested from your pages".
-   - **Which hand**: the script's style (Caroline minuscule, Gothic textualis, Secretary, Kurrent,
-     Humanistic cursive, Copperplate…), proposed from the script and the period, as tokens; "Not sure"
-     is an answer.
+   - **Which hand**: the script's style, chosen from a curated list of hands for the script and the
+     century (Latin: Caroline minuscule, Gothic textualis, Gothic cursiva, Secretary, Humanistic,
+     Italic, Kurrent, Copperplate…), each shown with a picture example and mapped to the Hugging Face
+     tags readers carry; anything else can be typed (kept as typed), and "Not sure" is an answer
+     (ruled 2026-10-11, open question 18).
    Both feed the search for readers (the Hugging Face tags people use, such as `htr`, `catmus`,
    `kurrent`, with the language tags) and the comparison of readers on the person's pages.
 3. **Choose the Stages**: the first decision about the work, replacing What You Want to Do. Every
@@ -1236,8 +1238,9 @@ runs on the project before Start: the sample results are the stage's, never the 
    the stages they need; a stage another chosen stage needs is ticked and says why ("Dates & Times
    needs Names").
 4. **One page per chosen stage**, in this order, each only when chosen: **Clean Up Images · Find
-   Lines · Read · Organise (Find the Documents) · Names · Statements (who did what) · Dates & Times ·
-   Structured Data**.
+   Lines · Read · Translate · Organise (Find the Documents) · Names · Statements (who did what) ·
+   Dates & Times · Passages · Structured Data · Search**. Translate, Passages and Search were added on
+   2026-10-11 (open question 16), so every job a person can choose has a page.
 5. **Train**: offered later (`source.recipe.train-offered-per-step`, #5660 item 9), its own page.
 6. **Ready**: the plan in one list, what runs by itself, what Start will fetch (#5664), Keep an
    export, and Start.
@@ -1255,6 +1258,11 @@ jobs, and the recipe keeps the registry's step order whatever order stages are c
 | Statements | `find-statements` | Which kinds (sales, gifts, marriages, letters sent…)? |
 | Dates & Times | `work-out-dates` | Which calendars (Gregorian, Julian, regnal years, the French Republican…)? |
 | Structured Data | `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` | Which fields to fill, and from what? |
+| Translate | `translate-transliterate-normalise` | Into what: as written, abbreviations expanded, normalised, modernised, a translation into which language? |
+| Passages | `pull-out-passages` | Which kinds of passages (quotations, formulae, a party's own words…)? |
+| Search | `make-a-vector` | Nothing to ask; its sample result is a search over the sample pages with an example query. |
+
+The table lists the stages by their jobs; the pages follow the order in item 4.
 
 **Each stage page holds, in order:**
 - **What it does**, in one sentence with an example, from the job registry's words (section 7a), so
@@ -1272,9 +1280,10 @@ jobs, and the recipe keeps the registry's step order whatever order stages are c
 
 **The engine.** One new run: **try this stage on these pages**. For Read and Find Lines it reuses the
 bake-off and its evaluation job (section 8a); for the other stages it runs the stage's workflow on the
-samples. Its results are kept as the stage's sample results (on the project's setup, with the samples
-and the models used), never written as the project's passes, readings, names or statements, and they
-are replaced when the stage is tried again. The sample run's cost and time are said before it runs.
+samples. Its results are kept as the stage's sample results, beside `recipe/setup.yaml` (one record per
+stage: the samples, the models used, the result; ruled 2026-10-11, open question 17), never written as
+the project's passes, readings, names or statements; they are replaced when the stage is tried again
+and cleared when the stage is unticked. The sample run's cost and time are said before it runs.
 
 **What carries over from 7b.** Your project, Your material's ways in and fields, the cloud question,
 What runs by itself, Keep an export, the Start plan and its refusals, Start, and "nothing runs before
@@ -1282,8 +1291,8 @@ Start" are unchanged. The purposes keep their place in the engine (`PURPOSE_STEP
 tick stages; the questions under a ticked purpose (`RecipeSetupStore.questions(under:)`) move onto the
 stage pages that own them.
 
-**Not in the ruling's list.** Translate or normalise, Search (make a vector) and Pull out passages
-are jobs with no stage of their own in the ruling (open question 16).
+**Translate, Passages and Search** (ruled 2026-10-11, open question 16) are stages like the others,
+each with its page, its questions and a sample result.
 
 #### The Swift as it is, mapped onto the stages (read on disk 2026-10-11, `lead/2026-10-09b`)
 
@@ -1306,7 +1315,7 @@ are jobs with no stage of their own in the ruling (open question 16).
 - `RecipePurposeFields` becomes **the stage chooser**: the stages as checkboxes, the goals as
   shortcuts above them, and a stage another needs ticked with its reason.
 - `JobQuestionFields`: its questions move to the stage that owns their job (Names' kinds and gazetteer
-  to Names; Into what to Translate's open question).
+  to Names; Into what to Translate).
 - `RecipeProposalFields` and `RecipeStepsView` / `RecipeStepRow`: the plan's rows are split by stage.
   Each stage page shows its own steps' rows (who runs it, with the finder); Ready keeps the whole plan
   as one compact list.
@@ -1323,7 +1332,8 @@ are jobs with no stage of their own in the ruling (open question 16).
   These Pages button with its cost and time, and the result drawn per page by kind (lines on the page,
   text, names marked, dates, a table).
 - **Your Material's two fields**: When were they written (a century or a range, with suggestions)
-  and Which hand (tokens, with proposals from the script and period).
+  and Which hand (the curated hands for the script and century, each with its picture, as tokens;
+  free text kept as typed).
 - **The engine's sample run**: try this stage on these pages, its result kept as the stage's
   (`POST /api/recipes/stages/{stage}/try`, `GET` its result), the proposed samples
   (`GET /api/recipes/samples`), and the reader search taking the period and hand.
@@ -2629,9 +2639,10 @@ Setup
 
 - `source.onboard.stages.left-list` — **[GAP]** (#5668) the setup window's left list reads, in recipe
   order: Your Project, Your Material, Choose the Stages, one page per chosen stage (Clean Up Images,
-  Find Lines, Read, Organise, Names, Statements, Dates & Times, Structured Data, each only when chosen),
-  Train, Ready. Set Up… on an existing project starts at Your Material. *Test:* pure Swift, the step
-  list for no stage, one stage and all eight, in that order whatever order they were ticked in.
+  Find Lines, Read, Translate, Organise, Names, Statements, Dates & Times, Passages, Structured Data,
+  Search, each only when chosen), Train, Ready. Set Up… on an existing project starts at Your Material.
+  *Test:* pure Swift, the step list for no stage, one stage and all eleven, in that order whatever order
+  they were ticked in.
 - `source.onboard.stages.choose-first` — **[GAP]** (#5668) Choose the Stages replaces What You Want
   to Do and is the first decision about the work: every stage is a checkbox, on or off, with its one
   sentence. *Test:* pure Swift over the engine's stages list.
@@ -2646,7 +2657,7 @@ Setup
 - `source.onboard.stages.stages-list-from-the-engine` — **[GAP]** (#5668) the stages, their titles,
   sentences, examples, jobs, questions and needs come from one engine list (`GET /api/recipes/stages`),
   read by setup, the Inspector and the manual; the app works none of it out. *Test:* pytest, every
-  registered job that a stage carries exists and every stage's needs are stages; the eight in order.
+  registered job that a stage carries exists and every stage's needs are stages; the eleven in order.
 - `source.onboard.stages.page-says-what-it-does` — **[GAP]** (#5668) each stage page opens with what
   the stage does in one sentence, with an example, in the job registry's words (section 7a).
   *Test:* pure Swift, the page's first line is the engine's sentence for that stage.
@@ -2678,7 +2689,8 @@ Setup
   with its result read back by `GET`. *Test:* pytest, Read's try writes one evaluation job; Names'
   try runs its workflow on the samples only.
 - `source.onboard.stages.samples-are-not-the-work` — **[GAP]** (#5668) a sample result is kept as the
-  stage's (with the samples and the models used) and replaced when the stage is tried again; it is
+  stage's, beside `recipe/setup.yaml` (with the samples and the models used), replaced when the stage is
+  tried again and cleared when it is unticked; it is
   never written as the project's passes, readings, names, dates or statements, and Start does not
   count it as done. *Test:* pytest, after a try the project's passes, readings and claims are
   unchanged and Start's plan runs on every page.
@@ -2686,10 +2698,13 @@ Setup
   written, as a century or a range of years ("16th century", "1650–1700"), proposed from the sample
   pages where a local model can look and labelled "suggested from your pages"; saved with the answers.
   *Test:* pure Swift, a century and a range round-trip; pytest, the answers carry it.
-- `source.onboard.material.which-hand` — **[GAP]** (#5668) Your Material asks which hand (Caroline
-  minuscule, Gothic textualis, Secretary, Kurrent, Humanistic cursive, Copperplate…), proposed from the
-  script and the period, chosen as tokens; "Not sure" is an answer. *Test:* pytest, the hands proposed
-  for Latin script in the 15th century and in the 18th; pure Swift, tokens round-trip.
+- `source.onboard.material.which-hand` — **[GAP]** (#5668) Your Material asks which hand, from a
+  curated list of hands per script and century kept by the engine (Latin: Caroline minuscule, Gothic
+  textualis, Gothic cursiva, Secretary, Humanistic, Italic, Kurrent, Copperplate…), each shown with a
+  picture example and mapped to the Hugging Face tags readers carry; anything else is typed and kept as
+  typed, and "Not sure" is an answer. *Test:* pytest, the hands offered for Latin script in the 15th
+  century and in the 18th, each with its picture and tags; pure Swift, a listed hand and a typed one
+  round-trip as tokens.
 - `source.onboard.material.feeds-the-reader-search` — **[GAP]** (#5668) the period and the hand feed the
   search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
   language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand
@@ -3642,14 +3657,16 @@ Ruled 2026-10-01 (former questions 1-4):
     made if missing, so projects sit together and inside the folder the sandbox already asks for;
     Choose… for anywhere else.
 
-16. **Translate or normalise, Search and Pull out passages under the stages** (#5668). The ruling lists
+16. **Translate or normalise, Search and Pull out passages under the stages** (#5668). **Ruled
+    2026-10-11: all three are stages** (Translate, Passages, Search; section 7c). The ruling lists
     eight stages; these three jobs have none. *Recommend:* three more stages after Dates & Times, each
     with its page (Translate & Normalise: into what; Search: nothing to ask; Passages: which kinds), so
     every job a person can choose has a page and a sample result.
-17. **Where a stage's sample results are kept** (#5668). *Recommend:* on the project's setup, beside
+17. **Where a stage's sample results are kept** (#5668). **Ruled 2026-10-11 as recommended.** *Recommend:* on the project's setup, beside
     `recipe/setup.yaml`, one record per stage (the samples, the models, the result), replaced on each
     try and cleared when the stage is unticked; never in the tables that hold the project's work.
-18. **The hands offered** (#5668). *Recommend:* a short list per script and century kept by the engine
+18. **The hands offered** (#5668). **Ruled 2026-10-11: a curated list of hands per script and century,
+    mapped to Hugging Face tags, each with a picture example, plus free text.** *Recommend:* a short list per script and century kept by the engine
     (Latin: Caroline minuscule, Gothic textualis, Gothic cursiva, Secretary, Humanistic, Italic,
     Kurrent, Copperplate; others as their own lists grow), each with the Hugging Face tags it maps to;
     anything typed is kept as typed, and Not sure is an answer.
