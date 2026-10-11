@@ -123,6 +123,16 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   `GET /api/documents/in-icloud` (`null`) as results with no content, which read as nothing said. Built:
   `openapi_runtime.as_tool`, which the server registers every generated tool and alias through. Pinned by
   `fichero-mcp/tests/test_mcp_generated.py::test_an_empty_or_list_answer_reaches_the_agent_as_one_json_block`.
+- `openapi.mcp.answers-fit-an-agent` **[OK]** (2026-10-11) no generated read tool hands an agent more than 64 KB on
+  a small project unless its route is marked bulk (`x-fichero-bulk: true`: the Reader's HTML views). The four lists
+  that answered hundreds of KB on a ten-page project (the workflow tools, grouped and flat; the action registry; the
+  workflows) take `summary` (each item's name, category and one line, no ports, schemas or prompts), a filter `q`,
+  and paging (`limit`, `offset`, with `total`); an agent's tool asks for the summary by default, the contract's
+  `x-fichero-agent-defaults` read into the tool by `generate_openapi_mcp.py` (the tool lists also a page of 50, the documents list a page of 25), while the app, calling with no
+  parameters, keeps the whole answer. One item is one GET away whole (`/api/workflows/tools/{tool_name}`,
+  `/api/workflows/{id}`, the new `/api/actions/registry/{name}`). Pinned by
+  `fichero-server/tests/unit/mcp/test_answers_fit_an_agent.py`, whose guard calls every generated read tool through
+  the MCP protocol.
 - `openapi.mcp.refusals-in-words` **[OK]** (2026-10-11, the same pass; every refusal that pass met) a refusal an agent reads says what is
   missing and what to do, in words: never a route to call, an internal record's class name, or a target the
   caller did not name. Fixed: search by meaning before anything is indexed (claims, entities); the rights of a document, folder or segment asked without naming it; citing a document with no bibliographic record; and an absence is an answer, not an error: a document with no note answers an empty note (`test_document_with_no_note.py`; the app never read that route). Pinned by

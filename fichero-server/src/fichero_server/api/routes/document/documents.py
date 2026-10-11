@@ -637,7 +637,9 @@ def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
 # Routes
 
 
-@router.get("")
+#: An agent's tool lists a page of documents at a time (`openapi.mcp.answers-fit-an-agent`): a ten-page project with its
+#: shipped workflows is 73 rows, 170 KB; the app, calling with no `limit`, keeps every row.
+@router.get("", openapi_extra={"x-fichero-agent-defaults": {"limit": 25}})
 async def list_documents(
     parent_id: Optional[str] = Query(None, description="Filter by parent ID"),
     ids: Optional[str] = Query(

@@ -18,6 +18,8 @@ from fichero_server.models.knowledge import Annotation, KnowledgeClaim, Knowledg
 from fichero_server.models import Artifact, DocType, Document, FileType, Segment
 
 router = APIRouter(prefix="/view", tags=["views"])
+#: A whole page of HTML for the Reader: bulk by nature, never trimmed for an agent (`openapi.mcp.answers-fit-an-agent`).
+BULK = {"x-fichero-bulk": True}
 
 
 _TEMPLATES = None
@@ -831,7 +833,7 @@ def _document_scoped_entities(
     return scoped
 
 
-@router.get("/document/{doc_id}", response_class=HTMLResponse)
+@router.get("/document/{doc_id}", response_class=HTMLResponse, openapi_extra=BULK)
 async def document_view(
     request: Request,
     doc_id: str,
@@ -1044,7 +1046,7 @@ async def document_view(
     )
 
 
-@router.get("/kg/global", response_class=HTMLResponse)
+@router.get("/kg/global", response_class=HTMLResponse, openapi_extra=BULK)
 async def global_kg_view(
     request: Request,
     db: Database = Depends(get_library_database),

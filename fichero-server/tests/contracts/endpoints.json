@@ -181,9 +181,32 @@
         "operation_id": "list_registered_actions_api_actions_registry_get",
         "summary": "List Registered Actions",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "RegisteredActionsResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/actions/registry/{name}",
+        "operation_id": "get_registered_action_api_actions_registry__name__get",
+        "summary": "Get Registered Action",
+        "path_params": [
+          "name"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "RegisteredActionInfo"
       },
       {
         "method": "GET",
@@ -12372,6 +12395,21 @@
             "type": "string"
           },
           {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "summary",
             "required": false,
             "type": "boolean"
@@ -12453,7 +12491,33 @@
         "operation_id": "list_workflow_tools_api_workflows_tools_get",
         "summary": "List Workflow Tools",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "category",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "WorkflowToolListResponse"
       },
@@ -12463,7 +12527,23 @@
         "operation_id": "list_tools_grouped_api_workflows_tools_grouped_get",
         "summary": "List Tools Grouped",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "q",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "fichero_server__api__routes__workflow__workflows__ToolListResponse"
       },

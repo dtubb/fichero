@@ -95,10 +95,10 @@ def _py_type(schema: dict) -> str:
 _field_doc = field_doc
 
 
-def _param(var: str, annotation: str, doc: str, required: bool) -> str:
+def _param(var: str, annotation: str, doc: str, required: bool, default: object = None) -> str:
     if required:
         return f"    {var}: Annotated[{annotation}, Field(description={doc!r})],"
-    return f"    {var}: Annotated[Optional[{annotation}], Field(description={doc!r})] = None,"
+    return f"    {var}: Annotated[Optional[{annotation}], Field(description={doc!r})] = {default!r},"
 
 
 def _docstring(op: Operation) -> str:
@@ -119,11 +119,15 @@ def _emit_tool(op: Operation, name: str, images: set[tuple[str, str]] = frozense
         path_vars[path_param] = var
         params.append(_param(var, "str", doc or f"Path parameter {path_param}.", True))
     query: list[tuple[str, str]] = []
+    agent_defaults = dict(op.agent_defaults)
     for qp in op.query_params:
         var = _identifier(qp.name, used)
         query.append((qp.name, var))
         annotation = "list[str]" if qp.schema_type == "array" else _PY_TYPES.get(qp.schema_type, "str")
-        params.append(_param(var, annotation, qp.description or f"Query parameter {qp.name}.", qp.required))
+        doc = qp.description or f"Query parameter {qp.name}."
+        if qp.name in agent_defaults:  # `x-fichero-agent-defaults`: what an agent asks unless told otherwise
+            doc += f" An agent's default: {json.dumps(agent_defaults[qp.name])}."
+        params.append(_param(var, annotation, doc, qp.required, agent_defaults.get(qp.name)))
     body_fields: list[tuple[str, str]] = []
     body_var = None
     if op.request_kind == "json" and op.request_fields:

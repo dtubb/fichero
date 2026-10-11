@@ -17730,6 +17730,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "limit": 25
         }
       },
       "post": {
@@ -18605,7 +18608,7 @@
           "documents"
         ],
         "summary": "Get Document Note",
-        "description": "Get the user note for a document.",
+        "description": "Get the user note for a document: an empty note when it has none (an absence, not an error); 404 only for a\ndocument that is not there (`openapi.mcp.refusals-in-words`).",
         "operationId": "get_document_note_api_documents__doc_id__notes_get",
         "parameters": [
           {
@@ -32946,8 +32949,73 @@
           "workflows"
         ],
         "summary": "List Workflow Tools",
-        "description": "List all available workflow tools with port definitions.",
+        "description": "List all available workflow tools with port definitions. ``summary`` (an agent's default) lists each by name,\ncategory and one line; ``GET /api/workflows/tools/{tool_name}`` gives one tool whole.",
         "operationId": "list_workflow_tools_api_workflows_tools_get",
+        "parameters": [
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away), and no conversion table",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away), and no conversion table"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only tools whose name or description holds these words",
+              "title": "Q"
+            },
+            "description": "only tools whose name or description holds these words"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only tools of this category",
+              "title": "Category"
+            },
+            "description": "only tools of this category"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "nullable": true,
+              "description": "at most this many tools",
+              "title": "Limit"
+            },
+            "description": "at most this many tools"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "skip this many tools first",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "skip this many tools first"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -32958,7 +33026,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true,
+          "limit": 50
         }
       }
     },
@@ -32968,8 +33050,48 @@
           "workflows"
         ],
         "summary": "List Tools Grouped",
-        "description": "List tools grouped by category for the node editor sidebar.",
+        "description": "List tools grouped by category for the node editor sidebar. ``summary`` (an agent's default) lists each tool\nby name and one line.",
         "operationId": "list_tools_grouped_api_workflows_tools_grouped_get",
+        "parameters": [
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away)",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away)"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only tools whose name or description holds these words",
+              "title": "Q"
+            },
+            "description": "only tools whose name or description holds these words"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "nullable": true,
+              "description": "at most this many tools, over every category",
+              "title": "Limit"
+            },
+            "description": "at most this many tools, over every category"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -32980,7 +33102,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true,
+          "limit": 50
         }
       }
     },
@@ -33233,6 +33369,45 @@
               "default": false,
               "title": "Summary"
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only workflows whose name or description holds these words",
+              "title": "Q"
+            },
+            "description": "only workflows whose name or description holds these words"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "nullable": true,
+              "description": "at most this many workflows",
+              "title": "Limit"
+            },
+            "description": "at most this many workflows"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "skip this many workflows first",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "skip this many workflows first"
           }
         ],
         "responses": {
@@ -33256,6 +33431,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -33913,7 +34091,8 @@
               }
             }
           }
-        }
+        },
+        "x-fichero-bulk": true
       }
     },
     "/view/kg/global": {
@@ -33936,7 +34115,8 @@
               }
             }
           }
-        }
+        },
+        "x-fichero-bulk": true
       }
     },
     "/api/conversion/status": {
@@ -41961,8 +42141,34 @@
           "actions"
         ],
         "summary": "List Registered Actions",
-        "description": "List every registered action + its param JSON schema.\n\nThis is what chat tools (#1847) and App Intents (#1837) read to build their\ntool/intent definitions from the single registry.",
+        "description": "List every registered action + its param JSON schema.\n\nThis is what chat tools (#1847) and App Intents (#1837) read to build their\ntool/intent definitions from the single registry. ``summary`` (an agent's default) leaves the schemas out\n(`openapi.mcp.answers-fit-an-agent`).",
         "operationId": "list_registered_actions_api_actions_registry_get",
+        "parameters": [
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean summary: each action's name, domains and whether it can be undone, without its parameter schema (GET /api/actions/registry/{name} gives one action whole)",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean summary: each action's name, domains and whether it can be undone, without its parameter schema (GET /api/actions/registry/{name} gives one action whole)"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "only actions whose name or domain holds these words",
+              "title": "Q"
+            },
+            "description": "only actions whose name or domain holds these words"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -41970,6 +42176,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RegisteredActionsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
+        }
+      }
+    },
+    "/api/actions/registry/{name}": {
+      "get": {
+        "tags": [
+          "actions",
+          "actions"
+        ],
+        "summary": "Get Registered Action",
+        "description": "One registered action whole, with its parameter schema; 404 for a name the registry does not have.",
+        "operationId": "get_registered_action_api_actions_registry__name__get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisteredActionInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -94334,6 +94597,12 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Total",
+            "description": "how many match before `limit`/`offset`; null when the list is not paged"
           }
         },
         "type": "object",
@@ -95119,6 +95388,12 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Total",
+            "description": "how many match before `limit`/`offset`; null when the list is not paged"
           },
           "conversions": {
             "additionalProperties": {

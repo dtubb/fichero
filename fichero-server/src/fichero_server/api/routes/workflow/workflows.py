@@ -6,10 +6,10 @@ Provides tools with port definitions for the visual node editor.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 from fichero_server.core.timeutil import utc_now
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.db.app import get_app_db
@@ -287,6 +287,8 @@ class WorkflowListResponse(BaseModel):
 
     items: list[WorkflowResponse]
     count: int
+    total: Optional[int] = Field(default=None, description=(
+        "how many match before `limit`/`offset`; null when the list is not paged"))
 
 
 class WorkflowToolListResponse(BaseModel):
@@ -294,6 +296,8 @@ class WorkflowToolListResponse(BaseModel):
 
     items: list[ToolResponse]
     count: int
+    total: Optional[int] = Field(default=None, description=(
+        "how many match before `limit`/`offset`; null when the list is not paged"))
     conversions: dict[str, list[str]] = Field(
         default_factory=dict,
         description=(
@@ -448,6 +452,45 @@ def _tool_to_response(tool: ToolDef) -> ToolResponse:
     )
 
 
+#: What an agent's tool asks for by default (`openapi.mcp.answers-fit-an-agent`): the lean summary. The app calls the
+#: route with no parameters and keeps the full answer; the MCP generator reads this mark into the tool's default.
+AGENT_SUMMARY = {"x-fichero-agent-defaults": {"summary": True}}
+#: The tool lists also page for an agent: 128 tools, even lean, are more than 64 KB.
+AGENT_TOOL_PAGE = {"x-fichero-agent-defaults": {"summary": True, "limit": 50}}
+_SUMMARY_DOC = ("a lean summary: each item's name, category and one-line description, no ports, schemas or prompts "
+                "(the full record is one GET away)")
+
+
+def one_line(text: str | None, limit: int = 120) -> str:
+    """A description's first sentence, at most `limit` characters: what a summary says of an item."""
+    first = " ".join((text or "").split())
+    if ". " in first:
+        first = first.split(". ", 1)[0] + "."
+    return first if len(first) <= limit else first[: limit - 1].rstrip() + "…"
+
+
+def _lean_tool(response: ToolResponse) -> ToolResponse:
+    """A tool as a summary lists it: its name, category and one line; ports, schemas and prompt left out."""
+    return response.model_copy(update={
+        "description": one_line(response.description), "input_ports": [], "output_ports": [],
+        "config_schema": {}, "config_defaults": {}, "default_output_schema": {}, "default_prompt": ""})
+
+
+def _summary_response(answer: BaseModel) -> Any:
+    """A summary as sent: every field left at its default left out (the empty ports, schemas and prompt, the flags
+    that are off), so a hundred tools fit an agent; what the contract requires is always there."""
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(answer.model_dump(mode="json", exclude_defaults=True))
+
+
+def _matches(q: str | None, *texts: str | None) -> bool:
+    if not q:
+        return True
+    needle = q.casefold()
+    return any(needle in (t or "").casefold() for t in texts)
+
+
 def _category_display_name(category: str) -> str:
     """Get display name for category."""
     names = {
@@ -539,39 +582,62 @@ def _model_pricing_per_million(provider: str, model: str) -> tuple[float, float]
 # =============================================================================
 
 
-@router.get("/tools", response_model=WorkflowToolListResponse)
-async def list_workflow_tools() -> WorkflowToolListResponse:
-    """List all available workflow tools with port definitions."""
+@router.get("/tools", response_model=WorkflowToolListResponse, openapi_extra=AGENT_TOOL_PAGE)
+async def list_workflow_tools(
+    summary: Annotated[bool, Query(description=f"answer {_SUMMARY_DOC}, and no conversion table")] = False,
+    q: Annotated[Optional[str], Query(description="only tools whose name or description holds these words")] = None,
+    category: Annotated[Optional[str], Query(description="only tools of this category")] = None,
+    limit: Annotated[Optional[int], Query(ge=1, le=500, description="at most this many tools")] = None,
+    offset: Annotated[int, Query(ge=0, description="skip this many tools first")] = 0,
+) -> WorkflowToolListResponse:
+    """List all available workflow tools with port definitions. ``summary`` (an agent's default) lists each by name,
+    category and one line; ``GET /api/workflows/tools/{tool_name}`` gives one tool whole."""
     # Palette contract (#4322): only tools with a loaded implementation
     # (directly or via alias) are offered — a palette tool without an
     # implementation kills the whole graph at build time.
     from fichero_server.workflows.validation import port_conversion_table
 
-    tools = list_executable_tools()
-    items = [_tool_to_response(t) for t in tools]
-    return WorkflowToolListResponse(
-        items=items, count=len(items), conversions=port_conversion_table()
+    tools = [t for t in list_executable_tools() if (category is None or t.category == category)
+             and _matches(q, t.name, t.display_name, t.description)]
+    paged = tools[offset: offset + limit] if limit is not None else tools[offset:]
+    items = [_tool_to_response(t) for t in paged]
+    answer = WorkflowToolListResponse(
+        items=[_lean_tool(t) for t in items] if summary else items, count=len(items),
+        total=len(tools) if (limit is not None or offset) else None,
+        conversions={} if summary else port_conversion_table(),
     )
+    return _summary_response(answer) if summary else answer
 
 
-@router.get("/tools/grouped")
-async def list_tools_grouped() -> ToolListResponse:
-    """List tools grouped by category for the node editor sidebar."""
+@router.get("/tools/grouped", openapi_extra=AGENT_TOOL_PAGE)
+async def list_tools_grouped(
+    summary: Annotated[bool, Query(description=f"answer {_SUMMARY_DOC}")] = False,
+    q: Annotated[Optional[str], Query(description="only tools whose name or description holds these words")] = None,
+    limit: Annotated[Optional[int], Query(ge=1, le=500, description="at most this many tools, over every category")] = None,
+) -> ToolListResponse:
+    """List tools grouped by category for the node editor sidebar. ``summary`` (an agent's default) lists each tool
+    by name and one line."""
     categories = get_categories()
     result = []
 
+    left = limit
     for cat in categories:
-        tools = list_executable_tools_by_category(cat)
+        tools = [t for t in list_executable_tools_by_category(cat)
+                 if _matches(q, t.name, t.display_name, t.description)]
+        if left is not None:
+            tools, left = tools[:left], max(left - len(tools), 0)
         if tools:
+            responses = [_tool_to_response(t) for t in tools]
             result.append(
                 CategoryToolsResponse(
                     category=cat,
                     display_name=_category_display_name(cat),
-                    tools=[_tool_to_response(t) for t in tools],
+                    tools=[_lean_tool(r) for r in responses] if summary else responses,
                 )
             )
 
-    return ToolListResponse(items=result, count=len(result))
+    answer = ToolListResponse(items=result, count=len(result))
+    return _summary_response(answer) if summary else answer
 
 
 @router.get("/tools/{tool_name}")
@@ -1035,10 +1101,13 @@ async def list_workflow_folders() -> WorkflowFolderListResponse:
     return WorkflowFolderListResponse(items=items, count=len(items))
 
 
-@router.get("", response_model=WorkflowListResponse)
+@router.get("", response_model=WorkflowListResponse, openapi_extra=AGENT_SUMMARY)
 async def list_workflows(
     folder_path: str | None = None,
     summary: bool = False,
+    q: Annotated[Optional[str], Query(description="only workflows whose name or description holds these words")] = None,
+    limit: Annotated[Optional[int], Query(ge=1, le=500, description="at most this many workflows")] = None,
+    offset: Annotated[int, Query(ge=0, description="skip this many workflows first")] = 0,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> WorkflowListResponse:
@@ -1080,13 +1149,19 @@ async def list_workflows(
         from fichero_server.workflows.subworkflow import sub_workflow_resolver_for_db
 
         resolver = sub_workflow_resolver_for_db(db)
+        chosen = [w for w in sorted(workflows, key=lambda w: w.sort_order)
+                  if _matches(q, w.name, getattr(w, "description", None))]
+        paged = chosen[offset: offset + limit] if limit is not None else chosen[offset:]
         items = [
             _workflow_to_response(
                 workflow, db, workflow_resolver=resolver, summary=summary
             )
-            for workflow in sorted(workflows, key=lambda w: w.sort_order)
+            for workflow in paged
         ]
-        return WorkflowListResponse(items=items, count=len(items))
+        if summary:  # an agent's summary says each in one line (`openapi.mcp.answers-fit-an-agent`)
+            items = [i.model_copy(update={"description": one_line(i.description)}) for i in items]
+        return WorkflowListResponse(items=items, count=len(items),
+                                    total=len(chosen) if (limit is not None or offset) else None)
     except Exception as e:
         logger.exception("Failed to list workflows")
         raise HTTPException(status_code=500, detail=str(e))

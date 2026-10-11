@@ -424,10 +424,27 @@ def register_generated_openapi_commands(
     @target_app.command("list-registered")
     def actions_list_registered_get(
         ctx: typer.Context,
+        q: Optional[str] = typer.Option(None, '--q', help='only actions whose name or domain holds these words.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean summary: each action's name, domains and whether it can be undone, without its parameter schema (GET /api/actions/registry/{name} gives one action whole)"),
     ) -> None:
         """List Registered Actions (GET /api/actions/registry)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/actions/registry"
+            params = {
+                "q": q,
+                "summary": summary,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-registered")
+    def actions_get_registered_get(
+        ctx: typer.Context,
+        name: str = typer.Argument(..., help='Name'),
+    ) -> None:
+        """Get Registered Action (GET /api/actions/registry/{name})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/actions/registry/{name}"
             params = None
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -18151,6 +18168,9 @@ def register_generated_openapi_commands(
     def workflows_list_workflows_get(
         ctx: typer.Context,
         folder_path: Optional[str] = typer.Option(None, '--folder-path', help='Folder Path.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='at most this many workflows.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='skip this many workflows first.'),
+        q: Optional[str] = typer.Option(None, '--q', help='only workflows whose name or description holds these words.'),
         summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help='Summary.'),
     ) -> None:
         """List Workflows (GET /api/workflows)."""
@@ -18158,6 +18178,9 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/workflows"
             params = {
                 "folder_path": folder_path,
+                "limit": limit,
+                "offset": offset,
+                "q": q,
                 "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
@@ -18283,22 +18306,40 @@ def register_generated_openapi_commands(
     @target_app.command("list-tools")
     def workflows_list_tools_get(
         ctx: typer.Context,
+        category: Optional[str] = typer.Option(None, '--category', help='only tools of this category.'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='at most this many tools.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='skip this many tools first.'),
+        q: Optional[str] = typer.Option(None, '--q', help='only tools whose name or description holds these words.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away), and no conversion table."),
     ) -> None:
         """List Workflow Tools (GET /api/workflows/tools)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/workflows/tools"
-            params = None
+            params = {
+                "category": category,
+                "limit": limit,
+                "offset": offset,
+                "q": q,
+                "summary": summary,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("list-tools-grouped")
     def workflows_list_tools_grouped_get(
         ctx: typer.Context,
+        limit: Optional[int] = typer.Option(None, '--limit', help='at most this many tools, over every category.'),
+        q: Optional[str] = typer.Option(None, '--q', help='only tools whose name or description holds these words.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away)"),
     ) -> None:
         """List Tools Grouped (GET /api/workflows/tools/grouped)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/workflows/tools/grouped"
-            params = None
+            params = {
+                "limit": limit,
+                "q": q,
+                "summary": summary,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

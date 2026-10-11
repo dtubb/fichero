@@ -148,9 +148,20 @@ def fichero_actions_list_recent(
 
 
 def fichero_actions_list_registered(
+    *,
+    q: Annotated[Optional[str], Field(description='only actions whose name or domain holds these words')] = None,
+    summary: Annotated[Optional[bool], Field(description="a lean summary: each action's name, domains and whether it can be undone, without its parameter schema (GET /api/actions/registry/{name} gives one action whole) An agent's default: true.")] = True,
 ) -> Any:
-    'List Registered Actions\n\nList every registered action + its param JSON schema.\n\nThis is what chat tools (#1847) and App Intents (#1837) read to build their\ntool/intent definitions from the single registry.\n\nRoute: GET /api/actions/registry (toolset `actions`; reads).'
-    return _rt.call("GET", "/api/actions/registry")
+    "List Registered Actions\n\nList every registered action + its param JSON schema.\n\nThis is what chat tools (#1847) and App Intents (#1837) read to build their\ntool/intent definitions from the single registry. ``summary`` (an agent's default) leaves the schemas out\n(`openapi.mcp.answers-fit-an-agent`).\n\nRoute: GET /api/actions/registry (toolset `actions`; reads)."
+    return _rt.call("GET", "/api/actions/registry", params={"q": q, "summary": summary})
+
+
+def fichero_actions_get_registered(
+    *,
+    name: Annotated[str, Field(description='Name')],
+) -> Any:
+    'Get Registered Action\n\nOne registered action whole, with its parameter schema; 404 for a name the registry does not have.\n\nRoute: GET /api/actions/registry/{name} (toolset `actions`; reads).'
+    return _rt.call("GET", f"/api/actions/registry/{name}")
 
 
 def fichero_actions_search(
@@ -1954,7 +1965,7 @@ def fichero_documents_list(
     file_type: Annotated[Optional[str], Field(description='Filter by file type')] = None,
     ids: Annotated[Optional[str], Field(description="Comma-separated document ids — fetch exactly these rows in one round-trip. The client's change-stream patch flush used to issue one GET per id (measured 2026-08-19: 1,001 requests in a session). Combines with the other filters.")] = None,
     include_deleted: Annotated[Optional[bool], Field(description='Include soft-deleted rows in the response')] = None,
-    limit: Annotated[Optional[int], Field(description='Max results (no limit if not specified)')] = None,
+    limit: Annotated[Optional[int], Field(description="Max results (no limit if not specified) An agent's default: 25.")] = 25,
     node_kind: Annotated[Optional[str], Field(description='Filter by node kind')] = None,
     offset: Annotated[Optional[int], Field(description='Offset for pagination')] = None,
     parent_id: Annotated[Optional[str], Field(description='Filter by parent ID')] = None,
@@ -2372,7 +2383,7 @@ def fichero_documents_get_note(
     *,
     doc_id: Annotated[str, Field(description='Doc Id')],
 ) -> Any:
-    'Get Document Note\n\nGet the user note for a document.\n\nRoute: GET /api/documents/{doc_id}/notes (toolset `documents`; reads).'
+    'Get Document Note\n\nGet the user note for a document: an empty note when it has none (an absence, not an error); 404 only for a\ndocument that is not there (`openapi.mcp.refusals-in-words`).\n\nRoute: GET /api/documents/{doc_id}/notes (toolset `documents`; reads).'
     return _rt.call("GET", f"/api/documents/{doc_id}/notes")
 
 
@@ -8584,10 +8595,13 @@ def fichero_workflow_execution_get_visualization(
 def fichero_workflows_list(
     *,
     folder_path: Annotated[Optional[str], Field(description='Folder Path')] = None,
-    summary: Annotated[Optional[bool], Field(description='Summary')] = None,
+    limit: Annotated[Optional[int], Field(description='at most this many workflows')] = None,
+    offset: Annotated[Optional[int], Field(description='skip this many workflows first')] = None,
+    q: Annotated[Optional[str], Field(description='only workflows whose name or description holds these words')] = None,
+    summary: Annotated[Optional[bool], Field(description="Summary An agent's default: true.")] = True,
 ) -> Any:
     'List Workflows\n\nList saved workflows, optionally filtered by folder.\n\nWhen ``folder_path`` is omitted, all workflows are returned regardless\nof folder. Pass an explicit value (e.g. "/Catalogue") to filter.\n\n``summary=true`` omits every workflow\'s ``nodes`` and ``edges``, leaving\n``node_count``/``edge_count`` in their place. The full list is 263 KB to\nname 50 workflows because it carries every preset\'s whole graph; a\ncaller that only draws labels — the sidebar, the run menu, a verb\ntoolbar — needs about 20 KB of it. Defaults to False so existing\ncallers are unaffected; the graph stays one GET /api/workflows/{id}\naway.\n\n#4450: a non-global library\'s list additionally includes the shipped\nDEFAULT workflows resolved from the global library (#4102) — defaults\nare app-level and must be offered in every library, while user-authored\nworkflows stay scoped to the library that created them.\n\nRoute: GET /api/workflows (toolset `workflows`; reads).'
-    return _rt.call("GET", "/api/workflows", params={"folder_path": folder_path, "summary": summary})
+    return _rt.call("GET", "/api/workflows", params={"folder_path": folder_path, "limit": limit, "offset": offset, "q": q, "summary": summary})
 
 
 def fichero_workflows_create(
@@ -8644,15 +8658,25 @@ def fichero_workflows_reorder(
 
 
 def fichero_workflows_list_tools(
+    *,
+    category: Annotated[Optional[str], Field(description='only tools of this category')] = None,
+    limit: Annotated[Optional[int], Field(description="at most this many tools An agent's default: 50.")] = 50,
+    offset: Annotated[Optional[int], Field(description='skip this many tools first')] = None,
+    q: Annotated[Optional[str], Field(description='only tools whose name or description holds these words')] = None,
+    summary: Annotated[Optional[bool], Field(description="answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away), and no conversion table An agent's default: true.")] = True,
 ) -> Any:
-    'List Workflow Tools\n\nList all available workflow tools with port definitions.\n\nRoute: GET /api/workflows/tools (toolset `workflows`; reads).'
-    return _rt.call("GET", "/api/workflows/tools")
+    "List Workflow Tools\n\nList all available workflow tools with port definitions. ``summary`` (an agent's default) lists each by name,\ncategory and one line; ``GET /api/workflows/tools/{tool_name}`` gives one tool whole.\n\nRoute: GET /api/workflows/tools (toolset `workflows`; reads)."
+    return _rt.call("GET", "/api/workflows/tools", params={"category": category, "limit": limit, "offset": offset, "q": q, "summary": summary})
 
 
 def fichero_workflows_list_tools_grouped(
+    *,
+    limit: Annotated[Optional[int], Field(description="at most this many tools, over every category An agent's default: 50.")] = 50,
+    q: Annotated[Optional[str], Field(description='only tools whose name or description holds these words')] = None,
+    summary: Annotated[Optional[bool], Field(description="answer a lean summary: each item's name, category and one-line description, no ports, schemas or prompts (the full record is one GET away) An agent's default: true.")] = True,
 ) -> Any:
-    'List Tools Grouped\n\nList tools grouped by category for the node editor sidebar.\n\nRoute: GET /api/workflows/tools/grouped (toolset `workflows`; reads).'
-    return _rt.call("GET", "/api/workflows/tools/grouped")
+    "List Tools Grouped\n\nList tools grouped by category for the node editor sidebar. ``summary`` (an agent's default) lists each tool\nby name and one line.\n\nRoute: GET /api/workflows/tools/grouped (toolset `workflows`; reads)."
+    return _rt.call("GET", "/api/workflows/tools/grouped", params={"limit": limit, "q": q, "summary": summary})
 
 
 def fichero_workflows_get_tool(
@@ -8799,6 +8823,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_actions_list_popular", "actions", "GET", "/api/actions/popular", fichero_actions_list_popular),
     GeneratedTool("fichero_actions_list_recent", "actions", "GET", "/api/actions/recent", fichero_actions_list_recent),
     GeneratedTool("fichero_actions_list_registered", "actions", "GET", "/api/actions/registry", fichero_actions_list_registered),
+    GeneratedTool("fichero_actions_get_registered", "actions", "GET", "/api/actions/registry/{name}", fichero_actions_get_registered),
     GeneratedTool("fichero_actions_search", "actions", "GET", "/api/actions/search", fichero_actions_search),
     GeneratedTool("fichero_actions_delete", "actions", "DELETE", "/api/actions/{action_id}", fichero_actions_delete),
     GeneratedTool("fichero_actions_get", "actions", "GET", "/api/actions/{action_id}", fichero_actions_get),

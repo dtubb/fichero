@@ -64,6 +64,11 @@ class Operation:
     path_param_descriptions: tuple[str, ...] = ()
     #: The route writes nothing though it is not a GET: `x-fichero-reads: true` in the contract (#5584).
     reads: bool = False
+    #: Query values an agent's tool sends unless told otherwise (`x-fichero-agent-defaults`): a lean summary where
+    #: the app reads the whole answer (`openapi.mcp.answers-fit-an-agent`).
+    agent_defaults: tuple[tuple[str, object], ...] = ()
+    #: The route's answer is bulk by nature, never trimmed for an agent (`x-fichero-bulk: true`).
+    bulk: bool = False
 
 
 def _is_event_stream(op: Operation) -> bool:
@@ -228,6 +233,8 @@ def _build_operations(openapi: dict | None = None) -> list[Operation]:
                         _param_description(declared.get(name, {})) for name in path_params
                     ),
                     reads=method.upper() == "GET" or bool(details.get("x-fichero-reads")),
+                    agent_defaults=tuple(sorted((details.get("x-fichero-agent-defaults") or {}).items())),
+                    bulk=bool(details.get("x-fichero-bulk")),
                 )
             )
     return operations

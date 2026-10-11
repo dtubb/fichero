@@ -23,9 +23,9 @@ cannot be forged through request bodies or headers.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from fichero_server.api.library_header import optional_library_path, require_library_path
@@ -173,23 +173,38 @@ async def invoke_action(
     )
 
 
-@router.get("/registry", response_model=RegisteredActionsResponse)
-async def list_registered_actions() -> RegisteredActionsResponse:
+def _action_info(reg, *, summary: bool = False) -> RegisteredActionInfo:
+    return RegisteredActionInfo(name=reg.name, undoable=reg.undoable, domains=list(reg.domains),
+                                params_schema={} if summary else reg.params_model.model_json_schema())
+
+
+@router.get("/registry", response_model=RegisteredActionsResponse,
+            openapi_extra={"x-fichero-agent-defaults": {"summary": True}})
+async def list_registered_actions(
+    summary: Annotated[bool, Query(description=(
+        "a lean summary: each action's name, domains and whether it can be undone, without its parameter schema "
+        "(GET /api/actions/registry/{name} gives one action whole)"))] = False,
+    q: Annotated[Optional[str], Query(description="only actions whose name or domain holds these words")] = None,
+) -> RegisteredActionsResponse:
     """List every registered action + its param JSON schema.
 
     This is what chat tools (#1847) and App Intents (#1837) read to build their
-    tool/intent definitions from the single registry.
+    tool/intent definitions from the single registry. ``summary`` (an agent's default) leaves the schemas out
+    (`openapi.mcp.answers-fit-an-agent`).
     """
-    items = [
-        RegisteredActionInfo(
-            name=reg.name,
-            undoable=reg.undoable,
-            domains=list(reg.domains),
-            params_schema=reg.params_model.model_json_schema(),
-        )
-        for reg in registry.all()
-    ]
+    needle = (q or "").casefold()
+    items = [_action_info(reg, summary=summary) for reg in registry.all()
+             if not needle or needle in reg.name.casefold() or any(needle in d.casefold() for d in reg.domains)]
     return RegisteredActionsResponse(items=items, count=len(items))
+
+
+@router.get("/registry/{name}", response_model=RegisteredActionInfo)
+async def get_registered_action(name: str) -> RegisteredActionInfo:
+    """One registered action whole, with its parameter schema; 404 for a name the registry does not have."""
+    reg = next((r for r in registry.all() if r.name == name), None)
+    if reg is None:
+        raise HTTPException(status_code=404, detail=f"no action named {name!r}")
+    return _action_info(reg)
 
 
 def _refresh_replay_expected_versions(params: dict, after: dict | None) -> dict:
