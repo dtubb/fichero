@@ -45,7 +45,17 @@ enum ActionUndo {
         var willCall: @MainActor () -> Void = {}
         var didCall: @MainActor () -> Void = {}
         var didRegister: @MainActor (Handle) -> Void = { _ in }
+        /// A step filed for a reversal that did not happen was taken off again.
+        var didRemove: @MainActor (Handle) -> Void = { _ in }
         var onRefusal: @MainActor (Error) -> Void = { _ in }
+    }
+
+    /// File an existing step again, as it was (the window rebuilds its stack when a project's steps end).
+    static func reschedule(
+        _ handle: Handle, actionName: String, undoManager: UndoManager, hooks: Hooks,
+        performUndo: @escaping @MainActor ([String]) async throws -> [String]
+    ) {
+        schedule(handle, actionName: actionName, undoManager: undoManager, hooks: hooks, performUndo: performUndo)
     }
 
     /// Register `auditId` for ⌘Z. `performUndo` asks the engine to invert an audit row
@@ -127,6 +137,7 @@ enum ActionUndo {
                     } catch {
                         // The reversal did not happen: the step filed for it reverses nothing.
                         undoManager.removeAllActions(withTarget: next)
+                        hooks.didRemove(next)
                         let keeps = (error as? UndoRefusal)?.keepsTheStep ?? true
                         if keeps && wasUndo {
                             // `changed` (or no answer at all): the step stays where it was.

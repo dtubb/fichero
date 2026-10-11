@@ -733,6 +733,11 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
 
         let after = try await segmentsPaneRows(root, reaching: 3)
         XCTAssertEqual(after, 3, "the new working pass's three lines, without reopening the page")
+        // The rows come from the order's own read; the store's re-read of the page is a separate call and can
+        // land a moment later on a busy machine (gate_undo2: 5.2 s), so wait for it before asking.
+        for _ in 0..<500 where segmentStore.workingPass(documentId: "doc-0001")?.id != "pass-0003" {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         XCTAssertEqual(segmentStore.workingPass(documentId: "doc-0001")?.id, "pass-0003")
     }
 

@@ -47,8 +47,30 @@ final class WindowSteps {
         LibraryManager.shared.openLibraries.first { $0.url.path == path }?.actionsService
     }
 
-    /// Each step's handle, by project, so a project's steps can end (`undo.steps-end`).
-    @ObservationIgnored private var handles: [String: NSHashTable<ActionUndo.Handle>] = [:]
+    /// What it takes to file a step again: its name, its project, its hooks and its reversal.
+    private final class Recipe {
+        let name: String
+        let project: String
+        var hooks = ActionUndo.Hooks()
+        var perform: @MainActor ([String]) async throws -> [String] = { $0 }
+        init(name: String, project: String) {
+            self.name = name
+            self.project = project
+        }
+    }
+
+    /// A step on the undo side, with its recipe.
+    private struct Filed {
+        let handle: ActionUndo.Handle
+        let recipe: Recipe
+    }
+
+    /// The steps registered in this window that have not ended, held so their hooks can file them again.
+    @ObservationIgnored private var recipes: [Recipe] = []
+    /// The undo side of the stack, bottom to top. An UndoManager cannot take one group out of the middle
+    /// (`removeAllActions(withTarget:)` leaves the group, empty and still named), so ending a project's
+    /// steps rebuilds the stack from this.
+    @ObservationIgnored private var undoSide: [Filed] = []
     /// The newest step's rows, so a commit the engine folded into the same rows is not a second step.
     @ObservationIgnored private var newestIds: [String] = []
 
@@ -82,44 +104,66 @@ final class WindowSteps {
         // `undo.typing.commit-is-one-step`: the same rows answered again are the step already on top.
         if ids == newestIds, undoManager.canUndo { return nil }
         let project = fallback.projectPath ?? ""
-        var hooks = ActionUndo.Hooks()
-        hooks.willCall = { [weak self] in self?.callStarted() }
-        hooks.didCall = { [weak self] in self?.callEnded() }
-        hooks.didRegister = { [weak self] handle in self?.remember(handle, project: project) }
-        hooks.onRefusal = { [weak self] error in self?.refusal = error.localizedDescription }
+        let recipe = Recipe(name: name, project: project)
+        recipe.hooks.willCall = { [weak self] in self?.callStarted() }
+        recipe.hooks.didCall = { [weak self] in self?.callEnded() }
+        recipe.hooks.didRegister = { [weak self, weak recipe] handle in
+            guard let self, let recipe else { return }
+            self.filed(handle, recipe: recipe)
+        }
+        recipe.hooks.didRemove = { [weak self] handle in self?.undoSide.removeAll { $0.handle === handle } }
+        recipe.hooks.onRefusal = { [weak self] error in self?.refusal = error.localizedDescription }
+        // The service it was made through is kept as the fallback: a closed project's steps were ended
+        // when it closed, so the live lookup only misses for a surface outside the open projects.
+        recipe.perform = { [weak self] rows in
+            let engine = self?.engineForProject(project) ?? fallback
+            let written = try await engine.undoSet(auditIds: rows)
+            // A surface that does not yet follow the change stream re-reads what the step changed.
+            await afterEach()
+            return written
+        }
+        recipes.append(recipe)
         let handle = ActionUndo.registerSet(
-            auditIds: ids, actionName: name, undoManager: undoManager, hooks: hooks,
-            // The service it was made through is kept as the fallback: a closed project's steps were ended
-            // when it closed, so the live lookup only misses for a surface outside the open projects.
-            performUndo: { [weak self] rows in
-                let engine = self?.engineForProject(project) ?? fallback
-                let written = try await engine.undoSet(auditIds: rows)
-                // A surface that does not yet follow the change stream re-reads what the step changed.
-                await afterEach()
-                return written
-            }
+            auditIds: ids, actionName: name, undoManager: undoManager, hooks: recipe.hooks,
+            performUndo: recipe.perform
         )
         newestIds = ids
         revision += 1
         return handle
     }
 
-    private func remember(_ handle: ActionUndo.Handle, project: String) {
-        handles[project, default: .weakObjects()].add(handle)
+    /// A step was filed. Filed while undoing, it is that undo's redo (the redo side is not rebuilt), and
+    /// the step undone has left the top of the undo side; otherwise it is on the undo side, on top.
+    private func filed(_ handle: ActionUndo.Handle, recipe: Recipe) {
+        if undoManager.isUndoing {
+            _ = undoSide.popLast()
+        } else {
+            undoSide.append(Filed(handle: handle, recipe: recipe))
+        }
     }
 
-    /// End this window's steps in one project (closed, or returned to a snapshot); the others stay.
+    /// End this window's steps in one project (closed, or returned to a snapshot); the others stay, in
+    /// their order. The redo side does not survive the rebuild.
     func endSteps(forProject path: String) {
-        for handle in handles[path]?.allObjects ?? [] { undoManager.removeAllActions(withTarget: handle) }
-        handles[path] = nil
+        let kept = undoSide.filter { $0.recipe.project != path }
+        recipes.removeAll { $0.project == path }
+        undoManager.removeAllActions()
+        undoSide = []
         newestIds = []
+        for step in kept {
+            ActionUndo.reschedule(
+                step.handle, actionName: step.recipe.name, undoManager: undoManager, hooks: step.recipe.hooks,
+                performUndo: step.recipe.perform
+            )
+        }
         revision += 1
     }
 
     /// End every step (signed out, or another person signed in).
     func endAllSteps() {
         undoManager.removeAllActions()
-        handles = [:]
+        recipes = []
+        undoSide = []
         newestIds = []
         revision += 1
     }
