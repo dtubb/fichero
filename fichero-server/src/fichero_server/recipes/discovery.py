@@ -346,6 +346,42 @@ def _server_text_cards() -> list[Card]:
     return out
 
 
+def remote_reader_cards() -> list[Card]:
+    """A reader card for each vision model at the person's remote endpoints (their cloud provider rows in Settings ›
+    AI: OpenRouter, Anthropic, Gemini, …); with no Anthropic row, a Claude card that says to add it first (#5660 item
+    7). Offered, never the rules' (the bake-off measures them, ruled 2026-10-11). Never the network: the rows as
+    kept."""
+    from fichero_server.db.app import get_app_db
+    from fichero_server.llm import LLMConfig
+    from fichero_server.llm.places import PROVIDER, place_of
+
+    out: list[Card] = []
+    try:
+        app_db = get_app_db()
+        rows = app_db.list_providers()
+    except Exception:  # noqa: BLE001 -- no app database (a bare tool run): no rows
+        rows = []
+    for row in rows:
+        ptype = row.provider_type.value
+        if not row.enabled or place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base)) != PROVIDER:
+            continue
+        for model in app_db.list_models(row.id):
+            if not model.enabled or not ("vision" in (model.capabilities or []) or ptype == "anthropic"):
+                continue
+            out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
+                            jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
+                            runs_on=f"cloud:{ptype}", note=f"{model.name or model.model_id} ({row.name})",
+                            source="remote", offered_only=True,
+                            offered_because=f"a vision model at your remote endpoint {row.name}"))
+    if not any(c.pin["cloud"] == "anthropic" for c in out):
+        out.append(Card(id="anthropic:claude@settings", pin={"cloud": "anthropic", "model": "claude"},
+                        jobs=READER_JOBS, scripts=None, languages=None, material=frozenset(),
+                        runs_on="cloud:anthropic", note="Claude (Anthropic), in the cloud", source="remote",
+                        offered_only=True, runs_here=False,
+                        cannot_run_because="not available yet: add Claude (Anthropic) in Settings › AI"))
+    return out
+
+
 def mark_installed(cards) -> list[Card]:
     """These cards, each MLX model's card saying whether its model is complete in this Mac's store
     (`Card.installed`, #5583); every other card as it is. The rules rank a model already here first."""
@@ -638,6 +674,13 @@ OCR_WORDS = frozenset({"ocr", "htr", "text-recognition", "textline_recognition",
 #: item 3: the tag listings found general VLMs, never the HTR models made for manuscripts). Each is a free-text
 #: search of model names, asked of the image-to-text listing; the first three of the vision-language one too.
 HTR_SEARCH_TERMS = ("htr", "manuscript", "handwrit", "trocr", "medieval", "paleograph", "palaeograph")
+#: The Hub tags HTR models are published under (ruled 2026-10-11, #5660: search wide every time). A name search for
+#: "htr" missed `wjbmattingly/comma-qwen-3.5-0.8b-full-33k`; its tags (htr, catmus, palaeography, …) find it and its
+#: family. Each is asked alone and with each of the project's language tags; "ocr" only with a language (alone it
+#: lists every OCR model there is).
+HTR_TAGS = ("htr", "handwritten-text-recognition", "catmus", "palaeography", "paleography", "manuscripts")
+#: How many of each tag listing are read, most downloaded first.
+HF_TAG_LIMIT = 50
 #: The project's languages as Hugging Face model names spell them ("trocr-spanish-…", "…-latin-htr").
 _LANGUAGE_WORDS = {"es": "spanish", "la": "latin", "fr": "french", "it": "italian", "de": "german", "pt": "portuguese",
                    "ca": "catalan", "nl": "dutch", "en": "english"}
@@ -714,15 +757,31 @@ def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
 
 
 def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str]) -> Card:
-    """A reader on the Hub this build cannot run (a TrOCR or other transformers model with no MLX build): listed so a
-    person sees what exists for their material, never chosen by the rules (`runs_here` False, #5660 item 3)."""
+    """A reader on the Hub this build cannot run (a TrOCR or other transformers model with no MLX build, or a GGUF
+    build): listed so a person sees what exists for their material, never chosen by the rules (`runs_here` False,
+    #5660 item 3), saying how it could run: transformers only, or GGUF."""
     from dataclasses import replace
 
     words = _words(model)
-    kind = "a TrOCR model" if "trocr" in words or "vision-encoder-decoder" in words else "a transformers model"
-    card = _hf_card(model, what, f"{kind} with no MLX build Fichero can run", wanted)
+    if _gguf_only(model):
+        kind, how = "a GGUF build", "a GGUF build: cannot run yet (this build runs MLX builds)"
+    else:
+        kind = "a TrOCR model" if "trocr" in words or "vision-encoder-decoder" in words else "a transformers model"
+        how = f"{kind}, transformers only: cannot run yet (no MLX build Fichero can run)"
+    card = _hf_card(model, what, how, wanted)
     return replace(card, id=card.id.replace("mlx:hf/", "hf:hf/"), runs_here=False,
                    cannot_run_because=f"{kind}, and this build runs MLX builds only")
+
+
+def _catalogue_repo(repo: str) -> bool:
+    """Whether Fichero's MLX catalogue fetches and runs this repository as it is (#5665: a checkpoint mlx-vlm
+    loads directly)."""
+    from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+    try:
+        return get_mlx_model_store().canonical_id(repo) is not None
+    except Exception:  # noqa: BLE001 -- no model store (a bare tool run): not known
+        return False
 
 
 def _runs_on_mlx(model: dict[str, Any]) -> bool:
@@ -767,27 +826,51 @@ async def search_hugging_face(languages: frozenset[str],
                     elif (not mlx and what is not None and not _runs_on_mlx(m) and not _gguf_only(m)
                           and "safetensors" in (m.get("tags") or [])):
                         originals.append((m, what))
-    # The HTR models made for manuscripts (TrOCR fine-tunes, VLMs trained on old hands): searched by name, with and
-    # without the project's languages in it (#5660 item 3).
+    downloads: dict[str, int] = {}
+    not_runnable: dict[str, Card] = {}
+
+    def consider(m: dict[str, Any], what: str | None) -> None:
+        """One listing found by a name or a tag: an MLX build, a repository the catalogue runs, a safetensors
+        original whose MLX conversion is looked up, or listed as one that cannot run yet (transformers, GGUF)."""
+        repo = str(m.get("modelId") or m.get("id"))
+        downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
+        if what is None or repo in found:
+            return
+        if _runs_on_mlx(m) and not _gguf_only(m):
+            found.setdefault(repo, _hf_card(m, what, "an MLX build on Hugging Face that runs on this Mac", languages))
+        elif _catalogue_repo(repo):
+            found.setdefault(repo, _hf_card(m, what, "in Fichero's MLX catalogue: downloads and runs on this Mac",
+                                            languages))
+        elif (not _gguf_only(m) and "safetensors" in (m.get("tags") or [])
+              and len(originals) < HF_CONVERSIONS_LOOKED_UP and repo not in {str(o.get("modelId") or o.get("id"))
+                                                                             for o, _ in originals}):
+            originals.append((m, what))
+            not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
+        else:
+            not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
+
+    def htr(m: dict[str, Any]) -> str | None:
+        return reads_text(m) or ("an HTR model" + (" (image-to-text)" if m.get("pipeline_tag") == "image-to-text"
+                                                   else "") if _words(m) & (OCR_WORDS | {"catmus", "palaeography",
+                                                                                         "paleography"}) else None)
+
+    # The HTR models made for manuscripts (TrOCR fine-tunes, VLMs trained on old hands): by the tags they are
+    # published under, alone and with each project language (ruled 2026-10-11), then by name (#5660 item 3).
+    langs = sorted({t.split("-")[0] for t in languages})
+    tag_asks = [[tag] for tag in HTR_TAGS] + [[lang, tag] for lang in langs for tag in (*HTR_TAGS, "ocr")]
+    asks = len(tag_asks) * len(HF_READER_TASKS)
+    for n, (tags, task) in enumerate(((t, k) for t in tag_asks for k in HF_READER_TASKS), 1):
+        progress(f"Searching Hugging Face by tag ({n} of {asks})")
+        for m in await _fetch_hf_models(task=task, tags=tags, limit=HF_TAG_LIMIT):
+            if m.get("pipeline_tag") in (None, *HF_READER_TASKS):
+                consider(m, htr(m))
     terms = list(HTR_SEARCH_TERMS) + [f"{_LANGUAGE_WORDS[t.split('-')[0]]}" for t in sorted(languages)
                                       if t.split("-")[0] in _LANGUAGE_WORDS]
     asks = [(term, "image-to-text") for term in terms] + [(term, "image-text-to-text") for term in terms[:3]]
-    not_runnable: dict[str, Card] = {}
     for n, (term, task) in enumerate(asks, 1):
         progress(f"Searching Hugging Face for HTR models ({n} of {len(asks)})")
         for m in await _fetch_hf_models(task=task, search=term, limit=HF_LIMIT):
-            repo = str(m.get("modelId") or m.get("id"))
-            what = reads_text(m) or ("an HTR model (image-to-text)" if _words(m) & OCR_WORDS else None)
-            if what is None or _gguf_only(m) or repo in found:
-                continue
-            if _runs_on_mlx(m):
-                found.setdefault(repo, _hf_card(m, what, "an MLX build on Hugging Face that runs on this Mac",
-                                                languages))
-            elif "safetensors" in (m.get("tags") or []) and len(originals) < HF_CONVERSIONS_LOOKED_UP:
-                originals.append((m, what))
-                not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
-            else:
-                not_runnable.setdefault(repo, _not_runnable_card(m, what, languages))
+            consider(m, htr(m))
     for original, what in originals[:HF_CONVERSIONS_LOOKED_UP]:
         repo = str(original.get("modelId") or original.get("id"))
         progress(f"Looking up the MLX conversion of {repo}")
@@ -797,15 +880,23 @@ async def search_hugging_face(languages: frozenset[str],
                 if _words(m) & CHAT_BUILD_WORDS:
                     left_out.add(conversion)
                     continue
+                downloads[conversion] = downloads.get(repo, 0)
                 found.setdefault(conversion, _hf_card(
                     m, what, f"the MLX conversion of {repo} (safetensors on Hugging Face), which runs on this Mac",
                     languages, _hub_tags(original)))
                 break
     converted = {str(c.offered_because).split("the MLX conversion of ", 1)[-1].split(" ", 1)[0] for c in found.values()}
     for repo, card in not_runnable.items():
-        if repo not in converted:
+        if repo not in converted and repo not in found:
             found.setdefault(f"not-runnable:{repo}", card)
-    return sorted(found.values(), key=lambda c: c.id), len(left_out - set(found))
+
+    def rank(card: Card) -> tuple:
+        # Ruled 2026-10-11: a reader that lists the project's languages first, then the most downloaded.
+        repo = str(card.pin.get("hf"))
+        matches = bool(languages and card.languages and {t.split("-")[0] for t in languages} & set(card.languages))
+        return (not matches, -downloads.get(repo, 0), card.id)
+
+    return sorted(found.values(), key=rank), len(left_out - set(found))
 
 
 def _hub_file() -> dict[str, Any]:
@@ -1001,7 +1092,16 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     if search is not None:
         _say_search(search, repo_source, hub_source)
     sources += [repo_source, hub_source]
-    return [*shipped, *installed, *repo_cards, *hf_cards], sources
+    remote: list[Card] = []
+    if job in READER_JOBS:
+        # The person's remote endpoints are searched every time, beside Kraken's repository and the Hub (ruled
+        # 2026-10-11): not a fallback.
+        remote = remote_reader_cards()
+        here = [c for c in remote if c.runs_here]
+        sources.append({"source": "remote-endpoints", "state": "read", "count": len(here),
+                        "detail": (f"{len(here)} at your remote endpoints" if here
+                                   else "No remote endpoint with a vision model is set up")})
+    return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
 
 
 def _left_out_words(left_out: int) -> str:

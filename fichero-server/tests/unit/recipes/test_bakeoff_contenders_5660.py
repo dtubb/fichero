@@ -56,11 +56,14 @@ def claude_row(app_db):
     return row
 
 
-def test_one_of_each_kind_takes_part_beside_the_rules_three(app_db, apple_here):
+def test_each_kind_takes_part_two_at_most_and_no_fixed_ranking(app_db, apple_here):
+    """Ruled 2026-10-11: the bake-off decides, not the rules' top three; at most two of each kind take part."""
     named = _named()
-    assert [c["card"] for c in named.values() if c["role"] == "rule rank"] == [PPOCR, MEDIEVAL, MCCATMUS]
-    contenders = {c["card"]: c for c in named.values() if c["role"] == "contender"}
-    assert set(contenders) == {APPLE, SEVEN, "anthropic:claude@settings"}
+    assert all(c["role"] == "contender" and c["rule_rank"] is None for c in named.values())
+    assert [c for c in named if c.startswith("kraken:")] == [PPOCR, MEDIEVAL]  # not McCATMuS: two of a kind
+    contenders = named
+    assert {APPLE, SEVEN, "anthropic:claude@settings"} <= set(contenders)
+    assert len([c for c in named if c.startswith("mlx:")]) <= 2
     assert contenders[APPLE]["not_scored"] is None  # Apple Vision reads here
     assert contenders[APPLE]["provider"] == "apple" and contenders[APPLE]["model"] == "apple-vision"
     assert contenders[SEVEN]["not_scored"] == "not on this Mac: download it to score it"

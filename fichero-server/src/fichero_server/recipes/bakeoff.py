@@ -50,8 +50,6 @@ STEP = "read-a-line"
 #: How much ground truth a fair bake-off needs (`source.onboard.bakeoff-minimum`).
 MIN_LINES = 100
 MIN_PAGES = 2
-#: How many readers by rule rank take part (`source.try.bakeoff-is-the-same-tool`: the top three per step).
-TOP = 3
 #: Candidates within this much CER of the best are tied on accuracy (one point).
 BAND = 0.01
 #: The materials Tesseract reads; it is never proposed for handwriting.
@@ -136,13 +134,14 @@ def _name_of(card_id: str) -> str:
 
 
 def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int,
-               remote_allowed: bool = False) -> dict[str, Any]:
+               remote_allowed: bool = False, sample_pages: int = 0) -> dict[str, Any]:
     reader, model, provider = _reader_of(card)
     return {
         "card": card.id, "name": reader_name(card), "pin": dict(card.pin), "role": role, "rule_rank": rule_rank,
         "reader": reader, "model": model, "provider": provider, "runs_on": card.runs_on, "local": card.local,
         "not_scored": _not_scored_because(card, reader, model, provider, remote_allowed),
         "cost_usd": _cost(card, provider, model, volume),
+        "run_cost_usd": _cost(card, provider, model, sample_pages),
         "carbon_g_per_page": card.carbon_g_per_page, "trainable": card.trainable, "size_gb": card.size_gb,
         "material": sorted(card.material),
     }
@@ -173,72 +172,76 @@ def _family(card: Card) -> str | None:
 
 
 def cloud_readers() -> list[Card]:
-    """A card for each vision model of the person's cloud provider rows (Settings › AI); with none, a Claude card
-    that says to add it first (#5660 item 7). Never the network: the rows as kept."""
-    from fichero_server.db.app import get_app_db
-    from fichero_server.llm import LLMConfig
-    from fichero_server.llm.places import PROVIDER, place_of
+    """The readers at the person's remote endpoints (`discovery.remote_reader_cards`, one list for the finder and the
+    bake-off)."""
+    from fichero_server.recipes.discovery import remote_reader_cards
 
-    out: list[Card] = []
-    try:
-        app_db = get_app_db()
-        rows = app_db.list_providers()
-    except Exception:  # noqa: BLE001 -- no app database (a bare tool run): no rows
-        rows = []
-    for row in rows:
-        ptype = row.provider_type.value
-        if not row.enabled or place_of(LLMConfig(provider=ptype, model="", api_base=row.api_base)) != PROVIDER:
-            continue
-        for model in app_db.list_models(row.id):
-            if not model.enabled or not ("vision" in (model.capabilities or []) or ptype == "anthropic"):
-                continue
-            out.append(Card(id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
-                            jobs=frozenset({STEP}), scripts=None, languages=None, material=frozenset(),
-                            runs_on=f"cloud:{ptype}", note=f"{model.name or model.model_id} ({row.name})",
-                            source="installed", offered_because="a cloud model from your provider settings"))
-    if not any(c.pin["cloud"] == "anthropic" for c in out):
-        out.append(Card(id="anthropic:claude@settings", pin={"cloud": "anthropic", "model": "claude"},
-                        jobs=frozenset({STEP}), scripts=None, languages=None, material=frozenset(),
-                        runs_on="cloud:anthropic", note="Claude (Anthropic), in the cloud", source="installed",
-                        runs_here=False, cannot_run_because="not available yet: add Claude (Anthropic) in Settings › AI"))
-    return out
+    return remote_reader_cards()
 
 
-def candidates(a: Answers, cards: list[Card], *, volume: int) -> list[dict[str, Any]]:
-    """The readers that take part: the rules' top three, then one of each kind not among them (`FAMILIES`: Kraken,
-    Apple Vision, an MLX vision model, a cloud reader), then the Tesseract baseline where it belongs. A kind with no
-    model that can read here is listed with why (not available yet, not on this Mac, the pages stay here)."""
+#: At most this many readers of each kind take part, so a run stays affordable (ruled 2026-10-11).
+PER_KIND = 2
+
+
+def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int = 0) -> list[dict[str, Any]]:
+    """The readers that take part (ruled 2026-10-11: no fixed ranking decides; the bake-off does): from everything the
+    finder found (the shipped cards, the models here, Kraken's repository, Hugging Face, and the remote endpoints the
+    person has set up), at most `PER_KIND` of each kind (`FAMILIES`: Kraken, Apple Vision, an MLX vision model, a
+    cloud reader), then the Tesseract baseline where it belongs. Within a kind the rules' order only chooses which
+    take part; the winner is the one measured best. A kind with no model that reads here is listed once, with why
+    (not available yet, not on this Mac, the pages stay here). A language with no Kraken reader still has its
+    Hugging Face and remote readers. `sample_pages`: each candidate's `run_cost_usd` is what it costs to read the
+    sample, said before the bake-off starts."""
     material = a.material
     remote = bool(a.cloud_allowed)
-    kept = [c for c in cards if c.runs_here and _refusal(STEP, c, a, material) is None]
-    ranked = sorted(kept, key=lambda c: _rank_key(c, material, a))[:TOP]
-    out = [_candidate(c, rule_rank=i, role="rule rank", volume=volume, remote_allowed=remote)
-           for i, c in enumerate(ranked, 1)]
-    have = {_family(c) for c in ranked}
 
     def fits(card: Card) -> bool:
         # Its script and language, whatever job its card names: a page reader reads the lines' pictures too.
         refused = _refusal(STEP, replace(card, jobs=frozenset({STEP})), a, material)
         return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted")
 
-    pool = [*cards, *cloud_readers()]
+    pool = list({c.id: c for c in [*cards, *cloud_readers()]}.values())
+    out, named = [], set()
     for family in FAMILIES:
-        if family in have:
-            continue
-        options = [c for c in pool if _family(c) == family and fits(c)]
-        if not options:
-            continue
-        best = sorted(options, key=lambda c: (not c.runs_here, not c.open_licence, _rank_key(c, material, a)))[0]
-        out.append(_candidate(best, rule_rank=None, role="contender", volume=volume, remote_allowed=remote))
+        # Those that can be scored here first (downloaded, allowed to leave), so the places go to readers that will
+        # be measured; then an open licence; then the rules' order, which only chooses who takes part.
+        options = sorted((c for c in pool if _family(c) == family and fits(c)),
+                         key=lambda c: (not c.runs_here, _not_scored_because(c, *_reader_of(c), remote) is not None,
+                                        not c.open_licence, _rank_key(c, material, a)))
+        taking = [c for c in options if c.runs_here][:PER_KIND] or options[:1]
+        for card in taking:
+            out.append(_candidate(card, rule_rank=None, role="contender", volume=volume, remote_allowed=remote,
+                                  sample_pages=sample_pages))
+            named.add(card.id)
     print_like = [m for m in a.materials if m in TESSERACT_MATERIALS]
     if print_like:
-        named = {c.id for c in ranked}
         for card in cards:
             if ("tesseract" in card.pin and STEP in card.jobs and card.id not in named
                     and _tesseract_has_the_language(card, a)
                     and any(_refusal(STEP, card, a, m) is None for m in print_like)):
-                out.append(_candidate(card, rule_rank=None, role="baseline for print", volume=volume))
+                out.append(_candidate(card, rule_rank=None, role="baseline for print", volume=volume,
+                                      sample_pages=sample_pages))
     return out
+
+
+def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int) -> dict[str, Any]:
+    """Who would take part in a bake-off started now, and what it would cost, before anything is pressed (ruled
+    2026-10-11): each candidate with its cost on the sample pages, the total of those that would be scored, and the
+    sentence that says it."""
+    pages, _ = ground_truth(db, None)
+    chosen = candidates(a, cards, volume=volume, sample_pages=len(pages))
+    scored = [c for c in chosen if c["not_scored"] is None]
+    paid = [c for c in scored if not c["local"]]
+    total = sum(c["run_cost_usd"]["value"] or 0.0 for c in paid)
+    unknown = any(c["run_cost_usd"]["value"] is None for c in paid)
+    if not paid:
+        sentence = f"Every reader compared runs on this Mac: the comparison costs nothing ({len(scored)} readers)."
+    else:
+        sentence = (f"The comparison costs {'at least ' if unknown else 'about '}${total:.2f}: {len(paid)} cloud "
+                    f"reader{'s' if len(paid) != 1 else ''} on {len(pages)} page{'s' if len(pages) != 1 else ''}; "
+                    f"the other {len(scored) - len(paid)} run on this Mac, free.")
+    return {"candidates": chosen, "pages": len(pages), "run_cost_usd": round(total, 4), "cost_known": not unknown,
+            "sentence": sentence}
 
 
 # --- the ground truth ----------------------------------------------------------------------------------
@@ -335,7 +338,7 @@ def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: li
     ready = readiness(pages, unmarked_import_pages(db))
     if not ready["ready"]:
         raise BakeoffRefused(ready["sentence"])
-    chosen = candidates(a, cards, volume=volume)
+    chosen = candidates(a, cards, volume=volume, sample_pages=len(pages))
     scored = [c for c in chosen if c["not_scored"] is None]
     if not scored:
         # Each reader by its card's name, never its id (section 7b).

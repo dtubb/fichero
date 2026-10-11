@@ -75,8 +75,13 @@ def no_apple_vision(monkeypatch):
 
 
 def _by_rule(rows):
-    """The rules' top three, in the table's order (the contenders beside them are #5660's tests)."""
-    return [r for r in rows if r["role"] == "rule rank"]
+    """The Kraken readers taking part, in the table's order (ruled 2026-10-11: at most two of each kind, from what
+    the finder found, no fixed ranking; the other kinds are #5660's tests)."""
+    return [r for r in rows if str(r["card"]).startswith("kraken:")]
+
+
+#: The two Kraken readers that take part when all three are on this Mac: the rules' order only chooses who.
+TAKING_PART = (PPOCR, MEDIEVAL)
 
 
 @pytest.fixture
@@ -184,8 +189,8 @@ def test_tesseract_joins_for_print_and_never_for_handwriting():
     assert TESSERACT not in named(languages=frozenset({"es"}), materials=("handwriting",))
     assert TESSERACT not in named(languages=frozenset({"fr"}), materials=("print",))  # no French data
     readers_by_rank = _by_rule(named(languages=frozenset({"es"}), materials=("handwriting",)).values())
-    assert [c["card"] for c in readers_by_rank] == [PPOCR, MEDIEVAL, MCCATMUS]
-    assert [c["rule_rank"] for c in readers_by_rank] == [1, 2, 3]
+    assert [c["card"] for c in readers_by_rank] == [PPOCR, MEDIEVAL]  # at most two of a kind
+    assert all(c["rule_rank"] is None and c["role"] == "contender" for c in readers_by_rank)
 
 
 def test_every_candidate_is_scored_by_the_one_cer_on_the_same_pages(client, db, tmp_path, folder, readers,
@@ -214,11 +219,12 @@ def test_every_candidate_is_scored_by_the_one_cer_on_the_same_pages(client, db, 
                                    for r in _by_rule(started["rows"]))
     assert [p["document_id"] for p in done["pages"]] == [p.id for p in pages]
     photos = sorted(p.path for p in pages)
-    for card in READER_IDS:
+    for card in TAKING_PART:
         assert sorted(readers.read[readers.paths[card]]) == photos
-    assert len(calls) == 3 * 3 * len(transcription_accuracy.POLICIES)  # 3 readers x 3 pages
+    assert readers.paths[MCCATMUS] not in readers.read  # a third of the kind does not take part
+    assert len(calls) == 2 * 3 * len(transcription_accuracy.POLICIES)  # 2 readers x 3 pages
     rows = {r["card"]: r for r in done["rows"] if r["measured"]}
-    assert set(rows) == set(READER_IDS)
+    assert set(rows) == set(TAKING_PART)
     for card, row in rows.items():
         assert {p["document_id"] for p in row["per_page"]} == {p.id for p in pages}
         assert set(row["scores"]) == set(transcription_accuracy.POLICIES)
@@ -238,10 +244,10 @@ def test_the_table_is_ranked_by_the_fixed_order(client, db, tmp_path, folder, re
     for i in (1, 2, 3):
         _corrected(db, tmp_path, f"SM_NPQ_C01_00{i}", folder)
     _, done = _run(client, db)
-    assert [r["card"] for r in done["rows"]][:3] == [PPOCR, MEDIEVAL, MCCATMUS]  # measured before the rest
-    assert [r["rank"] for r in done["rows"]][:3] == [1, 2, 3] and done["winner"] == PPOCR
-    cers = [r["cer"] for r in done["rows"]][:3]
-    assert cers[0] == 0.0 < cers[1] < cers[2]
+    assert [r["card"] for r in done["rows"]][:2] == [PPOCR, MEDIEVAL]  # measured before the rest
+    assert [r["rank"] for r in done["rows"]][:2] == [1, 2] and done["winner"] == PPOCR
+    cers = [r["cer"] for r in done["rows"]][:2]
+    assert cers[0] == 0.0 < cers[1]
 
     def row(card, cer, *, runs_on="this-mac", cost=0.0, pph=None, size=0.1):
         return {"card": card, "pin": {}, "material": ["handwriting"], "runs_on": runs_on, "cer": cer,
@@ -272,12 +278,12 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     started, done = _run(client, db)
     url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
 
-    for_folder = client.post(url, json={"card": MCCATMUS, "scope": "folder", "folder_id": folder.id})
+    for_folder = client.post(url, json={"card": MEDIEVAL, "scope": "folder", "folder_id": folder.id})
     assert for_folder.status_code == 200, for_folder.text
     saved = for_folder.json()["recipe"]
     (o,) = saved["overrides"]
-    assert (o["step"], o["scope"], o["folder_id"], o["card"]) == (step["id"], "folder", folder.id, MCCATMUS)
-    assert o["model"] == {"zenodo": "10.5281/zenodo.13788177"} and o["from_bakeoff"] == started["id"]
+    assert (o["step"], o["scope"], o["folder_id"], o["card"]) == (step["id"], "folder", folder.id, MEDIEVAL)
+    assert o["model"] == {"zenodo": "10.5281/zenodo.12743230"} and o["from_bakeoff"] == started["id"]
     assert next(s for s in saved["steps"] if s["id"] == step["id"])["model"] == step["model"]  # project unchanged
 
     for_project = client.post(url, json={"card": PPOCR, "scope": "project"})
@@ -286,7 +292,7 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     read = next(s for s in saved["steps"] if s["id"] == step["id"])
     assert read["model"] == {"zenodo": "10.5281/zenodo.21788410"} and read["card"]["id"] == PPOCR
     assert read["card"]["cer_measured_here"] == 0.0 and "bake-off" in read["reasons"][0]
-    assert [(o["scope"], o["card"]) for o in saved["overrides"]] == [("folder", MCCATMUS), ("project", PPOCR)]
+    assert [(o["scope"], o["card"]) for o in saved["overrides"]] == [("folder", MEDIEVAL), ("project", PPOCR)]
 
     audits = [a for a in db.query(ActionAudit) if a.action_name == "project.save_setup"]
     assert len(audits) == 3  # setup's save, then the two choices
@@ -345,7 +351,7 @@ def test_a_row_names_its_reader_by_the_cards_own_name(client, db, tmp_path, fold
             if row["card"] in cards:
                 assert row["name"] == bakeoff.reader_name(cards[row["card"]])
     names = {r["card"]: r["name"] for r in done["rows"]}
-    assert names[MCCATMUS].startswith("McCATMuS") and names[MEDIEVAL].startswith("CATMuS Medieval")
+    assert names[PPOCR].startswith("PP-OCRv6") and names[MEDIEVAL].startswith("CATMuS Medieval")
     # One source: the field the recipe's reading step shows for its model (the card's note).
     recipe = client.get("/api/recipes/project").json()["recipe"]
     (step,) = [s for s in recipe["steps"] if s["job"] == "read-a-line"]
@@ -366,7 +372,7 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     started, _ = _run(client, db)
     url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
     assert client.post(url, json={"card": MEDIEVAL, "scope": "project"}).status_code == 200  # not the rules' first
-    assert client.post(url, json={"card": MCCATMUS, "scope": "folder", "folder_id": folder.id}).status_code == 200
+    assert client.post(url, json={"card": PPOCR, "scope": "folder", "folder_id": folder.id}).status_code == 200
 
     again = client.post("/api/recipes/assemble", json=answers)
     assert again.status_code == 200, again.text
@@ -374,13 +380,13 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     (step,) = [s for s in proposed["steps"] if s["job"] == "read-a-line"]
     assert step["card"]["id"] == MEDIEVAL and step["model"] == {"zenodo": "10.5281/zenodo.12743230"}
     assert "bake-off" in step["reasons"][0] and step["card"]["cer_measured_here"] is not None
-    assert [(o["scope"], o["card"]) for o in proposed["overrides"]] == [("project", MEDIEVAL), ("folder", MCCATMUS)]
+    assert [(o["scope"], o["card"]) for o in proposed["overrides"]] == [("project", MEDIEVAL), ("folder", PPOCR)]
     # Saved again as proposed, the choice and both overrides survive.
     saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": proposed})
     assert saved.status_code == 200, saved.text
     kept = saved.json()["recipe"]
     assert next(s for s in kept["steps"] if s["job"] == "read-a-line")["card"]["id"] == MEDIEVAL
-    assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL), ("folder", MCCATMUS)]
+    assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL), ("folder", PPOCR)]
 
 
 def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db, tmp_path, folder):
@@ -423,6 +429,6 @@ def test_no_card_id_in_a_refusal(client, db, tmp_path, folder):
     said = refused.json()["detail"]
     cards = {c.id: c for c in all_seed_cards()}
     assert not [cid for cid in cards if cid in said] and "zenodo" not in said
-    for card in (PPOCR, MEDIEVAL, MCCATMUS):
+    for card in TAKING_PART:
         assert bakeoff.reader_name(cards[card]) in said
     assert "not on this Mac" in said and _evaluation_jobs(db) == 0

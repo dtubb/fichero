@@ -189,6 +189,23 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         capabilities=("text", "vision"),
         note="Purpose-built OCR that emits structured markdown (tables, checkboxes, LaTeX). Untested here.",
     ),
+    # A 0.8B Qwen 3.5 vision model fine-tuned to read medieval Latin hands the CATMuS way (#5665, the
+    # maintainer's ask 2026-10-11). No MLX build is published: the Hugging Face checkpoint itself (bf16
+    # safetensors, `qwen3_5`, one 1.7 GB file) is what is fetched, and mlx-vlm (0.6.17, bundled) loads that
+    # architecture from it, converting the weights' names as it loads. If it turns out not to load, the fix is
+    # `mlx_vlm.convert` once (`training/mlx_landing.convert_for_mlx`), not another model.
+    "comma-qwen-3.5-0.8b": ManagedModelSpec(
+        model_id="comma-qwen-3.5-0.8b",
+        repo_id="wjbmattingly/comma-qwen-3.5-0.8b-full-33k",
+        revision="320c52dda3ba17c3a06aa1dc76ad44a36bf8a5ae",
+        display_name="COMMA Qwen 3.5 0.8B (medieval Latin, CATMuS)",
+        download_size_bytes=1_726_019_853,
+        min_memory_bytes=4 * 1024**3,
+        memory_class="needs 4 GB unified memory",
+        capabilities=("text", "vision"),
+        note="Reads medieval Latin manuscript pages line by line, graphemically (CATMuS): CER 12.4% (NFD) on 243 "
+             "held-out hands, per its card. Apache-2.0. Not yet run inside Fichero -- untested here.",
+    ),
     # --- Text ---------------------------------------------------------------
     "Qwen3-4B-Instruct": ManagedModelSpec(
         model_id="Qwen3-4B-Instruct",

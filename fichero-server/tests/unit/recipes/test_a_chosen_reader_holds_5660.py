@@ -50,7 +50,8 @@ def test_a_chosen_reader_holds_through_every_read_of_set_up(client, db, pages, m
     recipe = _assemble_and_save(client, ANSWERS)
     step = _reader(recipe)
     default = _card(step)
-    other = next(c for c in _candidates(client) if c["rule_rank"] and c["id"] != default)
+    other = next(c for c in _candidates(client) if c["rule_rank"] and c["id"] != default
+                 and c["id"].startswith("kraken:"))  # another Kraken reader: the run reads with it by name
 
     used = client.post("/api/recipes/project/steps/use-candidate", json={"step": step["id"], "card": other["id"]})
     assert used.status_code == 200, used.text

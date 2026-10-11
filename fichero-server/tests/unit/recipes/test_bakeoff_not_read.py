@@ -86,7 +86,7 @@ def test_a_reader_that_returned_nothing_is_not_read_never_100_percent_and_never_
     winner. An empty page measures the reader's failure, not its reading; it must not be a score and must
     never rank a reader that read nothing above two that read the pages."""
     _set_up(client)
-    _install(tmp_path, monkeypatch, {PPOCR: "empty", MEDIEVAL: "read", MCCATMUS: "read"})
+    _install(tmp_path, monkeypatch, {PPOCR: "empty", MEDIEVAL: "read"})  # two of a kind take part (ruled 2026-10-11)
     _pages(db, tmp_path, folder)
 
     _, done = _run(client, db)
@@ -97,7 +97,8 @@ def test_a_reader_that_returned_nothing_is_not_read_never_100_percent_and_never_
     assert (empty["pages_read"], empty["pages_total"]) == (0, PAGES)
     assert empty["why"] == f"not measured: read 0 of {PAGES} pages (returned no text on {PAGES} pages)"
     assert all(p["read"] is False and p["cer"] is None and p["why"] == "returned no text" for p in empty["per_page"])
-    assert done["winner"] == MCCATMUS and done["no_winner_why"] is None  # reads every line right, of the two
+    # The one that read nothing never wins: the only reader measured is no comparison either, and the table says so.
+    assert done["winner"] is None and done["no_winner_why"].startswith("No winner: only one reader could be compared")
     order = [r["card"] for r in done["rows"]]
     assert all(order.index(PPOCR) > order.index(r["card"]) for r in done["rows"] if r["measured"])  # after every measured reader
     # The card's own entry carries the same judgement: no 100% written as the reader's score.
@@ -113,7 +114,7 @@ def test_a_reader_below_the_page_share_is_not_measured_and_cannot_be_used(
     that is a different sample, not comparable with a reader that read them all, and choosing it from the
     table would put a reader that failed most pages into the recipe."""
     _set_up(client)
-    fake = _install(tmp_path, monkeypatch, {PPOCR: "read", MEDIEVAL: "empty_on", MCCATMUS: "read"})
+    fake = _install(tmp_path, monkeypatch, {PPOCR: "read", MEDIEVAL: "empty_on"})
     pages = _pages(db, tmp_path, folder)
     fake.empty_on = {p.path for p in pages[:2]}  # CATMuS Medieval reads 3 of 5: under 80%
 
@@ -123,7 +124,7 @@ def test_a_reader_below_the_page_share_is_not_measured_and_cannot_be_used(
     assert short["measured"] is False and short["cer"] is None and short["pages_read"] == 3
     assert short["why"] == "not measured: read 3 of 5 pages (returned no text on 2 pages)"
     assert sum(not p["read"] for p in short["per_page"]) == 2
-    assert done["winner"] in (PPOCR, MCCATMUS)  # both read every line right: tied, split by the fixed order
+    assert done["winner"] is None  # the only measured reader: no comparison, so no crown
     use =client.post(f"/api/recipes/project/bakeoffs/{started['id']}/use", json={"card": MEDIEVAL})
     assert use.status_code == 422 and "not measured" in use.json()["detail"]
 
@@ -163,13 +164,13 @@ def test_no_reader_read_the_pages_says_so(client, db, tmp_path, folder, monkeypa
     WHY: when every reader returned nothing (a script none of them reads, or a failing engine), the table
     must not rank the failures; it says nothing was read, so the person knows to look at the readers."""
     _set_up(client)
-    _install(tmp_path, monkeypatch, {PPOCR: "empty", MEDIEVAL: "empty", MCCATMUS: "trickle"})
+    _install(tmp_path, monkeypatch, {PPOCR: "empty", MEDIEVAL: "trickle"})
     _pages(db, tmp_path, folder)
 
     _, done = _run(client, db)
 
     assert done["winner"] is None and done["no_winner_why"] == "No winner: no reader read these pages."
-    trickle = _rows(done)[MCCATMUS]
+    trickle = _rows(done)[MEDIEVAL]
     assert trickle["measured"] is False
     (page_why,) = {p["why"] for p in trickle["per_page"]}
     assert page_why.startswith("returned 2 characters against ") and page_why.endswith(" in the reference")
@@ -181,17 +182,17 @@ def test_the_readers_own_reason_surfaces(client, db, tmp_path, folder, monkeypat
     lines) says where to look. An error on a page is the page's reason, not the job's failure: the other
     readers' scores are kept."""
     _set_up(client)
-    _install(tmp_path, monkeypatch, {PPOCR: "raise", MEDIEVAL: "read", MCCATMUS: "read"})
+    _install(tmp_path, monkeypatch, {PPOCR: "raise", MEDIEVAL: "read"})
     _pages(db, tmp_path, folder)
 
     _, done = _run(client, db)
 
-    assert _rows(done)[MEDIEVAL]["measured"] and _rows(done)[MCCATMUS]["measured"]  # the job carried on
+    assert _rows(done)[MEDIEVAL]["measured"]  # the job carried on
     failed = _rows(done)[PPOCR]
     reason = "failed: Kraken could not read the lines: no codec for this script"
     assert {p["why"] for p in failed["per_page"]} == {reason}
     assert failed["why"] == f"not measured: read 0 of {PAGES} pages ({reason} on {PAGES} pages)"
-    assert done["winner"] == MCCATMUS
+    assert done["winner"] is None  # one reader measured: no comparison
 
 
 def test_kraken_names_lines_with_no_geometry_and_a_vision_model_its_empty_answers(monkeypatch, tmp_path):

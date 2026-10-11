@@ -614,7 +614,7 @@ async def check(request: CheckRequest) -> CheckResponse:
 # Finding models beyond the shipped cards (#5519): the candidates the rules see, and where they came from.
 # =============================================================================
 
-CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face"]
+CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face", "remote", "remote-endpoints"]
 
 
 class CandidateSource(BaseModel):
@@ -1636,8 +1636,9 @@ class BakeoffRow(BaseModel):
     name: str = Field(default="", description="the reader by its card's own name (the card's note, as a recipe step "
                       "names its model): what the table shows, never the card id")
     role: Literal["rule rank", "baseline for print", "contender"] = Field(description=(
-        "why it takes part: the rules' top three, the print baseline, or one of each kind of reader or line finder "
-        "beside them (Kraken, Apple Vision, an MLX vision model, a cloud reader; #5660 item 7)"))
+        "why it takes part: a contender of its kind (at most two of each: Kraken, Apple Vision, an MLX vision model, a "
+        "cloud reader; ruled 2026-10-11, no fixed ranking), or the print baseline. 'rule rank' only in a bake-off "
+        "kept from before"))
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules before measurement")
     reader: Optional[Literal["kraken", "vision", "tesseract"]] = None
     model: Optional[str] = Field(default=None, description="the model id the evaluation reads with")
@@ -1700,9 +1701,35 @@ class BakeoffReadiness(BaseModel):
     sentence: Optional[str] = Field(default=None, description="when not ready, what to correct, in words")
 
 
+class BakeoffContender(BaseModel):
+    """A reader that would take part in a bake-off started now, and what reading the sample would cost."""
+
+    card: str
+    name: str = ""
+    role: str
+    runs_on: str
+    local: bool
+    not_scored: Optional[str] = Field(default=None, description="why it would be listed but not scored")
+    run_cost_usd: Figure = Field(description="reading the sample pages: nothing on this Mac, the price list in the "
+                                 "cloud")
+
+
+class BakeoffNextRun(BaseModel):
+    """Who would take part in a bake-off started now and what it would cost, said before it starts (ruled
+    2026-10-11): at most two readers of each kind, from what the finder found."""
+
+    candidates: list[BakeoffContender]
+    pages: int = Field(description="the sample pages it would read")
+    run_cost_usd: float = Field(description="the cloud readers' cost on the sample; 0 when every reader is local")
+    cost_known: bool = Field(description="false when a cloud reader's price is not known: the total is a lower bound")
+    sentence: str
+
+
 class BakeoffList(BaseModel):
     items: list[BakeoffResult]
     readiness: BakeoffReadiness
+    next_run: Optional[BakeoffNextRun] = Field(default=None, description=(
+        "who would take part in a bake-off started now and what it would cost; null before setup"))
 
 
 class BakeoffUseRequest(BaseModel):
@@ -1724,9 +1751,11 @@ async def start_bakeoff(
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> BakeoffResult:
-    """Compare the readers on the project's corrected sample pages: the top three by rule rank, one of each kind
-    beside them (Kraken, Apple Vision, an MLX vision model, a cloud reader where a provider is set up and pages may
-    leave; a kind that cannot read here is listed with why), and Tesseract for print when it has the language,
+    """Compare the readers on the project's corrected sample pages: at most two of each kind from what the finder
+    found (Kraken, Apple Vision, an MLX vision model from this Mac or Hugging Face, a cloud reader at the person's
+    remote endpoints where pages may leave; ruled 2026-10-11, no fixed ranking: the measured best wins; a kind that
+    cannot read here is listed with why; `GET` says who and the cost first), and Tesseract for print when it has the
+    language,
     each scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With
     `step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a
     `compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages
@@ -1761,11 +1790,20 @@ async def start_bakeoff(
 async def list_bakeoffs(db: Database = Depends(get_library_database)) -> BakeoffList:
     """Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),
     and whether the project has enough corrected lines to run one now (`readiness`, counted as a start is)."""
+    from fichero_server.recipes.start import count_pages
+
     bakeoff, library = _bakeoff(), _library(db)
     pages, _ = bakeoff.ground_truth(db, None)
+    answers = read_project_setup(library)["answers"]
+    next_run = None
+    if answers:
+        a = _answers(answers)
+        next_run = BakeoffNextRun(**bakeoff.next_run(db, a, known_cards(a, include_not_built=True),
+                                                    volume=a.pages or count_pages(db)))
     return BakeoffList(items=[BakeoffResult(**bakeoff.result(db, library, r["id"]))
                               for r in bakeoff.list_records(library)],
-                       readiness=BakeoffReadiness(**bakeoff.readiness(pages, bakeoff.unmarked_import_pages(db))))
+                       readiness=BakeoffReadiness(**bakeoff.readiness(pages, bakeoff.unmarked_import_pages(db))),
+                       next_run=next_run)
 
 
 @router.get("/project/bakeoffs/{bakeoff_id}", response_model=BakeoffResult, response_model_by_alias=True)

@@ -48,6 +48,18 @@ cards:
     memory_gb: 1.0
     trainable: true
     note: CATMuS Medieval, medieval manuscripts (French, Latin, Spanish).
+  - id: mlx:hf/wjbmattingly/comma-qwen-3.5-0.8b-full-33k@320c52d
+    pin: {hf: wjbmattingly/comma-qwen-3.5-0.8b-full-33k, revision: 320c52dda3ba17c3a06aa1dc76ad44a36bf8a5ae}
+    jobs: [read-a-page, read-a-line]
+    scripts: [Latn]
+    languages: [la]
+    material: [handwriting]
+    licence: Apache-2.0
+    size_gb: 1.7
+    memory_gb: 3.0
+    trainable: true
+    cer_published: 0.124       # NFD, 243 held-out pages each a different hand, per its card (CATMuS, graphemic)
+    note: COMMA Qwen 3.5 0.8B, medieval Latin manuscripts read the CATMuS way (graphemic).
   - id: kraken:zenodo/10.5281/zenodo.21788410@unpinned
     pin: {zenodo: 10.5281/zenodo.21788410}
     jobs: [read-a-line, tie-text-to-lines]
