@@ -73,8 +73,10 @@ def test_a_language_the_model_does_not_know_is_never_corrected_into_another():
     recipe = assemble(cherokee, CARDS)
     steps = {s["job"]: s for s in recipe["steps"]}
     assert "gap" in steps["read-a-line"]                     # nothing reads the syllabary locally
-    assert "gap" in steps["correct"]                          # Qwen lacks chr; cloud not allowed
-    assert any("cloud" in g for g in recipe["gaps"])
+    # Qwen lacks chr and the cloud is not allowed: Correct is off, saying so (#5677).
+    assert "correct" not in steps
+    (off,) = [o["sentence"] for o in recipe["left_off"] if o["job"] == "correct"]
+    assert "cloud" in off
 
 
 def test_the_cloud_is_used_only_when_allowed_and_nothing_local_fits():

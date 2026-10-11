@@ -14,7 +14,8 @@ from urllib.parse import quote
 import yaml
 from fastapi.testclient import TestClient
 
-TRANSCRIBE = ["find-lines", "read-a-line", "correct"]
+# Correct is off unless a corrector is on this Mac or asked for (#5677); a test's model store starts empty.
+TRANSCRIBE = ["find-lines", "read-a-line"]
 
 
 def _assemble(client, **answers):
@@ -194,8 +195,8 @@ def test_a_language_refusal_names_the_language(client):
 
     qwen = Card("mlx:hf/mlx-community/Qwen@unpinned", {"hf": "q", "revision": "main"}, frozenset({"correct"}),
                 frozenset({"Latn"}), frozenset({"en"}), frozenset({"handwriting"}))
-    step = assemble(Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"})),
-                    [qwen])["steps"][2]
+    step = assemble(Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
+                            jobs=("correct",)), [qwen])["steps"][2]  # asked for: off otherwise (#5677)
     assert step["problem"]["kind"] == "no-model-for-language"
     assert step["problem"]["sentence"] == "No correcting model here knows Spanish yet."
     assert "mlx:" in step["problem"]["detail"] and "mlx:" not in step["problem"]["sentence"]

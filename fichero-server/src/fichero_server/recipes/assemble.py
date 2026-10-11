@@ -570,6 +570,69 @@ def needed_by(job: str, jobs_in_order: list[str], materials=()) -> list[str]:
     return [j for j in jobs_in_order if j in lost]
 
 
+CORRECT = "correct"
+#: Set Up's question under Read that asks for Correct (`recipes/stages.py`).
+CORRECT_QUESTION = "correct_with_a_second_model"
+
+
+def correct_available(card: Card | None) -> bool:
+    """Whether a corrector is already at hand (#5677): a model for it on this Mac or one that ships with Fichero, or
+    one that runs elsewhere the project allows (the rules only choose a cloud card when it does). Read from the card
+    as discovery marked it (`installed` False: a model still to download), so the rules stay a pure function."""
+    return card is not None and card.installed is not False
+
+
+def _model_words(card: Card) -> str:
+    from fichero_server.recipes.cards import mlx_model_for
+
+    repo = mlx_model_for(card.pin)
+    if repo:
+        try:
+            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+
+            store = get_mlx_model_store()
+            model_id = store.canonical_id(repo)
+            if model_id is not None:
+                return store.spec(model_id).display_name
+        except Exception:  # noqa: BLE001 -- a name is never worth failing the recipe for; the card's id is said
+            pass
+    return card.id
+
+
+def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
+    """Why Correct is off, in one line with what turning it on would cost, or None when it stays in (#5677): it stays
+    when the person asked for it (ticked it, or said yes to the question) or when a corrector is already at hand."""
+    from fichero_server.recipes.discovery import size_words
+
+    asked = a.job_answers.get(CORRECT_QUESTION)
+    if CORRECT in a.jobs or asked is True:
+        return None
+    if asked is False:
+        return {"job": CORRECT, "title": "Correct",
+                "sentence": "Correct is off: you chose not to correct the reading with a second model."}
+    choice = _choose(CORRECT, cards, a)
+    card = choice.card
+    if correct_available(card):
+        return None
+    if card is None:  # nothing fits: the rule's own words say why (memory, language, the cloud not allowed)
+        cost = f"no correcting model fits ({choice.gap})" if choice.gap else "no correcting model fits"
+    elif card.local:
+        cost = (f"no correcting model is on this Mac; turning it on downloads {_model_words(card)} "
+                f"({size_words(card.size_gb)})")
+    else:
+        cost = f"turning it on runs {_model_words(card)} at {card.runs_on.split(':', 1)[-1]}"
+    cloud = None
+    if not a.cloud_allowed:
+        allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
+        cloud = _choose(CORRECT, [c for c in cards if c.runs_on.startswith("cloud")], allowed).card
+    if cloud is not None and cloud.cost_per_page:
+        pages = max(a.pages, 1)
+        cost += (f"; or, letting pages leave this Mac, {cloud.runs_on.split(':', 1)[-1]} at about "
+                 f"${cloud.cost_per_page * pages:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
+    return {"job": CORRECT, "title": "Correct",
+            "sentence": f"Correct is off: {cost}."}
+
+
 def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dict[str, str]]]:
     """The plan without the steps the person took out (#5627), in step order. A step a step left in needs stays
     (it carries `needed_by`); a removed job the plan no longer has is ignored. Returns the plan and what was taken
@@ -613,6 +676,12 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         tail = [j for j in jobs_in_order if STEP_ORDER.index(j) > STEP_ORDER.index("train-a-model")]
         jobs_in_order = [j for j in jobs_in_order if j not in tail] + ["train-a-model"] + tail
     jobs_in_order, taken_out = _take_out(jobs_in_order, a)
+    left_off: list[dict[str, str]] = []
+    if CORRECT in jobs_in_order:
+        off = _correct_left_off(cards, a)
+        if off is not None:  # `source.onboard.correct-off-unless-a-corrector-is-here` (#5677)
+            jobs_in_order.remove(CORRECT)
+            left_off.append(off)
     needs = {job: needed_by(job, jobs_in_order, a.materials) for job in jobs_in_order}
     steps, notes = [], []
     for job in jobs_in_order:
@@ -686,6 +755,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "steps": steps,
         "by_hand": left_by_hand,
         "removed": taken_out,
+        "left_off": left_off,
         "gaps": notes,
         "cloud_options": cloud_options,
         # What Ready says when there is nothing to read (#5553).

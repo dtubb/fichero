@@ -122,8 +122,9 @@ def test_source_onboard_auto_installed_model_first_when_proposing(client, mac, m
     seed = cards.all_seed_cards()
     accepted = tuple(replace(c, open_licence=True) if c.id == THREE_CARD else c for c in seed)
     monkeypatch.setattr(cards, "all_seed_cards", lambda: accepted)
+    # Asked for (Correct is off unless a corrector is here or asked, #5677): which one it proposes is this test's point.
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
-               "mac_memory_gb": 32}
+               "mac_memory_gb": 32, "jobs": ["correct"]}
 
     def proposed() -> dict:
         r = client.post("/api/recipes/assemble", json=answers)

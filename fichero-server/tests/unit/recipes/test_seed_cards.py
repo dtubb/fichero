@@ -34,8 +34,10 @@ def test_spanish_letters_on_a_16gb_mac():
 
 def test_on_the_8gb_air_the_7gb_corrector_is_not_chosen_and_the_gap_is_named():
     recipe = assemble(Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), mac_memory_gb=8), list(seed_cards()))
-    correct = next(s for s in recipe["steps"] if s["job"] == "correct")
-    assert "gap" in correct and "memory" in correct["gap"]
+    # No corrector fits: Correct is off, and the line says why (#5677).
+    assert "correct" not in [s["job"] for s in recipe["steps"]]
+    (off,) = [o["sentence"] for o in recipe["left_off"] if o["job"] == "correct"]
+    assert "memory" in off
 
 
 def test_every_kraken_reader_card_names_an_id_this_mac_can_fetch_and_run():

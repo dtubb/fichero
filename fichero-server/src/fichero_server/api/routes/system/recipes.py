@@ -249,6 +249,14 @@ class ByHandJob(BaseModel):
     fix: str = Field(description="what does it by hand instead, in words")
 
 
+class LeftOffStep(BaseModel):
+    """A step left off by default (#5677): its job, its title, and one line saying why and what it would cost."""
+
+    job: str
+    title: str
+    sentence: str
+
+
 class AssembledRecipe(BaseModel):
     # Optional so older clients keep decoding; present so a recipe saved from this answer is a
     # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
@@ -263,6 +271,9 @@ class AssembledRecipe(BaseModel):
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
         "does it by hand (source.onboard.auto.every-proposed-step-runs)"))
+    left_off: list[LeftOffStep] = Field(default_factory=list, description=(
+        "steps a purpose brings that are off until turned on, each with why and what turning it on would cost "
+        "(Correct with no corrector at hand, #5677)"))
     removed: list[TakenOutStep] = Field(default_factory=list, description=(
         "steps the answers' removed_jobs took out of the plan, in step order, to be put back on Ready "
         "(source.onboard.plan-editable)"))
@@ -775,7 +786,7 @@ async def assemble_recipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
         steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
-        removed=recipe.get("removed") or [],
+        removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"),
     )
@@ -1331,6 +1342,8 @@ class StartPlan(BaseModel):
     workflows: list[StartWorkflow]
     skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
     offered: list[str] = Field(description="steps offered later (training), never run at Start")
+    left_off: list[str] = Field(default_factory=list, description=(
+        "steps the recipe left off until turned on, one line each with what turning it on would cost (#5677)"))
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
@@ -1397,6 +1410,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["started"] = started
     plan["proposed"] = explain(setup["recipe"], proposal)
     plan["addable"] = addable_now(setup["answers"] or {})
+    plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local)
     if within is not None and not pages["pages"]:

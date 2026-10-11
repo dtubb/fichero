@@ -9,7 +9,8 @@ exactly what is pinned here.
 """
 from __future__ import annotations
 
-TRANSCRIBE = ["find-lines", "read-a-line", "correct"]
+# Correct is off unless a corrector is on this Mac or asked for (#5677); a test's model store starts empty.
+TRANSCRIBE = ["find-lines", "read-a-line"]
 
 
 def _assemble(client, **answers):
@@ -111,7 +112,7 @@ def test_a_step_another_needs_stays_and_says_which(client):
     assert _jobs(r) == TRANSCRIBE and r["removed"] == []
     lines = next(s for s in r["steps"] if s["job"] == "find-lines")
     assert "read-a-line" in lines["needed_by"]
-    last = next(s for s in r["steps"] if s["job"] == "correct")
+    last = r["steps"][-1]
     assert not last.get("needed_by")  # the last step can always go
 
 

@@ -2610,6 +2610,17 @@ Profiles (the defaults section of a recipe)
   pages copied into the project are never counted. *Test:*
   `fichero-server/tests/unit/importers/test_dataless_sources.py` (a directory is not dataless) and
   `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py` (a Copy import of a folder warns of nothing).
+- `source.onboard.correct-off-unless-a-corrector-is-here` — **[OK]** (#5677) Correct (a second model checking the
+  reading) is in a purpose's recipe only when a corrector is already available: a model for it already on this Mac
+  (or one that ships with Fichero), or a cloud model the project allows; or when the person asks for it (ticks
+  Correct, or answers yes to "Correct with a second model?"). Otherwise it is off, and the recipe (`left_off`) and the
+  Start plan (`left_off`) say so in one line with what turning it on would cost: the download ("Turning it on
+  downloads Qwen2.5-VL 7B (OCR), 5.7 GB") or the cloud's price for the project's pages; where no corrector fits at
+  all, the line says why in the rules' words (the Mac's memory, a language no corrector knows). Saying no to the
+  question turns it off, saying so. Seen 2026-10-11: choosing
+  Read brought a Correct step pinned to a 5.7 GB model no Mac had. Built: `assemble.correct_available`, the
+  recipe's `left_off`, the plan's `left_off`; tested in
+  `fichero-server/tests/unit/recipes/test_correct_off_unless_available_5677.py`.
 - `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
   Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
   and the plan offers the download (`downloads`, each a `download-model` job on the network lane). **Changed
