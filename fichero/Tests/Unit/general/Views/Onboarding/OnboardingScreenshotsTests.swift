@@ -150,6 +150,20 @@ struct OnboardingScreenshotsTests {
         return url
     }
 
+    /// How many pixels of the PNG at `url` are not clear, counting every fourth pixel of every fourth row.
+    private static func drawnPixels(at url: URL) -> Int {
+        guard let rep = NSBitmapImageRep(data: (try? Data(contentsOf: url)) ?? Data()), rep.hasAlpha,
+              let data = rep.bitmapData, rep.samplesPerPixel == 4, rep.bitsPerSample == 8 else { return 0 }
+        let alpha = rep.bitmapFormat.contains(.alphaFirst) ? 0 : 3
+        var drawn = 0
+        for row in stride(from: 0, to: rep.pixelsHigh, by: 4) {
+            for column in stride(from: 0, to: rep.pixelsWide, by: 4) where data[row * rep.bytesPerRow + column * 4 + alpha] != 0 {
+                drawn += 1
+            }
+        }
+        return drawn
+    }
+
     /// A sidebar's selected row is drawn by its table as a material (a visual-effect layer), which an offscreen
     /// cacheDisplay paints solid black; round 2's "inactive" material was still black. So the tables draw no
     /// highlight of their own here, and each selected row gets a plain rounded fill in the system's selection
@@ -246,21 +260,23 @@ struct OnboardingScreenshotsTests {
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
         // Training offered later (#5660 item 9): regions ready (its button live), reading still waiting for corrected
-        // lines (disabled, the need sentence under it), names not available yet.
+        // lines (disabled, the need sentence under it), names not available yet. The plan is read again once it is on
+        // screen, as Ready reads it on arrival: in shots10 this section, with nothing changing after it appeared, was
+        // written as an empty picture.
         try await shot("13-train-later.png", CGSize(width: 620, height: 640), VStack(alignment: .leading, spacing: 12) {
             Text(RecipeReadyFields.Row.trainLater.title).font(.headline)
             RecipeTrainOffersFields(store: setup)
             Spacer(minLength: 0)
-        }.padding(22))
+        }.padding(22).task { await setup.loadStartPlan() })
 
         #expect(written.count == 13)
         // No screen may show the fixture's own words: every request is answered.
         #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
         #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")
         #expect(setup.name(of: "es") == "Spanish" && setup.name(of: "Latn") == "Latin", "the saved answers by name")
+        // Drawn means pixels, not bytes: shots10's 13-train-later.png was 28 KB and every pixel clear.
         for url in written {
-            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
-            #expect(size > 1000, "\(url.lastPathComponent) was drawn")
+            #expect(Self.drawnPixels(at: url) > 1000, "\(url.lastPathComponent) was drawn")
         }
         #expect(setup.recipe?.steps.first?.problem?.kind == "licence-not-accepted", "the fixture's licence step")
         #expect(setup.startPlan?.downloads?.first?.downloading == true, "the fixture's download under way")
