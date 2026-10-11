@@ -27,11 +27,14 @@ import Testing
 /// The fixture engine: each route setup reads, answered from the onboarding fixture files.
 private final class OnboardingFixtureEngine: URLProtocol {
     nonisolated(unsafe) static var served: [String] = []
+    /// Requests no fixture answered: the test fails on any, since its reply would show on a screen.
+    nonisolated(unsafe) static var unanswered: [String] = []
     /// The fixture files by name, read on the main actor before any request (`loadFixtures()`).
     nonisolated(unsafe) static var files: [String: Data] = [:]
 
     static let names = ["purposes", "jobs", "project", "plan", "assembled", "candidates-read-a-line",
-                        "candidates-find-regions"]
+                        "candidates-find-regions", "languages", "scripts", "derived", "topics", "bakeoffs",
+                        "kept-exports"]
 
     static func loadFixtures() throws {
         for name in names {
@@ -49,9 +52,16 @@ private final class OnboardingFixtureEngine: URLProtocol {
         switch path {
         case "/api/recipes/purposes": return "purposes"
         case "/api/recipes/jobs": return "jobs"
-        case "/api/recipes/project": return request.httpMethod == "GET" ? "project" : nil
+        // Saving the setup answers the setup saved (PUT), as the engine does.
+        case "/api/recipes/project": return "project"
         case "/api/recipes/project/start": return request.httpMethod == "GET" ? "plan" : nil
         case "/api/recipes/assemble": return "assembled"
+        case "/api/recipes/languages": return "languages"
+        case "/api/recipes/scripts": return "scripts"
+        case "/api/recipes/derived": return "derived"
+        case "/api/topics": return "topics"
+        case "/api/recipes/project/bakeoffs": return "bakeoffs"
+        case "/api/export/kept": return request.httpMethod == "GET" ? "kept-exports" : nil
         case "/api/recipes/candidates":
             let job = query.first { $0.name == "job" }?.value ?? "read-a-line"
             return "candidates-\(job)"
@@ -62,7 +72,9 @@ private final class OnboardingFixtureEngine: URLProtocol {
     override func startLoading() {
         let name = Self.fixture(for: request)
         let data = name.flatMap { Self.files[$0] }
-        Self.served.append("\(request.httpMethod ?? "") \(request.url?.path ?? "") -> \(name ?? "404")")
+        let asked = "\(request.httpMethod ?? "") \(request.url?.path ?? "")"
+        Self.served.append("\(asked) -> \(name ?? "404")")
+        if data == nil { Self.unanswered.append(asked) }
         let response = HTTPURLResponse(
             url: request.url!, statusCode: data == nil ? 404 : 200, httpVersion: nil,
             headerFields: ["Content-Type": "application/json"]
@@ -114,11 +126,14 @@ struct OnboardingScreenshotsTests {
         hosting.frame = CGRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.titled], backing: .buffered, defer: false)
         window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .aqua)
         window.contentView = hosting
         defer { window.close() }
         // The views' own .task reads run now, against the fixture engine.
         try await Task.sleep(for: .milliseconds(1500))
         hosting.layoutSubtreeIfNeeded()
+        flattenVisualEffects(in: hosting)
+        hosting.display()
         let rep = try #require(NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
@@ -132,12 +147,28 @@ struct OnboardingScreenshotsTests {
         return url
     }
 
+    /// A sidebar's selected row, and any other material, is an NSVisualEffectView, which an offscreen
+    /// cacheDisplay draws solid black. Each is drawn as its material's flat colour instead (inactive, within the
+    /// window), which is how the window shows it when another app is in front.
+    private static func flattenVisualEffects(in view: NSView) {
+        if let effect = view as? NSVisualEffectView {
+            effect.state = .inactive
+            effect.blendingMode = .withinWindow
+            effect.isEmphasized = false
+        }
+        if let row = view as? NSTableRowView, row.isSelected {
+            row.isEmphasized = false
+        }
+        view.subviews.forEach(flattenVisualEffects(in:))
+    }
+
     @Test("every onboarding screen, in flow order, as a PNG at 2x")
     func writeEveryOnboardingScreen() async throws {
         let folder = try #require(OnboardingScreenshots.directory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let project = Self.project()
         try OnboardingFixtureEngine.loadFixtures()
+        OnboardingFixtureEngine.unanswered = []
         let setup = project.recipeSetupStore
         // What setup reads when it opens on this project, read first so every screen draws it at once.
         await setup.loadSaved()
@@ -158,28 +189,41 @@ struct OnboardingScreenshotsTests {
         try await shot("02-your-project.png", window,
                        FirstRunWindow(mode: .firstRun, initialStep: .project, newProject: named))
         try await shot("03-your-material.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .material))
-        try await shot("04-what-you-want-to-do.png", window,
+        // Your material is longer than its card: all of it, as the card scrolls through it (languages, scripts,
+        // what the material is).
+        try await shot("04-your-material-whole.png", CGSize(width: 620, height: 1150), VStack(alignment: .leading, spacing: 16) {
+            RecipeMaterialSourceFields(store: setup, importer: project.importService, syncFolders: project.syncFolderStore)
+            Divider()
+            RecipeAboutFields(store: setup)
+            Spacer(minLength: 0)
+        }.padding(22))
+        try await shot("05-what-you-want-to-do.png", window,
                        FirstRunWindow(mode: .setUp, project: project, initialStep: .purpose))
-        try await shot("05-ready.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .ready))
+        try await shot("06-ready.png", window, FirstRunWindow(mode: .setUp, project: project, initialStep: .ready))
         // Ready is longer than its card: the whole plan, top to bottom, as the card scrolls through it.
-        try await shot("06-ready-whole-plan.png", CGSize(width: 620, height: 1500),
-                       RecipeReadyFields(store: setup, onFix: { _ in }, keptExports: project.keptExportStore,
-                                         project: project).padding(22))
-        try await shot("07-find-a-reader.png", sheet,
+        try await shot("07-ready-whole-plan.png", CGSize(width: 620, height: 2700), VStack {
+            RecipeReadyFields(store: setup, onFix: { _ in }, keptExports: project.keptExportStore, project: project)
+            Spacer(minLength: 0)
+        }.padding(22))
+        try await shot("08-find-a-reader.png", sheet,
                        ModelFinderSheet(project: project, setup: setup,
                                         step: .init(id: "read-a-line", job: "read-a-line"), onDone: {}))
-        try await shot("08-review-the-licence.png", sheet,
+        try await shot("09-review-the-licence.png", sheet,
                        LicenceReviewSheet(finder: project.modelFinderStore, setup: setup,
                                           step: .init(id: "find-regions", job: "find-regions"), onDone: {}))
-        try await shot("09-run-strip-after-start.png", CGSize(width: 820, height: 64), ProjectRunStripRow(
+        try await shot("10-run-strip-after-start.png", CGSize(width: 1100, height: 44), ProjectRunStripRow(
             strip: ProjectRunStrip(
                 jobId: "recipe-run", isLive: true, title: "Find lines · stage 1 of 5",
                 detail: "12 done · 0 failed · 80 left · 9 min left · "
                     + "Waiting for Qwen2.5-VL 7B (OCR) to download for step correct"),
             failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
-        ).padding(.horizontal, 12))
+        ).padding(.horizontal, 12).frame(maxHeight: .infinity))
 
-        #expect(written.count == 9)
+        #expect(written.count == 10)
+        // No screen may show the fixture's own words: every request is answered.
+        #expect(OnboardingFixtureEngine.unanswered.isEmpty, "unanswered: \(OnboardingFixtureEngine.unanswered)")
+        #expect(setup.errorMessage == nil, "setup said: \(setup.errorMessage ?? "")")
+        #expect(setup.name(of: "es") == "Spanish" && setup.name(of: "Latn") == "Latin", "the saved answers by name")
         for url in written {
             let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
             #expect(size > 1000, "\(url.lastPathComponent) was drawn")

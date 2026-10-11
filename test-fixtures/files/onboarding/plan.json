@@ -170,8 +170,8 @@
  ],
  "elsewhere": [],
  "estimate": {
-  "pages": 0,
-  "counted": "nothing = 0 pages",
+  "pages": 92,
+  "counted": "everything = 92 pages",
   "runs": [
    {
     "workflow": "Transcribe (Kraken)",
@@ -180,7 +180,7 @@
      "read-a-line"
     ],
     "where": "this-mac",
-    "pages": 0,
+    "pages": 92,
     "cost_usd": 0.0,
     "memory": null
    },
@@ -190,7 +190,7 @@
      "correct"
     ],
     "where": "this-mac",
-    "pages": 0,
+    "pages": 92,
     "cost_usd": 0.0,
     "memory": "Qwen2.5-VL 7B (OCR) needs about 6.3 GB; on this Mac (16.0 GB) it reads 2 pages at once, about 7.3 GB at most"
    },
@@ -200,7 +200,7 @@
      "find-names-tag-words"
     ],
     "where": "this-mac",
-    "pages": 0,
+    "pages": 92,
     "cost_usd": 0.0,
     "memory": null
    }

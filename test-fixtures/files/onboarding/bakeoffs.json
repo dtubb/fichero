@@ -1,0 +1,14 @@
+{
+ "items": [],
+ "readiness": {
+  "ready": false,
+  "lines": 0,
+  "pages": 0,
+  "min_lines": 100,
+  "min_pages": 2,
+  "more_lines": 100,
+  "more_pages": 2,
+  "unmarked_import_pages": 0,
+  "sentence": "Needs 100 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 100 more lines, on at least 2 more pages."
+ }
+}

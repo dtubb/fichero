@@ -1,0 +1,13 @@
+{
+ "items": [
+  {
+   "code": "Latn",
+   "name": "Latin"
+  },
+  {
+   "code": "Hntl",
+   "name": "Han (Traditional variant) with Latin (alias for Hant + Latn)"
+  }
+ ],
+ "count": 2
+}

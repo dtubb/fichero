@@ -53,3 +53,18 @@ extension RecipeStepsView {
         return fix == "accept-licence" ? .licence : .setup
     }
 }
+
+// A reopened project's languages and scripts by name (2026-10-11, the onboarding screenshots): the saved answers
+// keep tags ("es", "Latn"); without this the tokens read "es" until the person searched again.
+extension RecipeSetupStore {
+    /// Name every saved language and script the field would otherwise show as a bare code, from the engine's
+    /// own search (its exact match on the code).
+    func resolveNames() async {
+        for code in languages where name(of: code) == code {
+            if let match = await searchLanguages(code).first(where: { $0.code == code }) { add(match, toScripts: false) }
+        }
+        for code in scripts where name(of: code) == code {
+            if let match = await searchScripts(code).first(where: { $0.code == code }) { add(match, toScripts: true) }
+        }
+    }
+}

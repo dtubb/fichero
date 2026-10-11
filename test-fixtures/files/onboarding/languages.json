@@ -1,0 +1,77 @@
+{
+ "items": [
+  {
+   "code": "es",
+   "name": "Spanish",
+   "glottocode": "stan1288",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  },
+  {
+   "code": "ish",
+   "name": "Esan",
+   "glottocode": "esan1238",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  },
+  {
+   "code": "mcq",
+   "name": "Ese",
+   "glottocode": "esee1247",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  },
+  {
+   "code": "ese",
+   "name": "Ese Ejja",
+   "glottocode": "esee1248",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  },
+  {
+   "code": "esh",
+   "name": "Eshtehardi",
+   "glottocode": "esht1238",
+   "level": "language",
+   "language": null,
+   "script": "Arab",
+   "script_name": "Arabic"
+  },
+  {
+   "code": "ags",
+   "name": "Esimbi",
+   "glottocode": "esim1238",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  },
+  {
+   "code": "esy",
+   "name": "Eskayan",
+   "glottocode": "eska1234",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  },
+  {
+   "code": "eo",
+   "name": "Esperanto",
+   "glottocode": "espe1235",
+   "level": "language",
+   "language": null,
+   "script": "Latn",
+   "script_name": "Latin"
+  }
+ ],
+ "count": 8
+}

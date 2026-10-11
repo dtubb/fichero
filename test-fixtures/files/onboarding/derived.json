@@ -1,0 +1,37 @@
+{
+ "scripts": [
+  {
+   "script": "Latn",
+   "direction": "ltr",
+   "direction_from": "worked out from the script (Latn)",
+   "may_be_vertical": false,
+   "font": null,
+   "font_from": "the system font draws it"
+  }
+ ],
+ "mac": {
+  "chip": "Apple M1",
+  "memory_gb": 16,
+  "from": "this Mac's own report (sysctl)"
+ },
+ "keys": [
+  "huggingface",
+  "openrouter",
+  "google",
+  "mistral",
+  "dashscope",
+  "deepl"
+ ],
+ "targets": [
+  {
+   "id": "this-mac",
+   "title": "This Mac",
+   "from": "always"
+  },
+  {
+   "id": "huggingface",
+   "title": "Hugging Face Jobs",
+   "from": "a Hugging Face key is present"
+  }
+ ]
+}

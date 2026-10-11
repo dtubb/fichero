@@ -205,6 +205,7 @@ final class RecipeSetupStore {
                 rememberOverrides(from: try JSONEncoder().encode(savedRecipe))
                 recipe = try Self.convert(savedRecipe, to: Components.Schemas.AssembledRecipe.self)
             }
+            await resolveNames()
         } catch {
             if error.isCancellationError { return }
             errorMessage = "Could not read this project's setup: \(error.localizedDescription)"
@@ -319,13 +320,12 @@ final class RecipeSetupStore {
 
     /// A skipped step by its title in the recipe ("Find names"), else by its id.
     func title(ofStepId step: String) -> String {
-        guard let found = recipe?.steps.first(where: { $0.id == step }) else { return step }
+        guard let found = recipe?.steps.first(where: { $0.id == step }) else { return title(ofJob: step) }
         return title(of: found)
     }
 
-    /// Fetch a model the plan needs, through the one download route
-    /// (`POST /api/local-models/download/{runtime}/{model}`); the row says Downloading…. The step
-    /// waits for it, Start not held (#5660); the engine then says `model.installed` and the plan is read again.
+    /// Fetch a model the plan needs, through the one download route (`POST /api/local-models/download/{runtime}/{model}`):
+    /// the step waits for it, Start not held (#5660); the engine then says `model.installed` and the plan is read again.
     func download(_ download: Components.Schemas.StartDownload) async {
         do {
             let response = try await client.api.downloadModelApiLocalModelsDownloadModelTypeModelIdPost(
