@@ -156,6 +156,9 @@ class BackgroundJob(BaseModel):
     # What the row offers (#5615): "Resume" for a job set aside after its interruptions, done by
     # `POST /api/activity/jobs/{id}/retry`, which carries it on from where it was; null when nothing.
     offer: Optional[str] = None
+    # When a failed job failed (ISO 8601, UTC), so a list of errors can say when each happened rather than guess;
+    # null for any job that has not failed, and cleared when it is retried.
+    failed_at: Optional[datetime] = None
 
 
 class MachineState(BaseModel):
@@ -170,6 +173,15 @@ class MachineState(BaseModel):
     in_use: bool = False
     # Why heavy local work is held back right now, in words; None when it may go ahead.
     why_wait: Optional[str] = None
+
+
+def _utc(value: Any) -> Optional[datetime]:
+    """A stored time as an aware UTC datetime (the jobs table keeps naive UTC); None stays None."""
+    if value is None:
+        return None
+    from fichero_server.core.timeutil import ensure_utc
+
+    return ensure_utc(value)
 
 
 class BackgroundJobsResponse(BaseModel):
@@ -469,6 +481,7 @@ async def list_background_jobs(
                     state=status,
                     reason=(run.error or None) if status == "failed" else (account.waiting_reason if account else None),
                     account=account,
+                    failed_at=_utc(run.completed_at) if status == "failed" else None,
                 )
             )
     except Exception as exc:  # never let the jobs list fail over the workflow half
@@ -512,6 +525,7 @@ async def list_background_jobs(
                 parent_id=row.get("parent_id"),
                 run_id=row.get("run_id"),
                 offer=job_queue.offer_for(row["kind"], state, reason),
+                failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
             )
         )
 

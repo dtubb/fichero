@@ -522,6 +522,10 @@ workflow by hand: a hand run is a job like any other.
 - `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
   Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
   today reading at scale and training are top-level rows of their own.
+- `activity.jobs.failed-at` — **[OK]** (2026-10-11) every job in `GET /api/activity/jobs` (`BackgroundJob`)
+  carries `failed_at`: for a failed job, when it failed (ISO 8601, UTC; a queued job's end, a workflow run's
+  completion); null for any other, and null again once it is retried. So the popover's recent errors say when each
+  happened rather than guess. Test: `fichero-server/tests/unit/jobs/test_failed_at_on_the_jobs_list.py`.
 - `activity.persists-from-any-thread` — **[OK]** (2026-10-11) an Activity written from a job or timer thread
   with no event loop is kept: it is saved on that thread (`ActivityTracker._schedule_activity`,
   `ActivityStore.save_now`). Before, it was dropped with "Activity could not be persisted: no running event loop",

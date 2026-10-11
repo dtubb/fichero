@@ -50380,6 +50380,12 @@
             "type": "string",
             "nullable": true,
             "title": "Offer"
+          },
+          "failed_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Failed At"
           }
         },
         "type": "object",

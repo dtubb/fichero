@@ -1477,7 +1477,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
     rows = db.execute_fetchall(
-        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after FROM ("
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
@@ -1490,7 +1490,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     waiting: dict[tuple[str, str], dict[str, Any]] = {}
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
-    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after in rows:
+    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at in rows:
         # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
         # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
         group = (state, kind) if state in ("waiting", "paused") else None
@@ -1501,7 +1501,9 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         if state == "waiting":
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
-               "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id}
+               "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id,
+               # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
+               "failed_at": finished_at if state == "failed" else None}
         if group is not None:
             waiting[group] = row
         out.append(row)
