@@ -79,14 +79,14 @@ private nonisolated enum FinderJSON {
      "offered_because":"a card that ships with Fichero","pin":{"zenodo":"10.5281/zenodo.1"},
      "jobs":["read-a-line"],"open_licence":true,"size":"0.02 GB","size_gb":0.02,
      "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1,
-     "runs_where":"this_mac"}
+     "runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"}
     """
     static let found = """
     {"id":"mlx:hf/example/ocr-mlx@main","name":"Example OCR","source":"hugging-face",
      "offered_because":"reads handwriting; lists Spanish","pin":{"hf":"example/ocr-mlx","revision":"main"},
      "jobs":["read-a-line"],"licence":"cc-by-nc-4.0","open_licence":false,"size":"size not stated",
      "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":2,
-     "installed":false,"runs_where":"this_mac",
+     "installed":false,"runs_where":"this_mac","availability":"download","availability_words":"Download",
      "download":{"runtime":"mlx","model":"Example-OCR","action":"model.download",
                  "params":{"runtime":"mlx","model":"Example-OCR"}}}
     """
@@ -260,21 +260,47 @@ final class ModelFinderStoreTests: XCTestCase {
         XCTAssertNil(store.errorMessage)
     }
 
-    /// WHY (`source.find.app-card-says`, #5612): the card says, in words, whether the model is already
-    /// here and where it runs, from the engine's `installed` and `runs_where`; nothing when the engine
-    /// says nothing (a Kraken reader the run fetches).
+    /// WHY (`source.find.app-card-says`, #5612, #5660 item 3): the card says where it stands for this Mac in the
+    /// engine's own words (`availability_words`: "Ships with Fichero", "Download"), with a licence that is not
+    /// open; a shipped card does not repeat "a card that ships with Fichero"; a found one says why it was found.
     func testCardSaysWhetherItIsHereAndWhereItRuns() async throws {
         FinderMockURLProtocol.reset { _ in (200, FinderJSON.list([FinderJSON.shipped, FinderJSON.found])) }
         let store = ModelFinderStore(client: makeClient())
         await store.load(Self.query)
         let shipped = try XCTUnwrap(store.candidates.first)
         let found = try XCTUnwrap(store.candidates.last)
-        XCTAssertEqual(ModelFinderCard.facts(found),
-                       "Found on Hugging Face · size not stated · Not on this Mac yet · Runs on this Mac · licence: cc-by-nc-4.0")
-        XCTAssertEqual(ModelFinderCard.facts(shipped), "Ships with Fichero · 0.02 GB · Runs on this Mac")
-        XCTAssertEqual(ModelFinderStore.installedWords(true), "On this Mac")
-        XCTAssertEqual(ModelFinderStore.placeWords("own_machine"), "Runs on a machine of yours")
-        XCTAssertEqual(ModelFinderStore.placeWords("provider"), "Runs at the provider")
+        XCTAssertEqual(ModelFinderCard.facts(found), "Download · licence: cc-by-nc-4.0")
+        XCTAssertEqual(ModelFinderCard.facts(shipped), "Ships with Fichero")
+        XCTAssertNil(ModelFinderCard.whyOffered(shipped), "a shipped card does not repeat that it ships")
+        XCTAssertEqual(ModelFinderCard.whyOffered(found), found.offeredBecause)
+        XCTAssertFalse(ModelFinderCard.isChosen(shipped))
+    }
+
+    /// WHY (#5660 item 8): opened beside a step, the finder asks with `step=`, so the engine marks that step's
+    /// reader chosen and lists it first; the card says "In use for this step" and offers no Use for This Step.
+    func testTheStepsReaderIsMarkedChosen() async throws {
+        let chosenJSON = FinderJSON.shipped.replacingOccurrences(
+            of: #""availability":"ships""#, with: #""chosen":true,"availability":"ships""#)
+        FinderMockURLProtocol.reset { _ in (200, FinderJSON.list([chosenJSON, FinderJSON.found])) }
+        let store = ModelFinderStore(client: makeClient())
+        var query = Self.query
+        query.step = "read-a-line"
+        await store.load(query)
+        let asked = try XCTUnwrap(FinderMockURLProtocol.requests(to: "/api/recipes/candidates").last)
+        XCTAssertEqual(asked.query["step"], "read-a-line")
+        XCTAssertTrue(ModelFinderCard.isChosen(try XCTUnwrap(store.candidates.first)))
+        XCTAssertFalse(ModelFinderCard.isChosen(try XCTUnwrap(store.candidates.last)))
+    }
+
+    /// WHY (#5660 item 3): a source's line is the engine's one sentence; the two it words without naming the
+    /// place are said with it, so "Not searched" twice never reads as one thing said twice.
+    func testSourceLinesAreTheEnginesWords() throws {
+        let sources = try JSONDecoder().decode([Components.Schemas.CandidateSource].self, from: Data("""
+        [{"source":"shipped","state":"read","count":12,"detail":"12 ship with Fichero"},
+         {"source":"kraken-repository","state":"not-searched","count":0,"detail":"Not searched"}]
+        """.utf8))
+        XCTAssertEqual(sources.map(ModelFinderStore.sourceLine),
+                       ["12 ship with Fichero", "Kraken's model repository: Not searched"])
     }
 
     /// WHY (#5612): Find a Reader… is offered on the steps the engine's registry says read the material

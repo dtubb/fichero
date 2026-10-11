@@ -25,7 +25,7 @@ struct ModelFinderView: View {
         VStack(alignment: .leading, spacing: 8) {
             header
             ForEach(store.sources, id: \.source) { source in
-                Text("\(ModelFinderStore.sourceWords(source.source.rawValue)): \(source.detail)")
+                Text(ModelFinderStore.sourceLine(source))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -97,7 +97,14 @@ struct ModelFinderCard: View {
                 Spacer()
                 actions
             }
-            Text(candidate.offeredBecause).font(.callout)
+            if Self.isChosen(candidate) {
+                Label("In use for this step", systemImage: "checkmark.circle.fill")
+                    .font(.callout)
+                    .foregroundStyle(.tint)
+            }
+            if let why = Self.whyOffered(candidate) {
+                Text(why).font(.callout)
+            }
             Text(Self.facts(candidate)).font(.caption).foregroundStyle(.secondary)
             Text(candidate.measured).font(.caption).foregroundStyle(.secondary)
             // What its download's job says while it runs, or why it failed (#5620).
@@ -132,7 +139,7 @@ struct ModelFinderCard: View {
                     .help("Download it to this Mac; Activity shows the download")
                 }
             }
-            if let step {
+            if let step, !Self.isChosen(candidate) {
                 // Any candidate: the engine refuses, in words, one that does not do the step's job.
                 Button("Use for This Step") {
                     Task { await step.setup.useCandidate(candidate, forStep: step.id) }
@@ -148,17 +155,28 @@ struct ModelFinderCard: View {
         return false
     }
 
-    /// "Found on Hugging Face · 1.2 GB · Not on this Mac yet · Runs on this Mac · licence: cc-by-nc-4.0".
+    /// Where the card stands for this Mac, as the engine words it ("Ships with Fichero", "Download (2.3 GB)",
+    /// "Runs at openai"), and a licence that is not open: "Download (16 MB) · licence: cc-by-nc-4.0" (#5660).
     static func facts(_ candidate: Components.Schemas.ModelCandidate) -> String {
-        var parts = [ModelFinderStore.sourceWords(candidate.source.rawValue), candidate.size]
-        if let installed = ModelFinderStore.installedWords(candidate.installed) {
-            parts.append(installed)
-        }
-        parts.append(ModelFinderStore.placeWords(candidate.runsWhere.rawValue))
+        var parts = [candidate.availabilityWords]
         if !candidate.openLicence, let licence = candidate.licence, !licence.isEmpty {
             parts.append("licence: \(licence)")
         }
         return parts.joined(separator: " · ")
+    }
+
+    /// The step's reader now (`chosen`, with `step`): marked, and offered no Use for This Step.
+    static func isChosen(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        candidate.chosen == true
+    }
+
+    /// Why discovery offers it, when that says more than where it stands: a found reader's reason ("reads
+    /// handwriting; lists Spanish"); nil for a card that only ships with Fichero or is on this Mac.
+    static func whyOffered(_ candidate: Components.Schemas.ModelCandidate) -> String? {
+        switch candidate.source {
+        case .shipped, .installed: nil
+        default: candidate.offeredBecause
+        }
     }
 }
 
@@ -193,13 +211,13 @@ extension ModelFinderStore {
            "offered_because":"a card that ships with Fichero","pin":{"zenodo":"10.5281/zenodo.1"},
            "jobs":["read-a-line"],"open_licence":true,"size":"0.02 GB","size_gb":0.02,
            "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1,
-           "runs_where":"this_mac"},
+           "runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"},
           {"id":"mlx:hf/example/ocr-mlx@main","name":"Example OCR (MLX)","source":"hugging-face",
            "offered_because":"reads handwriting; lists Spanish; an MLX build this Mac runs",
            "pin":{"hf":"example/ocr-mlx","revision":"main"},"jobs":["read-a-line"],"licence":"cc-by-nc-4.0",
            "open_licence":false,"size":"size not stated",
            "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":2,
-           "installed":false,"runs_where":"this_mac",
+           "installed":false,"runs_where":"this_mac","availability":"download","availability_words":"Download",
            "download":{"runtime":"mlx","model":"example-ocr","action":"model.download",
                        "params":{"runtime":"mlx","model":"example-ocr"}}}],
          "sources":[{"source":"shipped","state":"read","count":1,"detail":"the cards that ship with Fichero"},

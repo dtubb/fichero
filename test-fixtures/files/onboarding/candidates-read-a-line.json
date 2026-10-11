@@ -30,16 +30,27 @@
    "open_licence": true,
    "size_gb": 0.06,
    "memory_gb": 1.0,
-   "size": "0.06 GB",
+   "size": "60 MB",
    "cer_published": 0.0391,
    "cer_measured_here": null,
    "measured": "unmeasured on your pages until a bake-off measures it",
    "in_recipe_rules": true,
    "rule_rank": 1,
    "refused": null,
-   "installed": null,
-   "download": null,
-   "runs_where": "this_mac"
+   "installed": false,
+   "download": {
+    "runtime": "kraken",
+    "model": "kraken-zenodo-21788410",
+    "action": "model.download",
+    "params": {
+     "runtime": "kraken",
+     "model": "kraken-zenodo-21788410"
+    }
+   },
+   "runs_where": "this_mac",
+   "availability": "download",
+   "availability_words": "Download (60 MB)",
+   "chosen": true
   },
   {
    "id": "kraken:zenodo/10.5281/zenodo.12743230@unpinned",
@@ -61,16 +72,27 @@
    "open_licence": true,
    "size_gb": 0.016,
    "memory_gb": 1.0,
-   "size": "0.016 GB",
+   "size": "16 MB",
    "cer_published": null,
    "cer_measured_here": null,
    "measured": "unmeasured on your pages until a bake-off measures it",
    "in_recipe_rules": true,
    "rule_rank": 2,
    "refused": null,
-   "installed": null,
-   "download": null,
-   "runs_where": "this_mac"
+   "installed": false,
+   "download": {
+    "runtime": "kraken",
+    "model": "kraken-catmus-medieval",
+    "action": "model.download",
+    "params": {
+     "runtime": "kraken",
+     "model": "kraken-catmus-medieval"
+    }
+   },
+   "runs_where": "this_mac",
+   "availability": "download",
+   "availability_words": "Download (16 MB)",
+   "chosen": false
   },
   {
    "id": "kraken:zenodo/10.5281/zenodo.13788177@unpinned",
@@ -92,16 +114,27 @@
    "open_licence": true,
    "size_gb": 0.016,
    "memory_gb": 1.0,
-   "size": "0.016 GB",
+   "size": "16 MB",
    "cer_published": null,
    "cer_measured_here": null,
    "measured": "unmeasured on your pages until a bake-off measures it",
    "in_recipe_rules": true,
    "rule_rank": 3,
    "refused": null,
-   "installed": null,
-   "download": null,
-   "runs_where": "this_mac"
+   "installed": false,
+   "download": {
+    "runtime": "kraken",
+    "model": "kraken-mccatmus",
+    "action": "model.download",
+    "params": {
+     "runtime": "kraken",
+     "model": "kraken-mccatmus"
+    }
+   },
+   "runs_where": "this_mac",
+   "availability": "download",
+   "availability_words": "Download (16 MB)",
+   "chosen": false
   }
  ],
  "count": 3,
@@ -111,28 +144,28 @@
    "state": "read",
    "count": 12,
    "left_out": 0,
-   "detail": "the cards that ship with Fichero"
+   "detail": "12 ship with Fichero"
   },
   {
    "source": "installed",
    "state": "read",
    "count": 0,
    "left_out": 0,
-   "detail": "MLX vision models complete in this engine's model store"
+   "detail": "0 on this Mac"
   },
   {
    "source": "kraken-repository",
    "state": "not-searched",
    "count": 0,
    "left_out": 0,
-   "detail": "not searched: ask with online=true to search it"
+   "detail": "Not searched"
   },
   {
    "source": "hugging-face",
    "state": "not-searched",
    "count": 0,
    "left_out": 0,
-   "detail": "not searched: ask with online=true to search it"
+   "detail": "Not searched"
   }
  ],
  "search_job": null

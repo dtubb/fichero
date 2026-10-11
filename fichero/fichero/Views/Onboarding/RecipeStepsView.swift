@@ -98,7 +98,7 @@ struct ModelFinderSheet: View {
             ScrollView {
                 ModelFinderView(
                     store: project.modelFinderStore,
-                    query: setup.finderQuery(job: step.job),
+                    query: setup.finderQuery(job: step.job, step: step.id),
                     activity: project.activityStore,
                     step: .init(id: step.id, setup: setup)
                 )

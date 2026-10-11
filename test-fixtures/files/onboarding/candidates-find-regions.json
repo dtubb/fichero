@@ -18,7 +18,7 @@
    "open_licence": false,
    "size_gb": 0.006,
    "memory_gb": 0.0,
-   "size": "0.006 GB",
+   "size": "6 MB",
    "cer_published": null,
    "cer_measured_here": null,
    "measured": "unmeasured on your pages until a bake-off measures it",
@@ -27,7 +27,10 @@
    "refused": "its licence is not open (accept it to use it)",
    "installed": null,
    "download": null,
-   "runs_where": "this_mac"
+   "runs_where": "this_mac",
+   "availability": "download",
+   "availability_words": "Downloads when first used (6 MB)",
+   "chosen": false
   }
  ],
  "count": 1,
@@ -37,28 +40,28 @@
    "state": "read",
    "count": 12,
    "left_out": 0,
-   "detail": "the cards that ship with Fichero"
+   "detail": "12 ship with Fichero"
   },
   {
    "source": "installed",
    "state": "read",
    "count": 0,
    "left_out": 0,
-   "detail": "MLX vision models complete in this engine's model store"
+   "detail": "0 on this Mac"
   },
   {
    "source": "kraken-repository",
    "state": "not-searched",
    "count": 0,
    "left_out": 0,
-   "detail": "the online search looks for readers only, and this job is not a reader's"
+   "detail": "Searched for readers only"
   },
   {
    "source": "hugging-face",
    "state": "not-searched",
    "count": 0,
    "left_out": 0,
-   "detail": "the online search looks for readers only, and this job is not a reader's"
+   "detail": "Searched for readers only"
   }
  ],
  "search_job": null

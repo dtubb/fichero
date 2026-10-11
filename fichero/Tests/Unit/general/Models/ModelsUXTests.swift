@@ -206,7 +206,7 @@ final class ModelsUXTests: XCTestCase {
          "source":"shipped","offered_because":"a card that ships with Fichero",
          "pin":{"hf":"mlx-community/Qwen2.5-VL-7B-Instruct-4bit","revision":"main"},"jobs":["correct"],
          "open_licence":true,"size":"5.6 GB","measured":"unmeasured","in_recipe_rules":true,"installed":false,
-         "runs_where":"this_mac","download":{"runtime":"mlx","model":"Qwen2.5-VL-7B","action":"model.download",
+         "runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero","download":{"runtime":"mlx","model":"Qwen2.5-VL-7B","action":"model.download",
          "params":{"runtime":"mlx","model":"Qwen2.5-VL-7B"}}}
         """
         let candidate = try JSONDecoder().decode(Components.Schemas.ModelCandidate.self, from: Data(json.utf8))

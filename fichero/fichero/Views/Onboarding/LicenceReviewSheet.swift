@@ -111,13 +111,13 @@ extension ModelFinderStore {
            "offered_because":"a card that ships with Fichero","pin":{"hf":"fichero/regions-open"},
            "jobs":["find-regions"],"open_licence":true,"size":"0.05 GB","size_gb":0.05,
            "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,
-           "runs_where":"this_mac"},
+           "runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"},
           {"id":"yolo:hf/ultralytics/yolov8-layout@main","name":"YOLOv8 document layout","source":"hugging-face",
            "offered_because":"finds text blocks, marginalia and seals on manuscript pages",
            "pin":{"hf":"ultralytics/yolov8-layout","revision":"main"},"jobs":["find-regions"],"licence":"agpl-3.0",
            "open_licence":false,"size":"0.09 GB","size_gb":0.09,
            "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,
-           "installed":false,"runs_where":"this_mac"}],
+           "installed":false,"runs_where":"this_mac","availability":"download","availability_words":"Download"}],
          "sources":[{"source":"shipped","state":"read","count":1,"detail":"the cards that ship with Fichero"}]}
         """
         return try? JSONDecoder().decode(Components.Schemas.ModelCandidateList.self, from: Data(json.utf8))

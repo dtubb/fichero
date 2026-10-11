@@ -75,13 +75,13 @@ struct SetUpButtonsActTests {
         let candidates = try JSONDecoder().decode([Components.Schemas.ModelCandidate].self, from: Data("""
         [{"id":"mlx:hf:a@main","name":"Open reader","source":"shipped","offered_because":"ships",
           "pin":{},"jobs":["find-regions"],"open_licence":true,"size":"1 GB","measured":"unmeasured",
-          "in_recipe_rules":true,"runs_where":"this_mac"},
+          "in_recipe_rules":true,"runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"},
          {"id":"yolo:hf:b@main","name":"Region finder","source":"shipped","offered_because":"fits",
           "pin":{},"jobs":["find-regions"],"licence":"agpl-3.0","open_licence":false,"size":"0.1 GB",
-          "measured":"unmeasured","in_recipe_rules":true,"runs_where":"this_mac"},
+          "measured":"unmeasured","in_recipe_rules":true,"runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"},
          {"id":"yolo:hf:c@main","name":"Other closed","source":"shipped","offered_because":"fits",
           "pin":{},"jobs":["find-regions"],"licence":"Research use only","open_licence":false,"size":"0.1 GB",
-          "measured":"unmeasured","in_recipe_rules":true,"runs_where":"this_mac"}]
+          "measured":"unmeasured","in_recipe_rules":true,"runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"}]
         """.utf8))
         let named = LicenceReviewSheet.licensed(candidates, refused: ["yolo:hf:b@main"])
         #expect(named.map(\.name) == ["Region finder"])

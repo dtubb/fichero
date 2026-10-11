@@ -20,6 +20,8 @@ final class ModelFinderStore {
         var scripts: [String]
         var languages: [String]
         var material: String = "handwriting"
+        /// The recipe step the finder was opened beside: its reader is marked chosen and listed first (#5660).
+        var step: String?
     }
 
     /// The job a query asks for when none is named. Which jobs the finder answers for is the engine's
@@ -140,23 +142,12 @@ final class ModelFinderStore {
         candidate.download.map { ModelDownloads.Key(runtime: $0.runtime, model: $0.model) }
     }
 
-    /// Whether the candidate's model is on this Mac, in words (`installed`); nil where the engine says
-    /// nothing is downloaded first (a Kraken reader the run fetches, a cloud model).
-    static func installedWords(_ installed: Bool?) -> String? {
-        switch installed {
-        case true?: "On this Mac"
-        case false?: "Not on this Mac yet"
-        case nil: nil
-        }
-    }
-
-    /// Where a candidate runs, in words (`runs_where`, the places of `llm/places.py`).
-    static func placeWords(_ place: String) -> String {
-        switch place {
-        case "this_mac": "Runs on this Mac"
-        case "own_machine": "Runs on a machine of yours"
-        case "provider": "Runs at the provider"
-        default: place
+    /// A source's line as the engine words it ("12 ship with Fichero", "0 on this Mac"); the two it words without
+    /// naming the place ("Not searched") are said with it: "Kraken's model repository: not searched".
+    static func sourceLine(_ source: Components.Schemas.CandidateSource) -> String {
+        switch source.source {
+        case .krakenRepository, .huggingFace: "\(sourceWords(source.source.rawValue)): \(source.detail)"
+        default: source.detail
         }
     }
 
@@ -186,7 +177,8 @@ final class ModelFinderStore {
                     languages: query.languages.joined(separator: ","),
                     material: query.material,
                     job: query.job,
-                    online: online
+                    online: online,
+                    step: query.step
                 )
             )
             switch response {
