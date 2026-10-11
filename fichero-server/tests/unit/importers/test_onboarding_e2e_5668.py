@@ -7,6 +7,7 @@ CACIQUES_INDIOS,17,D.5 added with Copy; Set Up's answers and stages; Start; the 
 
 from __future__ import annotations
 
+import pytest
 from PIL import Image
 
 
@@ -71,7 +72,8 @@ def test_apple_vision_used_for_read_a_page_is_what_start_runs():
     assert run["runs_on"] == "this-mac"
 
 
-def test_apple_finding_no_text_on_a_page_is_not_a_failed_read(tmp_path, monkeypatch):
+@pytest.mark.parametrize("vision_mode", ["apple", "llm"])  # "llm": Transcribe HTR runs Apple as its provider
+def test_apple_finding_no_text_on_a_page_is_not_a_failed_read(tmp_path, monkeypatch, vision_mode):
     """`source.recipe.no-text-found-is-not-a-failure`: the run counted 5 pages Apple Vision found no text on as
     failed reads, "Vision LLM returned no transcription … try a stronger vision model", and offered to read them
     again."""
@@ -101,7 +103,7 @@ def test_apple_finding_no_text_on_a_page_is_not_a_failed_read(tmp_path, monkeypa
         with patch("fichero_server.workflows.tools.vision_base.apple_vision_ocr_with_geometry",
                    return_value=VisionOCRResult(text="", line_boxes=[], word_boxes=[])):
             return await transcribe(inputs={"files": src["files"], "documents": src["documents"],
-                                            "vision_mode": "apple"},
+                                            "vision_mode": vision_mode},
                                     state={"library_path": str(library), "task_id": None}, llm_config=config)
 
     try:

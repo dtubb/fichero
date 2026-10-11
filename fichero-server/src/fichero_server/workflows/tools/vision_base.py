@@ -5226,7 +5226,7 @@ async def process_vision(
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)
 
-            if not (text or "").strip() and vision_mode == "apple":
+            if not (text or "").strip() and (vision_mode == "apple" or _resolved_provider == "apple"):
                 # Apple's text recognition found no text on the page: that is what it found, not a failed read,
                 # and reading again would find the same nothing (`source.recipe.no-text-found-is-not-a-failure`,
                 # #5668: a run counted blank versos as failed reads and offered to read them again).
