@@ -36,6 +36,9 @@ from tests.unit.transfer.test_transfer_between_machines import (  # noqa: F401
     _send,
     far,
 )
+import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[4] / "scripts"))
+from _scan_files import scan_rglob  # noqa: E402
 
 INCOMING = "/api/documents/transfer/incoming"
 
@@ -155,7 +158,7 @@ def test_a_copy_nothing_arrived_for_in_a_week_is_abandoned_when_another_opens(cl
     assert client.post(INCOMING, headers=here, json=_opening(old, [record])).status_code == 200
     stale = Path(db.path).parent / "transfers" / "incoming" / old
     week_ago = time.time() - remote.STALE_AFTER_SECONDS - 60
-    for p in [stale, *stale.rglob("*")]:
+    for p in [stale, *scan_rglob(stale, "*")]:
         os.utime(p, (week_ago, week_ago))
 
     assert client.post(INCOMING, headers=here, json=_opening(new, [record])).status_code == 200

@@ -297,5 +297,12 @@
   "POST /api/training/regions/here": "fine-tuning a layout model on this Mac (#5525): engine, CLI and MCP (fichero_training_start_regions_here) first; the app's Train button on a folder's regions is the next slice",
   "GET /api/documents/trash/empty": "Empty Trash (#2077): engine, CLI and MCP built; the app's TrashStore and sidebar Trash rows are being built (worker B, 2026-10-11)",
   "POST /api/documents/trash/empty": "Empty Trash (#2077): engine, CLI and MCP built; the app's TrashStore and sidebar Trash rows are being built (worker B, 2026-10-11)",
-  "POST /api/actions/audit/undo": "undo a set of steps whole (#5658 safety.undo.a-set-is-undone-whole): the app's per-window step helper that calls it is undo slice 2"
+  "POST /api/actions/audit/undo": "undo a set of steps whole (#5658 safety.undo.a-set-is-undone-whole): the app's per-window step helper that calls it is undo slice 2",
+  "DELETE /api/documents/transfer/incoming/{transfer_id}": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
+  "GET /api/machines": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
+  "POST /api/documents/transfer/incoming": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
+  "POST /api/documents/transfer/incoming/{transfer_id}/land": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
+  "POST /api/documents/transfer/to-machine": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
+  "POST /api/machines/pair": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet",
+  "PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256}": "copy between machines (#5657, #5661): engine-to-engine routes a far Fichero calls, and the owner's pairing; CLI and MCP have them from the contract; the app's sheet for another Mac is not built yet"
 }

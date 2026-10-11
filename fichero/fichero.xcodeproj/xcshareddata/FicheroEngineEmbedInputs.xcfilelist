@@ -469,6 +469,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/sorting.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/start.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/package.py
@@ -605,9 +606,11 @@ $(SRCROOT)/../fichero-server/src/fichero_server/training/yolo_set.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/copy.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/id_map_classification.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/machines.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/membership.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/move.py
 $(SRCROOT)/../fichero-server/src/fichero_server/transfer/plan.py
+$(SRCROOT)/../fichero-server/src/fichero_server/transfer/remote.py
 $(SRCROOT)/../fichero-server/src/fichero_server/verification_targets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/action_store.py
