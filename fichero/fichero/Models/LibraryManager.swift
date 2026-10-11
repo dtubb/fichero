@@ -223,6 +223,10 @@ class LibraryManager {
         /// a row only when its count is above 0. Registered with `changeStream` below.
         @ObservationIgnored lazy var knowledgeRowCountsStore = KnowledgeRowCountsStore(client: ficheroClient)
 
+        /// This project's Trash (#2077, #5243): the sidebar's Trash row opens it in the Library pane.
+        /// Registered with `changeStream` below, so a delete or a Put Back anywhere shows here.
+        @ObservationIgnored lazy var trashStore = TrashStore(client: ficheroClient)
+
         /// Per-library activity store (#2448). Wraps `activityService`, owns the
         /// run-browser list, and signals `ActivityBrowserView` to refresh on
         /// `workflow.*` SSE events (best-effort until the backend emits dedicated
@@ -352,6 +356,7 @@ class LibraryManager {
             stream.register(self.referenceStore)
             stream.register(self.interpretationStore)
             stream.register(self.knowledgeRowCountsStore)
+            stream.register(self.trashStore)
             stream.register(self.canvasLayoutStore)
             stream.register(self.canvasItemStore)
             // A finished model download (`model.installed`, #5583) reads setup's Start plan again.

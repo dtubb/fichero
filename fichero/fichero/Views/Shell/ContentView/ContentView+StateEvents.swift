@@ -18,7 +18,8 @@ extension ContentView {
         // Either KG collection (entities / claims), per-library or legacy, is a
         // library-wide table, not a folder listing — reset the browse context the
         // same way (P4).
-        if let id = newFolderId, SidebarDestination.isKnowledgeCollectionId(id) {
+        if let id = newFolderId,
+           SidebarDestination.isKnowledgeCollectionId(id) || SidebarDestination.trashLibraryId(forSerializedID: id) != nil {
             // #4575: no `viewDisplayMode = .list` here. That line dates to
             // when the Entities table was a `.list`-mode-only rendering
             // INSIDE LibraryView (d5b5e5c31, "entities as a first-class

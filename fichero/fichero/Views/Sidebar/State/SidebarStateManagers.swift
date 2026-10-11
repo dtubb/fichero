@@ -51,6 +51,9 @@ enum SidebarDestination: Hashable {
     /// `source.model.node-in-sidebar`). Carries `libraryId` so each project's row has its own
     /// selection identity, like the knowledge rows.
     case trainedModel(String, libraryId: UUID)
+    /// A project's Trash (#2077, #5243, `safety.trash.a-place-in-the-sidebar`): the row at the end of
+    /// each project's section. Carries `libraryId` so each project's Trash is its own row.
+    case trash(libraryId: UUID)
 
     /// One prefix → constructor per case. Table-driven so adding a node kind
     /// (e.g. "comparison:", #4335) is one row, not another branch in an
@@ -80,6 +83,7 @@ enum SidebarDestination: Hashable {
         ("library:", { id in UUID(uuidString: id).map { .library($0) } }),
         ("kg-entities:", { id in UUID(uuidString: id).map { .knowledgeCollection(.entities, libraryId: $0) } }),
         ("kg-claims:", { id in UUID(uuidString: id).map { .knowledgeCollection(.claims, libraryId: $0) } }),
+        ("trash:", { id in UUID(uuidString: id).map { .trash(libraryId: $0) } }),
         // "trained-model:<library uuid>:<model id>"; a model id may hold "/" (fichero-trained/<name>).
         ("trained-model:", { payload in
             let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
@@ -137,6 +141,7 @@ enum SidebarDestination: Hashable {
         case .knowledgeCollection(.entities, let libraryId): return "kg-entities:\(libraryId.uuidString)"
         case .knowledgeCollection(.claims, let libraryId): return "kg-claims:\(libraryId.uuidString)"
         case .trainedModel(let modelId, let libraryId): return "trained-model:\(libraryId.uuidString):\(modelId)"
+        case .trash(let libraryId): return "trash:\(libraryId.uuidString)"
         }
     }
 
@@ -155,6 +160,12 @@ enum SidebarDestination: Hashable {
     /// outline / fetch).
     static func isKnowledgeCollectionId(_ id: String) -> Bool {
         knowledgeCollectionKind(forSerializedID: id) != nil
+    }
+
+    /// The project whose Trash a serialized id names, if it names one ("trash:<uuid>").
+    static func trashLibraryId(forSerializedID id: String?) -> UUID? {
+        guard case .trash(let libraryId)? = id.flatMap(SidebarDestination.init(serializedID:)) else { return nil }
+        return libraryId
     }
 }
 

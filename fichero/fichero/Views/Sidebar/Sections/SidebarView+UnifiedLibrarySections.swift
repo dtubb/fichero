@@ -206,6 +206,8 @@ extension SidebarView {
             SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore, libraryId: libraryId)
             // Training is a node of the project (#5439); it draws nothing until a model is trained.
             SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId)
+            // Trash ends every project's section, the always-there project's too (#5243).
+            SidebarTrashRow(store: library.trashStore, libraryId: libraryId)
         }
     }
 

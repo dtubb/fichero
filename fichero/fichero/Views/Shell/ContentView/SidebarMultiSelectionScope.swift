@@ -83,6 +83,10 @@ struct SidebarSourceOpen: Equatable {
         if case .trainedModel(_, let modelLibraryId)? = selectedItemId.flatMap(SidebarDestination.init(serializedID:)) {
             return SidebarDestination.library(modelLibraryId).serializedID
         }
+        // Nor is a Trash row (#5243): no outline is fetched for "trash:<uuid>".
+        if let trashLibraryId = SidebarDestination.trashLibraryId(forSerializedID: selectedItemId) {
+            return SidebarDestination.library(trashLibraryId).serializedID
+        }
         guard case .document(let selectedId)? = selectedItemId.flatMap(SidebarDestination.init(serializedID:)),
               case .library(let shown) = viewMode, shown?.id != selectedId else { return selectedItemId }
         return shown.map { SidebarDestination.document($0.id).serializedID }

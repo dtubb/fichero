@@ -264,7 +264,7 @@ extension SidebarView {
         wasRecentlyDeleted: Bool
     ) -> Bool {
         switch destination {
-        case .library, .browser, .run, .knowledgeCollection, .trainedModel:
+        case .library, .browser, .run, .knowledgeCollection, .trainedModel, .trash:
             return false
         default:
             return cachedItemMissing && !wasRecentlyDeleted

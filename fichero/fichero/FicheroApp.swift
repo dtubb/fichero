@@ -513,6 +513,10 @@ struct FicheroApp: App {
                 FocusedDeleteButton()
                     .keyboardShortcut(.delete, modifiers: [.command])
 
+                // The Trash's verbs (#5243): the same components the Trash pane's context menu shows.
+                FocusedPutBackButton()
+                FocusedEmptyTrashButton()
+
                 GroupItemsMenuSection()
 
                 Divider()

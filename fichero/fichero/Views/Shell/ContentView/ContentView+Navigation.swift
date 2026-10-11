@@ -26,6 +26,17 @@ extension ContentView {
     /// in the row's chat pane while this column keeps the workspace).
     @ViewBuilder
     func libraryContentColumn(pinnedLibrary: Binding<PinnedLibraryScope?>) -> some View {
+        // A project's Trash row (#5243) lists that project's Trash in this pane, not a folder.
+        if let trashLibraryId = SidebarDestination.trashLibraryId(forSerializedID: sidebarSelectionState.selectedItemId),
+           let project = libraryManager.getLibrary(id: trashLibraryId) {
+            AnyView(TrashPane(store: project.trashStore))
+        } else {
+            libraryDocumentsColumn(pinnedLibrary: pinnedLibrary)
+        }
+    }
+
+    @ViewBuilder
+    private func libraryDocumentsColumn(pinnedLibrary: Binding<PinnedLibraryScope?>) -> some View {
         // Space (3D) has no renderer yet (#3081) — .space normalizes to an
         // available mode upstream, so the library path renders LibraryView.
         // AnyView is load-bearing (#4331): the fully composed library-case

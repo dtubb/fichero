@@ -166,14 +166,21 @@ This is the Trash the app already promises in its delete dialog and does not hav
   soft delete and `GET /api/documents/trash` per library, pinned by `fichero-server/tests/unit/api/test_trash.py`
   (`test_each_project_lists_only_its_own_trash`). *Not built:* the app's per-project Trash. *Test:* delete in two projects and in the always-there project; each Trash lists only
   its own.
-- `safety.trash.a-place-in-the-sidebar` — **[GAP]** (#5243, #2077) the Trash is a row named Trash at the
+- `safety.trash.a-place-in-the-sidebar` — **[PARTIAL]** (#5243, #2077) the Trash is a row named Trash at the
   end of each project's section of the sidebar; the always-there project's is at the end of the
   top section; its icon shows whether that Trash is empty. It opens in the Library like any
   folder: every view mode, search within it, sorting by when deleted and by whom, List mode with
   columns for where from, when, by whom and why. Things in it can be looked at (Quick Look, the
   Source view, the Reader) and cannot be edited. The context menu and the Edit menu offer Put
   Back, Delete Permanently… and Empty Trash…; dragging an item out of the Trash onto a folder of
-  the same project puts it back there. *Test:* availability; click-around.
+  the same project puts it back there. *Test:* availability; click-around. *Built (app,
+  2026-10-10):* `SidebarTrashRow` ends every project's section and the top section, its icon full
+  or empty; selecting it lists that project's Trash in the Library pane (`TrashPane`, from
+  `TrashStore`, merged one entry at a time) with what, when, who, where from and why; Put Back and
+  Empty Trash… are one component each in the context menu and the Edit menu; Empty Trash… asks
+  with the engine's question and moved-items sentences (`fichero/Tests/Unit/general/Models/TrashStoreTests.swift`).
+  *Not built:* view modes, search and sorting in the Trash, looking at a trashed thing, Delete
+  Permanently…, dragging out to put back, the offer to put back a trashed folder.
 - `safety.trash.lists-what-and-why` — **[PARTIAL]** (#2077, #5657, #5243) the Trash lists each top-level
   deleted item once (a deleted folder once, with its count, not each descendant), with when, by
   whom, where it was (its old folder's path, or "a folder now in the Trash" / "a folder now

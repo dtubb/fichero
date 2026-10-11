@@ -590,9 +590,13 @@ extension LibraryManager {
             try? await library.savedSearchService.loadSavedSearches()
             LaunchProfile.milestone("library saved searches loaded", detail: libraryName)
         }()
+        // The Trash row's icon shows whether this project's Trash is empty (#5243).
+        async let trashLoaded: Void = await {
+            await library.trashStore.load()
+        }()
         _ = await (
             workflowsLoaded, conversationsLoaded, comparisonsLoaded, savedSearchesLoaded, trainedModelsLoaded,
-            knowledgeCountsLoaded
+            knowledgeCountsLoaded, trashLoaded
         )
         libraryManagerLogger.info("⏱ loadLibraryData exit — library: \(library.displayName)")
     }
