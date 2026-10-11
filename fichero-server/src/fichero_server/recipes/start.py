@@ -154,6 +154,10 @@ def _override(pin: dict) -> tuple[str, str] | None:
         return str(pin["cloud"]), str(pin["model"])
     if "spacy" in pin and set(pin) <= {"spacy", "version"}:  # names: spaCy is the entity tool's local reader
         return "spacy", str(pin["spacy"])
+    if pin.get("builtin") == "apple-vision":  # read as the bake-off reads it (`bakeoff._reader_of`, #5668)
+        from fichero_server.training.evaluation import APPLE_VISION
+
+        return "apple", APPLE_VISION
     from fichero_server.recipes.cards import mlx_model_for
 
     model = mlx_model_for(pin)

@@ -25,3 +25,20 @@ def test_a_copy_import_of_a_folder_warns_of_no_page_in_icloud(client, tmp_path):
 
     assert status["status"] == "completed", status
     assert status["in_icloud"] is None, status["in_icloud"]
+
+
+def test_apple_vision_used_for_read_a_page_is_what_start_runs():
+    """`source.find.used-candidate-runs`: "A candidate the finder lists as runnable on this Mac, once used for the
+    step, is what Start runs." The run chose Apple Vision for Read a page (the no-download reader); Start skipped
+    the step, "Transcribe HTR cannot run the model {'builtin': 'apple-vision'}"."""
+    from fichero_server.recipes.start import plan_start
+
+    recipe = {"fichero_recipe": 1, "id": "t/r", "version": "0.1.0", "title": "t", "steps": [
+        {"id": "read-a-page", "job": "read-a-page", "model": {"builtin": "apple-vision"}}]}
+
+    plan = plan_start(recipe, stays_local=True)
+
+    assert plan["skipped"] == [] and plan["refusals"] == [], (plan["skipped"], plan["refusals"])
+    (run,) = plan["workflows"]
+    assert (run["provider_override"], run["model_override"]) == ("apple", "apple-vision")
+    assert run["runs_on"] == "this-mac"

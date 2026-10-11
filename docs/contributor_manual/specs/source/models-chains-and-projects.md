@@ -3578,6 +3578,12 @@ Finding models
   anything else found is listed as one Fichero cannot run yet, saying why. A step with no search of its
   own (Prepare images, Put in order, Export and the like) says so in the sources row in place of
   "Searched for readers only".
+- `source.find.used-candidate-runs` — **[OK]** (#5668, found by the end-to-end onboarding run) *Built: Start's
+  `_override` reads Apple Vision's pin (`builtin: apple-vision`) as the bake-off does (`bakeoff._reader_of`):
+  the `apple` provider; pinned by `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py`.* A candidate
+  the finder lists as runnable on this Mac, once used for the step, is what Start runs: never a step skipped
+  for a model the finder offered. Apple Vision, offered for Read a page as the reader that needs no download,
+  runs as Apple's own text recognition through the step's workflow.
 - `source.recipe.local-text-models-are-cards` — **[PARTIAL]** (#5619) a text model already on this Mac
   is a card for the jobs that send a model text alone and that the shipped cards do not cover
   (`find-statements`, `split-into-entries`): every MLX model complete in this Mac's model store that
