@@ -546,29 +546,15 @@ either way (shared components), but scope of the cross-platform tests depends on
   **Ruled 2026-10-10:** every context-menu verb is also in the menu bar, through one shared component.
   *Built 2026-10-10 for Find the Documents* (`menus.project.find-the-documents-one-component`); the
   rest is #5652.
-- `menus.undo-reaches-every-mutating-action` — **[OK]** ⌘Z is a central, multi-level undo seam,
-  not a one-button special case. Verified at HEAD 2026-09-19: `ActionInvokeService.invokeAction`
-  (`Services/ActionInvokeService.swift:62-68`) records EVERY successful audited mutation into the
-  per-library `LastAction` holder — a comment there cites this fold's own finding directly
-  ("central undo seam (part 1 of the legacy milestone's 'only entity-merge seeds undo' issue):
-  record EVERY audited mutation so ⌘Z reaches all ~109 registry actions"), not only the
-  entity-merge call site the milestone's issues named.
-  `UndoLastActionButton` (`FocusedCommandButtons+UndoNavigation.swift`) then walks
-  `AuditStore`'s full audit log for genuine multi-level undo, and a failed/empty reversal raises
-  a real `NSAlert` ("Couldn't Undo") rather than clearing silently — the doc comment names this
-  "raise-not-silent" fix directly against that same issue. `RedoLastActionButton` (⌘⇧Z) exists
-  and does not re-offer itself after redoing (`AuditStore.nextRedoable` excludes an
-  inverse-of-an-inverse). Pinned:
-  `ActionInvokeServiceTests`, `LastActionScopingTests`, `UndoRoutingPolicyTests`,
-  `AuditStoreRedoTests`. **Not the literal design the milestone's "Undo on everything" issue
-  asked for** — NSUndoManager registration
-  was considered and superseded by this central-seam design (⌘Z replaces SwiftUI's default
-  `.undoRedo` entirely, per this spec's own Changelog above), a deliberate substitution, not an
-  oversight. **Still bounded, not unlimited**: this reaches every action that goes through
-  `ActionRegistry.invoke` — the 9 routes `audited-action-layer.md`'s own
-  `audit.every-mutating-route-uses-the-registry` still finds outside the registry (canvas
-  layout persistence among the untouched territory) are outside this behavior's reach too;
-  cross-referenced there, not restated.
+- `menus.undo-reaches-every-mutating-action` — **[BROKEN]** (#5658) superseded on 2026-10-10:
+  what ⌘Z and ⇧⌘Z do is owned by `ui/undo-everywhere.md` (one helper, one step stack per window,
+  the engine judging every reversal), and the undo design by `safety/undo.md`. The central seam
+  this line once recorded as OK (`ActionInvokeService.invokeAction` writing every audited call
+  into a per-library `LastAction`, and `UndoLastActionButton` walking `AuditStore`'s log) reverses
+  the newest row of the always-there project, whoever made it and whichever project the window
+  shows; that is `undo.window`, tagged BROKEN there. Its tests (`LastActionScopingTests`,
+  `AuditStoreRedoTests`) are replaced in that spec's slice 1. The Edit menu's single ⌘Z owner and
+  the routing ahead of the responder chain stay this spec's (`MenuShortcutBoundaryTests`).
 - `menus.ipad-full-parity` — **[GAP]** (#3307) iPad must expose the SAME menu-bar command set and
   the SAME contextual-menu items as macOS — no iPad-reduced subset (the maintainer's 2026-07-06 directive;
   iPhone scope is explicitly left open, undecided). Not audited this pass: no source scan was run

@@ -70,7 +70,7 @@ should be able to hold all three.
 
 | Word | What it means | How far back | Who |
 | --- | --- | --- | --- |
-| **Undo** | Take back **my last step**. Then the one before. | My own steps, in this sitting. | Only me, only mine. |
+| **Undo** | Take back **my last step**. Then the one before. | My own steps made in this window, while it is open (the history list reaches further). | Only me, only mine. |
 | **Trash** | **I removed a thing** and may want it back. | Until someone empties the Trash. | Whoever could see the thing can see it in the Trash. |
 | **Rollback** | Return **this thing**, **this run's work**, or **this whole library** to how it was at a point in time. | As far as history is kept. | Anyone who may edit the thing; the whole library, only its owner. |
 
@@ -91,7 +91,10 @@ records are folded away (see "What gets deleted").
 
 **Undo reads the record through a filter:** my steps, this sitting, newest first. The record
 is shared by the whole library; the undo stack is personal. That filter is the entire
-difference, and it is the thing that is missing today.
+difference, and it is the thing that is missing today. In the app the filter is the window:
+each window's Command-Z holds the ids of the record rows made in that window, and nothing else
+(a provisional decision of 2026-10-10, `../ui/undo-everywhere.md`, "Decision"). The command
+line and agents, which have no window, ask the engine for their next step.
 
 **Undo refuses rather than overwrites.** If the thing has changed since my step, undo stops
 and says so. It never silently discards someone's later work. This needs each changeable thing
@@ -186,7 +189,7 @@ Each slice stands alone: it can be built, tested and shipped without the ones af
 
 | # | File | What a person gains | Depends on |
 | --- | --- | --- | --- |
-| 1 | `undo.md` | Command-Z takes back my last step, never someone else's, never over the top of later work. Typing undo is untouched. | nothing |
+| 1 | `undo.md` (the design, the engine) and `../ui/undo-everywhere.md` (the app path) | Command-Z takes back the last step made in this window, never someone else's, never over the top of later work. Typing undo is untouched. | nothing |
 | 2 | `trash.md` | A Trash you can open, put things back from, and empty. One rule for every kind. | nothing (better after 1) |
 | 3 | `versions-and-restore.md` | See what a thing said before and return to it. | the source-model versions |
 | 4 | `run-take-back.md` | Take back everything one run did, today or next week. | 1 (safe reversal), 2 (runs go to the Trash) |
@@ -194,7 +197,11 @@ Each slice stands alone: it can be built, tested and shipped without the ones af
 | 6 | `the-record.md` | The record is checked, stays small, shows who did what, and maps to a standard. | 3 (versions let the record shrink) |
 
 **Slice 1 comes first because it is where a person loses work today.** Its engine half and its
-app half are separate pieces of work and are listed separately in that file. Slice 5 has two
+app half are separate pieces of work in separate files: `undo.md` owns the design and the
+engine (what is undoable, whose step it is, the locks, redo, the command line and agents);
+`../ui/undo-everywhere.md` owns the app path (the helper, the window's stack, the Edit menu,
+naming, refusal in words, the coverage guard) and the concrete first build. Each behaviour lives
+in one of the two; `undo.md` ends with a table of what moved on 2026-10-10. Slice 5 has two
 items that do not wait for their slice: #4982 and #4983 are filed and should be fixed as soon
 as their design here is agreed.
 
@@ -202,11 +209,14 @@ as their design here is agreed.
 
 One code path per thing. These go:
 
-- **The window undo manager as a home for changes to the library.** The app's registrations
-  for sidebar delete, workflow canvas edits and canvas move and resize are unreachable today.
-  They are deleted, and those steps become ordinary recorded actions reversed through the one
-  record. The system's own undo stays for exactly two things: typing inside a text field, and
-  steps inside the image editor before they are committed. (Slice 1.)
+- **Closures that change the library from an undo manager.** The app's registrations for
+  sidebar delete, workflow canvas edits and canvas move and resize are closures that write
+  data outside the record. They are deleted, and those steps become ordinary recorded actions
+  reversed through the one record. A window's step stack stays, but it holds only record row
+  ids and asks the engine every time (`undo.one-path.no-local-closures`). The system's own
+  undo keeps typing inside a text field and the image editor's uncommitted steps. Also deleted:
+  the global `LastAction` holder and `AuditStore.undoLast()` as the Command-Z path. (Slice 1;
+  the canvas closures in that spec's build step 7.)
 - **The older mutation record and its undo route**, and the 30-second guess that tries to match
   its rows to the action record. Its rows are kept and readable; nothing new is written to it;
   its undo route first refuses what the action layer owns (#4864), then retires. (Slice 6.)
@@ -253,9 +263,10 @@ These are requests, not edits. The files belong to their authors.
   describes replay as correct. After #4957 and the trace above, it is not. `audit.run-scoped-undo`
   and `audit.blame-and-rollback-view` are superseded by slices 4 and 6 here and should point to
   them. `audit.one-operation-has-one-undo` (#4864) is answered by "What gets deleted" above.
-- **To `ui/menus-and-commands.md`:** it calls Command-Z through the record shipped. It is
-  wired, and wrong in the four ways listed above. `undo.md` becomes the source for what
-  Command-Z does.
+- **To `ui/menus-and-commands.md`:** it called Command-Z through the record shipped. It is
+  wired, and wrong in the four ways listed above. Done 2026-10-10:
+  `menus.undo-reaches-every-mutating-action` now points to `../ui/undo-everywhere.md`, which is
+  the source for what Command-Z does in the app.
 - **To `ui/activity-and-automatic-work.md`** (which absorbed `ui/activity.md`): deleted runs join
   the Trash (slice 2); a run's own "take back" control is slice 4 (`activity.window.what-it-made`).
 

@@ -147,7 +147,7 @@ are already outside the chain on their branch, so a purge can reach those today.
   filtered by person, by kind of thing, by run, by date, or for one thing (the Inspector's
   History section links here). Each row is a sentence: "Ana moved Letter 12 to Box 3." Rows
   made by a machine say so and name the run. *Data:* the record, paged and filtered in the
-  database; the name templates of `safety.undo.menu-names-the-step`. *Test:* the list equals
+  database; the action words of `undo.naming` (`../ui/undo-everywhere.md`). *Test:* the list equals
   the record under each filter; load leg.
 - `safety.record.you-see-what-you-may-see` — **[GAP]** (#5247) a row about a thing a person may not see is not
   shown to them, names included. The → #4917 rules apply to the record as to the thing. *Test:*
