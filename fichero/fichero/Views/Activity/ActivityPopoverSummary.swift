@@ -1,11 +1,26 @@
 import FicheroAPIClient
 import SwiftUI
 
+/// One stage of a recipe run in the Activity popover (#5666), with its own bar.
+struct ActivityPopoverStage: Equatable, Identifiable {
+    let id: String
+    /// The stage's workflow by name ("Transcribe (Kraken)").
+    let title: String
+    /// "Running", "Done", "Waiting: the model lane", "Failed: …".
+    let state: String
+    /// Its pages done and in all, for its bar; 0 of 0 before it has any.
+    let done: Int
+    let total: Int
+    let isRunning: Bool
+    let isFailed: Bool
+}
+
 /// What the toolbar's Activity popover says (`activity.popover.summary`,
-/// #5415): a summary, not a list. What is running now, how much is waiting
-/// and the main reason, the last three errors with why, and whether heavy
-/// work is held back and why, and this Mac's state (memory pressure, heat,
-/// battery, in use). Built from the one jobs read (`ActivityStore.backgroundJobs`
+/// #5415): a summary, not a list. A recipe run in hand as one run with its
+/// stages under it (#5666), what else is running now, how much is waiting
+/// and the main reason, the recent errors with why (the run in hand's, else
+/// the newest), worded without file paths, and whether heavy work is held back
+/// and why, and this Mac's state (memory pressure, heat, battery, in use). Built from the one jobs read (`ActivityStore.backgroundJobs`
 /// and `.machine`, `GET /api/activity/jobs`) and the window's own live runs,
 /// so it cannot disagree with the Activity window. The GPU is not read yet (#5415).
 struct ActivityPopoverSummary: Equatable {
@@ -23,15 +38,30 @@ struct ActivityPopoverSummary: Equatable {
         let step: String?
     }
 
+    /// A recipe run in hand (#5666): one run with its stages under it, never its stages again as jobs of their
+    /// own. Worded by the Activity details (`ActivityDetails.stages`), from the run's tree in the store.
+    struct Run: Equatable, Identifiable {
+        let id: String
+        let name: String
+        /// What the run itself waits for while no stage runs ("Waiting for the model lane").
+        let waiting: String?
+        let stages: [ActivityPopoverStage]
+    }
+
     static let errorsShown = 3
 
+    /// The recipe runs in hand, each with its stages.
+    var runs: [Run] = []
     var running: [Item] = []
     /// Jobs queued and not started, counted (a waiting row stands for `total` jobs).
     var waitingCount = 0
     /// The reason most of the waiting jobs give.
     var waitingReason: String?
-    /// The newest failures, at most `errorsShown`, each with its reason.
+    /// The recent failures, at most `errorsShown`, each with its reason in words: while a run is in hand, its
+    /// own; else the newest the engine lists (#5666: older ones are the Activity window's).
     var recentErrors: [Item] = []
+    /// How many failures are in that scope, for the badge; more than `recentErrors` holds when it is capped.
+    var errorCount = 0
     /// Why heavy work is held back now, or nil when it is not.
     var heldBack: String?
     /// This Mac's state as a row of symbols (`activity.popover.mac-state-row`,
@@ -50,13 +80,18 @@ struct ActivityPopoverSummary: Equatable {
     }
 
     init(jobs: [ActivityJob], paused: Bool, machine: Components.Schemas.MachineState? = nil, liveRuns: [LiveRun] = [],
-         processCpuPercent: Double? = nil, cpuCount: Int = 0) {
-        var seen = Set<String>()
+         runTrees: [String: ActivityJobNode] = [:], processCpuPercent: Double? = nil, cpuCount: Int = 0) {
+        // A recipe run in hand, and everything under it: said once, by the run (#5666).
+        let inHand = Self.runsInHand(jobs, runTrees: runTrees)
+        runs = inHand.runs
+        let inRun = inHand.ids
+        var seen = inRun
         for run in liveRuns where seen.insert(run.id).inserted {
             running.append(Item(id: run.id, name: run.name, detail: run.step))
         }
         var reasons: [String: Int] = [:]
-        for job in jobs {
+        // A run's own stages and steps are its, not jobs of their own; its failures are still counted.
+        for job in jobs where job.state.isFailed || !inRun.contains(job.id) {
             switch job.state {
             case .running, .stalled:
                 // A page under a run is that run's work, said once by the run.
@@ -68,8 +103,11 @@ struct ActivityPopoverSummary: Equatable {
                 waitingCount += count
                 if let reason = job.reason, !reason.isEmpty { reasons[reason, default: 0] += count }
             case .failed:
+                // Only recent ones (#5666): while a run is in hand, its own failures; else every one listed.
+                guard Self.isRecent(job, inRun: inRun) else { continue }
+                errorCount += 1
                 if recentErrors.count < Self.errorsShown {
-                    recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason))
+                    recentErrors.append(Item(id: job.id, name: job.name, detail: job.reason.map(Self.worded)))
                 }
             case .paused, .completed, .other:
                 continue
@@ -82,6 +120,81 @@ struct ActivityPopoverSummary: Equatable {
                                  waitingReason: waitingReason)
         macReadings = (machine.map(Self.readings) ?? [])
             + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+    }
+
+    /// The recipe runs in hand, with every id under them (the runs, their stages' runs, their steps and pages).
+    private static func runsInHand(_ jobs: [ActivityJob], runTrees: [String: ActivityJobNode]) -> (runs: [Run], ids: Set<String>) {
+        var runs: [Run] = []
+        var ids = Set<String>()
+        for job in jobs where isRunInHand(job) {
+            let node = runTrees[job.id]
+            runs.append(run(job, node: node))
+            ids.insert(job.id)
+            if let node {
+                ids.formUnion(Self.ids(under: node))
+                ids.formUnion(node.stages.compactMap(\.childId))
+            }
+        }
+        return (runs, ids)
+    }
+
+    /// Whether a failure is the popover's (#5666): with no run in hand, every one listed; with one, only its own
+    /// (the run, a stage's run, a step or a page under it). Older ones are the Activity window's.
+    private static func isRecent(_ job: ActivityJob, inRun: Set<String>) -> Bool {
+        inRun.isEmpty || [job.id, job.runId, job.parentId].contains { $0.map(inRun.contains) == true }
+    }
+
+    /// A recipe run that is going, waiting or paused, as the project's run strip follows it.
+    private static func isRunInHand(_ job: ActivityJob) -> Bool {
+        job.taskType == ActivityStore.recipeRunKind && job.parentId == nil && !job.id.hasPrefix("waiting:")
+            && (job.state.isActive || job.state == .waiting)
+    }
+
+    /// The run with its stages, from its tree (none yet before the tree is read).
+    private static func run(_ job: ActivityJob, node: ActivityJobNode?) -> Run {
+        let words = ActivityDetails.stages(of: node)
+        let stages = zip(node?.stages ?? [], words).map { stage, word in
+            ActivityPopoverStage(
+                id: word.id, title: word.title,
+                state: word.waitingFor.map { "Waiting: \(worded($0))" } ?? worded(word.state),
+                done: stage.account?.pagesDone ?? 0, total: stage.account?.pagesTotal ?? 0,
+                isRunning: stage.state == "running", isFailed: word.isFailed
+            )
+        }
+        let anyRunning = stages.contains(where: \.isRunning)
+        return Run(id: job.id, name: job.name,
+                   waiting: anyRunning ? nil : (node?.reason ?? job.reason).map(worded), stages: stages)
+    }
+
+    private static func ids(under node: ActivityJobNode) -> [String] {
+        node.children.flatMap { [$0.id] + ids(under: $0) }
+    }
+
+    /// A reason in words, without file paths or file names (#5666): a path or an image's name becomes
+    /// "a page", any other file's "a file", so an error reads as what happened, not where on disk.
+    static func worded(_ text: String) -> String {
+        let image = "jpe?g|png|tiff?|heic|gif|bmp|webp|jp2|pdf"
+        var words = text
+        let rules: [(String, String)] = [
+            // A path to an image or a PDF: its folders may hold spaces ("EAP 1740"), its file's name does not.
+            (#"(?:~|…|\.\.\.)?/(?:[^/\n:,;'"]+/)*[^/\s:,;'"]+\.(?:\#(image))\b"#, "a page"),
+            // A path to any other file; then a path with no extension at all.
+            (#"(?:~|…|\.\.\.)?/(?:[^/\n:,;'"]+/)*[^/\s:,;'"]+\.\w+\b"#, "a file"),
+            (#"~?/[^\s:,;'"]+/[^\s:,;'"]+"#, "a file"),
+            // A file's own name, with or without a leading ellipsis.
+            (#"(?:…|\.\.\.)?[\w()\[\]~-]+(?:[.][\w()\[\]~-]+)*\.(?:\#(image))\b"#, "a page"),
+            (#"(?:…|\.\.\.)?[\w()\[\]~-]+\.(?:xml|json|txt|csv|zip|alto|hocr|mlmodel|safetensors)\b"#, "a file")
+        ]
+        for (pattern, replacement) in rules {
+            words = words.replacingOccurrences(of: pattern, with: replacement, options: [.regularExpression, .caseInsensitive])
+        }
+        for phrase in ["a page", "a file"] {
+            words = words.replacingOccurrences(of: "'\(phrase)'", with: phrase)
+                .replacingOccurrences(of: "\"\(phrase)\"", with: phrase)
+                .replacingOccurrences(of: "‘\(phrase)’", with: phrase)
+        }
+        return words.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
     }
 
     private static func readings(_ machine: Components.Schemas.MachineState) -> [MacReading] {
@@ -155,6 +268,9 @@ struct ActivityPopoverSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            ForEach(summary.runs) { run in
+                ActivityPopoverRunView(run: run)
+            }
             ForEach(summary.running) { item in
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
@@ -166,7 +282,7 @@ struct ActivityPopoverSummaryView: View {
                     }
                 }
             }
-            if summary.running.isEmpty && nothingElseRunning {
+            if summary.running.isEmpty && summary.runs.isEmpty && nothingElseRunning {
                 Text("Nothing running.").font(.callout).foregroundStyle(.secondary)
             }
             if summary.waitingCount > 0 {
@@ -183,19 +299,9 @@ struct ActivityPopoverSummaryView: View {
             if !summary.macReadings.isEmpty {
                 ActivityMacStateRow(readings: summary.macReadings)
             }
-            if !summary.recentErrors.isEmpty {
-                // One line each, the full name and reason in its help (#5635).
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(summary.recentErrors) { item in
-                        Label(Self.oneLine(item), systemImage: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                            .foregroundStyle(.red)
-                            .help(Self.words(item).joined(separator: "\n"))
-                    }
-                }
-                .accessibilityIdentifier("activity.popover.errors")
+            if summary.errorCount > 0 {
+                // A count that opens the detail (#5666): errors never crowd out the work in hand.
+                ActivityPopoverErrorsBadge(summary: summary)
             }
         }
     }

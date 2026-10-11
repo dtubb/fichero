@@ -165,8 +165,17 @@ struct ActivityStatusToolbarItem: View {
             }
         }
         .padding(14)
-        .frame(minWidth: 260, alignment: .leading)
+        // A bounded width, so an error or a stage's wait wraps instead of running past the edge (#5666).
+        .frame(minWidth: 260, maxWidth: 360, alignment: .leading)
         .accessibilityIdentifier("activity.popover")
+        // A recipe run in hand reads as one run with its stages: its tree, read once when shown (the store
+        // follows it from then on, as the Activity window's rows do).
+        .task {
+            for job in activityStore.backgroundJobs
+            where job.taskType == ActivityStore.recipeRunKind && job.parentId == nil && !job.id.hasPrefix("waiting:") {
+                await activityStore.loadRunTree(threadId: job.id)
+            }
+        }
     }
 
     private var summary: ActivityPopoverSummary {
@@ -177,6 +186,7 @@ struct ActivityStatusToolbarItem: View {
             liveRuns: activeWorkflows.map {
                 .init(id: $0.threadId, name: $0.name, step: $0.currentNodeName)
             },
+            runTrees: activityStore.runTrees,
             // The process CPU from the same jobs read joins the Mac's row of symbols (#5635).
             processCpuPercent: activityStore.processCpuPercent,
             cpuCount: activityStore.cpuCount
