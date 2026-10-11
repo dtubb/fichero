@@ -1,0 +1,139 @@
+{
+ "job": "read-a-line",
+ "items": [
+  {
+   "id": "kraken:zenodo/10.5281/zenodo.21788410@unpinned",
+   "name": "PP-OCRv6 (medium), multilingual handwritten and printed recognition",
+   "source": "shipped",
+   "offered_because": "a card that ships with Fichero",
+   "pin": {
+    "zenodo": "10.5281/zenodo.21788410"
+   },
+   "jobs": [
+    "read-a-line",
+    "tie-text-to-lines"
+   ],
+   "scripts": [
+    "Arab",
+    "Armn",
+    "Cyrl",
+    "Ethi",
+    "Geor",
+    "Grek",
+    "Hebr",
+    "Latn",
+    "Mlym",
+    "Syrc"
+   ],
+   "languages": null,
+   "licence": "Apache-2.0",
+   "open_licence": true,
+   "size_gb": 0.06,
+   "memory_gb": 1.0,
+   "size": "0.06 GB",
+   "cer_published": 0.0391,
+   "cer_measured_here": null,
+   "measured": "unmeasured on your pages until a bake-off measures it",
+   "in_recipe_rules": true,
+   "rule_rank": 1,
+   "refused": null,
+   "installed": null,
+   "download": null,
+   "runs_where": "this_mac"
+  },
+  {
+   "id": "kraken:zenodo/10.5281/zenodo.12743230@unpinned",
+   "name": "CATMuS Medieval, medieval manuscripts (French, Latin, Spanish)",
+   "source": "shipped",
+   "offered_because": "a card that ships with Fichero",
+   "pin": {
+    "zenodo": "10.5281/zenodo.12743230"
+   },
+   "jobs": [
+    "read-a-line",
+    "tie-text-to-lines"
+   ],
+   "scripts": [
+    "Latn"
+   ],
+   "languages": null,
+   "licence": "CC-BY-4.0",
+   "open_licence": true,
+   "size_gb": 0.016,
+   "memory_gb": 1.0,
+   "size": "0.016 GB",
+   "cer_published": null,
+   "cer_measured_here": null,
+   "measured": "unmeasured on your pages until a bake-off measures it",
+   "in_recipe_rules": true,
+   "rule_rank": 2,
+   "refused": null,
+   "installed": null,
+   "download": null,
+   "runs_where": "this_mac"
+  },
+  {
+   "id": "kraken:zenodo/10.5281/zenodo.13788177@unpinned",
+   "name": "McCATMuS, general Latin-script recognition, 16th-21st century",
+   "source": "shipped",
+   "offered_because": "a card that ships with Fichero",
+   "pin": {
+    "zenodo": "10.5281/zenodo.13788177"
+   },
+   "jobs": [
+    "read-a-line",
+    "tie-text-to-lines"
+   ],
+   "scripts": [
+    "Latn"
+   ],
+   "languages": null,
+   "licence": "CC-BY-4.0",
+   "open_licence": true,
+   "size_gb": 0.016,
+   "memory_gb": 1.0,
+   "size": "0.016 GB",
+   "cer_published": null,
+   "cer_measured_here": null,
+   "measured": "unmeasured on your pages until a bake-off measures it",
+   "in_recipe_rules": true,
+   "rule_rank": 3,
+   "refused": null,
+   "installed": null,
+   "download": null,
+   "runs_where": "this_mac"
+  }
+ ],
+ "count": 3,
+ "sources": [
+  {
+   "source": "shipped",
+   "state": "read",
+   "count": 12,
+   "left_out": 0,
+   "detail": "the cards that ship with Fichero"
+  },
+  {
+   "source": "installed",
+   "state": "read",
+   "count": 0,
+   "left_out": 0,
+   "detail": "MLX vision models complete in this engine's model store"
+  },
+  {
+   "source": "kraken-repository",
+   "state": "not-searched",
+   "count": 0,
+   "left_out": 0,
+   "detail": "not searched: ask with online=true to search it"
+  },
+  {
+   "source": "hugging-face",
+   "state": "not-searched",
+   "count": 0,
+   "left_out": 0,
+   "detail": "not searched: ask with online=true to search it"
+  }
+ ],
+ "search_job": null
+}

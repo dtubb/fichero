@@ -37,9 +37,9 @@ struct FirstRunWindow: View {
     /// Tells the window which project setup made, when setup finishes, so it shows that project.
     private let onProjectReady: (UUID) -> Void
 
-    init(mode: Mode = .firstRun,
-         project: LibraryManager.LibraryReference? = nil,
-         onProjectReady: @escaping (UUID) -> Void = { _ in }) {
+    /// `initialStep` and `newProject`: the onboarding screenshots' seam (`OnboardingScreenshotsTests`); the app passes neither.
+    init(mode: Mode = .firstRun, project: LibraryManager.LibraryReference? = nil, initialStep: FirstRunStep? = nil,
+         newProject: NewProjectStore? = nil, onProjectReady: @escaping (UUID) -> Void = { _ in }) {
         let steps: [FirstRunStep] = switch mode {
         case .firstRun: FirstRunStep.steps(isCompanionPlatform: FirstRunStep.isCompanionPlatform)
         case .newProject: FirstRunStep.newProjectSteps
@@ -49,7 +49,8 @@ struct FirstRunWindow: View {
         self.mode = mode
         self.onProjectReady = onProjectReady
         _project = State(initialValue: project)
-        _step = State(initialValue: steps.first ?? .welcome)
+        _step = State(initialValue: initialStep ?? steps.first ?? .welcome)
+        if let newProject { _newProject = State(initialValue: newProject) }
     }
 
     /// The store of the project being set up; nil until Your project has made one.
@@ -378,11 +379,10 @@ extension FirstRunWindow {
         return ActivitySelection(jobId: jobId, libraryId: projectId)
     }
 
-    /// #2718 — When the person chose a provider, finishing hands off to the
-    /// existing local-first Add Provider flow (full provider catalog +
-    /// default-model selection) rather than hardcoding any single provider.
-    /// Setting `isFirstLaunchProviderSetup` makes that sheet pre-select a local
-    /// provider. A project setup made is shown in the window.
+    /// #2718 — When the person chose a provider, finishing hands off to the existing local-first Add Provider
+    /// flow (full provider catalog + default-model selection) rather than hardcoding any single provider.
+    /// Setting `isFirstLaunchProviderSetup` makes that sheet pre-select a local provider. A project setup made is
+    /// shown in the window.
     private func finish() {
         if mode == .firstRun {
             featureManager.firstRunCompleted = true

@@ -1,0 +1,320 @@
+{
+ "items": [
+  {
+   "id": "transcribe",
+   "title": "Transcribe",
+   "description": "Read every page into text you can correct.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "search",
+   "title": "Search",
+   "description": "Make the text searchable by meaning, not only by its words.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "make-a-vector",
+     "title": "Make vectors for search"
+    }
+   ],
+   "parent": "transcribe"
+  },
+  {
+   "id": "translate-normalise",
+   "title": "Translate or normalise",
+   "description": "Transcribe, then translate, transliterate or normalise the spelling.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "translate-transliterate-normalise",
+     "title": "Translate, transliterate or normalise"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "knowledge-graph",
+   "title": "Knowledge graph",
+   "description": "Everything below, with dates and links to authorities, joined into one graph you can question and search.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "find-names-tag-words",
+     "title": "Find names"
+    },
+    {
+     "id": "work-out-dates",
+     "title": "Work out dates"
+    },
+    {
+     "id": "find-statements",
+     "title": "Find statements"
+    },
+    {
+     "id": "link-to-authorities",
+     "title": "Link to authorities"
+    },
+    {
+     "id": "make-a-vector",
+     "title": "Make vectors for search"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "entities",
+   "title": "Entities",
+   "description": "Find the people, places and things named in the text.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "find-names-tag-words",
+     "title": "Find names"
+    }
+   ],
+   "parent": "knowledge-graph"
+  },
+  {
+   "id": "statements",
+   "title": "Statements",
+   "description": "Find who did what to whom, each tied to its line.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "find-names-tag-words",
+     "title": "Find names"
+    },
+    {
+     "id": "find-statements",
+     "title": "Find statements"
+    }
+   ],
+   "parent": "knowledge-graph"
+  },
+  {
+   "id": "map-places",
+   "title": "Map places",
+   "description": "Find the places in the text and put them on a map.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "find-names-tag-words",
+     "title": "Find names"
+    },
+    {
+     "id": "place-in-a-gazetteer",
+     "title": "Place in a gazetteer"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "quotations",
+   "title": "Gather quotations",
+   "description": "Transcribe, then pull out the passages you are looking for.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "pull-out-passages",
+     "title": "Pull out passages"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "catalogue",
+   "title": "Catalogue my sources",
+   "description": "Transcribe, then describe each source for the catalogue.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "correct",
+     "title": "Correct"
+    },
+    {
+     "id": "find-names-tag-words",
+     "title": "Find names"
+    },
+    {
+     "id": "work-out-dates",
+     "title": "Work out dates"
+    },
+    {
+     "id": "describe-for-the-catalogue",
+     "title": "Describe for the catalogue"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "tables",
+   "title": "Tables and forms",
+   "description": "Find each table's cells, read them, and gather the rows into a table.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-regions",
+     "title": "Find regions"
+    },
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "find-a-tables-cells",
+     "title": "Find a table's cells"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    },
+    {
+     "id": "extract-to-a-table",
+     "title": "Extract to a table"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "edit-corpus",
+   "title": "Edit a corpus",
+   "description": "Lines and readings to edit by hand; nothing runs by itself after.",
+   "runs_by_itself": true,
+   "jobs": [
+    {
+     "id": "find-lines",
+     "title": "Find lines"
+    },
+    {
+     "id": "read-a-line",
+     "title": "Read each line"
+    }
+   ],
+   "parent": null
+  },
+  {
+   "id": "decipher",
+   "title": "Decipher a script",
+   "description": "Tools for signs not yet read; nothing runs by itself.",
+   "runs_by_itself": false,
+   "jobs": [],
+   "parent": null
+  },
+  {
+   "id": "not-sure",
+   "title": "Not sure yet",
+   "description": "Import first; the tools are offered when you want them.",
+   "runs_by_itself": false,
+   "jobs": [],
+   "parent": null
+  }
+ ],
+ "count": 13
+}

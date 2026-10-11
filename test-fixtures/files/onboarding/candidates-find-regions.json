@@ -1,0 +1,65 @@
+{
+ "job": "find-regions",
+ "items": [
+  {
+   "id": "yolo:hf/hantian/yolo-doclaynet/yolov11n@unpinned",
+   "name": "A YOLO11 layout model trained on DocLayNet; finds text blocks, headings, tables, pictures, page headers and footers. Weak on handwritten pages until fine-tuned (measured 2026-10-10)",
+   "source": "shipped",
+   "offered_because": "a card that ships with Fichero",
+   "pin": {
+    "yolo": "yolo-doclaynet-11n"
+   },
+   "jobs": [
+    "find-regions"
+   ],
+   "scripts": null,
+   "languages": null,
+   "licence": "AGPL-3.0",
+   "open_licence": false,
+   "size_gb": 0.006,
+   "memory_gb": 0.0,
+   "size": "0.006 GB",
+   "cer_published": null,
+   "cer_measured_here": null,
+   "measured": "unmeasured on your pages until a bake-off measures it",
+   "in_recipe_rules": true,
+   "rule_rank": null,
+   "refused": "its licence is not open (accept it to use it)",
+   "installed": null,
+   "download": null,
+   "runs_where": "this_mac"
+  }
+ ],
+ "count": 1,
+ "sources": [
+  {
+   "source": "shipped",
+   "state": "read",
+   "count": 12,
+   "left_out": 0,
+   "detail": "the cards that ship with Fichero"
+  },
+  {
+   "source": "installed",
+   "state": "read",
+   "count": 0,
+   "left_out": 0,
+   "detail": "MLX vision models complete in this engine's model store"
+  },
+  {
+   "source": "kraken-repository",
+   "state": "not-searched",
+   "count": 0,
+   "left_out": 0,
+   "detail": "the online search looks for readers only, and this job is not a reader's"
+  },
+  {
+   "source": "hugging-face",
+   "state": "not-searched",
+   "count": 0,
+   "left_out": 0,
+   "detail": "the online search looks for readers only, and this job is not a reader's"
+  }
+ ],
+ "search_job": null
+}

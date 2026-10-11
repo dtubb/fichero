@@ -1,0 +1,216 @@
+{
+ "started": null,
+ "runs": [
+  {
+   "steps": [
+    "find-lines",
+    "read-a-line"
+   ],
+   "job": "read-a-line",
+   "card": "workflow",
+   "runs_on": "this-mac",
+   "workflow": "Transcribe (Kraken)",
+   "workflow_id": "667dacb2-4a6f-5324-ac65-4222ce3e0c0d",
+   "provider_override": "kraken",
+   "model_override": "kraken-zenodo-21788410",
+   "layer": null,
+   "check": null,
+   "provider": null,
+   "model": null,
+   "prompt": null,
+   "folder": null,
+   "formats": null,
+   "done": 0,
+   "of": 0,
+   "note": "runs on all 0 pages",
+   "last_run": null,
+   "last_why": null,
+   "takes": [
+    "page_image"
+   ],
+   "gives": [
+    "line_readings",
+    "lines"
+   ],
+   "tool_config": null,
+   "readers": null
+  },
+  {
+   "steps": [
+    "correct"
+   ],
+   "job": "correct",
+   "card": "workflow",
+   "runs_on": "this-mac",
+   "workflow": "Paleographer Review",
+   "workflow_id": "2613da1c-61d2-54e5-87be-bd6336f3d568",
+   "provider_override": "omlx",
+   "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+   "layer": null,
+   "check": null,
+   "provider": null,
+   "model": null,
+   "prompt": null,
+   "folder": null,
+   "formats": null,
+   "done": 0,
+   "of": 0,
+   "note": "runs on all 0 pages",
+   "last_run": null,
+   "last_why": null,
+   "takes": [
+    "line_readings"
+   ],
+   "gives": [
+    "line_readings"
+   ],
+   "tool_config": null,
+   "readers": null
+  },
+  {
+   "steps": [
+    "find-names-tag-words"
+   ],
+   "job": "find-names-tag-words",
+   "card": "workflow",
+   "runs_on": "this-mac",
+   "workflow": "Extract Entities",
+   "workflow_id": "f0e4e22a-0b6b-5633-92f9-f2295748f6ef",
+   "provider_override": "spacy",
+   "model_override": "es_core_news_sm",
+   "layer": null,
+   "check": null,
+   "provider": null,
+   "model": null,
+   "prompt": null,
+   "folder": null,
+   "formats": null,
+   "done": 0,
+   "of": 0,
+   "note": "runs on all 0 pages",
+   "last_run": null,
+   "last_why": null,
+   "takes": [
+    "line_readings|page_reading"
+   ],
+   "gives": [
+    "mentions"
+   ],
+   "tool_config": null,
+   "readers": null
+  }
+ ],
+ "workflows": [
+  {
+   "steps": [
+    "find-lines",
+    "read-a-line"
+   ],
+   "job": "read-a-line",
+   "workflow": "Transcribe (Kraken)",
+   "workflow_id": "667dacb2-4a6f-5324-ac65-4222ce3e0c0d",
+   "provider_override": "kraken",
+   "model_override": "kraken-zenodo-21788410",
+   "runs_on": "this-mac"
+  },
+  {
+   "steps": [
+    "correct"
+   ],
+   "job": "correct",
+   "workflow": "Paleographer Review",
+   "workflow_id": "2613da1c-61d2-54e5-87be-bd6336f3d568",
+   "provider_override": "omlx",
+   "model_override": "mlx-community/Qwen2.5-VL-7B-Instruct-4bit",
+   "runs_on": "this-mac"
+  },
+  {
+   "steps": [
+    "find-names-tag-words"
+   ],
+   "job": "find-names-tag-words",
+   "workflow": "Extract Entities",
+   "workflow_id": "f0e4e22a-0b6b-5633-92f9-f2295748f6ef",
+   "provider_override": "spacy",
+   "model_override": "es_core_news_sm",
+   "runs_on": "this-mac"
+  }
+ ],
+ "skipped": [
+  {
+   "step": "place-in-a-gazetteer",
+   "why": "no card runs the job 'place-in-a-gazetteer' yet: Start cannot run “Place in a gazetteer” by itself; run the Extract Geo workflow by hand: it finds the places and puts them on the map",
+   "fix": null
+  }
+ ],
+ "offered": [],
+ "refusals": [],
+ "waiting": [
+  "steps correct wait for Qwen2.5-VL 7B (OCR), which is downloading (Downloading Qwen2.5-VL 7B (OCR): 1.9 GB of 5.6 GB): they run when it lands"
+ ],
+ "downloads": [
+  {
+   "runtime": "mlx",
+   "model": "Qwen2.5-VL-7B",
+   "steps": [
+    "correct"
+   ],
+   "size_mb": 5653,
+   "action": "model.download",
+   "params": {
+    "runtime": "mlx",
+    "model": "Qwen2.5-VL-7B"
+   },
+   "name": "Qwen2.5-VL 7B (OCR)",
+   "instead": [],
+   "downloading": true,
+   "progress": "Downloading Qwen2.5-VL 7B (OCR): 1.9 GB of 5.6 GB",
+   "job_id": "download-qwen"
+  }
+ ],
+ "elsewhere": [],
+ "estimate": {
+  "pages": 0,
+  "counted": "nothing = 0 pages",
+  "runs": [
+   {
+    "workflow": "Transcribe (Kraken)",
+    "steps": [
+     "find-lines",
+     "read-a-line"
+    ],
+    "where": "this-mac",
+    "pages": 0,
+    "cost_usd": 0.0,
+    "memory": null
+   },
+   {
+    "workflow": "Paleographer Review",
+    "steps": [
+     "correct"
+    ],
+    "where": "this-mac",
+    "pages": 0,
+    "cost_usd": 0.0,
+    "memory": "Qwen2.5-VL 7B (OCR) needs about 6.3 GB; on this Mac (16.0 GB) it reads 2 pages at once, about 7.3 GB at most"
+   },
+   {
+    "workflow": "Extract Entities",
+    "steps": [
+     "find-names-tag-words"
+    ],
+    "where": "this-mac",
+    "pages": 0,
+    "cost_usd": 0.0,
+    "memory": null
+   }
+  ],
+  "total_cost_usd": 0.0
+ },
+ "proposed": null,
+ "addable": [
+  "graph",
+  "vectors"
+ ],
+ "folder_id": null
+}
