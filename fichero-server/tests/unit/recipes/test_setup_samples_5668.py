@@ -165,6 +165,8 @@ def test_read_is_tried_by_the_bake_off_one_evaluation_job(client, db, tmp_path, 
         return {"id": "bk1", "job_id": "job-1"}
 
     monkeypatch.setattr("fichero_server.recipes.bakeoff.start", fake_start)
+    # The samples hold the bake-off's corrected lines; without them Read is compared side by side instead (#5668).
+    monkeypatch.setattr(s, "_bakeoff_ready", lambda db, page_ids: True)
     pages = _pages(db, tmp_path, 2)
     r = client.post("/api/recipes/stages/read/try", json={"page_ids": [pages[0].id]})
     assert r.status_code == 200, r.text

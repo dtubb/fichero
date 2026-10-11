@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -183,10 +184,13 @@ def _stage_plan(db: Any, stage: Any, setup: dict[str, Any], page_count: int) -> 
 
 
 def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[str] | None, cost_ok: bool,
-              started_by: str, run_evaluation=None) -> dict[str, Any]:
-    """Try a stage on the samples. Read and Find Lines start the bake-off on them; any other stage queues one
-    `try-a-stage` job. ValueError, in words, for a stage that is off, cannot be tried, or would cost money without
-    the yes (`cost_ok`)."""
+              started_by: str, run_evaluation=None, candidates: list[str] | None = None) -> dict[str, Any]:
+    """Try a stage on the samples, comparing its main step's candidates side by side
+    (`source.onboard.stages.compares-candidates`): `candidates` (card ids), else the step's own model and the per-step
+    finder's next ones, up to three, each on its own copy of the samples in one `try-a-stage` job. Read and Find Lines
+    start the bake-off instead when no candidates are named and the samples hold its ground truth. ValueError, in
+    words, for a stage that is off, cannot be tried, or names a model Fichero does not know; PermissionError for a
+    cloud candidate without the yes (`cost_ok`)."""
     from fichero_server.core.timeutil import utc_now_iso
     from fichero_server.execution import jobs
     from fichero_server.recipes import bakeoff
@@ -206,7 +210,7 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         raise ValueError("This project has no pages to try it on yet")
     now = utc_now_iso(timespec="seconds")
     result: dict[str, Any] = {"stage": stage_id, "pages": ids, "tried_at": now, "state": "waiting"}
-    if stage_id in TRIED_BY_THE_BAKEOFF:
+    if stage_id in TRIED_BY_THE_BAKEOFF and not candidates and _bakeoff_ready(db, ids):
         from fichero_server.recipes.discovery import known_cards
         from fichero_server.recipes.start import count_pages
         from fichero_server.api.routes.system.recipes import _answers
@@ -220,23 +224,185 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         result.update(bakeoff=record["id"], job_id=record["job_id"], how="the comparison of candidates on these pages")
         _write(library, stage_id, result)
         return result
-    plan = _stage_plan(db, stage, setup, len(ids))
-    if plan["refusals"]:
-        raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(plan["refusals"]))
-    cost = plan["estimate"]["total_cost_usd"]
-    clouded = [w for w in [*plan["workflows"], *plan["runs"]] if str(w.get("runs_on")).startswith("cloud")]
+    step = _main_step(recipe, stage)
+    cards = _cards_for(setup, step, candidates) if step is not None else []
+    if candidates and len(cards) < len(set(candidates)):
+        known = {c.id for c in cards}
+        raise ValueError("Fichero does not know the model " + ", ".join(c for c in candidates if c not in known))
+    tried = [(card, _stage_plan(db, stage, _with_card(setup, step, card), len(ids))) for card in cards] \
+        or [(None, _stage_plan(db, stage, setup, len(ids)))]
+    runnable = [(card, plan) for card, plan in tried if not plan["refusals"]]
+    if not runnable:
+        raise ValueError(f"{stage.title} cannot run yet: " + "; ".join(tried[0][1]["refusals"]))
+    clouded = [plan for _, plan in runnable if not _local(plan)]
     if clouded and not cost_ok:
-        said = f"about ${cost:.2f}" if isinstance(cost, (int, float)) else "a cost that is not known"
+        costs = [plan["estimate"]["total_cost_usd"] for plan in clouded]
+        said = (f"about ${sum(costs):.2f}" if all(isinstance(c, (int, float)) for c in costs)
+                else "a cost that is not known")
         raise PermissionError(f"Trying {stage.title} on {len(ids)} pages uses the cloud and costs {said}: "
                               "try it again with your yes to the cost")
+    own_plan = runnable[0][1]
+    columns = [_column(card, plan) for card, plan in tried if card is not None]
     register_job_kinds()
     job_id = jobs.enqueue(db, TRY_KIND, f"{stage_id}:{uuid.uuid4().hex[:8]}", started_by=started_by, watched=True,
                           detail=json.dumps({"stage": stage_id, "pages": ids}))
     result.update(job_id=job_id, how="its own steps on a copy of these pages",
                   models=[{"steps": w["steps"], "model": w["model_override"], "where": w["runs_on"]}
-                          for w in plan["workflows"]], cost=plan["estimate"])
+                          for w in own_plan["workflows"]], cost=own_plan["estimate"], candidates=columns)
     _write(library, stage_id, result)
     return result
+
+
+# --- comparing candidates (`source.onboard.stages.compares-candidates`) -------------------------------------------
+
+#: At most this many candidates are compared on a stage's samples.
+COMPARED = 3
+TEXT_STAGES = frozenset({"read", "normalise", "translate"})
+SHAPE_STAGES = frozenset({"find-regions", "find-lines"})
+ITEM_STAGES = frozenset({"names", "statements", "dates"})
+
+
+def _bakeoff_ready(db: Any, page_ids: list[str]) -> bool:
+    """Whether the samples hold the bake-off's ground truth (its corrected lines)."""
+    from fichero_server.recipes import bakeoff
+
+    return bool(bakeoff.readiness(bakeoff.ground_truth(db, page_ids)[0])["ready"])
+
+
+def _main_step(recipe: dict[str, Any], stage: Any) -> dict[str, Any] | None:
+    """The stage's step whose model is compared: the recipe's first step of the stage's jobs that names a model."""
+    steps = [s for s in recipe.get("steps") or [] if s.get("job") in stage.jobs]
+    return next((s for s in steps if s.get("model")), steps[0] if steps else None)
+
+
+def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | None) -> list[Any]:
+    """The cards compared for the step: `wanted` in its order, else the step's own and the per-step finder's next
+    ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
+    from fichero_server.api.routes.system.recipes import _answers
+    from fichero_server.recipes.assemble import _rank_key, _refusal
+    from fichero_server.recipes.discovery import discover, known_cards
+
+    job = str(step.get("job"))
+    a = _answers(setup["answers"] or {})
+    found, _ = discover(a, online=False, job=job)
+    by_id = {c.id: c for c in [*known_cards(a, include_not_built=True), *found]}
+    if wanted:
+        return [by_id[i] for i in dict.fromkeys(wanted) if i in by_id]
+    own = (step.get("card") or {}).get("id") if isinstance(step.get("card"), dict) else None
+    if own is None:
+        own = next((c.id for c in found if dict(c.pin) == step.get("model")), None)
+    fits = sorted((c for c in found if job in c.jobs and c.runs_here and not c.offered_only
+                   and _refusal(job, c, a, a.material) is None), key=lambda c: _rank_key(c, a.material, a))
+    out = [by_id[own]] if own in by_id else []
+    out += [c for c in fits if c.id != own]
+    return out[:COMPARED]
+
+
+def _with_card(setup: dict[str, Any], step: dict[str, Any] | None, card: Any) -> dict[str, Any]:
+    """The setup with the step's model swapped for the card's (a copy: the project's setup is never changed)."""
+    import copy
+
+    if step is None or card is None:
+        return setup
+    changed = copy.deepcopy(setup)
+    for s in (changed["recipe"] or {}).get("steps") or []:
+        if s.get("id") == step.get("id"):
+            s.update(model=dict(card.pin), runs_on=card.runs_on, card={"id": card.id, "note": card.note})
+            s.pop("problem", None)
+            s.pop("gap", None)
+    return changed
+
+
+def _local(plan: dict[str, Any]) -> bool:
+    return not any(str(r.get("runs_on")).startswith("cloud") for r in [*plan["workflows"], *plan["runs"]])
+
+
+def _column(card: Any, plan: dict[str, Any]) -> dict[str, Any]:
+    """A candidate's column, before it runs: the bake-off row's fields (`bakeoff._candidate`'s shape)."""
+    from fichero_server.recipes.bakeoff import _figure, reader_name
+
+    local = _local(plan)
+    cost = plan["estimate"].get("total_cost_usd")
+    return {"card": card.id, "name": reader_name(card), "pin": dict(card.pin), "runs_on": card.runs_on,
+            "local": bool(card.local and local),
+            "cost_usd": (_figure(0.0, "measured", "runs on this Mac") if local else
+                         _figure(cost if isinstance(cost, (int, float)) else None, "estimate",
+                                 "the price list, on these pages")),
+            "seconds": None, "cer": None, "agreement": None, "measures": None,
+            "why": "; ".join(plan["refusals"]) or None, "state": "waiting" if not plan["refusals"] else "not run"}
+
+
+def _similar(a: str, b: str) -> float | None:
+    """1 less the character distance between two readings (each way, averaged); None when both are empty."""
+    from fichero_server.workflows.transcription_accuracy import character_error_rate
+
+    scores = []
+    for ref, hyp in ((a, b), (b, a)):
+        try:
+            scores.append(max(0.0, 1.0 - character_error_rate(ref, hyp).cer))
+        except Exception:  # noqa: BLE001 -- an empty side: nothing to compare that way
+            continue
+    return sum(scores) / len(scores) if scores else None
+
+
+def _iou(a: list[float], b: list[float]) -> float:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    w = max(0.0, min(ax + aw, bx + bw) - max(ax, bx))
+    h = max(0.0, min(ay + ah, by + bh) - max(ay, by))
+    inter = w * h
+    union = aw * ah + bw * bh - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _mean(values: list[float]) -> float | None:
+    return round(sum(values) / len(values), 4) if values else None
+
+
+def _measure(db: Any, stage_id: str, runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """How each candidate's run compares with the others' on the same pages: agreement (and CER on lines a person
+    corrected) for text, mean best overlap for shapes, counts and what only it found for items."""
+    out = []
+    for i, run in enumerate(runs):
+        others = [r for j, r in enumerate(runs) if j != i]
+        if stage_id in TEXT_STAGES:
+            agree = [x for o in others for p, text in run["texts"].items()
+                     if (x := _similar(text, o["texts"].get(p, ""))) is not None]
+            out.append({"kind": "text", "agreement": _mean(agree), "cer": _cer_on_checked(db, run["texts"])})
+        elif stage_id in SHAPE_STAGES:
+            best = [max((_iou(box, other) for other in o["boxes"].get(p, [])), default=0.0)
+                    for o in others for p, boxes in run["boxes"].items() for box in boxes]
+            out.append({"kind": "shapes", "agreement": _mean(best), "cer": None})
+        elif stage_id in ITEM_STAGES:
+            mine = set(run["items"])
+            theirs = set().union(*(set(o["items"]) for o in others)) if others else set()
+            jaccard = [len(mine & set(o["items"])) / len(mine | set(o["items"])) for o in others
+                       if mine | set(o["items"])]
+            out.append({"kind": "items", "agreement": _mean(jaccard), "cer": None, "found": len(mine),
+                        "only_this_found": sorted(mine - theirs)[:20]})
+        else:
+            out.append({"kind": None, "agreement": None, "cer": None})
+    return out
+
+
+def _cer_on_checked(db: Any, texts: dict[str, str]) -> float | None:
+    """The character error rate of these pages' readings on the lines a person corrected on them; None when none."""
+    from fichero_server.training.evaluation import reference_page
+    from fichero_server.workflows.transcription_accuracy import character_error_rate
+
+    distance = chars = 0
+    for page_id, text in texts.items():
+        page, _why = reference_page(db, page_id, None)
+        if page is None:
+            continue
+        reference = "\n".join(line["text"] for line in page["lines"])
+        try:
+            score = character_error_rate(reference, text)
+        except Exception:  # noqa: BLE001 -- an empty reference or reading: not scored
+            continue
+        distance += score.distance
+        chars += score.reference_chars
+    return round(distance / chars, 4) if chars else None
 
 
 def register_job_kinds() -> None:
@@ -265,16 +431,11 @@ def _readable(row: Any) -> str:
 
 
 def _run_try(db: Any, subject: str) -> dict[str, Any]:
-    """The job: copy the samples into a scratch project, run the stage's cards there, keep what they made."""
-    from fichero_server.db.manager import db_manager
+    """The job: each candidate's run of the stage's cards on its own copy of the samples (one run when nothing is
+    compared), the step's own as the try's result, and the columns with how each compared."""
     from fichero_server.execution import jobs
-    from fichero_server.models import DocType, Document
-    from fichero_server.models.transfer import TransferMode
-    from fichero_server.recipes import runner
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.recipes.stages import get_stage
-    from fichero_server.transfer.copy import copy_into_target
-    from fichero_server.transfer.plan import build_plan
 
     stage_id = subject.split(":", 1)[0]
     library = Path(db.path).parent
@@ -282,7 +443,50 @@ def _run_try(db: Any, subject: str) -> dict[str, Any]:
     result = json.loads(_result_path(library, stage_id).read_text(encoding="utf-8"))
     stage = get_stage(stage_id)
     setup = read_project_setup(library)
-    scratch = _folder(library) / f"{stage_id}.fichero"
+    columns = result.get("candidates") or []
+    step = _main_step(setup["recipe"] or {}, stage)
+    wanted = [c["card"] for c in columns if c.get("state") != "not run"]
+    cards = _cards_for(setup, step, wanted) if wanted and step is not None else []
+    runs = []
+    for i, card in enumerate(cards or [None]):
+        started = time.monotonic()
+        one = _run_one(db, stage, _with_card(setup, step, card), result["pages"], job_id,
+                       stage_id if i == 0 else f"{stage_id}-{i}",
+                       name=card.note if card is not None else stage.title)
+        one["seconds"] = round(time.monotonic() - started, 1)
+        runs.append(one)
+    own = runs[0]
+    result.update(state=own["state"], ran=own["ran"], **own["made"])
+    if own.get("error"):
+        result["error"] = own["error"]
+    by_card = {card.id: run for card, run in zip(cards, runs)}
+    for column, measures in zip([c for c in columns if c["card"] in by_card], _measure(db, stage_id, runs)):
+        run = by_card[column["card"]]
+        column.update(state=run["state"], seconds=run["seconds"], per_page=run["made"]["per_page"],
+                      names=run["made"]["names"], measures=measures, agreement=measures["agreement"],
+                      cer=measures["cer"], why=run.get("error"))
+    result["candidates"] = columns
+    _write(library, stage_id, result)
+    return result
+
+
+def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], job_id: str, scratch_name: str, *,
+             name: str) -> dict[str, Any]:
+    """One run of the stage's own steps on a fresh copy of the pages: what it made, in the project's page ids, and
+    for comparing, each page's whole reading, its shapes and the items it found."""
+    from fichero_server.db.manager import db_manager
+    from fichero_server.execution import jobs
+    from fichero_server.models import DocType, Document
+    from fichero_server.models.transfer import TransferMode
+    from fichero_server.recipes import runner
+    from fichero_server.transfer.copy import copy_into_target
+    from fichero_server.transfer.plan import build_plan
+
+    library = Path(db.path).parent
+    stage_id = stage.id
+    out: dict[str, Any] = {"state": "failed", "ran": [], "made": {"per_page": [], "names": []}, "texts": {},
+                           "boxes": {}, "items": []}
+    scratch = _folder(library) / f"{scratch_name}.fichero"
     shutil.rmtree(scratch, ignore_errors=True)
     for sub in ("lance", "storage", "files"):
         (scratch / sub).mkdir(parents=True, exist_ok=True)
@@ -290,36 +494,47 @@ def _run_try(db: Any, subject: str) -> dict[str, Any]:
         copy = db_manager.get_database(scratch)
         folder = Document(name="Samples", doc_type=DocType.folder)
         copy.save(folder)
-        plan = build_plan(db, copy, items=result["pages"], target_parent_id=folder.id, transfer_id=uuid.uuid4().hex,
+        plan = build_plan(db, copy, items=page_ids, target_parent_id=folder.id, transfer_id=uuid.uuid4().hex,
                           audit_id=uuid.uuid4().hex, actor="try")
         copy_into_target(db, copy, plan, mode=TransferMode.copy, actor="try", finish=False)
         back = {new: old for old, new in plan.id_map.items()}
-        pages = [plan.id_map[i] for i in result["pages"] if i in plan.id_map]
+        pages = [plan.id_map[i] for i in page_ids if i in plan.id_map]
         cards = _stage_plan(db, stage, setup, len(pages))["runs"]
         before = _snapshot(copy)
-        ran = []
+        ran, extra = [], {}
         for card in cards:
             if card.get("card") in ("find-documents", "entries"):
-                jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}")
+                jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
                 made_here, state, why = _organise(copy, card, pages, back)
-                result.update(made_here)
+                extra.update(made_here)
                 ran.append({"steps": card["steps"], "state": state, "why": why})
+                continue
+            if card.get("card") == "regions":
+                from fichero_server.recipes.regions import find_regions
+
+                jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
+                find_regions(copy, pages, job_id, str(card.get("model")), provider=card.get("provider") or "yolo")
+                ran.append({"steps": card["steps"], "state": "done", "why": None})
                 continue
             if card.get("card") != "workflow":
                 ran.append({"steps": card.get("steps"), "state": "skipped", "why": "not tried on samples yet"})
                 continue
-            jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {card['workflow']}")
+            jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
             _thread, state, why = runner._run_workflow(copy, card, pages, job_id)
             ran.append({"steps": card["steps"], "workflow": card["workflow"], "state": state, "why": why})
         made = _collect(copy, before, back)
-        result.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran, **made)
+        texts, boxes, items = _for_comparing(copy, before, back, stage_id)
+        out.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
+                   made={**made, **extra}, texts=texts, boxes=boxes, items=items)
+        failed = [r["why"] for r in ran if r["state"] == "failed" and r.get("why")]
+        if failed:
+            out["error"] = "; ".join(failed)
     except Exception as exc:  # noqa: BLE001 -- the try says why; the project is untouched either way
-        result.update(state="failed", error=f"{type(exc).__name__}: {exc}")
+        out.update(state="failed", error=f"{type(exc).__name__}: {exc}")
     finally:
         db_manager.close_database(scratch)
         shutil.rmtree(scratch, ignore_errors=True)
-    _write(library, stage_id, result)
-    return result
+    return out
 
 
 def _organise(copy: Any, card: dict[str, Any], pages: list[str],
@@ -349,6 +564,34 @@ def _organise(copy: Any, card: dict[str, Any], pages: list[str],
     entries = [{"page_id": back.get(e.parent_id or "", e.parent_id), "name": e.name,
                 "opening": (e.page_content or "").strip()[:200]} for e in made]
     return {"entries": entries}, ("failed" if errors and not made else "done"), "; ".join(errors) or None
+
+
+def _for_comparing(copy: Any, before: dict[str, set[str]], back: dict[str, str],
+                   stage_id: str) -> tuple[dict[str, str], dict[str, list[list[float]]], list[str]]:
+    """What a run made, whole, for comparing it with another's: each original page's reading, its shapes (the
+    stage's own kind: regions, or lines), and the items (names, statements, dates) it found."""
+    from fichero_server.models import Document
+
+    models = {m.__name__: m for m in copy._all_schema_models()}
+    new = {name: [r for r in copy.all(models[name]) if r.id not in ids] for name, ids in before.items()}
+    texts: dict[str, str] = {}
+    for r in new.get("ContentRepresentation", []):
+        page = back.get(r.document_id or "")
+        if page is not None and (r.content or "").strip():
+            texts[page] = (texts.get(page, "") + "\n" + r.content.strip()).strip()
+    shape = "region" if stage_id == "find-regions" else "line"
+    boxes: dict[str, list[list[float]]] = {}
+    for seg in new.get("Segment", []):
+        page = back.get(seg.document_id or "")
+        if page is not None and seg.kind == shape:
+            boxes.setdefault(page, []).append([seg.bbox_x, seg.bbox_y, seg.bbox_w, seg.bbox_h])
+    if stage_id == "statements":
+        items = [_readable(c) for c in new.get("KnowledgeClaim", [])]
+    elif stage_id == "dates":
+        items = [f"{back[d.id]}:{d.date_jdn}" for d in copy.all(Document) if d.id in back and d.date_jdn is not None]
+    else:
+        items = [e.canonical_name for e in new.get("KnowledgeEntity", [])]
+    return texts, boxes, [i for i in items if i]
 
 
 def _collect(copy: Any, before: dict[str, set[str]], back: dict[str, str]) -> dict[str, Any]:

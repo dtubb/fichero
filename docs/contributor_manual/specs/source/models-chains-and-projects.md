@@ -2846,8 +2846,23 @@ Setup
   one column per candidate, its measures in words, Use This sends its card for the step. **Built 2026-10-11 (app),
   against that shape:** `StageCandidate` (read from the try's `candidates`), `StageComparisonView`, Use This through
   `RecipeSetupStore.useCard(_:named:forStep:)`; the button reads Compare on These Pages. Pinned by
-  `StageShowcasePicturesTests`. *Not built: the engine's `candidates` on the try (worker A), and choosing which 2 or 3
-  candidates the try runs (the request carries no candidates yet).*
+  `StageShowcasePicturesTests`. **The engine (worker A, 2026-10-11):** `POST /api/recipes/stages/{stage}/try`
+  takes `candidates` (card ids); without them the stage's main step (the recipe's first step of the stage's jobs
+  that names a model) is compared with its own model first and the per-step finder's next one or two runnable on
+  this Mac (`source.find.candidates-fit-the-step`), up to three. Each candidate runs the stage's own steps, with
+  that step's model swapped for it, on its own copy of the sample pages (one scratch project each, removed
+  after), through the Start plan's cards and the recipe runner (one code path); its column is the bake-off row's
+  fields (`card`, `name`, `runs_on`, `local`, `cost_usd` as `{value, basis}`, `seconds`, `why` when it could not
+  run, `cer`, `agreement`) with its own `per_page` and `names`, and `measures` saying how it was compared:
+  for Read, Normalise and Translate the text's agreement with the other candidates (1 less their character
+  distance) and its character error rate on lines a person corrected on these pages; for Find Regions and Find
+  Lines the overlap of its shapes with the others' (mean best IoU); for Names, Statements and Dates the count of
+  what it found and the items no other candidate found (`only_this_found`). The try's own result fields stay the
+  step's own candidate's, so a try with one candidate reads as before. A cloud candidate is said with its cost
+  and the try refused (402) without `cost_ok`; a candidate Start could not run is a column that says why. Read
+  and Find Lines keep the bake-off (its evaluation job over the corrected lines) when no candidates are named and
+  the samples hold its ground truth; otherwise they are compared the same way. *Test:*
+  `fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py`.
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage.

@@ -13527,6 +13527,7 @@ def register_generated_openapi_commands(
     def recipes_try_stage_post(
         ctx: typer.Context,
         stage: str = typer.Argument(..., help='Stage'),
+        candidates: Optional[list[str]] = typer.Option(None, '--candidates', help="the card ids to compare side by side on these pages (source.onboard.stages.compares-candidates); empty: the stage's step's own model and the per-step finder's next ones, up to three. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         cost_ok: Optional[bool] = typer.Option(None, '--cost-ok/--no-cost-ok', help="the person's yes to a cost the try said first (cloud steps) Default: false."),
         page_ids: Optional[list[str]] = typer.Option(None, '--page-ids', help='the pages to try it on; empty: the samples. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
@@ -13535,9 +13536,11 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/recipes/stages/{stage}/try"
             params = None
             payload = _build_json_payload({
+                "candidates": candidates,
                 "cost_ok": cost_ok,
                 "page_ids": page_ids,
             }, {
+                "candidates": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Candidates', 'description': "the card ids to compare side by side on these pages (source.onboard.stages.compares-candidates); empty: the stage's step's own model and the per-step finder's next ones, up to three", 'x-cli-required': False},
                 "cost_ok": {'type': 'boolean', 'title': 'Cost Ok', 'description': "the person's yes to a cost the try said first (cloud steps)", 'default': False, 'x-cli-required': False},
                 "page_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Page Ids', 'description': 'the pages to try it on; empty: the samples', 'x-cli-required': False},
             }, required=False)

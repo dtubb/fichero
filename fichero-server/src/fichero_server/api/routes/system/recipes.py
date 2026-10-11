@@ -383,6 +383,9 @@ class ChooseSamples(BaseModel):
 class TryStageRequest(BaseModel):
     page_ids: list[str] = Field(default_factory=list, description="the pages to try it on; empty: the samples")
     cost_ok: bool = Field(default=False, description="the person's yes to a cost the try said first (cloud steps)")
+    candidates: list[str] = Field(default_factory=list, description=(
+        "the card ids to compare side by side on these pages (source.onboard.stages.compares-candidates); empty: "
+        "the stage's step's own model and the per-step finder's next ones, up to three"))
 
 
 @router.get("/samples", response_model=SamplePages)
@@ -411,9 +414,12 @@ async def choose_samples(body: ChooseSamples, db: Database = Depends(get_library
 async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
                     db: Database = Depends(get_library_database_for_write),
                     ctx: ActionContext = Depends(action_context)) -> dict[str, Any]:
-    """Try a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`): Read
-    and Find Lines start the bake-off on them (its evaluation job); any other stage runs its own steps of the recipe
-    on a copy of the samples (one `try-a-stage` job in Activity). The result is the stage's, kept beside the setup
+    """Try a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`), comparing
+    2 or 3 of its step's candidates side by side (`source.onboard.stages.compares-candidates`): `candidates`, else the
+    step's own model and the finder's next ones, each running the stage's own steps on its own copy of the samples
+    (one `try-a-stage` job in Activity); the answer's `candidates` are the columns (the bake-off row's fields, each
+    with its `per_page`, `names` and `measures`). Read and Find Lines start the bake-off instead (its evaluation job)
+    when no candidates are named and the samples hold its corrected lines. The result is the stage's, kept beside the setup
     and replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and
     is refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422)."""
     from fichero_server.recipes import samples
@@ -423,7 +429,7 @@ async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
     try:
         return await asyncio.to_thread(
             samples.start_try, db, stage, setup, page_ids=body.page_ids or None, cost_ok=body.cost_ok,
-            started_by=ctx.actor or "owner",
+            started_by=ctx.actor or "owner", candidates=body.candidates or None,
             run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -6420,11 +6420,12 @@ def fichero_recipes_stage_try_result(
 def fichero_recipes_try_stage(
     *,
     stage: Annotated[str, Field(description='Stage')],
+    candidates: Annotated[Optional[list[Any]], Field(description="the card ids to compare side by side on these pages (source.onboard.stages.compares-candidates); empty: the stage's step's own model and the per-step finder's next ones, up to three.")] = None,
     cost_ok: Annotated[Optional[bool], Field(description="the person's yes to a cost the try said first (cloud steps) Default: false.")] = None,
     page_ids: Annotated[Optional[list[Any]], Field(description='the pages to try it on; empty: the samples.')] = None,
 ) -> Any:
-    "Try Stage\n\nTry a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`): Read\nand Find Lines start the bake-off on them (its evaluation job); any other stage runs its own steps of the recipe\non a copy of the samples (one `try-a-stage` job in Activity). The result is the stage's, kept beside the setup\nand replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and\nis refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422).\n\nRoute: POST /api/recipes/stages/{stage}/try (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/recipes/stages/{stage}/try", json=_rt.body({"cost_ok": cost_ok, "page_ids": page_ids}))
+    "Try Stage\n\nTry a stage on the sample pages before Start (section 7c, `source.onboard.stages.sample-run-reuses`), comparing\n2 or 3 of its step's candidates side by side (`source.onboard.stages.compares-candidates`): `candidates`, else the\nstep's own model and the finder's next ones, each running the stage's own steps on its own copy of the samples\n(one `try-a-stage` job in Activity); the answer's `candidates` are the columns (the bake-off row's fields, each\nwith its `per_page`, `names` and `measures`). Read and Find Lines start the bake-off instead (its evaluation job)\nwhen no candidates are named and the samples hold its corrected lines. The result is the stage's, kept beside the setup\nand replaced by the next try, never the project's work. A stage whose steps use the cloud says its cost and\nis refused (402) without `cost_ok`; a stage that is off, cannot be tried, or cannot run says why (422).\n\nRoute: POST /api/recipes/stages/{stage}/try (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/recipes/stages/{stage}/try", json=_rt.body({"candidates": candidates, "cost_ok": cost_ok, "page_ids": page_ids}))
 
 
 def fichero_references_list(

@@ -132,7 +132,7 @@ STAGES: tuple[Stage, ...] = (
 TRIED_BY_THE_BAKEOFF = frozenset({"find-lines", "read"})
 #: Tried by their own steps run straight on the copy, not through a workflow: Organise's Find the Documents and
 #: Split into entries (`source.onboard.stages.organise-tried-on-a-run`, #5668).
-TRIED_ON_ITS_OWN = frozenset({"organise"})
+TRIED_ON_ITS_OWN = frozenset({"organise", "find-regions"})
 
 
 def get_stage(stage_id: str) -> Stage | None:
