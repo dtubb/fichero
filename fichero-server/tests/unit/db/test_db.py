@@ -1649,7 +1649,7 @@ class TestWorkflowFold:
         assert mirrored is not None
         assert mirrored.attributes["scope"] == "library"
         assert mirrored.attributes["read_only"] is False
-        assert mirrored.parent_id is None
+        assert mirrored.parent_id == "system-workflows"  # where the project has Workflows, the person's workflows live in it (2026-10-11)
 
         # The original preset is untouched — still locked under the container.
         original_mirror = temp_db.get(Document, preset.id)

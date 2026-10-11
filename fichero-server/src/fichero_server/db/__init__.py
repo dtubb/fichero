@@ -262,6 +262,9 @@ _WORKFLOW_CONTAINER_NODE_KIND = "workflow_container"
 # Deterministic id (not a `_new_id()` uuid) so every library reopen finds the
 # same locked container row instead of minting duplicates (#11 Phase 1).
 _DEFAULT_WORKFLOWS_CONTAINER_ID = "system-default-workflows"
+#: The always-there project's "Workflows" folder (maintainer, 2026-10-11): the person's own workflows, with the locked
+#: "Default Workflows" folder inside it, so the top of the sidebar reads Sources / Workflows / Trash.
+_WORKFLOWS_CONTAINER_ID = "system-workflows"
 
 _BUILTIN_DOCUMENT_PROTOTYPE_SEEDS: tuple[dict[str, Any], ...] = (
     {
@@ -4163,7 +4166,7 @@ class Database(DatabaseEmbeddingMixin):
         doc.parent_id = (
             container_parent_id
             if is_system
-            else (existing.parent_id if existing is not None else None)
+            else (existing.parent_id if existing is not None and existing.parent_id else self._workflows_home())
         )
         doc.name = workflow.name
         doc.node_kind = _WORKFLOW_NODE_KIND
@@ -4188,11 +4191,13 @@ class Database(DatabaseEmbeddingMixin):
 
         from fichero_server.models import DocType, Document
 
+        self._seed_workflows_container()
         existing = self.get(Document, _DEFAULT_WORKFLOWS_CONTAINER_ID)
         doc = existing or Document(
             id=_DEFAULT_WORKFLOWS_CONTAINER_ID, name="Default Workflows"
         )
         doc.name = "Default Workflows"
+        doc.parent_id = _WORKFLOWS_CONTAINER_ID
         doc.doc_type = DocType.folder
         doc.node_kind = _WORKFLOW_CONTAINER_NODE_KIND
         doc.prototype_key = _FOLDER_PROTOTYPE_KEY
@@ -4214,6 +4219,35 @@ class Database(DatabaseEmbeddingMixin):
         self._execute(
             "DELETE FROM documents WHERE node_kind = $kind AND id LIKE '%/%'",
             {"kind": _WORKFLOW_CONTAINER_NODE_KIND},
+        )
+
+    def _workflows_home(self) -> str | None:
+        """Where a new workflow of the person's goes: the "Workflows" folder where this project has one."""
+        from fichero_server.models import Document
+
+        return _WORKFLOWS_CONTAINER_ID if self.get(Document, _WORKFLOWS_CONTAINER_ID) is not None else None
+
+    def _seed_workflows_container(self) -> None:
+        """Idempotently seed "Workflows": a root folder that holds the person's workflows and the locked
+        "Default Workflows" folder. Its name is re-asserted (a system folder); it is not read-only, since the
+        person's own workflows live in it. Workflows a library kept loose at its root move in (2026-10-11)."""
+        from fichero_server.models import DocType, Document
+
+        existing = self.get(Document, _WORKFLOWS_CONTAINER_ID)
+        doc = existing or Document(id=_WORKFLOWS_CONTAINER_ID, name="Workflows")
+        doc.name = "Workflows"
+        doc.parent_id = None
+        doc.deleted_at = None
+        doc.doc_type = DocType.folder
+        doc.node_kind = _WORKFLOW_CONTAINER_NODE_KIND
+        doc.prototype_key = _FOLDER_PROTOTYPE_KEY
+        attributes = dict(existing.attributes) if existing is not None and isinstance(existing.attributes, dict) else {}
+        attributes.update({"scope": "global", "read_only": False, "system": True})
+        doc.attributes = attributes
+        self.save(doc)
+        self._execute(
+            "UPDATE documents SET parent_id = $parent WHERE node_kind = $kind AND parent_id IS NULL",
+            {"parent": _WORKFLOWS_CONTAINER_ID, "kind": _WORKFLOW_NODE_KIND},
         )
 
     def delete_default_workflow_container_nodes(self) -> None:
