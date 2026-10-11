@@ -61,6 +61,8 @@ struct CanvasSceneView: View {
     /// WHAT each card is, in colour (§20.3 Colour by) — the other re-encode
     /// channel, produced by the host from document attributes.
     var tint: CanvasTint = .neutral
+    /// What each folder's and note's card shows (`CanvasBoard.faces`), by node id.
+    var faces: [String: CanvasCardFace] = [:]
 
     /// The board's groups (`doc:<groupId>`), drawn as frames holding their pages (#5570). Known
     /// from the listed documents, so a group is a frame from its first frame on.
@@ -225,11 +227,13 @@ struct CanvasSceneView: View {
                 // Not before the scope has settled either (#5629): `board` is nil until then.
                 guard let board else { return }
                 renderer.viewportSize = geo.size
+                renderer.setFaces(faces)
                 renderer.reconcile(to: board)
             } update: { _ in
                 guard let board else { return }
                 renderer.viewportSize = geo.size
                 renderer.storageService = storageService
+                renderer.setFaces(faces)
                 renderer.detailTier = CanvasDetailTier.forZoomScale(renderer.reportedZoomScale)
                 renderer.reconcile(to: board)
             }

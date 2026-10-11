@@ -19,24 +19,38 @@ struct CanvasBoard: Equatable {
     /// Folder and workspace documents on the board, as node ids: dropping a card onto one moves
     /// the card's document into it.
     let containerIds: Set<String>
+    /// What each folder's and note's card shows (`CanvasCardFace`), by node id; a page's card shows its picture.
+    var faces: [String: CanvasCardFace] = [:]
 
-    /// The board for `documents` (and, for the library's whole-board canvas, its `entities`).
+    /// The board for `documents` (and, for the library's whole-board canvas, its `entities`). `contents` are the
+    /// folders' own items, by folder id, where the host has read them, for their cards.
     static func of(
-        documents: [Document], entities: [SpatialLibraryInput.Entity] = []
+        documents: [Document], entities: [SpatialLibraryInput.Entity] = [], contents: [String: [Document]] = [:]
     ) -> CanvasBoard {
         CanvasBoard(
             projection: SpatialLibraryProjector.project(
                 SpatialLibraryInput(
                     documents: documents.map {
-                        SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId)
+                        SpatialLibraryInput.Document(id: $0.id, name: $0.name, parentId: $0.parentId,
+                                                     kind: CanvasCardFace.kind(of: $0))
                     },
                     entities: entities,
                     claims: []
                 )
             ),
             groupNodeIds: CanvasGroupNesting.groupNodeIds(in: documents),
-            containerIds: containerIds(in: documents)
+            containerIds: containerIds(in: documents),
+            faces: faces(of: documents, contents: contents)
         )
+    }
+
+    /// The folders' and notes' faces, by node id.
+    static func faces(of documents: [Document], contents: [String: [Document]]) -> [String: CanvasCardFace] {
+        documents.reduce(into: [:]) { faces, document in
+            if let face = CanvasCardFace.of(document, contents: contents[document.id]) {
+                faces[SpatialLibraryProjector.nodeId(forDocument: document.id)] = face
+            }
+        }
     }
 
     /// Folder and workspace documents among `documents`, as node ids.

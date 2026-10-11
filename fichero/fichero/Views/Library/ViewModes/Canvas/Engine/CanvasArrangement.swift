@@ -162,7 +162,7 @@ enum CanvasArrangement: String, CaseIterable, Identifiable, Sendable {
     /// board. Everything unknown sorts last rather than interleaving.
     private static func groupRank(of node: SpatialNode) -> Int {
         switch node.nodeType {
-        case .source: 0
+        case .folder, .source: 0
         case .transcription: 1
         case .claim: 2
         case .note: 3

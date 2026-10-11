@@ -54,6 +54,7 @@ enum SpaceTheme {
     static func platformColor(for nodeType: SpatialNodeType) -> PlatformColor {
         switch nodeType {
         case .source:        return .systemBlue
+        case .folder:        return .systemCyan
         case .claim:         return .systemPurple
         case .note:          return .systemOrange
         case .entity:        return .systemGreen

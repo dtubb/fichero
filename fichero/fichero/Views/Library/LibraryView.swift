@@ -279,6 +279,7 @@ struct LibraryView: View {
     // Canvas/spatial selection is NOT separate state: it is `selection`,
     // translated through `canvasSelectedNodeIds` (#4192, widened by #4409).
     @State var cachedLibraryProjection = SpatialLibraryProjection(nodes: [], links: [])
+    @State var cachedLibraryFaces: [String: CanvasCardFace] = [:]
 
     @State var isLoadingEntities = false
     @State var entityLoadErrorMessage: String?

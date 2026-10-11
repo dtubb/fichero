@@ -189,7 +189,7 @@ extension LibraryView {
         // `filteredDocuments`, NOT the raw `documents` parameter (2026-09-02): "scope follows the
         // visible surface" (Daniel, 2026-08-23), so the ⌘F quick filter, the Show kind narrowing
         // and a search's relevance order show on a canvas as they do in every list mode.
-        cachedLibraryProjection = CanvasBoard.of(
+        let board = CanvasBoard.of(
             documents: filteredDocuments,
             entities: entities.compactMap { entity in
                 guard let id = entity.id else { return nil }
@@ -199,7 +199,10 @@ extension LibraryView {
                     entityType: entity.entityType?.rawValue
                 )
             }
-        ).projection
+        )
+        cachedLibraryProjection = board.projection
+        // The folders' and notes' cards, with what each holds as far as the engine counted it (2026-10-11).
+        cachedLibraryFaces = board.faces
     }
 
     /// Projects the current documents + entities into spatial nodes/links for

@@ -20,6 +20,8 @@ import SwiftUI
 /// the backend adds later.
 enum SpatialNodeType: String, Codable, CaseIterable {
     case source
+    /// A folder or group on a canvas: drawn as its own card with what it holds, never as a page (2026-10-11).
+    case folder
     case claim
     case note
     case entity
@@ -35,6 +37,7 @@ enum SpatialNodeType: String, Codable, CaseIterable {
     var icon: String {
         switch self {
         case .source: return "doc.text"
+        case .folder: return "folder"
         case .claim: return "quote.bubble"
         case .note: return "note.text"
         case .entity: return "person.crop.circle"
@@ -47,6 +50,7 @@ enum SpatialNodeType: String, Codable, CaseIterable {
     var color: Color {
         switch self {
         case .source: return .blue
+        case .folder: return .cyan
         case .claim: return .purple
         case .note: return .orange
         case .entity: return .green

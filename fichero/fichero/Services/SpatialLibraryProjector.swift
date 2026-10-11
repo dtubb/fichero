@@ -24,6 +24,9 @@ struct SpatialLibraryInput: Hashable {
         let id: String
         let name: String
         let parentId: String?
+        /// What the card is (2026-10-11): a page, file or group (`.source`; a group is a frame of its pages), a
+        /// folder (`.folder`), or a note or workflow (`.note`). Only a source fetches a picture.
+        var kind: SpatialNodeType = .source
     }
 
     /// One KG entity — a canonical "thing" the extractor surfaced.
@@ -115,8 +118,10 @@ enum SpatialLibraryProjector {
             return SpatialNode(
                 id: nodeId(forDocument: doc.id),
                 roomId: wholeLibraryRoomId,
-                nodeType: .source,
-                sourceId: doc.id,
+                nodeType: doc.kind,
+                // Only a page or file has a picture to fetch; a folder's or a note's card is drawn from what it
+                // holds (`CanvasCardFace`), never a thumbnail that 404s.
+                sourceId: doc.kind == .source ? doc.id : nil,
                 label: doc.name,
                 positionX: position.x,
                 positionY: position.y,

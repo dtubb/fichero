@@ -22,6 +22,15 @@ extension CanvasOrtho2DRenderer {
         setOrthoScale(Float(CanvasGridPlacement.cellHeight) * 0.7)
     }
 
+    /// Every card as the camera frames it: where it is drawn and its size.
+    func cameraCards() -> [CanvasCameraFit.Card] {
+        placeablesById.values.map { placeable in
+            let point = Canvas2DProjection.scenePosition(placeable.position)
+            let (width, height) = cardDimensions(placeable)
+            return CanvasCameraFit.Card(center: SIMD2(point.x, point.y), size: SIMD2(width, height))
+        }
+    }
+
     /// Pan the camera across its plane by a world-space delta.
     func panCamera(worldDelta: SIMD2<Float>) {
         camera.position += SIMD3<Float>(worldDelta.x, worldDelta.y, 0)

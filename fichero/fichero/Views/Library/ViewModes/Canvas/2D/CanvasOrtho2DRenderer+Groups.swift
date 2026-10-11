@@ -20,6 +20,8 @@ extension CanvasOrtho2DRenderer {
 
     /// The material a card is built with: the kind/tint colour, or a group's translucent frame.
     func cardMaterial(for placeable: CanvasPlaceable) -> any RealityKit.Material {
+        // A folder's or a note's card starts in its own colour; its face is drawn onto it (+Faces.swift).
+        if let face = faces[placeable.id] { return UnlitMaterial(color: PlatformColor(face.tint.color)) }
         guard placeable.isContainer else { return UnlitMaterial(color: cardColor(for: placeable)) }
         var material = UnlitMaterial(color: Self.containerColor)
         material.blending = .transparent(opacity: .init(floatLiteral: Self.containerOpacity))

@@ -172,6 +172,7 @@ extension LibraryView {
                 storageService: activeLibraryReference?.storageService,
                 emphasis: canvasSearchEmphasis,
                 tint: canvasTint,
+                faces: cachedLibraryFaces,
                 // A group is a frame holding its pages (#5570).
                 groupNodeIds: CanvasGroupNesting.groupNodeIds(in: filteredDocuments),
                 pagesOfGroup: { [documentStore] nodeId in

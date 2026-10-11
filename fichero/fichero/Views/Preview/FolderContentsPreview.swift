@@ -26,6 +26,8 @@ struct FolderContentsPreview: View {
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(WindowState.self) private var windowState
     @State private var items: [Document] = []
+    /// Each subfolder's own items, for its card (names and pictures, 2026-10-11).
+    @State private var contents: [String: [Document]] = [:]
     @State private var selectedNodeIds: Set<String> = []
     @Environment(\.onFolderCanvasFocus) private var onFolderCanvasFocus
     @Environment(\.onFolderCanvasSelection) private var onFolderCanvasSelection
@@ -54,6 +56,7 @@ struct FolderContentsPreview: View {
                     },
                     storageService: library.storageService,
                     tint: CanvasBoard.tint(of: items, by: CanvasColourBy.stored(colourByRaw)),
+                    faces: folderBoard.faces,
                     // A folder of groups shows each as a frame holding its pages (#5570).
                     groupNodeIds: folderBoard.groupNodeIds,
                     pagesOfGroup: { [documentStore] nodeId in
@@ -88,11 +91,17 @@ struct FolderContentsPreview: View {
         .task(id: folderId) {
             // Every child, subfolders included, as the library's Canvas shows them.
             items = await documentStore.children(of: folderId)
+            // Then what each subfolder holds, so its card shows it; the cards are drawn first and fill in.
+            var held: [String: [Document]] = [:]
+            for folder in items where folder.docType == .folder {
+                held[folder.id] = await documentStore.children(of: folder.id)
+            }
+            contents = held
         }
     }
 
     /// This folder's board, from the library canvas's one builder.
     private var board: CanvasBoard {
-        CanvasBoard.of(documents: items)
+        CanvasBoard.of(documents: items, contents: contents)
     }
 }

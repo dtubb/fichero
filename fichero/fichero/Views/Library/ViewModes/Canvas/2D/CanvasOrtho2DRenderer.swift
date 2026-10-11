@@ -61,6 +61,9 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     /// reason as `emphasis`: a card inserted or reskinned while a colouring is
     /// live must arrive already coloured.
     var tint: CanvasTint = .neutral
+    /// The folders' and notes' cards (`CanvasCardFace`, +Faces.swift), and the pictures their folders hold.
+    var faces: [String: CanvasCardFace] = [:]
+    var facePictures: [String: CGImage] = [:]
 
     /// Whether a card currently carries a page image — a textured card keeps
     /// its page, so the tint yields to legibility (see `CanvasTintPainter`).
@@ -167,7 +170,10 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
 
     /// The view's size, set by the host on every update: the fit needs the pane's shape, or a
     /// narrow pane (the Preview) framed the board by its height and cut the columns off.
-    var viewportSize: CGSize = .zero
+    var viewportSize: CGSize = .zero {
+        // A board fitted before the pane had a size was fitted to a square: fit again once the shape is known.
+        didSet { if oldValue == .zero, viewportSize != .zero, cameraIsAutoFit { fit() } }
+    }
 
     /// True while several selected cards move together (see `setGroupDragging`).
     var isGroupDragging = false
@@ -198,10 +204,15 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         // unasked now; Zoom to Fit (⌘=) is the person asking.
         if needsFitOnNextContent, !placeablesById.isEmpty {
             needsFitOnNextContent = false
-            if let saved = cameraToRestoreOnNextContent {
+            // A remembered camera only when it still shows the board; one that frames nothing (a board that
+            // changed since, a camera from another pane) left two stray dots on screen (2026-10-11).
+            if let saved = cameraToRestoreOnNextContent,
+               CanvasCameraFit.shows(.init(center: SIMD2(saved.position.x, saved.position.y), orthoScale: saved.scale),
+                                     cameraCards(), viewport: viewportSize) {
                 cameraToRestoreOnNextContent = nil
                 restoreCamera(saved)
             } else {
+                cameraToRestoreOnNextContent = nil
                 fit()
             }
         }
@@ -229,29 +240,16 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
     }
 
     private func fitCamera() {
-        let points = placeablesById.values.map { Canvas2DProjection.scenePosition($0.position) }
-        guard !points.isEmpty else {
+        // By the cards' own extents (`CanvasCameraFit`), with half a cell around them: the grid re-flows once as
+        // page aspects load, and a tight fit then cut the board off (2026-09-30).
+        guard let pose = CanvasCameraFit.fit(cameraCards(), viewport: viewportSize,
+                                             margin: Float(CanvasGridPlacement.cellWidth) / 2) else {
             camera.position = SIMD3<Float>(0, 0, camera.position.z)
             setOrthoScale(Self.defaultOrthoScale)
             return
         }
-        let xValues = points.map(\.x), yValues = points.map(\.y)
-        camera.position = SIMD3<Float>(
-            (xValues.min()! + xValues.max()!) / 2,
-            (yValues.min()! + yValues.max()!) / 2,
-            camera.position.z
-        )
-        // Spans are CENTRE-to-centre, so add margin — otherwise the outermost
-        // cards are half off-screen, and a single-card scope frames a span of 0
-        // (#4290). Two cells, not one: the grid re-flows once as page aspects
-        // load, and a tight fit then cut the board off (2026-09-30).
-        let margin = Float(CanvasGridPlacement.cellWidth) * 2
-        let spanX = xValues.max()! - xValues.min()! + margin
-        let spanY = yValues.max()! - yValues.min()! + margin
-        // The ortho scale is HALF the visible height. Frame whichever axis is the
-        // tighter fit for this pane's shape, so a narrow pane shows every column.
-        let aspect = viewportSize.height > 0 ? Float(viewportSize.width / viewportSize.height) : 1
-        setOrthoScale(max(spanY / 2, spanX / 2 / max(aspect, 0.1)))
+        camera.position = SIMD3<Float>(pose.center.x, pose.center.y, camera.position.z)
+        setOrthoScale(pose.orthoScale)
     }
 
     // MARK: - Camera control (view drives these from gestures)
@@ -419,6 +417,7 @@ final class CanvasOrtho2DRenderer: CanvasSceneRenderer {
         if let sourceId = sourceId(of: placeable), detailTier >= .thumbnail {
             loadThumbnail(sourceId: sourceId, into: entity)
         }
+        if faces[placeable.id] != nil { drawFace(placeable.id, into: entity) }  // a folder's or a note's card
         return entity
     }
 
