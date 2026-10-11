@@ -2575,11 +2575,12 @@ Setup
   for that project.
 - `source.onboard.first-launch-offers-setup` — **[PARTIAL]** (#5655) **Built 2026-10-10 (app), not yet seen,
   as ruled after the maintainer's cold-launch test that day:** a first launch (first run not done, and
-  every project the app knows of is the always-there My Project: none open, saved or recent) opens
-  setup by itself. It starts with a welcome ("Welcome to Fichero", what Fichero does, and that the
-  first step is setting up a project), then **Set Up a New Project…** as the main action and **Use My
-  Project for Now** (the always-there project's name as the person has it) as the other; either way
-  the window shows My Project's Sources (`sidebar.project.opens-on-sources`). The decision is made once
+  every project the app knows of is the always-there one, which has no name: none open, saved or
+  recent) opens setup by itself. It starts with a welcome ("Welcome to Fichero", what Fichero does,
+  and that the first step is setting up a project), then **Set Up a New Project…** as the main action
+  and **Start Without a Project** as the other (replacing "Use My Project for Now", ruled final
+  2026-10-10); either way the window opens with **Sources**, in the sidebar's top section, selected
+  (`sidebar.project.opens-on-sources`, `sidebar.top-section-is-the-always-there-project`). The decision is made once
   when the window arms its sheets, so the project setup makes does not close setup. Later launches do
   not show it. Pinned by `fichero/Tests/Unit/general/App/ProjectNamingTests.swift`
   (`firstLaunchOffersSetUp`, `FirstLaunchChoices`). *Not pinned: the sheet presenting in the real

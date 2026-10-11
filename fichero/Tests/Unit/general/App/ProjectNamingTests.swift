@@ -2,9 +2,11 @@
 import XCTest
 
 /// The cold-launch rulings of 2026-10-10 (maintainer):
-/// - the always-there project (`global.fichero`) is named My Project by default and renamed like any
-///   project; it is never closed or deleted (`library.always-there-project.*`);
-/// - a first launch opens setup with a welcome, Set Up a New Project… and Use My Project for Now
+/// - the always-there project (`global.fichero`) has no name in the UI and is never renamed, closed
+///   or deleted (`library.always-there-project.*`); the sidebar's top section is its own items with
+///   no heading row, and the other projects sit under Projects
+///   (`sidebar.top-section-is-the-always-there-project`, `sidebar.projects-heading`);
+/// - a first launch opens setup with a welcome, Set Up a New Project… and Start Without a Project
 ///   (`source.onboard.first-launch-offers-setup`);
 /// - a project opens on its Sources folder, never Workflows (`sidebar.project.opens-on-sources`);
 /// - the panes are Projects · Items · Source · Inspector · Reader · Segments, and people read
@@ -12,68 +14,123 @@ import XCTest
 final class ProjectNamingTests: XCTestCase {
     private let globalPath = "/Users/x/Library/Application Support/Fichero/global.fichero"
 
-    // MARK: - The always-there project's name
+    // MARK: - The always-there project has no name
 
-    func testTheAlwaysThereProjectIsMyProjectByDefault() {
-        XCTAssertEqual(AlwaysThereProject.defaultName, "My Project")
-        XCTAssertEqual(AlwaysThereProject.displayName(forPath: globalPath, given: nil), "My Project")
-        XCTAssertEqual(AlwaysThereProject.displayName(forPath: globalPath, given: "  "), "My Project")
+    func testTheAlwaysThereProjectHasNoName() {
+        for given in [nil, "", "  ", "Local", "Global", "My Library", "Desk", "global", "My Project", "Scratch"] {
+            XCTAssertEqual(AlwaysThereProject.displayName(forPath: globalPath, given: given), "", given ?? "nil")
+        }
         XCTAssertTrue(AlwaysThereProject.isPackage(path: globalPath))
         XCTAssertTrue(AlwaysThereProject.isPackage(path: globalPath + "/"))
         XCTAssertFalse(AlwaysThereProject.isPackage(path: "/Users/x/Fichero/Mosquera.fichero"))
+        // The app's own reference to it, and any Open Recent entry for it, carry no name either.
+        XCTAssertEqual(LibraryManager.shared.globalLibrary?.displayName, "")
+        XCTAssertEqual(LibraryRecents.Entry(path: globalPath, displayName: "My Project").displayName, "")
     }
 
-    /// A name the app gave it before the ruling is not a person's choice: it reads as My Project.
-    func testASavedOldNameReadsAsMyProject() {
-        for old in ["Local", "Global", "My Library", "Desk", "global"] {
-            XCTAssertEqual(AlwaysThereProject.displayName(forPath: globalPath, given: old), "My Project", old)
-        }
-        // Open Recent's entry and the registry's row read the same way.
-        XCTAssertEqual(LibraryRecents.Entry(path: globalPath, displayName: "Local").displayName, "My Project")
-        let row = KnownLibraryMenuEntry(id: globalPath, path: globalPath, name: "Local", addedAt: nil, lastAccessed: nil)
-        XCTAssertEqual(row.displayName, "My Project")
+    /// Any other project keeps the name it was given, even one the always-there project once had.
+    func testAnotherProjectKeepsItsName() {
+        XCTAssertEqual(AlwaysThereProject.displayName(forPath: "/p/Mosquera.fichero", given: "Local"), "Local")
+        XCTAssertEqual(AlwaysThereProject.displayName(forPath: "/p/Mosquera.fichero", given: "My Project"), "My Project")
+        let row = KnownLibraryMenuEntry(id: "/p/Mosquera.fichero", path: "/p/Mosquera.fichero",
+                                        name: nil, addedAt: nil, lastAccessed: nil)
+        XCTAssertEqual(row.displayName, "Mosquera")
     }
 
-    /// A name a person chose is kept, for the always-there project and any other.
-    func testANameAPersonChoseIsKept() {
-        XCTAssertEqual(AlwaysThereProject.displayName(forPath: globalPath, given: "Scratch"), "Scratch")
-        XCTAssertEqual(AlwaysThereProject.displayName(forPath: "/p/Mosquera.fichero", given: "Local"), "Local",
-                       "only the always-there project's old names retire")
-        XCTAssertEqual(LibraryRecents.Entry(path: globalPath, displayName: "Scratch").displayName, "Scratch")
-    }
-
-    /// Renaming it goes through the one rename every project has, is shown, and is kept under its
-    /// path in the saved display names.
-    func testRenamingTheAlwaysThereProjectIsShownAndKept() throws {
+    /// The one rename every project has refuses it, and nothing is saved for it.
+    func testTheAlwaysThereProjectIsNeverRenamed() throws {
         let manager = LibraryManager.shared
         let global = try XCTUnwrap(manager.globalLibrary)
         let defaults = EngineConfig.defaults
         let key = LibraryManager.libraryDisplayNamesByPathKey
         let savedNames = defaults.dictionary(forKey: key)
-        let originalName = global.displayName
         defer {
-            global.displayName = originalName
             if let savedNames { defaults.set(savedNames, forKey: key) } else { defaults.removeObject(forKey: key) }
         }
 
-        manager.renameLibrary(id: LibraryManager.globalLibraryId, to: "  Scratch  ")
+        manager.renameLibrary(id: LibraryManager.globalLibraryId, to: "Scratch")
 
-        XCTAssertEqual(global.displayName, "Scratch")
-        let names = try XCTUnwrap(defaults.dictionary(forKey: key) as? [String: String])
-        XCTAssertEqual(names[global.url.path.nfcNormalized], "Scratch")
+        XCTAssertEqual(global.displayName, "")
+        let names = defaults.dictionary(forKey: key) as? [String: String]
+        XCTAssertNotEqual(names?[global.url.path.nfcNormalized], "Scratch")
     }
 
-    /// Every project is renamed from its row; the always-there one is never closed, deleted or shared.
-    func testTheAlwaysThereProjectOffersRenameButNeverCloseOrDelete() {
+    /// A project a person set up is renamed, shared, closed and deleted from its row; the
+    /// always-there project, which has no row, is offered none of them.
+    func testTheAlwaysThereProjectIsOfferedNoRenameCloseOrDelete() {
         let always = ProjectRowMenuOffers.forProject(isAlwaysThere: true, multiuser: true)
-        XCTAssertTrue(always.rename)
-        XCTAssertFalse(always.close)
-        XCTAssertFalse(always.delete)
-        XCTAssertFalse(always.share)
+        XCTAssertEqual(always, ProjectRowMenuOffers(rename: false, share: false, close: false, delete: false))
 
         let other = ProjectRowMenuOffers.forProject(isAlwaysThere: false, multiuser: true)
         XCTAssertEqual(other, ProjectRowMenuOffers(rename: true, share: true, close: true, delete: true))
         XCTAssertFalse(ProjectRowMenuOffers.forProject(isAlwaysThere: false, multiuser: false).share)
+    }
+
+    // MARK: - The sidebar's two parts
+
+    private struct Row: Equatable {
+        let name: String
+        let libraryId: UUID?
+    }
+
+    /// The top section is the always-there project's own items with no header row: its header is
+    /// split out of the project list wherever it sits, and only its children are drawn.
+    func testTheTopSectionIsTheAlwaysThereProjectWithNoHeader() throws {
+        let other = UUID()
+        let rows = [Row(name: "Mosquera", libraryId: other), Row(name: "", libraryId: LibraryManager.globalLibraryId)]
+        let sections = SidebarProjectSections.split(rows, libraryId: { $0.libraryId },
+                                                    alwaysThereId: LibraryManager.globalLibraryId)
+        XCTAssertEqual(sections.top?.libraryId, LibraryManager.globalLibraryId)
+        XCTAssertEqual(sections.projects.map(\.name), ["Mosquera"])
+
+        // The view hands the top's CHILDREN to the rows, never its header.
+        let view = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        XCTAssertTrue(view.contains("alwaysThereProjectItems(top)"))
+        let source = try Self.appSource("Views/Sidebar/Sections/SidebarView+UnifiedLibrarySections.swift")
+        let after = try XCTUnwrap(source.components(separatedBy: "func alwaysThereProjectItems(").dropFirst().first)
+        let body = after.components(separatedBy: "func unifiedLibraryBuckets(").first ?? ""
+        XCTAssertTrue(body.contains("unifiedLibrarySections(libraryId: libraryId, buckets: buckets)"))
+        XCTAssertFalse(body.contains("DisclosureGroup"), "no heading row over the top section")
+        XCTAssertFalse(body.contains("libraryDisclosureLabel"), "no heading row over the top section")
+        // Sources and Workflows are its folders; Models and the knowledge rows are the same nodes
+        // every project draws, so the top draws them too.
+        XCTAssertTrue(source.contains("SidebarTrainingNode(store: library.trainedModelsStore"))
+        XCTAssertTrue(source.contains("SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore"))
+    }
+
+    /// Below it, a Projects heading over every other project, in order; none when no other is open.
+    func testTheProjectsHeadingListsTheOtherProjects() throws {
+        XCTAssertEqual(SidebarProjectSections.projectsHeading, "Projects")
+        let first = UUID(), second = UUID()
+        let rows = [Row(name: "", libraryId: LibraryManager.globalLibraryId),
+                    Row(name: "Mosquera", libraryId: first), Row(name: "Marshall", libraryId: second)]
+        let sections = SidebarProjectSections.split(rows, libraryId: { $0.libraryId },
+                                                    alwaysThereId: LibraryManager.globalLibraryId)
+        XCTAssertEqual(sections.projects.map(\.name), ["Mosquera", "Marshall"])
+
+        let alone = SidebarProjectSections.split([rows[0]], libraryId: { $0.libraryId },
+                                                 alwaysThereId: LibraryManager.globalLibraryId)
+        XCTAssertNotNil(alone.top)
+        XCTAssertTrue(alone.projects.isEmpty)
+
+        let view = try Self.appSource("Views/Sidebar/Sections/SidebarView+ViewComponents.swift")
+        XCTAssertTrue(view.contains("if !sections.projects.isEmpty {"))
+        XCTAssertTrue(view.contains("Text(SidebarProjectSections.projectsHeading)"))
+    }
+
+    /// No code a person reads names the always-there project "My Project" any more.
+    func testNothingSaysMyProject() throws {
+        let paths = ["Views/Onboarding/FirstRunWindow.swift", "Views/Onboarding/FirstRunWindow+Models.swift",
+                     "Views/Sidebar/Sections/LibraryHeaderRow.swift", "Views/Sidebar/Sections/SidebarSectionHeader.swift",
+                     "Models/AlwaysThereProject.swift", "Models/LibraryManager.swift",
+                     "Models/KnownLibraryRegistryStore.swift", "Models/LibraryRecents.swift"]
+        for path in paths {
+            let code = try Self.appSource(path).components(separatedBy: .newlines)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            XCTAssertFalse(code.contains("\"My Project\""), path)
+            XCTAssertFalse(code.contains("Use My Project"), path)
+        }
     }
 
     /// File › Close Project is not offered for it either (the window's action is nil for it).
@@ -89,7 +146,7 @@ final class ProjectNamingTests: XCTestCase {
     func testAFirstLaunchOffersSetUp() {
         XCTAssertTrue(firstLaunchOffersSetUp(firstRunCompleted: false, knownProjectPaths: []))
         XCTAssertTrue(firstLaunchOffersSetUp(firstRunCompleted: false, knownProjectPaths: [globalPath, globalPath]),
-                      "only My Project known: nothing set up yet")
+                      "only the always-there project known: nothing set up yet")
     }
 
     /// Later launches never show it: first run done, or a project the person set up is known.
@@ -112,15 +169,15 @@ final class ProjectNamingTests: XCTestCase {
 
     func testFirstLaunchSetupWelcomesAndOffersBothChoices() throws {
         XCTAssertEqual(FirstLaunchChoices.setUpNewProject, "Set Up a New Project…")
-        XCTAssertEqual(FirstLaunchChoices.useAlwaysThereProject(named: "My Project"), "Use My Project for Now")
-        XCTAssertEqual(FirstLaunchChoices.useAlwaysThereProject(named: "Scratch"), "Use Scratch for Now")
+        XCTAssertEqual(FirstLaunchChoices.startWithoutProject, "Start Without a Project")
         XCTAssertTrue(FirstLaunchChoices.welcome.contains("setting up a project"))
 
         let window = try Self.appSource("Views/Onboarding/FirstRunWindow.swift")
         XCTAssertTrue(window.contains("title: \"Welcome to Fichero\""))
         XCTAssertTrue(window.contains("subtitle: FirstLaunchChoices.welcome"))
         XCTAssertTrue(window.contains("primaryTitle: FirstLaunchChoices.setUpNewProject"))
-        XCTAssertTrue(window.contains("secondary: (FirstLaunchChoices.useAlwaysThereProject(), { finish() })"))
+        XCTAssertTrue(window.contains("secondary: (FirstLaunchChoices.startWithoutProject, { finish() })"))
+        XCTAssertFalse(window.contains("for Now"), "Use My Project for Now is retired")
     }
 
     // MARK: - A project opens on its Sources
@@ -167,8 +224,8 @@ final class ProjectNamingTests: XCTestCase {
         let doc = Document(id: "f", parentId: "p", name: "File.pdf")
         let parent = Document(id: "p", docType: .folder, name: "Box 3")
         let lookup: BreadcrumbBuilder.DocumentLookup = { $0 == "p" ? parent : nil }
-        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: "My Project"),
-                       "My Project › Box 3 › File.pdf")
+        XCTAssertEqual(BreadcrumbBuilder.buildBreadcrumb(from: doc, parentLookup: lookup, rootName: "Mosquera"),
+                       "Mosquera › Box 3 › File.pdf")
         XCTAssertEqual(BreadcrumbBuilder.buildSegments(from: doc, parentLookup: lookup, rootName: "Mosquera").first?.name,
                        "Mosquera")
     }
