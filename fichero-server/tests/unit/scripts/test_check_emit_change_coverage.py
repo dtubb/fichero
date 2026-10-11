@@ -312,3 +312,16 @@ def test_required_terminal_emits_passes_when_present(tmp_path):
         )
         == []
     )
+
+
+def test_an_action_run_off_the_event_loop_emits_through_the_action_layer(tmp_path):
+    """WHY (2026-10-11): `await asyncio.to_thread(registry.invoke, db, "<action>", ...)` hands `registry.invoke` over as
+    an argument rather than calling it, and the scan read the route as a gap, though its action's ChangeSpec emits
+    exactly as a direct `registry.invoke(...)` does (copy-into-project, relink-originals, import file)."""
+    routes_dir = tmp_path / "fichero-server" / "src" / "fichero_server" / "api" / "routes"
+    _write_route(routes_dir / "notes.py", "post",
+                 "return asyncio.to_thread(registry.invoke, db, 'note.create', {}, ctx)")
+    _write_store(tmp_path, "note")
+
+    [row] = check_emit_change_coverage.scan(root=tmp_path)
+    assert row.emit_change and row.gap is False

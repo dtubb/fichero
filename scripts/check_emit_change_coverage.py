@@ -91,8 +91,7 @@ STRING_RE = re.compile(r'\"([^\"]+)\"')
 
 # Deferred gaps to fix later.
 KNOWN_GAPS: set[str] = {
-    "fichero-server/src/fichero_server/api/routes/document/documents.py::import_file",
-    # Like import_file: the route hands off to a helper (`import_dropped_set`) whose
+    # The route hands off to a helper (`import_dropped_set`) whose
     # `registry.invoke("import.upload_file")` / `format.import` calls emit through the action
     # layer; this route-body scan cannot see one call down (2026-09-28).
     "fichero-server/src/fichero_server/api/routes/document/documents.py::import_files_together",
@@ -115,6 +114,9 @@ EXEMPT: set[str] = {
     # Read-only batch resolver: char spans -> page rects for the search heat
     # map (#4604); reads the geometry artifact, persists nothing.
     "fichero-server/src/fichero_server/api/routes/document/artifacts.py::resolve_document_text_regions",
+    # Read-only: Locate Originals' dry run (#5672) says what a relink would do and writes nothing; the relink
+    # itself (`relink_originals`) emits through `document.relink_originals`.
+    "fichero-server/src/fichero_server/api/routes/document/documents.py::plan_relink_originals",
 }
 
 
@@ -310,6 +312,16 @@ def _has_emit_change(function_node: ast.AST) -> bool:
             and callee.attr == "invoke"
             and isinstance(callee.value, ast.Name)
             and callee.value.id == "registry"
+        ):
+            return True
+        # `await asyncio.to_thread(registry.invoke, db, "<action>", ...)`: the action is run off the event loop, and
+        # its ChangeSpec emits through the action layer exactly as a direct `registry.invoke(...)` call does.
+        if any(
+            isinstance(arg, ast.Attribute)
+            and arg.attr == "invoke"
+            and isinstance(arg.value, ast.Name)
+            and arg.value.id == "registry"
+            for arg in node.args
         ):
             return True
         if (
