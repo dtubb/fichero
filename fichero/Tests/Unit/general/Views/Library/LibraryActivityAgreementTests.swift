@@ -153,4 +153,13 @@ final class LibraryActivityAgreementTests: XCTestCase {
         )
         XCTAssertEqual(LibraryRowStatusMark.resting(for: .processing), .nothing)
     }
+
+    /// The mark sits in a narrow column of its own at the row's trailing edge, and its tooltip says what it means
+    /// (Daniel, 2026-10-11): a bare clock after the name said nothing.
+    func testTheMarkSaysWhatItMeansInItsOwnColumn() {
+        XCTAssertNil(LibraryRowStatusMark.help(for: .nothing))
+        XCTAssertEqual(LibraryRowStatusMark.help(for: .queued), "Queued: waiting its turn to be read")
+        XCTAssertEqual(LibraryRowStatusMark.help(for: .failed), "Failed: the last step on this item did not finish")
+        XCTAssertLessThanOrEqual(LibraryRowStatusMark.columnWidth, 24, "a mark's width, not a Status column")
+    }
 }

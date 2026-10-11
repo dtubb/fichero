@@ -148,6 +148,20 @@ extension LibraryView {
         // instead of six, so the cap stops dictating which columns the library
         // may have.
         entityTypeColumns
+
+        // The row's state, flush with its trailing edge in a narrow column of its own (Daniel, 2026-10-11: it sat
+        // right after the name). Nothing at rest; a mark only while the item is queued, being worked on, or failed,
+        // and its tooltip says which (#5295, #5296). Last, so it stays at the row's end.
+        TableColumn("") { node in
+            if case .document = node.kind {
+                LibraryRowStatusMark(document: node.document)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .modifier(tableCellServiceInjection)
+            }
+        }
+        .width(LibraryRowStatusMark.columnWidth)
+        .customizationID("status")
+        .disabledCustomizationBehavior(.visibility)
     }
 
     /// The six per-entity-type columns (#519), extracted so the outline builder

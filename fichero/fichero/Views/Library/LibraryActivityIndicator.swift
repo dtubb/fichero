@@ -131,6 +131,18 @@ struct LibraryRowStatusMark: View {
 
     let document: Document
 
+    /// The width of the Table's state column, the mark's own (2026-10-11).
+    static let columnWidth: CGFloat = 22
+
+    /// What the mark's tooltip says, in words a person reads: the mark alone did not say what it meant.
+    static func help(for resting: Resting) -> String? {
+        switch resting {
+        case .nothing: nil
+        case .queued: "Queued: waiting its turn to be read"
+        case .failed: "Failed: the last step on this item did not finish"
+        }
+    }
+
     @Environment(DocumentStore.self) private var documentStore
 
     var body: some View {
@@ -144,13 +156,13 @@ struct LibraryRowStatusMark: View {
                 Image(systemName: "clock")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .help("Queued")
+                    .help(Self.help(for: .queued) ?? "")
                     .accessibilityLabel("Queued")
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption2)
                     .foregroundStyle(.red)
-                    .help("Failed")
+                    .help(Self.help(for: .failed) ?? "")
                     .accessibilityLabel("Failed")
             }
         }

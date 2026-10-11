@@ -157,10 +157,8 @@ extension LibraryView {
                 onCommit: commitRename,
                 onCancel: cancelRename
             )
-            // The table has no Status column (#5296): the row says it is being
-            // worked on here, beside its name, and says nothing at rest. The
-            // same mark as the List row.
-            LibraryRowStatusMark(document: doc)
+            // The row's state mark is not here: it has a column of its own at the row's trailing edge
+            // (`LibraryRowStatusMark`, 2026-10-11).
         }
     }
 
