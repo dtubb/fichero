@@ -1648,6 +1648,9 @@ class PendingMatchMethod(str, Enum):
     similar_name = "similar_name"
     #: The variant check's same-name and alias-collision pairs (`kg.entity.variant-spellings-proposed`).
     duplicate_name = "duplicate_name"
+    #: An entity carried into this project by a transfer, matched by authority id or by name (#5657,
+    #: `transfer.entities.match-is-proposed`): proposed, never merged by the transfer.
+    transfer = "transfer"
 
 
 class EntityMatchCandidate(BaseModel):

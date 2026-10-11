@@ -1340,6 +1340,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.rights import RightsRecord
         from fichero_server.models.signs import DeclaredSign
         from fichero_server.models.readings import LibraryReadingLevel
+        from fichero_server.models.transfer import TransferRecord
         from fichero_server.models import (
             ActionAudit,
             AgentNote,
@@ -1532,6 +1533,8 @@ class Database(DatabaseEmbeddingMixin):
             Rendition,
             # #5066: where each converted box was, its own record (not the result's block).
             ConvertedBoxOrigin,
+            # #5657: a transfer between projects, its record in each project (the journal undo reads).
+            TransferRecord,
         )
 
     def _materialize_schema(self) -> None:

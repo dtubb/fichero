@@ -2104,6 +2104,7 @@ from fichero_server.api.routes.document import (  # noqa: E402
     sources,
     typed_links as document_typed_links,
     signs as document_signs,
+    transfer as document_transfer,
     rights as document_rights,
     hands as document_hands,
     editorial as document_editorial,
@@ -2270,6 +2271,9 @@ _CORE_ROUTE_SPECS: list[RouteSpec] = [
     (library_links.router, "/api", ["library-links"]),
     (library_items.router, "/api", ["library-items"]),
     (claims.router, "/api", ["claims"]),
+    # #5657: a selection copied into another open project (or planned, `dry_run`). Before
+    # `documents.router` so `/transfer` is never read as a document id.
+    (document_transfer.router, "/api/documents", ["documents"]),
     (documents.router, "/api/documents", ["documents"]),
     # Mandate 1 (2026-08-24): the ONE outline endpoint — ancestors + node +
     # level-aware children + attachment summary in one response.
