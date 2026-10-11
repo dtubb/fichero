@@ -116,8 +116,14 @@ def test_line_dict_combines_id_label_and_detail() -> None:
     assert fmt._line(item, 0) == "- e1  Madrid  [place]"
 
 
-def test_line_dict_without_known_keys_is_placeholder() -> None:
-    assert fmt._line({"unknown": "v"}, 0) == "- (item)"
+def test_line_dict_without_known_keys_says_its_fields() -> None:
+    """#5659: a row with no id or name (a transfer's counts) prints its own fields, never "- (item)"."""
+    assert fmt._line({"unknown": "v", "count": 3}, 0) == "- unknown: v, count: 3"
+
+
+def test_line_dict_with_nothing_to_say_is_placeholder() -> None:
+    """Only a row with no plain field at all (empty values, nested ones) is "(item)"."""
+    assert fmt._line({"empty": "", "nested": {"a": 1}}, 0) == "- (item)"
 
 
 # ---------------------------------------------------------------------------
