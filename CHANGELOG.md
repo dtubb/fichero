@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-11
+
+- Trash per project (engine and app): list with what/when/who/where, Put Back, Empty Trash… asks first and names moved items; knowledge on trashed pages hidden (#2077).
+- Moving and copying between projects in the engine, CLI and MCP: dry run, whole subtree, entities as proposed merges, all or nothing, crash recovery, undo from either project (#5657).
+- Undo: ⌘Z/⇧⌘Z take the front window's steps first, named; refusals in words (404/409); a set undone whole; an undo that would overwrite later work is refused (#5658).
+- Set Up (#5660): multi-level normalise; who finds names; reader finder (availability, Hugging Face HTR search, the chosen reader holds); bake-off of readers and line finders; Start while models download; licence review; every button acts.
+- Activity truthful after a failed run (#5615); Start's done counts (#5616); Project › Activity › Stop and Read Again (#5652).
+- Model downloads resume and retry, stop and restart, and name the model (#5660).
+- Engine: a project's index repair runs once and never on a new library (a segfault with concurrent writers).
+
 ## 2026-10-10
 
 - Launch: the engine no longer deadlocks at start when a recipe run left from before resumes while the sidebar loads (the app said "Fichero Server Couldn't Restart").

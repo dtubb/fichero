@@ -2,6 +2,44 @@
 
 *Full commit-level history, day by day, lives in [`CHANGELOG.md`](CHANGELOG.md).*
 
+## 2026.10.11
+
+What changed since 2026.10.10, the day before.
+
+- Updates: from this version on, Fichero updates itself from the app (Fichero › Check for Updates…). 2026.09.20 and older could not install an update, so this one had to be installed by hand.
+- Trash: every project has its own Trash in the sidebar, with Put Back and Empty Trash….
+- Undo: ⌘Z takes back what you did in the front window first, and the Edit menu names it.
+- Set Up: normalise into several levels at once; choose who finds names; compare readers on your pages; every button does something.
+- Downloads survive a dropped connection, and the engine no longer crashes when several connections open a project at once.
+
+**Trash.** Each project, and the always-there project at the top of the sidebar, has a Trash row.
+It lists what was deleted, when, by whom and where it was. Put Back returns an item to its folder,
+or to Sources if that folder is gone, and says which. Empty Trash… asks first and names anything
+that was moved to another project; it is the one step that cannot be undone. Statements and names
+that rest only on pages in the Trash are hidden until the pages come back.
+
+**Undo.** ⌘Z and ⇧⌘Z act on the steps taken in the front window first, and the Edit menu names
+them ("Undo Merge"). When something you did has been changed since, by you or anyone else, Fichero
+says so in a sentence and leaves it, rather than overwriting the later work.
+
+**Set Up.** "Into what" takes several levels at once: as written, abbreviations expanded,
+normalised spelling, modernised, and a translation; each becomes its own run. Find names can be
+run by spaCy, an MLX model, Claude or Apple Intelligence, and the ones that cannot run here say why.
+Find a Reader says plainly what ships with Fichero, what is on this Mac and what would download,
+searches Hugging Face for manuscript readers, and keeps the reader you chose. Compare on your pages
+measures each reader (Kraken, Apple Vision, an MLX model, Claude) by character and word error on
+pages you have corrected, and the line finders by how many corrected lines each finds. Start stays
+available while a model downloads; its steps wait for it. "Review the licence…" opens the licence
+and accepts it for the step.
+
+**Activity.** A failed run reads as failed: its stages say "not run" and why, its percentage
+follows the pages actually done, and a job set aside offers Resume. Start's counts match what ran.
+
+**Under the hood.** Moving and copying between projects works in the engine, the command line and
+MCP (the drag in the sidebar comes next). Model downloads resume after a dropped connection, can be
+stopped and restarted, and name the model as you see it. A project's database is no longer
+rebuilt by two threads at once, which could stop the engine.
+
 ## 2026.10.10
 
 Everything since 2026.09.20, the last public release.
