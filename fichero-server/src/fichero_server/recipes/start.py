@@ -266,6 +266,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     runs: list[dict[str, Any]] = []
     skipped: list[dict[str, str | None]] = []
     offered: list[str] = []
+    #: Steps kept in the recipe with no model (`source.onboard.no-model-step-kept`): skipped, never refusing Start.
+    needs_a_model: list[dict[str, Any]] = []
 
     def skip(sid: str, why: str, fix: str | None = None) -> None:
         # `fix`: the button setup offers for it, in the words of a step problem's `fix` (choose-model,
@@ -302,6 +304,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
             said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"
             skip(sid, f"{label} has no model: {said}", "choose-model")
+            needs_a_model.append(step)
             continue
         if stays_local and _uses_cloud(step):
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
@@ -466,8 +469,17 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     jobs_of = {s.get("id"): s.get("job", "") for s in recipe.get("steps") or []}
     for run in runs:
         run["takes"], run["gives"] = card_inputs([jobs_of.get(sid, "") for sid in run["steps"]])
+    # A step with no model stays in the recipe, skipped with its fix; what does not need it runs, and what does
+    # waits for it (`source.onboard.no-model-step-kept`, #5668): Organise's Split into entries with no text model on
+    # this Mac no longer refuses Read and Names.
+    runs = _without_what_waits(runs, needs_a_model, recipe, skip)
+    kept_ids = {s.get("id") for s in needs_a_model}
+    no_model_said = {f"step {i} ({s.get('id', '?')}): "
+                     f"{(s.get('problem') or {}).get('sentence') or s.get('gap') or 'no model is chosen for it'}"
+                     for i, s in enumerate(recipe.get("steps") or [], start=1)
+                     if s.get("id") in kept_ids and "model" in s and s["model"] is None}
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
-    refusals = check_recipe(recipe)
+    refusals = [r for r in check_recipe(recipe) if r not in no_model_said]
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
     downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)
     if db is not None:
@@ -583,6 +595,36 @@ def card_inputs(step_jobs: list[str]) -> tuple[list[str], list[str]]:
         takes += [k for k in sorted(job.takes) if gives.isdisjoint(k.split("|")) and k not in takes]
         gives |= job.gives
     return takes, sorted(gives)
+
+
+def _without_what_waits(runs: list[dict[str, Any]], needs_a_model: list[dict[str, Any]], recipe: dict[str, Any],
+                        skip: Any) -> list[dict[str, Any]]:
+    """The runs that do not need what a step with no model would have made; each that does is skipped, saying it
+    waits for that step (`source.onboard.no-model-step-kept`). A take is met when the material starts with it or
+    another run gives it. ponytail: one pass, so a run that waits on a run skipped here is not caught; add a loop
+    if a recipe ever chains two such waits."""
+    from fichero_server.recipes.jobs import get_job, starts_with
+
+    missing: dict[str, str] = {}
+    for step in needs_a_model:
+        for kind in getattr(get_job(step.get("job", "")), "gives", ()):
+            missing.setdefault(kind, str(step.get("id")))
+    if not missing:
+        return runs
+    material = (recipe.get("suits") or {}).get("material")
+    have = set(starts_with([material] if isinstance(material, str) else material))
+    for run in runs:
+        have |= set(run.get("gives") or ())
+    kept = []
+    for run in runs:
+        waits = sorted({missing[k] for take in run.get("takes") or [] if not have & set(take.split("|"))
+                        for k in take.split("|") if k in missing})
+        if waits:
+            for sid in run["steps"]:
+                skip(sid, f"step {sid} waits for {', '.join(waits)}, which has no model yet", "choose-model")
+            continue
+        kept.append(run)
+    return kept
 
 
 def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:

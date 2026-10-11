@@ -3148,7 +3148,7 @@ The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-
   repository path or revision; a model is named by its card's display name. *Test:* every string
   setup renders for a recipe whose cards are `mlx:hf/...@unpinned` contains no `mlx:`, `hf/` or
   `@`.
-- `source.onboard.no-model-step-kept` — **[GAP]** (#4951) a step with no model stays in the recipe
+- `source.onboard.no-model-step-kept` — **[OK]** (#4951, #5668) *Built 2026-10-11: `start.plan_start` skips it with its fix (choose-model) and drops its refusal; `start._without_what_waits` skips a run that needs what it would make ("waits for <step>"); pinned by `fichero-server/tests/unit/recipes/test_no_model_step_kept_5668.py`.* a step with no model stays in the recipe
   marked "needs a model"; steps that do not depend on it run, and those that do wait with that
   reason.
 - `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a reading step,

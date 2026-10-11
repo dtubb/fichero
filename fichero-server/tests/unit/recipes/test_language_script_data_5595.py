@@ -69,16 +69,18 @@ def test_vertical_scripts_default_to_their_columns(client):
     assert directions == {"Mong": "ttb-lr", "Jpan": "ltr", "Hant": "ttb", "Latn": "ltr"}
 
 
-def test_a_step_with_no_model_is_refused_in_words(client, pages):
-    """A Coptic recipe has no reader: the Start plan says so in the person's words, never "the model None"."""
+def test_a_step_with_no_model_is_said_in_words(client, pages):
+    """A Coptic recipe has no reader: the Start plan says so in the person's words, never "the model None". Since
+    #5668 (`source.onboard.no-model-step-kept`) the step is skipped with that reason rather than refusing Start."""
     recipe = _assemble(client, languages=["cop"], scripts=["Copt"]).json()
     assert any(s.get("gap") for s in recipe["steps"])
     r = client.put("/api/recipes/project", json={"answers": {"purposes": ["transcribe"], "languages": ["cop"],
                                                              "scripts": ["Copt"]}, "recipe": recipe})
     assert r.status_code == 200, r.text
-    refusals = client.get("/api/recipes/project/start").json()["refusals"]
-    assert refusals and not [x for x in refusals if "None" in x or "pinned in a known form" in x], refusals
-    assert any("Coptic" in x for x in refusals), refusals
+    plan = client.get("/api/recipes/project/start").json()
+    said = [s["why"] for s in plan["skipped"]] + plan["refusals"]
+    assert not [x for x in said if "None" in x or "pinned in a known form" in x], said
+    assert any("Coptic" in s["why"] and s["fix"] == "choose-model" for s in plan["skipped"]), plan["skipped"]
 
 
 def test_a_language_is_found_by_its_own_name_with_or_without_accents():
