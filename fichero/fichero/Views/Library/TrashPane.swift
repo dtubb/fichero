@@ -29,11 +29,9 @@ struct TrashPane: View {
                     .padding(.bottom, 6)
             }
             if store.isEmpty {
-                ContentUnavailableView(
-                    "The Trash Is Empty",
-                    systemImage: "trash",
-                    description: Text("Things you delete in this project wait here until you empty the Trash.")
-                )
+                // Empty means empty (Daniel, 2026-10-11): no sentence; the header's greyed Empty Trash… says it.
+                Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 list
             }
