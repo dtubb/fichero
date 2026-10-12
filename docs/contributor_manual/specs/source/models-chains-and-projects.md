@@ -1122,7 +1122,8 @@ plan's peak memory across steps. Ready shows none of it.
   a person says it ("Read the lines with Kraken"). *Test:*
   `fichero-server/tests/unit/recipes/test_left_out_named_5691.py`. **Not on unreadable text (#5694):** Find Names is not run on a page whose reading is too uncertain:
   the mean, over its lines, of each line's newest machine certainty (`machine_confidence`, which a reader such as
-  Kraken now keeps on each reading; a line a person read counts as sure) below 70%. The page is left out, named
+  Kraken now keeps on each reading; a line a person read counts as sure; where no reading carries one, the
+  certainty the reader gave its working lines when its result became the page's pass, #5704) below 70%. The page is left out, named
   with why ("its reading is too uncertain to find names in (the reader was 42% sure, below 70%); read it with a
   better reader first"), and the summary warns ("Names not looked for on 3 pages: their reading is too
   uncertain"); a Names try on the samples says the same. A page whose reader gave no certainty (a vision model)

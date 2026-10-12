@@ -69,6 +69,13 @@ def reading_confidence(db: Any, doc_id: str) -> float | None:
     sure = [1.0 if getattr(r.provenance_kind, "value", r.provenance_kind) == "human" else r.machine_confidence
             for r in newest.values()]
     sure = [c for c in sure if c is not None]
+    if not sure:
+        # A reader whose result became the page's pass (Kraken finding and reading the lines in one go) keeps its
+        # certainty on the pass's lines, not on readings (#5704: the reading journey's unsure page went ungated).
+        from fichero_server.llm.working_lines import working_lines
+
+        found = working_lines(db, doc_id)
+        sure = [s.confidence for s in (found.lines if found else []) if getattr(s, "confidence", None) is not None]
     return sum(sure) / len(sure) if sure else None
 
 
