@@ -236,7 +236,7 @@ class LibraryManager {
         /// project's Inspector lists them with Write Now and Remove.
         @ObservationIgnored lazy var keptExportStore = KeptExportStore(client: ficheroClient)
 
-        /// The models Fichero trained or fine-tuned, for this project's Training node (#5439).
+        /// The models Fichero trained or fine-tuned, for this project's Models node (#5439).
         /// The engine's list (no card records a project), read through this library's client.
         @ObservationIgnored lazy var trainedModelsStore = TrainedModelsStore(client: ficheroClient)
 

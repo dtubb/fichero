@@ -77,6 +77,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertTrue(body.contains("case .read:\n            Section(stage.title) {\n                FocusedRunRecipeOnFolderButton()"))
         XCTAssertTrue(body.contains("case .organise:\n            Section(stage.title) {\n                FocusedFindDocumentsButton()"))
         XCTAssertTrue(body.contains("case .connect:\n            Section(stage.title) {"))
+        XCTAssertTrue(body.contains("case .train:\n            Section(stage.title) {\n                FocusedTrainButtons()"))
         XCTAssertTrue(body.contains("Button(\"SPARQL Console…\")"))
         XCTAssertTrue(body.contains("Menu(\"Workflows\")"))
         XCTAssertTrue(body.contains("Menu(\"Chat\")"))
@@ -231,6 +232,23 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertTrue(window.contains("ActivityReadAgainMenuItem(target: run)"))
         XCTAssertFalse(window.contains("Button(\"Stop\")"))
         XCTAssertFalse(window.contains("Button(action: readAgain)"))
+    }
+
+    /// Project › Train (#5652 slice 1): Train a Model… and Make Available in Every Project are ONE item each, rendered
+    /// by the menu bar, the Models node's row menu and (Make Available) the model's Inspector; no hand-made twin.
+    func testTrainAndTheModelVerbAreOneItemEverywhere() throws {
+        let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Train.swift")
+        XCTAssertTrue(buttons.contains("TrainModelMenuItem(projectId: target?.projectId)"))
+        XCTAssertTrue(buttons.contains("MakeModelGlobalMenuItem(target: target?.trainedModel)"))
+        XCTAssertTrue(buttons.contains("Label(\"Train a Model…\""))
+        XCTAssertFalse(buttons.contains(".keyboardShortcut"), "Train's verbs take no chord")
+        let node = try Self.appSource("Views/Sidebar/Sections/SidebarModelsNode.swift")
+        XCTAssertTrue(node.contains("TrainModelMenuItem(projectId: libraryId)"))
+        XCTAssertTrue(node.contains("MakeModelGlobalMenuItem(target: target)"))
+        let inspector = try Self.appSource("Views/Inspector/Model/ModelNodeInspector.swift")
+        XCTAssertTrue(inspector.contains("MakeModelGlobalMenuItem(target: makeGlobal)"))
+        XCTAssertFalse(inspector.contains("Button(\"Make Available in Every Project\")"))
+        XCTAssertFalse(inspector.contains("store.makeGlobal("), "the Inspector acts through the shared target")
     }
 
     /// The labels a person reads: the first string literal of each `Button(`, `Text(`, `Label(` and

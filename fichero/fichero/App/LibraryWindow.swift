@@ -309,10 +309,9 @@ struct LibraryWindow: View {
                 }
             }
         )) {
-            // ponytail: a stage asked for opens Ready, whose plan lists each step with its fix, until Set Up has a
-            // page per stage (#5668, §7c); then it opens that stage's page.
+            // A stage asked for opens its page: Train a Model… opens Train, any other stage Ready (`SetupStep.opening`).
             FirstRunWindow(mode: .setUp, project: windowState.library,
-                           initialStep: libraryManager.setUpRequestedStage == nil ? nil : .ready)
+                           initialStep: SetupStep.opening(requestedStage: libraryManager.setUpRequestedStage))
                 .environment(appState)
         }
         // #4064: the supervised backend dropped AND auto-restart ran out — show a

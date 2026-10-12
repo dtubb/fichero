@@ -3878,7 +3878,7 @@ node; a model appears in the sidebar only inside a training node, as its base or
   downloaded or imported model (no training card) is not listed. Tested in
   `fichero-server/tests/unit/training/test_trained_model_nodes.py`. Built (app): each project's sidebar
   shows a node named **Models** (was Training; ruled 2026-10-10, #5655) listing those models
-  (`SidebarTrainingNode`, `SidebarTrainingNode.name`, `TrainedModelsStore`), drawn only when there is one; tested in `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Not
+  (`SidebarModelsNode`, `SidebarModelsNode.name`, `TrainedModelsStore`), drawn only when there is one; tested in `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`. Not
   built: the base model as its own node inside Models (the Inspector names it). Since #5539 (ruled
   2026-10-06) a model trained for a project lives inside its package (`models/`) and the project's list
   holds those, with the models in the engine's global store whose card names the project; each says

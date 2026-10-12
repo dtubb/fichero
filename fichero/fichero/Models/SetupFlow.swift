@@ -66,6 +66,20 @@ enum SetupStep: Hashable, Identifiable {
             + chosenStages.map(SetupStep.stage) + [.train, .ready]
     }
 
+    /// The stage Train a Model… asks Set Up for (`LibraryManager.requestSetUp(for:stage:)`): its own Train page.
+    static let trainStage = "train"
+
+    /// The page Set Up opens on when a stage is asked for: Train a Model… opens Train (#5652 slice 1); any other
+    /// stage opens Ready, whose plan lists each step with its fix, until Set Up has a page per stage (#5668, §7c);
+    /// none asked for opens the flow's first page (nil).
+    static func opening(requestedStage: String?) -> SetupStep? {
+        switch requestedStage {
+        case nil: nil
+        case trainStage?: .train
+        default: .ready
+        }
+    }
+
     /// Continue keeps the answers so far as a draft on the project (`source.onboard.screens-in-order`); saving is not
     /// Start, so nothing runs. Your project makes the project rather than saving into one; Ready saves with Start.
     var savesDraft: Bool {

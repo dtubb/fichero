@@ -235,7 +235,7 @@ cluster, a bigger Mac).
   and `fichero-card.json`; a student's `mlx/` build, `adapter/` and, when kept, merged `hf/` weights),
   with paths on the card relative to the model's folder; the resolvers look in the engine's global store,
   then in every open project, so a reader or step names the model by the same id as before, and a model
-  landed before the ruling keeps working from the global store. The project's Training node shows where
+  landed before the ruling keeps working from the global store. The project's Models node shows where
   each model lives (`lives`: `project`, `global`, `both`). Tested in
   `fichero-server/tests/unit/training/test_models_live_in_the_project.py`. Not built: spaCy pipelines and
   YOLO weights (no training lands them yet).* A model made for a project lives in it: its card and its

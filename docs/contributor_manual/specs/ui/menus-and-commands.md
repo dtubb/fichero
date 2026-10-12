@@ -236,9 +236,9 @@ Behaviours (slice 1):
   stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Read** › Run the Recipe on
   This Folder… (`RunRecipeOnFolderMenuItem`, also in both folder context menus; #5540,
   `source.recipe.folder-scoped-start` in `source/models-chains-and-projects.md`), **Organise** › Find the
-  Documents (⇧⌘D), **Connect** › SPARQL Console… (moved from Knowledge); **Workflows ▸** and **Chat ▸**
-  (moved from Knowledge) follow the stages. *Not built:* **Read** › Reading ▸ (#5652), **Structure**
-  (no verb yet), **Train** › Train a Model… and the Models node's model-row menu (#5652).
+  Documents (⇧⌘D), **Connect** › SPARQL Console… (moved from Knowledge), **Train** › Train a Model… and
+  Make Available in Every Project (`menus.project.train`); **Workflows ▸** and **Chat ▸** (moved from
+  Knowledge) follow the stages. *Not built:* **Read** › Reading ▸ (#5652), **Structure** (no verb yet).
 - `menus.project.find-the-documents-one-component` — **[OK]** **Built 2026-10-10 (app), not yet seen:**
   Find the Documents is ONE item, `FindDocumentsMenuItem` (`FocusedCommandButtons+Recipe.swift`),
   rendered by Project › Organise (`FocusedFindDocumentsButton`, on the key window's library selection,
@@ -266,8 +266,24 @@ Behaviours (slice 1):
   or waiting (Stop), or when it has ended with nothing to read again (Read Again). No chords: ⌘. is the
   system's cancel. Pinned by `ActivityRunMenuTests` and
   `MenuTerminologyBoundaryTests.testActivityStopAndReadAgainAreInTheMenuBar`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Train a Model… with the Models node rename and the
-  model row's menu; Project › Read › Reading ▸ and Read → Page; Edit parity for every context-menu verb.
+- `menus.project.train` — **[OK]** (#5652 slice 1) **Built 2026-10-12 (app), not yet seen:** Project ›
+  Train holds **Train a Model…** and **Make Available in Every Project** (`FocusedTrainButtons`,
+  `FocusedCommandButtons+Train.swift`). Train a Model… is ONE item, `TrainModelMenuItem`: it opens the
+  project's Set Up on its **Train** page (`SetupStep.opening(requestedStage:)` → `.train`, the Start
+  plan's train offers in `RecipeTrainOffersFields`, read there when no page before has), no new flow.
+  Make Available in Every Project is ONE item, `MakeModelGlobalMenuItem`, on the model selected in the
+  sidebar's **Models** node (`ProjectMenuTarget.trainedModel`); the same two items are the model row's
+  context menu (`SidebarModelsNode`, the type renamed from `SidebarTrainingNode` to match the node's
+  ruled name), and the Inspector's button is the same Make Available item. All act through
+  `TrainedModelMenuTarget.make`, over `TrainedModelsStore.makeAvailableEverywhere` (one code path; the
+  outcome is kept by model id for the Inspector to say). Disabled with its reason under it: no project
+  (Train a Model…), no model selected, already available everywhere, or under way (Make Available). No
+  chords. Pinned by `ProjectTrainMenuTests`,
+  `TrainedModelNodeActionsTests.makeAvailableThroughTheSharedTarget`,
+  `MenuTerminologyBoundaryTests.testTrainAndTheModelVerbAreOneItemEverywhere` and
+  `testProjectMenuDeclaresTheStageSectionsInRecipeOrder`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Project › Read › Reading ▸ and Read → Page; Edit
+  parity for every context-menu verb.
 
 ---
 

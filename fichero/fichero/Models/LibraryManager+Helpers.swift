@@ -576,7 +576,7 @@ extension LibraryManager {
                 LaunchProfile.milestone("library comparisons loaded", detail: libraryName)
             }
         }()
-        // The Training node's models (#5439): shown only when the engine has some.
+        // The Models node's models (#5439): shown only when the engine has some.
         async let trainedModelsLoaded: Void = await {
             await library.trainedModelsStore.loadModels()
             LaunchProfile.milestone("library trained models loaded", detail: libraryName)

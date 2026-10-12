@@ -118,7 +118,7 @@ noise; and the person's corrections of the new model's output feed the next trai
   `fichero-server/src/fichero_server/training/model_nodes.py` and
   `fichero-server/src/fichero_server/api/routes/training.py` (`GET /api/training/models`,
   `GET /api/training/model`, `POST /api/training/models/make-global`). App: the sidebar's
-  **Models** node (was Training; `fichero/fichero/Views/Sidebar/Sections/SidebarTrainingNode.swift`,
+  **Models** node (was Training; `fichero/fichero/Views/Sidebar/Sections/SidebarModelsNode.swift`,
   `fichero/fichero/Models/TrainedModelsStore.swift`) and the read-only
   `fichero/fichero/Views/Inspector/Model/ModelNodeInspector.swift` (provenance, held-out CER per
   policy, size, where it runs, licence, may-publish). Tested in
@@ -402,7 +402,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 
 - `training.model.node-under-models` — **[PARTIAL]** (#5439) the model is a node under the project's Models
   in the sidebar with an Inspector; the node reads **Models** (ruled 2026-10-10, open question 3; was
-  Training), its name and VoiceOver label from `SidebarTrainingNode.name` (`source.model.node-in-sidebar`,
+  Training), its name and VoiceOver label from `SidebarModelsNode.name` (`source.model.node-in-sidebar`,
   `source.model.node-inspector`). Pinned by `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`
   (`theNodeIsNamedModels`). *Not pinned: the drawn row.*
 - `training.model.error-beside-base` — **[PARTIAL]** (#5439, #5441) the Inspector shows the model's held-out

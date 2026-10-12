@@ -570,7 +570,7 @@ extension ContentView {
                 )
             } else if let model = sidebarSelectionState.inspectedTrainedModel(browserSelection: browserSelection),
                       let project = libraryManager.getLibrary(id: model.libraryId) {
-                // A trained model in a Training node is the selection (#5439).
+                // A trained model in a Models node is the selection (#5439).
                 ModelNodeInspector(store: project.trainedModelsStore, modelId: model.modelId)
             } else if let projectId = sidebarSelectionState.inspectedProjectId(browserSelection: browserSelection),
                       let project = libraryManager.getLibrary(id: projectId) {

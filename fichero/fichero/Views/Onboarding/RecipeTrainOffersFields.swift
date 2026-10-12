@@ -41,6 +41,11 @@ struct RecipeTrainOffersFields: View {
         } message: { pending in
             Text("The project's pages and their lines go to \(pending.target.name) to train the model there.")
         }
+        // Opened straight on Train (Project › Train › Train a Model…): the offers are on the project's Start plan,
+        // read here when no page before has read it (a folder's plan is not the project's).
+        .task {
+            if store.startPlan == nil || store.startPlanFolderId != nil { await store.loadStartPlan() }
+        }
     }
 
     private func key(_ offer: RecipeSetupStore.TrainOffer, _ way: RecipeSetupStore.TrainWay) -> String {

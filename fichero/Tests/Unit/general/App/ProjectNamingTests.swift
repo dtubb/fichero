@@ -104,7 +104,7 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertFalse(body.contains("libraryDisclosureLabel"), "no heading row over the top section")
         // Sources and Workflows are its folders; Models and the knowledge rows are the same nodes
         // every project draws, so the top draws them too.
-        XCTAssertTrue(source.contains("SidebarTrainingNode(store: library.trainedModelsStore"))
+        XCTAssertTrue(source.contains("SidebarModelsNode(store: library.trainedModelsStore"))
         XCTAssertTrue(source.contains("SidebarKnowledgeRowsNode(store: library.knowledgeRowCountsStore"))
     }
 

@@ -63,7 +63,7 @@ struct ReadKnowledgeMenuCommands: Commands {
     }
 
     /// One stage's section. Only verbs the app has are listed; a stage with none yet shows nothing
-    /// (Structure and Train are [GAP] in the spec). Read holds the recipe's run on one folder (#5540).
+    /// (Structure is [GAP] in the spec). Read holds the recipe's run on one folder (#5540).
     @ViewBuilder
     private func projectStageSection(_ stage: ProjectMenuStage) -> some View {
         switch stage {
@@ -84,7 +84,11 @@ struct ReadKnowledgeMenuCommands: Commands {
                     openWindow(id: "sparql-console")
                 }
             }
-        case .structure, .train:
+        case .train:
+            Section(stage.title) {
+                FocusedTrainButtons()
+            }
+        case .structure:
             EmptyView()
         }
     }

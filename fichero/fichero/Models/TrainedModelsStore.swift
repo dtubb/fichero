@@ -3,7 +3,7 @@ import Foundation
 import Observation
 import OpenAPIRuntime
 
-/// The models Fichero trained or fine-tuned, as the sidebar's Training node lists them
+/// The models Fichero trained or fine-tuned, as the sidebar's Models node lists them
 /// (`source.model.node-in-sidebar`, #5439), and each one's Inspector facts
 /// (`source.model.node-inspector`). Ruled 2026-10-04: training is the sidebar node; a model
 /// downloaded or imported has no training card, is not listed here and lives in Settings.
@@ -24,6 +24,10 @@ final class TrainedModelsStore {
     private(set) var inspectErrors: [String: String] = [:]
     /// The models its newest evaluation compared each model with, on the same pages (`loadCompared`), by model id.
     private(set) var compared: [String: [ModelNodeFacts.Compared]] = [:]
+    /// Why Make Available in Every Project did not happen, by model id; removed once it did.
+    private(set) var makeGlobalNotes: [String: String] = [:]
+    /// The models being made available in every project now.
+    private(set) var makingGlobal: Set<String> = []
 
     private let client: FicheroClient
 
@@ -38,9 +42,9 @@ final class TrainedModelsStore {
         self.inspected = inspected
     }
 
-    /// The Training node shows only when there is something in it (#5413's rule: a sidebar
+    /// The Models node shows only when there is something in it (#5413's rule: a sidebar
     /// row appears only when non-empty).
-    var showsTrainingNode: Bool { !models.isEmpty }
+    var showsModelsNode: Bool { !models.isEmpty }
 
     /// Re-read the whole list: a resync of the engine's list, whose identity is the engine's
     /// set of training cards (there is no prior item to splice against).
@@ -89,6 +93,7 @@ final class TrainedModelsStore {
             case .ok(let success):
                 let made = try success.body.json
                 inspected[made.modelId]?.lives = "both"
+                if let index = models.firstIndex(where: { $0.id == made.modelId }) { models[index].lives = "both" }
                 return nil
             case .unprocessableContent:
                 return "The engine did not accept this model id."
@@ -98,6 +103,21 @@ final class TrainedModelsStore {
         } catch {
             return "Could not make it available everywhere: \(error.localizedDescription)"
         }
+    }
+
+    /// Whether this model lives only in this project, so it can still be made available in every project: its
+    /// Inspector card's `lives` once read, else the list's.
+    func livesOnlyHere(_ modelId: String) -> Bool {
+        (inspected[modelId]?.lives ?? models.first { $0.id == modelId }?.lives) == "project"
+    }
+
+    /// Make Available in Every Project as the Inspector, the model row's context menu and Project › Train all do it
+    /// (`TrainedModelMenuTarget`, #5652): `makeGlobal`, with the outcome kept by model id for the Inspector to say.
+    func makeAvailableEverywhere(_ modelId: String) async {
+        guard !makingGlobal.contains(modelId) else { return }
+        makingGlobal.insert(modelId)
+        makeGlobalNotes[modelId] = await makeGlobal(modelId)
+        makingGlobal.remove(modelId)
     }
 
     /// The models its newest evaluation compared it with (its base among them), each one's CER on the same pages in

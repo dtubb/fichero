@@ -36,10 +36,12 @@ struct ProjectMenuTarget: Equatable {
     let findDocumentsScope: [String]
     /// The one folder Run the Recipe on This Folder… would run on; nil when there is none.
     var recipeFolderId: String?
+    /// The trained model selected in this project's Models node, for Project › Train; nil when none is.
+    var trainedModel: TrainedModelMenuTarget?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.projectId == rhs.projectId && lhs.findDocumentsScope == rhs.findDocumentsScope
-            && lhs.recipeFolderId == rhs.recipeFolderId
+            && lhs.recipeFolderId == rhs.recipeFolderId && lhs.trainedModel == rhs.trainedModel
     }
 }
 
@@ -295,7 +297,16 @@ extension ContentView {
             findDocumentsScope: scope,
             recipeFolderId: RecipeFolderScope.forSelection(
                 browserSelection, shownFolderId: shownFolderId, isFolder: isFolder
-            )
+            ),
+            trainedModel: selectedTrainedModelTarget
         )
+    }
+
+    /// The model selected in this window's Models node, as Project › Train acts on it (#5652 slice 1).
+    private var selectedTrainedModelTarget: TrainedModelMenuTarget? {
+        guard let model = sidebarSelectionState.inspectedTrainedModel(browserSelection: browserSelection),
+              model.libraryId == windowState.libraryId,
+              let store = libraryManager.getLibrary(id: model.libraryId)?.trainedModelsStore else { return nil }
+        return .make(modelId: model.modelId, store: store)
     }
 }

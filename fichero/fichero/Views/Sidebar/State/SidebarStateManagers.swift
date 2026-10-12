@@ -47,7 +47,7 @@ enum SidebarDestination: Hashable {
     /// library's rows carry their own selection identity and open THAT library's
     /// library-wide table.
     case knowledgeCollection(KnowledgeCollectionKind, libraryId: UUID)
-    /// A model Fichero trained, inside a project's Training node (#5439,
+    /// A model Fichero trained, inside a project's Models node (#5439,
     /// `source.model.node-in-sidebar`). Carries `libraryId` so each project's row has its own
     /// selection identity, like the knowledge rows.
     case trainedModel(String, libraryId: UUID)

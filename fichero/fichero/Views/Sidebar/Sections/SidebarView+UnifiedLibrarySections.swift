@@ -213,7 +213,7 @@ extension SidebarView {
                                              selection: selectionState.selectedDestinations)
                 case .models:
                     // Training is a node of the project (#5439); it draws nothing until a model is trained.
-                    SidebarTrainingNode(store: library.trainedModelsStore, libraryId: libraryId,
+                    SidebarModelsNode(store: library.trainedModelsStore, libraryId: libraryId,
                                         selection: selectionState.selectedDestinations)
                 case .trash:
                     SidebarTrashRow(store: library.trashStore, libraryId: libraryId,

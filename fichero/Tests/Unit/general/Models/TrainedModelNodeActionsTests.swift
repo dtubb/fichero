@@ -20,6 +20,9 @@ private final class ModelNodeEngine: URLProtocol {
         Self.seen.append(Seen(path: path, query: request.url?.query ?? "", body: body))
         var json = "{}"
         switch path {
+        case "/api/training/models":
+            json = #"{"models":[{"id":"kraken-trained-0f4e","name":"Notebook reader","kind":"kraken-reader","#
+                + #""may_publish":false,"lives":"\#(Self.lives)"}]}"#
         case "/api/training/model":
             json = #"{"id":"kraken-trained-0f4e","name":"Notebook reader","kind":"kraken-reader","may_publish":false,"#
                 + #""lives":"\#(Self.lives)","card":{},"scores":{"pages":2,"job_id":"eval-2","#
@@ -77,6 +80,26 @@ struct TrainedModelNodeActionsTests {
         let after = ModelNodeFacts(try #require(store.inspected[modelId]))
         #expect(!after.livesOnlyHere, "patched in place: not offered again")
         #expect(after.lives == "This project and every other project")
+    }
+
+    /// WHY: Project › Train, the Models node's row menu and the Inspector act through one target (#5652 slice 1):
+    /// one press makes it global once, and every one of them then says it is already everywhere.
+    @Test("the shared Make Available target makes the listed model global once, then says it already is")
+    func makeAvailableThroughTheSharedTarget() async throws {
+        let store = store()
+        await store.loadModels()
+        let target = try #require(TrainedModelMenuTarget.make(modelId: modelId, store: store))
+        #expect(target.livesOnlyHere)
+        #expect(FocusedTrainButtons.makeGlobalDisabledReason(target) == nil)
+
+        await store.makeAvailableEverywhere(modelId)
+
+        #expect(store.makeGlobalNotes[modelId] == nil)
+        #expect(!store.makingGlobal.contains(modelId))
+        #expect(!store.livesOnlyHere(modelId), "the list's entry is patched in place")
+        let after = try #require(TrainedModelMenuTarget.make(modelId: modelId, store: store))
+        #expect(FocusedTrainButtons.makeGlobalDisabledReason(after) == "It is already available in every project")
+        #expect(ModelNodeEngine.seen.filter { $0.path == "/api/training/models/make-global" }.count == 1)
     }
 
     /// WHY: a model's error alone says nothing; beside its base on the same pages it says whether training helped.

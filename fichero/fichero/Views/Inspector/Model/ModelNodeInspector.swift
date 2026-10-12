@@ -1,13 +1,13 @@
 import FicheroAPIClient
 import SwiftUI
 
-// `source.model.node-inspector` (#5439): selecting a model inside a project's Training node
+// `source.model.node-inspector` (#5439): selecting a model inside a project's Models node
 // shows its Inspector, read from its card through `TrainedModelsStore`. Read-only for now:
 // training again, testing and publishing are the node's actions (`source.model.node-actions`).
 
 extension SidebarSelectionState {
     /// The trained model the Inspector shows: the sidebar's routed selection is a model row in
-    /// a Training node and nothing in the Library pane has been picked since (a pick there is
+    /// a Models node and nothing in the Library pane has been picked since (a pick there is
     /// the newer selection, as for a project row).
     func inspectedTrainedModel(browserSelection: Set<String>) -> (modelId: String, libraryId: UUID)? {
         guard browserSelection.isEmpty,
@@ -19,16 +19,14 @@ extension SidebarSelectionState {
 struct ModelNodeInspector: View {
     let store: TrainedModelsStore
     let modelId: String
-    /// Why Make Available in Every Project did not happen; nil after it did.
-    @State private var makeGlobalNote: String?
-    @State private var makingGlobal = false
 
     var body: some View {
         Group {
             if let model = store.inspected[modelId] {
                 ModelNodeInspectorForm(
                     facts: ModelNodeFacts(model), compared: store.compared[modelId] ?? [],
-                    makeGlobal: makingGlobal ? nil : { Task { await makeGlobal() } }, makeGlobalNote: makeGlobalNote
+                    makeGlobal: TrainedModelMenuTarget.make(modelId: modelId, store: store),
+                    makeGlobalNote: store.makeGlobalNotes[modelId]
                 )
             } else if let message = store.inspectErrors[modelId] {
                 ContentUnavailableView(
@@ -40,16 +38,9 @@ struct ModelNodeInspector: View {
             }
         }
         .task(id: modelId) {
-            makeGlobalNote = nil
             await store.loadModel(modelId)
             await store.loadCompared(modelId)
         }
-    }
-
-    private func makeGlobal() async {
-        makingGlobal = true
-        makeGlobalNote = await store.makeGlobal(modelId)
-        makingGlobal = false
     }
 }
 
@@ -59,7 +50,8 @@ struct ModelNodeInspectorForm: View {
     /// The models the same evaluation read the same pages with, its base among them (#5439).
     var compared: [ModelNodeFacts.Compared] = []
     /// Make Available in Every Project (#5539); nil while it runs, or where it cannot be offered.
-    var makeGlobal: (() -> Void)?
+    /// Make Available in Every Project: the same item Project › Train and the Models node's row menu render (#5652).
+    var makeGlobal: TrainedModelMenuTarget?
     var makeGlobalNote: String?
 
     var body: some View {
@@ -112,8 +104,8 @@ struct ModelNodeInspectorForm: View {
             Section("Where It Can Be Used") {
                 LabeledContent("Available In", value: facts.lives)
                 if facts.livesOnlyHere {
-                    Button("Make Available in Every Project") { makeGlobal?() }
-                        .disabled(makeGlobal == nil)
+                    MakeModelGlobalMenuItem(target: makeGlobal)
+                        .labelStyle(.titleOnly)
                         .help("Copy it to this Mac's models, so every project can read with it")
                 }
                 if let makeGlobalNote {

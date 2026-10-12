@@ -3,7 +3,7 @@
 //  FicheroTests
 //
 //  `source.model.node-in-sidebar` and `source.model.node-inspector` (#5439): a project's
-//  Training node lists the models Fichero trained, and selecting one shows its Inspector.
+//  Models node lists the models Fichero trained, and selecting one shows its Inspector.
 //  Driven through the real store and the generated client against a stub scoped to
 //  /api/training/model(s), replying with the route shapes recorded from the engine's own
 //  `training/model_nodes.py` (`TrainedModelPreviewFixtures`), so no other suite's requests race it.
@@ -69,14 +69,14 @@ struct TrainedModelsStoreTests {
         return (response, Data(json.utf8))
     }
 
-    @Test("the Training node lists every trained model, newest first, from the engine's list")
+    @Test("the Models node lists every trained model, newest first, from the engine's list")
     func trainingNodeListsTrainedModels() async {
         // WHY: the node is where a person finds the models Fichero made; if the store dropped or
         // reordered the engine's list, a model would be trained and then nowhere to be found.
         let store = makeStore()
         await store.loadModels()
         #expect(TrainedModelsMockURLProtocol.paths == ["/api/training/models"])
-        #expect(store.showsTrainingNode)
+        #expect(store.showsModelsNode)
         #expect(store.models.map(\.name) == ["Notebook reader", "Qwen student"])
         #expect(store.models.map(\.id) == [TrainedModelPreviewFixtures.readerId, TrainedModelPreviewFixtures.studentId])
         #expect(store.errorMessage == nil)
@@ -86,18 +86,18 @@ struct TrainedModelsStoreTests {
     func theNodeIsNamedModels() {
         // WHY: ruled 2026-10-10 (training spec, open question 3): the node is Models; its label and
         // VoiceOver name both come from this one constant.
-        #expect(SidebarTrainingNode.name == "Models")
+        #expect(SidebarModelsNode.name == "Models")
     }
 
-    @Test("with no trained model the Training node is hidden")
+    @Test("with no trained model the Models node is hidden")
     func trainingNodeHiddenWhenEmpty() async {
-        // WHY: #5413's rule, a sidebar row appears only when non-empty; an empty Training node
+        // WHY: #5413's rule, a sidebar row appears only when non-empty; an empty Models node
         // in every project would be chrome that leads nowhere.
         let store = makeStore(listJSON: #"{"models": []}"#)
         await store.loadModels()
         #expect(TrainedModelsMockURLProtocol.paths == ["/api/training/models"])
         #expect(store.models.isEmpty)
-        #expect(!store.showsTrainingNode)
+        #expect(!store.showsModelsNode)
     }
 
     @Test("selecting a model row routes the Inspector to that model, and a pane pick outranks it")
