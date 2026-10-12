@@ -307,6 +307,10 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "FileTriggerRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "TriggerExecutionRecord.trigger_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "TriggerExecutionRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    # #5645: the scheduler, folded from `schedules` and `schedule_runs` onto models.
+    "ScheduleRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "ScheduleRunRecord.schedule_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "ScheduleRunRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ProviderRef.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- hand-written SQL tables --------------------------------------------------------------
     "table:sync_files.document_id": (CUT, "a moved document's tie to a synced folder is severed and listed (finding 9)"),
@@ -336,11 +340,6 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "table:checkpoint_writes.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:node_cache.node_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:node_cache.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:schedules.schedule_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:schedules.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:schedule_runs.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:schedule_runs.run_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:schedule_runs.schedule_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:library_acl_overrides.target_id": (CUT, "a per-node permission override is the source project's; on a move it is cut and listed (people are per project)"),
     "table:library_acl_overrides.user_id": (NOT_DOCUMENT_SCOPED, _PERSON),
     "table:library_roles.user_id": (NOT_DOCUMENT_SCOPED, _PERSON),
