@@ -588,7 +588,8 @@ def migrate_activity_record_indices(conn) -> None:
     for name, on in (("idx_workflowrunrecords_started_at", "workflowrunrecords(started_at DESC)"),
                      ("idx_workflowrunrecords_status", "workflowrunrecords(status)"),
                      ("idx_activityeventrecords_timestamp", "activityeventrecords(timestamp DESC)"),
-                     ("idx_activityeventrecords_thread_id", "activityeventrecords(thread_id)")):
+                     ("idx_activityeventrecords_thread_id", "activityeventrecords(thread_id)"),
+                     ("idx_workflowrunloglines_run_id", "workflowrunloglines(run_id)")):
         conn.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {on}")
 
 
