@@ -82,6 +82,18 @@ engine_is_current() {
   return 0
 }
 
+# What the app bundles, with versions and licences, for the About window (#5639,
+# `about.acknowledgements.generated`): read from the staged bundle's dist-info and the Swift pins, never by
+# hand. Fails naming any component whose licence it cannot find, so a new dependency is credited before it
+# ships. Cheap, so it is written for an engine already current too (a bundle staged before this step existed).
+write_acknowledgements() {
+  python3 "$ROOT_DIR/scripts/write_acknowledgements.py" \
+    --python "$ENGINE_APP/Contents/Resources/app_packages" \
+    --swift "$ROOT_DIR/fichero/fichero.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" \
+    --swift "$ROOT_DIR/fichero/fichero-api-client/Package.resolved" \
+    --out "$ENGINE_APP/Contents/Resources/acknowledgements.json"
+}
+
 if [ "${check_only:-false}" = true ]; then
   if engine_is_current; then
     echo "Embedded engine ready: $ENGINE_APP"
@@ -92,6 +104,7 @@ if [ "${check_only:-false}" = true ]; then
 fi
 
 if [ "${rebuild:-false}" = false ] && engine_is_current; then
+  write_acknowledgements || exit 1
   echo "Embedded engine ready: $ENGINE_APP"
   exit 0
 fi
@@ -202,6 +215,8 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
 # Python package, Homebrew tool or provisioning step outside it.
 "$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_engine_imports_bundled.py" \
   "$ENGINE_APP/Contents/Resources/app_packages" || exit 1
+
+write_acknowledgements || exit 1
 
 # Briefcase ships .py with NO .pyc, so every import pays a full compile. This is
 # not a micro-optimisation — measured on this exact bundle, same binary, only

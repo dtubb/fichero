@@ -81,6 +81,21 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
   reports that dependency's version, license-only otherwise (never a stale number). *(view-level;
   `versionKey` mapping pinned by
   `AboutAcknowledgementsTests.testDistributionOverrideDrivesLowercasedVersionKey`)*
+- `about.acknowledgements.generated` [PARTIAL] — (#5639) every component the app bundles is credited with its
+  version and licence, generated at build time from what is actually bundled, so the list updates itself when
+  the bundle changes: each `*.dist-info` in the staged engine's `app_packages` (its METADATA's SPDX expression,
+  `License` line or OSI classifiers, else the licence its own LICENSE text names) and each pin in the Swift
+  packages' `Package.resolved` (licences from `scripts/write_acknowledgements.py`'s `SWIFT_LICENCES`, since a pin
+  names none). Fichero's own packages are not listed. **Built 2026-10-12 (script):**
+  `preflight-embedded-engine.sh` writes `acknowledgements.json` into the staged engine's `Contents/Resources`
+  (also for an engine already current), and fails naming any component whose licence it cannot find. The JSON:
+  `{"format": "fichero-acknowledgements-v1", "components": [{name, version, licence, licence_text, layer
+  ("engine" or "app"), kind ("python" or "swift")}]}`; `licence_text` is the licence file's path relative to
+  `app_packages`, or for a Swift pin its LICENSE URL at the pinned revision. *Test:*
+  `fichero-server/tests/unit/scripts/test_acknowledgements_5639.py`. *Not built (the app, B): the About window
+  reads it from the embedded engine's Resources (`Fichero Server.app/Contents/Resources/acknowledgements.json`)
+  in place of, or beside, the Swift-declared list; groups by `layer`; shows `licence_text` (a file in the bundle,
+  or a link).*
 - `about.settings.touch-tab` [OK] — on touch platforms About is a Settings tab, not a window.
   `AboutSettingsSurfaceTests.testSettingsViewHostsAboutTabOnTouchPlatforms`.
 - `about.window.single-instance` [OK] — the Mac About window is single-instance, content-sized,
