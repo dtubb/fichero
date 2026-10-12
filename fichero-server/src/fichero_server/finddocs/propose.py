@@ -43,7 +43,8 @@ PRIOR = -3.5
 BOUNDARY_AT = 0.5
 #: A page with fewer characters of reading than this, and (when the image is known) less ink, is blank.
 BLANK_TEXT_CHARS = 20
-BLANK_INK = 0.01
+#: On `job._look`'s scale (#5676): above the pre-read line (0.011), below a faint written page (0.0175 measured).
+BLANK_INK = 0.014
 #: Two written pages this alike in their text (0 to 1) are two shots of one leaf.
 DUPLICATE_TEXT = 0.9
 #: How far back a second shot is looked for, in written pages.

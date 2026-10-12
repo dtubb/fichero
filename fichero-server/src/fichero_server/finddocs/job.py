@@ -24,8 +24,15 @@ from fichero_server.finddocs.store import store
 from fichero_server.models.found_documents import DocumentsProposal, FindDocumentsRequest
 
 KIND = "find-documents-in-a-folder"
-#: The side of the thumbnail the ink and the look are measured on.
-THUMB = 96
+#: The side of the thumbnail the ink and the look are measured on: large enough that a pen stroke is a pixel or
+#: two, not blurred into the paper (#5676: at 96 px a faint written page measured below a blank one).
+THUMB = 384
+#: Ink is a pixel this much darker than the paper around it (faded ink, 55 below its paper, is still ink;
+#: bleed-through, 30 or so, is not) ...
+INK_BELOW_PAPER = 40
+#: ... where the paper around it is the page with every dark mark thinner than this (in pixels) closed over: a
+#: stroke is filled with the paper it sits on, while a broad ground around the sheet (black or grey) and its edge stay.
+INK_STROKE_WIDTH = 9
 
 
 def _kind(doc: Any) -> str:
@@ -106,18 +113,22 @@ def _look(path: str | None) -> tuple[float | None, int | None]:
         return None, None
     from PIL import Image, ImageOps
 
+    from PIL import ImageChops, ImageFilter
+
     try:
         with Image.open(path) as image:
-            image.draft("L", (THUMB * 4, THUMB * 4))
+            image.draft("L", (THUMB * 2, THUMB * 2))
             gray = ImageOps.grayscale(image)
             gray.thumbnail((THUMB, THUMB))
-            pixels = list(gray.tobytes())
             small = list(gray.resize((8, 8)).tobytes())
     except OSError:
         return None, None
-    # Ink is what is much darker than the paper (its median): bleed-through on a blank verso is not.
-    paper = sorted(pixels)[len(pixels) // 2]
-    ink = sum(1 for p in pixels if p < paper - 50) / len(pixels)
+    # Ink is what is much darker than the paper around it (#5676): not the paper's median, which a black or grey
+    # ground around the sheet becomes (a written page on black read as 0% ink, a blank sheet on grey as 6%).
+    # Bleed-through on a blank verso is lighter than INK_BELOW_PAPER, and is not ink.
+    paper = gray.filter(ImageFilter.MaxFilter(INK_STROKE_WIDTH)).filter(ImageFilter.MinFilter(INK_STROKE_WIDTH))
+    darker = ImageChops.subtract(paper, gray).histogram()
+    ink = sum(darker[INK_BELOW_PAPER + 1:]) / (gray.size[0] * gray.size[1])
     mean = sum(small) / len(small)
     image_hash = sum(1 << i for i, p in enumerate(small) if p > mean)
     return ink, image_hash
@@ -139,15 +150,16 @@ def _names(db: Any, page_ids: list[str]) -> dict[str, list[str]]:
     return out
 
 
-#: Before reading, a page this empty of ink, right after a page with ink, is a blank verso and is not read (#5579).
-#: Lower than the proposer's blank (`propose.BLANK_INK`): a faint page is read rather than lost unread.
-UNREAD_BELOW_INK = 0.003
+#: Before reading, a page this empty of ink is blank and is not read (#5579). Lower than the proposer's blank
+#: (`propose.BLANK_INK`): a faint page is read rather than lost unread. Measured on CACIQUES_INDIOS,17,D.5 (#5676):
+#: its blank placeholder sheet 0.007, its faintest written page 0.0175.
+UNREAD_BELOW_INK = 0.011
 
 
 def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
-    """Of `page_ids`, the blank versos as their images show them before anything is read (`finddocs.leaves-first`,
-    #5579): a page with almost no ink right after a written page of its folder. The first page of a folder, and a
-    blank after a blank, are read as usual: only a back of a leaf is skipped."""
+    """Of `page_ids`, the pages blank as their images show them before anything is read (#5579): a page with almost
+    no ink, wherever it falls in its folder (#5676: its first page, a blank after a blank, the back of a leaf). A
+    proposal: sorting marks it `blank`, and a person who gives it another kind has it read."""
     from fichero_server.models import Document
 
     wanted = set(page_ids)
@@ -160,20 +172,8 @@ def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
     for folder_id in folders:
         if folder_id is not None and (folder := db.get(Document, folder_id)) is not None and _kind(folder) != "folder":
             continue
-        pages = loose_pages(db, folder_id)
-        inks: dict[int, float | None] = {}
-
-        def ink(i: int) -> float | None:
-            if i not in inks:
-                inks[i] = _look(_image_of(db, pages[i]))[0]
-            return inks[i]
-
-        for i, page in enumerate(pages):
-            if i == 0 or page.id not in wanted:
-                continue
-            mine = ink(i)
-            if mine is not None and mine < UNREAD_BELOW_INK and (before := ink(i - 1)) is not None \
-                    and before >= UNREAD_BELOW_INK:
+        for page in loose_pages(db, folder_id):
+            if page.id in wanted and (ink := _look(_image_of(db, page))[0]) is not None and ink < UNREAD_BELOW_INK:
                 out.add(page.id)
     return out
 

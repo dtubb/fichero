@@ -1096,16 +1096,25 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.hand-and-script-per-page` — **[GAP]** (#5456) script and hand are found per
   page and region, and each region goes to the reader that suits it (as
   `recipe.distil.script-and-hand-routed-per-region`).
-- `source.onboard.auto.blank-pages-not-read` — **[PARTIAL]** (#5579, #5578; #5550 for pairing leaves;
+- `source.onboard.auto.blank-pages-not-read` — **[PARTIAL]** (#5579, #5578, #5676; #5550 for pairing leaves;
   tested in `fichero-server/tests/unit/recipes/test_find_documents_step.py`
-  (`test_blank_versos_are_not_read`) and `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
+  (`test_blank_versos_are_not_read`), `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`
+  and `fichero-server/tests/unit/finddocs/test_blank_pages_anywhere_5676.py`)
   blank pages are found before reading and are not read, lined or sent to a model. Each is reported in
   the run's account. About half of Istmina's 203 images are blank versos. **Built:** before a recipe
-  card lines or reads pages, the backs of leaves blank as their images show (almost no ink, right after
-  a written page of the folder: `finddocs.job.blank_versos`), and any page a person marked blank, are
-  sorted as `blank` and left out; the step's account counts them (`blank_versos`). *Not built:* a blank
-  page that is not the back of a written leaf (a folder's first page, a blank after a blank) is still
-  read; the run's account names the pages only as a count.
+  card lines or reads pages, every page blank as its image shows, wherever it falls in its folder (its
+  first page, a blank after a blank, the back of a leaf: `finddocs.job.blank_versos`), and any page a
+  person marked blank, are sorted as `blank` and left out; the step's account counts them
+  (`blank_versos`). Blank is a proposal: a person who changes the page's kind has it read, and their kind
+  is never overwritten (`material_set_by`). Ink is what is much darker than the paper around it (the
+  page with its thin strokes closed over, at 384 px), so a broad ground around the sheet, black or grey,
+  is not ink and does not hide the writing on it. WHY (#5676, measured on CACIQUES_INDIOS,17,D.5): the
+  archive's "Hoja_en_blanco" sheets are one placeholder photograph of a white sheet on grey, which read
+  as 6% ink against the paper's median; a written page shot on black read as 0% and was taken for a
+  blank verso; and only a blank right after a written page was caught. The threshold holds on those
+  sheets (the placeholder 0.007, the folder's faintest written page 0.0175, the line at 0.011), and faded ink
+  (`source.onboard.auto.prepare-damaged-images`) is still ink.
+  *Not built:* the run's account names the pages only as a count.
 - `source.onboard.auto.prepare-damaged-images` — **[PARTIAL]** (#5580; tested in
   `fichero-server/tests/unit/recipes/test_prepare_images_step.py`) where the sample shows faded
   or damaged pages, image preparation (contrast, deskew) is proposed as a step with a card. It runs before

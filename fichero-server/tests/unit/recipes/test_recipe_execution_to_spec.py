@@ -22,9 +22,13 @@ CLOUD = {"cloud": "openai", "model": "gpt-5"}  # the checker's model (a stub ans
 
 
 def _png(path: Path) -> Path:
-    from PIL import Image
+    from PIL import Image, ImageDraw
 
-    Image.new("RGB", (32, 32), (250, 250, 250)).save(str(path), format="PNG")
+    # A written page: a blank one is caught wherever it falls and left unread (#5676).
+    image = Image.new("RGB", (32, 32), (250, 250, 250))
+    for row in (8, 14, 20, 26):
+        ImageDraw.Draw(image).line([4, row, 27, row], fill=(30, 30, 30))
+    image.save(str(path), format="PNG")
     return path
 
 

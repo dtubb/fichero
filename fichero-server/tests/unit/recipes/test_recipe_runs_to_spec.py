@@ -41,10 +41,10 @@ def engine(monkeypatch, app_db):
 
 
 def _png(path: Path) -> Path:
-    from PIL import Image
+    """A written page (a blank one is left unread wherever it falls, #5676)."""
+    from tests.unit.recipes.test_recipe_execution_to_spec import _png as written
 
-    Image.new("RGB", (32, 32), (250, 250, 250)).save(str(path), format="PNG")
-    return path
+    return written(path)
 
 
 @pytest.fixture
