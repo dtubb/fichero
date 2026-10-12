@@ -20,14 +20,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from watchdog.observers import Observer
-from watchdog.events import (
-    FileSystemEventHandler,
-    FileCreatedEvent,
-    FileModifiedEvent,
-    FileDeletedEvent,
-    FileMovedEvent,
-)
+# watchdog is imported where a watcher starts (`FileWatcherManager`), never at engine start: the triggers route
+# imports this module, and watchdog's 11 modules counted against the app's import budget (#3950).
 
 from fichero_server.execution.batch import BatchManager
 from fichero_server.workflows.workflow_store import WorkflowStore
@@ -114,8 +108,15 @@ class TriggerExecution:
     completed_at: Optional[datetime] = None
 
 
-class FileWatchHandler(FileSystemEventHandler):
-    """Watchdog event handler that queues events for processing."""
+class FileWatchHandler:
+    """Watchdog event handler that queues events for processing. It answers watchdog's one call, `dispatch(event)`,
+    itself, so the module needs no watchdog class to subclass at import (#3950)."""
+
+    def dispatch(self, event) -> None:
+        handler = {"created": self.on_created, "modified": self.on_modified, "deleted": self.on_deleted,
+                   "moved": self.on_moved}.get(getattr(event, "event_type", ""))
+        if handler is not None:
+            handler(event)
 
     def __init__(
         self,
@@ -190,20 +191,21 @@ class FileWatchHandler(FileSystemEventHandler):
             logger.debug(f"Trigger {self.trigger.trigger_id}: {event_type} {path}")
             self.event_callback(event_type, path)
 
+    # A file's event only: `_handle_event` leaves a directory's alone, as the watchdog classes' File* check did.
     def on_created(self, event):
-        if isinstance(event, FileCreatedEvent):
+        if getattr(event, "event_type", "") == "created":
             self._handle_event(event, "created")
 
     def on_modified(self, event):
-        if isinstance(event, FileModifiedEvent):
+        if getattr(event, "event_type", "") == "modified":
             self._handle_event(event, "modified")
 
     def on_deleted(self, event):
-        if isinstance(event, FileDeletedEvent):
+        if getattr(event, "event_type", "") == "deleted":
             self._handle_event(event, "deleted")
 
     def on_moved(self, event):
-        if isinstance(event, FileMovedEvent):
+        if getattr(event, "event_type", "") == "moved":
             # Handle as both deleted (src) and created (dest)
             self._handle_event(event, "moved")
 
@@ -234,6 +236,8 @@ class FileWatcherManager:
         self.db_path = db_path
         self.workflow_store = workflow_store
         self.batch_manager = batch_manager or BatchManager(db_path)
+
+        from watchdog.observers import Observer
 
         self._observer = Observer()
         self._triggers: dict[str, FileTrigger] = {}

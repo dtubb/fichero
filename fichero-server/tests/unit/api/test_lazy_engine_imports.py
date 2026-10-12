@@ -57,6 +57,8 @@ HEAVY_MODULES = [
     "PIL",
     "jinja2",
     "markupsafe",
+    # The folder watcher: started when a trigger watches a folder, never at engine start (2026-10-12).
+    "watchdog",
 ]
 
 # Ceiling on modules imported to build the app. Measured 1799 before #3950,
@@ -93,7 +95,11 @@ HEAVY_MODULES = [
 # addition, and it brings no other module with it.
 # 804 from 2026-10-08 (#5596): `workflows.tool_outputs`, the table of what every tool writes and where it
 # attaches, read when the tools register (a plain dict, standard library only).
-MODULE_BUDGET = 804
+# 800 from 2026-10-12: the budget had been over since 8b548edbc (808). `workflows.file_watcher`, which the
+# triggers route imports, subclassed watchdog's event handler at import, pulling in watchdog's 11 modules (FSEvents
+# included) at every launch; the handler now answers watchdog's `dispatch` itself and the observer is imported when
+# a watcher starts. 797 after; the budget sits just above, and `watchdog` joins HEAVY_MODULES.
+MODULE_BUDGET = 800
 
 
 def _run(code: str) -> str:
