@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from fichero_server.execution import jobs
-from fichero_server.finddocs.propose import PageInput, propose
+from fichero_server.finddocs.propose import PageInput, _is_blank, propose
 from fichero_server.finddocs.store import store
 from fichero_server.models.found_documents import DocumentsProposal, FindDocumentsRequest
 
@@ -161,16 +161,12 @@ def _names(db: Any, page_ids: list[str]) -> dict[str, list[str]]:
     return out
 
 
-#: Before reading, a page this empty of ink is blank and is not read (#5579). Lower than the proposer's blank
-#: (`propose.BLANK_INK`): a faint page is read rather than lost unread. Measured on CACIQUES_INDIOS,17,D.5 (#5676):
-#: its blank placeholder sheet 0.007, its faintest written page 0.0175.
-UNREAD_BELOW_INK = 0.011
-
-
 def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
     """Of `page_ids`, the pages blank as their images show them before anything is read (#5579): a page with almost
-    no ink, wherever it falls in its folder (#5676: its first page, a blank after a blank, the back of a leaf). A
-    proposal: sorting marks it `blank`, and a person who gives it another kind has it read."""
+    no ink, wherever it falls in its folder (#5676: its first page, a blank after a blank, the back of a leaf). Find
+    the Documents' own blank rule (`propose._is_blank`, #5705), on the page's reading if it has one; a page whose
+    image cannot be looked at is never called blank here, so it is read. A proposal: sorting marks it `blank`, and a
+    person who gives it another kind has it read."""
     from fichero_server.models import Document
 
     wanted = set(page_ids)
@@ -184,7 +180,9 @@ def blank_versos(db: Any, page_ids: list[str]) -> set[str]:
         if folder_id is not None and (folder := db.get(Document, folder_id)) is not None and _kind(folder) != "folder":
             continue
         for page in loose_pages(db, folder_id):
-            if page.id in wanted and (ink := _look(_image_of(db, page))[0]) is not None and ink < UNREAD_BELOW_INK:
+            if page.id not in wanted or (ink := _look(_image_of(db, page))[0]) is None:
+                continue
+            if _is_blank(PageInput(id=page.id, text=_text(db, page), ink=ink)):
                 out.add(page.id)
     return out
 

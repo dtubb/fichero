@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from fichero_server.finddocs import job as finddocs_job
-from fichero_server.recipes import runner
+from fichero_server.recipes import runner, sorting
 from tests.unit.recipes.test_find_documents_step import _project
 
 
@@ -33,7 +33,7 @@ def test_a_blank_sheet_left_out_of_reading_is_named_with_why(client, db, tmp_pat
     (step,) = runner.run(db, subject)["steps"]
 
     assert {e["page_id"] for e in step["left_out"]} == versos
-    assert all(e["page"] and e["why"] == "a blank sheet, the back of a written leaf" for e in step["left_out"])
+    assert all(e["page"] and e["why"] == sorting.BLANK_WHY for e in step["left_out"])  # #5705: true anywhere
     said = asyncio.run(summary(db, job_id))
     assert any(line.startswith("Left out: ") for line in said.lines), said.lines
 

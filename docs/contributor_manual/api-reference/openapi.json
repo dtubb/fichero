@@ -70066,7 +70066,7 @@
           "why": {
             "type": "string",
             "title": "Why",
-            "description": "why it was left out, in words: 'a blank sheet, the back of a written leaf'"
+            "description": "why it was left out, in words: 'a blank page: its image holds almost no ink'"
           }
         },
         "type": "object",
@@ -80360,7 +80360,7 @@
             "type": "integer",
             "nullable": true,
             "title": "Blank Versos",
-            "description": "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called blank, #5579); null when none"
+            "description": "pages a lining or reading stage left out as blank (its image holds almost no ink, or a person called it blank, #5579); null when none"
           },
           "left_out": {
             "items": {
@@ -80443,7 +80443,7 @@
           "pages_read": {
             "type": "integer",
             "title": "Pages Read",
-            "description": "of those, the pages that have a reading (lines read, or a page text)"
+            "description": "of those, the pages that have a reading (lines read, or a page text), not counting a page the run left out as blank (#5705)"
           },
           "names": {
             "items": {

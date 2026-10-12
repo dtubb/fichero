@@ -151,7 +151,8 @@ def _line(item: Any, indent: int) -> str:
     parts = [p for p in (_first(item, _ID_KEYS), _first(item, _LABEL_KEYS)) if p]
     # An item with no id or name (a transfer's counts, its cuts) still says what it holds, never "(item)".
     text = "  ".join(parts) or ", ".join(
-        f"{k}: {v}" for k, v in item.items() if v not in (None, "") and not isinstance(v, (dict, list))) or "(item)"
+        f"{k}: {v}" for k, v in item.items()
+        if k != "why" and v not in (None, "") and not isinstance(v, (dict, list))) or "(item)"  # why: said below
     detail = _first(item, _DETAIL_KEYS)
     if detail:
         text += f"  [{detail}]"
