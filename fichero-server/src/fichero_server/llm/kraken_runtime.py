@@ -855,6 +855,12 @@ def _segmenter() -> object:
         resources.files("kraken").joinpath("blla.mlmodel")))
 
 
+def _line_confidence(record: object) -> float | None:
+    """Kraken's confidence for a line it read: the mean of its characters' (#5500); None when it gives none."""
+    values = [float(c) for c in (getattr(record, "confidences", None) or [])]
+    return round(sum(values) / len(values), 4) if values else None
+
+
 def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]:
     from PIL import Image
     from kraken import blla
@@ -877,6 +883,7 @@ def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]
     for index, line in enumerate(lines):
         record = predictions[index] if index < len(predictions) else None
         line["text"] = "" if record is None else str(getattr(record, "prediction", record) or "")
+        line["confidence"] = None if record is None else _line_confidence(record)
     return {"width": width, "height": height, "lines": lines, "regions": _raw_regions(segmentation)}
 
 
@@ -1256,15 +1263,19 @@ def recognize_to_geometry(
         y0, y1 = max(0.0, min(ys)), min(height, max(ys))
         if x1 <= x0 or y1 <= y0:
             continue
-        text = str(line.get("text") or "")
+        text = str(line.get("text") or "").strip()
         # char_start/char_end index the line's slice of the joined transcript.
         # Assigned as we build (a running cursor + 1 per newline) so the mapping
         # is EXACT even when two lines read identically — a search would tie
-        # both to the first occurrence.
-        char_start = cursor
-        char_end = cursor + len(text)
-        cursor = char_end + 1  # + the "\n" that will join this line to the next
-        texts.append(text)
+        # both to the first occurrence. A line read as empty (a ruled line on the paper) keeps its shape and takes
+        # no place in the text: a blank line there shifted every later slice by one line break (#5500).
+        char_start = char_end = None
+        if text:
+            char_start = cursor
+            char_end = cursor + len(text)
+            cursor = char_end + 1  # + the "\n" that will join this line to the next
+            texts.append(text)
+        confidence = line.get("confidence")
         boxes.append(
             OCRGeometryBox(
                 text=text,
@@ -1275,6 +1286,7 @@ def recognize_to_geometry(
                 source="kraken-htr",
                 char_start=char_start,
                 char_end=char_end,
+                confidence=float(confidence) if isinstance(confidence, (int, float)) else None,
                 metadata={
                     "line_index": index,
                     "polygon_px": [[x, y] for x, y in polygon],

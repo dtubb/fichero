@@ -343,6 +343,13 @@ Readings
   wins; independent readings stay equal alternatives
   (`fichero-server/tests/unit/api/test_a_correction_counts.py::test_a_correction_of_a_persons_reading_does_not_blank_the_line`
   and five more).
+- `source.reading.kraken-line-is-its-own` — **[OK]** (#5500, 2026-10-11) a line Kraken reads carries
+  its own reading and nothing else: the page's text is the read lines joined, and each line's reading is
+  exactly its own slice of it, so no line shows its neighbour's words. A line Kraken finds but reads as
+  empty (a ruled line on the paper) keeps its shape and has no reading and no place in the page's text
+  (an empty line in the text shifted every slice after it by one line break). Each reading carries
+  Kraken's confidence for the line (the mean of its characters'). `llm/kraken_runtime.recognize_to_geometry`.
+  *Test:* `fichero-server/tests/unit/llm/test_kraken_line_reading_5500.py`.
 - `source.reading.correct-a-line` — **[OK]** (#5499) correcting a line takes the segment and its new
   text, nothing more: `POST /api/segments/{segment_id}/correct` `{text}` (CLI `segments correct-line
   <segment_id> --text ...`, MCP `fichero_segments_correct_line`). It is one `representation.create`, the
