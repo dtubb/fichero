@@ -299,6 +299,10 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "ActionAudit.inverse_of": (NOT_DOCUMENT_SCOPED, _AUDIT),
     "MigrationRunRecord.run_id": (NOT_DOCUMENT_SCOPED, "the library's migration history"),
     "MigrationRunRecord.audit_id": (NOT_DOCUMENT_SCOPED, _AUDIT),
+    # #5645: the batch store, folded from its hand-made `batches` and `batch_items` tables onto models.
+    "BatchRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "BatchItemRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "BatchItemRecord.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ProviderRef.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- hand-written SQL tables --------------------------------------------------------------
     "table:sync_files.document_id": (CUT, "a moved document's tie to a synced folder is severed and listed (finding 9)"),
@@ -320,11 +324,6 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "table:activities.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:workflow_runs.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:workflow_runs.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:batches.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:batches.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:batch_items.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:batch_items.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:batch_progress_snapshots.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:checkpoints.checkpoint_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:checkpoints.parent_checkpoint_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:checkpoints.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),

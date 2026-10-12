@@ -1136,6 +1136,7 @@ class Database(DatabaseEmbeddingMixin):
             self._backfill_research_workspace_documents,
             self._backfill_research_plan_task_step_documents,
             self._backfill_workflow_documents,
+            self._fold_batch_tables,
         ))
 
     #: An open-time step slower than this is logged as a warning, named (#5228).
@@ -1170,6 +1171,56 @@ class Database(DatabaseEmbeddingMixin):
                     f"Close the other process before opening {self.path}."
                 ) from exc
             raise
+
+    #: Records that the old batch tables' rows were copied into the batch models' tables and checked (#5645).
+    BATCH_TABLES_FOLDED_SETTING = "batch_tables_folded_5645"
+
+    def _fold_batch_tables(self) -> None:
+        """Copy a library's batches from the tables the old batch store made (`batches`, `batch_items`) into
+        `BatchRecord` and `BatchItemRecord`, once (#5645, `source.store.one-managed-database`).
+
+        Copies only the rows the new tables lack, by the old key, so a copy cut short finishes at the next open
+        without doubling; checks that every old key is now in the new tables, and only then records the fold, so a
+        batch the store deletes later is never copied back. The old tables are kept, untouched. A failed copy or
+        check is a migration failure (`/api/health`), tried again at the next open. Runs on the managed connection,
+        after `connect_utc` rebuilt any index a crashed session's WAL replay left stale (#5644).
+        """
+        conn = self.conn
+        old = {row[0] for row in conn.execute(
+            "SELECT table_name FROM duckdb_tables() WHERE table_name IN ('batches', 'batch_items')").fetchall()}
+        if not old:
+            return  # a library made after the fold, or one that never had a batch: nothing to copy
+        if conn.execute("SELECT 1 FROM librarysettings WHERE id = ?",
+                        [self.BATCH_TABLES_FOLDED_SETTING]).fetchone():
+            return
+        from fichero_server.db.migrations.schema import _run_atomic_migration
+
+        def _copy() -> None:
+            if "batches" in old:
+                conn.execute(
+                    "INSERT INTO batchrecords (id, workflow_id, status, max_concurrent, created_at, started_at, "
+                    "completed_at, error_message) SELECT b.batch_id, b.workflow_id, b.status, "
+                    "COALESCE(b.max_concurrent, 5), b.created_at, b.started_at, b.completed_at, b.error_message "
+                    "FROM batches b WHERE b.batch_id NOT IN (SELECT id FROM batchrecords)")
+            if "batch_items" in old:
+                conn.execute(
+                    "INSERT INTO batchitemrecords (id, batch_id, thread_id, item_index, inputs, status, error, "
+                    "started_at, completed_at) SELECT i.batch_id || ':' || i.thread_id, i.batch_id, i.thread_id, "
+                    "i.item_index, i.inputs, i.status, i.error, i.started_at, i.completed_at FROM batch_items i "
+                    "WHERE i.batch_id || ':' || i.thread_id NOT IN (SELECT id FROM batchitemrecords)")
+            missing = 0
+            if "batches" in old:
+                missing += conn.execute("SELECT count(*) FROM batches WHERE batch_id NOT IN "
+                                        "(SELECT id FROM batchrecords)").fetchone()[0]
+            if "batch_items" in old:
+                missing += conn.execute("SELECT count(*) FROM batch_items WHERE batch_id || ':' || thread_id NOT IN "
+                                        "(SELECT id FROM batchitemrecords)").fetchone()[0]
+            if missing:
+                raise RuntimeError(f"{missing} rows of the old batch tables were not found after the copy")
+            conn.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())",
+                         [self.BATCH_TABLES_FOLDED_SETTING])
+
+        _run_atomic_migration(conn, "fold_batch_tables_5645", _copy, self.migration_failures)
 
     #: Records that this library's indexes were rebuilt once, repairing any written by a replay
     #: before the fix (#5644). A library with no settings table yet is new: nothing to repair.
@@ -1323,6 +1374,7 @@ class Database(DatabaseEmbeddingMixin):
         return int(row[0])
 
     def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
+        from fichero_server.models.batches import BatchItemRecord, BatchRecord
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
             Interpretation,
@@ -1566,6 +1618,9 @@ class Database(DatabaseEmbeddingMixin):
             ConvertedBoxOrigin,
             # #5657: a transfer between projects, its record in each project (the journal undo reads).
             TransferRecord,
+            # #5645: the batch store, folded onto this one managed Database (was `batches`, `batch_items`).
+            BatchRecord,
+            BatchItemRecord,
         )
 
     def _materialize_schema(self) -> None:

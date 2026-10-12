@@ -413,6 +413,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment_service.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/batches.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/campaigns.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/canvas.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/checking.py
