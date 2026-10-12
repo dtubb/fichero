@@ -1187,12 +1187,13 @@ class Database(DatabaseEmbeddingMixin):
     #: hold tens of thousands (#5645: a fold holds one chunk's rows, never the whole history).
     ACTIVITY_FOLD_CHUNK = 500
 
-    def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, str, str, str]], *,
+    def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, Any, str, str]], *,
                         chunk: int | None = None) -> None:
         """Copy one store's rows from the tables it made by hand into its models' tables, once (#5645,
         `source.store.one-managed-database`). `copies`: for each old table, the INSERT that copies the rows the new
         table lacks (by the old key, so a copy cut short finishes at the next open without doubling) and the count
-        of old keys still missing after it. Only when none is missing is the fold recorded (`setting`), so a row the
+        of old keys still missing after it (the INSERT may be a function that makes it, called only when the old
+        table is there to fold). Only when none is missing is the fold recorded (`setting`), so a row the
         store deletes later is never copied back. The old tables are kept, untouched. A failed copy or check rolls
         back, is a migration failure (`/api/health`), and is tried again at the next open. Runs on the managed
         connection, after `connect_utc` rebuilt any index a crashed session's WAL replay left stale (#5644).
@@ -1216,6 +1217,7 @@ class Database(DatabaseEmbeddingMixin):
             return
         from fichero_server.db.migrations.schema import _run_atomic_migration
 
+        copies = [(t, c() if callable(c) and t in old else c, m, n) for t, c, m, n in copies]
         if chunk:
             # A big store (a library's run history) is copied `chunk` rows to a transaction, so a fold never holds
             # every row at once; each chunk is the anti-join's next rows, so a fold cut short resumes where it was.
@@ -1236,6 +1238,8 @@ class Database(DatabaseEmbeddingMixin):
                     if len(self.migration_failures) > failures:
                         return  # said on /api/health; the next open goes on from here
 
+        # After the chunks every row is already copied, so these INSERTs copy nothing; they are what makes an unchunked
+        # fold, and here they keep the check and the record in one transaction with a last look at the old tables.
         def _copy() -> None:
             for table, copy_sql, _missing, _newer in copies:
                 if table in old:
@@ -1358,12 +1362,18 @@ class Database(DatabaseEmbeddingMixin):
             return {r[0] for r in conn.execute(
                 "SELECT column_name FROM information_schema.columns WHERE table_name = ?", [table]).fetchall()}
 
-        run_cols = columns("workflow_runs")
         run_fields = ("workflow_id", "workflow_name", "python_code", "execution_log", "status", "started_at",
                       "completed_at", "duration_ms", "error", "workflow_snapshot", "node_name_map",
                       "progress_timeline", "diagram_mermaid", "resolved_scope", "run_usage", "estimated_cost")
-        run_select = ", ".join(("COALESCE(r.status, 'running')" if f == "status" else f"r.{f}") if f in run_cols
-                               else "NULL" for f in run_fields)
+
+        def run_copy() -> str:
+            # Called only when the old table is there and not yet folded: a new or folded library reads no columns.
+            run_cols = columns("workflow_runs")
+            run_select = ", ".join(("COALESCE(r.status, 'running')" if f == "status" else f"r.{f}")
+                                   if f in run_cols else "NULL" for f in run_fields)
+            return (f"INSERT INTO workflowrunrecords (id, {', '.join(run_fields)}) SELECT r.thread_id, {run_select} "
+                    "FROM workflow_runs r WHERE r.thread_id NOT IN (SELECT id FROM workflowrunrecords)")
+
         self._fold_old_store("activity", self.ACTIVITY_TABLES_FOLDED_SETTING, [
             ("activities",
              "INSERT INTO activityeventrecords (id, type, level, timestamp, message, workflow_id, batch_id, thread_id, "
@@ -1373,8 +1383,7 @@ class Database(DatabaseEmbeddingMixin):
              "SELECT count(*) FROM activities WHERE id NOT IN (SELECT id FROM activityeventrecords)",
              "SELECT count(*) FROM activities WHERE timestamp > ?"),
             ("workflow_runs",
-             f"INSERT INTO workflowrunrecords (id, {', '.join(run_fields)}) SELECT r.thread_id, {run_select} "
-             "FROM workflow_runs r WHERE r.thread_id NOT IN (SELECT id FROM workflowrunrecords)",
+             run_copy,
              "SELECT count(*) FROM workflow_runs WHERE thread_id NOT IN (SELECT id FROM workflowrunrecords)",
              "SELECT count(*) FROM workflow_runs WHERE started_at > ?"),
         ], chunk=self.ACTIVITY_FOLD_CHUNK)
