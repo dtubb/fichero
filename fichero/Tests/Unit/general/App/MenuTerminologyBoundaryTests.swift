@@ -240,7 +240,6 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Train.swift")
         XCTAssertTrue(buttons.contains("TrainModelMenuItem(projectId: target?.projectId)"))
         XCTAssertTrue(buttons.contains("MakeModelGlobalMenuItem(target: target?.trainedModel)"))
-        XCTAssertTrue(buttons.contains("Label(\"Train a Model…\""))
         XCTAssertFalse(buttons.contains(".keyboardShortcut"), "Train's verbs take no chord")
         let node = try Self.appSource("Views/Sidebar/Sections/SidebarModelsNode.swift")
         XCTAssertTrue(node.contains("TrainModelMenuItem(projectId: libraryId)"))

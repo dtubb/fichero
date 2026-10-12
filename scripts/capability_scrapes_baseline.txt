@@ -304,3 +304,6 @@ fichero/Tests/Unit/general/Views/Shell/OneToolbarSearchItemTests.swift
 fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift
 fichero/Tests/Unit/general/App/ProjectNamingTests.swift
 fichero/Tests/Unit/general/App/SaveLogsForSupportTests.swift
+# One code path for the shared menu verbs (#5652): only the shared Activity / model target calls the store for Stop,
+# Read Again and Make Available, and no Activity view draws its own: uniqueness and absence across the whole app tree.
+fichero/Tests/Unit/general/App/MenuVerbsOneCodePathGuardTests.swift

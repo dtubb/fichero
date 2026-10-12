@@ -1,18 +1,93 @@
+import FicheroAPIClient
 import Foundation
 @testable import Fichero
 import Testing
 
-/// #5652 slice 3: Project › Activity › Stop and Read Again act on the Activity window's selected run.
-/// What breaks without these: a menu item that is on when it can do nothing (or off with no reason), or a
-/// second Stop / Read Again in the window that drifts from the menu bar's.
+/// The engine for these tests: only the transport is stubbed; the store, the service and the generated client are
+/// the real ones. It answers Stop (the job's cancel) and Read Again (the run's read-again) and records each call.
+private final class RunVerbsEngine: URLProtocol {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var paths: [String] = []
+    nonisolated(unsafe) static var refuse = false
+
+    static func reset() {
+        lock.lock()
+        paths = []
+        refuse = false
+        lock.unlock()
+    }
+
+    static func recorded() -> [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return paths
+    }
+
+    override static func canInit(with request: URLRequest) -> Bool { request.url?.host == "run-verbs.test" }
+    override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let path = request.url?.path ?? ""
+        Self.lock.lock()
+        Self.paths.append("\(request.httpMethod ?? "") \(path)")
+        let refuse = Self.refuse
+        Self.lock.unlock()
+        var status = 200
+        var json = #"{"detail":"no stub"}"#
+        if refuse {
+            status = 409
+            json = #"{"detail":"the engine said no"}"#
+        } else if path.hasSuffix("/cancel") {
+            json = #"{"id":"job-1","state":"cancelled"}"#
+        } else if path.hasSuffix("/read-again") {
+            status = 202
+            json = #"{"thread_id":"thread-new","from_thread_id":"thread-1","workflow_id":"wf","#
+                + #""workflow_name":"Transcribe","pages":3,"stream_url":"https://run-verbs.test/api/x"}"#
+        } else {
+            status = 404
+        }
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,
+                                       headerFields: ["Content-Type": "application/json"])!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(json.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+/// #5652 slice 3: Stop and Read Again act on a run through ONE target (`ActivityRunMenuTarget.make` / `.stage`),
+/// which the Activity table's row buttons, its context menu, the menu bar, the details and the project's run strip all
+/// render. What breaks without these: a menu item that is on when it can do nothing (or off with no reason), or a
+/// press that reaches the wrong route, or says nothing when the engine refuses.
 @MainActor
-@Suite("Activity's Stop and Read Again in the menu bar (#5652 slice 3)")
+@Suite("Activity's Stop and Read Again (#5652 slice 3)", .serialized)
 struct ActivityRunMenuTests {
     private func target(canStop: Bool, readAgainLabel: String?) -> ActivityRunMenuTarget {
         ActivityRunMenuTarget(
             rowId: "run-1", rowName: "Read the folder", canStop: canStop, readAgainLabel: readAgainLabel,
             stop: {}, readAgain: {}
         )
+    }
+
+    private func store() -> ActivityStore {
+        RunVerbsEngine.reset()
+        setenv("FICHERO_AUTH_TOKEN", "test-token", 1)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RunVerbsEngine.self]
+        let client = FicheroClient(
+            baseURL: URL(string: "https://run-verbs.test")!, libraryPath: "/tmp/run-verbs.fichero",
+            session: URLSession(configuration: configuration)
+        )
+        return ActivityStore(service: ActivityService(ficheroClient: client))
+    }
+
+    /// Press one of a target's verbs and wait for what it reports: nil when the engine took it, else why not.
+    private func press(_ verb: (ActivityRunMenuTarget) -> Void,
+                       make: (@escaping @MainActor (String?) -> Void) -> ActivityRunMenuTarget) async -> String? {
+        await withCheckedContinuation { continuation in
+            verb(make { continuation.resume(returning: $0) })
+        }
     }
 
     @Test("no run selected: both are off, and Stop says to select a run")
@@ -43,59 +118,6 @@ struct ActivityRunMenuTests {
         #expect(FocusedActivityRunButtons.readAgainTitle(ended) == "Read the 3 pages that failed")
     }
 
-    @Test("the Project menu has an Activity section rendering the focused buttons")
-    func projectMenuHasActivitySection() throws {
-        let menus = try Self.appSource("App/Menus/ReadKnowledgeMenuCommands.swift")
-        let project = try #require(menus.range(of: "CommandMenu(\"Project\")"))
-        let activity = try #require(menus.range(of: "Section(\"Activity\") {\n                FocusedActivityRunButtons()"))
-        #expect(project.lowerBound < activity.lowerBound, "Activity's section belongs to the Project menu")
-    }
-
-    @Test("the row's buttons, its context menu and the menu bar render the same two items")
-    func oneComponentEverywhere() throws {
-        let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
-        #expect(buttons.contains("ActivityStopMenuItem(target: target)"))
-        #expect(buttons.contains("ActivityReadAgainMenuItem(target: target)"))
-        let window = try Self.appSource("Views/Activity/Window/ActivityMonitorWindow.swift")
-        // Context menu, on the clicked row's target.
-        #expect(window.contains("if target.canStop { ActivityStopMenuItem(target: target) }"))
-        #expect(window.contains("if target.readAgainLabel != nil { ActivityReadAgainMenuItem(target: target) }"))
-        // The row's own buttons, on the same row's target.
-        #expect(window.contains("run: runMenuTarget(for: row)"))
-        #expect(window.contains("ActivityStopMenuItem(target: run)"))
-        #expect(window.contains("ActivityReadAgainMenuItem(target: run)"))
-        // No second Stop or Read Again in the window.
-        #expect(!window.contains("Button(\"Stop\")"))
-        #expect(!window.contains("Button(action: readAgain)"))
-        #expect(!window.contains("func readAgain("))
-        #expect(!window.contains("func readPagesAgain("))
-        #expect(!window.contains("store.cancelJob("))
-    }
-
-    /// The four architecture rules' one code path: the details, its stage cards and summary, and the
-    /// project window's run strip render the same items, and only the shared target calls the store.
-    @Test("the Activity details and the project's run strip render the same items, through one store call")
-    func detailsAndStripUseTheSameItems() throws {
-        let details = try Self.appSource("Views/Activity/Detail/ActivityDetailsView.swift")
-        #expect(details.contains("case .control(.stop): ActivityStopMenuItem(target: run)"))
-        #expect(details.contains("case .readAgain: ActivityReadAgainMenuItem(target: run)"))
-        #expect(details.contains("ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))"))
-        #expect(details.contains("details: details, run: runTarget(details)"))
-        let cards = try Self.appSource("Views/Activity/Detail/ActivityDetailsStageCards.swift")
-        #expect(cards.contains("ActivityReadAgainMenuItem(target: readAgain(failed.threadId, offer))"))
-        let strip = try Self.appSource("Views/Activity/ProjectRunStrip.swift")
-        #expect(strip.contains("ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))"))
-        #expect(strip.contains(".stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })"))
-        for (name, source) in [("details", details), ("stage cards", cards), ("run strip", strip)] {
-            #expect(!source.contains("store.readPagesAgain("), "\(name) reads pages again around the shared item")
-            #expect(!source.contains("store.cancelJob("), "\(name) stops a job around the shared item")
-            #expect(!source.contains("Button(offer)"), "\(name) draws its own Read Again button")
-        }
-        let shared = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
-        #expect(shared.contains("store.readPagesAgain(runThreadId: runThreadId)"))
-        #expect(shared.contains("store.cancelJob(jobId: jobId, runThreadId: runThreadId)"))
-    }
-
     @Test("a stage's target offers Read Again on that stage's thread and never Stop")
     func stageTarget() {
         let target = ActivityRunMenuTarget.stage(
@@ -107,7 +129,50 @@ struct ActivityRunMenuTests {
         #expect(FocusedActivityRunButtons.stopDisabledReason(target) != nil)
     }
 
-    private static func appSource(_ relativePath: String) throws -> String {
-        try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
+    @Test("Stop on a row's target cancels that row's job, once, and reports that the engine took it")
+    func stopCancelsTheRowsJob() async {
+        let store = store()
+        let outcome = await press({ $0.stop() }) { report in
+            .make(rowId: "run-1", rowName: "Read the folder", canStop: true, jobId: "job-1",
+                  runThreadId: "thread-1", readAgainLabel: nil, store: store, report: report)
+        }
+        #expect(outcome == nil)
+        #expect(RunVerbsEngine.recorded() == ["POST /api/activity/jobs/job-1/cancel"])
+    }
+
+    @Test("Read Again on a row's target asks the engine to read that run's pages again")
+    func readAgainReadsTheRunAgain() async {
+        let store = store()
+        let outcome = await press({ $0.readAgain() }) { report in
+            .make(rowId: "run-1", rowName: "Read the folder", canStop: false, jobId: "job-1",
+                  runThreadId: "thread-1", readAgainLabel: "Read the 3 pages that failed", store: store, report: report)
+        }
+        #expect(outcome == nil)
+        #expect(RunVerbsEngine.recorded() == ["POST /api/workflow-execution/threads/thread-1/read-again"])
+    }
+
+    @Test("Read Again on a stage's target reads that stage's thread again")
+    func stageReadAgain() async {
+        let store = store()
+        let outcome = await press({ $0.readAgain() }) { report in
+            .stage(threadId: "thread-7", offer: "Read the 2 pages that failed", store: store, report: report)
+        }
+        #expect(outcome == nil)
+        #expect(RunVerbsEngine.recorded() == ["POST /api/workflow-execution/threads/thread-7/read-again"])
+    }
+
+    @Test("a refusal is said in words, with the run's name for Stop")
+    func refusalIsSaid() async {
+        let store = store()
+        RunVerbsEngine.refuse = true
+        let stopped = await press({ $0.stop() }) { report in
+            .make(rowId: "run-1", rowName: "Read the folder", canStop: true, jobId: "job-1",
+                  runThreadId: "thread-1", readAgainLabel: nil, store: store, report: report)
+        }
+        #expect(stopped?.hasPrefix("Couldn't stop Read the folder: ") == true)
+        let readAgain = await press({ $0.readAgain() }) { report in
+            .stage(threadId: "thread-7", offer: "Read the 2 pages that failed", store: store, report: report)
+        }
+        #expect(readAgain?.hasPrefix("Couldn't read the pages again: ") == true)
     }
 }

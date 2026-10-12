@@ -41,12 +41,19 @@ struct TrainModelMenuItem: View {
 
     var body: some View {
         Button {
-            guard let projectId else { return }
-            LibraryManager.shared.requestSetUp(for: projectId, stage: SetupStep.trainStage)
+            Self.run(projectId: projectId, requestSetUp: LibraryManager.shared.requestSetUp(for:stage:))
         } label: {
-            Label("Train a Model…", systemImage: "graduationcap")
+            Label(Self.title, systemImage: "graduationcap")
         }
         .disabled(projectId == nil)
+    }
+
+    static let title = "Train a Model…"
+
+    /// The press: ask Set Up for the project's Train page; nothing without a project.
+    static func run(projectId: UUID?, requestSetUp: (UUID, String?) -> Void) {
+        guard let projectId else { return }
+        requestSetUp(projectId, SetupStep.trainStage)
     }
 }
 
@@ -58,10 +65,12 @@ struct MakeModelGlobalMenuItem: View {
         Button {
             target?.makeGlobal()
         } label: {
-            Label("Make Available in Every Project", systemImage: "square.and.arrow.up.on.square")
+            Label(Self.title, systemImage: "square.and.arrow.up.on.square")
         }
         .disabled(FocusedTrainButtons.makeGlobalDisabledReason(target) != nil)
     }
+
+    static let title = "Make Available in Every Project"
 }
 
 /// Project › Train: Train a Model… for the key window's project, and Make Available in Every Project for the model

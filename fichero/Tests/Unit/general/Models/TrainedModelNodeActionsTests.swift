@@ -90,9 +90,14 @@ struct TrainedModelNodeActionsTests {
         await store.loadModels()
         let target = try #require(TrainedModelMenuTarget.make(modelId: modelId, store: store))
         #expect(target.livesOnlyHere)
+        #expect(target.modelName == "Notebook reader")
         #expect(FocusedTrainButtons.makeGlobalDisabledReason(target) == nil)
 
-        await store.makeAvailableEverywhere(modelId)
+        // The press every surface makes: the target's own action, which runs the store's one call.
+        target.makeGlobal()
+        for _ in 0..<500 where store.livesOnlyHere(modelId) || store.makingGlobal.contains(modelId) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
 
         #expect(store.makeGlobalNotes[modelId] == nil)
         #expect(!store.makingGlobal.contains(modelId))
