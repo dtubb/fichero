@@ -69,6 +69,15 @@ def engine(monkeypatch, app_db):
     cards.named = named
     yield cards
     jobs.set_paused(False)
+    jobs.stop(None)  # this test's scheduler threads end with it, never at interpreter exit
+
+
+def assert_no_download(db) -> None:
+    """A unit test never fetches a model: no download job was queued."""
+    from fichero_server.llm.local_models import DOWNLOAD_KIND
+
+    queued = db.execute_fetchall("SELECT id, reason FROM jobs WHERE kind = ?", [DOWNLOAD_KIND])
+    assert not queued, f"a model download was queued: {queued}"
 
 
 def assert_no_download(db) -> None:
