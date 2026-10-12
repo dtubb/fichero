@@ -136,6 +136,18 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   (an agent's default): each item without its text (`page_content`), its workflow runs or a metadata value over
   200 characters (a transcription), its name, kind, counts and dates kept; the app, calling with no parameters,
   keeps every field. *Test:* `fichero-server/tests/unit/api/test_children_answer_fits_an_agent_5695.py`.
+- `openapi.mcp.onboarding-journey` **[PARTIAL]** (2026-10-12) an agent onboards a project end to end through
+  the generated MCP tools on their default surface: it opens the project, saves Set Up's answers and recipe,
+  reads the start plan, starts, reads the run's status and summary, lists Find the Documents' proposals, accepts
+  one, undoes it, and reads the training preview. Every tool it needs is listed, every answer parses and stays
+  under the step's own ceiling (the accept 8 KB, a folder's children 16 KB, the start plan 32 KB), and a refusal
+  is a sentence, never a traceback. Found and fixed walking it: undo was not on the default surface
+  (`fichero_actions_undo` joins it); a proposal answered every join's signals (the find-documents reads and
+  writes take `summary`, an agent's default, leaving out the joins, the pages looked at and the examples); every
+  JSON answer was indented (now compact); a lean documents list carried every field at its default (now left
+  out). *Test:* `fichero-server/tests/unit/mcp/test_onboarding_journey_through_mcp.py`, in-process, no model
+  loaded (the recipe is Find the Documents on pages already read). *Not yet walked: a recipe that reads, which
+  needs a model stubbed at the MCP layer.*
 - `openapi.mcp.refusals-in-words` **[OK]** (2026-10-11, the same pass; every refusal that pass met) a refusal an agent reads says what is
   missing and what to do, in words: never a route to call, an internal record's class name, or a target the
   caller did not name. Fixed: search by meaning before anything is indexed (claims, entities); the rights of a document, folder or segment asked without naming it; citing a document with no bibliographic record; and an absence is an answer, not an error: a document with no note answers an empty note (`test_document_with_no_note.py`; the app never read that route). Pinned by
