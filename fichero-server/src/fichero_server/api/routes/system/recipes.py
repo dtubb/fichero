@@ -758,7 +758,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")),
-        job_answers=dict(a.get("job_answers") or {}),
+        job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
         search_embedder=search_embedder(),
     )
 

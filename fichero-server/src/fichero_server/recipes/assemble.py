@@ -176,6 +176,8 @@ class Card:
     cer_published: float | None = None
     licence: str = ""
     note: str = ""
+    #: The years the reader was made for (its card's `period: [from, to]`), None when it states none (#5516).
+    period: tuple[int, int] | None = None
     #: False when the card's runtime is not in this build (its seed row says `runs_here: false`): never a
     #: candidate for the recipe, but the bake-off names it (Tesseract, `source.onboard.bakeoff-tesseract-baseline`).
     runs_here: bool = True
@@ -235,6 +237,8 @@ class Answers:
     #: The material is loose pages (a box or bundle not yet sorted into documents): a recipe that reads them
     #: then finds the documents among them (`finddocs.recipe-step`, #5550).
     loose_pages: bool = False
+    #: When the material was written, as typed (`answers.period`): the rules read its years (#5516).
+    period: str = ""
     #: The project's sample shows faded pages (`recipes/prepare.sample_shows_faded`): a recipe that lines or reads
     #: them prepares them first (#5580).
     faded_pages: bool = False
@@ -440,6 +444,23 @@ def _problem(job: str, cards: list[Card], a: Answers, material: str, detail: str
             "refused": [{"card": c.id, "why": r[1]} for c, r in sorted(refusals, key=lambda cr: cr[0].id)]}
 
 
+def _language_rank(card: Card, a: Answers | None) -> int:
+    """0: its card lists the project's languages, or any; 1: it lists others (#5516: a Latin-only reader for Czech)."""
+    if a is None or not a.languages or card.languages is None:
+        return 0
+    return 0 if a.languages <= card.languages else 1
+
+
+def _period_rank(card: Card, a: Answers | None) -> int:
+    """0: its period covers the project's; 1: either states none; 2: its period is another (#5516)."""
+    from fichero_server.recipes.hands import period_years
+
+    years = period_years(a.period) if a is not None else None
+    if years is None or card.period is None:
+        return 1
+    return 0 if card.period[0] <= years[1] and years[0] <= card.period[1] else 2
+
+
 def _material_rank(card: Card, material: str) -> int:
     """0: its card states the material; 1: it states none; 2: it states another."""
     return 0 if material in card.material else 1 if not card.material else 2
@@ -458,6 +479,9 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     return (
         measured,
         0 if made_for_script(card, a) else 1,
+        # Fit before a card's own average (#5516): the languages, then the period, then the material.
+        _language_rank(card, a),
+        _period_rank(card, a),
         _material_rank(card, material),
         band,
         1 if card.installed is False else 0,

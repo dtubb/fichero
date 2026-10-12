@@ -3757,7 +3757,17 @@ Finding models
   read from its own words ("printed", "manuscript"). Only then does a published CER rank, so it only
   ranks cards of the same script tier and material. A measurement on the project's pages outranks all
   of these. *Test:* a Fraktur print project gets a Fraktur card, not the multilingual base model; a
-  Spanish project keeps PP-OCRv6 (no Latin-only card states a CER).
+  Spanish project keeps PP-OCRv6 (no Latin-only card states a CER). **Fit before an average (#5516,
+  2026-10-11):** before material and before any published CER, a card that lists the project's languages
+  (or any) comes before one that lists others, and a card whose period
+  covers the project's period (`answers.period`, read as years) comes before one that states no period,
+  which comes before one whose period is another (cards state `period: [from, to]`: CATMuS Medieval
+  800–1550, McCATMuS 1500–2100). So a 13th-century Latin project gets CATMuS Medieval over PP-OCRv6's
+  3.9% averaged over 44 languages (the bake-off agreed: 11.2% against 16.4%), and a 19th-century German
+  print set to Latin gets McCATMuS. A project that answers no period ranks as before. Fraktur itself: a
+  repository record filed as Latin whose own words say Fraktur covers `Latf` (`discovery._row_scripts`,
+  #5593); no shipped card claims it, so before a search a Fraktur project names its nearest readers. *Test:*
+  `fichero-server/tests/unit/recipes/test_reader_fit_5516.py`.
 - `source.recipe.no-cross-script-reader` — **[OK]** (#5593; built 2026-10-08: `discovery.covered_scripts` widens a card one step from what it states, never chained; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) a reader is never chosen for a script its
   card does not cover: a Japanese card covers Han, kana and Japanese, never Traditional or Simplified
   Chinese, so Classical Chinese (`Hant`) never gets the Kuzushiji reader silently. Where no reader

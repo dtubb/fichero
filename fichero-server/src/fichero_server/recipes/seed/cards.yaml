@@ -38,6 +38,7 @@ cards:
     size_gb: 0.016
     memory_gb: 1.0
     trainable: true
+    period: [1500, 2100]     # 16th-21st century, per its card (#5516)
     note: McCATMuS, general Latin-script recognition, 16th-21st century.
   - id: kraken:zenodo/10.5281/zenodo.12743230@unpinned
     pin: {zenodo: 10.5281/zenodo.12743230}
@@ -49,6 +50,7 @@ cards:
     size_gb: 0.016
     memory_gb: 1.0
     trainable: true
+    period: [800, 1550]      # medieval manuscripts, per its card (#5516)
     note: CATMuS Medieval, medieval manuscripts (French, Latin, Spanish).
   - id: mlx:hf/wjbmattingly/comma-qwen-3.5-0.8b-full-33k@320c52d
     pin: {hf: wjbmattingly/comma-qwen-3.5-0.8b-full-33k, revision: 320c52dda3ba17c3a06aa1dc76ad44a36bf8a5ae}
@@ -61,6 +63,7 @@ cards:
     memory_gb: 3.0
     trainable: true
     cer_published: 0.124       # NFD, 243 held-out pages each a different hand, per its card (CATMuS, graphemic)
+    period: [800, 1550]      # medieval Latin, per its card (#5516)
     note: COMMA Qwen 3.5 0.8B, medieval Latin manuscripts read the CATMuS way (graphemic).
   - id: kraken:zenodo/10.5281/zenodo.21788410@unpinned
     pin: {zenodo: 10.5281/zenodo.21788410}
