@@ -799,7 +799,9 @@ extension RecipeSetupStore {
                     pages: pages,
                     cloudAllowed: cloudAllowed,
                     // The layers added later stay in every recipe proposed again (source.onboard.add-layer).
-                    layers: layers.isEmpty ? nil : layers
+                    layers: layers.isEmpty ? nil : layers,
+                    // The stage questions' answers: "Correct with a second model?" yes keeps Correct in (#5677).
+                    jobAnswers: try? Self.convert(jobAnswers, to: Components.Schemas.AssembleRequest.JobAnswersPayload.self)
                 ))
             )
             switch output {

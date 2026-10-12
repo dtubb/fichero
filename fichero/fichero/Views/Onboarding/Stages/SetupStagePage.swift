@@ -36,6 +36,8 @@ struct SetupStagePage: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             whoRunsIt
+            // This stage's steps left off until turned on: Read's Correct with no corrector here (#5677).
+            RecipeLeftOffRows(store: store, onlyJobs: Set(stage.jobs))
             if !stage.questions.isEmpty {
                 Divider()
                 ForEach(stage.questions, id: \.key) { question in

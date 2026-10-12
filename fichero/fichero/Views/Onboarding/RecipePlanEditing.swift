@@ -56,6 +56,35 @@ struct RecipeTakenOutRows: View {
     }
 }
 
+/// The steps left off until turned on (#5677), one line each with what turning it on would cost, and Turn On. On
+/// Set Up's Read page (that stage's) and in the Start section (all of them).
+struct RecipeLeftOffRows: View {
+    let store: RecipeSetupStore
+    /// A stage's jobs; nil lists every left-off step.
+    var onlyJobs: Set<String>?
+
+    var body: some View {
+        let steps = store.leftOff(forJobs: onlyJobs)
+        if !steps.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(steps, id: \.job) { step in
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(step.sentence)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Button("Turn On") { Task { await store.turnOn(job: step.job) } }
+                            .controlSize(.small)
+                            .disabled(store.isAssembling)
+                            .help("Add \(step.title) to the plan; Start then says what it needs")
+                    }
+                }
+            }
+        }
+    }
+}
+
 #Preview("Taken out of the plan") {
     RecipeTakenOutRows(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)),
                        removed: [.init(job: "translate", title: "Translate"),

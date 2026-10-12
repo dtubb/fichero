@@ -2629,7 +2629,11 @@ Profiles (the defaults section of a recipe)
   question turns it off, saying so. Seen 2026-10-11: choosing
   Read brought a Correct step pinned to a 5.7 GB model no Mac had. Built: `assemble.correct_available`, the
   recipe's `left_off`, the plan's `left_off`; tested in
-  `fichero-server/tests/unit/recipes/test_correct_off_unless_available_5677.py`.
+  `fichero-server/tests/unit/recipes/test_correct_off_unless_available_5677.py`. **App:** Set Up's Read page lists
+  Read's left-off steps and the Start section all of them, one line each with **Turn On**, which ticks the step,
+  answers its question yes and has the engine propose the plan again (`RecipeLeftOffRows`,
+  `RecipeSetupStore.turnOn(job:)`). Set Up now sends the stage questions' answers with every proposal
+  (`job_answers`), so a yes on the Read page reaches the rule. Tested in `RecipeLeftOffTests`.
 - `source.recipe.missing-model-offered` — **[OK]** (#5367; built: `missing_models` in `recipes/start.py`, the plan's `downloads`; tested in `fichero-server/tests/unit/llm/test_spacy_pipelines_as_files_to_spec.py` and, for a Kraken reader, `fichero-server/tests/unit/recipes/test_kraken_reader_offered_before_start.py`) a step pinned to a model that is not on this
   Mac and can be downloaded (a spaCy pipeline, or a catalogue or Zenodo Kraken reader; MLX models are `local_models_to_download`) is named in the Start plan with the model and its size,
   and the plan offers the download (`downloads`, each a `download-model` job on the network lane). **Changed
