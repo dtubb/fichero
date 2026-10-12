@@ -448,6 +448,8 @@ class WorkflowScheduler:
 
         from fichero_server.models.schedules import ScheduleRunRecord
 
+        # One row, one save: a run is saved as it starts and again as it ends, never in bulk, so the plain-INSERT
+        # path (`save_many(new=True)`, duckdb#26830) has nothing to save here.
         def _save():
             self.db.save(ScheduleRunRecord(
                 id=run.run_id, schedule_id=run.schedule_id, started_at=run.started_at, completed_at=run.completed_at,

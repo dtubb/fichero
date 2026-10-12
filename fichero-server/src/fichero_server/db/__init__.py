@@ -1205,17 +1205,7 @@ class Database(DatabaseEmbeddingMixin):
             return  # a library made after the fold, or one that never used the store: nothing to copy
         folded = conn.execute("SELECT updated_at FROM librarysettings WHERE id = ?", [setting]).fetchone()
         if folded:
-            newer = sum(conn.execute(newer_sql, [folded[0]]).fetchone()[0]
-                        for table, _c, _m, newer_sql in copies if table in old)
-            if newer:
-                from fichero_server.db.migrations.schema import MigrationFailure
-
-                said = (f"{newer} rows were written to the old {name} tables by an older Fichero after this library "
-                        "was converted; they are kept there and not shown (downgrading is not supported)")
-                logger.warning("%s: %s", self.path, said)
-                self.migration_failures.append(MigrationFailure(
-                    migration=f"fold_{name}_tables_5645", error_type="WrittenByAnOlderEngine", message=said,
-                    occurred_at=utc_now()))
+            self._say_older_engine_rows(name, folded[0], [(t, newer_sql) for t, _c, _m, newer_sql in copies if t in old])
             return
         from fichero_server.db.migrations.schema import _run_atomic_migration
 
@@ -1230,6 +1220,30 @@ class Database(DatabaseEmbeddingMixin):
             conn.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())", [setting])
 
         _run_atomic_migration(conn, f"fold_{name}_tables_5645", _copy, self.migration_failures)
+
+    def _say_older_engine_rows(self, name: str, folded_at: Any, checks: list[tuple[str, str]]) -> None:
+        """Say how many rows an older Fichero wrote to a store's old tables after the fold (each check reads its own
+        table only). A report, never a reason to refuse opening the library: a check that fails is itself said, on
+        `/api/health`, and the open goes on (review of 0027c586c)."""
+        from fichero_server.db.migrations.schema import MigrationFailure
+
+        newer = 0
+        for table, newer_sql in checks:
+            try:
+                newer += self.conn.execute(newer_sql, [folded_at]).fetchone()[0]
+            except duckdb.Error as exc:
+                said = f"could not check the old {table} table for rows an older Fichero wrote: {exc}"
+                logger.warning("%s: %s", self.path, said)
+                self.migration_failures.append(MigrationFailure(
+                    migration=f"fold_{name}_tables_5645", error_type="OlderEngineCheckFailed", message=said,
+                    occurred_at=utc_now()))
+        if newer:
+            said = (f"{newer} rows were written to the old {name} tables by an older Fichero after this library "
+                    "was converted; they are kept there and not shown (downgrading is not supported)")
+            logger.warning("%s: %s", self.path, said)
+            self.migration_failures.append(MigrationFailure(
+                migration=f"fold_{name}_tables_5645", error_type="WrittenByAnOlderEngine", message=said,
+                occurred_at=utc_now()))
 
     def _fold_batch_tables(self) -> None:
         """The batch store's `batches` and `batch_items` into `BatchRecord` and `BatchItemRecord` (#5645).
@@ -1252,7 +1266,8 @@ class Database(DatabaseEmbeddingMixin):
              "WHERE i.batch_id || ':' || i.thread_id NOT IN (SELECT id FROM batchitemrecords)",
              "SELECT count(*) FROM batch_items WHERE batch_id || ':' || thread_id NOT IN "
              "(SELECT id FROM batchitemrecords)",
-             "SELECT count(*) FROM batch_items i JOIN batches b USING (batch_id) WHERE b.created_at > ?"),
+             # Its own table only (review): a JOIN to `batches` raised when that table was gone after the fold.
+             "SELECT count(*) FROM batch_items WHERE COALESCE(completed_at, started_at) > ?"),
         ])
 
     def _fold_watcher_tables(self) -> None:

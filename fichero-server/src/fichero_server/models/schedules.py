@@ -25,6 +25,7 @@ class ScheduleRecord(BaseModel):
     schedule_type: str
     cron_expression: Optional[str] = None
     interval_seconds: Optional[int] = None
+    #: Set only for a one-time schedule (`schedule_type` "once"); None for cron and interval ones, on purpose.
     run_at: Optional[datetime] = None
     timezone: str = "UTC"
     start_date: Optional[datetime] = None
