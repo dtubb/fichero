@@ -5,7 +5,6 @@ Uses pytest and httpx for async testing of FastAPI endpoints.
 """
 
 import tempfile
-from importlib.metadata import version as package_version
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -49,6 +48,13 @@ def record_background_task():
         yield add_task
 
 
+def _engine_version() -> str:
+    """What the engine reports: its resolver's answer (#5679: a source checkout's own pyproject version first)."""
+    from fichero_server.api import main as api_main
+
+    return api_main._resolve_engine_version()
+
+
 class TestHealthEndpoint:
     """Tests for /api/health endpoint."""
 
@@ -58,7 +64,7 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
-        assert data["backend_version"] == package_version("fichero-server")
+        assert data["backend_version"] == _engine_version()
 
     def test_library_health_includes_backend_version(self, client, test_package):
         """Library-scoped health keeps the same version reporting."""
@@ -68,7 +74,7 @@ class TestHealthEndpoint:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["backend_version"] == package_version("fichero-server")
+        assert data["backend_version"] == _engine_version()
 
 
 class TestStatsEndpoint:
@@ -1017,7 +1023,7 @@ class TestCORS:
 # backend_version="dev". Canonical names only — nothing ever shipped under the
 # old engine/server/fichero names, so the resolver must not try them.
 
-def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch):
+def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch, tmp_path):
     from importlib.metadata import PackageNotFoundError
     from fichero_server.api import main as api_main
 
@@ -1026,28 +1032,31 @@ def test_engine_version_falls_back_to_briefcase_dist_name(monkeypatch):
             return "2026.7.20b1"
         raise PackageNotFoundError(name)  # simulate the bundle: app-key dist-info only
 
+    monkeypatch.setattr(api_main, "SOURCE_PYPROJECT", tmp_path / "no-pyproject.toml")  # a built engine (#5679)
     monkeypatch.setattr(api_main, "package_version", fake_version)
     assert api_main._resolve_engine_version() == "2026.7.20b1"
 
 
-def test_engine_version_prefers_project_dist_name_in_dev(monkeypatch):
+def test_engine_version_prefers_project_dist_name_in_dev(monkeypatch, tmp_path):
     from fichero_server.api import main as api_main
 
     # #4227: the project dist is named fichero-server now; it must still win
     # over the Briefcase bundle name in a dev/editable install.
+    monkeypatch.setattr(api_main, "SOURCE_PYPROJECT", tmp_path / "no-pyproject.toml")  # no checkout beside it (#5679)
     monkeypatch.setattr(
         api_main, "package_version", lambda name: "9.9.9-dev" if name == "fichero-server" else "x"
     )
     assert api_main._resolve_engine_version() == "9.9.9-dev"
 
 
-def test_engine_version_is_dev_only_when_no_dist_info(monkeypatch):
+def test_engine_version_is_dev_only_when_no_dist_info(monkeypatch, tmp_path):
     from importlib.metadata import PackageNotFoundError
     from fichero_server.api import main as api_main
 
     def always_missing(name: str) -> str:
         raise PackageNotFoundError(name)
 
+    monkeypatch.setattr(api_main, "SOURCE_PYPROJECT", tmp_path / "no-pyproject.toml")  # a built engine (#5679)
     monkeypatch.setattr(api_main, "package_version", always_missing)
     assert api_main._resolve_engine_version() == "dev"
 

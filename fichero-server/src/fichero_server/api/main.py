@@ -84,6 +84,11 @@ warnings.filterwarnings(
 
 logger = logging.getLogger(__name__)
 
+#: Where a source checkout keeps its version (#5679): beside the package's `src`. A built engine has none there. A
+#: module-level seam, so a test of the distribution-metadata fallback points it at a file that is not there.
+SOURCE_PYPROJECT = Path(__file__).resolve().parents[3] / "pyproject.toml"
+
+
 def _resolve_engine_version() -> str:
     """Best-effort engine version for the health/About surface.
 
@@ -99,7 +104,7 @@ def _resolve_engine_version() -> str:
     """
     import re
 
-    pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
+    pyproject = SOURCE_PYPROJECT
     if pyproject.is_file():
         # The [project] table's own `version = "..."`, its first line of that name; read with `re` (already loaded),
         # not tomllib, which would add four modules to every engine start (#3950's import budget).
