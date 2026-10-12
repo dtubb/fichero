@@ -146,8 +146,13 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   writes take `summary`, an agent's default, leaving out the joins, the pages looked at and the examples); every
   JSON answer was indented (now compact); a lean documents list carried every field at its default (now left
   out). *Test:* `fichero-server/tests/unit/mcp/test_onboarding_journey_through_mcp.py`, in-process, no model
-  loaded (the recipe is Find the Documents on pages already read). *Not yet walked: a recipe that reads, which
-  needs a model stubbed at the MCP layer.*
+  loaded (the recipe is Find the Documents on pages already read). **A recipe that reads (#5704):** the same
+  checks over Start → find the lines and read them → find names → the summary, on three page images, the readers
+  stubbed where the recipe tests stub them (Kraken at its runtime, spaCy's entity finder); one page read unsurely
+  is left out of Names, by name and with why, and the summary warns (#5694). Found walking it: a page whose
+  reading was Kraken's own pass (its lines found and read in one go) carried its certainty on the pass's lines,
+  not on readings, so the bar never saw it; the certainty now falls back to the working lines'. *Test:*
+  `fichero-server/tests/unit/mcp/test_reading_journey_through_mcp.py`.
 - `openapi.mcp.refusals-in-words` **[OK]** (2026-10-11, the same pass; every refusal that pass met) a refusal an agent reads says what is
   missing and what to do, in words: never a route to call, an internal record's class name, or a target the
   caller did not name. Fixed: search by meaning before anything is indexed (claims, entities); the rights of a document, folder or segment asked without naming it; citing a document with no bibliographic record; and an absence is an answer, not an error: a document with no note answers an empty note (`test_document_with_no_note.py`; the app never read that route). Pinned by
