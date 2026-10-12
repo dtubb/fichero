@@ -1576,7 +1576,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let lines = store.segments(documentId: "doc-0001")
         let first = try XCTUnwrap(lines.first { $0.id == "seg-0003" })
         XCTAssertEqual(answer.rows.count, 2)
-        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(first, at: 0))
+        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(first, at: 0, numbered: false))  // gathered: no place, #5505
         XCTAssertEqual(answer.rows.map(\.detail), ["judged by owner · sure 80%", "judged by owner · sure 60%"])
         XCTAssertEqual(answer.rows.map(\.documentId), ["doc-0001", "doc-0001"], "each opens the page it is on")
         XCTAssertEqual(answer.withheld, 0)
@@ -1821,9 +1821,9 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         let segments = Dictionary(store.segments(documentId: "doc-0001").map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         XCTAssertEqual(answer.rows.map(\.matchId), ["match-0001", "match-0002"])
         XCTAssertEqual(answer.rows.map(\.segmentId), ["seg-0010", "seg-0009"], "a row opens the newer segment")
-        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(segments["seg-0010"], at: 0))
+        XCTAssertEqual(answer.rows.first?.title, SegmentsPane.rowLabel(segments["seg-0010"], at: 0, numbered: false))
         XCTAssertEqual(
-            answer.rows.first?.detail, "was " + SegmentsPane.rowLabel(segments["seg-0012"], at: 0) + " · proposed by owner"
+            answer.rows.first?.detail, "was " + SegmentsPane.rowLabel(segments["seg-0012"], at: 0, numbered: false) + " · proposed by owner"
         )
         XCTAssertEqual(answer.rows.last?.detail.hasSuffix(" · proposed by owner · sure 60% · same words, redrawn box"), true)
 
