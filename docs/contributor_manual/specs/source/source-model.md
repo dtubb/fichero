@@ -1241,9 +1241,16 @@ action record holding a researcher's words is ruled out.
   old key, so an interrupted copy finishes next time), the copy is checked key by key, and only then is the fold
   recorded on the library (so a row the store later deletes is never copied back). The old table is kept, untouched,
   until a later step removes it. A failed check is a migration failure on `/api/health` and is tried again at the
-  next open. **Built:** `BatchManager` (`batches`, `batch_items` → `BatchRecord`, `BatchItemRecord`;
-  `Database._fold_batch_tables`), tested in `fichero-server/tests/unit/db/test_batch_store_folded_5645.py`.
-  *Not built:* `FileWatcher`, `WorkflowScheduler`, `ActivityStore`, and the LangGraph checkpointer (to be ruled
-  separate or folded; the plan is on #5645).
+  next open. Downgrading is not supported: rows an older Fichero writes to the old tables after the fold are not
+  copied (a key the new tables lack may be a row deleted since, and an older engine also changes rows the new
+  tables hold), but they are said, how many, in the log and among `/api/health`'s migration failures
+  (one fold for every store, `Database._fold_old_store`; the store reaches the library's Database through
+  `db.manager.database_for_file`). **Built:** `BatchManager` (`batches`, `batch_items` → `BatchRecord`,
+  `BatchItemRecord`), tested in `fichero-server/tests/unit/db/test_batch_store_folded_5645.py`; `FileWatcherManager`
+  (`file_triggers`, `trigger_executions` → `FileTriggerRecord`, `TriggerExecutionRecord`; a trigger is now read by
+  its fields: reading the old table by position took its `events` from its `recursive` column, and a kept trigger
+  could not be loaded), tested in `fichero-server/tests/unit/db/test_watcher_store_folded_5645.py`. *Not built:*
+  `WorkflowScheduler`, `ActivityStore`, and the LangGraph checkpointer (to be ruled separate or folded; the plan
+  is on #5645).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

@@ -648,3 +648,29 @@ def _stop_jobs(package_path: str | None) -> None:
 
 # Global singleton
 db_manager = DatabaseManager()
+
+
+#: The file a library's managed Database keeps (`DatabaseManager.get_database`).
+LIBRARY_FILE = "fichero.duckdb"
+#: A loose database file a test or tool hands a store: its own Database, one per file in this process.
+_LOOSE: dict[str, "Database"] = {}
+_LOOSE_LOCK = threading.Lock()
+
+
+def database_for_file(db_path: str | Path) -> "Database":
+    """The one managed Database for a store handed a database file (#5645, `source.store.one-managed-database`):
+    the open Database holding that file, else the library's through `db_manager`; a loose file (a test's, a tool's)
+    gets a Database of its own, kept for the process. A store that takes this keeps no connection of its own."""
+    from fichero_server.db import Database
+
+    real = os.path.realpath(str(db_path))
+    for db in list(db_manager._databases.values()):
+        if os.path.realpath(str(db.path)) == real:
+            return db
+    path = Path(db_path)
+    if path.name == LIBRARY_FILE:
+        return db_manager.get_database(path.parent)
+    with _LOOSE_LOCK:
+        if real not in _LOOSE:
+            _LOOSE[real] = Database(path)
+        return _LOOSE[real]

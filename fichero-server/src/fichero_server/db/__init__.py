@@ -1137,6 +1137,7 @@ class Database(DatabaseEmbeddingMixin):
             self._backfill_research_plan_task_step_documents,
             self._backfill_workflow_documents,
             self._fold_batch_tables,
+            self._fold_watcher_tables,
         ))
 
     #: An open-time step slower than this is logged as a warning, named (#5228).
@@ -1174,53 +1175,110 @@ class Database(DatabaseEmbeddingMixin):
 
     #: Records that the old batch tables' rows were copied into the batch models' tables and checked (#5645).
     BATCH_TABLES_FOLDED_SETTING = "batch_tables_folded_5645"
+    #: The same for the file watcher's `file_triggers` and `trigger_executions` (#5645).
+    WATCHER_TABLES_FOLDED_SETTING = "watcher_tables_folded_5645"
 
-    def _fold_batch_tables(self) -> None:
-        """Copy a library's batches from the tables the old batch store made (`batches`, `batch_items`) into
-        `BatchRecord` and `BatchItemRecord`, once (#5645, `source.store.one-managed-database`).
+    def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, str, str, str]]) -> None:
+        """Copy one store's rows from the tables it made by hand into its models' tables, once (#5645,
+        `source.store.one-managed-database`). `copies`: for each old table, the INSERT that copies the rows the new
+        table lacks (by the old key, so a copy cut short finishes at the next open without doubling) and the count
+        of old keys still missing after it. Only when none is missing is the fold recorded (`setting`), so a row the
+        store deletes later is never copied back. The old tables are kept, untouched. A failed copy or check rolls
+        back, is a migration failure (`/api/health`), and is tried again at the next open. Runs on the managed
+        connection, after `connect_utc` rebuilt any index a crashed session's WAL replay left stale (#5644).
 
-        Copies only the rows the new tables lack, by the old key, so a copy cut short finishes at the next open
-        without doubling; checks that every old key is now in the new tables, and only then records the fold, so a
-        batch the store deletes later is never copied back. The old tables are kept, untouched. A failed copy or
-        check is a migration failure (`/api/health`), tried again at the next open. Runs on the managed connection,
-        after `connect_utc` rebuilt any index a crashed session's WAL replay left stale (#5644).
-        """
+        Each copy's fourth part counts the old table's rows made after a time (the fold's record): an older engine,
+        opened on the library after the fold, writes the old tables. Downgrading is not supported, and those rows are
+        NOT copied: the store deletes from its new tables only, so a key the new tables lack may be a row deleted
+        since the fold, and an older engine also changes rows the new tables already hold (a status, an end), so a
+        partial re-copy would splice two histories. They are said instead: a warning in the log and on `/api/health`
+        (`migration_failures`), naming how many, for a person to decide (review of ceafc0a9a)."""
         conn = self.conn
+        wanted = [table for table, _copy, _missing, _newer in copies]
+        marks = ", ".join("?" for _ in wanted)
         old = {row[0] for row in conn.execute(
-            "SELECT table_name FROM duckdb_tables() WHERE table_name IN ('batches', 'batch_items')").fetchall()}
+            f"SELECT table_name FROM duckdb_tables() WHERE table_name IN ({marks})", wanted).fetchall()}
         if not old:
-            return  # a library made after the fold, or one that never had a batch: nothing to copy
-        if conn.execute("SELECT 1 FROM librarysettings WHERE id = ?",
-                        [self.BATCH_TABLES_FOLDED_SETTING]).fetchone():
+            return  # a library made after the fold, or one that never used the store: nothing to copy
+        folded = conn.execute("SELECT updated_at FROM librarysettings WHERE id = ?", [setting]).fetchone()
+        if folded:
+            newer = sum(conn.execute(newer_sql, [folded[0]]).fetchone()[0]
+                        for table, _c, _m, newer_sql in copies if table in old)
+            if newer:
+                from fichero_server.db.migrations.schema import MigrationFailure
+
+                said = (f"{newer} rows were written to the old {name} tables by an older Fichero after this library "
+                        "was converted; they are kept there and not shown (downgrading is not supported)")
+                logger.warning("%s: %s", self.path, said)
+                self.migration_failures.append(MigrationFailure(
+                    migration=f"fold_{name}_tables_5645", error_type="WrittenByAnOlderEngine", message=said,
+                    occurred_at=utc_now()))
             return
         from fichero_server.db.migrations.schema import _run_atomic_migration
 
         def _copy() -> None:
-            if "batches" in old:
-                conn.execute(
-                    "INSERT INTO batchrecords (id, workflow_id, status, max_concurrent, created_at, started_at, "
-                    "completed_at, error_message) SELECT b.batch_id, b.workflow_id, b.status, "
-                    "COALESCE(b.max_concurrent, 5), b.created_at, b.started_at, b.completed_at, b.error_message "
-                    "FROM batches b WHERE b.batch_id NOT IN (SELECT id FROM batchrecords)")
-            if "batch_items" in old:
-                conn.execute(
-                    "INSERT INTO batchitemrecords (id, batch_id, thread_id, item_index, inputs, status, error, "
-                    "started_at, completed_at) SELECT i.batch_id || ':' || i.thread_id, i.batch_id, i.thread_id, "
-                    "i.item_index, i.inputs, i.status, i.error, i.started_at, i.completed_at FROM batch_items i "
-                    "WHERE i.batch_id || ':' || i.thread_id NOT IN (SELECT id FROM batchitemrecords)")
-            missing = 0
-            if "batches" in old:
-                missing += conn.execute("SELECT count(*) FROM batches WHERE batch_id NOT IN "
-                                        "(SELECT id FROM batchrecords)").fetchone()[0]
-            if "batch_items" in old:
-                missing += conn.execute("SELECT count(*) FROM batch_items WHERE batch_id || ':' || thread_id NOT IN "
-                                        "(SELECT id FROM batchitemrecords)").fetchone()[0]
+            for table, copy_sql, _missing, _newer in copies:
+                if table in old:
+                    conn.execute(copy_sql)
+            missing = sum(conn.execute(missing_sql).fetchone()[0]
+                          for table, _c, missing_sql, _n in copies if table in old)
             if missing:
-                raise RuntimeError(f"{missing} rows of the old batch tables were not found after the copy")
-            conn.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())",
-                         [self.BATCH_TABLES_FOLDED_SETTING])
+                raise RuntimeError(f"{missing} rows of the old {name} tables were not found after the copy")
+            conn.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())", [setting])
 
-        _run_atomic_migration(conn, "fold_batch_tables_5645", _copy, self.migration_failures)
+        _run_atomic_migration(conn, f"fold_{name}_tables_5645", _copy, self.migration_failures)
+
+    def _fold_batch_tables(self) -> None:
+        """The batch store's `batches` and `batch_items` into `BatchRecord` and `BatchItemRecord` (#5645).
+
+        `batch_progress_snapshots` is deliberately not folded: the old store made it and never wrote a row (progress is
+        worked out from the items), so there is nothing to keep. An item whose batch row is gone (an orphan an older
+        build left) is copied as it is, not dropped: deciding it is garbage is not a migration's to make."""
+        self._fold_old_store("batch", self.BATCH_TABLES_FOLDED_SETTING, [
+            ("batches",
+             "INSERT INTO batchrecords (id, workflow_id, status, max_concurrent, created_at, started_at, completed_at, "
+             "error_message) SELECT b.batch_id, b.workflow_id, b.status, COALESCE(b.max_concurrent, 5), b.created_at, "
+             "b.started_at, b.completed_at, b.error_message FROM batches b "
+             "WHERE b.batch_id NOT IN (SELECT id FROM batchrecords)",
+             "SELECT count(*) FROM batches WHERE batch_id NOT IN (SELECT id FROM batchrecords)",
+             "SELECT count(*) FROM batches WHERE created_at > ?"),
+            ("batch_items",
+             "INSERT INTO batchitemrecords (id, batch_id, thread_id, item_index, inputs, status, error, started_at, "
+             "completed_at) SELECT i.batch_id || ':' || i.thread_id, i.batch_id, i.thread_id, i.item_index, i.inputs, "
+             "i.status, i.error, i.started_at, i.completed_at FROM batch_items i "
+             "WHERE i.batch_id || ':' || i.thread_id NOT IN (SELECT id FROM batchitemrecords)",
+             "SELECT count(*) FROM batch_items WHERE batch_id || ':' || thread_id NOT IN "
+             "(SELECT id FROM batchitemrecords)",
+             "SELECT count(*) FROM batch_items i JOIN batches b USING (batch_id) WHERE b.created_at > ?"),
+        ])
+
+    def _fold_watcher_tables(self) -> None:
+        """The file watcher's `file_triggers` and `trigger_executions` into `FileTriggerRecord` and
+        `TriggerExecutionRecord` (#5645). The old table's defaults fill a column an older row left empty."""
+        self._fold_old_store("watcher", self.WATCHER_TABLES_FOLDED_SETTING, [
+            ("file_triggers",
+             "INSERT INTO filetriggerrecords (id, name, workflow_id, watch_path, recursive, events, filter_mode, "
+             "filter_pattern, filter_extensions, exclude_patterns, debounce_seconds, batch_delay_seconds, "
+             "inputs_template, status, use_batch, max_concurrent, created_at, updated_at, last_triggered_at, "
+             "trigger_count, error_message) SELECT t.trigger_id, t.name, t.workflow_id, t.watch_path, "
+             "COALESCE(t.recursive, TRUE), COALESCE(t.events, '[\"created\"]'), COALESCE(t.filter_mode, 'glob'), "
+             "t.filter_pattern, COALESCE(t.filter_extensions, '[]'), COALESCE(t.exclude_patterns, '[]'), "
+             "COALESCE(t.debounce_seconds, 1.0), COALESCE(t.batch_delay_seconds, 5.0), "
+             "COALESCE(t.inputs_template, '{}'), t.status, COALESCE(t.use_batch, TRUE), "
+             "COALESCE(t.max_concurrent, 5), t.created_at, t.updated_at, t.last_triggered_at, "
+             "COALESCE(t.trigger_count, 0), t.error_message FROM file_triggers t "
+             "WHERE t.trigger_id NOT IN (SELECT id FROM filetriggerrecords)",
+             "SELECT count(*) FROM file_triggers WHERE trigger_id NOT IN (SELECT id FROM filetriggerrecords)",
+             "SELECT count(*) FROM file_triggers WHERE created_at > ?"),
+            ("trigger_executions",
+             "INSERT INTO triggerexecutionrecords (id, trigger_id, triggered_at, file_paths, batch_id, status, error, "
+             "completed_at) SELECT e.execution_id, e.trigger_id, e.triggered_at, e.file_paths, e.batch_id, e.status, "
+             "e.error, e.completed_at FROM trigger_executions e "
+             "WHERE e.execution_id NOT IN (SELECT id FROM triggerexecutionrecords)",
+             "SELECT count(*) FROM trigger_executions WHERE execution_id NOT IN "
+             "(SELECT id FROM triggerexecutionrecords)",
+             "SELECT count(*) FROM trigger_executions WHERE triggered_at > ?"),
+        ])
 
     #: Records that this library's indexes were rebuilt once, repairing any written by a replay
     #: before the fix (#5644). A library with no settings table yet is new: nothing to repair.
@@ -1375,6 +1433,7 @@ class Database(DatabaseEmbeddingMixin):
 
     def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
+        from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
             Interpretation,
@@ -1621,6 +1680,9 @@ class Database(DatabaseEmbeddingMixin):
             # #5645: the batch store, folded onto this one managed Database (was `batches`, `batch_items`).
             BatchRecord,
             BatchItemRecord,
+            # #5645: the file watcher's store (was `file_triggers`, `trigger_executions`).
+            FileTriggerRecord,
+            TriggerExecutionRecord,
         )
 
     def _materialize_schema(self) -> None:

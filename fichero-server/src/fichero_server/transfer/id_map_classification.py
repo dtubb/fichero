@@ -303,6 +303,10 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "BatchRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "BatchItemRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "BatchItemRecord.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    # #5645: the file watcher, folded from `file_triggers` and `trigger_executions` onto models.
+    "FileTriggerRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "TriggerExecutionRecord.trigger_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "TriggerExecutionRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ProviderRef.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- hand-written SQL tables --------------------------------------------------------------
     "table:sync_files.document_id": (CUT, "a moved document's tie to a synced folder is severed and listed (finding 9)"),
@@ -332,11 +336,6 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "table:checkpoint_writes.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:node_cache.node_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:node_cache.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:file_triggers.trigger_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:file_triggers.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:trigger_executions.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:trigger_executions.execution_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:trigger_executions.trigger_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:schedules.schedule_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:schedules.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:schedule_runs.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
