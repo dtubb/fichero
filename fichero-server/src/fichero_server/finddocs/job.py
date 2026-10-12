@@ -95,8 +95,16 @@ def scopes(db: Any, scope_ids: list[str]) -> dict[str | None, list[Any]]:
 
 
 def _text(db: Any, doc: Any) -> str:
-    if (doc.page_content or "").strip():
-        return doc.page_content
+    """The page's reading, one line of the page to a line of text. A page text derived from its line readings
+    joins them with spaces (its offsets are the Reader's); its line map says where each line falls, and the cues
+    (a folio, an opening, a closing) are looked for on lines (#5709: a fresh line-by-line read made every page one
+    line, so no numbering restart was seen and a folder of four documents was proposed as one)."""
+    from fichero_server.actions.page_text_cache import cached_line_map
+
+    text = doc.page_content or ""
+    if text.strip():
+        spans = cached_line_map(db, doc.id, text) or []
+        return "\n".join(text[s["char_start"]:s["char_end"]] for s in spans) if spans else text
     from fichero_server.checking.tie_text import page_reading
 
     reading = page_reading(db, doc.id)
@@ -289,6 +297,11 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
 
 
 def register_job_kinds() -> None:
+    # Utility QoS whoever waits (#5709): the work is light (a thumbnail and the text of each page, under a minute
+    # for 92 pages), and a recipe's step is not watched, so at its kind's default BACKGROUND class it ran on
+    # throttled e-cores and disk beside an import's all-core embedding: 27 minutes for one.
+    from fichero_server.core.background_compute import set_utility_qos
+
     if KIND not in jobs.KINDS or jobs.KINDS[KIND].run is None:
         jobs.register_kind(KIND, lambda db, subject: run(db, subject), model=None, lane="images",
-                           name="Find the documents", cancel=request_cancel)
+                           name="Find the documents", cancel=request_cancel, qos=set_utility_qos)

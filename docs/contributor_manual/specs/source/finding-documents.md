@@ -310,6 +310,15 @@ involve the company it names. Lessons the tool must carry:
   accepts boundaries at least that sure; one undo restores what it accepted. Pinned by
   `fichero-server/tests/unit/recipes/test_find_documents_step.py` and
   `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py::test_finddocs_proposes_only_by_default`.
+  **Lines and priority (#5709):** a page is read as its lines: a page text derived from line readings (joined with
+  spaces for the Reader's offsets) is split back into its lines by the page's line map, so a folio, an opening or a
+  closing is found on its line. The step runs at utility QoS whoever waits on it (its work is light: a thumbnail
+  and the text of each page). WHY: after a fresh line-by-line read every page was one line, no numbering restart
+  was seen, and a folder of four documents was proposed as one; and the step, a recipe's unwatched child at the
+  BACKGROUND class, took 27 minutes beside an import's all-core embedding where alone it took one. A proposal's
+  `leaves` counts leaves, not pages: a blank verso or a second shot travels with its leaf (89 leaves of 92 pages).
+  Two documents whose weakest join has the same evidence (a numbering restart alone) have the same confidence.
+  Pinned by `fichero-server/tests/unit/finddocs/test_reads_lines_and_runs_at_utility_5709.py`.
 - `finddocs.teacher-on-uncertain` — **[GAP]** (#5550) a thinking vision-language model is asked only
   about uncertain boundaries, kinds or groups, with its reasons kept; never about all pages by
   default; the egress gate applies.
