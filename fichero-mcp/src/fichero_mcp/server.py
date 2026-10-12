@@ -100,6 +100,9 @@ OPERATOR_ALIASES: dict[str, tuple[str, str]] = {
     "fichero_segments_in_scope": ("GET", "/api/segments"),
     "fichero_workflow_run": ("POST", "/api/workflow-execution/execute"),
     "fichero_workflow_status": ("GET", "/api/workflow-execution/threads/{thread_id}/status"),
+    # Undo on the default surface (`openapi.mcp.onboarding-journey`): every write the golden path makes (an
+    # accept, a reject, a split) answers its `audit_id` and says "undo it", and the `actions` toolset is not listed.
+    "fichero_actions_undo": ("POST", "/api/actions/audit/{audit_id}/undo"),
 }
 
 #: Hand-written tools whose one route a generated tool also covers, and why each stays. Every
