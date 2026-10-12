@@ -64,7 +64,7 @@ class LeftOutPage(BaseModel):
 
     page_id: str
     page: str = Field(description="the page's name, as Items shows it")
-    why: str = Field(description="why it was left out, in words: 'a blank sheet, the back of a written leaf'")
+    why: str = Field(description="why it was left out, in words: 'a blank page: its image holds almost no ink'")
 
 
 class RecipeRunStep(BaseModel):
@@ -80,7 +80,7 @@ class RecipeRunStep(BaseModel):
         "a workflow stage's run account (#5555): its pages done, failed and left, the time left and what its "
         "pages wait for; null for a stage that has not started or is not a workflow run"))
     blank_versos: Optional[int] = Field(default=None, description=(
-        "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called "
+        "pages a lining or reading stage left out as blank (its image holds almost no ink, or a person called it "
         "blank, #5579); null when none"))
     left_out: Optional[list[LeftOutPage]] = Field(default=None, description=(
         "the pages a lining or reading stage left out, each named with why (#5691); null when none"))
@@ -156,7 +156,8 @@ class RecipeRunSummary(BaseModel):
     state: str
     finished: bool = Field(description="false while it runs: the figures are what is there so far")
     pages: int = Field(description="the pages the run ran over")
-    pages_read: int = Field(description="of those, the pages that have a reading (lines read, or a page text)")
+    pages_read: int = Field(description="of those, the pages that have a reading (lines read, or a page text), "
+                            "not counting a page the run left out as blank (#5705)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
     dates: int = Field(description="the dates named on those pages (the KG's Dates group)")
     pages_dated: int = Field(default=0, description=(
@@ -332,7 +333,7 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
 
 async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     """The summary of one recipe run; LookupError when there is none."""
-    from fichero_server.recipes import runner
+    from fichero_server.recipes import runner, sorting
 
     status = await with_accounts(db, runner.status(db, job_id))
     pages = _pages(db, status.get("documents"), status.get("folder_id"))
@@ -354,10 +355,14 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                                         failures=account.failures,
                                         offer=account.offer.label if account.offer else None))
     proposed, accepted, groups = _found_documents(db, status["steps"])
+    # The pages a stage left out as blank: not read by this run, whatever an earlier one gave them (#5705: "Read 92
+    # of 92 pages" with 5 left out).
+    blank = {e["page_id"] for step in status["steps"] for e in step.get("left_out") or []
+             if e.get("why") in (sorting.BLANK_WHY, sorting.PERSON_BLANK_WHY)}
     entries, pages_split = _entries(status["steps"])
     made = RecipeRunSummary(
         job_id=job_id, state=status["state"], finished=status["state"] in ("done", "failed", "cancelled"),
-        pages=len(pages), pages_read=sum(1 for p in pages if _has_reading(db, p)),
+        pages=len(pages), pages_read=sum(1 for p in pages if p not in blank and _has_reading(db, p)),
         names=names, dates=dates, statements=statements, pages_dated=_pages_dated(db, pages),
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),

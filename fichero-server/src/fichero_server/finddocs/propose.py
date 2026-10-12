@@ -43,8 +43,10 @@ PRIOR = -3.5
 BOUNDARY_AT = 0.5
 #: A page with fewer characters of reading than this, and (when the image is known) less ink, is blank.
 BLANK_TEXT_CHARS = 20
-#: On `job._look`'s scale (#5676): above the pre-read line (0.011), below a faint written page (0.0175 measured).
-BLANK_INK = 0.014
+#: On `job._look`'s scale (#5676): a blank sheet measured 0.007, the faintest written page 0.0175. One line for Find
+#: the Documents and for the pages a recipe leaves unread (#5705: two lines, 0.011 and 0.014, disagreed on a page), drawn
+#: low, so a faint page is read rather than lost unread.
+BLANK_INK = 0.011
 #: Two written pages this alike in their text (0 to 1) are two shots of one leaf.
 DUPLICATE_TEXT = 0.9
 #: How far back a second shot is looked for, in written pages.

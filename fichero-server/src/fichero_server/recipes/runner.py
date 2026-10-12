@@ -945,8 +945,13 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                 # Each page left out, named with why (#5691): a count alone left "Read 91 of 92" unexplained.
                 from fichero_server.models import Document as _Document
 
-                scratch["left_out"] = [{"page_id": d, "page": getattr(db.get(_Document, d), "name", None) or d,
-                                        "why": "a blank sheet, the back of a written leaf"} for d in blank]
+                def _why(doc: Any) -> str:
+                    attrs = getattr(doc, "attributes", None) or {}
+                    return sorting.PERSON_BLANK_WHY if attrs.get(sorting.SET_BY) == sorting.BY_PERSON else \
+                        sorting.BLANK_WHY
+
+                scratch["left_out"] = [{"page_id": d, "page": getattr(doc, "name", None) or d, "why": _why(doc)}
+                                       for d in blank for doc in (db.get(_Document, d),)]
             if card.get("readers"):
                 scratch["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
         if card.get("job") in _NAMES_JOBS and documents:

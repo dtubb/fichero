@@ -2,7 +2,9 @@
 
 A page's kind (handwriting, print, typescript, blank) is the document attribute `material`; `material_set_by` says
 who set it: `sorting` (this job) or `person` (a change through the document update route). A person's kind is never
-overwritten, and a kind already set is not worked out again.
+overwritten, and a kind already set is not worked out again, except a `blank` sorting set: it is looked at again on
+every run, so a page an older rule took for blank is read (#5705: a written recto, sorted blank under the ink
+measure #5676 replaced, was left out of every later run).
 
 * **blank** is Find the Documents' blank-verso rule (`finddocs.job.blank_versos`, #5579): one code path for the
   pages a run leaves unread.
@@ -18,6 +20,11 @@ KIND = "material"
 SET_BY = "material_set_by"
 BY_SORTING, BY_PERSON = "sorting", "person"
 BLANK = "blank"
+#: Why a page sorting called blank is left out, in words: true wherever the page falls in its folder (#5705: "the back
+#: of a written leaf" was said of a blank after a blank).
+BLANK_WHY = "a blank page: its image holds almost no ink"
+#: Why a page a person called blank is left out.
+PERSON_BLANK_WHY = "a person called it blank"
 #: Of the inked span of a page, the share of rows with (almost) no ink above which its text is machine-made.
 MACHINE_GAP_SHARE = 0.25
 _WIDTH = 400
@@ -33,22 +40,24 @@ def kinds(db: Any, page_ids: list[str], materials: list[str]) -> dict[str, str]:
     out: dict[str, str] = {}
     for pid, doc in docs.items():
         attrs = doc.attributes if doc is not None and isinstance(doc.attributes, dict) else {}
-        if attrs.get(KIND):
+        if attrs.get(KIND) and not (attrs[KIND] == BLANK and attrs.get(SET_BY) == BY_SORTING):
             out[pid] = str(attrs[KIND])
     unsorted = [pid for pid in page_ids if pid not in out and docs[pid] is not None]
     blanks = blank_versos(db, unsorted) if unsorted else set()
     machine = next((m for m in ("print", "typescript") if m in materials), "print")
     for pid in unsorted:
+        doc = docs[pid]
         if pid in blanks:
             kind = BLANK
-        elif len(materials) > 1:
-            looks = _machine_made(docs[pid].path)
-            if looks is None:
-                continue  # nothing to look at: read by the step's own reader, left unsorted
+        elif len(materials) > 1 and (looks := _machine_made(doc.path)) is not None:
             kind = machine if looks else "handwriting"
         else:
+            # Nothing to sort it as: read by the step's own reader, left unsorted; a blank sorting set before goes.
+            attrs = doc.attributes if isinstance(doc.attributes, dict) else {}
+            if attrs.get(KIND) == BLANK:
+                doc.attributes = {k: v for k, v in attrs.items() if k not in (KIND, SET_BY)}
+                db.save(doc)
             continue
-        doc = docs[pid]
         doc.attributes = {**(doc.attributes if isinstance(doc.attributes, dict) else {}), KIND: kind,
                           SET_BY: BY_SORTING}
         db.save(doc)

@@ -1099,7 +1099,8 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.blank-pages-not-read` — **[PARTIAL]** (#5579, #5578, #5676; #5550 for pairing leaves;
   tested in `fichero-server/tests/unit/recipes/test_find_documents_step.py`
   (`test_blank_versos_are_not_read`), `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`
-  and `fichero-server/tests/unit/finddocs/test_blank_pages_anywhere_5676.py`)
+  and `fichero-server/tests/unit/finddocs/test_blank_pages_anywhere_5676.py`,
+  `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`)
   blank pages are found before reading and are not read, lined or sent to a model. Each is reported in
   the run's account. About half of Istmina's 203 images are blank versos. **Built:** before a recipe
   card lines or reads pages, every page blank as its image shows, wherever it falls in its folder (its
@@ -1114,10 +1115,19 @@ plan's peak memory across steps. Ready shows none of it.
   blank verso; and only a blank right after a written page was caught. The threshold holds on those
   sheets (the placeholder 0.007, the folder's faintest written page 0.0175, the line at 0.011), and faded ink
   (`source.onboard.auto.prepare-damaged-images`) is still ink.
+  **One blank rule (#5705):** the pages a run leaves out are the pages Find the Documents calls blank: one rule
+  (`finddocs.propose._is_blank`: a short reading and ink below one line, 0.011), on the page's reading if it has one,
+  so the two never disagree on a page. A page whose image cannot be looked at is read. A `blank` sorting set is
+  looked at again on every run (a person's kind is not), and dropped when the page is not blank. WHY: on
+  CACIQUES_INDIOS,17,D.5 a written recto (51_Hoja_555_Recto, ink 0.039) was sorted blank under the measure #5676
+  replaced and left out of every later run, while Find the Documents called it written; the two rules also drew
+  their lines at 0.011 and 0.014.
   **Named, not only counted (#5691):** a page a stage left out is named with why, on the step
-  (`left_out`: each page's id, its name and why, "a blank sheet, the back of a written leaf") and in the run's
-  summary ("Left out: 2_Hoja_en_blanco.jpg, a blank sheet"), so "Read 91 of 92 pages" never leaves a
-  page unaccounted for. A workflow node that ran over many pages reports what it did over all of them
+  (`left_out`: each page's id, its name and why, "a blank page: its image holds almost no ink", or "a person called
+  it blank") and in the run's summary ("Left out: 2_Hoja_en_blanco.jpg, a blank page: ..."), so "Read 91 of 92 pages"
+  never leaves a page unaccounted for. A page left out as blank is not counted as read, though an earlier run gave
+  it a reading, so the figures add up (#5705: "Read 92 of 92 pages" with 5 left out). The CLI says each reason
+  once. A workflow node that ran over many pages reports what it did over all of them
   (`processed_count`, `reused_count`), never 0 after reading 91; and the shipped Kraken reading node is named as
   a person says it ("Read the lines with Kraken"). *Test:*
   `fichero-server/tests/unit/recipes/test_left_out_named_5691.py`. **Not on unreadable text (#5694):** Find Names is not run on a page whose reading is too uncertain:
