@@ -66,6 +66,9 @@ def start(db: Any, request: TrainKrakenHereRequest, *, started_by: str) -> dict[
         from fichero_server.llm.kraken_runtime import resolve_recognition_model
 
         resolve_recognition_model(request.base)
+    from fichero_server.training.kraken_set import refuse_an_empty_set
+
+    refuse_an_empty_set(db, request)  # nothing to train on: refused now, with the preview's reason (#5699)
     detail = {"card": "kraken-here", "request": request.model_dump(), "phase": "waiting",
               "history": [{"phase": "waiting", "at": remote_job._now()}]}
     job_id = jobs.enqueue(db, KIND, f"training:{uuid.uuid4()}", started_by=started_by, detail=json.dumps(detail))

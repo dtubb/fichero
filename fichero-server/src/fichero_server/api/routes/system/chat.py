@@ -1539,8 +1539,10 @@ async def extract_text(
             skipped += 1
             continue
 
-        path = Path(doc.path)
-        if not path.exists():
+        from fichero_server.db.storage import resolve_source
+
+        path = resolve_source(doc, library_root=Path(db.path).parent)  # a copied page's path is inside the package (#5699)
+        if path is None:
             skipped += 1
             continue
 

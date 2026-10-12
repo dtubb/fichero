@@ -131,8 +131,11 @@ def checked_lines(db: Any, *, scope_ids: list[str], checked: str, held_out_ids: 
         if not mine:
             missing.append({"document_id": page.id, "why": f"no pass by {checked} with read lines"})
             continue
-        source = Path(page.path) if not library_root or Path(page.path).is_absolute() else library_root / page.path
-        if not source.is_file():
+        from fichero_server.db.storage import resolve_source
+
+        # The photograph where it is, as every step finds it (#5699).
+        source = resolve_source(page, library_root=library_root or Path(db.path).parent)
+        if source is None or not source.is_file():
             missing.append({"document_id": page.id, "why": "its photograph is not on this Mac"})
             continue
         photos[page.id] = source

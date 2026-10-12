@@ -24,14 +24,15 @@ are not built yet; `flags_checked` names the flags this set was checked for.
 """
 from __future__ import annotations
 
-from fichero_server.core.naturalsort import in_folder_order
-
 import json
 import shutil
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
+
+from fichero_server.core.naturalsort import in_folder_order
+from fichero_server.db.storage import resolve_source
 
 MANIFEST = "manifest.json"
 FORMAT = "fichero-kraken-training-set-v1"
@@ -71,6 +72,14 @@ class TrainingSet:
     def summary(self) -> dict[str, Any]:
         """The set in numbers, without its page list: what a job's card and a preview carry."""
         return {k: v for k, v in self.manifest().items() if k != "pages"} | {"pages": len(self.pages)}
+
+    def why_empty(self) -> str:
+        """Why a set with no page cannot teach, from the preview's own whys (#5699): the start's refusal and the
+        job's say what the preview said."""
+        whys = Counter(m["why"] for m in self.missing)
+        said = "; ".join(f"{n} page{'s' if n != 1 else ''}: {why}" for why, n in whys.most_common())
+        return (f"nothing to train on: no page in scope has a pass read by {self.teacher} with read lines"
+                + (f" ({said})" if said else "") + (f"; {len(self.held_out)} held out" if self.held_out else ""))
 
     def manifest(self) -> dict[str, Any]:
         return {
@@ -265,8 +274,9 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
         result.left_out_lines.extend({"document_id": page.id, "segment_id": segments.get(line_id, line_id),
                                       "flag": flag} for line_id, flag in dropped)
         lines = read_lines(content)
-        source = Path(page.path)
-        if lines == 0 or not source.is_file():
+        # The photograph where it is: a copied page's stored path is inside the package (#5699).
+        source = resolve_source(page, library_root=Path(db.path).parent)
+        if lines == 0 or source is None or not source.is_file():
             if lines:
                 why = "its photograph is not on this Mac"
             elif dropped:
@@ -287,12 +297,20 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
     return result
 
 
+def refuse_an_empty_set(db: Any, request: Any) -> None:
+    """Refuse a start whose set would be empty, before it is queued and with the preview's reason (#5699): it was
+    queued, then failed a second later with another reason. Counted as the preview counts it, nothing written;
+    after a start's cheaper refusals (the yes, the token, the base reader)."""
+    made = build_training_set(db, scope_ids=request.scope_ids, teacher=request.teacher,
+                              held_out_ids=request.held_out_ids, out_dir=None)
+    if not made.pages:
+        raise EmptyTrainingSet(made.why_empty())
+
+
 def export_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_ids: list[str],
                         out_dir: str | Path) -> TrainingSet:
     """Write the set under `out_dir`; refused when no page has a line to teach."""
     result = build_training_set(db, scope_ids=scope_ids, teacher=teacher, held_out_ids=held_out_ids, out_dir=out_dir)
     if not result.pages:
-        raise EmptyTrainingSet(
-            f"no page in scope has a pass read by {teacher} with read lines "
-            f"({len(result.missing)} missing, {len(result.held_out)} held out)")
+        raise EmptyTrainingSet(result.why_empty())
     return result

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from fichero_server.db.storage import resolve_source
 from fichero_server.models.checking import VERDICTS
 from fichero_server.training.reasons import REVIEW
 from fichero_server.training.reasons import USE_CASE as REASONS_USE_CASE
@@ -140,7 +141,7 @@ def reading_proposals(db: Any, scope_ids: list[str], *, kind: str = "transcripti
         if not passes:
             continue
         chosen = max(passes, key=lambda p: p.created_at)
-        photo = Path(doc.path) if doc.path else None
+        photo = resolve_source(doc, library_root=Path(db.path).parent)  # a copied page's stored path is inside the package (#5699)
         if photo is None or not photo.is_file():
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
             continue

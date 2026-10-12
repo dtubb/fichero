@@ -31,6 +31,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from fichero_server.db.storage import resolve_source
 from fichero_server.execution import jobs
 from fichero_server.models.checking import CheckRunRequest
 
@@ -164,7 +165,7 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
             return
         chosen = max(passes, key=lambda p: p.created_at)
         segments = segments_by_pass[chosen.id]
-        photo = Path(doc.path) if doc.path else None
+        photo = resolve_source(doc, library_root=Path(db.path).parent)  # a copied page's stored path is inside the package (#5699)
         if photo is None or not photo.is_file():
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
             return

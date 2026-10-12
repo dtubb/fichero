@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from fichero_server.checking.line_check import agreement
+from fichero_server.db.storage import resolve_source
 from fichero_server.execution import jobs
 from fichero_server.models.checking import CheckRunRequest
 
@@ -297,7 +298,7 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
         if reading is None:
             counts["no_page_reading"] += 1
             continue
-        photo = Path(doc.path) if doc.path else None
+        photo = resolve_source(doc, library_root=Path(db.path).parent)  # a copied page's stored path is inside the package (#5699)
         found = working_lines(db, doc.id, model=request.pass_model)
         if found is not None and _already_tied(db, found.lines, reading.id):
             counts["already_tied"] += 1

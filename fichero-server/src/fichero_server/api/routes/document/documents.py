@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from fichero_server.core.timeutil import ensure_utc, utc_now
-from fichero_server.core.naturalsort import in_folder_order, natural_key
+from fichero_server.core.naturalsort import in_folder_order
 from pathlib import Path
 from typing import Any, Literal, Optional
 

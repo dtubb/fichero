@@ -101,6 +101,9 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
         resolve_recognition_model(request.base)  # not installed: refused here, by name
     target = (target_factory or HfJobsTarget)()  # no token: refused here, by name
     target.check_token()  # a token that can't run Jobs: refused here, in words (#5526)
+    from fichero_server.training.kraken_set import refuse_an_empty_set
+
+    refuse_an_empty_set(db, request)  # nothing to train on: refused here, with the preview's reason (#5699)
     flavor = request.flavor or target.cheapest(LORA_FLAVORS)
     price = target.price_per_hour(flavor)
     batch = kraken_batch(flavor, request.batch_size) if isinstance(request, TrainKrakenRequest) else None

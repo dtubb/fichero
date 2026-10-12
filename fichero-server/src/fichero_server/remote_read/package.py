@@ -16,14 +16,14 @@ and Fichero's own runner (`remote_read/runner.py`) with the polite fetcher besid
 """
 from __future__ import annotations
 
-from fichero_server.core.naturalsort import in_folder_order
-
 import hashlib
 import json
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from fichero_server.core.naturalsort import in_folder_order
 
 FORMAT = "fichero-read-package-v1"
 #: Sources per shard: the spec's default (jobs-and-fine-tuning.md, open question 3), to be re-set from a

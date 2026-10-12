@@ -9,8 +9,6 @@ SwiftUI inspector would make.
 
 from __future__ import annotations
 
-from fichero_server.core.naturalsort import in_folder_order
-
 import logging
 from typing import Annotated, Any
 
@@ -19,6 +17,7 @@ from pydantic import BaseModel
 
 from fichero_server.api.main import get_library_database
 from fichero_server.api.routes.document.documents import _document_or_404, _normalize_document_id
+from fichero_server.core.naturalsort import in_folder_order
 from fichero_server.db import Database
 from fichero_server.models.hermeneutics import Interpretation
 from fichero_server.models.knowledge import (
