@@ -16,6 +16,9 @@ struct CandidateFit: Equatable {
     struct Smaller: Equatable {
         let card: String
         let name: String
+
+        /// The press's words: "Use Qwen2.5-VL 3B (4-bit) instead".
+        var useInsteadTitle: String { "Use \(name) instead" }
     }
 
     let word: Word

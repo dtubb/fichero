@@ -2,61 +2,48 @@ import Foundation
 @testable import Fichero
 import Testing
 
-/// #5652 slice 2: the top-level Read menu became Page and the Segment menu folded into it; Project › Read holds a
-/// Reading ▸ submenu of the reading verbs on the selection. What breaks without these: a bar that still shows Read
-/// or Segment, a page verb lost in the move, or a reading verb in the menu bar that is not the context menus' item.
+/// #5652 slice 2: the Read menu became Page with the Segment menu folded in, and Project › Read › Reading ▸ holds
+/// Run the Recipe on This Folder…. The menus themselves cannot be mounted in a unit target; what they say and act on
+/// can. What breaks without these: a Page › Segments item that greys out with no word, or a Reading ▸ item (or a
+/// folder's context menu) that runs the recipe on the wrong folder. The bar's shape (no Read, no Segment menu; Page's
+/// items) is `MenuTerminologyBoundaryTests.testPageMenuReplacesReadAndSegment`; the moved chords are
+/// `MenuShortcutUniquenessTests.pageMenuChordsAreUnique`.
 @MainActor
-@Suite("Page and Project › Read › Reading ▸ (#5652 slice 2)")
+@Suite("Page › Segments and Project › Read › Reading ▸ (#5652 slice 2)")
 struct PageMenuTests {
-    @Test("the bar has a Page menu and no Read or Segment menu")
-    func pageReplacesReadAndSegment() throws {
-        let menus = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
-        #expect(menus.contains("CommandMenu(\"Page\")"))
-        #expect(!menus.contains("CommandMenu(\"Read\")"))
-        #expect(!menus.contains("CommandMenu(\"Segment\")"))
-        let app = try Self.appSource("FicheroApp.swift")
-        #expect(app.contains("PageAndProjectMenuCommands()"))
+    @Test("Page › Segments says why its verbs cannot act, once, under Edit Segments")
+    func segmentsSayWhy() {
+        #expect(SegmentMenuContent.reason(hasPage: false, editing: false, selected: 0)
+            == "Show a page in \(SourcePane.name) to edit its segments")
+        #expect(SegmentMenuContent.reason(hasPage: true, editing: false, selected: 2)
+            == "Turn on Edit Segments to change segments")
+        #expect(SegmentMenuContent.reason(hasPage: true, editing: true, selected: 0) == "Select segments on the page")
+        #expect(SegmentMenuContent.reason(hasPage: true, editing: true, selected: 1) == nil)
     }
 
-    @Test("Page holds Reader Lens, the doubtful words, Zoom, Rotate and the page's segments, in that order")
-    func pageHoldsThePageVerbs() throws {
-        let menus = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
-        let page = try #require(menus.range(of: "CommandMenu(\"Page\")"))
-        let project = try #require(menus.range(of: "CommandMenu(\"Project\")"))
-        let body = String(menus[page.upperBound..<project.lowerBound])
-        let order = ["Menu(\"Reader Lens\")", "DoubtfulWordMenuSection()", "ImagePreviewMenuCommands()",
-                     "RotateImageMenuSection()", "Section(\"Segments\") {\n                SegmentMenuContent()"]
-        let positions = order.map { body.range(of: $0)?.lowerBound }
-        #expect(positions.allSatisfy { $0 != nil }, "Page is missing one of \(order)")
-        let found = positions.compactMap { $0 }
-        #expect(found == found.sorted(), "Page's items are out of order")
+    @Test("Reading ▸ › Run the Recipe on This Folder… says why it cannot act")
+    func readingSaysWhy() {
+        #expect(FocusedRunRecipeOnFolderButton.disabledReason(hasProject: false, folderId: nil)
+            == "Open a project to run its recipe")
+        #expect(FocusedRunRecipeOnFolderButton.disabledReason(hasProject: true, folderId: nil)
+            == "Select one folder to run the recipe on")
+        #expect(FocusedRunRecipeOnFolderButton.disabledReason(hasProject: true, folderId: "f1") == nil)
     }
 
-    @Test("the segments' items still say why they cannot act")
-    func segmentsKeepTheirReasons() throws {
-        let segments = try Self.appSource("App/Menus/FocusedCommands/SegmentMenuCommands.swift")
-        #expect(segments.contains("Text(\"Show a page in \\(SourcePane.name) to edit its segments\")"))
-        #expect(segments.contains("Text(\"Turn on Edit Segments to change segments\")"))
-        #expect(segments.contains("Text(\"Select segments on the page\")"))
+    @Test("the menu bar runs the recipe on the one selected folder, else the folder the window shows")
+    func menuBarFolder() {
+        let folders: Set<String> = ["f1", "f2"]
+        let isFolder = { (id: String) in folders.contains(id) }
+        #expect(RecipeFolderScope.forSelection(["f1"], shownFolderId: "f2", isFolder: isFolder) == "f1")
+        #expect(RecipeFolderScope.forSelection([], shownFolderId: "f2", isFolder: isFolder) == "f2")
+        #expect(RecipeFolderScope.forSelection(["p1"], shownFolderId: "f2", isFolder: isFolder) == nil, "a page")
+        #expect(RecipeFolderScope.forSelection(["f1", "f2"], shownFolderId: nil, isFolder: isFolder) == nil)
     }
 
-    @Test("Project › Read › Reading ▸ holds Run the Recipe on This Folder…, the folder context menus' item")
-    func readingSubmenu() throws {
-        let menus = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
-        #expect(menus.contains("case .read:\n            Section(stage.title) {"))
-        #expect(menus.contains("Menu(\"Reading\") {\n                    FocusedRunRecipeOnFolderButton()"))
-        let recipe = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Recipe.swift")
-        #expect(recipe.contains("RunRecipeOnFolderMenuItem(folderId: target?.recipeFolderId, library: target?.library)"))
-        #expect(recipe.contains("Text(\"Open a project to run its recipe\")"))
-        #expect(recipe.contains("Text(RecipeFolderScope.noFolderReason)"))
-        #expect(RecipeFolderScope.noFolderReason == "Select one folder to run the recipe on")
-        let library = try Self.appSource("Views/Library/LibraryView+ContextMenu.swift")
-        #expect(library.contains("RunRecipeOnFolderMenuItem("))
-        let sidebar = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
-        #expect(sidebar.contains("RunRecipeOnFolderMenuItem("))
-    }
-
-    private static func appSource(_ relativePath: String) throws -> String {
-        try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
+    @Test("a folder's context menu runs it on the clicked folder, never on part of a selection")
+    func contextMenuFolder() {
+        #expect(RecipeFolderScope.forClick(on: "f1", isFolder: true, selection: []) == "f1")
+        #expect(RecipeFolderScope.forClick(on: "f1", isFolder: true, selection: ["f1", "f2"]) == nil)
+        #expect(RecipeFolderScope.forClick(on: "p1", isFolder: false, selection: []) == nil)
     }
 }

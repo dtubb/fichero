@@ -196,11 +196,15 @@ struct FocusedRunRecipeOnFolderButton: View {
 
     var body: some View {
         RunRecipeOnFolderMenuItem(folderId: target?.recipeFolderId, library: target?.library)
-        if target == nil {
-            Text("Open a project to run its recipe")
-        } else if target?.recipeFolderId == nil {
-            Text(RecipeFolderScope.noFolderReason)
+        if let reason = Self.disabledReason(hasProject: target != nil, folderId: target?.recipeFolderId) {
+            Text(reason)
         }
+    }
+
+    /// Why Run the Recipe on This Folder… cannot act, or nil when it can.
+    static func disabledReason(hasProject: Bool, folderId: String?) -> String? {
+        guard hasProject else { return "Open a project to run its recipe" }
+        return folderId == nil ? RecipeFolderScope.noFolderReason : nil
     }
 }
 

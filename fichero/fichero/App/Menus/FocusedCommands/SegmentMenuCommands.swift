@@ -26,12 +26,8 @@ struct SegmentMenuContent: View {
         let count = target?.selectionCount ?? 0
         Button(editing ? "Stop Editing Segments" : "Edit Segments") { target?.toggleEditing() }
             .disabled(target == nil)
-        if target == nil {
-            Text("Show a page in \(SourcePane.name) to edit its segments")
-        } else if !editing {
-            Text("Turn on Edit Segments to change segments")
-        } else if count == 0 {
-            Text("Select segments on the page")
+        if let reason = Self.reason(hasPage: target != nil, editing: editing, selected: count) {
+            Text(reason)
         }
         Divider()
         // No ⌫ here: a bare Delete key in the menu bar would take it from every text field. The page
@@ -44,5 +40,12 @@ struct SegmentMenuContent: View {
         Divider()
         SegmentAttributeMenu.Items(apply: { target?.apply($0) })
             .disabled(!editing || count == 0)
+    }
+
+    /// Why the segments' verbs cannot act, said once under Edit Segments; nil when they can.
+    static func reason(hasPage: Bool, editing: Bool, selected: Int) -> String? {
+        if !hasPage { return "Show a page in \(SourcePane.name) to edit its segments" }
+        if !editing { return "Turn on Edit Segments to change segments" }
+        return selected == 0 ? "Select segments on the page" : nil
     }
 }

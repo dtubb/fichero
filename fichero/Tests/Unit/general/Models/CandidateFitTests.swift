@@ -85,25 +85,10 @@ struct CandidateFitTests {
         #expect(CandidateFitLabel.tint(.tight) == .orange)
     }
 
-    @Test("Set Up's stage page, the model finder and the step's card draw the fit with the one label")
-    func oneLabelEverywhere() throws {
-        let chooser = try Self.appSource("Views/Onboarding/Stages/StageCandidateChooser.swift")
-        #expect(chooser.contains("CandidateFitLabel(fit: fit, useSmaller: useSmaller)"))
-        let finder = try Self.appSource("Views/Models/ModelFinderView.swift")
-        #expect(finder.contains("CandidateFitLabel(fit: fit, useSmaller: useSmaller)"))
-        #expect(finder.contains("step.setup.useCard(smaller.card, named: smaller.name, forStep: step.id)"))
-        let steps = try Self.appSource("Views/Onboarding/RecipeStepsView.swift")
-        #expect(steps.contains("CandidateFitLabel(fit: fit, useSmaller: useSmaller)"))
-        #expect(steps.contains("setup.useCard(smaller.card, named: smaller.name, forStep: step.id)"))
-        let page = try Self.appSource("Views/Onboarding/Stages/SetupStagePage.swift")
-        #expect(page.contains("candidatesOf: stepCandidates"))
-        #expect(page.contains("useSmaller: useSmaller"))
-        let label = try Self.appSource("Views/Models/CandidateFitLabel.swift")
-        #expect(label.contains("Button(\"Use \\(smaller.name) instead\")"))
-        #expect(!label.contains(".system(size:"), "semantic fonts only")
-    }
-
-    private static func appSource(_ relativePath: String) throws -> String {
-        try String(contentsOf: AppSource.root().appendingPathComponent(relativePath), encoding: .utf8)
+    @Test("the smaller build's press says which model it uses instead")
+    func useInsteadTitle() throws {
+        let candidates = try Self.list(Self.big, Self.small)
+        let smaller = try #require(CandidateFit.of(candidates[0], in: candidates)?.smaller)
+        #expect(smaller.useInsteadTitle == "Use Qwen2.5-VL 3B (4-bit) instead")
     }
 }

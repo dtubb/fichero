@@ -16,7 +16,7 @@ struct CandidateFitLabel: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .help(fit.line)
             if let smaller = fit.smaller, let useSmaller {
-                Button("Use \(smaller.name) instead") { useSmaller(smaller) }
+                Button(smaller.useInsteadTitle) { useSmaller(smaller) }
                     .controlSize(.small)
                     .help("Use the smaller build of the same model for this step")
             }
