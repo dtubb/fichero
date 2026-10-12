@@ -39,10 +39,8 @@ struct SidebarItemContextMenu: View {
                 Divider()
             }
 
-            Button(action: { renameItem(item) }, label: {
-                Label("Rename", systemImage: "pencil")
-            })
-            .disabled(!item.itemType.canBeRenamed)
+            // Rename and Delete: the shared items Edit renders (#5652).
+            RenameItemMenuItem(target: renameTarget)
 
             if let onDuplicate, itemTypeSupportsDuplicate {
                 Button(action: onDuplicate, label: {
@@ -58,13 +56,25 @@ struct SidebarItemContextMenu: View {
 
             Divider()
 
-            Button(action: { deleteItems(resolvedDeleteTargets) }, label: {
-                Label(deleteButtonTitle, systemImage: "trash")
-                    .foregroundColor(.red)
-            })
-            .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(!resolvedDeleteTargets.contains { $0.itemType.canBeDeleted })
+            DeleteItemsMenuItem(target: deleteTarget)
+                .keyboardShortcut(.delete, modifiers: .command)
         }
+    }
+
+    /// This row, as Rename acts on it.
+    private var renameTarget: ItemVerbsTarget {
+        var target = ItemVerbsTarget(ids: [item.id], documents: [])
+        if item.itemType.canBeRenamed { target.rename = { renameItem(item) } }
+        return target
+    }
+
+    /// What Delete acts on here: the row, or the deletable selection it is part of.
+    private var deleteTarget: ItemVerbsTarget {
+        let targets = resolvedDeleteTargets
+        var target = ItemVerbsTarget(ids: targets.map(\.id), documents: [])
+        target.deletableCount = targets.filter { $0.itemType.canBeDeleted }.count
+        if target.deletableCount > 0 { target.delete = { deleteItems(targets) } }
+        return target
     }
 
     /// Kinds with a backend duplicate endpoint.
@@ -79,11 +89,6 @@ struct SidebarItemContextMenu: View {
 
     private var resolvedDeleteTargets: [SidebarItem] {
         deleteTargets.isEmpty ? [item] : deleteTargets
-    }
-
-    private var deleteButtonTitle: String {
-        let count = resolvedDeleteTargets.count
-        return count > 1 ? "Delete \(count) Items" : "Delete"
     }
 
     @ViewBuilder

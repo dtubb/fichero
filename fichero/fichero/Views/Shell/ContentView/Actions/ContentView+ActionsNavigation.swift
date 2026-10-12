@@ -401,7 +401,7 @@ extension ContentView {
             ?? documentStore.childrenCache.values.lazy.flatMap({ $0 }).first { $0.id == id }
     }
 
-    /// Edit ▸ Group: the library's own group node (`POST /api/documents/groups`, "Group as Stack"): one item
+    /// Edit ▸ Group: the library's own group node (`POST /api/documents/groups`, `ItemGrouping`): one item
     /// that holds the selected images, in order, where the first of them was; reversible.
     var groupItemsAction: FocusedLibraryAction {
         let ids = groupableImageIds(selection: browserSelection, canvasSelection: folderCanvasSelection, lookUp: shellDocument)
@@ -411,8 +411,7 @@ extension ContentView {
             guard let library else { return }
             Task { @MainActor in
                 do {
-                    _ = try await library.documentService.createGroup(name: "Group of \(ids.count)", childIds: ids)
-                    await store.refresh()
+                    try await ItemGrouping.group(ids, using: library.documentService, refreshing: store)
                 } catch {
                     store.error = error
                 }
@@ -431,8 +430,7 @@ extension ContentView {
             guard let group, let library else { return }
             Task { @MainActor in
                 do {
-                    try await library.documentService.ungroupDocument(groupId: group.id)
-                    await store.refresh()
+                    try await ItemGrouping.ungroup(group.id, using: library.documentService, refreshing: store)
                 } catch {
                     store.error = error
                 }

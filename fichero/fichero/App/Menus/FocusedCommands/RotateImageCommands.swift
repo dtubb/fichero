@@ -55,8 +55,55 @@ extension FocusedValues {
     @Entry var ungroupSelectedItem: FocusedLibraryAction?
 }
 
-/// Group / Ungroup in the Edit menu. The same group node the library's "Group as Stack" makes: one item that
-/// holds its pages, reversibly.
+/// Group and Ungroup's one operation and words (#5303, #5652 slice 4): Edit's items and the Items list's context
+/// menu make the same group node, named the same way, and refresh the same store.
+enum ItemGrouping {
+    static let groupTitle = "Group"
+    static let ungroupTitle = "Ungroup"
+    static let groupReason = "Select two or more images to group"
+    static let ungroupReason = "Select one group to ungroup"
+
+    /// The group node's name: "Group of 3".
+    static func name(count: Int) -> String { "Group of \(count)" }
+
+    /// One item that holds these images, in order, where the first of them was (`POST /api/documents/groups`).
+    static func group(_ ids: [String], using service: DocumentService,
+                      refreshing store: DocumentStore) async throws {
+        _ = try await service.createGroup(name: name(count: ids.count), childIds: ids)
+        await store.refresh()
+    }
+
+    /// Return a group's members to where they were (`…/groups/{id}/ungroup`).
+    static func ungroup(_ groupId: String, using service: DocumentService,
+                        refreshing store: DocumentStore) async throws {
+        try await service.ungroupDocument(groupId: groupId)
+        await store.refresh()
+    }
+}
+
+/// Group, as ONE item: Edit and the Items list's context menu.
+struct GroupItemsMenuItem: View {
+    let action: FocusedLibraryAction?
+
+    var body: some View {
+        Button { action?.run() } label: { Label(ItemGrouping.groupTitle, systemImage: "square.stack") }
+            .disabled(action?.isEnabled != true)
+    }
+}
+
+/// Ungroup, as ONE item: Edit and the Items list's context menu.
+struct UngroupItemMenuItem: View {
+    let action: FocusedLibraryAction?
+
+    var body: some View {
+        Button { action?.run() } label: {
+            Label(ItemGrouping.ungroupTitle, systemImage: "square.stack.3d.up.slash")
+        }
+        .disabled(action?.isEnabled != true)
+    }
+}
+
+/// Group / Ungroup in the Edit menu, each disabled with its reason under it.
 struct GroupItemsMenuSection: View {
     @FocusedValue(\.groupSelectedItems) private var group
     @FocusedValue(\.ungroupSelectedItem) private var ungroup
@@ -64,9 +111,9 @@ struct GroupItemsMenuSection: View {
     var body: some View {
         // No chords yet: ⌥⌘G, the Keynote/Freeform Group chord, is the Preview markup Line tool
         // (PreviewMarkupToolsRow). Whether Group takes it back is the maintainer's call (#5303).
-        Button("Group") { group?.run() }
-            .disabled(group?.isEnabled != true)
-        Button("Ungroup") { ungroup?.run() }
-            .disabled(ungroup?.isEnabled != true)
+        GroupItemsMenuItem(action: group)
+        if group?.isEnabled != true { Text(ItemGrouping.groupReason) }
+        UngroupItemMenuItem(action: ungroup)
+        if ungroup?.isEnabled != true { Text(ItemGrouping.ungroupReason) }
     }
 }

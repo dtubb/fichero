@@ -299,7 +299,24 @@ Behaviours (slice 1):
   disagreement lens (no selection of their own); which further verbs join Reading ▸ is an open question
   on #5652. Pinned by `PageMenuTests.readingSubmenu` and
   `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for every context-menu verb.
+- `menus.edit.item-verbs-one-component` — **[OK]** (#5652 slice 4, group 1) **Built 2026-10-12 (app), not yet
+  seen:** Rename, Delete, Exclude from / Include in Processing, Search and Everywhere, Bookmark…, Add to Workspace…,
+  Export a Copy… (was Export…), Group and Ungroup (was Group as Stack) are ONE item each
+  (`FocusedCommandButtons+ItemVerbs.swift`; Group and Ungroup in `RotateImageCommands.swift`). The sidebar's row
+  menu and the Items list's context menu render them on the clicked row (the selection when the click is part of
+  it), and **Edit** renders them on the focused pane's selection (`ItemVerbsTarget`, published by the Items list as
+  the `itemVerbs` focused value; the sidebar's selection through its own Rename and Delete), with **File › Export a
+  Copy…** beside Export ▸. Each menu-bar item is disabled with its reason under it. Exclusion is one operation
+  (`ItemVerbs.setExcluded`) and grouping one (`ItemGrouping`, the node named "Group of N"), whichever surface
+  presses. Chords kept: Rename is Return while the sidebar has focus (in Items, Return opens the row), Delete is
+  ⌘⌫. *Not yet:* from the sidebar's selection, Exclude, Bookmark…, Add to Workspace… and Export a Copy… in the
+  menu bar say to select the document in Items (the sidebar's pickers are per row). Pinned by `ItemVerbsMenuTests`
+  and `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: Open / New
+  Tab / New Window, Duplicate, Make Alias, Show Original, Quick Look, New Folder and Import in both panes; the
+  Segments and Order lists (Correct This Line…, Open, Create Named Order); proposed documents and Source direction
+  ▸; the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
+  selection; the dataset rows' and the Inspector header's Exclude.
 
 ---
 

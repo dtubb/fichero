@@ -158,18 +158,9 @@ extension LibraryView {
             Label("Make Alias", systemImage: "arrowshape.turn.up.right")
         }
         #if os(macOS)
-        // Export a real copy of the source file (#4121) — the same
-        // storage-service path the Finder drag-out uses (#4123).
+        // Export a Copy… of the source file (#4121): the shared item, as File › Export a Copy… (#5652).
         if document.docType != .folder {
-            Button {
-                DocumentExporter.exportViaSavePanel(
-                    SidebarDragID(document: document, libraryId: windowState.libraryId)
-                ) { message in
-                    contextMenuLogger.error("\(message, privacy: .public)")
-                }
-            } label: {
-                Label("Export…", systemImage: "square.and.arrow.up")
-            }
+            ExportCopyMenuItem(target: itemVerbsTarget(for: [document]))
         }
         #endif
     }
@@ -177,11 +168,10 @@ extension LibraryView {
     @ViewBuilder
     private func deleteMenuItem(for document: Document) -> some View {
         Divider()
-        Button(role: .destructive) {
-            promptDelete(for: document)
-        } label: {
-            Label("Delete", systemImage: "trash")
-        }
+        // The shared item, as Edit › Delete (#5652): on the selection when the click is part of it.
+        DeleteItemsMenuItem(target: itemVerbsTarget(
+            for: Self.deleteTargets(for: document, selection: selection, visibleDocuments: filteredDocuments)
+        ))
     }
 
     /// Audited document.duplicate — the SAME action path the sidebar row uses.
@@ -234,6 +224,11 @@ extension LibraryView {
             selection: selection,
             visibleDocuments: filteredDocuments
         )
+        confirmDelete(targets)
+    }
+
+    /// The one delete confirmation: the context menu, the iOS swipe and Edit › Delete land here.
+    func confirmDelete(_ targets: [Document]) {
         guard !targets.isEmpty else { return }
         documentsToDelete = targets
         showDeleteConfirmation = true
@@ -252,11 +247,7 @@ extension LibraryView {
 
         Divider()
 
-        Button {
-            startRename(for: document)
-        } label: {
-            Label("Rename", systemImage: "pencil")
-        }
+        RenameItemMenuItem(target: itemVerbsTarget(for: [document]))
 
         // Discoverable Quick Look (#4160) — same fetch Space uses; folders
         // have no source file to preview.
@@ -281,18 +272,10 @@ extension LibraryView {
     private func organizeMenuItems(for document: Document) -> some View {
         // Add-to-Workspace bridge (#1494): alias this document into a
         // workspace folder. Never moves the source (#1487).
-        Button {
-            workspacePickerDocument = document
-        } label: {
-            Label("Add to Workspace…", systemImage: "square.grid.2x2")
-        }
+        AddToWorkspaceMenuItem(target: itemVerbsTarget(for: [document]))
 
         // Bookmark this document — a saved pointer node (#2755).
-        Button {
-            bookmarkPickerDocument = document
-        } label: {
-            Label("Bookmark…", systemImage: "bookmark")
-        }
+        BookmarkItemMenuItem(target: itemVerbsTarget(for: [document]))
 
         // Find the Documents (#5550) on a folder or a selection of pages: the Project menu's own item.
         let findScope = FindDocumentsScope.forClick(
@@ -315,83 +298,24 @@ extension LibraryView {
     @ViewBuilder
     private func stackMenuItems(for document: Document) -> some View {
         let stackTargets = imageStackTargets(for: document)
+        // Edit › Group and Ungroup's own items (#5652), on what this click acts on.
         if stackTargets.count >= 2 {
             Divider()
-            Button {
-                groupAsStack(stackTargets)
-            } label: {
-                Label("Group as Stack", systemImage: "square.stack")
-            }
+            GroupItemsMenuItem(action: FocusedLibraryAction(isEnabled: true) { groupAsStack(stackTargets) })
         }
         if document.docType == .group {
             Divider()
-            Button {
-                ungroupStack(document)
-            } label: {
-                Label("Ungroup", systemImage: "square.stack.3d.up.slash")
-            }
+            UngroupItemMenuItem(action: FocusedLibraryAction(isEnabled: true) { ungroupStack(document) })
         }
     }
 
+    /// Exclude from / Include in Processing and Search, and both at once (#4580, #4604): the shared items, as Edit's.
     @ViewBuilder
     private func excludeFromProcessingMenuItem(excludeTargets: [Document]) -> some View {
-        let shouldIncludeInProcessing = excludeTargets.allSatisfy(\.excludeFromProcessing)
-        Button {
-            Task {
-                await toggleExclusion(
-                    documentIds: excludeTargets.map(\.id),
-                    excluded: !shouldIncludeInProcessing,
-                    scope: .processing
-                )
-            }
-        } label: {
-            Label(
-                shouldIncludeInProcessing ? "Include in Processing" : "Exclude from Processing",
-                systemImage: shouldIncludeInProcessing ? "eye" : "eye.slash"
-            )
-        }
-
-        // #4580 (Daniel 2026-08-19): search exclusion is its OWN flag —
-        // structural pages (covers, front matter) stay browsable but never
-        // pollute keyword/semantic results.
-        let shouldIncludeInSearch = excludeTargets.allSatisfy(\.excludeFromSearch)
-        Button {
-            Task {
-                await toggleExclusion(
-                    documentIds: excludeTargets.map(\.id),
-                    excluded: !shouldIncludeInSearch,
-                    scope: .search
-                )
-            }
-        } label: {
-            Label(
-                shouldIncludeInSearch ? "Include in Search" : "Exclude from Search",
-                systemImage: shouldIncludeInSearch
-                    ? "magnifyingglass" : "text.magnifyingglass"
-            )
-        }
-
-        // Daniel's ruling (#4604 Q1): keep the two independent flags AND a
-        // one-gesture shortcut that sets both — the cover-page case.
-        let fullyExcluded = excludeTargets.allSatisfy {
-            $0.excludeFromProcessing && $0.excludeFromSearch
-        }
-        Button {
-            Task {
-                let ids = excludeTargets.map(\.id)
-                await toggleExclusion(
-                    documentIds: ids, excluded: !fullyExcluded, scope: .processing
-                )
-                await toggleExclusion(
-                    documentIds: ids, excluded: !fullyExcluded, scope: .search
-                )
-            }
-        } label: {
-            Label(
-                fullyExcluded ? "Include Everywhere" : "Exclude Everywhere",
-                systemImage: fullyExcluded ? "eye.circle" : "eye.slash.circle"
-            )
-        }
+        let target = itemVerbsTarget(for: excludeTargets)
+        ExcludeItemsMenuItem(target: target, exclusion: .processing)
+        ExcludeItemsMenuItem(target: target, exclusion: .search)
+        ExcludeItemsMenuItem(target: target, exclusion: .everywhere)
     }
 
     // Run Workflow submenu — workflows grouped by `folderPath` so
@@ -515,12 +439,8 @@ extension LibraryView {
         let childIds = targets.map(\.id)
         Task {
             do {
-                _ = try await library.documentService.createGroup(
-                    name: "Stack of \(childIds.count)",
-                    childIds: childIds
-                )
+                try await ItemGrouping.group(childIds, using: library.documentService, refreshing: documentStore)
                 selection.removeAll()
-                await documentStore.refresh()
             } catch {
                 documentStore.error = error
             }
@@ -533,36 +453,66 @@ extension LibraryView {
         guard let library = activeLibraryReference else { return }
         Task {
             do {
-                try await library.documentService.ungroupDocument(groupId: group.id)
-                await documentStore.refresh()
+                try await ItemGrouping.ungroup(group.id, using: library.documentService, refreshing: documentStore)
             } catch {
                 documentStore.error = error
             }
         }
     }
 
-    @MainActor
-    private func toggleExclusion(
-        documentIds: [String],
-        excluded: Bool,
-        scope: Components.Schemas.DocumentExclusionScope
-    ) async {
+    /// Exclude or include documents through the one shared operation (`ItemVerbs.setExcluded`), keeping the
+    /// open detail in step.
+    func setExcluded(_ documentIds: [String], excluded: Bool, _ exclusion: ItemVerbs.Exclusion) async {
         guard let library = activeLibraryReference else { return }
-
         do {
-            let refreshed = try await library.documentService.batchExclude(
-                documentIds: documentIds,
-                excluded: excluded,
-                scope: scope
+            let refreshed = try await ItemVerbs.setExcluded(
+                documentIds, excluded: excluded, exclusion, using: library.documentService, refreshing: documentStore
             )
-            for updated in refreshed {
-                documentStore.refreshLocalContent(updated)
-                if detailDocument?.id == updated.id {
-                    detailDocument = updated
-                }
+            if let detail = detailDocument, let updated = refreshed.first(where: { $0.id == detail.id }) {
+                detailDocument = updated
             }
         } catch {
             documentStore.error = error
         }
+    }
+
+    // MARK: - The item verbs (#5652 slice 4)
+
+    /// The item verbs on these documents in this pane: a context menu's clicked target, or the selection for the
+    /// menu bar (`selectionItemVerbs`). Rename, Bookmark, Add to Workspace and Export a Copy act on exactly one.
+    func itemVerbsTarget(for targets: [Document]) -> ItemVerbsTarget {
+        let one = targets.count == 1 ? targets.first : nil
+        var export: (@MainActor () -> Void)?
+        #if os(macOS)
+        if let one, one.docType != .folder {
+            let libraryId = windowState.libraryId
+            export = {
+                DocumentExporter.exportViaSavePanel(SidebarDragID(document: one, libraryId: libraryId)) { message in
+                    contextMenuLogger.error("\(message, privacy: .public)")
+                }
+            }
+        }
+        #endif
+        var target = ItemVerbsTarget(ids: targets.map(\.id), documents: targets)
+        target.export = export
+        target.deletableCount = targets.count
+        if !targets.isEmpty {
+            target.delete = { confirmDelete(targets) }
+            let ids = targets.map(\.id)
+            target.setExcluded = { exclusion, excluded in
+                Task { await setExcluded(ids, excluded: excluded, exclusion) }
+            }
+        }
+        if let one {
+            target.rename = { startRename(for: one) }
+            target.bookmark = { bookmarkPickerDocument = one }
+            target.addToWorkspace = { workspacePickerDocument = one }
+        }
+        return target
+    }
+
+    /// The selection as Edit's and File's item verbs act on it while this pane has focus.
+    var selectionItemVerbs: ItemVerbsTarget {
+        itemVerbsTarget(for: filteredDocuments.filter { selection.contains($0.id) })
     }
 }

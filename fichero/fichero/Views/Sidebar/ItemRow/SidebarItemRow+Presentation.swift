@@ -67,31 +67,15 @@ extension SidebarItemRow {
             // curation move for front/back matter). Export stays file-only —
             // a folder has no single source file to copy out.
             if case .document(let processDoc) = item.itemType {
-                Button(
-                    processDoc.excludeFromProcessing
-                        ? "Include in Processing" : "Exclude from Processing"
-                ) {
-                    toggleExcludeFromProcessing(processDoc)
-                }
-                Button(
-                    processDoc.excludeFromSearch
-                        ? "Include in Search" : "Exclude from Search"
-                ) {
-                    toggleExclusion(processDoc, scope: .search,
-                                    excluded: !processDoc.excludeFromSearch)
-                }
+                // The item verbs, as Edit renders them and the Items list's menu does (#5652): one item each.
+                let verbs = rowItemVerbs(processDoc)
+                ExcludeItemsMenuItem(target: verbs, exclusion: .processing)
+                ExcludeItemsMenuItem(target: verbs, exclusion: .search)
+                ExcludeItemsMenuItem(target: verbs, exclusion: .everywhere)
                 // Same-parity picker sheets (#4121): saved-pointer bookmark
                 // and workspace membership, presented from this row.
-                Button {
-                    bookmarkPickerDocument = processDoc
-                } label: {
-                    Label("Bookmark…", systemImage: "bookmark")
-                }
-                Button {
-                    workspacePickerDocument = processDoc
-                } label: {
-                    Label("Add to Workspace…", systemImage: "square.grid.2x2")
-                }
+                BookmarkItemMenuItem(target: verbs)
+                AddToWorkspaceMenuItem(target: verbs)
                 if processDoc.docType == .folder {
                     // Find the Documents (#5550): the Project menu's own item, as the library grid offers it.
                     FindDocumentsMenuItem(scopeIds: [processDoc.id], library: library)
@@ -100,15 +84,8 @@ extension SidebarItemRow {
                 }
                 #if os(macOS)
                 if processDoc.docType != .folder {
-                    // Export a real copy of the source file (#4121) — the same
-                    // storage-service path the Finder drag-out uses (#4123).
-                    Button {
-                        DocumentExporter.exportViaSavePanel(SidebarDragID(item: item)) { message in
-                            sidebarState.dropErrorMessage = message
-                        }
-                    } label: {
-                        Label("Export…", systemImage: "square.and.arrow.up")
-                    }
+                    // Export a Copy… of the source file (#4121), the shared item (#5652).
+                    ExportCopyMenuItem(target: verbs)
                 }
                 #endif
             }
@@ -220,34 +197,39 @@ extension SidebarItemRow {
     /// Finder-style Make Alias for document rows (#2591): a real engine alias
     /// node (via the bookmarks surface) beside the original — never a
     /// sidebar-only copy. The tree republishes on the store refresh.
-    /// Same executor as the grid menu (#4121): batchExclude + local refresh.
-    private func toggleExcludeFromProcessing(_ doc: Document) {
-        toggleExclusion(doc, scope: .processing, excluded: !doc.excludeFromProcessing)
-    }
-
-    /// One exclusion toggle for both scopes — grid-menu parity (#4121).
-    private func toggleExclusion(
-        _ doc: Document,
-        scope: Components.Schemas.DocumentExclusionScope,
-        excluded: Bool
-    ) {
-        guard let library else { return }
-        Task { @MainActor in
-            do {
-                let refreshed = try await library.documentService.batchExclude(
-                    documentIds: [doc.id],
-                    excluded: excluded,
-                    scope: scope
-                )
-                for updated in refreshed {
-                    library.documentStore.refreshLocalContent(updated)
+    /// The item verbs on this row's document (#5652): the same shared items Edit and the Items list render.
+    /// Exclusion is the one shared operation (`ItemVerbs.setExcluded`); the pickers are this row's own sheets,
+    /// as sidebar rows span projects.
+    private func rowItemVerbs(_ doc: Document) -> ItemVerbsTarget {
+        var target = ItemVerbsTarget(ids: [doc.id], documents: [doc])
+        if let library {
+            target.setExcluded = { exclusion, excluded in
+                Task { @MainActor in
+                    do {
+                        try await ItemVerbs.setExcluded(
+                            [doc.id], excluded: excluded, exclusion, using: library.documentService, refreshing: library.documentStore
+                        )
+                    } catch {
+                        sidebarRowLogger.error(
+                            "exclude toggle for \(doc.id, privacy: .public) failed: \(error.localizedDescription)"
+                        )
+                    }
                 }
-            } catch {
-                sidebarRowLogger.error(
-                    "exclude toggle for \(doc.id, privacy: .public) failed: \(error.localizedDescription)"
-                )
             }
         }
+        target.bookmark = { bookmarkPickerDocument = doc }
+        target.addToWorkspace = { workspacePickerDocument = doc }
+        #if os(macOS)
+        if doc.docType != .folder {
+            let dragID = SidebarDragID(item: item)
+            target.export = {
+                DocumentExporter.exportViaSavePanel(dragID) { message in
+                    sidebarState.dropErrorMessage = message
+                }
+            }
+        }
+        #endif
+        return target
     }
 
     private var makeAliasAction: (() -> Void)? {

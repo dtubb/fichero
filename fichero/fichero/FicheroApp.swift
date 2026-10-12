@@ -491,6 +491,9 @@ struct FicheroApp: App {
                 FocusedDeleteButton()
                     .keyboardShortcut(.delete, modifiers: [.command])
 
+                // Exclude / Include, Bookmark…, Add to Workspace…: the context menus' own items (#5652).
+                FocusedItemOrganiseButtons()
+
                 // The Trash's verbs (#5243): the same components the Trash pane's context menu shows.
                 FocusedPutBackButton()
                 FocusedEmptyTrashButton()

@@ -270,6 +270,9 @@ extension LibraryView {
                 fileImportTargetFolderId = folderId
                 showingFileImporter = true
             })
+            // Edit's item verbs on this pane's selection while it has focus (#5652): the same target its context
+            // menu makes. Equatable on the selection, so a re-render of the same selection does not republish.
+            .focusedValue(\.itemVerbs, selectionItemVerbs)
             .onAppear {
                 if outlineModel == nil {
                     outlineModel = LibraryOutlineModel(

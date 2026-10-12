@@ -204,6 +204,9 @@ struct FileMenuCommands: View {
             .keyboardShortcut("s", modifiers: [.command, .shift])
             .disabled(saveLibraryAction == nil)
 
+            // Export a Copy… of the selected document's file: the context menus' own item (#5652).
+            FocusedExportCopyButton()
+
             // Export section (#2088)
             Menu {
                 // What you are READING, first (Daniel, 2026-09-03: "for

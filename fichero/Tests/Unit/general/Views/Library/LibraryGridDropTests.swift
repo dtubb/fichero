@@ -115,9 +115,10 @@ final class LibraryContextMenuParityTests: XCTestCase {
         let url = try AppSource.root()
             .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("Label(\"Bookmark…\""))
-        XCTAssertTrue(source.contains("Label(\"Add to Workspace…\""))
-        XCTAssertTrue(source.contains("Label(\"Export…\""))
+        // The shared items (#5652), on this row's own target.
+        XCTAssertTrue(source.contains("BookmarkItemMenuItem(target: verbs)"))
+        XCTAssertTrue(source.contains("AddToWorkspaceMenuItem(target: verbs)"))
+        XCTAssertTrue(source.contains("ExportCopyMenuItem(target: verbs)"))
 
         let bodyURL = try AppSource.root()
             .appendingPathComponent("Views/Sidebar/ItemRow/SidebarItemRow+Presentation+Body.swift")
@@ -139,7 +140,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
             encoding: .utf8
         )
         XCTAssertTrue(grid.contains("DocumentExporter.exportViaSavePanel"))
-        XCTAssertTrue(grid.contains("Label(\"Export…\""))
+        XCTAssertTrue(grid.contains("ExportCopyMenuItem(target:"))
         let exporter = try String(
             contentsOf: root.appendingPathComponent("Views/Library/Export/DocumentExporter.swift"),
             encoding: .utf8
