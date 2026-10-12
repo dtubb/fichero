@@ -185,6 +185,41 @@ def test_rows_an_older_engine_writes_after_the_fold_are_said_not_copied(tmp_path
         db.close()
 
 
+def test_a_library_whose_old_batches_table_is_gone_after_the_fold_still_opens(tmp_path):
+    """Review of 0027c586c: the check for an older engine's rows read `batch_items` joined to `batches`; with
+    `batches` gone after the fold (dropped by hand, or a store that never had one) it raised outside the migration
+    and the library could not open. Each check reads its own table."""
+    path = _old_library(tmp_path)
+    Database(path).close()  # folded
+    conn = duckdb.connect(str(path))
+    conn.execute("DROP TABLE batches")
+    conn.close()
+    db = Database(path)  # opens
+    try:
+        assert not [f for f in db.migration_failures if f.migration.startswith("fold_batch")], db.migration_failures
+        assert len(_run(BatchManager(str(path)).list_batches())) == 3
+    finally:
+        db.close()
+
+
+def test_a_check_that_fails_is_said_and_the_library_still_opens(tmp_path):
+    """Review of 0027c586c: the older-engine check is a report, never a reason to refuse opening. An old table an
+    older build shaped differently (no `started_at`) makes the check fail; that is said on /api/health."""
+    path = _old_library(tmp_path)
+    Database(path).close()  # folded
+    conn = duckdb.connect(str(path))
+    conn.execute("DROP TABLE batch_items")
+    conn.execute("CREATE TABLE batch_items (batch_id TEXT, thread_id TEXT)")
+    conn.close()
+    db = Database(path)
+    try:
+        (said,) = [f for f in db.migration_failures if f.error_type == "OlderEngineCheckFailed"]
+        assert "batch_items" in said.message
+        assert len(_run(BatchManager(str(path)).list_batches())) == 3, "the library opened and reads its batches"
+    finally:
+        db.close()
+
+
 def test_a_new_batch_inserts_its_items_plainly(tmp_path, monkeypatch):
     """Review of ceafc0a9a (duckdb#26830): a batch just made saves its items as new rows, not upserts, which DuckDB
     1.5 holds at ~32 KB a column a row until commit."""
