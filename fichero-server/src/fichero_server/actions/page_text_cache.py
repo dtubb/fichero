@@ -190,6 +190,17 @@ def standing_text(db: Any, derived: Any) -> str | None:
     return "".join(keep)
 
 
+def searched_text(db: Any, derived: Any) -> str | None:
+    """What search reads beside the page's text (`STANDING_TEXT`): the standing text, and on a page whose text
+    carries a corpus's abbreviation markup (`dha$.dicha`), that text with its abbreviations opened (#5651), so
+    search and its vectors find `dicha`, never the markup. None when it would be the page's text itself."""
+    from fichero_server.formats.abbreviation_markup import expanded_text, has_markup
+
+    standing = standing_text(db, derived)
+    base = standing if standing is not None else derived.text
+    return expanded_text(base) if has_markup(base) else standing
+
+
 def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -316,7 +327,7 @@ def ensure_current(db: Any, document_ids: list[str]) -> list[str]:
         # The map is re-stored with the text: a stale stamp means a stale map too.
 
         _save_line_map(db, doc, text, derived)
-        if _store(db, doc, text, utc_now(), standing_text(db, derived)):
+        if _store(db, doc, text, utc_now(), searched_text(db, derived)):
             changed.append(document_id)
     return changed
 
@@ -354,7 +365,7 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
         text = cache_text(derived)
         # Stored even when the text is unchanged: two lines that read alike can swap places.
         _save_line_map(db, doc, text, derived)
-        if _store(db, doc, text, utc_now(), standing_text(db, derived)):
+        if _store(db, doc, text, utc_now(), searched_text(db, derived)):
             changed.append(document_id)
     return changed
 

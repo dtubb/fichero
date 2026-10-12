@@ -1518,7 +1518,10 @@ def _why_omitted(
 #: 14: a reading stored under `normalized_text` reads as a transcription at level regularised (#5653,
 #:     `source.reading.normalized-text-is-a-level`): on a line with no as-written reading it is now the
 #:     line's transcription, and a person's makes the line read from itself; the bump re-derives once.
-DERIVATION_VERSION = 14
+#: 15: what search reads beside the page's text opens a corpus's abbreviation markup (`dha$.dicha` is searched
+#:     as `dicha`, #5651); the derivation itself is unchanged, the bump re-derives every page once (a page
+#:     with no markup gains only the stamp, and is not re-embedded).
+DERIVATION_VERSION = 15
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page

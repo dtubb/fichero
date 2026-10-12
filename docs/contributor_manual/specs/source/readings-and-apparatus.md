@@ -330,8 +330,12 @@ Readings
   `tests/unit/api/test_names_read_expanded_text.py::test_a_lines_expanded_reading_is_what_names_are_read_from`
   and `tests/unit/training/test_kraken_training_set.py::test_the_set_does_not_learn_abbreviation_markup_as_text`.
   Not built: the PAGE importer does not yet write a line's expanded reading from its markup or its
-  `custom` abbrev tags (the parser is ready for it), and the page's text (`page_content`) still holds
-  the markup for search.
+  `custom` abbrev tags (the parser is ready for it). **Search (#5651, built 2026-10-12):** the page's text
+  (`page_content`) keeps its lines as the file had them, and what search reads beside it (the standing text,
+  `page_text_cache.searched_text`, indexed and embedded with the page) has the abbreviations opened, so a search
+  for `dicha` finds the page and no vector is made of markup; the derivation bump (15) re-derives each page
+  once, a page with no markup gaining only the stamp. Pinned by
+  `tests/unit/api/test_names_read_expanded_text.py::test_search_reads_the_page_with_its_abbreviations_opened`.
 - `source.reading.read-from` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_the_image_it_was_read_from_is_recorded`) a reading names the image it was read from, and the reading it
   was made from if it has one.
 - `source.reading.author-and-guideline` — **[OK]** (#4934; pinned by `tests/unit/api/test_segment_readings.py::TestReadingsAreWritten::test_a_reading_names_its_author_not_only_the_kind_of_author`) a reading names its author (person, or model and

@@ -91,3 +91,25 @@ def test_a_page_without_markup_is_read_exactly_as_before(db, tmp_path):
                    page_content="Paid $5 to the cooper.\nAnd 3 to the smith.")
     db.save(doc)
     assert text_for_names(db, doc.id, doc.page_content) == doc.page_content
+
+
+def test_search_reads_the_page_with_its_abbreviations_opened(db, page):
+    """WHY: search read the page's markup too (#5651): `dicha` was not found on a page that says `dha$.dicha`.
+    What search reads beside the page's text (its standing text, embedded and indexed with it) opens them; the
+    page's own text keeps the line as the file had it."""
+    from fichero_server.actions.page_text_cache import STANDING_TEXT
+
+    searched = (page.metadata or {}).get(STANDING_TEXT) or ""
+    assert "la dicha Anna Maria" in searched and "$" not in searched
+    rows = db._standing_text_records(page, page.page_content)
+    assert rows and all(row["embedding_scope"] == "standing" for row in rows)
+
+
+def test_a_page_without_markup_has_nothing_searched_beside_its_text(db, tmp_path):
+    from fichero_server.actions.page_text_cache import searched_text
+    from fichero_server.api.routes.document.segment_readings import document_text
+
+    doc = Document(name="plain.jpg", doc_type=DocType.file, file_type=FileType.image,
+                   path=str(tmp_path / "plain.jpg"), status=Status.completed)
+    db.save(doc)
+    assert searched_text(db, document_text(db, doc.id)) is None
