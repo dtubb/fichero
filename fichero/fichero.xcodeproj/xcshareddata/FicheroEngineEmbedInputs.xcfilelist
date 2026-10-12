@@ -420,6 +420,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/checking.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/compute_requests.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/conversion.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/editorial.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/file_triggers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/found_documents.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/geo.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/hands.py

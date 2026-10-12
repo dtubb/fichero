@@ -35,35 +35,6 @@ from fichero_server.workflows.workflow_store import WorkflowStore
 logger = logging.getLogger(__name__)
 MAX_BATCH_CACHE_SIZE = 512
 
-#: The library file a library's managed Database keeps (`db_manager.get_database`).
-LIBRARY_FILE = "fichero.duckdb"
-#: A loose database file a test or tool hands the store: its own Database, one per file in this process.
-_LOOSE: dict[str, Any] = {}
-_LOOSE_LOCK = threading.Lock()
-
-
-def _library_database(db_path: str) -> Any:
-    """The library's one managed Database for `db_path` (#5645, `source.store.one-managed-database`): the open
-    Database holding that file, else the library's through `db_manager`; a loose file (a test's, a tool's) gets a
-    Database of its own, kept for the process. The batch store keeps no connection of its own."""
-    import os
-
-    from fichero_server.db import Database
-    from fichero_server.db.manager import db_manager
-
-    real = os.path.realpath(db_path)
-    for db in list(db_manager._databases.values()):
-        if os.path.realpath(str(db.path)) == real:
-            return db
-    path = Path(db_path)
-    if path.name == LIBRARY_FILE:
-        return db_manager.get_database(path.parent)
-    with _LOOSE_LOCK:
-        if real not in _LOOSE:
-            _LOOSE[real] = Database(path)
-        return _LOOSE[real]
-
-
 def _item_of(record: Any) -> "BatchItem":
     return BatchItem(thread_id=record.thread_id, item_index=record.item_index, inputs=dict(record.inputs or {}),
                      status=BatchItemStatus(record.status), error=record.error,
@@ -243,7 +214,9 @@ class BatchManager:
         self._cancel_events: dict[str, threading.Event] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
         # The library's one managed Database (#5645): its rows are `BatchRecord` and `BatchItemRecord`.
-        self.db = _library_database(db_path)
+        from fichero_server.db.manager import database_for_file
+
+        self.db = database_for_file(db_path)
 
     def _remember_batch(self, batch: BatchExecution) -> None:
         self._batches[batch.batch_id] = batch
@@ -292,7 +265,7 @@ class BatchManager:
 
         # Store in memory and database
         self._remember_batch(batch)
-        await self._save_batch(batch)
+        await self._save_batch(batch, new=True)
         self.activity_tracker.batch_created(
             batch_id=batch_id,
             workflow_id=workflow_id,
@@ -303,8 +276,10 @@ class BatchManager:
         logger.info(f"Created batch {batch_id} with {len(items)} items")
         return batch
 
-    async def _save_batch(self, batch: BatchExecution) -> None:
-        """Save the batch and its items through the library's managed Database (#5645)."""
+    async def _save_batch(self, batch: BatchExecution, *, new: bool = False) -> None:
+        """Save the batch and its items through the library's managed Database (#5645). `new`: the batch was just
+        made, so its items are plain INSERTs; an upsert of new rows holds ~32 KB a column a row until commit in DuckDB
+        1.5 (duckdb#26830: a 500-item batch held ~128 MB)."""
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
 
         def _save():
@@ -319,7 +294,7 @@ class BatchManager:
                                     thread_id=item.thread_id, item_index=item.item_index, inputs=item.inputs,
                                     status=item.status.value, error=item.error, started_at=item.started_at,
                                     completed_at=item.completed_at)
-                    for item in batch.items])
+                    for item in batch.items], new=new)
 
         await asyncio.to_thread(_save)
 
@@ -799,11 +774,12 @@ class BatchManager:
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
 
         def _delete():
-            for item in self.db.query(BatchItemRecord, batch_id=batch_id):
-                self.db.delete(item)
-            record = self.db.get(BatchRecord, batch_id)
-            if record is not None:
-                self.db.delete(record)
+            with self.db.transaction():  # the batch and its items go together, or not at all
+                for item in self.db.query(BatchItemRecord, batch_id=batch_id):
+                    self.db.delete(item)
+                record = self.db.get(BatchRecord, batch_id)
+                if record is not None:
+                    self.db.delete(record)
 
         await asyncio.to_thread(_delete)
 

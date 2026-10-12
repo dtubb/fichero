@@ -143,3 +143,63 @@ def test_a_new_library_has_nothing_to_fold(tmp_path):
         assert loaded.created_at.tzinfo is not None and loaded.created_at <= datetime.now(timezone.utc)
     finally:
         db.close()
+
+
+def test_an_old_library_with_batches_but_no_items_table_folds_its_batches(tmp_path):
+    """Review of ceafc0a9a: each old table is folded on its own; a library that never made `batch_items` loses none."""
+    package = tmp_path / "Old.fichero"
+    package.mkdir()
+    path = package / "fichero.duckdb"
+    conn = duckdb.connect(str(path))
+    conn.execute("CREATE TABLE batches (batch_id TEXT PRIMARY KEY, workflow_id TEXT NOT NULL, status TEXT NOT NULL, "
+                 "max_concurrent INTEGER DEFAULT 5, created_at TIMESTAMP NOT NULL, started_at TIMESTAMP, "
+                 "completed_at TIMESTAMP, error_message TEXT)")
+    conn.execute("INSERT INTO batches VALUES ('only', 'wf', 'completed', 2, '2026-09-01 12:00', NULL, NULL, NULL)")
+    conn.close()
+    db = Database(path)
+    try:
+        assert not db.migration_failures, db.migration_failures
+        (batch,) = _run(BatchManager(str(path)).list_batches())
+        assert batch.batch_id == "only" and batch.items == [] and batch.max_concurrent == 2
+    finally:
+        db.close()
+
+
+def test_rows_an_older_engine_writes_after_the_fold_are_said_not_copied(tmp_path):
+    """Review of ceafc0a9a: downgrading is not supported. Rows an older Fichero writes to the old tables after the fold
+    are not copied (a key the new tables lack may be a batch deleted since), but they are said: the log and
+    `/api/health`'s migration failures name how many."""
+    path = _old_library(tmp_path)
+    Database(path).close()  # the fold, recorded
+    conn = duckdb.connect(str(path))  # an older engine, opened on the converted library, starts a batch
+    conn.execute("SET TimeZone = 'UTC'")  # as every engine's session is (`connect_utc`)
+    conn.execute("INSERT INTO batches VALUES ('batch-old-engine', 'wf', 'pending', 5, "
+                 "now()::TIMESTAMP + INTERVAL 1 MINUTE, NULL, NULL, NULL)")
+    conn.close()
+    db = Database(path)
+    try:
+        (said,) = [f for f in db.migration_failures if f.error_type == "WrittenByAnOlderEngine"]
+        assert said.message.startswith("1 rows were written to the old batch tables by an older Fichero")
+        assert "batch-old-engine" not in {b.batch_id for b in _run(BatchManager(str(path)).list_batches())}
+    finally:
+        db.close()
+
+
+def test_a_new_batch_inserts_its_items_plainly(tmp_path, monkeypatch):
+    """Review of ceafc0a9a (duckdb#26830): a batch just made saves its items as new rows, not upserts, which DuckDB
+    1.5 holds at ~32 KB a column a row until commit."""
+    package = tmp_path / "New.fichero"
+    package.mkdir()
+    db = Database(package / "fichero.duckdb")
+    try:
+        manager = BatchManager(str(db.path))
+        calls = []
+        real = manager.db.save_many
+        monkeypatch.setattr(manager.db, "save_many",
+                            lambda objs, *, new=False: calls.append(new) or real(objs, new=new))
+        made = _run(manager.create_batch("wf", [{"n": n} for n in range(3)]))
+        assert calls == [True]
+        _run(manager.cancel_batch(made.batch_id))  # a later save of the same rows upserts
+        assert calls == [True, False]
+    finally:
+        db.close()

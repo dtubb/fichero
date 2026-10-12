@@ -10,7 +10,6 @@ Provides folder watching capabilities for automated workflow execution:
 
 import asyncio
 import fnmatch
-import json
 import logging
 import re
 import uuid
@@ -21,7 +20,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from fichero_server.core.duckdb_session import connect_utc
 from watchdog.observers import Observer
 from watchdog.events import (
     FileSystemEventHandler,
@@ -245,58 +243,10 @@ class FileWatcherManager:
         ] = {}  # trigger_id -> [(event_type, path)]
         self._batch_tasks: dict[str, Any] = {}  # concurrent futures on the background loop
         self._pending_tasks: dict[str, list[asyncio.Task]] = {}
+        from fichero_server.db.manager import database_for_file
 
-        self._init_database()
-
-    def _init_database(self) -> None:
-        """Initialize database tables for trigger tracking."""
-        conn = connect_utc(self.db_path)
-        try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS file_triggers (
-                    trigger_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    workflow_id TEXT NOT NULL,
-                    watch_path TEXT NOT NULL,
-                    recursive BOOLEAN DEFAULT TRUE,
-                    events JSON DEFAULT '["created"]',
-                    filter_mode TEXT DEFAULT 'glob',
-                    filter_pattern TEXT,
-                    filter_extensions JSON DEFAULT '[]',
-                    exclude_patterns JSON DEFAULT '[]',
-                    debounce_seconds FLOAT DEFAULT 1.0,
-                    batch_delay_seconds FLOAT DEFAULT 5.0,
-                    inputs_template JSON DEFAULT '{}',
-                    status TEXT NOT NULL,
-                    use_batch BOOLEAN DEFAULT TRUE,
-                    max_concurrent INTEGER DEFAULT 5,
-                    created_at TIMESTAMP NOT NULL,
-                    updated_at TIMESTAMP NOT NULL,
-                    last_triggered_at TIMESTAMP,
-                    trigger_count INTEGER DEFAULT 0,
-                    error_message TEXT
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS trigger_executions (
-                    execution_id TEXT PRIMARY KEY,
-                    trigger_id TEXT NOT NULL,
-                    triggered_at TIMESTAMP NOT NULL,
-                    file_paths JSON NOT NULL,
-                    batch_id TEXT,
-                    status TEXT NOT NULL,
-                    error TEXT,
-                    completed_at TIMESTAMP
-                )
-            """)
-
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_trigger_executions_trigger
-                ON trigger_executions(trigger_id)
-            """)
-        finally:
-            conn.close()
+        # The library's one managed Database (#5645): its rows are `FileTriggerRecord` and `TriggerExecutionRecord`.
+        self.db = database_for_file(db_path)
 
     async def start(self) -> None:
         """Start the file watcher and load existing triggers."""
@@ -321,56 +271,19 @@ class FileWatcherManager:
     async def _load_triggers(self) -> None:
         """Load active triggers from database and set up watchers."""
 
+        from fichero_server.models.file_triggers import FileTriggerRecord
+
         def _load():
-            conn = connect_utc(self.db_path)
-            try:
-                results = conn.execute("""
-                    SELECT * FROM file_triggers WHERE status = 'active'
-                """).fetchall()
-                return results
-            finally:
-                conn.close()
+            return self.db.query(FileTriggerRecord, status=TriggerStatus.ACTIVE.value)
 
         rows = await asyncio.to_thread(_load)
 
         for row in rows:
-            trigger = self._row_to_trigger(row)
+            trigger = _trigger_of(row)
             self._triggers[trigger.trigger_id] = trigger
             self._setup_watcher(trigger)
 
         logger.info(f"Loaded {len(rows)} active file triggers")
-
-    def _row_to_trigger(self, row) -> FileTrigger:
-        """Convert database row to FileTrigger object."""
-
-        events = json.loads(row[4]) if row[4] else ["created"]
-
-        return FileTrigger(
-            trigger_id=row[0],
-            name=row[1],
-            workflow_id=row[2],
-            config=TriggerConfig(
-                watch_path=row[3],
-                recursive=row[4] if row[4] is not None else True,
-                events=[TriggerEvent(e) for e in events],
-                filter_mode=FilterMode(row[6]) if row[6] else FilterMode.GLOB,
-                filter_pattern=row[7],
-                filter_extensions=json.loads(row[8]) if row[8] else [],
-                exclude_patterns=json.loads(row[9]) if row[9] else [],
-                debounce_seconds=row[10] or 1.0,
-                batch_delay_seconds=row[11] or 5.0,
-            ),
-            inputs_template=json.loads(row[12]) if row[12] else {},
-            status=TriggerStatus(row[13]),
-            use_batch=row[14] if row[14] is not None else True,
-            max_concurrent=row[15] or 5,
-            # naive stored value IS UTC (#4347)
-            created_at=ensure_utc(row[16]),
-            updated_at=ensure_utc(row[17]),
-            last_triggered_at=ensure_utc(row[18]),
-            trigger_count=row[19] or 0,
-            error_message=row[20],
-        )
 
     def _setup_watcher(self, trigger: FileTrigger) -> None:
         """Set up a file system watcher for a trigger."""
@@ -631,77 +544,20 @@ class FileWatcherManager:
         """Save trigger to database."""
 
         def _save():
-
-            conn = connect_utc(self.db_path)
-            try:
-                events = [e.value for e in trigger.config.events]
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO file_triggers (
-                        trigger_id, name, workflow_id, watch_path, recursive,
-                        events, filter_mode, filter_pattern, filter_extensions,
-                        exclude_patterns, debounce_seconds, batch_delay_seconds,
-                        inputs_template, status, use_batch, max_concurrent,
-                        created_at, updated_at, last_triggered_at, trigger_count,
-                        error_message
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        trigger.trigger_id,
-                        trigger.name,
-                        trigger.workflow_id,
-                        trigger.config.watch_path,
-                        trigger.config.recursive,
-                        json.dumps(events),
-                        trigger.config.filter_mode.value,
-                        trigger.config.filter_pattern,
-                        json.dumps(trigger.config.filter_extensions),
-                        json.dumps(trigger.config.exclude_patterns),
-                        trigger.config.debounce_seconds,
-                        trigger.config.batch_delay_seconds,
-                        json.dumps(trigger.inputs_template),
-                        trigger.status.value,
-                        trigger.use_batch,
-                        trigger.max_concurrent,
-                        trigger.created_at,
-                        trigger.updated_at,
-                        trigger.last_triggered_at,
-                        trigger.trigger_count,
-                        trigger.error_message,
-                    ],
-                )
-            finally:
-                conn.close()
+            self.db.save(_record_of(trigger))
 
         await asyncio.to_thread(_save)
 
     async def _save_execution(self, execution: TriggerExecution) -> None:
         """Save trigger execution to database."""
 
-        def _save():
+        from fichero_server.models.file_triggers import TriggerExecutionRecord
 
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO trigger_executions (
-                        execution_id, trigger_id, triggered_at, file_paths,
-                        batch_id, status, error, completed_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        execution.execution_id,
-                        execution.trigger_id,
-                        execution.triggered_at,
-                        json.dumps(execution.file_paths),
-                        execution.batch_id,
-                        execution.status,
-                        execution.error,
-                        execution.completed_at,
-                    ],
-                )
-            finally:
-                conn.close()
+        def _save():
+            self.db.save(TriggerExecutionRecord(
+                id=execution.execution_id, trigger_id=execution.trigger_id, triggered_at=execution.triggered_at,
+                file_paths=list(execution.file_paths), batch_id=execution.batch_id, status=execution.status,
+                error=execution.error, completed_at=execution.completed_at))
 
         await asyncio.to_thread(_save)
 
@@ -710,22 +566,14 @@ class FileWatcherManager:
         if trigger_id in self._triggers:
             return self._triggers[trigger_id]
 
-        def _load():
-            conn = connect_utc(self.db_path)
-            try:
-                result = conn.execute(
-                    "SELECT * FROM file_triggers WHERE trigger_id = ?", [trigger_id]
-                ).fetchone()
-                return result
-            finally:
-                conn.close()
+        from fichero_server.models.file_triggers import FileTriggerRecord
 
-        row = await asyncio.to_thread(_load)
-        if row:
-            trigger = self._row_to_trigger(row)
-            self._triggers[trigger_id] = trigger
-            return trigger
-        return None
+        record = await asyncio.to_thread(self.db.get, FileTriggerRecord, trigger_id)
+        if record is None:
+            return None
+        trigger = _trigger_of(record)
+        self._triggers[trigger_id] = trigger
+        return trigger
 
     async def list_triggers(
         self,
@@ -736,29 +584,22 @@ class FileWatcherManager:
     ) -> list[FileTrigger]:
         """List triggers with optional filtering."""
 
+        from fichero_server.models.file_triggers import FileTriggerRecord
+
         def _list():
-            conn = connect_utc(self.db_path)
-            try:
-                query = "SELECT * FROM file_triggers WHERE 1=1"
-                params = []
-
-                if status:
-                    query += " AND status = ?"
-                    params.append(status.value)
-                if workflow_id:
-                    query += " AND workflow_id = ?"
-                    params.append(workflow_id)
-
-                query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-                params.extend([limit, offset])
-
-                results = conn.execute(query, params).fetchall()
-                return results
-            finally:
-                conn.close()
+            filters = {}
+            if status:
+                filters["status"] = status.value
+            if workflow_id:
+                filters["workflow_id"] = workflow_id
+            # ponytail: sorted and paged here (`Database.query` filters by equality only); a library holds a
+            # handful of triggers. Push the order into SQL if that ever changes.
+            records = self.db.query(FileTriggerRecord, **filters)
+            records.sort(key=lambda r: ensure_utc(r.created_at), reverse=True)
+            return records[offset:offset + limit]
 
         rows = await asyncio.to_thread(_list)
-        return [self._row_to_trigger(row) for row in rows]
+        return [_trigger_of(row) for row in rows]
 
     async def pause_trigger(self, trigger_id: str) -> FileTrigger:
         """Pause a file trigger."""
@@ -868,17 +709,15 @@ class FileWatcherManager:
             del self._pending_events[trigger_id]
 
         # Remove from database
+        from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
+
         def _delete():
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute(
-                    "DELETE FROM trigger_executions WHERE trigger_id = ?", [trigger_id]
-                )
-                conn.execute(
-                    "DELETE FROM file_triggers WHERE trigger_id = ?", [trigger_id]
-                )
-            finally:
-                conn.close()
+            with self.db.transaction():
+                for execution in self.db.query(TriggerExecutionRecord, trigger_id=trigger_id):
+                    self.db.delete(execution)
+                record = self.db.get(FileTriggerRecord, trigger_id)
+                if record is not None:
+                    self.db.delete(record)
 
         await asyncio.to_thread(_delete)
 
@@ -895,38 +734,75 @@ class FileWatcherManager:
     ) -> list[TriggerExecution]:
         """Get execution history for a trigger."""
 
+        from fichero_server.models.file_triggers import TriggerExecutionRecord
+
         def _get_executions():
-            conn = connect_utc(self.db_path)
-            try:
-                results = conn.execute(
-                    """
-                    SELECT execution_id, trigger_id, triggered_at, file_paths,
-                           batch_id, status, error, completed_at
-                    FROM trigger_executions
-                    WHERE trigger_id = ?
-                    ORDER BY triggered_at DESC
-                    LIMIT ?
-                """,
-                    [trigger_id, limit],
-                ).fetchall()
-                return results
-            finally:
-                conn.close()
+            # ponytail: newest first, sorted here (`Database.query` filters by equality only); a trigger's history is
+            # small. Push the order into SQL if that ever changes.
+            records = self.db.query(TriggerExecutionRecord, trigger_id=trigger_id)
+            records.sort(key=lambda r: ensure_utc(r.triggered_at), reverse=True)
+            return records[:limit]
 
         rows = await asyncio.to_thread(_get_executions)
         return [
             TriggerExecution(
-                execution_id=row[0],
-                trigger_id=row[1],
-                triggered_at=ensure_utc(row[2]),
-                file_paths=json.loads(row[3]) if row[3] else [],
-                batch_id=row[4],
-                status=row[5],
-                error=row[6],
-                completed_at=ensure_utc(row[7]),
+                execution_id=row.id,
+                trigger_id=row.trigger_id,
+                triggered_at=ensure_utc(row.triggered_at),
+                file_paths=list(row.file_paths or []),
+                batch_id=row.batch_id,
+                status=row.status,
+                error=row.error,
+                completed_at=ensure_utc(row.completed_at),
             )
             for row in rows
         ]
+
+
+def _record_of(trigger: FileTrigger) -> Any:
+    """A trigger as the library keeps it (#5645)."""
+    from fichero_server.models.file_triggers import FileTriggerRecord
+
+    config = trigger.config
+    return FileTriggerRecord(
+        id=trigger.trigger_id, name=trigger.name, workflow_id=trigger.workflow_id, watch_path=config.watch_path,
+        recursive=config.recursive, events=[e.value for e in config.events], filter_mode=config.filter_mode.value,
+        filter_pattern=config.filter_pattern, filter_extensions=list(config.filter_extensions),
+        exclude_patterns=list(config.exclude_patterns), debounce_seconds=config.debounce_seconds,
+        batch_delay_seconds=config.batch_delay_seconds, inputs_template=dict(trigger.inputs_template),
+        status=trigger.status.value, use_batch=trigger.use_batch, max_concurrent=trigger.max_concurrent,
+        created_at=trigger.created_at, updated_at=trigger.updated_at, last_triggered_at=trigger.last_triggered_at,
+        trigger_count=trigger.trigger_count, error_message=trigger.error_message)
+
+
+def _trigger_of(record: Any) -> FileTrigger:
+    """A kept trigger as the watcher works with it, field by field (#5645: reading the old table by position took
+    `events` from the `recursive` column, and a trigger read back could not be loaded)."""
+    return FileTrigger(
+        trigger_id=record.id,
+        name=record.name,
+        workflow_id=record.workflow_id,
+        config=TriggerConfig(
+            watch_path=record.watch_path,
+            recursive=record.recursive,
+            events=[TriggerEvent(e) for e in (record.events or ["created"])],
+            filter_mode=FilterMode(record.filter_mode or "glob"),
+            filter_pattern=record.filter_pattern,
+            filter_extensions=list(record.filter_extensions or []),
+            exclude_patterns=list(record.exclude_patterns or []),
+            debounce_seconds=record.debounce_seconds,
+            batch_delay_seconds=record.batch_delay_seconds,
+        ),
+        inputs_template=dict(record.inputs_template or {}),
+        status=TriggerStatus(record.status),
+        use_batch=record.use_batch,
+        max_concurrent=record.max_concurrent,
+        created_at=ensure_utc(record.created_at),
+        updated_at=ensure_utc(record.updated_at),
+        last_triggered_at=ensure_utc(record.last_triggered_at),
+        trigger_count=record.trigger_count,
+        error_message=record.error_message,
+    )
 
 
 # Global file watcher instance
