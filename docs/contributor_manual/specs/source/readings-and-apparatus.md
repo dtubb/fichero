@@ -365,6 +365,9 @@ Readings
   (`SegmentService.correctLine`, `CorrectThisLine.swift`; `CorrectThisLineTests`); a refusal is said, never
   swallowed. Still owed: ⌘Z for it, which comes with the audited action (segment id plus text) the
   route's answer lacks an audit row for.
+  **The answer is the reading (#5697):** a correction answers with the reading it made, without the
+  line's outline (`source_anchor.polygon` and `shapes` empty): the correction did not change it, and the segment
+  has it. An outline never keeps a point the same as the one before it, wherever an anchor is made or read.
 - `source.reading.equal-alternatives` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestStrictProject::test_three_peoples_readings_coexist_and_nothing_counts_until_one_is_chosen`) several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
 - `source.reading.chosen-is-worked-out` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_a_superseded_choice_is_history_not_a_vote`) "which reading counts" is worked out from recorded

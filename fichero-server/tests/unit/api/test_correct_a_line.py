@@ -86,3 +86,17 @@ def test_source_reading_correct_a_line__unknown_and_provisional_segments_refused
 def test_source_reading_correct_a_line__empty_text_refused(db, client):
     _doc_id, segment_id, _file = _third_line(db, client)
     assert client.post(f"/api/segments/{segment_id}/correct", json={"text": ""}).status_code == 422
+
+
+def test_source_reading_correct_a_line__the_answer_is_the_reading_not_the_lines_outline(db, client):
+    """WHY (#5697): each correction's answer was ~5 KB, mostly the line's outline, with runs of repeated points.
+    The answer carries the reading; the outline the correction did not change stays on the segment."""
+    from fichero_server.models.anchors import SourceAnchor
+
+    _doc_id, segment_id, _file_reading = _third_line(db, client)
+    made = client.post(f"/api/segments/{segment_id}/correct", json={"text": "short"}).json()
+    assert made["source_anchor"].get("polygon") is None and made["source_anchor"].get("shapes") is None
+    assert made["content"] == "short"
+
+    outline = SourceAnchor(document_id="d", polygon=[[0, 0], [0, 0], [1, 0], [1, 0], [1, 1], [0, 0]]).polygon
+    assert outline == [[0, 0], [1, 0], [1, 1], [0, 0]]

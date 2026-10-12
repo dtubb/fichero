@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 #: Ids minted by a READ SEAM rather than written as records: a box's position
 #: in today's `ocr_geometry` blob (`legacy:`) and an artifact's text read as a
@@ -454,6 +454,15 @@ class SourceAnchor(BaseModel):
     #: CHARACTERS (`readings.replace_stretch`) or reported unplaced -- never
     #: re-measured by position alone.
     representation_id: str | None = None
+
+    @field_validator("polygon")
+    @classmethod
+    def _no_repeated_points(cls, polygon: list[list[float]] | None) -> list[list[float]] | None:
+        """A point the same as the one before it says nothing (#5697: a line's outline came with runs of them,
+        ~5 KB an answer). Dropped wherever an anchor is made, stored or read back."""
+        if not polygon:
+            return polygon
+        return [p for i, p in enumerate(polygon) if i == 0 or p != polygon[i - 1]]
 
     @model_validator(mode="after")
     def _check_lasting_references(self) -> SourceAnchor:

@@ -905,7 +905,8 @@ async def correct_segment_line(
     One `representation.create` -- the action every correction is -- with the document, the reading it
     corrects (the one that counts now, or the artifact text a provisional one still lives in) and the
     compare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,
-    so a person's correction is a person's reading and counts over a machine's."""
+    so a person's correction is a person's reading and counts over a machine's. The answer is the reading; the
+    line's outline, which the correction did not change, is not repeated in it (#5697): the segment has it."""
     from fichero_server.api.routes.document.content_representations import _live_segment  # noqa: PLC0415
 
     try:
@@ -933,7 +934,9 @@ async def correct_segment_line(
         raise  # the stale 409 carries its own detail
     except Exception as exc:
         raise _as_http_error(exc) from exc
-    return ContentRepresentation.model_validate(result.result)
+    made = ContentRepresentation.model_validate(result.result)
+    made.source_anchor = made.source_anchor.model_copy(update={"polygon": None, "shapes": None})
+    return made
 
 
 # ===========================================================================
