@@ -177,7 +177,7 @@ struct ZoomableImagePreview: View {
     /// show boxes on one side only, and a pane with no saved choice starts ON. It
     /// used to start from the app-wide key, which a removed toggle had left off,
     /// so every new pane drew a bare image.
-    @PaneStorage(paneOnly: "imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    @PaneOnlyStorage("imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30). ON by
     /// default (Daniel, 2026-08-31): his container had this key stuck at 0,
     /// so every mark the markup row drew saved correctly and then rendered

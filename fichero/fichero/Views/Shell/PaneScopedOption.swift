@@ -42,25 +42,14 @@ struct PaneStorage<Value: Codable>: DynamicProperty {
     @Environment(\.paneLeafId) private var pane
     private let shared: AppStorage<Value>
     private let map: AppStorage<String>
-    /// Set for a pane-only option (#5504): its declared default. Such an option never reads or
-    /// writes the shared key; a view with no pane keeps its choice in `unpaned` for its lifetime.
-    private let paneOnly: Value?
-    @State private var unpaned: Value?
 
     var wrappedValue: Value {
-        get {
-            if paneOnly != nil, pane == nil, let unpaned { return unpaned }
-            return PaneScopedOption.value(map.wrappedValue, pane: pane, shared: shared.wrappedValue, paneOnly: paneOnly)
-        }
+        get { PaneScopedOption.value(map.wrappedValue, pane: pane, shared: shared.wrappedValue) }
         nonmutating set {
             if pane != nil {
                 map.wrappedValue = PaneScopedOption.setting(newValue, in: map.wrappedValue, pane: pane)
             }
-            if paneOnly == nil {
-                shared.wrappedValue = newValue
-            } else if pane == nil {
-                unpaned = newValue
-            }
+            shared.wrappedValue = newValue
         }
     }
 
@@ -68,19 +57,48 @@ struct PaneStorage<Value: Codable>: DynamicProperty {
         Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
     }
 
-    private init(shared: AppStorage<Value>, key: String, paneOnly: Value? = nil) {
+    private init(shared: AppStorage<Value>, key: String) {
         self.shared = shared
         self.map = AppStorage(wrappedValue: "{}", key + ".byPane")
-        self.paneOnly = paneOnly
     }
 }
 
 extension PaneStorage where Value == Bool {
     init(wrappedValue: Bool, _ key: String) { self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key) }
+}
 
-    /// Per pane only (#5504): a pane with no saved choice starts at `wrappedValue`.
-    init(wrappedValue: Bool, paneOnly key: String) {
-        self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key, paneOnly: wrappedValue)
+/// A switch kept per pane ONLY (#5504): a pane reads its own entry in `<key>.byPane`, else the declared default,
+/// and never reads or writes the shared key (an old toggle left `imagePreview.ocrBoxesEnabled` false app-wide, so
+/// every new Preview drew no boxes). A view with no pane keeps its choice for its lifetime. Its own type, not a mode
+/// of `PaneStorage`: the extra fields would grow every pane option's value (`ViewValueSizeTests`).
+@propertyWrapper
+struct PaneOnlyStorage: DynamicProperty {
+    @Environment(\.paneLeafId) private var pane
+    private let map: AppStorage<String>
+    private let initial: Bool
+    @State private var unpaned: Bool?
+
+    var wrappedValue: Bool {
+        get {
+            if pane == nil, let unpaned { return unpaned }
+            return PaneScopedOption.value(map.wrappedValue, pane: pane, shared: false, paneOnly: initial)
+        }
+        nonmutating set {
+            if pane != nil {
+                map.wrappedValue = PaneScopedOption.setting(newValue, in: map.wrappedValue, pane: pane)
+            } else {
+                unpaned = newValue
+            }
+        }
+    }
+
+    var projectedValue: Binding<Bool> {
+        Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
+    }
+
+    init(wrappedValue: Bool, _ key: String) {
+        map = AppStorage(wrappedValue: "{}", key + ".byPane")
+        initial = wrappedValue
     }
 }
 

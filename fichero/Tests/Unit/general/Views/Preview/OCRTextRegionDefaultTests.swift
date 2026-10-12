@@ -32,7 +32,7 @@ struct OCRTextRegionDefaultTests {
         // never from the app-wide key an old toggle left off (which drew bare images).
         let image = try AppSource.text("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
         #expect(
-            image.contains("@PaneStorage(paneOnly: \"imagePreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
+            image.contains("@PaneOnlyStorage(\"imagePreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
             "imagePreview.ocrBoxesEnabled must default on, per pane only — see #4418/#4497/#5504"
         )
         #expect(
@@ -42,7 +42,7 @@ struct OCRTextRegionDefaultTests {
 
         let pdf = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
         #expect(
-            pdf.contains("@PaneStorage(paneOnly: \"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
+            pdf.contains("@PaneOnlyStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
             "pdfPreview.ocrBoxesEnabled must default on, per pane only — see #4418/#4497/#5504"
         )
         #expect(

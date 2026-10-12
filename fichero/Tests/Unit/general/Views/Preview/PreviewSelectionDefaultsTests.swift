@@ -93,7 +93,7 @@ struct PreviewSelectionDefaultsTests {
     @Test("the image surface's box toggle is per pane only, starting on")
     func boxToggleIsPerPane() throws {
         let viewer = try appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
-        #expect(viewer.contains("@PaneStorage(paneOnly: \"imagePreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"))
+        #expect(viewer.contains("@PaneOnlyStorage(\"imagePreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"))
         #expect(!viewer.contains("@AppStorage(\"imagePreview.ocrBoxesEnabled\")"),
                 "shared storage is the desync: hiding boxes on the left split hid the right")
         // #5504: no app-wide default is remembered for the next pane — a stale one drew bare images.

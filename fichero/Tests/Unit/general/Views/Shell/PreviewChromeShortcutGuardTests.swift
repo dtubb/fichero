@@ -318,11 +318,9 @@ struct PreviewWhatToShowMenuGuardTests {
             guard url.pathExtension == "swift",
                   let source = try? String(contentsOf: url, encoding: .utf8) else { continue }
             let name = url.lastPathComponent
-            // The image switch is per-pane @State since 2026-09-02; its
-            // ownership marker is the one seed-read of the shared default.
-            if source.contains(".object(forKey: \"imagePreview.ocrBoxesEnabled\")") { imageOwners.append(name) }
-            // Kept per pane since #5280 (@PaneStorage), still at this one key.
-            if source.contains("@PaneStorage(\"pdfPreview.ocrBoxesEnabled\")") { pdfOwners.append(name) }
+            // Both switches are per pane only since #5504 (`@PaneStorage(paneOnly:)`); the declaration owns each key.
+            if source.contains("@PaneOnlyStorage(\"imagePreview.ocrBoxesEnabled\")") { imageOwners.append(name) }
+            if source.contains("@PaneOnlyStorage(\"pdfPreview.ocrBoxesEnabled\")") { pdfOwners.append(name) }
         }
         #expect(imageOwners.count == 1, "image word-box switch has \(imageOwners.count) owners: \(imageOwners)")
         #expect(pdfOwners.count == 1, "PDF word-box switch has \(pdfOwners.count) owners: \(pdfOwners)")
