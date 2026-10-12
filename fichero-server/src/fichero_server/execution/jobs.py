@@ -1684,6 +1684,13 @@ def state_and_reason(db: "Database", job_id: str) -> tuple[str, str | None] | No
     return state, reason
 
 
+def read_again_runs(db: "Database") -> set[str]:
+    """The workflow runs a newer run read again (Retry, or Read Again): their thread ids (`activity.retry.one-row`)."""
+    prefix = "read-again:"
+    return {row[0][len(prefix):] for row in db.execute_fetchall(
+        "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'")}
+
+
 def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
     """Why work of these kinds is not moving: None while one of them runs or none waits, else the
     oldest waiting one's reason as `waiting_reason` decides it (the import's "Processing imported

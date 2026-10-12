@@ -453,8 +453,9 @@ async def list_background_jobs(
 
         # A failed run whose pages were read again by a newer run (Retry, or Read Again) is that run's now: one
         # row, not two (`activity.retry.one-row`).
-        read_again = {row[0][len("read-again:"):] for row in db.execute_fetchall(
-            "SELECT started_by FROM jobs WHERE kind = 'workflow' AND started_by LIKE 'read-again:%'")}
+        from fichero_server.execution.jobs import read_again_runs
+
+        read_again = read_again_runs(db)
         for run in runs:
             status = (run.status or "").lower()
             if status == "failed" and run.thread_id in read_again:

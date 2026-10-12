@@ -609,18 +609,12 @@ def correct_available(card: Card | None) -> bool:
 def _model_words(card: Card) -> str:
     from fichero_server.recipes.cards import mlx_model_for
 
-    repo = mlx_model_for(card.pin)
-    if repo:
-        try:
-            from fichero_server.llm.mlx_model_store import get_mlx_model_store
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
 
-            store = get_mlx_model_store()
-            model_id = store.canonical_id(repo)
-            if model_id is not None:
-                return store.spec(model_id).display_name
-        except Exception:  # noqa: BLE001 -- a name is never worth failing the recipe for; the card's id is said
-            pass
-    return card.id
+    repo = mlx_model_for(card.pin)
+    # The catalogue's name for it (a pure lookup: the rules never read this Mac's store), else the card's own.
+    named = next((s.display_name for i, s in MANAGED_MLX_MODELS.items() if repo and repo in (i, s.repo_id)), None)
+    return named or card.note or card.id
 
 
 def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
