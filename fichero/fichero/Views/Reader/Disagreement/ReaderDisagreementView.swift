@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Reader's lens "Where the Readers Disagree" (#5665, `source.disagree.lens`): the page's lines, each word tinted
-/// by how many readers gave it; clicking a word lists its variants (`.popover`); Read › Next Doubtful Word walks the
+/// by how many readers gave it; clicking a word lists its variants (`.popover`); Page › Next Doubtful Word walks the
 /// doubtful ones (`.next-doubtful`). With fewer than two readings it says so and offers another reader
 /// (`.fewer-than-two`). Read from the project's `ReadingDisagreementStore`.
 struct ReaderDisagreementView: View {

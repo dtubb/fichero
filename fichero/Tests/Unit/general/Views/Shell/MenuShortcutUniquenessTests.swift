@@ -215,6 +215,28 @@ struct MenuShortcutUniquenessTests {
         }
     }
 
+    /// #5652 slice 2: Read became Page and the Segment menu folded into it. The items moved and kept their chords:
+    /// Join ⌘J, Next / Previous Doubtful Word ⌃⌘G / ⇧⌃⌘G, Rotate Left / Right ⌘L / ⌘R, each still minted once, app-wide,
+    /// on its own shared component.
+    @Test("Page's moved items keep their chords, each minted once, app-wide")
+    func pageMenuChordsAreUnique() throws {
+        let mints = try allMints(everywhere: true)
+        let commands = "App/Menus/FocusedCommands/"
+        let homes = [
+            "j-command": commands + "SegmentMenuCommands.swift",
+            "g-command+control": commands + "DoubtfulWordCommands.swift",
+            "g-command+control+shift": commands + "DoubtfulWordCommands.swift",
+            "l-command": commands + "RotateImageCommands.swift",
+            "r-command": commands + "RotateImageCommands.swift",
+        ]
+        for (chord, home) in homes {
+            let sites = mints.filter { "\($0.key)-\($0.modifiers)" == chord }
+            let siteList = sites.map { "\($0.file):\($0.line)" }.joined(separator: ", ")
+            #expect(sites.count == 1, "\(chord) is minted \(sites.count) times: \(siteList)")
+            #expect(sites.first?.file == home, "\(chord) belongs to \(home): \(siteList)")
+        }
+    }
+
     // MARK: - Source scan
 
     /// Every shortcut mint under `App/` and `Views/Shell/`:

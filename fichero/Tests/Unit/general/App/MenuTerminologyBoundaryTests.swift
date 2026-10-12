@@ -61,7 +61,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
             ["Read", "Organise", "Structure", "Connect", "Train"]
         )
 
-        let source = try Self.appSource("App/Menus/ReadKnowledgeMenuCommands.swift")
+        let source = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
         XCTAssertFalse(source.contains("CommandMenu(\"Knowledge\")"), "the Knowledge menu retired into Project")
         let project = try XCTUnwrap(source.range(of: "CommandMenu(\"Project\")"), "no Project menu")
         let body = String(source[project.upperBound...])
@@ -74,7 +74,10 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertLessThan(start.lowerBound, stages.lowerBound)
 
         // Each built stage is a titled Section holding its verbs; Workflows ▸ and Chat ▸ moved here.
-        XCTAssertTrue(body.contains("case .read:\n            Section(stage.title) {\n                FocusedRunRecipeOnFolderButton()"))
+        XCTAssertTrue(body.contains(
+            "case .read:\n            Section(stage.title) {\n                // Reading ▸: the reading verbs on the selection (#5652 slice 2).\n"
+                + "                Menu(\"Reading\") {\n                    FocusedRunRecipeOnFolderButton()"
+        ))
         XCTAssertTrue(body.contains("case .organise:\n            Section(stage.title) {\n                FocusedFindDocumentsButton()"))
         XCTAssertTrue(body.contains("case .connect:\n            Section(stage.title) {"))
         XCTAssertTrue(body.contains("case .train:\n            Section(stage.title) {\n                FocusedTrainButtons()"))
@@ -218,7 +221,7 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
     /// the menu bar render the same `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` on the target
     /// `runMenuTarget(for:)` makes. No hand-made Stop or Read Again button is left in the window.
     func testActivityStopAndReadAgainAreInTheMenuBar() throws {
-        let menus = try Self.appSource("App/Menus/ReadKnowledgeMenuCommands.swift")
+        let menus = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
         XCTAssertTrue(menus.contains("Section(\"Activity\") {\n                FocusedActivityRunButtons()"))
         let buttons = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
         XCTAssertTrue(buttons.contains("ActivityStopMenuItem(target: target)"))
@@ -232,6 +235,24 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         XCTAssertTrue(window.contains("ActivityReadAgainMenuItem(target: run)"))
         XCTAssertFalse(window.contains("Button(\"Stop\")"))
         XCTAssertFalse(window.contains("Button(action: readAgain)"))
+    }
+
+    /// Read became Page and the Segment menu folded into it (#5652 slice 2): the bar has no Read and no Segment menu;
+    /// Page holds Reader Lens, the doubtful words, Zoom, Rotate and the page's segments, each the same shared section.
+    func testPageMenuReplacesReadAndSegment() throws {
+        let source = try Self.appSource("App/Menus/PageAndProjectMenuCommands.swift")
+        XCTAssertFalse(source.contains("CommandMenu(\"Read\")"), "Read became Page")
+        XCTAssertFalse(source.contains("CommandMenu(\"Segment\")"), "the Segment menu folded into Page")
+        let page = try XCTUnwrap(source.range(of: "CommandMenu(\"Page\")"), "no Page menu")
+        let project = try XCTUnwrap(source.range(of: "CommandMenu(\"Project\")"))
+        let body = String(source[page.upperBound..<project.lowerBound])
+        for item in ["Menu(\"Reader Lens\")", "DoubtfulWordMenuSection()", "ImagePreviewMenuCommands()",
+                     "RotateImageMenuSection()", "Section(\"Segments\") {\n                SegmentMenuContent()"] {
+            XCTAssertTrue(body.contains(item), "Page is missing \(item)")
+        }
+        let app = try Self.appSource("FicheroApp.swift")
+        XCTAssertFalse(app.contains("CommandMenu(\"Read\")"))
+        XCTAssertFalse(app.contains("CommandMenu(\"Segment\")"))
     }
 
     /// Project › Train (#5652 slice 1): Train a Model… and Make Available in Every Project are ONE item each, rendered

@@ -44,12 +44,12 @@ MENU_FILES = {
     MENUS_DIR / "ViewMenuPaneSections.swift",
     MENUS_DIR / "ImagePreviewMenuCommands.swift",
     MENUS_DIR / "AddItemMenu.swift",
-    # `CommandMenu("Read")`/`CommandMenu("Knowledge")`, inserted at
+    # `CommandMenu("Page")`/`CommandMenu("Project")` (were Read/Knowledge), inserted at
     # FicheroApp.swift:524 — genuinely a menu file, just never added here
     # (found 2026-09-27: it holds six of the "New …" creation buttons this
     # matrix already names, and every one of them was reporting a false
     # "missing menu").
-    MENUS_DIR / "ReadKnowledgeMenuCommands.swift",
+    MENUS_DIR / "PageAndProjectMenuCommands.swift",
 }
 
 # The `Focused*Button` wrapper structs (menu_refs' targets) used to live in one
@@ -387,7 +387,7 @@ def scan() -> list[Row]:
             # A `menu_refs` button is placed EITHER directly in FicheroApp.swift
             # (Rename/Delete's own wiring) OR by being rendered from inside one
             # of the named menu files (New Folder/New Chat/etc., via
-            # FileMenuCommands()/ReadKnowledgeMenuCommands() — both real
+            # FileMenuCommands()/PageAndProjectMenuCommands() — both real
             # CommandGroup/CommandMenu content, just one file removed from
             # FicheroApp.swift's own text). Checking APP_TEXT alone reported
             # six real menu items as missing (found 2026-09-27).

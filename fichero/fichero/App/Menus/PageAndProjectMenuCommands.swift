@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The domain menus from the menus-and-commands spec — **Read**, **Segment** and
-/// **Project** — composed as ONE `Commands` element so the app's
+/// The domain menus from the menus-and-commands spec — **Page** and **Project** (ruled 2026-10-10:
+/// Read became Page and the Segment menu folded into it, #5652 slice 2) — composed as ONE `Commands` element so the app's
 /// `@CommandsBuilder` stays under its 10-entry arity cap (#3347, the same
 /// reason `GoMenuCommands` / `FormatMenuCommands` are single composed
 /// elements). They land in the bar right after **Go**. Project (ruled
@@ -12,15 +12,16 @@ import SwiftUI
 /// the toolbar and View menu use — no hand-rolled twins (spec: "one source,
 /// many surfaces"). Every verb self-disables via `@FocusedValue` when no
 /// window publishes it, exactly as the View-menu sections do.
-struct ReadKnowledgeMenuCommands: Commands {
+struct PageAndProjectMenuCommands: Commands {
     private let featureManager = FeatureManager.shared
     @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
-        // MARK: Read — the reading & annotating surface (spec Part IV/VI).
-        // Everything you do WHILE reading a source lives here, not scattered
-        // in View: the reader lens and the zoom / magnifier / loupe controls.
-        CommandMenu("Read") {
+        // MARK: Page — the page in front of you (ruled 2026-10-10, was Read; #5652 slice 2).
+        // Everything you do WHILE reading a page lives here, not scattered in View: the reader lens,
+        // the doubtful words, the zoom / magnifier / loupe controls, rotate, and the page's segments
+        // (the Segment menu folded in). Every item keeps its chord.
+        CommandMenu("Page") {
             Menu("Reader Lens") {
                 ReaderLensSection()
             }
@@ -34,11 +35,11 @@ struct ReadKnowledgeMenuCommands: Commands {
 
             Divider()
             RotateImageMenuSection()
-        }
 
-        // MARK: Segment -- the page's segments, on the focused Preview's selection (#5229).
-        CommandMenu("Segment") {
-            SegmentMenuContent()
+            // The page's segments, on the focused Preview's selection (#5229; was the Segment menu).
+            Section("Segments") {
+                SegmentMenuContent()
+            }
         }
 
         // MARK: Project — the recipe, stage by stage (ruled 2026-10-10, menus-and-commands spec).
@@ -69,7 +70,10 @@ struct ReadKnowledgeMenuCommands: Commands {
         switch stage {
         case .read:
             Section(stage.title) {
-                FocusedRunRecipeOnFolderButton()
+                // Reading ▸: the reading verbs on the selection (#5652 slice 2).
+                Menu("Reading") {
+                    FocusedRunRecipeOnFolderButton()
+                }
             }
         case .organise:
             Section(stage.title) {

@@ -532,7 +532,7 @@ struct FicheroApp: App {
             // verbs (Reader Lens, Zoom) move out of View into Read. Composed as
             // ONE CommandsBuilder element so this stays under the 10-entry
             // arity cap (#3347), same as GoMenuCommands / FormatMenuCommands.
-            ReadKnowledgeMenuCommands()
+            PageAndProjectMenuCommands()
 
             // One CommandsBuilder element (arity limit): Format's system
             // commands + Show Ruler, which lives in Format not View (#4121

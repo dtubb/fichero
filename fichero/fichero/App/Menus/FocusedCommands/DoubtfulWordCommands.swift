@@ -9,7 +9,7 @@ extension FocusedValues {
     @Entry var previousDoubtfulWord: FocusedLibraryAction?
 }
 
-/// Read › Next Doubtful Word and Previous Doubtful Word: Find Next's ⌘G with ⌃, as the next match of a kind
+/// Page › Next Doubtful Word and Previous Doubtful Word: Find Next's ⌘G with ⌃, as the next match of a kind
 /// (⌥⌘G is the Preview's Line tool).
 /// Disabled without the lens, or with no word below unanimous.
 struct DoubtfulWordMenuSection: View {

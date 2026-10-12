@@ -201,7 +201,7 @@ struct PreviewMarkupToolsRow: View {
                     icon: "arrow.triangle.merge",
                     label: "Join \(selection.count)",
                     identifier: "previewMarkupCombine",
-                    // ⌘J (ruled 2026-09-28) is bound once, in the menu bar's Segment menu (#5229).
+                    // ⌘J (ruled 2026-09-28) is bound once, in the menu bar's Page › Segments (#5229).
                     help: "Join — merge the selected regions into one (⌘J)"
                 ) {
                     NotificationCenter.default.post(

@@ -65,7 +65,7 @@ struct ViewMenuCommands: View {
         // Sidebar / Inspector / Pane toggles — instead of a junk drawer. The
         // ⌘1–6 / ⌘⌥1–5 / ⌃⌘I shortcuts live on the LEAF items inside the
         // submenus, so muscle memory is unchanged. Reading/annotating verbs
-        // (Reader Lens, Zoom/Magnifier) moved to the Read menu and the KG
+        // (Reader Lens, Zoom/Magnifier) moved to the Page menu (was Read) and the KG
         // view-mode switcher moved to the Knowledge menu (menus-and-commands
         // spec); this menu is appearance & layout only now.
         // The library's view modes lead the View menu, inline, as Finder's do ("as Icons ⌘1 …"),

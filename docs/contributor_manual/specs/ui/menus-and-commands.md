@@ -31,7 +31,8 @@ DRAFT** — these are behavior markers, not a ratification:
 
 - **`Read` + `Knowledge` top-level menus** replace the old `CommandMenu("Data")`, so the menu bar reads
   `Fichero · File · Edit · View · Go · Read · Knowledge · Window · Help` — the workflow-mapped bar.
-  (`ReadKnowledgeMenuCommands`, wired at `FicheroApp.swift` in the `after: .toolbar` region.)
+  (Now `PageAndProjectMenuCommands`, wired at `FicheroApp.swift` in the `after: .toolbar` region; Read
+  became Page and Knowledge became Project, ruled 2026-10-10.)
 - **⌘F = Search** is the native library search field (`.searchable` owns ⌘F — **no menu twin**, so no
   second owner of the chord).
 - **⌘⌥F = Find in Page** moved to the **Edit** menu (`ShowFindBarButton` in the `.textEditing` group),
@@ -206,8 +207,8 @@ restated here; three are a cluster of undo-scope GAPs living in `audited-action-
 The maintainer ruled the menu bar's shape and its one rule for verbs:
 
 - **The bar:** `Fichero · File · Edit · View · Go · Page · Project · Window · Help`. **Project** replaces
-  **Knowledge**, which retires. **Read** becomes **Page** in a later slice (#5652); until then the bar
-  reads `… Go · Read · Segment · Project · …`.
+  **Knowledge**, which retires. **Read** becomes **Page**, and the Segment menu folds into it (built
+  2026-10-12, #5652 slice 2, `menus.page.replaces-read-and-segment`).
 - **Project** is one menu: **Set Up…** and **Start** (⇧⌘↩) at the top, then one titled section per
   recipe stage, in the order a recipe runs them: **Read · Organise · Structure · Connect · Train**. A
   stage lists only verbs the app has; a stage with none yet shows nothing.
@@ -218,11 +219,11 @@ The maintainer ruled the menu bar's shape and its one rule for verbs:
 
 Behaviours (slice 1):
 
-- `menus.project.bar` — **[PARTIAL]** (#5652) **Built 2026-10-10 (app), not yet seen:** a top-level
-  **Project** menu replaces Knowledge (`CommandMenu("Project")` in `ReadKnowledgeMenuCommands.swift`,
+- `menus.project.bar` — **[OK]** (#5652) **Built 2026-10-10 (app), not yet seen:** a top-level
+  **Project** menu replaces Knowledge (`CommandMenu("Project")` in `PageAndProjectMenuCommands.swift`,
   composed there because the app's `.commands` builder is at its 10-entry limit); pinned by
-  `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`. *Not built:*
-  Read → Page (#5652).
+  `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`. Read → Page is
+  built 2026-10-12 (`menus.page.replaces-read-and-segment`), so the bar reads as ruled.
 - `menus.project.setup-and-start-first` — **[OK]** **Built 2026-10-10 (app), not yet seen:** Project's
   first items are **Set Up…** (`FocusedSetUpButton`, the window's `setUpProjectAction`, the same setup
   as Inspector › Recipe › Set Up…) and **Start** ⇧⌘↩ (`FocusedStartRecipeButton`, the same
@@ -233,12 +234,12 @@ Behaviours (slice 1):
   `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`,
   `testStartSaysWhyItCannotAct`, and `MenuShortcutUniquenessTests.projectMenuChordsAreUnique`.
 - `menus.project.stage-sections` — **[PARTIAL]** (#5652) **Built 2026-10-10 (app), not yet seen:** the
-  stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Read** › Run the Recipe on
-  This Folder… (`RunRecipeOnFolderMenuItem`, also in both folder context menus; #5540,
+  stages are `ProjectMenuStage` in recipe order, each a titled `Section`: **Read** › Reading ▸ › Run the
+  Recipe on This Folder… (`RunRecipeOnFolderMenuItem`, also in both folder context menus; #5540,
   `source.recipe.folder-scoped-start` in `source/models-chains-and-projects.md`), **Organise** › Find the
   Documents (⇧⌘D), **Connect** › SPARQL Console… (moved from Knowledge), **Train** › Train a Model… and
   Make Available in Every Project (`menus.project.train`); **Workflows ▸** and **Chat ▸** (moved from
-  Knowledge) follow the stages. *Not built:* **Read** › Reading ▸ (#5652), **Structure** (no verb yet).
+  Knowledge) follow the stages. *Not built:* **Structure** (no verb yet).
 - `menus.project.find-the-documents-one-component` — **[OK]** **Built 2026-10-10 (app), not yet seen:**
   Find the Documents is ONE item, `FindDocumentsMenuItem` (`FocusedCommandButtons+Recipe.swift`),
   rendered by Project › Organise (`FocusedFindDocumentsButton`, on the key window's library selection,
@@ -282,8 +283,23 @@ Behaviours (slice 1):
   `TrainedModelNodeActionsTests.makeAvailableThroughTheSharedTarget`,
   `MenuTerminologyBoundaryTests.testTrainAndTheModelVerbAreOneItemEverywhere` and
   `testProjectMenuDeclaresTheStageSectionsInRecipeOrder`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Project › Read › Reading ▸ and Read → Page; Edit
-  parity for every context-menu verb.
+- `menus.page.replaces-read-and-segment` — **[OK]** (#5652 slice 2) **Built 2026-10-12 (app), not yet
+  seen:** the top-level **Read** menu is **Page** and the **Segment** menu folded into it: Page holds
+  Reader Lens ▸, Next / Previous Doubtful Word (⌃⌘G / ⇧⌃⌘G), Zoom ▸, Rotate Left / Right (⌘L / ⌘R), and
+  a **Segments** section with the Segment menu's items (Edit Segments, Delete, Join ⌘J, the attributes),
+  each still disabled with its reason under it. Every item is the same shared section it was and kept
+  its chord. The composing type is `PageAndProjectMenuCommands` (was `ReadKnowledgeMenuCommands`).
+  Pinned by `PageMenuTests`, `MenuTerminologyBoundaryTests.testPageMenuReplacesReadAndSegment` and
+  `MenuShortcutUniquenessTests.pageMenuChordsAreUnique`.
+- `menus.project.read-reading-submenu` — **[OK]** (#5652 slice 2) **Built 2026-10-12 (app), not yet
+  seen:** Project › Read holds a **Reading ▸** submenu of the reading verbs on the selection. Today it
+  holds the one such verb the app has, **Run the Recipe on This Folder…** (`FocusedRunRecipeOnFolderButton`
+  over `RunRecipeOnFolderMenuItem`, the item both folder context menus render), disabled with its reason
+  (no project; not one folder). Read with Another Model… and Find Where the Readers Disagree stay on the
+  disagreement lens (no selection of their own); which further verbs join Reading ▸ is an open question
+  on #5652. Pinned by `PageMenuTests.readingSubmenu` and
+  `MenuTerminologyBoundaryTests.testProjectMenuDeclaresTheStageSectionsInRecipeOrder`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for every context-menu verb.
 
 ---
 
@@ -367,7 +383,7 @@ only when a term repeats.*
 `Fichero · File · Edit · View · Go · Read · Knowledge · Window · Help`
 
 > **[OK] SHIPPED (dfa937946, 2026-09-16):** this top-level bar is the live structure — `Read` and
-> `Knowledge` (`ReadKnowledgeMenuCommands`) replace the former `CommandMenu("Data")`. The remaining
+> `Knowledge` (`PageAndProjectMenuCommands`) replace the former `CommandMenu("Data")`. The remaining
 > per-menu item placements below are still the proposal; only the top-level bar and the
 > Import/Find/Full-Screen moves (see Changelog) have landed.
 >

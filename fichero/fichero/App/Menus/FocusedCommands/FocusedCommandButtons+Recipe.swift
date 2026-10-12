@@ -190,7 +190,7 @@ struct RunRecipeOnFolderMenuItem: View {
     }
 }
 
-/// Project › Read › Run the Recipe on This Folder… on the key window's one folder; disabled with why otherwise.
+/// Project › Read › Reading ▸ › Run the Recipe on This Folder… on the key window's one folder; disabled with why otherwise.
 struct FocusedRunRecipeOnFolderButton: View {
     @FocusedValue(\.projectMenu) private var target
 

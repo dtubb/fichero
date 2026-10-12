@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// What the menu bar's Segment menu acts on (#5229): the focused Preview's Edit Segments state, its
+/// What the menu bar's Page › Segments acts on (#5229; was the Segment menu, #5652): the focused Preview's Edit Segments state, its
 /// selection, and its OWN verbs -- the same audited calls its toolbar and context menu make, so the
 /// menu is one more way in, never a second implementation.
 struct SegmentMenuTarget {
@@ -16,7 +16,7 @@ extension FocusedValues {
     @Entry var segmentMenu: SegmentMenuTarget?
 }
 
-/// The Segment menu's items. Each disabled item's reason is shown under it, as the issue asks: a menu
+/// Page › Segments' items (the Segment menu's, folded in). Each disabled item's reason is shown under it, as the issue asks: a menu
 /// that greys out with no word is how Delete went undiscovered.
 struct SegmentMenuContent: View {
     @FocusedValue(\.segmentMenu) private var target
