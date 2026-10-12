@@ -33,6 +33,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from contextlib import contextmanager
 import unicodedata
 import dataclasses
 from dataclasses import dataclass, field
@@ -228,6 +229,34 @@ _pipelines: dict[str, object] = {}
 # second caller WAITS instead of erroring. spaCy inference is GIL-bound anyway,
 # so the throughput cost of serialising is small; correctness is not.
 _spacy_lock = threading.Lock()
+#: Who goes first at that lock (#5690): a plain lock is not fair, and the import's NLP drafts, reading page after
+#: page, took it again each time, so a recipe's Names step a person started never got a turn (0 of 92 for 15
+#: minutes). Work a person started waits only for the page in hand; background work waits while it waits.
+_turns = threading.Condition()
+_people_waiting = 0
+
+
+@contextmanager
+def _turn(background: bool):
+    """The spaCy lock, a person's work first: a background caller takes it only while nobody else waits for it."""
+    global _people_waiting
+    if background:
+        with _turns:
+            _turns.wait_for(lambda: _people_waiting == 0)
+        _spacy_lock.acquire()
+    else:
+        with _turns:
+            _people_waiting += 1
+        try:
+            _spacy_lock.acquire()
+        finally:
+            with _turns:
+                _people_waiting -= 1
+                _turns.notify_all()
+    try:
+        yield
+    finally:
+        _spacy_lock.release()
 
 
 def _installed_models(spacy_module) -> set[str]:
@@ -417,7 +446,8 @@ def normalize_language(language: str | None) -> str | None:
     return code if code in _MODEL_PREFERENCE else None
 
 
-def extract_entities(text: str, language: str | None = None, model: str | None = None) -> list[EntitySpan]:
+def extract_entities(text: str, language: str | None = None, model: str | None = None, *,
+                     background: bool = False) -> list[EntitySpan]:
     """Run spaCy NER over ``text`` and return Fichero-typed spans.
 
     ``language`` overrides the heuristic guess. ``model`` pins the pipeline: that one runs and no other, and
@@ -428,6 +458,8 @@ def extract_entities(text: str, language: str | None = None, model: str | None =
     Spans are deduplicated on (text, fichero_type) within a single
     call so identical mentions ("Davidson" appearing 6 times on the
     same page) collapse to one span with the earliest offsets.
+
+    ``background`` (the import's NLP drafts): it waits while work a person started waits for the pipeline (#5690).
     """
     if not text or not text.strip():
         return []
@@ -437,7 +469,7 @@ def extract_entities(text: str, language: str | None = None, model: str | None =
     # Serialise load + inference + Doc reads on the shared, non-thread-safe
     # pipeline (see _spacy_lock). Concurrent callers queue here rather than
     # crashing — "delay not fail".
-    with _spacy_lock:
+    with _turn(background):
         nlp = _load_named(model) if model else _load_pipeline(lang)
         if nlp is None:
             return []

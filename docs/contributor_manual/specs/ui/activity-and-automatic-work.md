@@ -780,7 +780,11 @@ workflow by hand: a hand run is a job like any other.
   itself; else its turn on its lane. The import's "Processing imported pages" row, while none of
   its stages runs, is `waiting` with the same reason. It counts pages, each once: a page with its own text is
   one page, and only a PDF's pages add to the count (#5690: a 92-page project counted 178, each page once when
-  queued and again for its embed; `fichero-server/tests/unit/importers/test_imported_pages_counted_once_5690.py`). Before: a throttle scan's words stayed on
+  queued and again for its embed; `fichero-server/tests/unit/importers/test_imported_pages_counted_once_5690.py`).
+  Its NLP drafts are background work at spaCy's one lock: a recipe's Names step a person started waits only for
+  the page in hand, and the drafts wait while it waits (#5690: Names sat at 0 of 92 for 15 minutes with no row to
+  say why, the drafts taking the unfair lock again page after page; `knowledge.spacy_ner._turn`,
+  `fichero-server/tests/unit/importers/test_names_step_not_starved_by_drafts_5690.py`). Before: a throttle scan's words stayed on
   the rows after the Mac went idle (embeds said "you're using the Mac" with `in_use` false while
   a recipe's reading held the lane), and the import's row sat at 100 of 406 with reason null.
   Built: one function decides every waiting row's reason when it is read (`execution/jobs.py`

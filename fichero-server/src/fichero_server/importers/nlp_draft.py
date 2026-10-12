@@ -34,6 +34,7 @@ Reuses, deliberately, rather than rebuilding:
 
 from __future__ import annotations
 
+import functools
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -210,7 +211,8 @@ def run_nlp_draft(
     """
     from fichero_server.knowledge import spacy_ner, spacy_svo
 
-    ner_fn = ner_fn or spacy_ner.extract_entities
+    # The drafts are background work: a recipe's Names step a person started goes first at spaCy's lock (#5690).
+    ner_fn = ner_fn or functools.partial(spacy_ner.extract_entities, background=True)
     svo_fn = svo_fn or spacy_svo.propose_triples
     filter_fn = filter_fn or spacy_svo.filter_proposals
 
