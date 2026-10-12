@@ -24,9 +24,12 @@ final class KnownLibraryRegistryStore {
     private let apiClient: APIClient
     @ObservationIgnored private nonisolated(unsafe) var hostChangeObservation: NSObjectProtocol?
 
-    /// `apiClient` is a test seam (a mock-transported client); the app uses `shared`.
-    init(apiClient: APIClient = APIClient()) {
-        self.apiClient = apiClient
+    /// `apiClient` is a test seam (a mock-transported client); the app uses `shared`. An injected
+    /// client keeps its own host: following the app's host change rebound a test's mock client to
+    /// another suite's host mid-test (a reconnect's registration went to second.tailnet.example).
+    init(apiClient: APIClient? = nil) {
+        self.apiClient = apiClient ?? APIClient()
+        guard apiClient == nil else { return }
         // Rebind on a pairing / Settings host change (#2349) — otherwise the
         // known-library registry menu keeps querying the launch host (localhost)
         // after the app has moved to a remote engine.
