@@ -65,6 +65,49 @@ cluster run. Two images in all: **full** (this) and **worker** (cluster jobs onl
 with #5642: the compose file, volumes for projects and models, the first-run pairing, updates, and the
 NAS's limits (memory, ARM CPUs). First named NAS target: **Synology** (maintainer 2026-10-09): a Container Manager Project (compose) on DSM 7.2+ "+" models (mostly x86_64, so amd64; the arm64 build for ARM units with Container Manager), projects and models in a shared folder such as `/volume1/fichero`, Synology's Tailscale package for reaching it; a stated memory minimum (likely 8 GB) with a polite refusal below it; CPU-only. **The NAS is the project server; heavy reading is remote** (maintainer 2026-10-09): Kraken, YOLO, vision models and training run on a compute target (the person's Mac when connected, a GPU box, a cluster; `ai/where-models-run.md`), and the NAS stores their results. Light NLP (small spaCy names) may run on the NAS so new text gets names without a Mac. TO CONFIRM on a real unit. Behaviour: `server.image.runs-on-a-pc-or-nas` — **[GAP]** (#5642).
 
+## The image on Linux, on a NAS and on a cluster (#5642, written 2026-10-12)
+
+Written for #5642 on top of the design below; the job flow on a cluster (staging, submission, status) is
+`hpc-runner-acenet.md`'s, and this section only says what the image is and how it sits on a machine. Ruled
+2026-10-09 (`hpc-runner-acenet.md`, "Adopt, don't write"): Slurm's own features, Globus Transfer and (where the
+site runs endpoints) Globus Compute, vLLM for serving and FSDP for training are adopted; Fichero's own runner
+stays thin.
+
+**Two images, named by use.** The ruling's **full** image (a PC, a NAS, the cluster's coordinator) is the
+**cpu** image below; its **worker** image (cluster jobs only) is the **gpu** image. One recipe builds both.
+
+**What the full image holds.** The engine (`fichero-server`, its API and its one runner), the readers that run
+on a CPU (Kraken, YOLO, spaCy and its small pipelines, the search embedder), DuckDB and LanceDB, the exporters.
+No MLX: MLX is Apple silicon only, so the image holds none of the `[tool.fichero.mlx_bundle]` table
+(`fichero-server/pyproject.toml`, VERIFIED `:293`), and the providers that need it read *unavailable, and why*
+(`compute.image.reports-what-it-can-run`). Its place is taken by an OpenAI-compatible server the person points
+it at (vLLM on a GPU machine, Ollama elsewhere, #5640). **The worker** adds CUDA PyTorch, vLLM (offline batch
+inference inside a job, `hpc-runner-acenet.md`) and the training libraries with FSDP. **Neither holds a
+model's weights** (`compute.image.no-weights-no-secrets-no-data`).
+
+**Where models and libraries live.** Two roots, both outside the image and both mounted: the engine's state
+root (`FICHERO_BASE_PATH`, VERIFIED `db/paths.py:25,39`), with the projects the server holds beneath it or
+named by `FICHERO_LIBRARY_ALLOWED_ROOTS`; and the models root (`FICHERO_MODEL_STORE_ROOT`, VERIFIED
+`db/paths.py:29,51`), where every model is fetched by its card. On a NAS both are folders of one share
+(`/volume1/fichero/projects`, `/volume1/fichero/models`). On an Alliance cluster: `/project/<group>/fichero/`
+holds the projects, the models and the image file, shared by the group and backed up; `$SLURM_TMPDIR` (the
+node's local disk) is where a job unpacks its shards and works; `/scratch` holds only what a run passes
+between its steps and is cleared when the run's results are folded back (it is purged by the site); `$HOME`
+holds nothing of Fichero's beyond its key (small quota) (CITED, the cluster's rules in `hpc-runner-acenet.md`).
+
+**How it runs under Apptainer.** As the person, never root: Apptainer runs a container as the calling user with
+no daemon and no setuid step on Alliance clusters (CITED, S18). The image file is built by CI from the published
+worker image and pulled once into `/project`, never built on the cluster (`compute.hpc.nothing-heavy-on-a-login-node`).
+A job runs it read-only, with `--containall` (no `$HOME`, no host environment leaking in), `--nv` for the GPU,
+and only three folders bound: the run's own folder, the models root (read-only) and `$SLURM_TMPDIR`.
+
+**The transport.** As everywhere: the server listens on loopback (`compute.image.loopback-by-default`), and a
+request from anywhere else needs a paired device's token. A PC or NAS is reached through Tailscale (`tailscale
+serve` to its loopback port); a cluster session through an SSH jump to the compute node (`ssh -J`). Pages and
+results move by Globus Transfer through the site's endpoints (SFTP only for small sets); jobs are submitted
+by Globus Compute where the site runs endpoints, else by `sbatch` over the person's own SSH connection
+(`hpc-runner-acenet.md`, A/B/C). Nothing opens a public port, and nothing on a login node serves.
+
 ## The design (proposed)
 
 ### Two images from one recipe
@@ -253,6 +296,42 @@ All [GAP]: designed, not built. "Data" names what the behaviour reads or writes.
   from cluster to cluster (CITED, S5) and cannot be tested by the project's automation.
   *Test:* a guardrail: no `pip install` or `virtualenv` appears in any command Fichero sends to
   a target.
+
+### Linux, a NAS and a cluster (#5642)
+
+- `compute.image.full-and-worker` — **[GAP]** (#5642) the full image (amd64 and arm64) holds the engine, Kraken,
+  YOLO, spaCy and the search embedder, and no MLX package; the worker image (amd64) adds CUDA PyTorch, vLLM and
+  FSDP training. The image's `capabilities` name what each holds. *Test:* in automation, `pip list` inside each
+  image has no `mlx*` and the worker's has `vllm`; the full image's health reads `omlx` unavailable with a reason.
+- `compute.image.one-dependency-list` — **[GAP]** (#5642) both images install from `fichero-server/pyproject.toml`:
+  the engine's dependencies plus one named extra for the worker; `[tool.fichero.mlx_bundle]` is the Mac bundle's
+  and is never read by the Dockerfile. *Test:* the guardrail of `compute.image.one-recipe-two-images`, extended:
+  the Dockerfile names no package and no requirements file of its own.
+- `compute.image.multi-arch-manifest` — **[GAP]** (#5642) `docker buildx` publishes the full image as one manifest
+  for `linux/amd64` and `linux/arm64`, each built natively (`compute.image.ci-builds-both`); a Synology "+" unit
+  pulls amd64, an ARM unit or a Mac's Docker pulls arm64, from the same name. *Test:* automation inspects the
+  published manifest and finds both platforms with the same version label.
+- `compute.image.roots-outside-the-image` — **[GAP]** (#5642) the image writes only under the state root
+  (`FICHERO_BASE_PATH`), the projects it is allowed (`FICHERO_LIBRARY_ALLOWED_ROOTS`) and the models root
+  (`FICHERO_MODEL_STORE_ROOT`), all mounted; with the image read-only, nothing is lost when it is replaced by a
+  newer one. *Test:* automation runs the full image with a read-only root filesystem and the three folders
+  mounted, imports a page, fetches a small model by its card, restarts on a newer tag, and finds both.
+- `compute.image.apptainer-as-the-person` — **[GAP]** (#5642) on a cluster the worker image runs under Apptainer as
+  the calling user, read-only, with `--containall`, `--nv` where a GPU is, and only the run folder, the models
+  root (read-only) and `$SLURM_TMPDIR` bound; it never needs root, a daemon or a writable image. *Test:*
+  `compute.image.runs-as-an-ordinary-user`'s Apptainer leg, with `--containall` and the three binds, runs the tiny
+  job; a bind left out fails with the folder named, not a traceback.
+- `compute.image.cluster-folders` — **[GAP]** (#5642) on a cluster the projects, the models and the image file live
+  under the group's `/project/<group>/fichero/`; a job works in `$SLURM_TMPDIR`; `/scratch` holds only what a run
+  passes between its steps and is emptied when its results are folded back; nothing of Fichero's is written to
+  `$HOME` beyond its key. *Test:* the dry run (`/clusters/{cluster_id}/dry-run-submit`, VERIFIED `api/routes/ai/hpc.py:289`) names every path it would write, and a pure
+  test on the job-script builder finds none under `$HOME` and none left in `/scratch` after the fold-back step.
+- `compute.image.reached-only-through-loopback` — **[GAP]** (#5642) on a PC or NAS the app reaches the server
+  through Tailscale to its loopback port; on a cluster through an SSH jump; pages and results move by Globus
+  Transfer (SFTP for small sets) and jobs go by Globus Compute where the site has endpoints; no step opens a
+  public port or serves from a login node. *Test:* `compute.image.never-a-public-port` and
+  `compute.hpc.nothing-heavy-on-a-login-node`, plus a pure test that the cluster plan's transfer step names Globus
+  for anything over the site's SFTP threshold.
 
 ## Test matrix
 
