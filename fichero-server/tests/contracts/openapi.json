@@ -14378,7 +14378,7 @@
           "recipes"
         ],
         "summary": "Model Candidates",
-        "description": "Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts\nand languages (comma-separated codes or names), from the shipped cards, the models on this Mac (and the\nperson's own Ollama and LM Studio servers), Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline. The\nsearch is the step's own (#5668): readers for a reading job, and for another job Hugging Face by that job's\npipeline and Hub tags (`STEP_SEARCHES`); a job with no search of its own says so. With `step` (a step of the open project's recipe), the\nstep's reader now is marked `chosen` and listed first, the person's choice included when the finder would not\nlist it for these answers (#5660 item 8). Each candidate says plainly whether it ships with Fichero, is on this\nMac or can be downloaded, with its size (`availability`). With `period` (\"16th century\", \"1650\u20131700\"), a reader\nmade for it ranks first (#5683). For `read-a-line`, the page readers (Apple Vision, a vision model) are listed\ntoo, the person's to choose with no rule rank: a line step reads Kraken's lines with them, as the bake-off\ncounts them. Refused (422), in words, for an unknown script, language, material or job.",
+        "description": "Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts\nand languages (comma-separated codes or names), from the shipped cards, the models on this Mac (and the\nperson's own Ollama and LM Studio servers), Kraken's model repository and Hugging Face, each as a\ncard saying where it came from and why it is offered, ranked by the rules' fixed order (#5519,\n`source.find.by-need`). The network is never reached inside this call: with `online=true` the search is\nthe open project's Activity job (`search_job`, #5594), and this call answers at once with what the earlier\nsearches kept; a later call lists what the job found. Never searched when this engine works offline. The\nsearch is the step's own (#5668): readers for a reading job, and for another job Hugging Face by that job's\npipeline and Hub tags (`STEP_SEARCHES`); a job with no search of its own says so. With `step` (a step of the open project's recipe), the\nstep's reader now is marked `chosen` and listed first, the person's choice included when the finder would not\nlist it for these answers (#5660 item 8). Each candidate says plainly whether it ships with Fichero, is on this\nMac or can be downloaded, with its size (`availability`). Refused (422), in words, for an unknown script,\nlanguage, material or job.",
         "operationId": "model_candidates_api_recipes_candidates_get",
         "parameters": [
           {
@@ -14458,16 +14458,6 @@
               "type": "string",
               "nullable": true,
               "title": "Step"
-            }
-          },
-          {
-            "name": "period",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "Period"
             }
           }
         ],
@@ -50195,14 +50185,6 @@
             "title": "By Hand",
             "description": "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that does it by hand (source.onboard.auto.every-proposed-step-runs)"
           },
-          "left_off": {
-            "items": {
-              "$ref": "#/components/schemas/LeftOffStep"
-            },
-            "type": "array",
-            "title": "Left Off",
-            "description": "steps a purpose brings that are off until turned on, each with why and what turning it on would cost (Correct with no corrector at hand, #5677)"
-          },
           "removed": {
             "items": {
               "$ref": "#/components/schemas/TakenOutStep"
@@ -65236,11 +65218,6 @@
             "type": "string",
             "title": "Status"
           },
-          "project_note": {
-            "type": "string",
-            "nullable": true,
-            "title": "Project Note"
-          },
           "library_path": {
             "type": "string",
             "nullable": true,
@@ -69787,29 +69764,31 @@
         ],
         "title": "LeftAsItWas"
       },
-      "LeftOffStep": {
+      "LeftOutPage": {
         "properties": {
-          "job": {
+          "page_id": {
             "type": "string",
-            "title": "Job"
+            "title": "Page Id"
           },
-          "title": {
+          "page": {
             "type": "string",
-            "title": "Title"
+            "title": "Page",
+            "description": "the page's name, as Items shows it"
           },
-          "sentence": {
+          "why": {
             "type": "string",
-            "title": "Sentence"
+            "title": "Why",
+            "description": "why it was left out, in words: 'a blank sheet, the back of a written leaf'"
           }
         },
         "type": "object",
         "required": [
-          "job",
-          "title",
-          "sentence"
+          "page_id",
+          "page",
+          "why"
         ],
-        "title": "LeftOffStep",
-        "description": "A step left off by default (#5677): its job, its title, and one line saying why and what it would cost."
+        "title": "LeftOutPage",
+        "description": "A page a stage left out, by name, with why (#5691)."
       },
       "LetterFeature": {
         "properties": {
@@ -80059,6 +80038,15 @@
             "title": "Blank Versos",
             "description": "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called blank, #5579); null when none"
           },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOutPage"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Left Out",
+            "description": "the pages a lining or reading stage left out, each named with why (#5691); null when none"
+          },
           "recordings_left_out": {
             "type": "integer",
             "nullable": true,
@@ -80186,6 +80174,14 @@
             "nullable": true,
             "title": "Pages With Lines",
             "description": "of the run's pages, the ones with lines; null when the run had no Find Lines (#5668)"
+          },
+          "left_out": {
+            "items": {
+              "$ref": "#/components/schemas/LeftOutPage"
+            },
+            "type": "array",
+            "title": "Left Out",
+            "description": "the pages the run's stages left out, each named with why (#5691)"
           },
           "pages_with_regions": {
             "type": "integer",
@@ -88830,14 +88826,6 @@
             "type": "array",
             "title": "Offered",
             "description": "steps offered later (training), never run at Start"
-          },
-          "left_off": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Left Off",
-            "description": "steps the recipe left off until turned on, one line each with what turning it on would cost (#5677)"
           },
           "train_offers": {
             "items": {

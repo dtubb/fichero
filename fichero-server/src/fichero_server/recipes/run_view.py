@@ -59,6 +59,14 @@ class StageRegions(BaseModel):
     no_image: int = Field(description="pages with no image to look at (a PDF's page, a text file)")
 
 
+class LeftOutPage(BaseModel):
+    """A page a stage left out, by name, with why (#5691)."""
+
+    page_id: str
+    page: str = Field(description="the page's name, as Items shows it")
+    why: str = Field(description="why it was left out, in words: 'a blank sheet, the back of a written leaf'")
+
+
 class RecipeRunStep(BaseModel):
     """One stage of a recipe run: the card that carries one or more recipe steps."""
 
@@ -74,6 +82,8 @@ class RecipeRunStep(BaseModel):
     blank_versos: Optional[int] = Field(default=None, description=(
         "pages a lining or reading stage left out as blank (the back of a written leaf, or a page a person called "
         "blank, #5579); null when none"))
+    left_out: Optional[list[LeftOutPage]] = Field(default=None, description=(
+        "the pages a lining or reading stage left out, each named with why (#5691); null when none"))
     recordings_left_out: Optional[int] = Field(default=None, description=(
         "recordings a stage that reads page images left out: a recording is not a page (2026-10-10); null when "
         "none"))
@@ -164,6 +174,8 @@ class RecipeRunSummary(BaseModel):
         "run in this run"))
     pages_with_lines: Optional[int] = Field(default=None, description=(
         "of the run's pages, the ones with lines; null when the run had no Find Lines (#5668)"))
+    left_out: list[LeftOutPage] = Field(default_factory=list, description=(
+        "the pages the run's stages left out, each named with why (#5691)"))
     pages_with_regions: Optional[int] = Field(default=None, description=(
         "of the run's pages, the ones with regions; null when the run had neither Find Regions nor Find Lines (whose "
         "segmenter finds regions too)"))
@@ -292,6 +304,8 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
         said = " · ".join(shapes)
         lines.append(said[0].upper() + said[1:])
     lines.append(f"Read {s.pages_read} of {_plural(s.pages, 'page')}")
+    if s.left_out:
+        lines.append("Left out of reading: " + "; ".join(f"{p.page}, {p.why}" for p in s.left_out))
     names = [n for n in s.names if n.count > 0]
     if ran is None or "find-names-tag-words" in ran or names:
         lines.append("Names: " + " · ".join(f"{n.count} {n.label}" for n in names) if names else "No names found")
@@ -347,6 +361,12 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         skipped=[SkippedStep(**s) for s in status.get("skipped", [])],
         not_run=[RecipeRunStep(**s) for s in status["steps"] if s["state"] in ("failed", "not run", "cancelled")],
     )
+    seen: set[str] = set()
+    for step in status["steps"]:  # each page once, though both a lining and a reading stage left it out
+        for entry in step.get("left_out") or []:
+            if entry["page_id"] not in seen:
+                seen.add(entry["page_id"])
+                made.left_out.append(LeftOutPage(**entry))
     ran = _jobs_of_the_run(db, status["steps"])
     if "find-lines" in ran:
         made.pages_with_lines = _pages_with(db, pages, "line")

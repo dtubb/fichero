@@ -907,6 +907,11 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             if blank:
                 documents = [d for d in documents if kinds.get(d) != sorting.BLANK]
                 scratch["blank_versos"] = len(blank)
+                # Each page left out, named with why (#5691): a count alone left "Read 91 of 92" unexplained.
+                from fichero_server.models import Document as _Document
+
+                scratch["left_out"] = [{"page_id": d, "page": getattr(db.get(_Document, d), "name", None) or d,
+                                        "why": "a blank sheet, the back of a written leaf"} for d in blank]
             if card.get("readers"):
                 scratch["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
         if not documents:

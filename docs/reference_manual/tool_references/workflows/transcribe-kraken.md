@@ -18,7 +18,7 @@ Use this when: you want fully on-device HTR from Kraken — its own neural basel
 
 Tool: [Files](../tools/files.md) — Pass through input files from workflow context
 
-### 2. Kraken HTR — baseline + recognition
+### 2. Read the lines with Kraken
 
 Tool: [Transcribe](../tools/transcribe.md) — Extract text from images (OCR)
 

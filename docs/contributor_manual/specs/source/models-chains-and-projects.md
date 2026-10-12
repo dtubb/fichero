@@ -1114,7 +1114,13 @@ plan's peak memory across steps. Ready shows none of it.
   blank verso; and only a blank right after a written page was caught. The threshold holds on those
   sheets (the placeholder 0.007, the folder's faintest written page 0.0175, the line at 0.011), and faded ink
   (`source.onboard.auto.prepare-damaged-images`) is still ink.
-  *Not built:* the run's account names the pages only as a count.
+  **Named, not only counted (#5691):** a page a stage left out is named with why, on the step
+  (`left_out`: each page's id, its name and why, "a blank sheet, the back of a written leaf") and in the run's
+  summary ("Left out of reading: 2_Hoja_en_blanco.jpg, a blank sheet"), so "Read 91 of 92 pages" never leaves a
+  page unaccounted for. A workflow node that ran over many pages reports what it did over all of them
+  (`processed_count`, `reused_count`), never 0 after reading 91; and the shipped Kraken reading node is named as
+  a person says it ("Read the lines with Kraken"). *Test:*
+  `fichero-server/tests/unit/recipes/test_left_out_named_5691.py`.
 - `source.onboard.auto.prepare-damaged-images` — **[PARTIAL]** (#5580; tested in
   `fichero-server/tests/unit/recipes/test_prepare_images_step.py`) where the sample shows faded
   or damaged pages, image preparation (contrast, deskew) is proposed as a step with a card. It runs before

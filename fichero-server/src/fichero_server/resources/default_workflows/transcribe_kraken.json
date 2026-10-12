@@ -30,7 +30,7 @@
   {
    "id": "kraken-htr",
    "tool": "transcribe",
-   "label": "Kraken HTR — baseline + recognition",
+   "label": "Read the lines with Kraken",
    "position_x": 320,
    "position_y": 200,
    "inputs": {},

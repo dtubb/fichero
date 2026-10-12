@@ -2309,6 +2309,8 @@ def _make_aggregation_function(node_id: str):
         all_page_records: list[dict] = []
         errors = []
         success_count = 0
+        # What the node did over all its pages (#5691: the Kraken node said 0 after reading 91 pages).
+        processed_count = reused_count = 0
 
         # Track consecutive errors for systemic error detection
         consecutive_errors = 0
@@ -2326,6 +2328,8 @@ def _make_aggregation_function(node_id: str):
                         all_results.extend(result["results"])
                     if result.get("artifacts"):
                         all_artifacts.extend(result["artifacts"])
+                    processed_count += int(result.get("processed_count") or 0)
+                    reused_count += int(result.get("reused_count") or 0)
                     page_recs = result.get("page_records")
                     if isinstance(page_recs, list):
                         for rec in page_recs:
@@ -2412,6 +2416,8 @@ def _make_aggregation_function(node_id: str):
             "artifacts": all_artifacts,
             "success_count": success_count,
             "error_count": error_count,
+            "processed_count": processed_count,
+            "reused_count": reused_count,
             "errors": errors if errors else None,
             "max_consecutive_errors": max_consecutive_errors,
         }
