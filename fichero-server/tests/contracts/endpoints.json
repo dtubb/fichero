@@ -2882,6 +2882,11 @@
             "name": "status",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
@@ -3332,6 +3337,11 @@
             "name": "sort_direction",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,

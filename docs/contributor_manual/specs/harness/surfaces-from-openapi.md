@@ -132,7 +132,10 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   parameters, keeps the whole answer. One item is one GET away whole (`/api/workflows/tools/{tool_name}`,
   `/api/workflows/{id}`, the new `/api/actions/registry/{name}`). Pinned by
   `fichero-server/tests/unit/mcp/test_answers_fit_an_agent.py`, whose guard calls every generated read tool through
-  the MCP protocol.
+  the MCP protocol. **The documents lists too (#5695):** a folder's children and the documents list take `summary`
+  (an agent's default): each item without its text (`page_content`), its workflow runs or a metadata value over
+  200 characters (a transcription), its name, kind, counts and dates kept; the app, calling with no parameters,
+  keeps every field. *Test:* `fichero-server/tests/unit/api/test_children_answer_fits_an_agent_5695.py`.
 - `openapi.mcp.refusals-in-words` **[OK]** (2026-10-11, the same pass; every refusal that pass met) a refusal an agent reads says what is
   missing and what to do, in words: never a route to call, an internal record's class name, or a target the
   caller did not name. Fixed: search by meaning before anything is indexed (claims, entities); the rights of a document, folder or segment asked without naming it; citing a document with no bibliographic record; and an absence is an answer, not an error: a document with no note answers an empty note (`test_document_with_no_note.py`; the app never read that route). Pinned by

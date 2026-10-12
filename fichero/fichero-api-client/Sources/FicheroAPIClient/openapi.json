@@ -4846,7 +4846,7 @@
           "segments"
         ],
         "summary": "Correct Segment Line",
-        "description": "Correct a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's.",
+        "description": "Correct a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's. The answer is the reading; the\nline's outline, which the correction did not change, is not repeated in it (#5697): the segment has it.",
         "operationId": "correct_segment_line_api_segments__segment_id__correct_post",
         "parameters": [
           {
@@ -17719,6 +17719,18 @@
               "title": "Offset"
             },
             "description": "Offset for pagination"
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)"
           }
         ],
         "responses": {
@@ -17744,7 +17756,8 @@
           }
         },
         "x-fichero-agent-defaults": {
-          "limit": 25
+          "limit": 25,
+          "summary": true
         }
       },
       "post": {
@@ -18963,6 +18976,18 @@
               "default": "stored"
             },
             "description": "Which tier to return. 'stored' (default) is the tree as held \u2014 openings AND whole pages side by side. 'content' looks THROUGH containers to their pages, passing un-split pages through unchanged."
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)"
           }
         ],
         "responses": {
@@ -18986,6 +19011,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },

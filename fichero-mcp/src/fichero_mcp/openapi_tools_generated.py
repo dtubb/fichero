@@ -1970,9 +1970,10 @@ def fichero_documents_list(
     offset: Annotated[Optional[int], Field(description='Offset for pagination')] = None,
     parent_id: Annotated[Optional[str], Field(description='Filter by parent ID')] = None,
     status: Annotated[Optional[str], Field(description='Filter by status')] = None,
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent) An agent's default: true.")] = True,
 ) -> Any:
     'List Documents\n\nList documents with optional filters from the current library.\n\nRoute: GET /api/documents (toolset `documents`; reads).'
-    return _rt.call("GET", "/api/documents", params={"doc_type": doc_type, "file_type": file_type, "ids": ids, "include_deleted": include_deleted, "limit": limit, "node_kind": node_kind, "offset": offset, "parent_id": parent_id, "status": status})
+    return _rt.call("GET", "/api/documents", params={"doc_type": doc_type, "file_type": file_type, "ids": ids, "include_deleted": include_deleted, "limit": limit, "node_kind": node_kind, "offset": offset, "parent_id": parent_id, "status": status, "summary": summary})
 
 
 def fichero_documents_create(
@@ -2307,9 +2308,10 @@ def fichero_documents_get_children(
     limit: Annotated[Optional[int], Field(description='Max results (no limit if not specified)')] = None,
     sort_by: Annotated[Optional[str], Field(description="Optional server-side ordering; only 'document_date'.")] = None,
     sort_direction: Annotated[Optional[str], Field(description="'asc' or 'desc'")] = None,
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent) An agent's default: true.")] = True,
 ) -> Any:
     'Get Children\n\nGet child documents.\n\nA diary folder legitimately holds two kinds of thing: openings (spreads\nwhose pages moved beneath them) and whole pages that were never split. So\n"the folder\'s children" is an ambiguous question and only the caller knows\nwhich tier it means (Daniel, 2026-08-22: "I want to be able to show\nspreads, or show single pages").\n\n`level` defaults to `stored`, so every existing caller sees exactly what it\nsaw before.\n\nRoute: GET /api/documents/{doc_id}/children (toolset `documents`; reads).'
-    return _rt.call("GET", f"/api/documents/{doc_id}/children", params={"level": level, "limit": limit, "sort_by": sort_by, "sort_direction": sort_direction})
+    return _rt.call("GET", f"/api/documents/{doc_id}/children", params={"level": level, "limit": limit, "sort_by": sort_by, "sort_direction": sort_direction, "summary": summary})
 
 
 def fichero_documents_duplicate(
@@ -7486,7 +7488,7 @@ def fichero_segments_correct_line(
     kind: Annotated[Optional[str], Field(description='The kind of reading corrected. Default: "transcription".')] = None,
     text: Annotated[str, Field(description="The line's corrected text.")],
 ) -> Any:
-    "Correct Segment Line\n\nCorrect a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's.\n\nRoute: POST /api/segments/{segment_id}/correct (toolset `segments`; changes data, as the agent account when one exists)."
+    "Correct Segment Line\n\nCorrect a line: the segment and its new text, nothing more (#5499, `source.reading.correct-a-line`).\n\nOne `representation.create` -- the action every correction is -- with the document, the reading it\ncorrects (the one that counts now, or the artifact text a provisional one still lives in) and the\ncompare-and-set worked out here. Audited and undoable as that action is; who corrected it is the caller,\nso a person's correction is a person's reading and counts over a machine's. The answer is the reading; the\nline's outline, which the correction did not change, is not repeated in it (#5697): the segment has it.\n\nRoute: POST /api/segments/{segment_id}/correct (toolset `segments`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/segments/{segment_id}/correct", json=_rt.body({"expected_counting_id": expected_counting_id, "kind": kind, "text": text}))
 
 

@@ -4320,6 +4320,7 @@ def register_generated_openapi_commands(
         offset: Optional[int] = typer.Option(None, '--offset', help='Offset for pagination.'),
         parent_id: Optional[str] = typer.Option(None, '--parent-id', help='Filter by parent ID.'),
         status: Optional[str] = typer.Option(None, '--status', help='Filter by status.'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help='a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)'),
     ) -> None:
         """List Documents (GET /api/documents)."""
         def op_call(client: FicheroClient) -> Any:
@@ -4334,6 +4335,7 @@ def register_generated_openapi_commands(
                 "offset": offset,
                 "parent_id": parent_id,
                 "status": status,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -5035,6 +5037,7 @@ def register_generated_openapi_commands(
         limit: Optional[int] = typer.Option(None, '--limit', help='Max results (no limit if not specified)'),
         sort_by: Optional[str] = typer.Option(None, '--sort-by', help="Optional server-side ordering; only 'document_date'."),
         sort_direction: Optional[str] = typer.Option(None, '--sort-direction', help="'asc' or 'desc'."),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help='a lean answer for an agent: each item without its text (page_content), its workflow runs or long metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)'),
     ) -> None:
         """Get Children (GET /api/documents/{doc_id}/children)."""
         def op_call(client: FicheroClient) -> Any:
@@ -5044,6 +5047,7 @@ def register_generated_openapi_commands(
                 "limit": limit,
                 "sort_by": sort_by,
                 "sort_direction": sort_direction,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)

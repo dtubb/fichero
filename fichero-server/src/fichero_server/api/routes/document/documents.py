@@ -397,6 +397,22 @@ def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     return _with_group_dates(db, with_texts_read_from_lines(db, items))
 
 
+#: A metadata value longer than this is left out of a lean list answer (#5695): a transcription, kept whole on the
+#: record, made a folder's children ~60 KB for 8 pages.
+_LEAN_METADATA_CHARS = 200
+
+
+def _lean(items: list[Document]) -> list[Document]:
+    """Each item without its bulk, for an agent's list (#5695, `openapi.mcp.answers-fit-an-agent`): no text, no
+    workflow runs, no long metadata value. Names, kinds, counts, dates and ids are kept."""
+    out = []
+    for item in items:
+        meta = item.metadata if isinstance(item.metadata, dict) else {}
+        kept = {k: v for k, v in meta.items() if len(str(v)) <= _LEAN_METADATA_CHARS}
+        out.append(item.model_copy(update={"page_content": None, "workflow_runs": [], "metadata": kept}))
+    return out
+
+
 # A group's date when it has none of its own is the range of its pages'
 # dates (#5569.2). Marked source "pages" so it is re-read from the pages on
 # every listing and never taken for a date someone gave the group.
@@ -639,7 +655,7 @@ def _resolve_workspace_item_target(db: Database, item: dict[str, Any]) -> Any:
 
 #: An agent's tool lists a page of documents at a time (`openapi.mcp.answers-fit-an-agent`): a ten-page project with its
 #: shipped workflows is 73 rows, 170 KB; the app, calling with no `limit`, keeps every row.
-@router.get("", openapi_extra={"x-fichero-agent-defaults": {"limit": 25}})
+@router.get("", openapi_extra={"x-fichero-agent-defaults": {"limit": 25, "summary": True}})
 async def list_documents(
     parent_id: Optional[str] = Query(None, description="Filter by parent ID"),
     ids: Optional[str] = Query(
@@ -662,6 +678,9 @@ async def list_documents(
         None, ge=1, description="Max results (no limit if not specified)"
     ),
     offset: int = Query(0, ge=0, description="Offset for pagination"),
+    summary: bool = Query(False, description=(
+        "a lean answer for an agent: each item without its text (page_content), its workflow runs or long "
+        "metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)")),
     db: Database = Depends(get_library_database),
     readable=Depends(readable_rows),
 ) -> DocumentListResponse:
@@ -737,7 +756,7 @@ async def list_documents(
         perf["matched_rows"] = len(docs)
         perf["returned_rows"] = len(items)
         perf["filters"] = ",".join(sorted(filters.keys())) or "none"
-        return DocumentListResponse(items=items, count=len(items), withheld=withheld)
+        return DocumentListResponse(items=_lean(items) if summary else items, count=len(items), withheld=withheld)
 
 
 @router.get("/collections")
@@ -1464,7 +1483,8 @@ async def get_workspace_items(
     )
 
 
-@router.get("/{doc_id}/children")
+#: An agent's tool lists children lean (#5695): 8 pages with their transcriptions were ~60 KB, 92 pages ~700 KB.
+@router.get("/{doc_id}/children", openapi_extra={"x-fichero-agent-defaults": {"summary": True}})
 async def get_children(
     doc_id: str,
     limit: Optional[int] = Query(
@@ -1483,6 +1503,9 @@ async def get_children(
             "unchanged."
         ),
     ),
+    summary: bool = Query(False, description=(
+        "a lean answer for an agent: each item without its text (page_content), its workflow runs or long "
+        "metadata values such as a transcription; the whole record is one GET away (openapi.mcp.answers-fit-an-agent)")),
     db: Database = Depends(get_library_database),
     readable=Depends(readable_rows),
 ) -> DocumentListResponse:
@@ -1544,8 +1567,9 @@ async def get_children(
         if limit is not None:
             children = children[:limit]
         perf["returned_rows"] = len(children)
+        items = _with_child_counts(db, children)
         return DocumentListResponse(
-            items=_with_child_counts(db, children), count=len(children), withheld=withheld
+            items=_lean(items) if summary else items, count=len(children), withheld=withheld
         )
 
 
