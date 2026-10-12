@@ -75,15 +75,14 @@ extension View {
     }
 }
 
-/// The verb as a menu item, on a line only.
+/// The verb on a row's own menu, on a line only: Page › Segments' own item (`CorrectLineMenuItem`, #5652).
 struct CorrectThisLineButton: View {
     let segment: Segment?
     let correct: (Segment) -> Void
 
     var body: some View {
         if let segment, CorrectLine.offers(segment) {
-            Button("Correct This Line…") { correct(segment) }
-                .help("Type what this line says, as your reading")
+            CorrectLineMenuItem(target: LineVerbsTarget(segment: segment, correct: { correct(segment) }))
         }
     }
 }

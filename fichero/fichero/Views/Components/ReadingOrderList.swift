@@ -96,6 +96,8 @@ struct ReadingOrderList: View {
             }
         }
         .correctThisLine($correcting)
+        // Page › Segments acts on this list's selection while it has focus (#5652): the same verbs its rows offer.
+        .focusedValue(\.lineVerbs, lineVerbs)
         // One selection across the surfaces (#5155): a row picked here is the focused Source view's
         // selection too, so the boxes light and the Inspector follows.
         .onChange(of: selection) { _, picked in
@@ -120,6 +122,17 @@ struct ReadingOrderList: View {
                 windowState?.pendingSegmentSelection = nil
             }
         }
+    }
+
+    /// The list's selection as Page › Segments' verbs see it (#5652): Correct This Line… on the selected line, and
+    /// Create Named Order while the page has none.
+    private var lineVerbs: LineVerbsTarget {
+        var target = LineVerbsTarget(segment: selection.flatMap(segment))
+        if let line = target.segment, CorrectLine.offers(line) { target.correct = { correcting = line } }
+        if let store, store.documentId == documentId, store.orders.isEmpty {
+            target.createNamedOrder = { Task { await createNamedOrder() } }
+        }
+        return target
     }
 
     /// A row's menu: Correct This Line on one line (#5499).
@@ -177,7 +190,7 @@ struct ReadingOrderList: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .help("The segments in the order the layout found them; no file gave an order")
                 Spacer()
-                Button("Create Named Order") { Task { await createNamedOrder() } }
+                CreateNamedOrderMenuItem(target: lineVerbs)
                     .accessibilityIdentifier("readingOrder.createNamedOrder")
             }
             .padding(.horizontal, 8)
@@ -200,7 +213,7 @@ struct ReadingOrderList: View {
         do {
             try await AuditedAction.run(
                 "segment.convert_and_edit", params: ConvertPageRequest(documentId: documentId),
-                actionName: "Create Named Order", actionsService: actionsService, steps: windowSteps,
+                actionName: LineVerbs.createNamedOrderTitle, actionsService: actionsService, steps: windowSteps,
                 afterChange: {
                     if let segmentService {
                         await SegmentStore.shared(for: segmentService).load(documentId: documentId, force: true)

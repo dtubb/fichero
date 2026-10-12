@@ -322,9 +322,16 @@ Behaviours (slice 1):
   added. Import was already one handler (File › Import ▸ through the focused pane). *Not yet:* from the sidebar's
   selection, File's Open, Duplicate, Make Alias and Quick Look say to select it in Items (the row's own). Pinned by
   `ItemOpenVerbsMenuTests` and `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: the
-  Segments and Order lists (Correct This Line…, Open, Create Named Order); proposed documents and Source direction
-  ▸; the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
+- `menus.page.line-verbs-one-component` — **[OK]** (#5652 slice 4, group 3) **Built 2026-10-12 (app), not yet
+  seen:** Correct This Line…, Open (a segment that holds others) and Create Named Order are ONE item each
+  (`FocusedCommandButtons+LineVerbs.swift`): the Reader's line rows and the Order list's rows (Correct This Line…),
+  the Segments pictures (Open) and the Order list's no-order row (Create Named Order) render them, and **Page ›
+  Segments** renders them on the focused list's selection (`LineVerbsTarget`, the `lineVerbs` focused value the
+  Order list, the selected Reader line and the selected picture publish), each disabled with its reason under it.
+  The undo step's name is the item's title. No chords. Pinned by `LineVerbsMenuTests` and
+  `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: proposed
+  documents and Source direction ▸; the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
   selection; the dataset rows' and the Inspector header's Exclude.
 
 ---

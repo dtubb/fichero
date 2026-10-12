@@ -39,6 +39,9 @@ struct PageAndProjectMenuCommands: Commands {
             // The page's segments, on the focused Preview's selection (#5229; was the Segment menu).
             Section("Segments") {
                 SegmentMenuContent()
+                // A line's and a segment's verbs on the focused list's selection (#5652 slice 4, group 3).
+                Divider()
+                FocusedLineVerbButtons()
             }
         }
 

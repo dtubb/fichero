@@ -84,11 +84,20 @@ struct SegmentsPictureGrid: View {
         .onTapGesture { pick(id) }
         // A second route to Open, for touch (iPad has no double-click) and for the keyboard-less.
         .contextMenu {
-            if opens(id) { Button("Open") { open(id) } }
+            if opens(id) { OpenSegmentMenuItem(target: openTarget(id)) }
         }
+        // Page › Segments › Open on the selected picture (#5652), the same item as its menu.
+        .focusedValue(\.lineVerbs, selected == id ? openTarget(id) : nil)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected == id ? [.isButton, .isSelected] : .isButton)
         .task(id: id) { await load(id) }
+    }
+
+    /// A picture's segment, with Open when it holds others.
+    private func openTarget(_ id: String) -> LineVerbsTarget {
+        var target = LineVerbsTarget(segment: segments[id])
+        if opens(id) { target.open = { open(id) } }
+        return target
     }
 
     private func load(_ id: String) async {

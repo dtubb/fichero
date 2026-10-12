@@ -137,7 +137,7 @@ enum SegmentsPane {
 }
 
 /// `segment.convert_and_edit` with no edit: the page's boxes become segments and its `as-written` order is
-/// made from their order, one action with ⌘Z. What "Create Named Order" sends when the page has no order to
+/// made from their order, one action with ⌘Z. What Create Named Order sends when the page has no order to
 /// copy (#5204).
 struct ConvertPageRequest: Encodable, Equatable {
     let documentId: String

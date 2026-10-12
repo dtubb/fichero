@@ -79,6 +79,11 @@ struct MenuVerbsOneCodePathGuardTests {
         for word in ["Make Alias", "Quick Look", "Open in New Tab", "Open in New Window"] {
             #expect(spelling(word) == [openVerbs], "\(word) is spelled outside the shared items")
         }
+        // Group 3: a line's and a segment's verbs.
+        let lineVerbs = "App/Menus/FocusedCommands/FocusedCommandButtons+LineVerbs.swift"
+        for word in ["Correct This Line…", "Create Named Order"] {
+            #expect(spelling(word) == [lineVerbs], "\(word) is spelled outside the shared items")
+        }
     }
 
     @Test("the shared Activity and Train items take no chord")
