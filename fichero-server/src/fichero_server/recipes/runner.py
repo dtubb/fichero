@@ -49,6 +49,41 @@ AUTOMATIC_PURPOSES = frozenset(PURPOSES) - TOOL_PURPOSES
 _CHECK_POLL_SECONDS = 0.5
 #: Cards that line or read pages: a blank verso is left out of them (#5579).
 _NOT_ON_BLANK_VERSOS = frozenset({"find-lines", "read-a-line", "read-a-page"})
+#: Below this reader's certainty a page's names are noise (#5694: 741 people found in text read at ~70% CER).
+#: ponytail: one bar for every reader; measure per reader (its certainty against checked lines) when one misleads.
+NAMES_MIN_CONFIDENCE = 0.7
+#: The steps that find names in a page's text.
+_NAMES_JOBS = frozenset({"find-names-tag-words"})
+
+
+def reading_confidence(db: Any, doc_id: str) -> float | None:
+    """How sure the reader was of the page's lines: the mean of each line's newest machine certainty, a line a
+    person read counting as sure. None when no reader gave one (a vision model's reading): not gated."""
+    from fichero_server.models import ContentRepresentation
+
+    newest: dict[str, Any] = {}
+    for r in db.query(ContentRepresentation, document_id=doc_id):
+        if r.segment_id and r.kind == "transcription" and not getattr(r, "retracted_at", None):
+            if r.segment_id not in newest or r.created_at > newest[r.segment_id].created_at:
+                newest[r.segment_id] = r
+    sure = [1.0 if getattr(r.provenance_kind, "value", r.provenance_kind) == "human" else r.machine_confidence
+            for r in newest.values()]
+    sure = [c for c in sure if c is not None]
+    return sum(sure) / len(sure) if sure else None
+
+
+def too_uncertain_for_names(db: Any, documents: list[str]) -> list[dict[str, str]]:
+    """The pages whose reading is too uncertain to find names in, each named with why (#5694)."""
+    from fichero_server.models import Document
+
+    out = []
+    for doc_id in documents:
+        sure = reading_confidence(db, doc_id)
+        if sure is not None and sure < NAMES_MIN_CONFIDENCE:
+            out.append({"page_id": doc_id, "page": getattr(db.get(Document, doc_id), "name", None) or doc_id,
+                        "why": f"its reading is too uncertain to find names in (the reader was {sure:.0%} sure, "
+                               f"below {NAMES_MIN_CONFIDENCE:.0%}); read it with a better reader first"})
+    return out
 
 
 def _library(db: Any) -> Path:
@@ -914,6 +949,12 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
                                         "why": "a blank sheet, the back of a written leaf"} for d in blank]
             if card.get("readers"):
                 scratch["kinds"] = dict(sorted(Counter(kinds.get(d) or "unsorted" for d in documents).items()))
+        if card.get("job") in _NAMES_JOBS and documents:
+            uncertain = too_uncertain_for_names(db, documents)
+            if uncertain:
+                gone = {e["page_id"] for e in uncertain}
+                documents = [d for d in documents if d not in gone]
+                scratch["left_out"] = [*(scratch.get("left_out") or []), *uncertain]
         if not documents:
             _add(step, scratch)
             here[index]["state"] = states[index] = "done"

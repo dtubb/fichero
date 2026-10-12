@@ -320,6 +320,9 @@ class RepresentationCreateParams(BaseModel):
     #: given, the write is a compare-and-set: if another reading counts now, it is refused with 409,
     #: naming the one that counts, and nothing is written. Absent, today's behaviour.
     expected_counting_id: str | None = None
+    #: The recogniser's certainty about this reading, 0 to 1, where it gave one (#5694: Names is not run on a page
+    #: read too uncertainly to name anyone). Kept on a machine's reading only.
+    machine_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
     def audit_params(self) -> dict:
         """The audit row gets every argument EXCEPT the words, and a digest in
@@ -437,6 +440,8 @@ def create_representation(
         created_by=ctx.actor or None,
         producer_run_id=ctx.run_id,
     )
+    if reading.provenance_kind is not ProvenanceKind.human:
+        reading.machine_confidence = params.machine_confidence
     db.save(reading)
 
     after = {

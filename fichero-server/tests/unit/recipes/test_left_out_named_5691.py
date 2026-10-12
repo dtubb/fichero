@@ -35,7 +35,7 @@ def test_a_blank_sheet_left_out_of_reading_is_named_with_why(client, db, tmp_pat
     assert {e["page_id"] for e in step["left_out"]} == versos
     assert all(e["page"] and e["why"] == "a blank sheet, the back of a written leaf" for e in step["left_out"])
     said = asyncio.run(summary(db, job_id))
-    assert any(line.startswith("Left out of reading: ") for line in said.lines), said.lines
+    assert any(line.startswith("Left out: ") for line in said.lines), said.lines
 
 
 def test_a_node_over_many_pages_counts_what_it_did_over_all_of_them():

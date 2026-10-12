@@ -81815,6 +81815,13 @@
             "type": "string",
             "nullable": true,
             "title": "Expected Counting Id"
+          },
+          "machine_confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "nullable": true,
+            "title": "Machine Confidence"
           }
         },
         "additionalProperties": false,

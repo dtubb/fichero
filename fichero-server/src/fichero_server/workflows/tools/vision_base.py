@@ -5498,7 +5498,7 @@ async def process_vision(
                     # would otherwise count over a better one.
                     write_readings(
                         _dbm.get_database(library_path), document_id=doc_id_for_file,
-                        readings=[(b.metadata["segment_id"], b.text) for b in page_geometry.boxes
+                        readings=[(b.metadata["segment_id"], b.text, b.confidence) for b in page_geometry.boxes
                                   if b.metadata.get("segment_id") and READ_FLAG_KEY not in b.metadata],
                         artifact_id=saved_artifact_id, run_id=task_id or f"read-a-line:{saved_artifact_id}",
                         library_path=library_path,

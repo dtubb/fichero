@@ -1908,6 +1908,7 @@ def fichero_content_representations_create_route(
     language: Annotated[Optional[str], Field(description='Language.')] = None,
     language_meta: Annotated[Optional[dict[str, Any]], Field(description='Language Meta.')] = None,
     level: Annotated[Optional[str], Field(description='Level.')] = None,
+    machine_confidence: Annotated[Optional[float], Field(description='Machine Confidence.')] = None,
     read_from_rendition_id: Annotated[Optional[str], Field(description='Read From Rendition Id.')] = None,
     script: Annotated[Optional[str], Field(description='Script.')] = None,
     script_meta: Annotated[Optional[dict[str, Any]], Field(description='Script Meta.')] = None,
@@ -1915,7 +1916,7 @@ def fichero_content_representations_create_route(
     source_anchor: Annotated[Optional[dict[str, Any]], Field(description='Where a record points on a page — the one anchor type. Used by annotations, OCR geometry, entity mentions, claim evidence and content representations. One type means one overlay renderer, one hit tester, one "scroll to this", and one place to get the coordinate maths right. ``rendition_id`` is the field whose absence caused the original defect: a box carried four numbers and never said which pixel frame they were fractions OF, so geometry computed on an enhanced or split rendition was drawn over the original spread. It is optional only so existing rows stay readable — new writes must set it whenever the frame is not the node\'s own.')] = None,
 ) -> Any:
     'Create Representation Route\n\n`POST /api/content-representations` — write one reading.\n\nRoute: POST /api/content-representations (toolset `content-representations`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/content-representations", json=_rt.body({"content": content, "corrects_representation_id": corrects_representation_id, "derived_from_artifact_id": derived_from_artifact_id, "derived_from_representation_id": derived_from_representation_id, "document_id": document_id, "expected_counting_id": expected_counting_id, "guideline": guideline, "kind": kind, "language": language, "language_meta": language_meta, "level": level, "read_from_rendition_id": read_from_rendition_id, "script": script, "script_meta": script_meta, "segment_id": segment_id, "source_anchor": source_anchor}))
+    return _rt.call("POST", "/api/content-representations", json=_rt.body({"content": content, "corrects_representation_id": corrects_representation_id, "derived_from_artifact_id": derived_from_artifact_id, "derived_from_representation_id": derived_from_representation_id, "document_id": document_id, "expected_counting_id": expected_counting_id, "guideline": guideline, "kind": kind, "language": language, "language_meta": language_meta, "level": level, "machine_confidence": machine_confidence, "read_from_rendition_id": read_from_rendition_id, "script": script, "script_meta": script_meta, "segment_id": segment_id, "source_anchor": source_anchor}))
 
 
 def fichero_content_representations_list(

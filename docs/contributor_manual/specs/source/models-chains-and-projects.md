@@ -1116,11 +1116,18 @@ plan's peak memory across steps. Ready shows none of it.
   (`source.onboard.auto.prepare-damaged-images`) is still ink.
   **Named, not only counted (#5691):** a page a stage left out is named with why, on the step
   (`left_out`: each page's id, its name and why, "a blank sheet, the back of a written leaf") and in the run's
-  summary ("Left out of reading: 2_Hoja_en_blanco.jpg, a blank sheet"), so "Read 91 of 92 pages" never leaves a
+  summary ("Left out: 2_Hoja_en_blanco.jpg, a blank sheet"), so "Read 91 of 92 pages" never leaves a
   page unaccounted for. A workflow node that ran over many pages reports what it did over all of them
   (`processed_count`, `reused_count`), never 0 after reading 91; and the shipped Kraken reading node is named as
   a person says it ("Read the lines with Kraken"). *Test:*
-  `fichero-server/tests/unit/recipes/test_left_out_named_5691.py`.
+  `fichero-server/tests/unit/recipes/test_left_out_named_5691.py`. **Not on unreadable text (#5694):** Find Names is not run on a page whose reading is too uncertain:
+  the mean, over its lines, of each line's newest machine certainty (`machine_confidence`, which a reader such as
+  Kraken now keeps on each reading; a line a person read counts as sure) below 70%. The page is left out, named
+  with why ("its reading is too uncertain to find names in (the reader was 42% sure, below 70%); read it with a
+  better reader first"), and the summary warns ("Names not looked for on 3 pages: their reading is too
+  uncertain"); a Names try on the samples says the same. A page whose reader gave no certainty (a vision model)
+  is not held back. One bar for every reader for now. *Test:*
+  `fichero-server/tests/unit/recipes/test_names_on_unreadable_text_5694.py`.
 - `source.onboard.auto.prepare-damaged-images` — **[PARTIAL]** (#5580; tested in
   `fichero-server/tests/unit/recipes/test_prepare_images_step.py`) where the sample shows faded
   or damaged pages, image preparation (contrast, deskew) is proposed as a step with a card. It runs before

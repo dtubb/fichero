@@ -101,7 +101,7 @@ def write_readings(
     db: Any,
     *,
     document_id: str,
-    readings: list[tuple[str | None, str]],
+    readings: list[tuple[str | None, str] | tuple[str | None, str, float | None]],
     artifact_id: str | None,
     run_id: str | None,
     actor: str = "system",
@@ -117,19 +117,20 @@ def write_readings(
     line read as nothing has not been given words. `level` is the level the reader read at
     (`source.reading.levels`): a reader that expands abbreviations writes `expanded`, which counts beside
     the line as written, never over it; unset, no level is recorded, as before. `derived_from` names, per segment,
-the reading a new one was made from (a correction names the reading it corrects, `correct`). Returns the
-readings' ids."""
+the reading a new one was made from (a correction names the reading it corrects, `correct`). A reading's third
+value, where given, is the reader's certainty about it (`machine_confidence`, #5694). Returns the readings' ids."""
     import fichero_server.api.routes.document.content_representations  # noqa: F401  (representation.create)
     from fichero_server.actions.registry import ActionContext, registry
 
     ctx = ActionContext(actor=actor, run_id=run_id, library_path=library_path, is_bootstrap=True)
     made = []
-    for segment_id, text in readings:
+    for segment_id, text, *certainty in readings:
         if not (text or "").strip():
             continue
         made.append(registry.invoke(db, "representation.create", {
             "document_id": document_id, "segment_id": segment_id, "kind": kind, "content": text.strip(),
             "derived_from_artifact_id": artifact_id, "level": level,
+            "machine_confidence": certainty[0] if certainty else None,
             "derived_from_representation_id": (derived_from or {}).get(segment_id)}, ctx).result["id"])
     return made
 

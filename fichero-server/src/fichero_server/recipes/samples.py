@@ -590,7 +590,13 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                 ran.append({"steps": card.get("steps"), "state": "skipped", "why": "not tried on samples yet"})
                 continue
             jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
-            _thread, state, why = runner._run_workflow(copy, card, pages, job_id)
+            run_on, uncertain = pages, []
+            if card.get("job") in runner._NAMES_JOBS:  # not on a reading too uncertain to name anyone (#5694)
+                uncertain = runner.too_uncertain_for_names(copy, pages)
+                run_on = [p for p in pages if p not in {e["page_id"] for e in uncertain}]
+            _thread, state, why = runner._run_workflow(copy, card, run_on, job_id) if run_on else (None, "done", None)
+            if uncertain:
+                why = "; ".join(filter(None, [why, *(f"{e['page']}: {e['why']}" for e in uncertain)]))
             ran.append({"steps": card["steps"], "workflow": card["workflow"], "state": state, "why": why})
         made = _collect(copy, before, back)
         texts, boxes, items = _for_comparing(copy, before, back, stage_id)

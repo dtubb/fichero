@@ -305,7 +305,10 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
         lines.append(said[0].upper() + said[1:])
     lines.append(f"Read {s.pages_read} of {_plural(s.pages, 'page')}")
     if s.left_out:
-        lines.append("Left out of reading: " + "; ".join(f"{p.page}, {p.why}" for p in s.left_out))
+        lines.append("Left out: " + "; ".join(f"{p.page}, {p.why}" for p in s.left_out))
+        uncertain = sum(1 for p in s.left_out if "too uncertain to find names" in p.why)
+        if uncertain:  # a warning of its own: names found on the rest are only as good as their reading (#5694)
+            lines.append(f"Names not looked for on {_plural(uncertain, 'page')}: their reading is too uncertain")
     names = [n for n in s.names if n.count > 0]
     if ran is None or "find-names-tag-words" in ran or names:
         lines.append("Names: " + " · ".join(f"{n.count} {n.label}" for n in names) if names else "No names found")
