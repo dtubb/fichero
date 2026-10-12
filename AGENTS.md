@@ -567,6 +567,12 @@ The ones that cost hours, and that no test catches for you:
 - **Backtick text inside `git commit -m "..."` is command substitution** — the shell executes it and pastes the output into your message. Use `git commit -F <file>`.
 - **Automated edits and function-local imports do not mix — AST-audit after any scripted import change.** A batch import-inserter once spliced a *function-local* `import sys` into a module-level import, then `ruff --fix` deleted it as "unused" while references remained (#4487). Run `python -c "import ast; ast.parse(open(f).read())"` over every touched file after any scripted import change.
 - **Renames/moves break path-keyed guardrails.** `PERSISTENCE_PATH`, `WILDCARD_BIND`, `db_access`, `single_connection`, and every `check_*.py` `TARGET_FILES` list hardcode paths — a move that doesn't update them gives a false green (7 regressions from #3751/#3754). Grep for the old path across `scripts/check_*.py` before committing a rename.
+- **Gate the COMBINED lead, from the repo root, and read each suite's own summary.** Engine suite on the M4: `mkdir -p ~/fichero-overnight/bydir-<sha>` first, then `caffeinate -i zsh ~/fichero-overnight/bydir2.sh ~/fichero-overnight/bydir-<sha>` (bydir2 puts `/opt/homebrew/bin` on PATH so the node reader tests run instead of skipping); wait for `^DONE` in `SUMMARY.txt`. App suite: one `xcodebuild test -only-testing:FicheroTests` at a time. Also run `fichero-server/tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py`. A worker's typecheck is not a build: workers use the SIL-level typecheck (`-emit-sil`), and the manager's real build is the check (region-isolation errors show only there).
+- **The reader WebKit tests (`ReaderAllHitsTests`, `ReaderTranscriptWrapTests`) fail with "WebKit could not start" in the full suite but pass alone (#5713).** Rerun them alone before calling them a regression; do not blame the last commit.
+- **Unit tests never touch the network or depend on what a Mac has installed.** A test that queues a real `download-model` job passed on the dev Mac and failed on the M4 (Zenodo 504). Stub the model's presence, and assert no download job was queued.
+- **Tests that pass on the lead can still miss a real run.** Tonight's operator walk of a real 92-page project found six bugs no suite caught (readings saved without confidence, a written page treated as blank, page text joined into one line, status counts of 0). After a batch that touches reading, names, dates or Find the Documents, run `scripts/realrun_check.py "<scratch project under ~/Fichero Dev Test>" --redo read-a-line,find-names-tag-words`. It refuses any project outside `~/Fichero Dev Test`.
+- **macOS has no `timeout`, git's ERE has no `\b`, and zsh reads `$SHA:ref` as a modifier.** Use `${SHA}:ref`, `grep -E "#123([^0-9]|$)"`, and a Python or `Monitor` wait instead of `timeout`.
+- **Never run CPU-hog loops on the dev Mac to prove a flake.** They starve the app suite and read as timeouts (one did, for 50 minutes). Use plain sequential runs, or the M4.
 
 ---
 
@@ -584,6 +590,8 @@ MCP Tools above). Typical routing:
 | Who imports / references this? | `find_importers` / `find_references` |
 | Repo overview / file tree | `get_repo_outline` / `get_file_tree` |
 | String/comment/config search | `search_text` |
+
+**LSP plugins (pyright-lsp, swift-lsp) complement jcodemunch:** use jcodemunch to find and read code, and the `LSP` tool for exact `goToDefinition`, `findReferences`, `hover` and call hierarchy on a known position. `pyright-langserver` must be on PATH (`npm install -g pyright`); the Swift server needs no setup. Pyright reports many pre-existing type errors in the engine; ignore ones in lines you did not touch.
 
 Start a session with `plan_turn { repo: ".", query: "<task>" }` for confidence + recommended files. **Top god nodes** (run `get_blast_radius` before touching): `Database`, `KnowledgeClaim`, `KnowledgeEntity`, `Document`, `LLMConfig`, `EntityType`, `DocType`, `Artifact`, `WorkflowDef`.
 
