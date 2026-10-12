@@ -6330,6 +6330,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help="Only this folder's proposals."),
         include_superseded: Optional[bool] = typer.Option(None, '--include-superseded/--no-include-superseded', help='Also the proposals a later run on the same pages replaced (kept for what their answers teach).'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
     ) -> None:
         """Stored Find the Documents proposals (GET /api/find-documents/proposals)."""
         def op_call(client: FicheroClient) -> Any:
@@ -6337,6 +6338,7 @@ def register_generated_openapi_commands(
             params = {
                 "folder_id": folder_id,
                 "include_superseded": include_superseded,
+                "summary": summary,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -6346,11 +6348,14 @@ def register_generated_openapi_commands(
     def find_documents_get_proposal_get(
         ctx: typer.Context,
         proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
     ) -> None:
         """One Find the Documents proposal (GET /api/find-documents/proposals/{proposal_id})."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/find-documents/proposals/{proposal_id}"
-            params = None
+            params = {
+                "summary": summary,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
@@ -6359,6 +6364,7 @@ def register_generated_openapi_commands(
     def find_documents_accept_proposal_post(
         ctx: typer.Context,
         proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
         arrange: Optional[bool] = typer.Option(None, '--arrange/--no-arrange', help="Lay the folder's canvas out in the documents' order. Default: true."),
         document_indexes: Optional[list[str]] = typer.Option(None, '--document-indexes', help='The documents to accept; none with no `min_confidence` accepts them all. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         groups: Optional[bool] = typer.Option(None, '--groups/--no-groups', help='Also accept each proposed group whose documents are all accepted. Default: true.'),
@@ -6367,7 +6373,9 @@ def register_generated_openapi_commands(
         """Accept proposed documents: group nodes with their prototypes, the canvas laid out (POST /api/find-documents/proposals/{proposal_id}/accept)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/find-documents/proposals/{proposal_id}/accept"
-            params = None
+            params = {
+                "summary": summary,
+            }
             payload = _build_json_payload({
                 "arrange": arrange,
                 "document_indexes": document_indexes,
@@ -6387,12 +6395,15 @@ def register_generated_openapi_commands(
     def find_documents_join_post(
         ctx: typer.Context,
         proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
         document_index: int = typer.Option(..., '--document-index', help='The proposed document joined to the one after it.'),
     ) -> None:
         """Join a proposed document to the next (an adjustment the project learns from) (POST /api/find-documents/proposals/{proposal_id}/join)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/find-documents/proposals/{proposal_id}/join"
-            params = None
+            params = {
+                "summary": summary,
+            }
             payload = _build_json_payload({
                 "document_index": document_index,
             }, {
@@ -6406,13 +6417,16 @@ def register_generated_openapi_commands(
     def find_documents_move_page_post(
         ctx: typer.Context,
         proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
         document_index: int = typer.Option(..., '--document-index', help='The proposed document a page moves out of.'),
         to: str = typer.Option(..., '--to', help='previous: its first page moves to the end of the document before it; next: its last page moves to the start of the document after it. One of: previous, next.'),
     ) -> None:
         """Move a proposed document's first or last page to its neighbour (an adjustment the project learns from) (POST /api/find-documents/proposals/{proposal_id}/move-page)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/find-documents/proposals/{proposal_id}/move-page"
-            params = None
+            params = {
+                "summary": summary,
+            }
             payload = _build_json_payload({
                 "document_index": document_index,
                 "to": to,
@@ -6428,12 +6442,15 @@ def register_generated_openapi_commands(
     def find_documents_reject_proposal_post(
         ctx: typer.Context,
         proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
         document_indexes: list[str] = typer.Option(..., '--document-indexes', help='Document Indexes. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """Reject proposed documents (kept, for the project's own model to learn from) (POST /api/find-documents/proposals/{proposal_id}/reject)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/find-documents/proposals/{proposal_id}/reject"
-            params = None
+            params = {
+                "summary": summary,
+            }
             payload = _build_json_payload({
                 "document_indexes": document_indexes,
             }, {
@@ -6447,13 +6464,16 @@ def register_generated_openapi_commands(
     def find_documents_split_post(
         ctx: typer.Context,
         proposal_id: str = typer.Argument(..., help='Proposal Id'),
+        summary: Optional[bool] = typer.Option(None, '--summary/--no-summary', help="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."),
         document_index: int = typer.Option(..., '--document-index', help='The proposed document to split.'),
         page_id: str = typer.Option(..., '--page-id', help='The page that starts the second document: one of its pages, not its first.'),
     ) -> None:
         """Split a proposed document at a page (an adjustment the project learns from) (POST /api/find-documents/proposals/{proposal_id}/split)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/find-documents/proposals/{proposal_id}/split"
-            params = None
+            params = {
+                "summary": summary,
+            }
             payload = _build_json_payload({
                 "document_index": document_index,
                 "page_id": page_id,

@@ -4381,6 +4381,11 @@
             "name": "include_superseded",
             "required": false,
             "type": "boolean"
+          },
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "request_model": null,
@@ -4394,7 +4399,13 @@
         "path_params": [
           "proposal_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": null,
         "response_model": "DocumentsProposal"
       },
@@ -4406,7 +4417,13 @@
         "path_params": [
           "proposal_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": "FindDocumentsAcceptRequest",
         "response_model": "FindDocumentsAcceptResult"
       },
@@ -4418,7 +4435,13 @@
         "path_params": [
           "proposal_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": "FindDocumentsJoinRequest",
         "response_model": "FindDocumentsAdjustResult"
       },
@@ -4430,7 +4453,13 @@
         "path_params": [
           "proposal_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": "FindDocumentsMovePageRequest",
         "response_model": "FindDocumentsAdjustResult"
       },
@@ -4442,7 +4471,13 @@
         "path_params": [
           "proposal_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": "FindDocumentsRejectRequest",
         "response_model": "FindDocumentsRejectResult"
       },
@@ -4454,7 +4489,13 @@
         "path_params": [
           "proposal_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "summary",
+            "required": false,
+            "type": "boolean"
+          }
+        ],
         "request_model": "FindDocumentsSplitRequest",
         "response_model": "FindDocumentsAdjustResult"
       },

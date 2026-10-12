@@ -2972,67 +2972,74 @@ def fichero_find_documents_list_proposals(
     *,
     folder_id: Annotated[Optional[str], Field(description="Only this folder's proposals.")] = None,
     include_superseded: Annotated[Optional[bool], Field(description='Also the proposals a later run on the same pages replaced (kept for what their answers teach).')] = None,
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
 ) -> Any:
     'Stored Find the Documents proposals\n\nNewest first; a proposal on a folder this caller may not read is left out and counted. A proposal a later\nrun replaced (`state` "superseded") is left out unless asked for, so the same pages are never listed twice.\n\nRoute: GET /api/find-documents/proposals (toolset `find-documents`; reads).'
-    return _rt.call("GET", "/api/find-documents/proposals", params={"folder_id": folder_id, "include_superseded": include_superseded})
+    return _rt.call("GET", "/api/find-documents/proposals", params={"folder_id": folder_id, "include_superseded": include_superseded, "summary": summary})
 
 
 def fichero_find_documents_get_proposal(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
 ) -> Any:
     'One Find the Documents proposal\n\nRoute: GET /api/find-documents/proposals/{proposal_id} (toolset `find-documents`; reads).'
-    return _rt.call("GET", f"/api/find-documents/proposals/{proposal_id}")
+    return _rt.call("GET", f"/api/find-documents/proposals/{proposal_id}", params={"summary": summary})
 
 
 def fichero_find_documents_accept_proposal(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
     arrange: Annotated[Optional[bool], Field(description="Lay the folder's canvas out in the documents' order. Default: true.")] = None,
     document_indexes: Annotated[Optional[list[Any]], Field(description='The documents to accept; none with no `min_confidence` accepts them all.')] = None,
     groups: Annotated[Optional[bool], Field(description='Also accept each proposed group whose documents are all accepted. Default: true.')] = None,
     min_confidence: Annotated[Optional[float], Field(description='Accept every document at least this confident.')] = None,
 ) -> Any:
     "Accept proposed documents: group nodes with their prototypes, the canvas laid out\n\nAccept all the proposed documents, the ones named, or those at least `min_confidence` sure: each becomes a\ngroup node of its pages (a one-page document stays its page) with its proposed prototype (made if the project\nhas none of that name); a proposed group whose documents are all accepted becomes a group of them; the\nfolder's canvas is laid out in their order. One audited action: undoing it (its `audit_id`) restores all.\nEach kind records who chose it: the run, accepted by this caller. A proposal a later run replaced, or a\ndocument whose pages are no longer the folder's loose pages, is refused (409) and nothing changes.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/accept (toolset `find-documents`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/accept", json=_rt.body({"arrange": arrange, "document_indexes": document_indexes, "groups": groups, "min_confidence": min_confidence}))
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/accept", params={"summary": summary}, json=_rt.body({"arrange": arrange, "document_indexes": document_indexes, "groups": groups, "min_confidence": min_confidence}))
 
 
 def fichero_find_documents_join(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
     document_index: Annotated[int, Field(description='The proposed document joined to the one after it.')],
 ) -> Any:
     'Join a proposed document to the next (an adjustment the project learns from)\n\nThe document and the one after it become one, set by this caller, and the proposal keeps the example "one\ndocument" across the join. Nothing in the library changes; one undo of `audit_id` restores the proposal.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/join (toolset `find-documents`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/join", json=_rt.body({"document_index": document_index}))
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/join", params={"summary": summary}, json=_rt.body({"document_index": document_index}))
 
 
 def fichero_find_documents_move_page(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
     document_index: Annotated[int, Field(description='The proposed document a page moves out of.')],
     to: Annotated[str, Field(description='previous: its first page moves to the end of the document before it; next: its last page moves to the start of the document after it. One of: previous, next.')],
 ) -> Any:
     "Move a proposed document's first or last page to its neighbour (an adjustment the project learns from)\n\n`to: previous` moves the document's first page to the end of the document before it; `to: next` moves its\nlast page to the start of the one after it. Both documents are set by this caller; the proposal keeps two\nexamples: one document across the page's new join, a new document across the one it left. Nothing in the\nlibrary changes; one undo of `audit_id` restores the proposal.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/move-page (toolset `find-documents`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/move-page", json=_rt.body({"document_index": document_index, "to": to}))
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/move-page", params={"summary": summary}, json=_rt.body({"document_index": document_index, "to": to}))
 
 
 def fichero_find_documents_reject_proposal(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
     document_indexes: Annotated[list[Any], Field(description='Document Indexes.')],
 ) -> Any:
     "Reject proposed documents (kept, for the project's own model to learn from)\n\nReject proposed documents: kept, marked rejected, for the project's own model to learn from. One audited\naction: undoing it (its `audit_id`) puts back only the documents it rejected (#5698).\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/reject (toolset `find-documents`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/reject", json=_rt.body({"document_indexes": document_indexes}))
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/reject", params={"summary": summary}, json=_rt.body({"document_indexes": document_indexes}))
 
 
 def fichero_find_documents_split(
     *,
     proposal_id: Annotated[str, Field(description='Proposal Id')],
+    summary: Annotated[Optional[bool], Field(description="a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away. An agent's default: true.")] = True,
     document_index: Annotated[int, Field(description='The proposed document to split.')],
     page_id: Annotated[str, Field(description='The page that starts the second document: one of its pages, not its first.')],
 ) -> Any:
     'Split a proposed document at a page (an adjustment the project learns from)\n\nThe named page starts a new document: the proposal\'s documents are renumbered, both halves are set by\nthis caller, and the proposal keeps the example "a document starts here" between the two pages. Nothing in\nthe library changes; one undo of `audit_id` restores the proposal exactly.\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/split (toolset `find-documents`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/split", json=_rt.body({"document_index": document_index, "page_id": page_id}))
+    return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/split", params={"summary": summary}, json=_rt.body({"document_index": document_index, "page_id": page_id}))
 
 
 def fichero_find_documents_start(

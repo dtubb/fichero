@@ -7034,6 +7034,18 @@
         "operationId": "list_find_documents_proposals_api_find_documents_proposals_get",
         "parameters": [
           {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
+          },
+          {
             "name": "folder_id",
             "in": "query",
             "required": false,
@@ -7079,6 +7091,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -7098,6 +7113,18 @@
               "type": "string",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
           }
         ],
         "responses": {
@@ -7121,6 +7148,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -7141,6 +7171,18 @@
               "type": "string",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
           },
           {
             "name": "X-Fichero-Origin-Window",
@@ -7197,6 +7239,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -7217,6 +7262,18 @@
               "type": "string",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
           },
           {
             "name": "X-Fichero-Origin-Window",
@@ -7270,6 +7327,9 @@
               }
             }
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -7290,6 +7350,18 @@
               "type": "string",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
           },
           {
             "name": "X-Fichero-Origin-Window",
@@ -7339,6 +7411,9 @@
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -7359,6 +7434,18 @@
               "type": "string",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
           },
           {
             "name": "X-Fichero-Origin-Window",
@@ -7408,6 +7495,9 @@
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },
@@ -7428,6 +7518,18 @@
               "type": "string",
               "title": "Proposal Id"
             }
+          },
+          {
+            "name": "summary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away.",
+              "default": false,
+              "title": "Summary"
+            },
+            "description": "a lean answer for an agent: the proposal's documents (each with its pages and reasons), groups and findings, without each join's signals, the pages looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). The whole proposal is one GET away."
           },
           {
             "name": "X-Fichero-Origin-Window",
@@ -7477,6 +7579,9 @@
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
           }
+        },
+        "x-fichero-agent-defaults": {
+          "summary": true
         }
       }
     },

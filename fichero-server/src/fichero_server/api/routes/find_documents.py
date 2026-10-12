@@ -43,6 +43,19 @@ from fichero_server.models.found_documents import (
 
 router = APIRouter(prefix="/find-documents")
 
+#: An agent's tool reads a proposal lean (`openapi.mcp.answers-fit-an-agent`, `openapi.mcp.onboarding-journey`): its
+#: documents with their reasons, without every join's signals, which are most of its weight (an accept on a
+#: 4-document box answered 15 KB; a 92-page box's proposal is 39 KB). The app, calling with no parameters, keeps them.
+AGENT_SUMMARY = {"x-fichero-agent-defaults": {"summary": True}}
+_SUMMARY = Query(False, description="a lean answer for an agent: the proposal's documents (each with its pages "
+                                    "and reasons), groups and findings, without each join's signals, the pages "
+                                    "looked at or the labelled examples (`joins`, `page_ids`, `examples` empty). "
+                                    "The whole proposal is one GET away.")
+
+
+def _lean(proposal: DocumentsProposal, summary: bool) -> DocumentsProposal:
+    return proposal.model_copy(update={"joins": [], "page_ids": [], "examples": []}) if summary else proposal
+
 
 def _job():
     """The job module, loaded on first use: the proposer and its cue table stay out of engine start."""
@@ -103,9 +116,11 @@ def _readable(request: Request, library: str | None, proposals: list[DocumentsPr
     return [p for p in proposals if (p.folder_id or (p.page_ids or [None])[0]) in readable]
 
 
-@router.get("/proposals", response_model=DocumentsProposalList, summary="Stored Find the Documents proposals")
+@router.get("/proposals", response_model=DocumentsProposalList, summary="Stored Find the Documents proposals",
+            openapi_extra=AGENT_SUMMARY)
 async def list_find_documents_proposals(
     request: Request,
+    summary: bool = _SUMMARY,
     folder_id: str | None = Query(None, description="Only this folder's proposals."),
     include_superseded: bool = Query(False, description="Also the proposals a later run on the same pages "
                                                         "replaced (kept for what their answers teach)."),
@@ -116,13 +131,16 @@ async def list_find_documents_proposals(
     run replaced (`state` "superseded") is left out unless asked for, so the same pages are never listed twice."""
     found = finddocs_store.proposals(db, folder_id, superseded=include_superseded)
     kept = _readable(request, x_fichero_library_path, found)
-    return DocumentsProposalList(items=kept, count=len(kept), withheld=len(found) - len(kept))
+    return DocumentsProposalList(items=[_lean(p, summary) for p in kept], count=len(kept),
+                                 withheld=len(found) - len(kept))
 
 
-@router.get("/proposals/{proposal_id}", response_model=DocumentsProposal, summary="One Find the Documents proposal")
+@router.get("/proposals/{proposal_id}", response_model=DocumentsProposal, summary="One Find the Documents proposal",
+            openapi_extra=AGENT_SUMMARY)
 async def get_find_documents_proposal(
     proposal_id: str,
     request: Request,
+    summary: bool = _SUMMARY,
     x_fichero_library_path: str | None = Depends(optional_library_path),
     db: Database = Depends(get_library_database),
 ) -> DocumentsProposal:
@@ -132,16 +150,18 @@ async def get_find_documents_proposal(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not _readable(request, x_fichero_library_path, [proposal]):
         raise HTTPException(status_code=404, detail=f"no Find the Documents proposal {proposal_id}")
-    return proposal
+    return _lean(proposal, summary)
 
 
 @router.post("/proposals/{proposal_id}/accept", response_model=FindDocumentsAcceptResult,
              summary="Accept proposed documents: group nodes with their prototypes, the canvas laid out",
              responses={409: {"description": "The proposal is out of date: a later run replaced it, or a "
-                                             "document's pages were grouped, moved or deleted since."}})
+                                             "document's pages were grouped, moved or deleted since."}},
+             openapi_extra=AGENT_SUMMARY)
 async def accept_find_documents_proposal(
     proposal_id: str,
     body: FindDocumentsAcceptRequest,
+    summary: bool = _SUMMARY,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> FindDocumentsAcceptResult:
@@ -157,15 +177,17 @@ async def accept_find_documents_proposal(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except finddocs_store.ProposalOutOfDate as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return FindDocumentsAcceptResult(proposal=finddocs_store.read(db, proposal_id), audit_id=result.audit_id,
-                                     **result.result)
+    return FindDocumentsAcceptResult(proposal=_lean(finddocs_store.read(db, proposal_id), summary),
+                                     audit_id=result.audit_id, **result.result)
 
 
 @router.post("/proposals/{proposal_id}/reject", response_model=FindDocumentsRejectResult,
-             summary="Reject proposed documents (kept, for the project's own model to learn from)")
+             summary="Reject proposed documents (kept, for the project's own model to learn from)",
+             openapi_extra=AGENT_SUMMARY)
 async def reject_find_documents_proposal(
     proposal_id: str,
     body: FindDocumentsRejectRequest,
+    summary: bool = _SUMMARY,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> FindDocumentsRejectResult:
@@ -175,7 +197,8 @@ async def reject_find_documents_proposal(
         result = registry.invoke(db, "finddocs.reject", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return FindDocumentsRejectResult(**finddocs_store.read(db, proposal_id).model_dump(), audit_id=result.audit_id)
+    return FindDocumentsRejectResult(**_lean(finddocs_store.read(db, proposal_id), summary).model_dump(),
+                                     audit_id=result.audit_id)
 
 
 _ADJUST_RESPONSES = {
@@ -185,7 +208,8 @@ _ADJUST_RESPONSES = {
 }
 
 
-def _adjust(db: Database, name: str, proposal_id: str, body: BaseModel, ctx: ActionContext) -> FindDocumentsAdjustResult:
+def _adjust(db: Database, name: str, proposal_id: str, body: BaseModel, ctx: ActionContext,
+            summary: bool = False) -> FindDocumentsAdjustResult:
     try:
         result = registry.invoke(db, name, {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except finddocs_adjust.AdjustmentNotPossible as exc:
@@ -194,46 +218,49 @@ def _adjust(db: Database, name: str, proposal_id: str, body: BaseModel, ctx: Act
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except finddocs_store.ProposalOutOfDate as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return FindDocumentsAdjustResult(proposal=finddocs_store.read(db, proposal_id), audit_id=result.audit_id,
-                                     examples=result.result["examples"])
+    return FindDocumentsAdjustResult(proposal=_lean(finddocs_store.read(db, proposal_id), summary),
+                                     audit_id=result.audit_id, examples=result.result["examples"])
 
 
 @router.post("/proposals/{proposal_id}/split", response_model=FindDocumentsAdjustResult,
              summary="Split a proposed document at a page (an adjustment the project learns from)",
-             responses=_ADJUST_RESPONSES)
+             responses=_ADJUST_RESPONSES, openapi_extra=AGENT_SUMMARY)
 async def split_find_documents_document(
     proposal_id: str,
     body: FindDocumentsSplitRequest,
+    summary: bool = _SUMMARY,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> FindDocumentsAdjustResult:
     """The named page starts a new document: the proposal's documents are renumbered, both halves are set by
     this caller, and the proposal keeps the example "a document starts here" between the two pages. Nothing in
     the library changes; one undo of `audit_id` restores the proposal exactly."""
-    return _adjust(db, "finddocs.split", proposal_id, body, ctx)
+    return _adjust(db, "finddocs.split", proposal_id, body, ctx, summary)
 
 
 @router.post("/proposals/{proposal_id}/join", response_model=FindDocumentsAdjustResult,
              summary="Join a proposed document to the next (an adjustment the project learns from)",
-             responses=_ADJUST_RESPONSES)
+             responses=_ADJUST_RESPONSES, openapi_extra=AGENT_SUMMARY)
 async def join_find_documents_documents(
     proposal_id: str,
     body: FindDocumentsJoinRequest,
+    summary: bool = _SUMMARY,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> FindDocumentsAdjustResult:
     """The document and the one after it become one, set by this caller, and the proposal keeps the example "one
     document" across the join. Nothing in the library changes; one undo of `audit_id` restores the proposal."""
-    return _adjust(db, "finddocs.join", proposal_id, body, ctx)
+    return _adjust(db, "finddocs.join", proposal_id, body, ctx, summary)
 
 
 @router.post("/proposals/{proposal_id}/move-page", response_model=FindDocumentsAdjustResult,
              summary="Move a proposed document's first or last page to its neighbour (an adjustment the project "
                      "learns from)",
-             responses=_ADJUST_RESPONSES)
+             responses=_ADJUST_RESPONSES, openapi_extra=AGENT_SUMMARY)
 async def move_find_documents_page(
     proposal_id: str,
     body: FindDocumentsMovePageRequest,
+    summary: bool = _SUMMARY,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
 ) -> FindDocumentsAdjustResult:
@@ -241,7 +268,7 @@ async def move_find_documents_page(
     last page to the start of the one after it. Both documents are set by this caller; the proposal keeps two
     examples: one document across the page's new join, a new document across the one it left. Nothing in the
     library changes; one undo of `audit_id` restores the proposal."""
-    return _adjust(db, "finddocs.move_page", proposal_id, body, ctx)
+    return _adjust(db, "finddocs.move_page", proposal_id, body, ctx, summary)
 
 
 def _suggestion(db: Database) -> dict:
