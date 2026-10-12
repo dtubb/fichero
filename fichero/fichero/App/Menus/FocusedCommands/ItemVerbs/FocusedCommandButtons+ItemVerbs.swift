@@ -104,7 +104,12 @@ enum ItemVerbs {
     }
 
     static func exclusionTitle(_ documents: [Document], _ exclusion: Exclusion) -> String {
-        let include = isExcluded(documents, exclusion)
+        exclusionTitle(exclusion, including: isExcluded(documents, exclusion))
+    }
+
+    /// The words for one way: include (the documents are excluded) or exclude. A surface that knows the way without
+    /// the documents (a dataset row's fixed verbs, the Inspector's one document) asks for it directly.
+    static func exclusionTitle(_ exclusion: Exclusion, including include: Bool) -> String {
         switch exclusion {
         case .processing: return include ? "Include in Processing" : "Exclude from Processing"
         case .search: return include ? "Include in Search" : "Exclude from Search"
@@ -113,7 +118,10 @@ enum ItemVerbs {
     }
 
     static func exclusionImage(_ documents: [Document], _ exclusion: Exclusion) -> String {
-        let include = isExcluded(documents, exclusion)
+        exclusionImage(exclusion, including: isExcluded(documents, exclusion))
+    }
+
+    static func exclusionImage(_ exclusion: Exclusion, including include: Bool) -> String {
         switch exclusion {
         case .processing: return include ? "eye" : "eye.slash"
         case .search: return include ? "magnifyingglass" : "text.magnifyingglass"
@@ -171,11 +179,11 @@ enum ItemVerbs {
     @MainActor @discardableResult
     static func setExcluded(_ ids: [String], excluded: Bool, _ exclusion: Exclusion,
                             using service: DocumentService,
-                            refreshing store: DocumentStore) async throws -> [Document] {
+                            refreshing store: DocumentStore?) async throws -> [Document] {
         var refreshed: [Document] = []
         for scope in exclusion.scopes {
             refreshed = try await service.batchExclude(documentIds: ids, excluded: excluded, scope: scope)
-            for updated in refreshed { store.refreshLocalContent(updated) }
+            for updated in refreshed { store?.refreshLocalContent(updated) }
         }
         return refreshed
     }

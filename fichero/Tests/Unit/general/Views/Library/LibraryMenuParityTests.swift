@@ -154,9 +154,12 @@ struct LibraryMenuParityTests {
     @Test("the dataset verbs are spelled in the shared builder and nowhere else")
     func datasetVerbsLiveInOnePlace() throws {
         let builder = try code(at: "Views/Library/ViewModes/Dataset/DatasetRowMenu.swift")
-        for verb in ["\"Show Source Page\"", "\"Edit Date…\"", "\"Exclude from Processing\"",
-                     "\"Exclude from Search\"", "\"Include Everywhere\"", "\"Run Workflow\""] {
+        for verb in ["\"Show Source Page\"", "\"Edit Date…\"", "\"Run Workflow\""] {
             #expect(builder.contains(verb), "the shared dataset builder lost \(verb)")
+        }
+        // Its exclusion verbs take the browse views' words and operation (#5652): `ItemVerbs`.
+        for exclusion in [".processing, excluded: true", ".search, excluded: true", ".everywhere, excluded: false"] {
+            #expect(builder.contains("exclusionItem(\(exclusion)"), "the shared dataset builder lost \(exclusion)")
         }
         for surface in datasetSurfaces {
             let code = try code(at: surface.path)

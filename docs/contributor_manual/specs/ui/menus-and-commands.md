@@ -358,8 +358,14 @@ Behaviours (slice 1):
   **Project › Chat ▸ Add to Chat** on the focused selection. Each is disabled with its reason otherwise. Run Workflow
   on Selection… (⇧⌘R, the picker) stays beside it. Pinned by `RunAndChatMenuTests` and
   `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: the dataset
-  rows' and the Inspector header's Exclude; the automation rows' verbs once they are wired.
+- `menus.edit.exclusion-everywhere-one-way` — **[OK]** (#5652 slice 4, group 7) **Built 2026-10-12 (app), not yet
+  seen:** the dataset rows' menu (its fixed Exclude from Processing, Exclude from Search, Include Everywhere: a row
+  carries no exclusion state) and the Inspector header's one-document toggle take their words from `ItemVerbs`
+  and exclude through its one operation (`ItemVerbs.setExcluded`), as the browse menus and Edit do; the words are
+  spelled nowhere else. Pinned by `ItemVerbsMenuTests` and
+  `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652, #5712) Edit parity for the sidebar's automation rows' Pause,
+  Resume, Run Now and Cancel, once they are wired (#5712).
 
 ---
 

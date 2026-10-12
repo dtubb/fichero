@@ -57,8 +57,8 @@ struct MenuVerbsOneCodePathGuardTests {
     }
 
     /// #5652 slice 4, group 1: the item verbs' words are spelled once, in the shared items, so a context menu cannot
-    /// grow a second Bookmark… or Exclude that drifts from Edit's. Exclude still has two surfaces not yet on the shared
-    /// item (the dataset rows' menu and the Inspector's header, later groups): a shrinking allowlist.
+    /// grow a second Bookmark… or Exclude that drifts from Edit's. The dataset rows' menu and the Inspector's header ask
+    /// `ItemVerbs` for their exclusion words too (group 7).
     @Test("the item verbs' words are spelled only in the shared items")
     func itemVerbWordsLiveInOnePlace() throws {
         let shared = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+ItemVerbs.swift"
@@ -66,13 +66,10 @@ struct MenuVerbsOneCodePathGuardTests {
         func spelling(_ word: String) -> Set<String> {
             Set(files.filter { $0.text.contains("\"\(word)\"") }.map(\.path))
         }
-        for word in ["Bookmark…", "Add to Workspace…", "Export a Copy…", "Exclude Everywhere", "Include in Search"] {
+        for word in ["Bookmark…", "Add to Workspace…", "Export a Copy…", "Exclude Everywhere", "Include in Search",
+                     "Exclude from Processing", "Exclude from Search", "Include Everywhere", "Include in Processing"] {
             #expect(spelling(word) == [shared], "\(word) is spelled outside the shared items")
         }
-        #expect(spelling("Exclude from Processing") == [
-            shared, "Views/Library/ViewModes/Dataset/DatasetRowMenu.swift",
-            "Views/Inspector/Source/Info/DocumentInspectorInfoTab+Header.swift",
-        ])
         #expect(spelling("Group as Stack").isEmpty, "Group is one item, named Group")
         // Group 2: opening, copying and finding an item.
         let openVerbs = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+OpenVerbs.swift"

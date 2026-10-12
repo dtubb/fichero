@@ -75,26 +75,27 @@ struct DatasetRowMenu: View {
     }
 
     /// Exclusion parity with the browse views (Daniel, 2026-08-19): dataset
-    /// rows are nodes like any other, so bulk curation works here too.
+    /// rows are nodes like any other, so bulk curation works here too. A row
+    /// carries no exclusion state, so the verbs are the fixed three; their
+    /// words and the one operation are the browse views' (`ItemVerbs`, #5652).
     @ViewBuilder
     private var exclusionItems: some View {
         if let documentService, !targets.isEmpty {
             Divider()
-            Button("Exclude from Processing") {
-                Task { _ = try? await documentService.batchExclude(
-                    documentIds: targets, excluded: true, scope: .processing) }
-            }
-            Button("Exclude from Search") {
-                Task { _ = try? await documentService.batchExclude(
-                    documentIds: targets, excluded: true, scope: .search) }
-            }
-            Button("Include Everywhere") {
-                Task {
-                    _ = try? await documentService.batchExclude(
-                        documentIds: targets, excluded: false, scope: .processing)
-                    _ = try? await documentService.batchExclude(
-                        documentIds: targets, excluded: false, scope: .search)
-                }
+            exclusionItem(.processing, excluded: true, service: documentService)
+            exclusionItem(.search, excluded: true, service: documentService)
+            exclusionItem(.everywhere, excluded: false, service: documentService)
+        }
+    }
+
+    private func exclusionItem(_ exclusion: ItemVerbs.Exclusion, excluded: Bool,
+                               service: DocumentService) -> some View {
+        let targets = targets
+        return Button(ItemVerbs.exclusionTitle(exclusion, including: !excluded)) {
+            Task {
+                _ = try? await ItemVerbs.setExcluded(
+                    targets, excluded: excluded, exclusion, using: service, refreshing: nil
+                )
             }
         }
     }

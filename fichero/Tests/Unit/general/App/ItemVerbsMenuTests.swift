@@ -150,6 +150,24 @@ struct ItemVerbsMenuTests {
         #expect(ItemVerbs.Exclusion.everywhere.scopes == [.processing, .search])
     }
 
+    /// Group 7: the dataset rows' fixed verbs and the Inspector's one-document toggle take the same words.
+    @Test("the words for a known way are the same the menus use for documents")
+    func exclusionWordsForAKnownWay() {
+        #expect(ItemVerbs.exclusionTitle(.processing, including: false) == "Exclude from Processing")
+        #expect(ItemVerbs.exclusionTitle(.processing, including: true) == "Include in Processing")
+        #expect(ItemVerbs.exclusionTitle(.everywhere, including: true) == ItemVerbs.exclusionTitle([excludedPage], .everywhere))
+        #expect(ItemVerbs.exclusionImage(.processing, including: true) == ItemVerbs.exclusionImage([excludedPage], .processing))
+    }
+
+    @Test("a surface with no store of its own (the dataset rows) still excludes through the one operation")
+    func setExcludedWithoutAStore() async throws {
+        let (service, _) = services()
+        try await ItemVerbs.setExcluded(["p1"], excluded: false, .everywhere, using: service, refreshing: nil)
+        let sent = ItemVerbsEngine.recorded().filter { $0.path == "/api/documents/batch-exclude" }
+        #expect(sent.map { $0.body["scope"] as? String } == ["processing", "search"])
+        #expect(sent.allSatisfy { ($0.body["excluded"] as? Bool) == false })
+    }
+
     @Test("titles use the ellipsis character where more is asked, never three dots")
     func terminology() {
         for title in [ItemVerbs.bookmarkTitle, ItemVerbs.addToWorkspaceTitle, ItemVerbs.exportTitle] {

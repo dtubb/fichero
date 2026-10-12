@@ -441,12 +441,12 @@ struct DocumentInspectorInfoTab: View {
         defer { isUpdatingExclude = false }
 
         do {
-            let refreshed = try await library.documentService.batchExclude(
-                documentIds: [document.id],
-                excluded: !isExcludedFromProcessing
+            // The item verbs' one exclusion (#5652).
+            let refreshed = try await ItemVerbs.setExcluded(
+                [document.id], excluded: !isExcludedFromProcessing, .processing,
+                using: library.documentService, refreshing: documentStore
             )
             for updated in refreshed {
-                documentStore.refreshLocalContent(updated)
                 if updated.id == document.id {
                     excludeFromProcessingOverride = updated.excludeFromProcessing
                 }

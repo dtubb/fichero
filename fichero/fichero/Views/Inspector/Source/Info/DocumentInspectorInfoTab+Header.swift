@@ -29,9 +29,10 @@ extension DocumentInspectorInfoTab {
                     ProgressView()
                         .controlSize(.small)
                 } else {
+                    // The item verbs' own words (#5652): the same Exclude the menus and Edit offer.
                     Label(
-                        isExcludedFromProcessing ? "Include in Processing" : "Exclude from Processing",
-                        systemImage: isExcludedFromProcessing ? "eye" : "eye.slash"
+                        ItemVerbs.exclusionTitle(.processing, including: isExcludedFromProcessing),
+                        systemImage: ItemVerbs.exclusionImage(.processing, including: isExcludedFromProcessing)
                     )
                 }
             }
