@@ -645,7 +645,7 @@ class TestZombieRowIndexCrash:
         verify_conn = duckdb.connect(db_path)
         try:
             rows = verify_conn.execute(
-                "SELECT thread_id, status, error FROM workflow_runs ORDER BY thread_id"
+                "SELECT id, status, error FROM workflowrunrecords ORDER BY id"  # folded (#5645)
             ).fetchall()
         finally:
             verify_conn.close()
@@ -708,7 +708,7 @@ class TestZombieRowIndexCrash:
         verify_conn = duckdb.connect(db_path)
         try:
             row = verify_conn.execute(
-                "SELECT status FROM workflow_runs WHERE thread_id = 'done-1'"
+                "SELECT status FROM workflowrunrecords WHERE id = 'done-1'"  # folded (#5645)
             ).fetchone()
         finally:
             verify_conn.close()

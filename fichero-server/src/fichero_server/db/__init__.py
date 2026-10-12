@@ -1139,6 +1139,7 @@ class Database(DatabaseEmbeddingMixin):
             self._fold_batch_tables,
             self._fold_watcher_tables,
             self._fold_scheduler_tables,
+            self._fold_activity_tables,
         ))
 
     #: An open-time step slower than this is logged as a warning, named (#5228).
@@ -1180,8 +1181,14 @@ class Database(DatabaseEmbeddingMixin):
     WATCHER_TABLES_FOLDED_SETTING = "watcher_tables_folded_5645"
     #: The same for the scheduler's `schedules` and `schedule_runs` (#5645).
     SCHEDULER_TABLES_FOLDED_SETTING = "scheduler_tables_folded_5645"
+    #: The same for the activity store's `activities` and `workflow_runs` (#5645).
+    ACTIVITY_TABLES_FOLDED_SETTING = "activity_tables_folded_5645"
+    #: Rows copied to a transaction when the activity store folds: a run carries its code and log, and a library can
+    #: hold tens of thousands (#5645: a fold holds one chunk's rows, never the whole history).
+    ACTIVITY_FOLD_CHUNK = 500
 
-    def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, str, str, str]]) -> None:
+    def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, str, str, str]], *,
+                        chunk: int | None = None) -> None:
         """Copy one store's rows from the tables it made by hand into its models' tables, once (#5645,
         `source.store.one-managed-database`). `copies`: for each old table, the INSERT that copies the rows the new
         table lacks (by the old key, so a copy cut short finishes at the next open without doubling) and the count
@@ -1208,6 +1215,26 @@ class Database(DatabaseEmbeddingMixin):
             self._say_older_engine_rows(name, folded[0], [(t, newer_sql) for t, _c, _m, newer_sql in copies if t in old])
             return
         from fichero_server.db.migrations.schema import _run_atomic_migration
+
+        if chunk:
+            # A big store (a library's run history) is copied `chunk` rows to a transaction, so a fold never holds
+            # every row at once; each chunk is the anti-join's next rows, so a fold cut short resumes where it was.
+            # The check and the record below are then one transaction, as for every store (#5645).
+            for table, copy_sql, _missing, _newer in copies:
+                if table not in old:
+                    continue
+                copied = [chunk]
+                while copied[0]:
+                    copied[0] = 0
+                    failures = len(self.migration_failures)
+
+                    def _chunk(table=table, copy_sql=copy_sql) -> None:
+                        row = conn.execute(f"{copy_sql} LIMIT {chunk}").fetchone()
+                        copied[0] = row[0] if row else 0
+
+                    _run_atomic_migration(conn, f"fold_{name}_tables_5645", _chunk, self.migration_failures)
+                    if len(self.migration_failures) > failures:
+                        return  # said on /api/health; the next open goes on from here
 
         def _copy() -> None:
             for table, copy_sql, _missing, _newer in copies:
@@ -1320,6 +1347,37 @@ class Database(DatabaseEmbeddingMixin):
              "SELECT count(*) FROM schedule_runs WHERE run_id NOT IN (SELECT id FROM schedulerunrecords)",
              "SELECT count(*) FROM schedule_runs WHERE started_at > ?"),
         ])
+
+    def _fold_activity_tables(self) -> None:
+        """The activity store's `activities` and `workflow_runs` into `ActivityEventRecord` and `WorkflowRunRecord`
+        (#5645), `ACTIVITY_FOLD_CHUNK` rows to a transaction. A column an older table never had (a run from before
+        `run_usage`, say) is copied as NULL; an event whose run is gone is copied as it is."""
+        conn = self.conn
+
+        def columns(table: str) -> set[str]:
+            return {r[0] for r in conn.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = ?", [table]).fetchall()}
+
+        run_cols = columns("workflow_runs")
+        run_fields = ("workflow_id", "workflow_name", "python_code", "execution_log", "status", "started_at",
+                      "completed_at", "duration_ms", "error", "workflow_snapshot", "node_name_map",
+                      "progress_timeline", "diagram_mermaid", "resolved_scope", "run_usage", "estimated_cost")
+        run_select = ", ".join(("COALESCE(r.status, 'running')" if f == "status" else f"r.{f}") if f in run_cols
+                               else "NULL" for f in run_fields)
+        self._fold_old_store("activity", self.ACTIVITY_TABLES_FOLDED_SETTING, [
+            ("activities",
+             "INSERT INTO activityeventrecords (id, type, level, timestamp, message, workflow_id, batch_id, thread_id, "
+             "node_id, metadata, duration_ms, error) SELECT a.id, a.type, a.level, a.timestamp, a.message, "
+             "a.workflow_id, a.batch_id, a.thread_id, a.node_id, a.metadata, a.duration_ms, a.error "
+             "FROM activities a WHERE a.id NOT IN (SELECT id FROM activityeventrecords)",
+             "SELECT count(*) FROM activities WHERE id NOT IN (SELECT id FROM activityeventrecords)",
+             "SELECT count(*) FROM activities WHERE timestamp > ?"),
+            ("workflow_runs",
+             f"INSERT INTO workflowrunrecords (id, {', '.join(run_fields)}) SELECT r.thread_id, {run_select} "
+             "FROM workflow_runs r WHERE r.thread_id NOT IN (SELECT id FROM workflowrunrecords)",
+             "SELECT count(*) FROM workflow_runs WHERE thread_id NOT IN (SELECT id FROM workflowrunrecords)",
+             "SELECT count(*) FROM workflow_runs WHERE started_at > ?"),
+        ], chunk=self.ACTIVITY_FOLD_CHUNK)
 
     #: Records that this library's indexes were rebuilt once, repairing any written by a replay
     #: before the fix (#5644). A library with no settings table yet is new: nothing to repair.
@@ -1476,6 +1534,7 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
         from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
         from fichero_server.models.schedules import ScheduleRecord, ScheduleRunRecord
+        from fichero_server.models.activity_records import ActivityEventRecord, WorkflowRunRecord
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
             Interpretation,
@@ -1728,6 +1787,9 @@ class Database(DatabaseEmbeddingMixin):
             # #5645: the scheduler's store (was `schedules`, `schedule_runs`).
             ScheduleRecord,
             ScheduleRunRecord,
+            # #5645: the activity store (was `activities`, `workflow_runs`).
+            ActivityEventRecord,
+            WorkflowRunRecord,
         )
 
     def _materialize_schema(self) -> None:
@@ -7791,6 +7853,14 @@ class Database(DatabaseEmbeddingMixin):
             # never logs the noisy "table does not exist yet" warning that
             # firing on the FIRST of the two would guarantee on every fresh
             # library.
+            if (
+                first_reconcile_this_connection
+                and table in {"activityeventrecords", "workflowrunrecords"}
+                and {"activityeventrecords", "workflowrunrecords"} <= self._tables_created
+            ):
+                from fichero_server.db.migrations.schema import migrate_activity_record_indices
+                migrate_activity_record_indices(self.conn)
+
             if (
                 first_reconcile_this_connection
                 and table in {"segments", "segment_passes"}

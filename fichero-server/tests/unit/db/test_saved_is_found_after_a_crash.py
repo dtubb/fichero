@@ -163,7 +163,7 @@ def test_a_pages_segments_are_listed_after_the_engine_was_killed(package, app_db
     for table, column, value, rows in (
         ("segment_passes", "document_id", ids["doc"], 1),
         ("segments", "pass_id", ids["pass"], 85),
-        ("activities", "thread_id", ids["thread"], 40),
+        ("activityeventrecords", "thread_id", ids["thread"], 40),  # the activity store's events (#5645)
     ):
         db_manager.close_all()
         assert _index_misses(package / "fichero.duckdb", table, column, value) == (rows, rows), table
@@ -279,7 +279,7 @@ def test_the_activity_store_opening_first_finds_a_crashed_runs_rows(package, mon
     store = ActivityStore(str(dbfile))
     assert store.delete_workflow_runs_sync([ids["thread"]]) == [ids["thread"]]
     db_manager.close_all()
-    assert _index_misses(dbfile, "activities", "thread_id", ids["thread"]) == (40, 40)
+    assert _index_misses(dbfile, "activityeventrecords", "thread_id", ids["thread"]) == (40, 40)
 
 
 def test_every_engine_open_goes_through_connect_utc():

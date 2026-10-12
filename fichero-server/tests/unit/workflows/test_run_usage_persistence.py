@@ -241,48 +241,29 @@ def test_run_cost_estimate_anchors_on_first_paid_node() -> None:
     assert ninety == pytest.approx(one * 90, rel=1e-6)
 
 
-def test_canonical_column_list_carries_run_usage() -> None:
-    from fichero_server.workflows.activity_store import _WORKFLOW_RUNS_COLUMNS
+def test_a_run_from_before_the_usage_columns_is_folded_with_none(tmp_path: Path) -> None:
+    """A library opened before `run_usage` and `estimated_cost` existed folds its runs with them as None (#5645;
+    the hand-rolled #1362 rebuild these columns once had to survive is gone): not the same as a run that cost nothing."""
+    import asyncio
 
-    # The crash-safe rebuild copies these columns verbatim; a column missing
-    # from the list is a column the rebuild silently drops.
-    assert "run_usage" in _WORKFLOW_RUNS_COLUMNS
-    assert "estimated_cost" in _WORKFLOW_RUNS_COLUMNS
-
-
-def test_rebuild_tolerates_a_table_that_predates_the_usage_column(tmp_path: Path) -> None:
-    # Recovery must not require the newest schema: a library opened before
-    # the run_usage migration still has to be rebuildable, or an index
-    # corruption on an old library would be unrepairable.
     import duckdb
 
-    from fichero_server.workflows.activity_store import _rebuild_workflow_runs_flipping_stale
+    from fichero_server.db import Database
+    from fichero_server.workflows.activity_store import ActivityStore
 
-    db_path = str(tmp_path / "legacy.duckdb")
-    conn = duckdb.connect(db_path)
-    conn.execute(
-        """
-        CREATE TABLE workflow_runs (
-            thread_id TEXT PRIMARY KEY, workflow_id TEXT, workflow_name TEXT,
-            python_code TEXT, execution_log TEXT, status TEXT,
-            started_at TIMESTAMP, completed_at TIMESTAMP, duration_ms FLOAT,
-            error TEXT
-        )
-        """
-    )
-    conn.execute(
-        "INSERT INTO workflow_runs (thread_id, workflow_id, workflow_name, status,"
-        " started_at) VALUES ('zombie', 'w', 'W', 'running', CURRENT_TIMESTAMP)"
-    )
-
-    conn.close()  # the rebuild opens its own connection
-
-    flipped = _rebuild_workflow_runs_flipping_stale(db_path, started_before=None)
-    assert flipped == ["zombie"]
-
-    check = duckdb.connect(db_path)
-    status = check.execute(
-        "SELECT status FROM workflow_runs WHERE thread_id = 'zombie'"
-    ).fetchone()
-    check.close()
-    assert status is not None and status[0] == "failed"
+    package = tmp_path / "Legacy.fichero"
+    package.mkdir()
+    path = package / "fichero.duckdb"
+    conn = duckdb.connect(str(path))
+    conn.execute("CREATE TABLE workflow_runs (thread_id TEXT PRIMARY KEY, workflow_id TEXT, workflow_name TEXT, "
+                 "python_code TEXT, execution_log TEXT, status TEXT, started_at TIMESTAMP, completed_at TIMESTAMP, "
+                 "duration_ms FLOAT, error TEXT)")
+    conn.execute("INSERT INTO workflow_runs (thread_id, workflow_id, workflow_name, status, started_at) "
+                 "VALUES ('old', 'w', 'W', 'completed', CURRENT_TIMESTAMP)")
+    conn.close()
+    db = Database(path)
+    try:
+        run = asyncio.run(ActivityStore(str(path)).get_workflow_run("old"))
+        assert run is not None and run.run_usage is None and run.estimated_cost is None
+    finally:
+        db.close()

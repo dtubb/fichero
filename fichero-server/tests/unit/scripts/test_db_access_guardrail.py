@@ -59,6 +59,10 @@ ALLOWLIST: frozenset[str] = frozenset(
         # moved here FROM api/routes/document/dataset.py — this IS the typed
         # persistence entry point the rule asks for.
         "db/dataset_query.py",
+        # The activity store's events and runs (#5645): the SQL moved here FROM workflows/activity_store.py (which
+        # opened its own connections), behind typed functions on the managed Database -- the persistence entry
+        # point the rule asks for. Ordered, paged and one-column SQL that `Database.save`/`query` cannot express.
+        "db/activity_records.py",
         # The recipe runner's whole-project tree reads (2026-10-10): the SQL moved here FROM
         # recipes/runner.py, behind typed functions — the persistence entry point the rule asks for.
         "db/document_tree.py",
@@ -86,7 +90,6 @@ ALLOWLIST: frozenset[str] = frozenset(
         "workflows/action_store.py",
         "workflows/cache.py",
         "workflows/checkpointer.py",
-        "workflows/activity_store.py",
     }
 )
 

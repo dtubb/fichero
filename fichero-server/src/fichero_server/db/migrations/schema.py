@@ -581,6 +581,17 @@ def migrate_activity_tables(
     _run_atomic_migration(conn, "migrate_activity_tables", _step, failures)
 
 
+def migrate_activity_record_indices(conn) -> None:
+    """The indexes the activity store's hot reads need (#5645): runs newest first and by status (Activity polls the
+    list), events newest first and by run. CREATE INDEX IF NOT EXISTS: a no-op once there. Rebuilt with every other
+    secondary index after a crashed session's WAL replay (#5644)."""
+    for name, on in (("idx_workflowrunrecords_started_at", "workflowrunrecords(started_at DESC)"),
+                     ("idx_workflowrunrecords_status", "workflowrunrecords(status)"),
+                     ("idx_activityeventrecords_timestamp", "activityeventrecords(timestamp DESC)"),
+                     ("idx_activityeventrecords_thread_id", "activityeventrecords(thread_id)")):
+        conn.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {on}")
+
+
 def migrate_knowledge_indices(conn) -> None:
     """Add indices on knowledgeentitys + knowledgeclaims for fast lookup.
 

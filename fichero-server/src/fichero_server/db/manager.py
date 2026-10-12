@@ -114,7 +114,6 @@ class DatabaseManager:
         """
         from fichero_server.db import Database
         from fichero_server.db.migrations.schema import (
-            migrate_activity_tables,
             migrate_catalogue_chunk_artifact_type,
             migrate_checkpoint_tables,
             migrate_provider_refs_table,
@@ -163,7 +162,8 @@ class DatabaseManager:
                     migrate_workflow_table(db.conn, db.migration_failures)
                     migrate_saved_search_table(db.conn, db.migration_failures)
                     migrate_provider_refs_table(db.conn, db.migration_failures)
-                    migrate_activity_tables(db.conn, db.migration_failures)
+                    # #5645: the activity store keeps its rows as models now; the old `activities` table is no
+                    # longer made at every open (a library that has one keeps it, and folds it once).
                     # #4426: collapse unbounded catalogue.chunk.N types.
                     migrate_catalogue_chunk_artifact_type(db.conn, db.migration_failures)
                     migrate_checkpoint_tables(db.conn, db.migration_failures)

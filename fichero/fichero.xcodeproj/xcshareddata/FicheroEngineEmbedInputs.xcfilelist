@@ -231,6 +231,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/timeutil.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/tls.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/utf16_offsets.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/activity_records.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/app.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/busy_evidence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
@@ -412,6 +413,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/segment_pictures.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/transcript_alignment_service.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/activity_records.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/anchors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/batches.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/campaigns.py

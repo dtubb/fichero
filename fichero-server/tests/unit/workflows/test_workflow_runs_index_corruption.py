@@ -1,480 +1,86 @@
-"""Regression tests for #1362 — startup recovery of zombie workflow_runs must
-NEVER fatal-poison the DuckDB connection over ART-indexed rows.
+"""Recovery of runs a dead process left unfinished, on the library's managed connection (#1362, #4316, #5645).
 
-Background
-----------
-``workflow_runs`` has a PRIMARY KEY on ``thread_id`` (an ART index) plus
-secondary indexes. After a crash + WAL replay the ART index can desync from
-the table heap. An in-place ``UPDATE``/``DELETE`` then raises::
+#1362: `workflow_runs` sat on hand-made connections, and a stale index after a crashed session's WAL replay made the
+recovery UPDATE raise a FATAL "Failed to delete all rows from index", poisoning the database; a hand-rolled rebuild of
+the whole table was the workaround. Since #5644 `connect_utc` rebuilds every secondary index right after a replay,
+before anything can checkpoint, and since #5645 the runs are `WorkflowRunRecord` rows on the managed connection, which
+recovers its own connection. The rebuild is gone; what recovery still promises is pinned here:
 
-    Invalid Input Error: Failed to delete all rows from index.
-    Only deleted 0 out of N rows.
-
-which DuckDB escalates to a FATAL error: the *entire* database is invalidated
-for the process lifetime, so every later endpoint (``/api/workflows``,
-``/api/activity``) 500s with "database has been invalidated". A user's live
-library is bricked until restart — and a fresh restart re-runs the same
-recovery UPDATE and re-triggers the fatal (the recurrence in #1362).
-
-The morning fix only flipped zombie rows in-place before ``CREATE INDEX`` —
-the in-place UPDATE *is* the statement that fatals, so that fix was incomplete.
-
-Fix under test
---------------
-``_recover_stale_workflow_runs`` tries an in-place UPDATE first, and on ANY
-``duckdb.Error`` (notably the FATAL index error) discards the poisoned
-connection and rebuilds ``workflow_runs`` from scratch on a fresh connection
-via ``_rebuild_workflow_runs_flipping_stale`` (CREATE TABLE AS SELECT → DROP →
-RENAME → recreate indexes). The rebuild never performs an indexed in-place
-delete, so it sidesteps the bug entirely and leaves a usable connection.
-
-NOTE: the raw "Failed to delete all rows from index" FATAL could NOT be
-reproduced on a *cleanly-written* DuckDB 1.5.3 file (it requires a genuinely
-corrupt crash/WAL state). These tests therefore (a) exercise the happy path
-on a real indexed table with zombie rows, and (b) force the fatal via a
-monkeypatched connection to prove the fallback rebuild repairs the table and
-leaves a usable connection — exactly the live failure mode.
+- constructing the store never flips a run (F5: reopening a library mid-run failed LIVE runs, #4316);
+- the sweep flips only unfinished runs older than its cutoff, never one this process is tracking;
+- a failure in the sweep is logged and flips nothing; it never takes the library down.
+The crash itself (a process killed mid-write, then reopened) is `tests/unit/db/test_saved_is_found_after_a_crash.py`.
 """
-
 from __future__ import annotations
 
-import datetime
+import asyncio
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import duckdb
-import pytest
-
-from fichero_server.workflows.activity_store import (
-    ActivityStore,
-    _rebuild_workflow_runs_flipping_stale,
-    _recover_stale_workflow_runs,
-)
+from fichero_server.db import Database
+from fichero_server.workflows.activity_store import ActivityStore
 
 
-# Canonical workflow_runs DDL with the PK ART index + secondary indexes, the
-# way ActivityStore._init_database builds it.
-_DDL = """
-CREATE TABLE workflow_runs (
-    thread_id TEXT PRIMARY KEY,
-    workflow_id TEXT NOT NULL,
-    workflow_name TEXT NOT NULL,
-    python_code TEXT,
-    execution_log TEXT,
-    status TEXT DEFAULT 'running',
-    started_at TIMESTAMP NOT NULL,
-    completed_at TIMESTAMP,
-    duration_ms FLOAT,
-    error TEXT,
-    workflow_snapshot JSON,
-    node_name_map JSON,
-    progress_timeline JSON,
-    diagram_mermaid TEXT,
-    -- #4384: what the run was scoped to. This DDL mirrors the canonical
-    -- table, and the crash-safe rebuild copies every column in
-    -- `_WORKFLOW_RUNS_COLUMNS` — so a column added there and not here makes
-    -- the rebuild report degraded, which is exactly what these tests caught.
-    resolved_scope JSON
-)
-"""
+def _library(tmp_path: Path) -> tuple[Database, ActivityStore]:
+    package = tmp_path / "Runs.fichero"
+    package.mkdir()
+    db = Database(package / "fichero.duckdb")
+    return db, ActivityStore(str(db.path))
 
 
-def _seed_indexed_zombies(db_path: str, n: int = 4) -> None:
-    """Create workflow_runs WITH indexes and ``n`` stale 'running' rows.
+def _seed(store: ActivityStore, thread_id: str, *, hours_ago: float, status: str = "running") -> None:
+    asyncio.run(store.save_workflow_run(thread_id, "wf", "Read", status=status,
+                                        started_at=datetime.now(timezone.utc) - timedelta(hours=hours_ago)))
 
-    Mirrors the live crash chunk: a shared workflow_id (hex) across threads
-    and old started_at timestamps (May 23–29).
-    """
-    conn = duckdb.connect(db_path)
+
+def _status(store: ActivityStore, thread_id: str) -> str:
+    return asyncio.run(store.get_workflow_run(thread_id)).status
+
+
+def test_constructing_the_store_flips_nothing_and_the_sweep_recovers(tmp_path):
+    db, store = _library(tmp_path)
     try:
-        conn.execute(_DDL)
-        conn.execute(
-            "CREATE INDEX idx_workflow_runs_workflow_id ON workflow_runs(workflow_id)"
-        )
-        conn.execute(
-            "CREATE INDEX idx_workflow_runs_started_at "
-            "ON workflow_runs(started_at DESC)"
-        )
-        for i in range(n):
-            conn.execute(
-                "INSERT INTO workflow_runs"
-                "(thread_id, workflow_id, workflow_name, status, started_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                [
-                    f"thread-b0b9c8db6bc{i}",
-                    "364a050ba492487f8a7116c8c4e8afa6",
-                    "wf",
-                    "running",
-                    datetime.datetime(2026, 5, 23 + i),
-                ],
-            )
-    finally:
-        conn.close()
-
-
-def _status_counts(db_path: str) -> dict[str, int]:
-    conn = duckdb.connect(db_path)
-    try:
-        rows = conn.execute(
-            "SELECT status, count(*) FROM workflow_runs GROUP BY status"
-        ).fetchall()
-        return {status: count for status, count in rows}
-    finally:
-        conn.close()
-
-
-class TestStartupRecoveryIsCrashSafe:
-    """The happy path: recovery on a real indexed table with zombie rows must
-    flip them and leave the connection usable (no fatal)."""
-
-    def test_construction_does_not_flip_and_sweep_recovers(
-        self, tmp_path: Path
-    ) -> None:
-        """#4316: constructing ActivityStore must NOT flip rows — reopening a
-        library mid-run used to fail LIVE runs (F5). The explicit sweep
-        (recover_stale_runs) is what recovers zombies, crash-safe."""
-        import asyncio
-
-        db_path = str(tmp_path / "lib.duckdb")
-        _seed_indexed_zombies(db_path, n=4)
-
-        store = ActivityStore(db_path)
-
-        # (a) construction alone leaves the rows untouched (F5 regression)
-        counts = _status_counts(db_path)
-        assert counts.get("running") == 4, f"construction flipped rows: {counts}"
-
-        # (c) the explicit sweep flips them, crash-safe
+        for n in range(4):
+            _seed(store, f"zombie-{n}", hours_ago=5)
+        ActivityStore(str(db.path))  # reopened mid-run: F5
+        assert {_status(store, f"zombie-{n}") for n in range(4)} == {"running"}
         recovered = asyncio.run(store.recover_stale_runs(max_age_hours=0))
-        assert len(recovered) == 4
-        counts = _status_counts(db_path)
-        assert counts.get("failed") == 4, f"expected 4 failed, got {counts}"
-        assert "running" not in counts
-
-        # (b) the database is still usable afterward — a follow-up query must
-        #     succeed, not raise "database has been invalidated".
-        conn = duckdb.connect(db_path)
-        try:
-            total = conn.execute("SELECT count(*) FROM workflow_runs").fetchone()
-            assert total == (4,)
-            # the workflows-list query shape used by /api/workflows
-            rows = conn.execute(
-                "SELECT thread_id, status FROM workflow_runs "
-                "ORDER BY started_at DESC"
-            ).fetchall()
-            assert len(rows) == 4
-        finally:
-            conn.close()
-
-    def test_recover_stale_runs_respects_cutoff_on_indexed_table(
-        self, tmp_path: Path
-    ) -> None:
-        """recover_stale_runs only flips rows older than the cutoff."""
-        db_path = str(tmp_path / "lib.duckdb")
-        conn = duckdb.connect(db_path)
-        try:
-            conn.execute(_DDL)
-            conn.execute(
-                "CREATE INDEX idx_workflow_runs_started_at "
-                "ON workflow_runs(started_at DESC)"
-            )
-            old = datetime.datetime(2026, 5, 23)
-            recent = datetime.datetime.now()
-            conn.execute(
-                "INSERT INTO workflow_runs"
-                "(thread_id, workflow_id, workflow_name, status, started_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                ["old-zombie", "wf", "wf", "running", old],
-            )
-            conn.execute(
-                "INSERT INTO workflow_runs"
-                "(thread_id, workflow_id, workflow_name, status, started_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                ["fresh-live", "wf", "wf", "running", recent],
-            )
-        finally:
-            conn.close()
-
-        cutoff = datetime.datetime(2026, 5, 24)
-        conn = duckdb.connect(db_path)
-        try:
-            flipped = _recover_stale_workflow_runs(
-                conn, db_path, started_before=cutoff
-            )
-        finally:
-            conn.close()
-
-        # Returns the flipped thread_ids, not a count (#4379).
-        assert flipped == ["old-zombie"]
-        counts = _status_counts(db_path)
-        assert counts.get("running") == 1  # fresh-live untouched
-        assert counts.get("failed") == 1  # old-zombie flipped
+        assert sorted(recovered) == [f"zombie-{n}" for n in range(4)]
+        assert {_status(store, f"zombie-{n}") for n in range(4)} == {"failed"}
+        assert asyncio.run(store.get_workflow_run("zombie-0")).error.startswith("Run interrupted")
+    finally:
+        db.close()
 
 
-class TestFatalFallbackRebuild:
-    """Force the FATAL index error and assert the defensive rebuild repairs the
-    table and leaves a usable connection. This is the recurrence guard."""
-
-    def test_fatal_on_update_triggers_rebuild_and_leaves_usable_db(
-        self, tmp_path: Path
-    ) -> None:
-        db_path = str(tmp_path / "lib.duckdb")
-        _seed_indexed_zombies(db_path, n=4)
-
-        class PoisonedConn:
-            """Stands in for a connection whose first execute() fatals on the
-            ART-index delete path, exactly like the live crash."""
-
-            def __init__(self) -> None:
-                self.closed = False
-
-            def execute(self, *args, **kwargs):
-                raise duckdb.FatalException(
-                    "FATAL Error: Failed: database has been invalidated because "
-                    "of a previous fatal error.\nOriginal error: Invalid Input "
-                    "Error: Failed to delete all rows from index. Only deleted "
-                    "0 out of 4 rows."
-                )
-
-            def close(self) -> None:
-                self.closed = True
-
-        # The poisoned connection fatals on the in-place UPDATE; the helper must
-        # fall back to a fresh-connection table rebuild.
-        flipped = _recover_stale_workflow_runs(
-            PoisonedConn(), db_path, started_before=None
-        )
-
-        # (a) it did NOT raise — control reached here
-        # zombie rows are now 'failed'
-        # The rebuild fallback names its rows too, so the caller can still
-        # settle each dead run's documents after an ART-index rebuild (#4379).
-        assert flipped is not None, "rebuild fallback must not report degraded"
-        assert len(flipped) == 4, f"expected 4 rebuilt-flipped rows, got {flipped}"
-        counts = _status_counts(db_path)
-        assert counts.get("failed") == 4
-        assert "running" not in counts
-
-        # (b) the connection/db is still usable — follow-up SELECT succeeds
-        conn = duckdb.connect(db_path)
-        try:
-            assert conn.execute(
-                "SELECT count(*) FROM workflow_runs"
-            ).fetchone() == (4,)
-
-            # the PK uniqueness must be reinstated by the rebuild — inserting a
-            # duplicate thread_id must fail (proves the unique index exists).
-            with pytest.raises(duckdb.Error):
-                conn.execute(
-                    "INSERT INTO workflow_runs"
-                    "(thread_id, workflow_id, workflow_name, status, started_at) "
-                    "VALUES (?, ?, ?, ?, ?)",
-                    [
-                        "thread-b0b9c8db6bc0",  # duplicate of seeded row 0
-                        "x",
-                        "x",
-                        "failed",
-                        datetime.datetime(2026, 5, 23),
-                    ],
-                )
-
-            # secondary indexes were recreated
-            idx = {
-                r[0]
-                for r in conn.execute(
-                    "SELECT index_name FROM duckdb_indexes() "
-                    "WHERE table_name = 'workflow_runs'"
-                ).fetchall()
-            }
-            assert "idx_workflow_runs_workflow_id" in idx
-            assert "idx_workflow_runs_started_at" in idx
-        finally:
-            conn.close()
-
-    def test_rebuild_preserves_nonstale_rows_verbatim(
-        self, tmp_path: Path
-    ) -> None:
-        """The rebuild must copy completed/failed/recent rows unchanged and only
-        flip the stale 'running' ones."""
-        db_path = str(tmp_path / "lib.duckdb")
-        conn = duckdb.connect(db_path)
-        try:
-            conn.execute(_DDL)
-            base = datetime.datetime(2026, 5, 23)
-            conn.execute(
-                "INSERT INTO workflow_runs"
-                "(thread_id, workflow_id, workflow_name, status, started_at, "
-                " error, python_code) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                ["done", "wf", "Done", "completed", base, None, "print(1)"],
-            )
-            conn.execute(
-                "INSERT INTO workflow_runs"
-                "(thread_id, workflow_id, workflow_name, status, started_at, "
-                " error) VALUES (?, ?, ?, ?, ?, ?)",
-                ["already-failed", "wf", "F", "failed", base, "boom"],
-            )
-            conn.execute(
-                "INSERT INTO workflow_runs"
-                "(thread_id, workflow_id, workflow_name, status, started_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                ["zombie", "wf", "Z", "running", base],
-            )
-        finally:
-            conn.close()
-
-        flipped = _rebuild_workflow_runs_flipping_stale(db_path, started_before=None)
-        # Returns the flipped thread_ids, not a count, so the caller can settle
-        # each dead run's documents (#4379).
-        assert flipped == ["zombie"]
-
-        conn = duckdb.connect(db_path)
-        try:
-            rows = {
-                r[0]: r
-                for r in conn.execute(
-                    "SELECT thread_id, status, error, python_code "
-                    "FROM workflow_runs"
-                ).fetchall()
-            }
-        finally:
-            conn.close()
-
-        # completed row unchanged, python_code preserved
-        assert rows["done"][1] == "completed"
-        assert rows["done"][3] == "print(1)"
-        # pre-existing failed row keeps its original error verbatim
-        assert rows["already-failed"][1] == "failed"
-        assert rows["already-failed"][2] == "boom"
-        # zombie flipped and given a recovery error message
-        assert rows["zombie"][1] == "failed"
-        assert rows["zombie"][2] and "interrupted" in rows["zombie"][2].lower()
+def test_the_sweep_keeps_to_its_cutoff_and_never_flips_a_tracked_run(tmp_path):
+    db, store = _library(tmp_path)
+    try:
+        _seed(store, "old", hours_ago=5)
+        _seed(store, "young", hours_ago=0.1)
+        _seed(store, "tracked", hours_ago=5)
+        _seed(store, "paused", hours_ago=5, status="paused")  # #5357: a paused run needs no process
+        _seed(store, "accepted", hours_ago=5, status="accepted")
+        recovered = asyncio.run(store.recover_stale_runs(max_age_hours=2, exclude_thread_ids=("tracked",)))
+        assert sorted(recovered) == ["accepted", "old"]
+        assert _status(store, "young") == "running" and _status(store, "tracked") == "running"
+        assert _status(store, "paused") == "paused"
+    finally:
+        db.close()
 
 
-class TestActivityStoreRecoverStaleRunsApi:
-    """The public async API still works end-to-end on an indexed table."""
+def test_a_failing_sweep_flips_nothing_and_the_library_stays_usable(tmp_path, monkeypatch):
+    from fichero_server.db import activity_records
 
-    @pytest.mark.asyncio
-    async def test_recover_stale_runs_async_on_indexed_table(
-        self, tmp_path: Path
-    ) -> None:
-        from datetime import timezone, timedelta
+    db, store = _library(tmp_path)
+    try:
+        _seed(store, "zombie", hours_ago=5)
 
-        db_path = str(tmp_path / "lib.duckdb")
-        store = ActivityStore(db_path)
+        def broken(*args, **kwargs):
+            raise RuntimeError("as a FATAL from a stale index would")
 
-        two_hours_ago = datetime.datetime.now(timezone.utc) - timedelta(hours=2)
-        await store.save_workflow_run(
-            thread_id="zombie-async",
-            workflow_id="wf",
-            workflow_name="Z",
-            started_at=two_hours_ago,
-        )
-
-        recovered = await store.recover_stale_runs(max_age_hours=1)
-        assert len(recovered) == 1
-
-        run = await store.get_workflow_run("zombie-async")
-        assert run is not None
-        assert run.status == "failed"
-
-        # db remains usable
-        runs = await store.list_workflow_runs(limit=10)
-        assert any(r.thread_id == "zombie-async" for r in runs)
-
-
-class TestFatalReleasesThePinsBeforeRebuild:
-    """#39 part (2), authorised 2026-08-09: a fatal during recovery must not
-    leave the library poisoned.
-
-    A DuckDB FatalException invalidates the database INSTANCE process-wide,
-    and the instance is only discarded when its last connection closes. The
-    poisoned recovery connection and the library's long-lived managed
-    connection both PIN that instance — so the 'fresh' rebuild connection
-    would join the same invalidated instance and the rebuild could never
-    succeed, on every spawn (the self-perpetuating bricked state). The
-    fallback must therefore close the poisoned connection and reopen the
-    managed one BEFORE rebuilding.
-    """
-
-    class _PoisonedConn:
-        def __init__(self) -> None:
-            self.closed = False
-
-        def execute(self, *args, **kwargs):
-            raise duckdb.FatalException(
-                "FATAL Error: Failed: database has been invalidated"
-            )
-
-        def close(self) -> None:
-            self.closed = True
-
-    def test_the_poisoned_connection_is_closed_before_the_rebuild(
-        self, tmp_path: Path
-    ) -> None:
-        db_path = str(tmp_path / "lib.duckdb")
-        _seed_indexed_zombies(db_path, n=2)
-        poisoned = self._PoisonedConn()
-
-        flipped = _recover_stale_workflow_runs(
-            poisoned, db_path, started_before=None
-        )
-
-        assert poisoned.closed, "the poisoned connection still pins the instance"
-        assert flipped is not None and len(flipped) == 2
-
-    def test_the_managed_library_connection_is_reopened(
-        self, tmp_path: Path, monkeypatch
-    ) -> None:
-        from fichero_server.db.manager import db_manager
-        from fichero_server.workflows import activity_store as store_module
-
-        package = tmp_path / "lib.fichero"
-        package.mkdir()
-        db_path = str(package / "fichero.duckdb")
-        _seed_indexed_zombies(db_path, n=1)
-
-        reopened: list[str] = []
-
-        class _ManagedStub:
-            def _reconnect_after_invalidated(self) -> None:
-                reopened.append("yes")
-
-        monkeypatch.setattr(
-            db_manager, "open_library_paths", lambda: [str(package)]
-        )
-        monkeypatch.setattr(
-            db_manager, "get_database", lambda _path: _ManagedStub()
-        )
-
-        store_module._recover_stale_workflow_runs(
-            self._PoisonedConn(), db_path, started_before=None
-        )
-
-        assert reopened, "managed connection was not reopened after the fatal"
-
-    def test_a_reopen_failure_is_loud_but_does_not_block_the_rebuild(
-        self, tmp_path: Path, monkeypatch, caplog
-    ) -> None:
-        from fichero_server.db.manager import db_manager
-        from fichero_server.workflows import activity_store as store_module
-
-        package = tmp_path / "lib.fichero"
-        package.mkdir()
-        db_path = str(package / "fichero.duckdb")
-        _seed_indexed_zombies(db_path, n=1)
-
-        monkeypatch.setattr(
-            db_manager, "open_library_paths", lambda: [str(package)]
-        )
-
-        def exploding_get(_path):
-            raise RuntimeError("manager blew up")
-
-        monkeypatch.setattr(db_manager, "get_database", exploding_get)
-
-        with caplog.at_level("ERROR"):
-            flipped = store_module._recover_stale_workflow_runs(
-                self._PoisonedConn(), db_path, started_before=None
-            )
-
-        assert flipped is not None and len(flipped) == 1  # rebuild still ran
-        assert "Could not reopen the managed library connection" in caplog.text
+        monkeypatch.setattr(activity_records, "recover_stale", broken)
+        assert asyncio.run(store.recover_stale_runs(max_age_hours=0)) == []
+        assert _status(store, "zombie") == "running", "nothing flipped"
+        assert len(asyncio.run(store.list_workflow_runs())) == 1, "the library still answers"
+    finally:
+        db.close()
