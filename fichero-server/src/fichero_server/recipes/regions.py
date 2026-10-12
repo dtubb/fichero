@@ -30,24 +30,15 @@ def geometry(regions: list[Any], width: int, height: int, *, model: str, provide
                              metadata={"pixel_frame": {"width": width, "height": height}})
 
 
-def kraken_regions(path: str) -> list[Any]:
-    """Kraken's built-in segmenter's regions on one page, each with the box around its outline and its type as the
-    label (`blla` names them "text"); the lines it also finds are left to Find lines."""
-    from types import SimpleNamespace
+def progress_words(done: int, total: int, *, elapsed: float) -> str:
+    """How far Find Regions is, for the run's line (#5689): "23 of 92 pages, about 12 min left"."""
+    import math
 
-    from fichero_server.llm.kraken_runtime import segment_lines
+    said = f"{done} of {total} pages"
+    if 0 < done < total and elapsed > 0:
+        said += f", about {max(1, math.ceil(elapsed / done * (total - done) / 60))} min left"
+    return said
 
-    found = segment_lines(path)
-    width, height = float(found["width"]), float(found["height"])
-    out = []
-    for region in found.get("regions") or []:
-        xs = [float(x) for x, _ in region.get("polygon") or []]
-        ys = [float(y) for _, y in region.get("polygon") or []]
-        if xs and ys:  # normalised [x, y, w, h], as YOLO's
-            out.append(SimpleNamespace(
-                rect=[min(xs) / width, min(ys) / height, (max(xs) - min(xs)) / width, (max(ys) - min(ys)) / height],
-                confidence=None, kind_raw=str(region.get("type") or "text")))
-    return out
 
 
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
@@ -56,7 +47,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at). `stop` is
     asked before each page. Before each page, while the throttle holds background work, it waits, and `say` is told
-    why; between pages `say` is told the pages done (#5685, `activity.throttle.power-heat-memory`)."""
+    why; between pages `say` is told the pages done and the time left (#5685, #5689, `activity.throttle.power-heat-memory`)."""
     from fichero_server.execution import throttle
 
     from PIL import Image
@@ -70,6 +61,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
 
     library = str(Path(db.path).parent)
     account = {"pages": 0, "regions": 0, "no_image": 0}
+    started = time.monotonic()
     for number, doc_id in enumerate(documents):
         while (why := throttle.why_wait()) and not (stop is not None and stop()):
             if say is not None:
@@ -78,7 +70,8 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         if stop is not None and stop():
             break
         if say is not None:
-            say(f"Finding regions: {number} of {len(documents)} pages")
+            # How far it is, with the time left once a page is done (#5689).
+            say(f"Finding regions: {progress_words(number, len(documents), elapsed=time.monotonic() - started)}")
         doc = db.get(Document, doc_id)
         # The page's image as every step finds it: a copied page's stored path is inside the package (#5668).
         path = _resolve_abs_path(doc, library) if doc is not None else ""
@@ -88,13 +81,24 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
         except (AttributeError, TypeError, OSError):
             account["no_image"] += 1
             continue
-        found = kraken_regions(path) if provider == "kraken" else detect_regions(path, model)
+        if provider == "kraken":
+            # Kraken's segmenter finds the regions and the lines in one pass: both are kept, so Find Lines and Read
+            # read these lines instead of segmenting the page again (#5689).
+            from fichero_server.llm.kraken_runtime import geometry_from_segmentation, segment_lines
+            from fichero_server.media.ocr_geometry import OCRGeometryLevel
+
+            found_geometry = geometry_from_segmentation(segment_lines(path), source_name=doc.name)
+            regions_here = sum(1 for b in found_geometry.boxes if b.level is OCRGeometryLevel.REGION)
+        else:
+            found = detect_regions(path, model)
+            found_geometry = geometry(found, width, height, model=model, provider=provider)
+            regions_here = len(found)
         asyncio.run(save_artifact(
             document_id=doc.id, file_path=doc.path, content="", data=None, library_path=library,
             llm_config=LLMConfig(provider=provider, model=model), task_id=run_id, tool_config=TOOL_CONFIG,
-            ocr_geometry=geometry(found, width, height, model=model, provider=provider)))
+            ocr_geometry=found_geometry))
         account["pages"] += 1
-        account["regions"] += len(found)
+        account["regions"] += regions_here
     if say is not None and documents and not (stop is not None and stop()):
         say(f"Finding regions: {len(documents)} of {len(documents)} pages")
     return account

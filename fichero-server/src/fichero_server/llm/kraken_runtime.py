@@ -1157,11 +1157,28 @@ def segment_to_geometry(
     of them is about the page.
     """
     payload = segment_lines(image_path)
+    result = geometry_from_segmentation(payload, source_name=str(image_path), rendition_id=rendition_id)
+    if not any(box.level is OCRGeometryLevel.LINE for box in result.boxes):
+        return geometry_unavailable(
+            status=OCRGeometryStatus.PRODUCED_NOTHING,
+            provider=_PROVIDER,
+            model=_MODEL,
+            reason="Kraken segmented this image and found no text lines.",
+            source="kraken-blla",
+        )
+    return result
+
+
+def geometry_from_segmentation(
+    payload: dict[str, object], *, source_name: str = "the page", rendition_id: str | None = None
+) -> OCRGeometryResult:
+    """One segmentation's regions and lines as the shared geometry, whatever it found (#5689: Find Regions keeps
+    the lines Kraken found with its regions, so Read reads them instead of segmenting the page again)."""
     width = float(payload.get("width") or 0)
     height = float(payload.get("height") or 0)
     if width <= 0 or height <= 0:
         raise KrakenSegmentationError(
-            f"Kraken reported an unusable pixel frame for {image_path}"
+            f"Kraken reported an unusable pixel frame for {source_name}"
         )
 
     boxes, region_index = _region_boxes(payload, width, height, model=_MODEL, source="kraken-blla")
@@ -1200,15 +1217,6 @@ def segment_to_geometry(
                     **_parent(line, region_index),
                 },
             )
-        )
-
-    if not any(box.level is OCRGeometryLevel.LINE for box in boxes):
-        return geometry_unavailable(
-            status=OCRGeometryStatus.PRODUCED_NOTHING,
-            provider=_PROVIDER,
-            model=_MODEL,
-            reason="Kraken segmented this image and found no text lines.",
-            source="kraken-blla",
         )
 
     return OCRGeometryResult(

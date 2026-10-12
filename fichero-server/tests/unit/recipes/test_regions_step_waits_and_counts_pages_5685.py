@@ -27,7 +27,9 @@ def test_it_waits_saying_why_then_counts_pages(db, tmp_path, monkeypatch):
     in_use = iter([True, True, False, False, False, False])
     monkeypatch.setattr(throttle, "why_wait",
                         lambda **_: "Waiting: you're using the Mac" if next(in_use, False) else None)
-    monkeypatch.setattr(regions, "kraken_regions", lambda path: [])
+    from fichero_server.llm import kraken_runtime
+
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {"width": 40, "height": 60, "regions": [], "lines": []})
     monkeypatch.setattr(regions, "WAIT_POLL_SECONDS", 0)
     said: list[str] = []
 
