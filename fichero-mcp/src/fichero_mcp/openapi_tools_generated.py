@@ -3021,7 +3021,7 @@ def fichero_find_documents_reject_proposal(
     proposal_id: Annotated[str, Field(description='Proposal Id')],
     document_indexes: Annotated[list[Any], Field(description='Document Indexes.')],
 ) -> Any:
-    "Reject proposed documents (kept, for the project's own model to learn from)\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/reject (toolset `find-documents`; changes data, as the agent account when one exists)."
+    "Reject proposed documents (kept, for the project's own model to learn from)\n\nReject proposed documents: kept, marked rejected, for the project's own model to learn from. One audited\naction: undoing it (its `audit_id`) puts back only the documents it rejected (#5698).\n\nRoute: POST /api/find-documents/proposals/{proposal_id}/reject (toolset `find-documents`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/find-documents/proposals/{proposal_id}/reject", json=_rt.body({"document_indexes": document_indexes}))
 
 

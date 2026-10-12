@@ -4444,7 +4444,7 @@
         ],
         "query_params": [],
         "request_model": "FindDocumentsRejectRequest",
-        "response_model": "DocumentsProposal"
+        "response_model": "FindDocumentsRejectResult"
       },
       {
         "method": "POST",

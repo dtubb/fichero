@@ -7206,6 +7206,7 @@
           "find-documents"
         ],
         "summary": "Reject proposed documents (kept, for the project's own model to learn from)",
+        "description": "Reject proposed documents: kept, marked rejected, for the project's own model to learn from. One audited\naction: undoing it (its `audit_id`) puts back only the documents it rejected (#5698).",
         "operationId": "reject_find_documents_proposal_api_find_documents_proposals__proposal_id__reject_post",
         "parameters": [
           {
@@ -7254,7 +7255,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DocumentsProposal"
+                  "$ref": "#/components/schemas/FindDocumentsRejectResult"
                 }
               }
             }
@@ -63911,6 +63912,113 @@
           "document_indexes"
         ],
         "title": "FindDocumentsRejectRequest"
+      },
+      "FindDocumentsRejectResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The artifact that holds it."
+          },
+          "folder_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Folder Id"
+          },
+          "page_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Page Ids",
+            "description": "The pages looked at, in the folder's order."
+          },
+          "method": {
+            "type": "string",
+            "title": "Method",
+            "default": "rules-1"
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id"
+          },
+          "leaves": {
+            "type": "integer",
+            "title": "Leaves",
+            "description": "Leaves the pages pair into (a written page and its blank verso are one).",
+            "default": 0
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedDocument"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/PageFinding"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "joins": {
+            "items": {
+              "$ref": "#/components/schemas/ProposedJoin"
+            },
+            "type": "array",
+            "title": "Joins"
+          },
+          "created_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Created At"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "superseded"
+            ],
+            "title": "State",
+            "default": "current"
+          },
+          "superseded_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Superseded By",
+            "description": "The later proposal for the same pages."
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/BoundaryExample"
+            },
+            "type": "array",
+            "title": "Examples",
+            "description": "The labelled examples a person's adjustments gave, oldest first."
+          },
+          "audit_id": {
+            "type": "string",
+            "title": "Audit Id",
+            "description": "The reject's audit row: undoing it puts back only the documents it rejected."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "page_ids",
+          "audit_id"
+        ],
+        "title": "FindDocumentsRejectResult",
+        "description": "The proposal after a reject, and the reject's audit row (#5698): the proposal's own fields, so a caller that\nread a proposal reads this one."
       },
       "FindDocumentsRequest": {
         "properties": {
