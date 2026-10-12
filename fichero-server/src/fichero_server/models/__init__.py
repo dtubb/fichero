@@ -2023,6 +2023,9 @@ class HealthResponse(BaseModel):
     """
 
     status: str
+    #: When health reports for the engine alone, why, in words: no project selected, or the one named is not
+    #: here (#5679). The path a caller named is never echoed back then.
+    project_note: str | None = None
     library_path: str | None = None
     database: str | None = None
     document_count: int | None = None

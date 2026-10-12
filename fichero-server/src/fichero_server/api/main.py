@@ -92,7 +92,19 @@ def _resolve_engine_version() -> str:
     after PEP 503 normalization, both tried for metadata-lookup strictness).
     No legacy names: nothing has ever shipped under them. ``dev`` means
     "running from an uninstalled source checkout", not a lookup fallback.
+
+    Run from a source checkout (a ``pyproject.toml`` beside the package's ``src``), the checkout's own version:
+    a venv's install metadata is from whenever it was last installed (#5679,
+    `contract.dev-engine-version-is-its-source`). A built engine has no ``pyproject.toml`` there.
     """
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
+    if pyproject.is_file():
+        try:
+            return str(tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"])
+        except (OSError, KeyError, tomllib.TOMLDecodeError) as exc:
+            raise RuntimeError(f"the source checkout's {pyproject} names no version") from exc
     for dist_name in ("fichero-server", "fichero_server"):
         try:
             return package_version(dist_name)
@@ -1780,6 +1792,10 @@ def _health_sync(
         # counted with a query.
         from pathlib import Path as _Path
 
+        if not _Path(x_fichero_library_path).expanduser().exists():
+            # A project that is not here (a caller's stale default): the engine is healthy, and says so without
+            # repeating the path or naming a route (`contract.health-with-no-project`, #5679).
+            return _general_health(request, nonce or x_fichero_client_nonce, PROJECT_NOT_HERE)
         if _Path(x_fichero_library_path).expanduser().is_dir() and not db_manager.is_open(x_fichero_library_path):
             return _with_server_proof(
                 HealthResponse(
@@ -1830,24 +1846,33 @@ def _health_sync(
                 ),
                 nonce or x_fichero_client_nonce,
             )
-    else:
-        # General backend health
-        return _with_server_proof(
-            HealthResponse(
-                status="healthy",
-                backend_version=_ENGINE_VERSION,
-                contract=_CONTRACT_IDENTITY,
-                active_libraries=db_manager.active_count,
-                remote_backend=build_remote_backend_status().as_dict(),
-                engine_pid=os.getpid(),
-                # Which app this engine belongs to -- to a same-machine caller only: a bundle path
-                # is local disk layout, and a remote caller gets nothing of it.
-                engine_owner=_engine_owner_for(request),
-                launch_nonce=os.environ.get("FICHERO_LAUNCH_NONCE") or None,
-                dependencies=_dependency_versions(),
-            ),
-            nonce or x_fichero_client_nonce,
-        )
+    return _general_health(request, nonce or x_fichero_client_nonce, NO_PROJECT)
+
+
+#: What health says about the project when it reports for the engine alone (#5679).
+NO_PROJECT = "No project is selected."
+PROJECT_NOT_HERE = "The project this caller names is not on this Mac; choose one."
+
+
+def _general_health(request: Request, nonce: str | None, project_note: str) -> HealthResponse:
+    """The engine's own health, with a word on the project it could not report on."""
+    return _with_server_proof(
+        HealthResponse(
+            status="healthy",
+            project_note=project_note,
+            backend_version=_ENGINE_VERSION,
+            contract=_CONTRACT_IDENTITY,
+            active_libraries=db_manager.active_count,
+            remote_backend=build_remote_backend_status().as_dict(),
+            engine_pid=os.getpid(),
+            # Which app this engine belongs to -- to a same-machine caller only: a bundle path
+            # is local disk layout, and a remote caller gets nothing of it.
+            engine_owner=_engine_owner_for(request),
+            launch_nonce=os.environ.get("FICHERO_LAUNCH_NONCE") or None,
+            dependencies=_dependency_versions(),
+        ),
+        nonce,
+    )
 
 
 def _redact_local_path(message: str, db_path) -> str:

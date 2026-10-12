@@ -48,7 +48,8 @@ def _missing(tmp_path: Path) -> Path:
 
 
 def test_health_with_missing_library_header_creates_nothing(tmp_path: Path) -> None:
-    """A health probe naming a missing library reports it and creates nothing."""
+    """A health probe naming a missing library says it is not here and creates nothing; the engine itself is
+    healthy, and the path is not echoed (#5679, `contract.health-with-no-project`)."""
     target = _missing(tmp_path)
 
     response = _client().get(
@@ -58,8 +59,8 @@ def test_health_with_missing_library_header_creates_nothing(tmp_path: Path) -> N
     assert not target.exists(), "health check created the library package"
     assert not target.parent.exists(), "health check created the parent folder"
     body = response.json()
-    assert body["status"] != "healthy"
-    assert "does not exist" in (body.get("error") or "")
+    assert body["status"] == "healthy"
+    assert "not on this Mac" in (body.get("project_note") or "")
 
 
 def test_library_route_with_missing_library_is_refused_and_creates_nothing(

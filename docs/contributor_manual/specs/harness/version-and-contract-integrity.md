@@ -176,6 +176,17 @@ document is deliberate. `SourceAnchor.document_id` stays required.
 - `contract.coverage-matrix-checks-call-sites` — **[GAP]** (#4213) the endpoint coverage matrix verifies the generated operation call sites, not a path string in a doc comment.
 - `contract.no-hand-maintained-mirror-models` — **[GAP]** (#4608) Swift uses generated OpenAPI types directly; ToolInfo (Models/WorkflowToolTypes.swift:18) and its convertToToolInfo mirror are retired.
 - `contract.version-has-one-source` — **[GAP]** (#5053) the OpenAPI sync and `check_openapi_version_current` read the same version source, so the sanctioned sync command always satisfies the guard.
+- `contract.health-with-no-project` — **[OK]** (#5679) `GET /api/health` answers for the engine: with no
+  project named it is healthy and says "No project is selected."; naming a project that is not on this Mac it
+  is still healthy, says "The project this caller names is not on this Mac; choose one.", and echoes no path
+  and names no route (a caller's stale default, such as an old container path, is not repeated back). Nothing
+  is created on disk (#5136 holds). WHY (2026-10-11, the MCP onboarding walk): with no project chosen, health
+  said `unhealthy`, named a stale container path and told an agent to POST /api/library. Tested in
+  `fichero-server/tests/unit/api/test_health_with_no_project_5679.py`.
+- `contract.dev-engine-version-is-its-source` — **[OK]** (#5679) an engine run from a source checkout reports
+  the version in the `pyproject.toml` it runs from, not an older install's metadata in its venv (seen
+  2026-10-11: `backend_version` 2026.9.20 beside contract 2026.10.11); a built engine, with no
+  `pyproject.toml` beside its package, reports its distribution's. Same test file.
 - `contract.identity-guard-sees-code-drift` — **[GAP]** (#5080) the contract-identity guard fails when the committed contract no longer describes the code, not only when it differs from its own hash.
 
 ## Future (ideas, not scheduled)
