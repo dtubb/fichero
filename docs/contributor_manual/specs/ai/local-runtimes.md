@@ -353,9 +353,17 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   `max_tokens` where its settings give one, a line's for a line reader (the prompt and image plus 24 tokens a
   line), and the 8,192-token default for a step that says neither. A page read with a model on this Mac is judged
   by its own working lines (`page_lines_context`: the prompt and image plus 24 tokens a line), the call at the
-  smaller of that and its own `max_tokens` (`call_context_tokens`). *Not built: the words in Set Up and on the
-  step (the app), the Mac's own Metal reading in place of the share.* *Test:*
+  smaller of that and its own `max_tokens` (`call_context_tokens`). *Not built: the Mac's own Metal reading in place
+  of the share.* *Test:*
   `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py`.
+- `runtime.mlx.fit-shown-in-the-app` — **[OK]** (#5641) **Built 2026-10-12 (app), not yet seen:** wherever a
+  step's model candidates are listed (Set Up's stage page Compare list, the model finder's cards, and the step's
+  own card on its stage page), an MLX candidate says "Fits this Mac", "Tight on this Mac" or "Won't fit this
+  Mac" with the engine's reason under it and in its help (`CandidateFit`, drawn by `CandidateFitLabel`; system
+  colours, semantic fonts). A model that won't fit is greyed, not hidden: it cannot be ticked to compare and
+  the finder offers no Use for This Step for it. The smaller build the engine names (`fit.smaller`) is one press,
+  **Use <name> instead**, through the use-candidate route (`RecipeSetupStore.useCard`), when the same list holds
+  it. *Test:* `fichero/Tests/Unit/general/Models/CandidateFitTests.swift`.
 - `runtime.mlx.refuse-only-what-would-crash` — **[PARTIAL]** (#5641) a model that can run on MLX runs. The
   refusal line is a measured ceiling, the point where macOS starts swapping heavily, measured on an
   8 GB and a 16 GB Mac with the fixture pages; below it the model loads (idle models unloaded first,

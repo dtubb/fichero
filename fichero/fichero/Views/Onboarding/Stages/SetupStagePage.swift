@@ -64,7 +64,8 @@ struct SetupStagePage: View {
                 if let finder = candidateFinder, finder.candidates.count >= 2 {
                     StageCandidateChooser(
                         candidates: finder.candidates,
-                        chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 })
+                        chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 }),
+                        useSmaller: useSmaller
                     )
                 }
                 SetupStageSamples(store: tryStore)
@@ -104,6 +105,20 @@ struct SetupStagePage: View {
         return { candidate in Task { await setup.useCard(candidate.card, named: candidate.title, forStep: step) } }
     }
 
+    /// The main step's candidates the page read (`loadCandidates`), for its card's fit line (#5641); none for others.
+    private func stepCandidates(_ stepId: String) -> [Components.Schemas.ModelCandidate] {
+        guard let finder = candidateFinder, store.mainStep(forJobs: stage.jobs)?.id == stepId else { return [] }
+        return finder.candidates
+    }
+
+    /// Use <name> instead (#5641): the smaller build of a model that won't fit, for the stage's main step, through the
+    /// use-candidate route, as Use This does.
+    private var useSmaller: ((CandidateFit.Smaller) -> Void)? {
+        guard let main = store.mainStep(forJobs: stage.jobs) else { return nil }
+        let setup = store
+        return { smaller in Task { await setup.useCard(smaller.card, named: smaller.name, forStep: main.id) } }
+    }
+
     /// Who runs it (`source.onboard.stages.page-who-runs-it`): this stage's own steps of the plan, with the model
     /// each would use, where it runs, Choose a model… and, for Read and Find Lines, the comparison of candidates.
     @ViewBuilder
@@ -112,7 +127,7 @@ struct SetupStagePage: View {
             Text("Who runs it").font(.headline)
             if let recipe = store.recipe {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff, finder: project,
-                                onlyJobs: Set(stage.jobs))
+                                onlyJobs: Set(stage.jobs), candidatesOf: stepCandidates)
             } else {
                 ForEach(stage.jobs, id: \.self) { job in
                     Label(store.jobs[job]?.name ?? job, systemImage: "circle").font(.callout)

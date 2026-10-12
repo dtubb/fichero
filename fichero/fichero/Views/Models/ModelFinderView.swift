@@ -121,6 +121,10 @@ struct ModelFinderCard: View {
                 Text(Self.facts(candidate)).font(.caption).foregroundStyle(.secondary)
             }
             Text(candidate.measured).font(.caption).foregroundStyle(.secondary)
+            // Whether it fits this Mac, in the engine's words, with a smaller build as one press (#5641).
+            if let fit = CandidateFit.of(candidate, in: store.candidates) {
+                CandidateFitLabel(fit: fit, useSmaller: useSmaller)
+            }
             // What its download's job says while it runs, or why it failed (#5620).
             if let key = ModelFinderStore.downloadKey(candidate), let line = store.downloads.line(key) {
                 let failed = Self.failed(store.downloads.state(key))
@@ -137,6 +141,20 @@ struct ModelFinderCard: View {
         }
         .padding(8)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+        // A model that won't fit is greyed out with its reason, never hidden (#5641).
+        .foregroundStyle(Self.wontFit(candidate, in: store.candidates) ? .secondary : .primary)
+    }
+
+    /// Use <name> instead, beside a Set Up step only: the smaller build through the use-candidate route.
+    private var useSmaller: ((CandidateFit.Smaller) -> Void)? {
+        guard let step else { return nil }
+        return { smaller in Task { await step.setup.useCard(smaller.card, named: smaller.name, forStep: step.id) } }
+    }
+
+    /// The engine says it won't fit this Mac: greyed, and not offered for the step.
+    static func wontFit(_ candidate: Components.Schemas.ModelCandidate,
+                        in list: [Components.Schemas.ModelCandidate]) -> Bool {
+        CandidateFit.of(candidate, in: list)?.isGreyed == true
     }
 
     @ViewBuilder
@@ -159,7 +177,8 @@ struct ModelFinderCard: View {
                     .help("Download it to this Mac; Activity shows the download")
                 }
             }
-            if let step, !Self.isChosen(candidate), Self.offersUse(candidate) {
+            if let step, !Self.isChosen(candidate), Self.offersUse(candidate),
+               !Self.wontFit(candidate, in: store.candidates) {
                 // The engine's `refused` says why a card cannot be used; its words show under the card.
                 Button("Use for This Step") {
                     Task { await step.setup.useCandidate(candidate, forStep: step.id) }

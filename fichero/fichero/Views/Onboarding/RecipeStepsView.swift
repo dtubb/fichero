@@ -20,6 +20,9 @@ struct RecipeStepsView: View {
     var finder: LibraryManager.LibraryReference?
     /// Only these jobs' steps: a stage page shows its own steps of the plan (section 7c); nil shows every step.
     var onlyJobs: Set<String>?
+    /// A step's model candidates, by step id, where the page has read them (a stage page's main step): the step's
+    /// card then says whether its model fits this Mac (#5641). Nil, or an empty list: no fit line.
+    var candidatesOf: ((String) -> [Components.Schemas.ModelCandidate])?
 
     @State private var findingFor: FinderStep?
     /// The step whose Review the licence… was pressed (#5660).
@@ -39,9 +42,11 @@ struct RecipeStepsView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(recipe.steps.filter { onlyJobs?.contains($0.job) ?? true }, id: \.id) { step in
-                RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil),
+                let fit = CandidateFit.ofStep(card: step.card?.id, in: candidatesOf?(step.id) ?? [])
+                RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil, fit: fit),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,
-                              onFix: fixHandler(for: step))
+                              onFix: fixHandler(for: step),
+                              useSmaller: useSmaller(for: step))
                 if onFix != nil, let words = store.lastRunWords(stepId: step.id) {  // Ready: what the last run left (#5616)
                     Label(words, systemImage: "arrow.clockwise").font(.callout).foregroundStyle(.secondary)
                 }
@@ -78,6 +83,13 @@ struct RecipeStepsView: View {
         }
     }
 
+    /// Use <name> instead on the step's card (#5641): the smaller build through the use-candidate route; setup only.
+    private func useSmaller(for step: Components.Schemas.RecipeStep) -> ((CandidateFit.Smaller) -> Void)? {
+        guard onFix != nil else { return nil }
+        let setup = store
+        return { smaller in Task { await setup.useCard(smaller.card, named: smaller.name, forStep: step.id) } }
+    }
+
     /// A step problem's fix button (#5619, #5660): a model fix opens the model finder for THIS step's job, a
     /// licence its review (`LicenceReviewSheet`), letting pages leave goes to setup's own handler; without a
     /// project every fix goes to setup's handler.
@@ -104,12 +116,15 @@ extension RecipeStepsView {
         case fix(title: String, fix: String)
         /// The rules' own reason, model ids included (the Inspector only).
         case detail(String)
+        /// Whether the step's model fits this Mac, with the engine's reason (#5641).
+        case fit(CandidateFit)
     }
 
     /// What a step's row says: in setup its title, one sentence, and either its problem once
     /// with the fix as a button, or where it runs; in the Inspector the rules' reason in place of
     /// the button.
-    static func lines(for step: Components.Schemas.RecipeStep, store: RecipeSetupStore, inSetup: Bool) -> [StepLine] {
+    static func lines(for step: Components.Schemas.RecipeStep, store: RecipeSetupStore, inSetup: Bool,
+                      fit: CandidateFit? = nil) -> [StepLine] {
         var lines: [StepLine] = [.title(store.title(of: step))]
         if let sentence = store.sentence(of: step) { lines.append(.sentence(sentence)) }
         if let problem = step.problem {
@@ -118,6 +133,7 @@ extension RecipeStepsView {
         } else if let place = RecipeStepRow.whereItRuns(step) {
             lines.append(.place(place, cloud: step.usesCloud == true))
         }
+        if let fit { lines.append(.fit(fit)) }
         return lines
     }
 }
@@ -127,6 +143,8 @@ struct RecipeStepRow: View {
     /// The topic's paragraph and example: the Inspector only (setup keeps one sentence).
     let explanation: Components.Schemas.TopicInfo?
     let onFix: ((String) -> Void)?
+    /// Use <name> instead under a fit line (#5641); nil where no step can take it.
+    var useSmaller: ((CandidateFit.Smaller) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -161,6 +179,8 @@ struct RecipeStepRow: View {
         case .detail(let text):
             // The rules' own reason, model ids included, belongs here and in the log only.
             Text(text).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+        case .fit(let fit):
+            CandidateFitLabel(fit: fit, useSmaller: useSmaller)
         }
     }
 
