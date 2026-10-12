@@ -148,14 +148,15 @@ def _scripts() -> tuple[tuple[dict, str], ...]:
 
 
 def _search(rows: tuple[tuple[dict, str], ...], query: str, limit: int) -> list[dict]:
-    """Exact code (or glottocode) first, then names starting with the query, then names containing it."""
+    """Exact code (or glottocode) or exact name first, then names starting with the query, then names containing
+    it ("Latin": Latn before Latf and Latg, #5680)."""
     q = _fold(query.strip())
     if not q:
         return []
     exact, starts, contains = [], [], []
     for row, text in rows:
         own_code = "" if row.get("level") == "dialect" else (row["code"] or "").lower()  # a dialect borrows its tag
-        if q in (own_code, row.get("glottocode") or ""):
+        if q in (own_code, row.get("glottocode") or "") or q in text.split("\n"):
             exact.append(row)
         elif any(name.startswith(q) for name in text.split("\n")):
             starts.append(row)

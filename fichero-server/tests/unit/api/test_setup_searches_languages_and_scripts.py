@@ -25,6 +25,13 @@ def test_scripts_by_name_and_code(client):
     assert _codes(client, "scripts", "") == []
 
 
+def test_an_exact_name_comes_before_names_that_start_with_it(client):
+    """#5680 (the MCP onboarding walk): "Latin" gave Latf (Fraktur) and Latg (Gaelic) before Latn."""
+    latin = _codes(client, "scripts", "Latin")
+    assert latin[0] == "Latn" and {"Latf", "Latg"} <= set(latin)
+    assert _codes(client, "languages", "latin")[0] == "la"
+
+
 # Glottolog 5.3 (CC BY 4.0) joins ISO 639-3. WHY: ISO has no code for many dialects and under-resourced
 # languages, and the spec keeps the BCP 47 tag and the glottocode as two facts (`source.lang.registries`).
 # The expected codes below are Glottolog's own (glottolog.org), not made up.

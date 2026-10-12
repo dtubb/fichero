@@ -2776,7 +2776,9 @@ Setup
   as the person types (ISO 639-3 with Glottolog; ISO 15924), in a dropdown under the field; no
   Browse… menu (ruled 2026-10-05, #5479); several can be chosen at once, each shown as a token with its name (its tag or code on
   hover) and removed with its ×. *Test:* typing "spanish" offers Spanish (es); choosing it and
-  Latin shows two tokens.
+  Latin shows two tokens. **Built 2026-10-11 (#5679 walk, #5680):** both searches rank an exact code or an exact
+  name first, then names starting with the query, then names containing it: "Latin" gives Latn before Latf
+  (Fraktur) and Latg (Gaelic); pinned in `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py`.
 - `source.onboard.language-stored-as-tag` — **[OK]** (#5479) **Built 2026-10-05 (engine):** `PUT /api/recipes/project` and `POST /api/recipes/assemble` resolve each language to its tag (`recipes/names.resolve_language`: a tag or ISO 639 code stays a tag, a name resolves when exactly one language has it, a Glottolog-only one to `und-x-<glottocode>`) and each script to its code, and refuse anything else with 422 in words; a project already holding a word reads it as its tag where it resolves and keeps it otherwise. Saving "spanish" stores `es`, and the names step then takes the card that lists `es`; pinned by `fichero-server/tests/unit/api/test_setup_round_two.py`. **Built 2026-10-08 (#5595):** a name resolves without its dates ("Old Irish" is "Old Irish (to 900)", `sga`) and by names scholars use that ISO lacks (`names.ALSO_CALLED`: "Old Church Slavonic" `cu`, "Ge'ez" `gez`, "Classical Chinese" `lzh`); a script's name typed as a language says it is a script, and an unknown name offers the nearest languages; a card listing Syriac (`syr`) covers Classical Syriac (`syc`, `names.ALSO_COVERS`); pinned by `fichero-server/tests/unit/recipes/test_language_script_data_5595.py`. what setup saves for a language is
   its tag (`es`, `la`, a private-use tag for a Glottolog-only language) and for a script its ISO
   15924 code, never the typed word; the engine, given a word that is not a tag (a project saved
