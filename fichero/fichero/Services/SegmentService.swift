@@ -120,6 +120,26 @@ extension SegmentService {
             throw SegmentServiceError.unexpectedResponse(statusCode)
         }
     }
+
+    /// Correct This Line (#5499, `source.reading.correct-a-line`): the line and its new text, nothing more. The
+    /// engine works out the reading it corrects and records a person's reading. `expectedCountingId` is the
+    /// reading the person saw; when another counts now the engine refuses (409) and nothing is written.
+    /// Returns the new reading's id.
+    func correctLine(segmentId: String, text: String, expectedCountingId: String?) async throws -> String? {
+        let response = try await client.api.correctSegmentLineApiSegmentsSegmentIdCorrectPost(
+            path: .init(segmentId: segmentId),
+            body: .json(.init(text: text, expectedCountingId: expectedCountingId))
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.id
+        case .unprocessableContent:
+            throw SegmentServiceError.serverError("The engine could not take that text for this line.")
+        case .undocumented(let statusCode, _):
+            if statusCode == 409 { throw SegmentServiceError.serverError("Another reading of this line counts now.") }
+            throw SegmentServiceError.unexpectedResponse(statusCode)
+        }
+    }
 }
 
 extension SegmentService {

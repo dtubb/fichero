@@ -352,7 +352,12 @@ Readings
   (`expected_counting_id`), it is refused with 409 and nothing is written. Who corrects is the caller,
   so a person's correction counts over a machine's reading. The `kind` defaults to `transcription`.
   Left: the bake-off counting a person's readings on a model's pass as ground truth (#4951).
-  Pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`.
+  Pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`. **App:** **Correct This Line…** on a
+  line's menu in the Reader's Lines mode and the Segments and Order lists asks for the words (the reading
+  that counts, filled in) and sends the line, the words and the reading shown as `expected_counting_id`
+  (`SegmentService.correctLine`, `CorrectThisLine.swift`; `CorrectThisLineTests`); a refusal is said, never
+  swallowed. Still owed: ⌘Z for it, which comes with the audited action (segment id plus text) the
+  route's answer lacks an audit row for.
 - `source.reading.equal-alternatives` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestStrictProject::test_three_peoples_readings_coexist_and_nothing_counts_until_one_is_chosen`) several readings of one kind can stand as equally
   valid, apart from a machine's ranked guesses.
 - `source.reading.chosen-is-worked-out` — **[OK]** (#4934; pinned by `tests/unit/models/test_counting_and_working_pass.py::TestALiveHumanChoiceWinsInAnyProject::test_a_superseded_choice_is_history_not_a_vote`) "which reading counts" is worked out from recorded

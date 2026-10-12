@@ -77,7 +77,7 @@ struct ReadingOrderList: View {
                         Task { await record(store.move(segmentId, to: target), in: store) }
                     }
                 }
-                .contextMenu(forSelectionType: String.self, menu: { _ in EmptyView() }, primaryAction: reveal)
+                .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
                 .focused($listFocused)
                 Divider()
                 keyRow(store)
@@ -95,6 +95,7 @@ struct ReadingOrderList: View {
                 )
             }
         }
+        .correctThisLine($correcting)
         // One selection across the surfaces (#5155): a row picked here is the focused Source view's
         // selection too, so the boxes light and the Inspector follows.
         .onChange(of: selection) { _, picked in
@@ -120,6 +121,14 @@ struct ReadingOrderList: View {
             }
         }
     }
+
+    /// A row's menu: Correct This Line on one line (#5499).
+    private func lineMenu(_ ids: Set<String>) -> some View {
+        CorrectThisLineButton(segment: ids.count == 1 ? ids.first.flatMap(segment) : nil) { correcting = $0 }
+    }
+
+    /// The line Correct This Line is asking about; nil when it is not asking.
+    @State private var correcting: Segment?
 
     /// A double-click (or Return) on a row: reveal it in the linked Preview, selected, scrolled and
     /// zoomed to (#5424) -- the one reveal the Reader's line click makes too.
@@ -161,7 +170,7 @@ struct ReadingOrderList: View {
                     entryRow(segmentId, at: index, nesting: nested)
                 }
             }
-            .contextMenu(forSelectionType: String.self, menu: { _ in EmptyView() }, primaryAction: reveal)
+            .contextMenu(forSelectionType: String.self, menu: lineMenu, primaryAction: reveal)
             Divider()
             HStack(spacing: 8) {
                 Text("Layout order. This page has no named order yet.")

@@ -79,6 +79,7 @@ struct ReaderLineRow: View {
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
     @State private var editor: ReaderLineEditor
+    @State private var correcting: Segment?
 
     init(segment: Segment, direction: String?, zoom: Double, isSelected: Bool = false, onPick: (() -> Void)? = nil) {
         self.segment = segment
@@ -108,6 +109,9 @@ struct ReaderLineRow: View {
         }
         .padding(8)
         .background(isSelected ? Color.accentColor.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        // Correct This Line (#5499): the engine's one verb, the line and its words.
+        .contextMenu { CorrectThisLineButton(segment: segment) { correcting = $0 } }
+        .correctThisLine($correcting)
         .task(id: segment.id) {
             if let segmentService { await editor.load(segmentService) }
         }
