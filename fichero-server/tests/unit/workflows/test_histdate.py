@@ -228,7 +228,7 @@ class TestUserDatesSurviveReExtraction:
         from fichero_server.workflows.tools.date_extract import date_extract_tool
 
         db = MagicMock()
-        db.get.return_value = doc
+        db.get.side_effect = lambda model, _id: doc if model is Document else None  # pages only (#5709)
         saved = []
         db.save.side_effect = saved.append
         with patch(

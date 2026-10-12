@@ -305,7 +305,10 @@ involve the company it names. Lessons the tool must carry:
   `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py::test_finddocs_proposes_only_by_default`.
   **Lines and priority (#5709):** a page is read as its lines: a page text derived from line readings (joined with
   spaces for the Reader's offsets) is split back into its lines by the page's line map, so a folio, an opening or a
-  closing is found on its line. The step runs at utility QoS whoever waits on it (its work is light: a thumbnail
+  closing is found on its line. One helper gives every step that reads a page by its lines the same text
+  (`actions.page_text_cache.page_text_in_lines`): Find the Documents and Work out dates, whose heading is a page's
+  first lines (after the redo, "0 pages dated"; on the project's copy, 3 of 92 dated from their lines, as before).
+  Names, statements and search read the text with its offsets, as derived. The step runs at utility QoS whoever waits on it (its work is light: a thumbnail
   and the text of each page). WHY: after a fresh line-by-line read every page was one line, no numbering restart
   was seen, and a folder of four documents was proposed as one; and the step, a recipe's unwatched child at the
   BACKGROUND class, took 27 minutes beside an import's all-core embedding where alone it took one. A proposal's

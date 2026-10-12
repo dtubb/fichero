@@ -250,6 +250,17 @@ def cached_line_map(db: Any, document_id: str, text: str) -> list[dict[str, Any]
     return row.lines if row.text_sha == _sha(text) else []
 
 
+def page_text_in_lines(db: Any, doc: Any) -> str:
+    """The page's text with one line of the page to a line of text, for a step that reads a page by its lines
+    (a heading, a folio, an opening or a closing). A text derived from line readings joins them with spaces, as
+    the Reader's offsets need; its line map says where each line falls. A text the map does not match (a person's
+    own) is returned as it is. WHY (#5709): after a fresh line-by-line read every page reached Find the Documents and
+    Work out dates as one line: no folio restart was seen, and no heading held a date ("0 pages dated")."""
+    text = doc.page_content or ""
+    spans = cached_line_map(db, doc.id, text) if text.strip() else None
+    return "\n".join(text[s["char_start"]:s["char_end"]] for s in spans) if spans else text
+
+
 #: `Document.metadata` key holding the `DERIVATION_VERSION` the stored `page_content` was derived
 #: under. Absent means "before stamping existed": as stale as any older number.
 DERIVATION_STAMP = "page_text_derivation"

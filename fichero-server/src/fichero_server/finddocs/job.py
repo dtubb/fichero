@@ -95,16 +95,12 @@ def scopes(db: Any, scope_ids: list[str]) -> dict[str | None, list[Any]]:
 
 
 def _text(db: Any, doc: Any) -> str:
-    """The page's reading, one line of the page to a line of text. A page text derived from its line readings
-    joins them with spaces (its offsets are the Reader's); its line map says where each line falls, and the cues
-    (a folio, an opening, a closing) are looked for on lines (#5709: a fresh line-by-line read made every page one
-    line, so no numbering restart was seen and a folder of four documents was proposed as one)."""
-    from fichero_server.actions.page_text_cache import cached_line_map
+    """The page's reading, one line of the page to a line of text: the cues (a folio, an opening, a closing) are
+    looked for on lines (#5709)."""
+    from fichero_server.actions.page_text_cache import page_text_in_lines
 
-    text = doc.page_content or ""
-    if text.strip():
-        spans = cached_line_map(db, doc.id, text) or []
-        return "\n".join(text[s["char_start"]:s["char_end"]] for s in spans) if spans else text
+    if (doc.page_content or "").strip():
+        return page_text_in_lines(db, doc)
     from fichero_server.checking.tie_text import page_reading
 
     reading = page_reading(db, doc.id)
