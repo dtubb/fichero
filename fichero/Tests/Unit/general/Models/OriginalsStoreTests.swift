@@ -13,19 +13,9 @@ private final class OriginalsMockURLProtocol: URLProtocol {
     override static func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let key = "\(request.httpMethod ?? "GET") \(request.url?.path ?? "")"
-        if let stream = request.httpBodyStream {
-            stream.open()
-            var data = Data()
-            var buffer = [UInt8](repeating: 0, count: 4096)
-            while stream.hasBytesAvailable {
-                let read = stream.read(&buffer, maxLength: buffer.count)
-                if read <= 0 { break }
-                data.append(buffer, count: read)
-            }
-            stream.close()
-            Self.bodies[key] = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-        } else if let data = request.httpBody {
-            Self.bodies[key] = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        // The shared reader: a `hasBytesAvailable` loop could read an open stream as empty, so the body went missing.
+        if request.httpBodyStream != nil || request.httpBody != nil {
+            Self.bodies[key] = (try? JSONSerialization.jsonObject(with: request.bodyOrStream())) as? [String: Any]
         }
         let json = Self.replies[key] ?? "null"
         let response = HTTPURLResponse(
