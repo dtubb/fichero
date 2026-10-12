@@ -260,9 +260,13 @@ def run_nlp_draft(
             error=f"NLP model not installed for language={lang!r}"
         )
 
+    # The parser's statements are not read off a reading too uncertain to read (#5637, #5694's bar).
+    from fichero_server.recipes.runner import reading_too_uncertain  # noqa: PLC0415
+
+    statements_too_uncertain = reading_too_uncertain(db, doc.id)
     try:
         entities = ner_fn(text, language=lang)
-        proposals = svo_fn(text, language=lang)
+        proposals = [] if statements_too_uncertain else svo_fn(text, language=lang)
         kept, _rejected = filter_fn(proposals, text)
     except Exception as exc:  # a parser bug must not fail the import
         logger.warning("nlp_draft: extraction failed for doc %s: %s", doc.id, exc)

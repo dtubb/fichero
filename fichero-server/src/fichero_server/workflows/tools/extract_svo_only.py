@@ -126,6 +126,23 @@ def _entities_for_records(records: list[dict[str, Any]], db) -> dict[str, dict[s
     return entities_by_doc
 
 
+#: The provider a recipe's Find statements step runs as when its card is a spaCy pipeline (#5637): the parser's
+#: triples, on this Mac and free, instead of a language model's answer.
+SPACY_PROVIDER = "spacy"
+
+
+def _spacy_page_claims(text: str, model: str) -> list[dict[str, Any]]:
+    """The dependency parse's subject-verb-object triples on the page (#5637, `kg.statements.parser-tier`), in the
+    shape a model's page claims take, each with its sentence as its words on the page. Proposals, never facts: they
+    pass the same gates a model's do below and land unreviewed, for a person to accept or reject."""
+    from fichero_server.knowledge.spacy_svo import filter_proposals, propose_triples
+
+    language = (model or "es").split("_", 1)[0] or "es"
+    kept, _rejected = filter_proposals(propose_triples(text, language=language), text)
+    return [{"subject": t.subject, "verb": t.verb, "object": t.object, "source_text": t.sentence,
+             "epistemic_status": "", "claim_type": "", "date": "", "place": ""} for t in kept]
+
+
 @register_tool(
     name="extract_svo_only",
     display_name="Extract SVO Claims",
@@ -260,11 +277,21 @@ async def extract_svo_only(
 
     entities_processed = 0
     claims_extracted = 0
+    parser = (getattr(llm_config, "provider", "") or "").lower() == SPACY_PROVIDER
+    left_out: list[dict[str, str]] = []
 
     for index, record in enumerate(records):
         doc_id = record["doc_id"]
         doc_name = record.get("doc_name") or doc_id or f"document-{index + 1}"
         page_entities = entities_by_doc.get(doc_id) or {}
+        if parser:
+            # The parser's statements are read off the text: not off a reading too uncertain to read (#5694's bar).
+            from fichero_server.recipes.runner import reading_too_uncertain
+
+            if reading_too_uncertain(db, doc_id):
+                left_out.append({"page_id": doc_id, "page": doc_name,
+                                 "why": "its reading is too uncertain to find statements in"})
+                continue
 
         resolution = resolve_language(
             requested=inputs.get("output_language"),
@@ -307,6 +334,7 @@ async def extract_svo_only(
         dates_section = _SECTION_BY_KEY.get("dates")
         if (
             dates_section is not None
+            and not parser  # the parser finds no dates of its own: a model's dates pass only
             and "dates" in requested_sections
             and (record["text"] or "").strip()
         ):
@@ -396,9 +424,9 @@ async def extract_svo_only(
                 },
                 document_context or None,
             )
-            page_claims = await _extract_page_claims(
-                record["text"], llm_config, page_instructions, extraction_sem
-            )
+            page_claims = (_spacy_page_claims(record["text"], getattr(llm_config, "model", "") or "")
+                           if parser else await _extract_page_claims(
+                               record["text"], llm_config, page_instructions, extraction_sem))
 
             claims_by_entity: dict[str, list[dict]] = defaultdict(list)
             for page_claim in page_claims:
@@ -497,4 +525,6 @@ async def extract_svo_only(
         # from a good run unless the run says what it did (#2092).
         "languages_used": dict(languages_used),
     }
+    if left_out:
+        summary["left_out"] = left_out
     return {"summary": summary, "count": len(records)}

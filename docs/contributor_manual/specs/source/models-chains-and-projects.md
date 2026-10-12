@@ -2414,6 +2414,24 @@ Jobs and chains
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
+- `source.job.find-statements.parser-tier` — **[PARTIAL]** (#5637) a free tier for Find statements: the bundled
+  spaCy pipelines (`es_core_news_sm`, `en_core_web_sm`) are offered for the step (`spacy:svo/<pipeline>`, the
+  person's to choose; never ranked by the rules over a text model they have, nor chosen by themselves where none
+  is, #5619), and with one chosen the step reads
+  the dependency parse's subject-verb-object triples (`knowledge/spacy_svo.py`) on this Mac, at no cost, instead of
+  asking a language model. Each triple is a **proposal, never a fact**: it passes the same gates a model's
+  statement does (the shared `svo_quality` rules, a subject that is one of the page's names, the grammar check),
+  is written through `_write_kg_rows` unreviewed and marked as the parser's (`provider` spacy, `model` the
+  pipeline), carries its sentence as its words, and rests on its line as every statement does
+  (`source.extract.statements-on-segments`). A page whose reading is below the certainty bar Find Names uses
+  (#5694, `runner.reading_too_uncertain`) gives no parser statements, in the step (its summary's `left_out`
+  names it, "its reading is too uncertain to find statements in") and in the import's NLP draft. The parser
+  finds no dates of its own: the dates pass is a model's only. **Built 2026-10-12 (engine):**
+  `workflows/tools/extract_svo_only.py` with provider `spacy`; the cards in `discovery._parser_statement_cards`.
+  *Test:*
+  `fichero-server/tests/unit/workflows/test_statements_parser_tier_5637.py`. *Not built: precision and recall
+  against the model step on corrected pages in the bake-off; a relation-extraction component trained on
+  corrected statements; a model pass refining what the parser kept.*
 - `source.job.describe-for-catalogue` — **[GAP]** (#5365) a step can propose values for the
   project's metadata fields from a page or document, for a person to confirm.
 - `source.chain.is-a-workflow` — **[GAP]** (#4949) a chain is a workflow; the second chaining

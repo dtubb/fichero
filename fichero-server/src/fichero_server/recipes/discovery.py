@@ -302,7 +302,23 @@ def other_text_cards() -> list[Card]:
             installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
         ))
     out += _cloud_text_cards()
+    out += _parser_statement_cards()
     return out
+
+
+def _parser_statement_cards() -> list[Card]:
+    """The parser's tier for Find statements (#5637, `source.job.find-statements.parser-tier`): each bundled spaCy
+    pipeline, its dependency parse's subject-verb-object triples as proposals, free on this Mac. Offered, the person's
+    to choose; never chosen by the rules over a text model they have."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.cards import seed_cards
+
+    return [replace(c, id=c.id.replace("spacy:pkg/", "spacy:svo/", 1), jobs=frozenset({"find-statements"}),
+                    offered_only=True, note=f"{c.note.split(';')[0]}: its parse's subject-verb-object statements",
+                    offered_because="free and on this Mac: the parser's statements, proposals for you to accept or "
+                                    "reject (no language model)")
+            for c in seed_cards() if c.id.startswith("spacy:pkg/")]
 
 
 def _cloud_text_cards() -> list[Card]:
