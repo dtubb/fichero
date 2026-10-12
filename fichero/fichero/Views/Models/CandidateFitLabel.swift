@@ -33,3 +33,25 @@ struct CandidateFitLabel: View {
         }
     }
 }
+
+#Preview("A step's candidates: fits, tight, won't fit with a smaller build") {
+    VStack(alignment: .leading, spacing: 12) {
+        CandidateFitLabel(fit: CandidateFit(
+            word: .fits, reason: "needs 3.1 GB with an 8,192-token context; this Mac has 16 GB", smaller: nil
+        ))
+        CandidateFitLabel(fit: CandidateFit(
+            word: .tight, reason: "needs 9.8 GB; other models are unloaded first", smaller: nil
+        ))
+        CandidateFitLabel(
+            fit: CandidateFit(
+                word: .wontFit, reason: "needs 11.2 GB with an 8,192-token context; this Mac has 8 GB",
+                smaller: CandidateFit.Smaller(
+                    card: "mlx:hf/mlx-community/Qwen2.5-VL-3B-Instruct-4bit@main", name: "Qwen2.5-VL 3B (4-bit)"
+                )
+            ),
+            useSmaller: { _ in }
+        )
+    }
+    .padding()
+    .frame(width: 420)
+}

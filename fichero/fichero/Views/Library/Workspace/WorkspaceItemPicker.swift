@@ -170,7 +170,7 @@ struct WorkspaceCuratedItem: Decodable, Identifiable, Hashable {
 // MARK: - View
 
 /// Sheet that lets the user add a document to one of their workspace folders
-/// as a curated-item alias. Reached from the "Add to Workspace…" library row
+/// as a curated-item alias. Reached from the Add to Workspace… item (`AddToWorkspaceMenuItem`) of a library row
 /// context menu. The source document is *aliased*, never moved (#1487). (#1494)
 struct WorkspaceItemPicker: View {
     /// The document being added to a workspace.

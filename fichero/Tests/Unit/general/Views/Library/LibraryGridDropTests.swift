@@ -99,7 +99,8 @@ final class LibraryContextMenuParityTests: XCTestCase {
         XCTAssertTrue(source.contains("Label(\"Add to Chat\""))
         XCTAssertTrue(source.contains("Label(\"Duplicate\""))
         XCTAssertTrue(source.contains("Label(\"Make Alias\""))
-        XCTAssertTrue(source.contains("Label(\"Delete\""))
+        // Delete is the shared item Edit renders (#5652).
+        XCTAssertTrue(source.contains("DeleteItemsMenuItem(target:"))
         // Same audited action + alias semantics as the sidebar row.
         // Through the one undo helper since #5658: the same audited action, now a step ⌘Z takes back.
         XCTAssertNotNil(source.range(of: #"UndoableChange\.invoke\(\s*"document\.duplicate""#, options: .regularExpression))

@@ -106,22 +106,22 @@ struct FocusedActivityRunButtons: View {
         }
     }
 
-    static var noRunSelected: String { "Select a run in the Activity window" }
+    nonisolated static var noRunSelected: String { "Select a run in the Activity window" }
 
     /// Why Stop cannot act, or nil when it can.
-    static func stopDisabledReason(_ target: ActivityRunMenuTarget?) -> String? {
+    nonisolated static func stopDisabledReason(_ target: ActivityRunMenuTarget?) -> String? {
         guard let target else { return noRunSelected }
         return target.canStop ? nil : "Only a run that is running or waiting can be stopped"
     }
 
     /// Why Read Again cannot act, or nil when it can.
-    static func readAgainDisabledReason(_ target: ActivityRunMenuTarget?) -> String? {
+    nonisolated static func readAgainDisabledReason(_ target: ActivityRunMenuTarget?) -> String? {
         guard let target else { return noRunSelected }
         return target.readAgainLabel == nil ? "Only an ended run with pages to read again offers this" : nil
     }
 
     /// The run's own offer when it has one, else the verb.
-    static func readAgainTitle(_ target: ActivityRunMenuTarget?) -> String {
+    nonisolated static func readAgainTitle(_ target: ActivityRunMenuTarget?) -> String {
         target?.readAgainLabel ?? "Read Again"
     }
 }
