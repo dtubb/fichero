@@ -56,7 +56,36 @@ enum EngineConfig {
     /// `let`, so still no `nonisolated(unsafe)` mutable global (#4216).
     static var defaults: UserDefaults {
         guard isRunningUnderTests else { return .standard }
-        return testSuiteDefaults
+        return isolatedTestDefaults?.store ?? testSuiteDefaults
+    }
+
+    /// A test's own suite, boxed for the task-local: `UserDefaults` is not `Sendable` but IS documented thread-safe,
+    /// and the box is immutable (the same reasoning as `testSuiteDefaults` below).
+    final class IsolatedTestDefaults: @unchecked Sendable {
+        let store: UserDefaults
+        init(_ store: UserDefaults) { self.store = store }
+    }
+
+    /// One test's own preference store, in place of the shared test suite, for the code that test runs and the tasks
+    /// it starts (#5703). Swift Testing runs tests in parallel, and every test that wrote the host key wrote it into
+    /// the ONE shared suite: one test's write or restore changed the host under another's service mid-rebind. A
+    /// task-local, not a global: a test sets it for its own scope only (`withIsolatedTestDefaults`), and outside a
+    /// test process `defaults` never reads it.
+    @TaskLocal static var isolatedTestDefaults: IsolatedTestDefaults?
+
+    /// Run `body` with a fresh, empty preference suite of its own as `defaults`, removed afterwards. Tests only.
+    static func withIsolatedTestDefaults<T>(
+        _ body: () async throws -> T,
+        isolation: isolated (any Actor)? = #isolation
+    ) async rethrows -> T {
+        let name = "\(testSuiteName).\(UUID().uuidString)"
+        guard let store = UserDefaults(suiteName: name) else {
+            preconditionFailure("UserDefaults(suiteName: \(name)) returned nil")
+        }
+        defer { store.removePersistentDomain(forName: name) }
+        return try await $isolatedTestDefaults.withValue(
+            IsolatedTestDefaults(store), operation: body, isolation: isolation
+        )
     }
 
     /// Suite backing every preference read in a test process.

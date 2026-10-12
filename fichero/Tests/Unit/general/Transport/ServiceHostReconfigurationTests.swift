@@ -2,38 +2,18 @@
 import Foundation
 import Testing
 
-@Suite("App-wide host rebinding")
+/// #5703: these tests write the engine host and post the app-wide host-change notification. They ran in parallel
+/// with each other (and with anything else under Swift Testing) against ONE shared preference suite, so one test's
+/// write or restore changed the host under the other's service mid-rebind, and its wait for its own host timed out.
+/// Now each host-writing test reads and writes a suite of its own (`EngineConfig.withIsolatedTestDefaults`): the
+/// service's init and the rebind the notification starts both run in that test's scope, so they see only its host.
+/// `.serialized` too, as these tests share the one notification name, and each uses hosts no other test does.
+@Suite("App-wide host rebinding", .serialized)
 struct ServiceHostReconfigurationTests {
-    private func restoreEngineHost(_ value: String?) {
-        if let value {
-            EngineConfig.defaults.set(value, forKey: EngineConfig.userDefaultsKey)
-        } else {
-            EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
-        }
-    }
-
     @MainActor
-    private func waitForHostUpdate(
-        _ expectedHost: URL,
-        service: IntegrationsService
-    ) async {
-        for _ in 0..<20 {
-            if service.client.baseURL == expectedHost {
-                return
-            }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-    }
-
-    @MainActor
-    private func waitForHostUpdate(
-        _ expectedHost: URL,
-        service: ModelComparisonService
-    ) async {
-        for _ in 0..<20 {
-            if service.client.baseURL == expectedHost {
-                return
-            }
+    private func waitForHostUpdate(_ expectedHost: URL, of client: () -> URL) async {
+        for _ in 0..<200 {
+            if client() == expectedHost { return }
             try? await Task.sleep(for: .milliseconds(10))
         }
     }
@@ -41,41 +21,56 @@ struct ServiceHostReconfigurationTests {
     @Test("IntegrationsService rebinds when the engine host changes")
     @MainActor
     func integrationsServiceRebindsOnHostChangeNotification() async {
-        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
-        defer { restoreEngineHost(originalHost) }
+        await EngineConfig.withIsolatedTestDefaults {
+            let firstHost = URL(string: "https://integrations-first.tailnet.example")!
+            let secondHost = URL(string: "https://integrations-second.tailnet.example")!
+            EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
 
-        let firstHost = URL(string: "https://first.tailnet.example")!
-        let secondHost = URL(string: "https://second.tailnet.example")!
-        EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+            let service = IntegrationsService()
+            #expect(service.client.baseURL == firstHost)
 
-        let service = IntegrationsService()
-        #expect(service.client.baseURL == firstHost)
+            EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+            NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
+            await waitForHostUpdate(secondHost) { service.client.baseURL }
 
-        EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
-        await waitForHostUpdate(secondHost, service: service)
-
-        #expect(service.client.baseURL == secondHost)
+            #expect(service.client.baseURL == secondHost)
+        }
     }
 
     @Test("ModelComparisonService rebinds when the engine host changes")
     @MainActor
     func modelComparisonServiceRebindsOnHostChangeNotification() async {
-        let originalHost = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)
-        defer { restoreEngineHost(originalHost) }
+        await EngineConfig.withIsolatedTestDefaults {
+            let firstHost = URL(string: "https://comparison-first.tailnet.example")!
+            let secondHost = URL(string: "https://comparison-second.tailnet.example")!
+            EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
 
-        let firstHost = URL(string: "https://first.tailnet.example")!
-        let secondHost = URL(string: "https://second.tailnet.example")!
-        EngineConfig.defaults.set(firstHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+            let service = ModelComparisonService()
+            #expect(service.client.baseURL == firstHost)
 
-        let service = ModelComparisonService()
-        #expect(service.client.baseURL == firstHost)
+            EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
+            NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
+            await waitForHostUpdate(secondHost) { service.client.baseURL }
 
-        EngineConfig.defaults.set(secondHost.absoluteString, forKey: EngineConfig.userDefaultsKey)
-        NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
-        await waitForHostUpdate(secondHost, service: service)
+            #expect(service.client.baseURL == secondHost)
+        }
+    }
 
-        #expect(service.client.baseURL == secondHost)
+    /// The seam itself: a test's own suite is what `EngineConfig` reads, and the shared suite never sees its writes.
+    @Test("a test's own preference suite stands in for the shared one, and is gone afterwards")
+    @MainActor
+    func isolatedDefaultsStandIn() async {
+        let shared = EngineConfig.defaults
+        let before = shared.string(forKey: EngineConfig.userDefaultsKey)
+        let host = URL(string: "https://isolated.tailnet.example")!
+        await EngineConfig.withIsolatedTestDefaults {
+            #expect(EngineConfig.defaults !== shared)
+            #expect(EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey) == nil, "it starts empty")
+            EngineConfig.defaults.set(host.absoluteString, forKey: EngineConfig.userDefaultsKey)
+            #expect(EngineConfig.host == host)
+        }
+        #expect(EngineConfig.defaults === shared)
+        #expect(shared.string(forKey: EngineConfig.userDefaultsKey) == before, "the shared suite is untouched")
     }
 
     // #2349: the legacy `APIClient` wraps its OWN `FicheroClient`, separate from
