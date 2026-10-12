@@ -317,6 +317,7 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "ActivityEventRecord.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ActivityEventRecord.node_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "WorkflowRunRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "WorkflowRunLogLine.run_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ProviderRef.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- hand-written SQL tables --------------------------------------------------------------
     "table:sync_files.document_id": (CUT, "a moved document's tie to a synced folder is severed and listed (finding 9)"),
