@@ -26,7 +26,7 @@ enum PaneScopedOption {
         var map = decode(mapJSON, as: V.self) ?? [:]
         map[pane.uuidString] = value
         guard let data = try? JSONEncoder().encode(map) else { return mapJSON }
-        return String(decoding: data, as: UTF8.self)
+        return String(bytes: data, encoding: .utf8) ?? mapJSON
     }
 
     private static func decode<V: Codable>(_ json: String, as _: V.Type) -> [String: V]? {

@@ -446,10 +446,8 @@ struct DocumentInspectorInfoTab: View {
                 [document.id], excluded: !isExcludedFromProcessing, .processing,
                 using: library.documentService, refreshing: documentStore
             )
-            for updated in refreshed {
-                if updated.id == document.id {
-                    excludeFromProcessingOverride = updated.excludeFromProcessing
-                }
+            for updated in refreshed where updated.id == document.id {
+                excludeFromProcessingOverride = updated.excludeFromProcessing
             }
         } catch {
             documentStore.error = error

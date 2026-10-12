@@ -282,7 +282,10 @@ final class DocumentKGWebPaneCoordinatorMacOS: NSObject, WKNavigationDelegate, W
         guard match.signature != lastSearchMatchSignature else { return }
         lastSearchMatchSignature = match.signature
         if let pageId = match.pageId, !match.spans.isEmpty {
-            NavTrace.log("reader.highlightMatch", "loaded=\(lastLoadedDocumentId ?? "nil") page=\(pageId) hits=\(match.spans.count) current=\(match.currentIndex)")
+            NavTrace.log(
+                "reader.highlightMatch",
+                "loaded=\(lastLoadedDocumentId ?? "nil") page=\(pageId) hits=\(match.spans.count) current=\(match.currentIndex)"
+            )
             webView.evaluateJavaScript(
                 DocumentKGPaneRoute.pageHitsScript(pageId: pageId, spans: match.spans, current: match.currentIndex)
             )

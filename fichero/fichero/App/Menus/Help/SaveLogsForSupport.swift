@@ -161,7 +161,7 @@ nonisolated enum SupportLogs {
         var bytes = [CChar](repeating: 0, count: size)
         guard sysctlbyname("hw.model", &bytes, &size, nil, 0) == 0 else { return "unknown" }
         let utf8 = bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
-        return String(decoding: utf8, as: UTF8.self)
+        return String(bytes: utf8, encoding: .utf8) ?? "unknown"
     }
 
     static func freeDiskDescription() -> String {
