@@ -8,7 +8,8 @@ final class MenuTerminologyBoundaryTests: XCTestCase {
         let fileMenuSource = try Self.appSource("App/Menus/FileMenuCommands.swift")
             + Self.appSource("App/Menus/FileMenuCommands+Export.swift")
         // Library was renamed Project (2026-10-03); File says so (ruled 2026-10-10).
-        XCTAssertTrue(fileMenuSource.contains("Button(\"Close Project\")"))
+        XCTAssertTrue(fileMenuSource.contains("CloseProjectMenuItem(close: closeProject)"))
+        XCTAssertEqual(CloseProjectMenuItem.title, "Close Project")
         XCTAssertTrue(fileMenuSource.contains("Button(\"Save Project As…\")"))
         XCTAssertTrue(fileMenuSource.contains("Label(\"Markdown Static Site…\", systemImage: \"globe\")"))
         XCTAssertTrue(fileMenuSource.contains("library.documentService.exportEleventySite("))

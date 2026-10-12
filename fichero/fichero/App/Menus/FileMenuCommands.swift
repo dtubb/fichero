@@ -24,6 +24,12 @@ struct FileMenuCommands: View {
     @Environment(\.openWindow) private var openWindow
     @State private var registry = KnownLibraryRegistryStore.shared
 
+    /// The key window's Close Project, for the shared item (#5652); nil with no key window.
+    private var closeProject: (@MainActor () -> Void)? {
+        guard let closeLibraryAction else { return nil }
+        return { closeLibraryAction.run() }
+    }
+
     var currentLibrary: LibraryManager.LibraryReference? {
         guard let libraryId = libraryManager.currentLibraryId else { return nil }
         return libraryManager.getLibrary(id: libraryId)
@@ -112,11 +118,11 @@ struct FileMenuCommands: View {
 
             // Setup for the key window's project is Project › Set Up… (ruled 2026-10-10): File
             // makes, opens and closes projects; the Project menu sets one up and starts it.
-            Button("Close Project") {
-                closeLibraryAction?.run()
-            }
-            .keyboardShortcut("w", modifiers: [.command, .control])
-            .disabled(closeLibraryAction == nil)
+            // A project row's own Close Project (#5652), on the key window's project.
+            CloseProjectMenuItem(close: closeProject)
+                .keyboardShortcut("w", modifiers: [.command, .control])
+            // Rename, Share, Show in Finder, Delete: a project row's own items, on the key window's project.
+            FocusedProjectFileButtons()
 
             Divider()
 

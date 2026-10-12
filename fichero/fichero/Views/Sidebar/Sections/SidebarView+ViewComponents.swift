@@ -79,6 +79,8 @@ extension SidebarView {
         .contextMenu(forSelectionType: SidebarDestination.self) { clicked in
             alwaysThereProjectMenu(clicked: clicked)
         }
+        // File's and Project's project verbs when the window shows the always-there project (#5652).
+        .focusedSceneValue(\.projectVerbs, windowAlwaysThereProjectVerbs)
         // ⌘A over the sidebar selects the CURRENT library's visible rows
         // (Daniel, 2026-08-23) — published, never key-handled here, because
         // `SelectAllButton` owns the chord and asks which pane has focus.

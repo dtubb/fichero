@@ -158,8 +158,9 @@ ACTION_SPECS: tuple[ActionSpec, ...] = (
     ActionSpec(
         action="Close Project",
         expected=("menu", "keyboard"),
-        menu_patterns=("Button(\"Close Project\"",),
-        keyboard_patterns=("Button(\"Close Project\"",),
+        # The shared item (#5652): File's Close Project (⌃⌘W) and a project row's.
+        menu_patterns=("CloseProjectMenuItem(close: closeProject)",),
+        keyboard_patterns=("CloseProjectMenuItem(close: closeProject)",),
     ),
     ActionSpec(
         action="New Window",

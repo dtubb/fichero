@@ -338,8 +338,20 @@ Behaviours (slice 1):
   with the window's steps for ⌘Z (`FocusedCommandButtons+ProposalVerbs.swift`). Each is disabled with its reason
   under it otherwise. Pinned by `ProposalAndDirectionMenuTests` and
   `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
-  selection; the dataset rows' and the Inspector header's Exclude.
+- `menus.file.project-verbs-one-component` — **[OK]** (#5652 slice 4, group 5) **Built 2026-10-12 (app), not yet
+  seen:** Rename Project…, Edit Document Types…, Share Project…, Show in Finder, Delete Project… and Close Project
+  are ONE item each (`FocusedCommandButtons+ProjectVerbs.swift`): a project's row menu and the always-there
+  project's empty-area menu render them on their project, and **File** (Rename, Share, Show in Finder, Delete,
+  Close Project ⌃⌘W) and **Project › Edit Document Types…** render them on the key window's project
+  (`ProjectVerbsTarget`, published by that project's row, or by the sidebar for the always-there project), each
+  disabled with its reason under it (the always-there project's kind, a viewer's access, no project). Activity's
+  Delete is Edit › Delete's item (⌘⌫ on the selected runs). The sidebar's automation rows' Pause, Resume, Run Now and
+  Cancel were found unwired (no caller passes their actions): they are disabled rather than presses that do
+  nothing, and have no menu-bar item until they are wired (#5652). Pinned by `ProjectVerbsMenuTests` and
+  `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: Run Workflow
+  ▸ and Add to Chat on the selection; the dataset rows' and the Inspector header's Exclude; the automation rows'
+  verbs once they are wired.
 
 ---
 

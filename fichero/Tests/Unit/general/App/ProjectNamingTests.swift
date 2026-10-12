@@ -295,9 +295,14 @@ final class ProjectNamingTests: XCTestCase {
         XCTAssertTrue(list.contains(".contextMenu(forSelectionType: SidebarDestination.self)"))
         XCTAssertTrue(list.contains("alwaysThereProjectMenu(clicked: clicked)"))
         let helpers = try Self.appSource("Views/Sidebar/Sections/SidebarView+LibraryHeaderHelpers.swift")
-        for title in ["newFolder", "importFiles", "editDocumentTypes", "showInFinder"] {
-            XCTAssertTrue(helpers.contains("Button(AlwaysThereProjectMenu.\(title))"), title)
+        // New Folder, Edit Document Types… and Show in Finder are the shared items File and Project render (#5652).
+        XCTAssertTrue(helpers.contains("Button(AlwaysThereProjectMenu.importFiles)"))
+        for item in ["NewFolderMenuItem(", "EditDocumentTypesMenuItem(target: verbs)", "ShowProjectInFinderMenuItem(target: verbs)"] {
+            XCTAssertTrue(helpers.contains(item), item)
         }
+        XCTAssertEqual(ProjectVerbs.editDocumentTypesTitle, AlwaysThereProjectMenu.editDocumentTypes)
+        XCTAssertEqual(ProjectVerbs.showInFinderTitle, AlwaysThereProjectMenu.showInFinder)
+        XCTAssertEqual(ItemVerbs.newFolderTitle, AlwaysThereProjectMenu.newFolder)
         let sidebar = try Self.appSource("Views/Sidebar/SidebarView.swift")
         XCTAssertTrue(sidebar.contains(".sheet(item: $alwaysThereTypeEditorLibrary)"))
     }

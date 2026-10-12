@@ -79,16 +79,39 @@ extension SidebarView {
     func alwaysThereProjectMenu(clicked: Set<SidebarDestination>) -> some View {
         if AlwaysThereProjectMenu.isShown(clicked: clicked),
            let library = libraryManager.getLibrary(id: LibraryManager.globalLibraryId) {
-            Button(AlwaysThereProjectMenu.newFolder) { newFolderAtRoot(of: library) }
+            NewFolderMenuItem(create: { newFolderAtRoot(of: library) })
             Button(AlwaysThereProjectMenu.importFiles) { importFiles(into: library) }
             Divider()
-            Button(AlwaysThereProjectMenu.editDocumentTypes) { alwaysThereTypeEditorLibrary = library }
+            // The project verbs' own items (#5652), as File and Project render them for this project.
+            let verbs = alwaysThereProjectVerbs(library)
+            EditDocumentTypesMenuItem(target: verbs)
             #if os(macOS)
-            Button(AlwaysThereProjectMenu.showInFinder) {
-                NSWorkspace.shared.activateFileViewerSelecting([library.url])
-            }
+            ShowProjectInFinderMenuItem(target: verbs)
             #endif
         }
+    }
+
+    /// The always-there project as its verbs act on it: its document types and where it is on disk; it has no name
+    /// to change, no share, no close and no delete (`ProjectRowMenuOffers`).
+    func alwaysThereProjectVerbs(_ library: LibraryManager.LibraryReference) -> ProjectVerbsTarget {
+        var target = ProjectVerbsTarget(
+            projectId: library.id,
+            offers: ProjectRowMenuOffers.forProject(isAlwaysThere: true, multiuser: EngineConfig.multiuserEnabled),
+            canWrite: true
+        )
+        target.editDocumentTypes = { alwaysThereTypeEditorLibrary = library }
+        #if os(macOS)
+        let url = library.url
+        target.showInFinder = { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        #endif
+        return target
+    }
+
+    /// The window's project's verbs when it is the always-there project (its header row publishes them otherwise).
+    var windowAlwaysThereProjectVerbs: ProjectVerbsTarget? {
+        guard windowState.libraryId == LibraryManager.globalLibraryId,
+              let library = libraryManager.getLibrary(id: LibraryManager.globalLibraryId) else { return nil }
+        return alwaysThereProjectVerbs(library)
     }
 
     /// Close a library from the sidebar context menu (#1661): unregister it

@@ -96,6 +96,8 @@ struct SidebarItemContextMenu: View {
         deleteTargets.isEmpty ? [item] : deleteTargets
     }
 
+    /// An automation row's own verbs. No caller passes these actions today, so each is off rather than a press
+    /// that does nothing (#5652's inventory found them unwired); the menu bar has none until they are.
     @ViewBuilder
     private var automationActions: some View {
         switch item.itemType {
@@ -106,18 +108,21 @@ struct SidebarItemContextMenu: View {
                 } label: {
                     Label("Pause", systemImage: "pause")
                 }
+                .disabled(onPause == nil)
 
                 Button {
                     onTrigger?()
                 } label: {
                     Label("Run Now", systemImage: "play.fill")
                 }
+                .disabled(onTrigger == nil)
             } else if schedule.status == "paused" {
                 Button {
                     onResume?()
                 } label: {
                     Label("Resume", systemImage: "play")
                 }
+                .disabled(onResume == nil)
             }
 
         case .trigger(let trigger):
@@ -127,12 +132,14 @@ struct SidebarItemContextMenu: View {
                 } label: {
                     Label("Pause", systemImage: "pause")
                 }
+                .disabled(onPause == nil)
             } else if trigger.status == "paused" {
                 Button {
                     onResume?()
                 } label: {
                     Label("Resume", systemImage: "play")
                 }
+                .disabled(onResume == nil)
             }
 
         case .batch(let batch):
@@ -142,12 +149,14 @@ struct SidebarItemContextMenu: View {
                 } label: {
                     Label("Pause", systemImage: "pause")
                 }
+                .disabled(onPause == nil)
 
                 Button {
                     onCancel?()
                 } label: {
                     Label("Cancel", systemImage: "xmark.circle")
                 }
+                .disabled(onCancel == nil)
             }
 
         default:

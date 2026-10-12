@@ -74,45 +74,62 @@ struct LibraryHeaderRow: View {
         // name (ruled 2026-10-10). `ProjectRowMenuOffers` still refuses it everything but folders
         // and imports, so the menu is never empty (#116) whatever row it lands on.
         header.contextMenu { libraryContextMenu }
+            // The key window's project, for File's and Project's project verbs (#5652): the same target this menu
+            // renders. Only the window's own project's row publishes it.
+            .focusedSceneValue(\.projectVerbs, isCurrentLibrary ? verbs : nil)
+    }
+
+    /// New Folder at this project's top, for someone who may write to it.
+    private var newFolder: (@MainActor () -> Void)? {
+        guard canWrite else { return nil }
+        let onNewFolder = onNewFolder
+        return { onNewFolder() }
+    }
+
+    /// This project, as its verbs act on it: this row's own prompt, sheet, editor and confirmation.
+    private var verbs: ProjectVerbsTarget {
+        var target = ProjectVerbsTarget(projectId: library.id, offers: offers, canWrite: canWrite)
+        if offers.rename { target.rename = { onRename() } }
+        target.editDocumentTypes = { showTypeEditor = true }
+        if offers.share { target.share = { onShare() } }
+        #if os(macOS)
+        let url = library.url
+        target.showInFinder = { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        #endif
+        if offers.delete { target.delete = { showDeleteLibraryConfirmation = true } }
+        return target
     }
 
     private var offers: ProjectRowMenuOffers {
         ProjectRowMenuOffers.forProject(isAlwaysThere: isGlobal, multiuser: EngineConfig.multiuserEnabled)
     }
 
+    /// The project's verbs: the shared items File and Project render on the key window's project (#5652).
     @ViewBuilder
     private var libraryContextMenu: some View {
         if offers.rename {
-            Button("Rename Project…", action: onRename)
-                .disabled(!canWrite)
+            RenameProjectMenuItem(target: verbs)
         }
         // The prototype (document type) editor from the library itself
         // (Daniel 2026-08-13: "yes to contextual menu" — prototypes are just
         // nodes of this library). Same sheet the inspector's picker opens.
-        Button("Edit Document Types…") {
-            showTypeEditor = true
-        }
-        .disabled(!canWrite)
+        EditDocumentTypesMenuItem(target: verbs)
         // Owners share from here — same sheet as the sidebar sharing badge
         // (#3149). Gated on multi-user mode + write access.
         if offers.share {
-            Button("Share Project…", action: onShare)
-                .disabled(!canWrite)
+            ShareProjectMenuItem(target: verbs)
         }
         // Where the package actually lives (Daniel, 2026-08-25: "we should
         // be able to show in finder in contextual menu") — the standard Mac
         // answer to "what IS this thing on disk".
         #if os(macOS)
-        Button("Show in Finder") {
-            NSWorkspace.shared.activateFileViewerSelecting([library.url])
-        }
+        ShowProjectInFinderMenuItem(target: verbs)
         #endif
         Divider()
         // Finder semantics again: create into / import into the thing you
         // right-clicked. Both closures select this library first, so the
         // shared dialogs (which resolve via `selectedItemLibrary`) target it.
-        Button("New Folder", action: onNewFolder)
-            .disabled(!canWrite)
+        NewFolderMenuItem(create: newFolder)
         Button("Import Files…", action: onImport)
             .disabled(!canWrite)
         if offers.close || offers.delete {
@@ -122,16 +139,13 @@ struct LibraryHeaderRow: View {
         // WITHOUT deleting the .fichero package on disk (#1661). Stays enabled
         // for viewers — it's a local sidebar op, not a library mutation.
         if offers.close {
-            Button("Close Project", action: onClose)
+            CloseProjectMenuItem(close: { onClose() })
         }
         // Delete = close AND move the package to the TRASH (recoverable,
         // never an unlink) after an explicit confirmation. Write access
         // required — a viewer must not be able to trash a shared library.
         if offers.delete {
-            Button("Delete Project…", role: .destructive) {
-                showDeleteLibraryConfirmation = true
-            }
-            .disabled(!canWrite)
+            DeleteProjectMenuItem(target: verbs)
         }
     }
 

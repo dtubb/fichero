@@ -152,14 +152,15 @@ struct ActivityMonitorWindow: View {
         }
         .accessibilityIdentifier("activity.table")
         .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
+        // Edit › Delete (⌘⌫) on the selected runs while the table has focus (#5652): the same item as its menu.
+        .focusedValue(\.itemVerbs, deleteTarget(selectedIDs))
         .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
             if ids.count == 1, let id = ids.first, let target = runMenuTarget(for: id) {
                 if target.canStop { ActivityStopMenuItem(target: target) }
                 if target.readAgainLabel != nil { ActivityReadAgainMenuItem(target: target) }
             }
-            Button("Delete", role: .destructive) {
-                Task { await deleteRuns(withIDs: ids) }
-            }
+            // Edit › Delete's own item (#5652), on the runs this click acts on.
+            DeleteItemsMenuItem(target: deleteTarget(ids))
         } primaryAction: { ids in
             guard ids.count == 1, let id = ids.first, let row = Self.find(id, in: sortedRows) else { return }
             showDetails(for: row)
@@ -286,6 +287,14 @@ struct ActivityMonitorWindow: View {
         guard let selection = row.selection else { return }
         selectionState.select(selection)
         openWindow(id: ActivityWindowSelectionState.detailWindowID)
+    }
+
+    /// These rows, as Delete acts on them: the one delete operation below.
+    private func deleteTarget(_ ids: Set<ActivityMonitorRow.ID>) -> ItemVerbsTarget {
+        var target = ItemVerbsTarget(ids: ids.sorted(), documents: [])
+        target.deletableCount = ids.count
+        if !ids.isEmpty { target.delete = { Task { await deleteRuns(withIDs: ids) } } }
+        return target
     }
 
     /// The ONE delete operation (#4960), routed per row's OWN library. Only

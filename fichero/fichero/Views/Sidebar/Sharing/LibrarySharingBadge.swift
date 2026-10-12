@@ -121,7 +121,7 @@ struct LibrarySharingBadge: View {
                     showPopover = false
                     showShareSheet = true
                 } label: {
-                    Label("Share Project…", systemImage: "person.badge.plus")
+                    Label(ProjectVerbs.shareTitle, systemImage: "person.badge.plus")
                 }
                 .buttonStyle(.borderless)
             }
