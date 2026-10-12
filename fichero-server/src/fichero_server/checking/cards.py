@@ -147,7 +147,7 @@ def reading_proposals(db: Any, scope_ids: list[str], *, kind: str = "transcripti
             continue
         try:
             outlines = {line_id: polygon for line_id, polygon, _text in lines_with_ids(
-                export_page(db, doc.id, "pagexml", pass_id=chosen.id).data.decode("utf-8"))}
+                export_page(db, doc.id, "pagexml", pass_id=chosen.id, reading_level="as_written").data.decode("utf-8"))}
         except ExportRefused as exc:
             missing.append({"document_id": doc.id, "why": str(exc)})
             continue

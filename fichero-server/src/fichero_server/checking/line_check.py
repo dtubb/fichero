@@ -170,7 +170,7 @@ def _check(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> d
             missing.append({"document_id": doc.id, "why": "its photograph is not on this Mac"})
             return
         try:
-            lines = [ln for ln in page_lines(export_page(db, doc.id, "pagexml", pass_id=chosen.id).data.decode("utf-8"))
+            lines = [ln for ln in page_lines(export_page(db, doc.id, "pagexml", pass_id=chosen.id, reading_level="as_written").data.decode("utf-8"))
                      if ln["id"] in segments]
         except ExportRefused as exc:
             missing.append({"document_id": doc.id, "why": str(exc)})

@@ -264,7 +264,7 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
                                    "why": f"no pass read by {teacher}"})
             continue
         try:
-            exported = export_page(db, page.id, "pagexml", pass_id=chosen.id)
+            exported = export_page(db, page.id, "pagexml", pass_id=chosen.id, reading_level="as_written")
         except ExportRefused as exc:
             result.missing.append({"document_id": page.id, "name": page.name, "why": str(exc)})
             continue

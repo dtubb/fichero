@@ -329,8 +329,11 @@ Readings
   `tests/unit/formats/test_abbreviation_markup.py`,
   `tests/unit/api/test_names_read_expanded_text.py::test_a_lines_expanded_reading_is_what_names_are_read_from`
   and `tests/unit/training/test_kraken_training_set.py::test_the_set_does_not_learn_abbreviation_markup_as_text`.
-  Not built: the PAGE importer does not yet write a line's expanded reading from its markup or its
-  `custom` abbrev tags (the parser is ready for it). **Search (#5651, built 2026-10-12):** the page's text
+  **The import (#5651, built 2026-10-12):** a PAGE import saves each line's abbreviations opened as its own
+  reading at level `expanded`, from the inline markup or the line's `custom` abbrev tags, made from (and beside)
+  the line as written, which still counts as the page's text; a line with nothing to open gets none. A training
+  set, an evaluation, the reasons and the checks read each line as written (`reading_level="as_written"`).
+  Pinned by `tests/unit/api/test_page_import_opens_abbreviations_5651.py`. **Search (#5651, built 2026-10-12):** the page's text
   (`page_content`) keeps its lines as the file had them, and what search reads beside it (the standing text,
   `page_text_cache.searched_text`, indexed and embedded with the page) has the abbreviations opened, so a search
   for `dicha` finds the page and no vector is made of markup; the derivation bump (15) re-derives each page

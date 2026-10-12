@@ -312,7 +312,7 @@ def reference_page(db: Any, page_id: str, checked: str | None) -> tuple[dict[str
     if not photo or not Path(photo).is_file():
         return None, "its photograph is not on this Mac"
     try:
-        xml = export_page(db, page_id, "pagexml", pass_id=chosen.id).data.decode("utf-8")
+        xml = export_page(db, page_id, "pagexml", pass_id=chosen.id, reading_level="as_written").data.decode("utf-8")
     except ExportRefused as exc:
         return None, str(exc)
     lines = [ln for ln in page_lines(xml) if line_flag(ln["text"], False) is None]

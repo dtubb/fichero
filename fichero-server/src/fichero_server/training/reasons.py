@@ -120,7 +120,7 @@ def checked_lines(db: Any, *, scope_ids: list[str], checked: str, held_out_ids: 
         if chosen is None:
             return None
         try:
-            return lines_with_ids(export_page(db, page_id, "pagexml", pass_id=chosen.id).data.decode("utf-8"))
+            return lines_with_ids(export_page(db, page_id, "pagexml", pass_id=chosen.id, reading_level="as_written").data.decode("utf-8"))
         except ExportRefused:
             return None
 

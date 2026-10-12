@@ -780,6 +780,7 @@ def write_page_into_library(
                     created_by=ctx.actor or None,
                 )
             )
+    readings.extend(_expanded_readings(readings, {ids_by_ref[ref]: segment for ref, segment in order}))
     # A GCP's world end (#5122): a `world-point` reading, WGS 84 lon/lat as the georef extension
     # writes it, through the one checker every world point goes through (`models.geo`).
     if georeferencing:
@@ -892,6 +893,31 @@ def write_page_into_library(
 #: TEI `@cert` in words, as a certainty (#5179, the mapping).
 _CERTAINTY = {"high": 0.9, "medium": 0.6, "low": 0.3}
 _PAGE_UNCLEAR = re.compile(r"unclear\s*\{([^}]*)\}")
+
+
+def _expanded_readings(readings: list[ContentRepresentation], segments: dict[str, Any]) -> list[ContentRepresentation]:
+    """Each line's abbreviations opened, as its own reading at level `expanded` (#5651,
+    `source.reading.abbreviation-markup-parsed`): from the corpus's inline markup (`dha$.dicha`) or the PAGE
+    `custom` abbrev tags, read by `formats.abbreviation_markup`. It counts beside the line as written, never
+    over it, so the page's text stays the file's; names, statements and search read it. A line with nothing to
+    open gets none."""
+    from fichero_server.formats.abbreviation_markup import apply_page_custom, expanded, has_markup
+
+    marked = any(has_markup(r.content) for r in readings if r.kind == "transcription")
+    out = []
+    for reading in readings:
+        if reading.kind != "transcription" or reading.level is not None:
+            continue
+        custom = (getattr(segments.get(reading.segment_id), "foreign", None) or {}).get("custom") or ""
+        if "abbrev" in custom or "expan" in custom:
+            opened = apply_page_custom(reading.content, custom).expanded
+        else:
+            opened = expanded(reading.content, marked=marked)
+        if opened.strip() and opened != reading.content:
+            out.append(reading.model_copy(update={
+                "id": uuid.uuid4().hex, "content": opened, "level": "expanded",
+                "derived_from_representation_id": reading.id}))
+    return out
 
 
 def _editorial_facts(order, ids_by_ref, first_reading, source_name, imported):
