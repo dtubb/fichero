@@ -96,3 +96,36 @@ def test_the_same_reading_written_twice_is_kept_once(db, tmp_path):
         write_readings(db, document_id=page.id, readings=[(line.id, "una línea", 0.5)], artifact_id="art-1",
                        run_id="read-1")
     assert len(db.query(ContentRepresentation, document_id=page.id)) == before + 1
+
+
+def test_after_a_re_read_of_kraken_s_own_pass_the_line_shows_the_newest_reading(  # noqa: F811
+        agent, client, db, tmp_path, test_package, _engine, monkeypatch):
+    """The operator's page 42 (`MCP Night 1`, line e7805818): Kraken found and read the lines in one go (its own
+    pass, 00:40), a redo of Read wrote a newer reading onto those lines (05:53) and it counted, but the page's line
+    list still served the pass's 00:40 words."""
+    from fichero_server.workflows.default_workflows import seed_default_workflows
+
+    seed_default_workflows(db)
+    folder = Document(name="Box", doc_type=DocType.folder)
+    db.save(folder)
+    page = Document(name="p0.png", doc_type=DocType.file, file_type=FileType.image, parent_id=folder.id,
+                    path=str(_png(tmp_path / "p0.png")))
+    db.save(page)
+    recipe = {**RECIPE, "steps": RECIPE["steps"][1:]}  # lines and read: Kraken's own pass first
+    _call(agent, "fichero_use_library", {"path": str(test_package)})
+    _call(agent, "fichero_recipes_save_project_setup",
+          {"answers": {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"]}, "recipe": recipe})
+    assert _finish(agent, _call(agent, "fichero_recipes_start_project", {})["started"]["job_id"])["state"] == "done"
+
+    monkeypatch.setattr(kraken_runtime, "read_given_lines", lambda image_path, model_path, lines, **kw: [
+        kraken_runtime.ReadLine("Item dijo el testigo", confidence=0.9) for _ in lines])
+    again = _call(agent, "fichero_recipes_start_project", {"redo": ["read"]})["started"]["job_id"]
+    assert _finish(agent, again)["state"] == "done"
+
+    lines = [s for s in client.get(f"/api/segments/document/{page.id}").json()["segments"] if s["kind"] == "line"]
+    assert lines and {s["text"] for s in lines} == {"Item dijo el testigo"}, [s["text"] for s in lines]
+    # The line's readings: the pass's own words (its result's provisional reading, and the stored reading made of it,
+    # side by side by design) and the newer one, which counts.
+    answer = client.get(f"/api/segments/{lines[0]['id']}/readings").json()
+    counting = answer["counting"]["transcription"]["representation_id"]
+    assert next(r["content"] for r in answer["items"] if r["id"] == counting) == "Item dijo el testigo"

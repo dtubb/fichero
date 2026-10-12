@@ -391,6 +391,11 @@ def _text_bearing_rows(
 
 
 def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, str]:
+    """Each row's counting reading's text (`counting_readings`)."""
+    return {segment_id: reading.content for segment_id, reading in counting_readings(db, rows, kind).items()}
+
+
+def counting_readings(db: Database, rows: list[Segment], kind: str = "transcription") -> dict[str, ReadingRead]:
     """Each row's COUNTING reading of `kind`, by segment id, for a list of rows at once (#5139).
 
     What a segment list hands back as `text`: the same answer the page's text uses for that
@@ -413,7 +418,7 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
     choices: dict[str, list[ReadingChoice]] = {}
     for choice in db.query_in(ReadingChoice, "segment_id", list(by_segment)):
         choices.setdefault(choice.segment_id, []).append(choice)
-    texts: dict[str, str] = {}
+    texts: dict[str, ReadingRead] = {}
     retired_memo: dict[tuple[str, str], set[str]] = {}   # a line's words worked out once (#5190)
     pass_of = {row.id: row.pass_id for row in rows}
     marked = ground_truth_pass_ids(db, pass_of.values())
@@ -424,7 +429,7 @@ def counting_texts(db: Database, rows: list[Segment], kind: str = "transcription
             retired_memo=retired_memo, on_ground_truth=pass_of.get(segment_id) in marked, measures=measures,
         )
         if counted is not None and counted.representation_id is not None:
-            texts[segment_id] = next(i.content for i in items if i.id == counted.representation_id)
+            texts[segment_id] = next(i for i in items if i.id == counted.representation_id)
     return texts
 
 

@@ -1136,7 +1136,10 @@ plan's peak memory across steps. Ready shows none of it.
   certainty the reader gave its working lines when its result became the page's pass, #5704) below 70%. A
   Kraken reader reading lines a page already has (Find Regions' or Find Lines', #5487) keeps each line's
   certainty on its reading (`kraken_runtime.ReadLine`, #5707), and a reading the same result already wrote on a
-  line is not written a second time. The page is left out, named
+  line is not written a second time. A page's line list (`GET /api/segments/document/{id}`) serves each line's
+  counting reading where that reading is another result's than the pass's own (a later reader's, a person's),
+  never the words the pass's own result carried once a newer reading counts. (A line lists its pass's own words
+  twice by design: the result's provisional reading and the stored reading made of it.) The page is left out, named
   with why ("its reading is too uncertain to find names in (the reader was 42% sure, below 70%); read it with a
   better reader first"), and the summary warns ("Names not looked for on 3 pages: their reading is too
   uncertain"); a Names try on the samples says the same. A page whose reader gave no certainty (a vision model)
