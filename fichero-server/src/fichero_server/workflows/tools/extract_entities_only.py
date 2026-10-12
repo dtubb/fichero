@@ -384,6 +384,9 @@ async def extract_entities_only(
     prompt_override = str(inputs.get("prompt") or "").strip() or None
     instructions_by_language: dict[str, str] = {}
     languages_used: dict[str, int] = defaultdict(int)
+    from fichero_server.models.source_declarations import project_facts
+
+    project_language = project_facts(db).language
 
     progress_callback = inputs.get("__progress_callback")
     max_in_flight = int(os.environ.get("FICHERO_EXTRACT_MAX_IN_FLIGHT", "3"))
@@ -433,6 +436,7 @@ async def extract_entities_only(
             document=documents[record["index"]],
             text=record["text"] or "",
             policy=policy,
+            project_language=project_language,  # the project's, unless the page is clearly another (#5708)
         )
         languages_used[resolution.language or UNKNOWN] += 1
         instruction_key = prompt_language(resolution)

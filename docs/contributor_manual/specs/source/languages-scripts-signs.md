@@ -172,6 +172,13 @@ Language and script
   format's form back: PAGE XML its enumerated name, ALTO the tag (`de`), so both still round-trip. A segment
   the file says nothing about stays empty and resolves through the cascade. *Test:*
   `fichero-server/tests/unit/api/test_imported_language_5517.py`.
+- `source.lang.project-language-first` — **[PARTIAL]** (#5708) a page a step reads (Find Names, Find
+  statements, the import's NLP draft) is read in the project's language (Set Up's answer, the project rung)
+  unless its text is clearly another (`lang_detect.confident_language`: at least 8 function words, the winner
+  three times the other); a page of HTR noise holding a stray "a" or "it" is never read as English. What the
+  document or a person states, and a language policy, still come first. *Test:*
+  `fichero-server/tests/unit/workflows/test_names_read_in_the_projects_language_5708.py`. *Not built: languages
+  beyond the detector's two (English and Spanish).*
 - `source.lang.project-facts-from-setup` — **[OK]** (#5517, 2026-10-11) the project rung of the cascade
   reads Set Up's answers when the project states no fact of its own: its one script, its one language (as
   its name) and that script's direction (Set Up's own answer for it, else the script's), each at the project's

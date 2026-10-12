@@ -243,7 +243,11 @@ def run_nlp_draft(
     # recorded reason rather than re-guessing a possibly-wrong one.
     from fichero_server.llm.language_policy import resolve_language
 
-    resolution = resolve_language(requested=language, document=doc, text=text)
+    from fichero_server.models.source_declarations import project_facts  # noqa: PLC0415
+
+    # The project's language, unless the page is clearly another (#5708).
+    resolution = resolve_language(requested=language, document=doc, text=text,
+                                  project_language=project_facts(db).language)
     if not resolution.is_known:
         return NlpDraftResult(
             error=f"no entity model: {resolution.basis}"

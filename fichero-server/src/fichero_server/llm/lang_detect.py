@@ -149,6 +149,30 @@ def detect_language(text: str, default: str = "English") -> str:
     return "English"
 
 
+#: What it takes to call a page another language than its project's (#5708): this many function words, and the
+#: winner this many times the other. A page of HTR noise ("L isdusnt. crst a it") has a handful of stray "a"/"it"
+#: and is never confidently English.
+CONFIDENT_HITS = 8
+CONFIDENT_RATIO = 3.0
+
+
+def confident_language(text: str) -> str | None:
+    """The page's language only when its text says so clearly (`CONFIDENT_HITS`, `CONFIDENT_RATIO`), else None."""
+    if not text:
+        return None
+    words = [w.lower() for w in _WORD_RE.findall(_select_detection_sample(text))]
+    counts: Counter[str] = Counter()
+    for word in words:
+        for lang, hints in _LANG_HINTS.items():
+            if word in hints:
+                counts[lang] += 1
+    if not counts:
+        return None
+    (top, hits), *rest = counts.most_common() + [("", 0)]
+    second = rest[0][1] if rest else 0
+    return top if hits >= CONFIDENT_HITS and hits >= CONFIDENT_RATIO * max(second, 1) else None
+
+
 def resolve_output_language(
     requested: str | None,
     text: str,

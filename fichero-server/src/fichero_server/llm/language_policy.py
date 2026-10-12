@@ -622,8 +622,13 @@ def resolve_language(
     detect: bool = True,
     script: str | None = None,
     guess_english: bool = True,
+    project_language: str | None = None,
 ) -> LanguageResolution:
     """Resolve the language to use for one document, or one segment of one.
+
+    `project_language` (#5708): the project's own language (Set Up's answer, `project_facts`). Below anything the
+    document or the policy states, and above detecting: a page is another language only when its text says so
+    clearly (`lang_detect.confident_language`), never because HTR noise holds a stray "a" or "it".
 
     `guess_english=False` (#5231): what a person is SHOWN (the Inspector) never falls back to
     English; with nothing stated and no text it says "not determined". The default keeps the
@@ -735,6 +740,26 @@ def resolve_language(
             # the decision was made.
             level=LEVEL_PROJECT,
         )
+
+    if project_language:
+        from fichero_server.llm.lang_detect import confident_language
+
+        other = confident_language(text) if detect and text else None
+        if other and other != project_language and policy.permits(other):
+            return LanguageResolution(
+                language=other,
+                status=RESOLVED,
+                source=SOURCE_DETECTED,
+                basis=f"detected from this document's text, clearly {other}, not the project's {project_language}",
+            )
+        if policy.permits(project_language):
+            return LanguageResolution(
+                language=project_language,
+                status=RESOLVED,
+                source=SOURCE_USER,
+                basis="the project's language, answered in Set Up",
+                level=LEVEL_PROJECT,
+            )
 
     if policy.mode == "unset":
         # Legacy path, unchanged: detect, fall back to English. Preserved so
