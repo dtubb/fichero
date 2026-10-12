@@ -413,6 +413,18 @@ def _lean(items: list[Document]) -> list[Document]:
     return out
 
 
+def _list_answer(items: list[Document], *, count: int, withheld: int, summary: bool) -> Any:
+    """A documents list as the route answers it. With `summary` (an agent's), each item lean (`_lean`) and every
+    field still at its default left out (`openapi.mcp.onboarding-journey`: a folder's 15 pages answered 21 KB lean,
+    most of it fields at null, 0 or false). The schema is the same: a field left out is its default."""
+    answer = DocumentListResponse(items=_lean(items) if summary else items, count=count, withheld=withheld)
+    if not summary:
+        return answer
+    from fastapi.responses import JSONResponse
+
+    return JSONResponse(answer.model_dump(mode="json", exclude_defaults=True))
+
+
 # A group's date when it has none of its own is the range of its pages'
 # dates (#5569.2). Marked source "pages" so it is re-read from the pages on
 # every listing and never taken for a date someone gave the group.
@@ -756,7 +768,7 @@ async def list_documents(
         perf["matched_rows"] = len(docs)
         perf["returned_rows"] = len(items)
         perf["filters"] = ",".join(sorted(filters.keys())) or "none"
-        return DocumentListResponse(items=_lean(items) if summary else items, count=len(items), withheld=withheld)
+        return _list_answer(items, count=len(items), withheld=withheld, summary=summary)
 
 
 @router.get("/collections")
@@ -1568,9 +1580,7 @@ async def get_children(
             children = children[:limit]
         perf["returned_rows"] = len(children)
         items = _with_child_counts(db, children)
-        return DocumentListResponse(
-            items=_lean(items) if summary else items, count=len(children), withheld=withheld
-        )
+        return _list_answer(items, count=len(children), withheld=withheld, summary=summary)
 
 
 @router.get("/{doc_id}/ancestors")
