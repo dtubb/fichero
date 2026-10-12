@@ -185,18 +185,25 @@ def test_a_direction_set_on_the_page_reaches_the_reader_at_once(db, client):
 
 def test_undoing_the_direction_puts_the_reader_back_at_once(db, client):
     """#5171 and its ⌘Z: the setting is an audited action, so its undo (the app's ⌘Z) must reach
-    the Reader as directly as the setting did -- rows again, without a restart."""
+    the Reader as directly as the setting did -- rows again, without a restart.
+
+    The page's markup is checked by running the page's own script, which needs node; the map's directions are
+    checked everywhere. (It ran node unguarded, so on a machine without node on PATH -- the M4 runs the suite over
+    ssh with PATH=/usr/bin:/bin -- it failed every run with FileNotFoundError while its siblings skipped.)"""
     doc_id = _import(db, GENJI)
     made = client.post("/api/actions/invoke", json={"name": "source_setting.set", "params": {
         "level": "node", "key": "direction", "value": "ttb", "target_id": doc_id}})
     assert made.status_code == 200, made.text
     payload, html = _view(client, doc_id)
-    assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body" data-direction="ttb">')
+    assert {line["direction"] for line in payload["pages"][0]["lines"]} == {"ttb"}
+    if NODE:
+        assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body" data-direction="ttb">')
     undone = client.post(f"/api/actions/audit/{made.json()['audit_id']}/undo")
     assert undone.status_code == 200, undone.text
     payload, html = _view(client, doc_id)
     assert {line["direction"] for line in payload["pages"][0]["lines"]} != {"ttb"}
-    assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body">')
+    if NODE:
+        assert _body(html, payload["pages"][0]).startswith('<div class="transcript-page-body">')
 
 
 # A fake DOM just big enough for the page's OWN refreshPage/caretInBody/bodyOffset: one article,
