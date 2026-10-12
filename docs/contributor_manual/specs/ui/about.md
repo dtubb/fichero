@@ -92,10 +92,16 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
   `{"format": "fichero-acknowledgements-v1", "components": [{name, version, licence, licence_text, layer
   ("engine" or "app"), kind ("python" or "swift")}]}`; `licence_text` is the licence file's path relative to
   `app_packages`, or for a Swift pin its LICENSE URL at the pinned revision. *Test:*
-  `fichero-server/tests/unit/scripts/test_acknowledgements_5639.py`. *Not built (the app, B): the About window
-  reads it from the embedded engine's Resources (`Fichero Server.app/Contents/Resources/acknowledgements.json`)
-  in place of, or beside, the Swift-declared list; groups by `layer`; shows `licence_text` (a file in the bundle,
-  or a link).*
+  `fichero-server/tests/unit/scripts/test_acknowledgements_5639.py`. **Built 2026-10-12 (app), not yet seen:**
+  the About window's Acknowledgements read it from the embedded engine's Resources (Helpers or Resources, wherever
+  the build put the engine) in place of the Swift-declared list, keeping each curated entry the file lacks (the
+  platform frameworks, the on-device runtimes) in its own layer (`GeneratedAcknowledgements`). Rows group by
+  `layer` (engine → Engine, app → App), show `v<version> · <licence>` (the engine's live version first), and open
+  their `licence_text` (the file under `app_packages`, or the link), else the project page (a pin's repository, a
+  distribution's PyPI page). A build with no file (Debug, with an external engine) shows the curated list and says
+  so in one line; a file that cannot be read shows the curated list and says why, never silently. *Test:*
+  `fichero/Tests/Unit/general/Views/About/GeneratedAcknowledgementsTests.swift`. *Not seen:* the window on a
+  build with an embedded engine.
 - `about.settings.touch-tab` [OK] — on touch platforms About is a Settings tab, not a window.
   `AboutSettingsSurfaceTests.testSettingsViewHostsAboutTabOnTouchPlatforms`.
 - `about.window.single-instance` [OK] — the Mac About window is single-instance, content-sized,

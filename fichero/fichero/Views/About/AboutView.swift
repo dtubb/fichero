@@ -73,15 +73,22 @@ struct Acknowledgement: Identifiable, Hashable {
     /// differs from the display `name` (e.g. "PyMuPDF" ships as "pymupdf").
     /// nil means "look up by the lowercased display name".
     let distribution: String?
+    /// The version the app bundles, from the build's generated list (#5639); nil for a curated entry.
+    let version: String?
+    /// The licence's own text: a file in the bundle or a link, from the generated list (#5639); nil: `url`.
+    let licenceText: URL?
 
-    var id: String { name }
+    var id: String { "\(layer.rawValue)/\(versionKey)" }
 
-    init(name: String, license: String, url: URL, layer: AckLayer, distribution: String? = nil) {
+    init(name: String, license: String, url: URL, layer: AckLayer, distribution: String? = nil,
+         version: String? = nil, licenceText: URL? = nil) {
         self.name = name
         self.license = license
         self.url = url
         self.layer = layer
         self.distribution = distribution
+        self.version = version
+        self.licenceText = licenceText
     }
 
     /// The key to look this dependency up by in a name→version map.
@@ -256,9 +263,12 @@ struct AboutView: View {
         .frame(width: 360)
         .frame(minHeight: 360)
         .sheet(isPresented: $isAcknowledgementsPresented) {
+            // What the app bundles, generated at build time (#5639); the curated list when this build has none.
+            let loaded = GeneratedAcknowledgements.load(curated: AboutAcknowledgements.entries)
             AcknowledgementsView(
-                entries: AboutAcknowledgements.entries,
-                versions: appState.dependencyVersions
+                entries: loaded.entries,
+                versions: appState.dependencyVersions,
+                note: loaded.note
             )
         }
     }
@@ -301,13 +311,15 @@ struct AboutView: View {
     }
 }
 
-private struct AcknowledgementsView: View {
+struct AcknowledgementsView: View {
     let entries: [Acknowledgement]
     /// LIVE dependency versions keyed by `versionKey` (lowercased dist name),
     /// derived from the engine — NOT hard-typed. Empty renders names + licenses
     /// only; a missing key renders that one lib without a version. Never a
     /// stale/wrong number.
     var versions: [String: String] = [:]
+    /// Where the list came from when it is not the build's generated one (#5639); nil otherwise.
+    var note: String?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -315,9 +327,13 @@ private struct AcknowledgementsView: View {
         entries.filter { $0.layer == layer }
     }
 
-    /// "License" or "vX.Y · License" when a live version is known.
+    /// "License" or "vX.Y · License" when a version is known: the engine's live one, else the bundled one.
     private func detailLine(for entry: Acknowledgement) -> String {
-        if let version = versions[entry.versionKey], !version.isEmpty {
+        Self.detailLine(for: entry, versions: versions)
+    }
+
+    nonisolated static func detailLine(for entry: Acknowledgement, versions: [String: String]) -> String {
+        if let version = versions[entry.versionKey] ?? entry.version, !version.isEmpty {
             return "v\(version) · \(entry.license)"
         }
         return entry.license
@@ -330,13 +346,21 @@ private struct AcknowledgementsView: View {
                     Text("Fichero is built on the work of these open-source projects.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    if let note {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("about.acknowledgements.note")
+                    }
                 }
                 ForEach(AckLayer.allCases, id: \.self) { layer in
                     let layerEntries = entries(in: layer)
                     if !layerEntries.isEmpty {
                         Section(layer.rawValue) {
                             ForEach(layerEntries) { acknowledgement in
-                                Link(destination: acknowledgement.url) {
+                                // Its licence text when the build knows it (a file in the bundle, or a link), else
+                                // its project page.
+                                Link(destination: acknowledgement.licenceText ?? acknowledgement.url) {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(acknowledgement.name)
                                             .font(.body.weight(.medium))
@@ -345,7 +369,9 @@ private struct AcknowledgementsView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                 }
-                                .help("Open the \(acknowledgement.name) project website")
+                                .help(acknowledgement.licenceText == nil
+                                      ? "Open the \(acknowledgement.name) project website"
+                                      : "Read the \(acknowledgement.name) licence")
                                 .accessibilityIdentifier("about.ack.\(acknowledgement.versionKey)")
                             }
                         }
@@ -389,4 +415,24 @@ struct AboutWindowMenuButton: View {
 
 #Preview("Acknowledgements") {
     AcknowledgementsView(entries: AboutAcknowledgements.entries)
+}
+
+#Preview("Acknowledgements, generated by the build") {
+    let json = """
+    {"format": "fichero-acknowledgements-v1", "components": [
+     {"name": "duckdb", "version": "1.5.1", "licence": "MIT", "licence_text": "duckdb-1.5.1.dist-info/LICENSE",
+      "layer": "engine", "kind": "python"},
+     {"name": "fastapi", "version": "0.118.0", "licence": "MIT", "licence_text": null, "layer": "engine", "kind": "python"},
+     {"name": "sparkle", "version": "2.7.1", "licence": "MIT",
+      "licence_text": "https://github.com/sparkle-project/Sparkle/blob/0ef1ee0220239b3776f433314515fd849025673f/LICENSE",
+      "layer": "app", "kind": "swift"}]}
+    """
+    let generated = (try? GeneratedAcknowledgements.parse(
+        Data(json.utf8), resources: URL(fileURLWithPath: "/Applications/Fichero.app/Contents/Resources")
+    )) ?? []
+    AcknowledgementsView(entries: GeneratedAcknowledgements.merged(generated, keeping: AboutAcknowledgements.entries))
+}
+
+#Preview("Acknowledgements, no generated list") {
+    AcknowledgementsView(entries: AboutAcknowledgements.entries, note: GeneratedAcknowledgements.absentNote)
 }
