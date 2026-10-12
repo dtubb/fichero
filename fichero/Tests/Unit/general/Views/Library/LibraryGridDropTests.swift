@@ -97,9 +97,9 @@ final class LibraryContextMenuParityTests: XCTestCase {
         let url = try AppSource.root().appendingPathComponent("Views/Library/LibraryView+ContextMenu.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         XCTAssertTrue(source.contains("Label(\"Add to Chat\""))
-        XCTAssertTrue(source.contains("Label(\"Duplicate\""))
-        XCTAssertTrue(source.contains("Label(\"Make Alias\""))
-        // Delete is the shared item Edit renders (#5652).
+        // The shared items File and Edit render (#5652).
+        XCTAssertTrue(source.contains("DuplicateItemMenuItem(target: clicked)"))
+        XCTAssertTrue(source.contains("MakeAliasMenuItem(target: clicked)"))
         XCTAssertTrue(source.contains("DeleteItemsMenuItem(target:"))
         // Same audited action + alias semantics as the sidebar row.
         // Through the one undo helper since #5658: the same audited action, now a step ⌘Z takes back.

@@ -2,16 +2,21 @@ import SwiftUI
 
 // MARK: - Focused Command Buttons
 
-/// Button that calls the focused sidebar's createFolder action
+/// File › New Folder (⇧⌘N) in the focused pane's place: the Items list's folder, else the sidebar's selection.
+/// The context menus' own item (#5652).
 struct FocusedNewFolderButton: View {
+    @FocusedValue(\.itemVerbs) private var items
     @FocusedValue(\.sidebarActions) private var sidebarActions
 
+    private var create: (@MainActor () -> Void)? {
+        if let newFolder = items?.newFolder { return newFolder }
+        guard let actions = sidebarActions else { return nil }
+        return { actions.createFolder() }
+    }
+
     var body: some View {
-        Button("New Folder") {
-            sidebarActions?.createFolder()
-        }
-        .keyboardShortcut("n", modifiers: [.command, .shift])
-        .disabled(sidebarActions == nil)
+        NewFolderMenuItem(create: create)
+            .keyboardShortcut("n", modifiers: [.command, .shift])
     }
 }
 
@@ -49,32 +54,34 @@ struct FocusedImportFilesButton: View {
     }
 }
 
-/// File-menu "Open in New Tab" for the focused sidebar's selected row —
-/// keyboard-discoverable parity with double-click and the row context menu
-/// (#2496). ⌘O is Open Library, so selection-opens take the ⌘⌥O family.
+/// File › Open in New Tab (⌥⌘O) on the focused selection: the context menus' own item (#5652, #2496). ⌘O is Open
+/// Project, so selection-opens take the ⌘⌥O family.
 struct FocusedOpenInNewTabButton: View {
+    @FocusedValue(\.itemVerbs) private var items
     @FocusedValue(\.sidebarActions) private var sidebarActions
     @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
 
     var body: some View {
-        Button("Open in New Tab") {
-            sidebarActions?.openSelectionInNewTab()
+        let target = FocusedItemVerbs.target(items: items, actions: sidebarActions, info: selectionInfo)
+        OpenInNewTabMenuItem(target: target)
+            .keyboardShortcut("o", modifiers: [.command, .option])
+        // The first of File's item verbs: "Select an item first" is said here, once.
+        if let reason = ItemVerbs.openReason(target, action: target?.openInNewTab) {
+            Text(reason)
         }
-        .keyboardShortcut("o", modifiers: [.command, .option])
-        .disabled(selectionInfo?.selectedItem == nil)
     }
 }
 
-/// File-menu "Open in New Window" sibling of `FocusedOpenInNewTabButton`.
+/// File › Open in New Window (⇧⌥⌘O), the sibling of Open in New Tab.
 struct FocusedOpenInNewWindowButton: View {
+    @FocusedValue(\.itemVerbs) private var items
     @FocusedValue(\.sidebarActions) private var sidebarActions
     @FocusedValue(\.sidebarSelectionInfo) private var selectionInfo
 
     var body: some View {
-        Button("Open in New Window") {
-            sidebarActions?.openSelectionInNewWindow()
-        }
-        .keyboardShortcut("o", modifiers: [.command, .option, .shift])
-        .disabled(selectionInfo?.selectedItem == nil)
+        let target = FocusedItemVerbs.target(items: items, actions: sidebarActions, info: selectionInfo)
+        OpenInNewWindowMenuItem(target: target)
+            .keyboardShortcut("o", modifiers: [.command, .option, .shift])
+        FocusedItemOrganiseButtons.reason(ItemVerbs.openReason(target, action: target?.openInNewWindow))
     }
 }

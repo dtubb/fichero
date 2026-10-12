@@ -11,9 +11,10 @@ final class SidebarWorkflowDuplicateTests: XCTestCase {
     func testDuplicateMenuItemIsKindGated() throws {
         let menu = try appSource("Views/Sidebar/ItemRow/SidebarItemContextMenu.swift")
         // Shown only for kinds with a backend duplicate endpoint.
-        XCTAssertTrue(menu.contains("if let onDuplicate, itemTypeSupportsDuplicate {"))
+        XCTAssertTrue(menu.contains("if onDuplicate != nil, itemTypeSupportsDuplicate {"))
         XCTAssertTrue(menu.contains("case .document, .workflow, .savedSearch, .conversation:"))
-        XCTAssertTrue(menu.contains(#"Label("Duplicate", systemImage: "plus.square.on.square")"#))
+        // File's own Duplicate item (#5652), on the row's target.
+        XCTAssertTrue(menu.contains("DuplicateItemMenuItem(target: copyTarget)"))
     }
 
     func testRowWiresDuplicateThroughExistingEndpoints() throws {

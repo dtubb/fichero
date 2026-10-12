@@ -208,7 +208,7 @@ struct LibraryListModeGuardTests {
     @Test("Quick Look is discoverable from the context menu")
     func quickLookInMenu() throws {
         let menu = try appSource("Views/Library/LibraryView+ContextMenu.swift")
-        #expect(menu.contains("Label(\"Quick Look\""))
+        #expect(menu.contains("QuickLookItemMenuItem("))
         let keys = try appSource("Views/Library/LibraryView+KeyboardShortcuts.swift")
         #expect(keys.contains("func quickLook(_ doc: Document)"))
     }

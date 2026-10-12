@@ -120,11 +120,9 @@ struct SidebarOpenAffordanceTests {
         // ⌘O is Open Library; selection-opens must stay on the ⌘⌥O family.
         #expect(source.contains(#".keyboardShortcut("o", modifiers: [.command, .option])"#))
         #expect(source.contains(#".keyboardShortcut("o", modifiers: [.command, .option, .shift])"#))
-        // Both buttons gate on an actual sidebar selection, not just sidebar focus.
-        let disabledGates = source.components(
-            separatedBy: ".disabled(selectionInfo?.selectedItem == nil)"
-        ).count - 1
-        #expect(disabledGates == 2)
+        // Both render the shared open items (#5652), which are off without a selection: `ItemVerbsMenuTests`.
+        #expect(source.contains("OpenInNewTabMenuItem(target: target)"))
+        #expect(source.contains("OpenInNewWindowMenuItem(target: target)"))
     }
 
     private func appSource(_ relativePath: String) throws -> String {

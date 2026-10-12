@@ -67,16 +67,18 @@ extension LibraryView {
     /// inside a clicked folder; beside a clicked document.
     @ViewBuilder
     private func newFolderMenuItem(for document: Document) -> some View {
-        Button {
-            let parentId = document.docType == .folder ? document.id : document.parentId
+        NewFolderMenuItem(create: newFolderAction(in: document.docType == .folder ? document.id : document.parentId))
+    }
+
+    /// New Folder in a folder of this pane (nil: the project's top): the one create the context menu and
+    /// File › New Folder make (#5652).
+    func newFolderAction(in parentId: String?) -> @MainActor () -> Void {
+        let library = activeLibraryReference
+        return {
             Task { @MainActor in
-                guard let library = activeLibraryReference else { return }
-                _ = try? await library.documentStore.createFolder(
-                    name: "New Folder", parentId: parentId
-                )
+                guard let library else { return }
+                _ = try? await library.documentStore.createFolder(name: "New Folder", parentId: parentId)
             }
-        } label: {
-            Label("New Folder", systemImage: "folder.badge.plus")
         }
     }
 
@@ -147,16 +149,10 @@ extension LibraryView {
 
     @ViewBuilder
     private func duplicateAndAliasMenuItems(for document: Document) -> some View {
-        Button {
-            duplicateDocument(document)
-        } label: {
-            Label("Duplicate", systemImage: "plus.square.on.square")
-        }
-        Button {
-            makeAlias(for: document)
-        } label: {
-            Label("Make Alias", systemImage: "arrowshape.turn.up.right")
-        }
+        // File's own items (#5652), on the clicked row.
+        let clicked = itemVerbsTarget(for: [document])
+        DuplicateItemMenuItem(target: clicked)
+        MakeAliasMenuItem(target: clicked)
         #if os(macOS)
         // Export a Copy… of the source file (#4121): the shared item, as File › Export a Copy… (#5652).
         if document.docType != .folder {
@@ -252,11 +248,7 @@ extension LibraryView {
         // Discoverable Quick Look (#4160) — same fetch Space uses; folders
         // have no source file to preview.
         if document.docType != .folder {
-            Button {
-                quickLook(document)
-            } label: {
-                Label("Quick Look", systemImage: "eye")
-            }
+            QuickLookItemMenuItem(target: itemVerbsTarget(for: [document]))
         }
 
         // Shared reveal policy (#4305): local engine + path resolves on this
@@ -507,7 +499,14 @@ extension LibraryView {
             target.rename = { startRename(for: one) }
             target.bookmark = { bookmarkPickerDocument = one }
             target.addToWorkspace = { workspacePickerDocument = one }
+            target.open = { openDocument(one) }
+            target.openInNewTab = { openDocumentInNewWindow(one, asTab: true) }
+            target.openInNewWindow = { openDocumentInNewWindow(one, asTab: false) }
+            target.duplicate = { duplicateDocument(one) }
+            target.makeAlias = { makeAlias(for: one) }
+            if !one.isFolderLike { target.quickLook = { quickLook(one) } }
         }
+        target.newFolder = newFolderAction(in: folderId)
         return target
     }
 

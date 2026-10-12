@@ -25,6 +25,15 @@ struct ItemVerbsTarget: Equatable {
     var bookmark: (@MainActor () -> Void)?
     var addToWorkspace: (@MainActor () -> Void)?
     var export: (@MainActor () -> Void)?
+    // Group 2 (#5652): opening, copying and finding the item.
+    var open: (@MainActor () -> Void)?
+    var openInNewTab: (@MainActor () -> Void)?
+    var openInNewWindow: (@MainActor () -> Void)?
+    var duplicate: (@MainActor () -> Void)?
+    var makeAlias: (@MainActor () -> Void)?
+    var quickLook: (@MainActor () -> Void)?
+    /// New Folder in the pane's own place (the folder it shows), whatever is selected.
+    var newFolder: (@MainActor () -> Void)?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.ids == rhs.ids
@@ -36,7 +45,9 @@ struct ItemVerbsTarget: Equatable {
 
     /// Which verbs have an action, in order: what the menu shows enabled.
     var offered: [Bool] {
-        [rename != nil, delete != nil, setExcluded != nil, bookmark != nil, addToWorkspace != nil, export != nil]
+        [rename != nil, delete != nil, setExcluded != nil, bookmark != nil, addToWorkspace != nil, export != nil,
+         open != nil, openInNewTab != nil, openInNewWindow != nil, duplicate != nil, makeAlias != nil, quickLook != nil,
+         newFolder != nil]
     }
 }
 
@@ -244,6 +255,8 @@ enum FocusedItemVerbs {
         if info.canRename { target.rename = { actions.renameItem() } }
         target.deletableCount = info.deletableCount
         if info.deletableCount > 0 { target.delete = { actions.deleteItem() } }
+        target.openInNewTab = { actions.openSelectionInNewTab() }
+        target.openInNewWindow = { actions.openSelectionInNewWindow() }
         return target
     }
 }

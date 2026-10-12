@@ -312,8 +312,17 @@ Behaviours (slice 1):
   ⌘⌫. *Not yet:* from the sidebar's selection, Exclude, Bookmark…, Add to Workspace… and Export a Copy… in the
   menu bar say to select the document in Items (the sidebar's pickers are per row). Pinned by `ItemVerbsMenuTests`
   and `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: Open / New
-  Tab / New Window, Duplicate, Make Alias, Show Original, Quick Look, New Folder and Import in both panes; the
+- `menus.file.open-verbs-one-component` — **[OK]** (#5652 slice 4, group 2) **Built 2026-10-12 (app), not yet
+  seen:** Open, Open in New Tab, Open in New Window, Duplicate, Make Alias, Show Original (or Reveal) in Finder,
+  Quick Look and New Folder are ONE item each (`FocusedCommandButtons+OpenVerbs.swift`; `OpenInMenuItems` renders the
+  open three for every surface that has them). The sidebar's and the Items list's context menus render them on the
+  clicked row; **File** renders them on the focused pane's selection (`ItemVerbsTarget`), each disabled with its
+  reason under it, Show Original as the context menus' own `RevealOriginalMenuItem` or why it is not there. Chords
+  kept: Open in New Tab ⌥⌘O, Open in New Window ⇧⌥⌘O, New Folder ⇧⌘N (now also in the Items list's folder); none
+  added. Import was already one handler (File › Import ▸ through the focused pane). *Not yet:* from the sidebar's
+  selection, File's Open, Duplicate, Make Alias and Quick Look say to select it in Items (the row's own). Pinned by
+  `ItemOpenVerbsMenuTests` and `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: the
   Segments and Order lists (Correct This Line…, Open, Create Named Order); proposed documents and Source direction
   ▸; the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
   selection; the dataset rows' and the Inspector header's Exclude.

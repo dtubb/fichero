@@ -168,7 +168,7 @@ extension SidebarItemRow {
             .buttonStyle(.borderless)
             .opacity(visible ? 1 : 0)
             .allowsHitTesting(visible)
-            .help(prefersTab ? "Open in New Tab" : "Open in New Window")
+            .help(prefersTab ? ItemVerbs.openInNewTabTitle : ItemVerbs.openInNewWindowTitle)
             .accessibilityHidden(true)
         }
     }

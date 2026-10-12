@@ -25,14 +25,15 @@ extension SidebarItemRow {
             // (Binding named folderDoc: WorkflowContextMenuTargetsTests guards
             // against the old single-doc workflow-target pattern by string.)
             if case .document(let folderDoc) = item.itemType, folderDoc.docType == .folder {
-                Button("New Folder") {
+                // File › New Folder's own item (#5652), into this folder.
+                NewFolderMenuItem(create: {
                     // Select the clicked row first so the create targets its
                     // library (createFolder resolves via selectedItemLibrary).
                     selectedItemId = "doc:\(folderDoc.id)"
                     sidebarState.newFolderParentId = folderDoc.id
                     sidebarState.newFolderCategory = .folder
                     sidebarState.showingNewFolderDialog = true
-                }
+                })
                 Divider()
             }
 

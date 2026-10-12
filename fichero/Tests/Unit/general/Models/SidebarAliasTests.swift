@@ -39,8 +39,9 @@ final class SidebarAliasTests: XCTestCase {
         XCTAssertTrue(label.contains("if doc.isAlias {"))
 
         let menu = try appSource("Views/Sidebar/ItemRow/SidebarItemContextMenu.swift")
-        XCTAssertTrue(menu.contains(#"Label("Make Alias", systemImage: "arrowshape.turn.up.right")"#))
-        XCTAssertTrue(menu.contains("if let onMakeAlias, case .document = item.itemType {"))
+        // File's own Make Alias item (#5652), on the row's target.
+        XCTAssertTrue(menu.contains("MakeAliasMenuItem(target: copyTarget)"))
+        XCTAssertTrue(menu.contains("if onMakeAlias != nil, case .document = item.itemType {"))
     }
 
     func testSelectionResolvesAliasesViaBackendFetch() throws {

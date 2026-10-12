@@ -35,6 +35,19 @@ enum RevealOriginalPolicy {
 struct RevealOriginalMenuItem: View {
     let document: Document
 
+    /// Whether this item shows for the document on this Mac: the menu bar's reason when it does not (#5652).
+    static func isRevealable(_ document: Document) -> Bool {
+        #if os(macOS)
+        RevealOriginalPolicy.revealablePath(
+            path: document.path,
+            engineIsLocal: EngineConfig.engineIsLocal,
+            fileExists: { FileManager.default.fileExists(atPath: $0) }
+        ) != nil
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         #if os(macOS)
         if let path = RevealOriginalPolicy.revealablePath(

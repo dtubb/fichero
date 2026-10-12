@@ -178,6 +178,8 @@ struct FileMenuCommands: View {
                 #if os(macOS)
                 FocusedOpenInNewTabButton()
                 FocusedOpenInNewWindowButton()
+                // Open, Duplicate, Make Alias, Show Original, Quick Look: the context menus' own items (#5652).
+                FocusedItemOpenButtons()
                 #endif
 
                 // Import ▸ — getting things IN belongs in File, not Knowledge

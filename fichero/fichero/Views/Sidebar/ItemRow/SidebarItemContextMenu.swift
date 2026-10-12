@@ -42,16 +42,13 @@ struct SidebarItemContextMenu: View {
             // Rename and Delete: the shared items Edit renders (#5652).
             RenameItemMenuItem(target: renameTarget)
 
-            if let onDuplicate, itemTypeSupportsDuplicate {
-                Button(action: onDuplicate, label: {
-                    Label("Duplicate", systemImage: "plus.square.on.square")
-                })
+            // File's own Duplicate and Make Alias (#5652), on this row.
+            if onDuplicate != nil, itemTypeSupportsDuplicate {
+                DuplicateItemMenuItem(target: copyTarget)
             }
 
-            if let onMakeAlias, case .document = item.itemType {
-                Button(action: onMakeAlias, label: {
-                    Label("Make Alias", systemImage: "arrowshape.turn.up.right")
-                })
+            if onMakeAlias != nil, case .document = item.itemType {
+                MakeAliasMenuItem(target: copyTarget)
             }
 
             Divider()
@@ -59,6 +56,14 @@ struct SidebarItemContextMenu: View {
             DeleteItemsMenuItem(target: deleteTarget)
                 .keyboardShortcut(.delete, modifiers: .command)
         }
+    }
+
+    /// This row, as Duplicate and Make Alias act on it.
+    private var copyTarget: ItemVerbsTarget {
+        var target = ItemVerbsTarget(ids: [item.id], documents: [])
+        if let onDuplicate { target.duplicate = { onDuplicate() } }
+        if let onMakeAlias { target.makeAlias = { onMakeAlias() } }
+        return target
     }
 
     /// This row, as Rename acts on it.

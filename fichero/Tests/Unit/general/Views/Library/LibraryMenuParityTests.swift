@@ -110,8 +110,9 @@ struct LibraryMenuParityTests {
         // If a mode ever spells these itself, the same label starts doing
         // different things in two modes — the worst class of this defect.
         let builder = try code(at: "Views/Library/LibraryView+ContextMenu.swift")
-        for verb in ["Duplicate", "Make Alias", "New Folder", "Rename"] {
-            #expect(builder.contains(verb), "the shared builder lost \(verb)")
+        // The verbs are the shared items now (#5652): the builder renders them.
+        for item in ["DuplicateItemMenuItem(", "MakeAliasMenuItem(", "NewFolderMenuItem(", "RenameItemMenuItem("] {
+            #expect(builder.contains(item), "the shared builder lost \(item)")
         }
         for surface in sharedBuilderSurfaces where surface.mode != "Canvas 2D/3D" {
             let code = try code(at: surface.path)

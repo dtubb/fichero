@@ -74,6 +74,11 @@ struct MenuVerbsOneCodePathGuardTests {
             "Views/Inspector/Source/Info/DocumentInspectorInfoTab+Header.swift",
         ])
         #expect(spelling("Group as Stack").isEmpty, "Group is one item, named Group")
+        // Group 2: opening, copying and finding an item.
+        let openVerbs = "App/Menus/FocusedCommands/FocusedCommandButtons+OpenVerbs.swift"
+        for word in ["Make Alias", "Quick Look", "Open in New Tab", "Open in New Window"] {
+            #expect(spelling(word) == [openVerbs], "\(word) is spelled outside the shared items")
+        }
     }
 
     @Test("the shared Activity and Train items take no chord")

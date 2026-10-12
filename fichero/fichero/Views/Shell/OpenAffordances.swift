@@ -18,18 +18,16 @@ struct OpenInMenuItems: View {
     let openInNewTab: () -> Void
     let openInNewWindow: () -> Void
 
+    /// The shared open items (#5652), as File renders them on the focused selection.
     var body: some View {
-        if let open {
-            Button(action: open) {
-                Label("Open", systemImage: "arrow.up.forward.app")
-            }
+        let target = ItemVerbsTarget.opening(
+            id: "", open: open, openInNewTab: openInNewTab, openInNewWindow: openInNewWindow
+        )
+        if open != nil {
+            OpenItemMenuItem(target: target)
         }
-        Button(action: openInNewTab) {
-            Label("Open in New Tab", systemImage: "plus.rectangle.on.rectangle")
-        }
-        Button(action: openInNewWindow) {
-            Label("Open in New Window", systemImage: "macwindow.badge.plus")
-        }
+        OpenInNewTabMenuItem(target: target)
+        OpenInNewWindowMenuItem(target: target)
     }
 }
 
@@ -171,15 +169,15 @@ struct OpenInMenuItems: View {
     let openInNewTab: () -> Void
     let openInNewWindow: () -> Void
 
+    /// The shared open items (#5652); no tabs on iOS.
     var body: some View {
-        if let open {
-            Button(action: open) {
-                Label("Open", systemImage: "arrow.up.forward.app")
-            }
+        let target = ItemVerbsTarget.opening(
+            id: "", open: open, openInNewTab: openInNewTab, openInNewWindow: openInNewWindow
+        )
+        if open != nil {
+            OpenItemMenuItem(target: target)
         }
-        Button(action: openInNewWindow) {
-            Label("Open in New Window", systemImage: "macwindow.badge.plus")
-        }
+        OpenInNewWindowMenuItem(target: target)
     }
 }
 
