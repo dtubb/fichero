@@ -119,8 +119,9 @@ final class ActivityStore: ChangeEventConsumer {
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
     private(set) var machine: Components.Schemas.MachineState?
     private var jobsPollTask: Task<Void, Never>?
-    /// Says work starting, finishing and failing to VoiceOver (#3724); a test seam.
-    var announce: (String) -> Void = ActivityStore.postAnnouncement
+    /// Says work starting, finishing and failing to VoiceOver (#3724). A test seam only: nil (the app) posts through
+    /// `postAnnouncement`. No stored default that names a static: the store is made during app start-up.
+    var announce: (@MainActor (String) -> Void)?
     /// Whether a jobs read has landed: the first one announces nothing (`announcement(from:to:)`).
     private var jobsReadOnce = false
     /// This store polls the jobs read, so its mode follows a change made
@@ -226,7 +227,7 @@ final class ActivityStore: ChangeEventConsumer {
             applyMachineReadings(snapshot, modeIsCurrent: modeAnswers == answersBefore)
             // Started, finished and failed, said once per read where this store is the one polling (#3724).
             if pollsJobs, let said = Self.announcement(from: jobsReadOnce ? backgroundJobs : nil, to: snapshot.jobs) {
-                announce(said)
+                if let announce { announce(said) } else { Self.postAnnouncement(said) }
             }
             jobsReadOnce = true
             if backgroundJobs != snapshot.jobs {

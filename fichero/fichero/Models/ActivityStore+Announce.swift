@@ -33,7 +33,9 @@ extension ActivityStore {
         return said.isEmpty ? nil : said.joined(separator: ". ")
     }
 
-    /// The announcement, as VoiceOver speaks it (`announce`'s default).
+    /// The announcement, as VoiceOver speaks it (when no `announce` seam is set). Explicitly main-actor: it posts
+    /// to the accessibility system, so an off-main call is a compile error, never a runtime trap.
+    @MainActor
     static func postAnnouncement(_ text: String) {
         AccessibilityNotification.Announcement(text).post()
     }

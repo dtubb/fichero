@@ -1,4 +1,5 @@
 @testable import Fichero
+import FicheroAPIClient
 import Foundation
 import Testing
 
@@ -30,6 +31,19 @@ struct ActivityAnnouncementTests {
         #expect(ActivityStore.announcement(from: [], to: [job("p1", .running, parent: "run")]) == nil)
         #expect(ActivityStore.announcement(from: nil, to: [job("a", .running)]) == nil, "the first read is not news")
         #expect(ActivityStore.announcement(from: [job("a", .failed)], to: [job("a", .failed)]) == nil, "said once")
+    }
+
+    /// WHY: the first version stored `ActivityStore.postAnnouncement` as the seam's default, and the app died at
+    /// launch while that build was on the lead. The store is made during start-up, so it must build with nothing
+    /// set and name no static there.
+    @Test("a store is made with no announcer set; the app posts through the store's own static only when it speaks")
+    func storeBuildsWithoutAnAnnouncer() {
+        let store = ActivityStore(service: ActivityService(ficheroClient: FicheroClient(libraryPath: nil)))
+        #expect(store.announce == nil)
+        var heard: [String] = []
+        store.announce = { heard.append($0) }
+        store.announce?("Import 12 files started")
+        #expect(heard == ["Import 12 files started"])
     }
 
     @Test("several changes in one read are one announcement")
