@@ -65214,6 +65214,11 @@
             "type": "string",
             "title": "Status"
           },
+          "project_note": {
+            "type": "string",
+            "nullable": true,
+            "title": "Project Note"
+          },
           "library_path": {
             "type": "string",
             "nullable": true,
