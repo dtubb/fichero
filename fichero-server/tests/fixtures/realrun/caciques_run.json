@@ -1,0 +1,52 @@
+{
+ "job_id": "afaeecb4",
+ "dry_run": false,
+ "seen": [
+  {"state": "running", "reason": "Reading the lines with Kraken: 1 of 5 pages", "waiting_for": null, "estimate_seconds_left": null},
+  {"state": "running", "reason": "Reading the lines with Kraken: 3 of 5 pages, about 2 min left", "waiting_for": "the model is loading", "estimate_seconds_left": 95.0},
+  {"state": "done", "reason": null, "waiting_for": null, "estimate_seconds_left": null}
+ ],
+ "status": {
+  "job_id": "afaeecb4", "state": "done", "reason": null, "documents": null, "folder_id": null,
+  "folders_done": 1, "folders_total": 1, "skipped": [], "refusals": [], "started_by": "dtubb",
+  "waiting_for": null, "estimate_seconds_left": null,
+  "steps": [
+   {"steps": ["find-lines", "read-a-line"], "card": "workflow", "job": "read-a-line", "state": "done",
+    "child_id": "thread-read", "why": null, "blank_versos": 1, "recordings_left_out": null, "kinds": null,
+    "readers": null, "entries": null, "prepared": null, "regions_found": null,
+    "left_out": [{"page_id": "p6", "page": "CACIQUES_INDIOS,17,D.5_0006.jpg", "why": "a blank page: its image holds almost no ink"}],
+    "account": {"state": "done", "pages_total": 5, "pages_done": 4, "pages_failed": 1, "pages_left": 0,
+                "failures": [{"page": "CACIQUES_INDIOS,17,D.5_0004.jpg", "document_id": "p4", "reason": "the model ran out of memory", "retried": true}],
+                "retried": 1, "waiting_reason": null, "reason": null, "interrupted": false, "estimate_seconds_left": null,
+                "offer": {"action": "read-again", "pages": 1, "label": "Read the 1 page that failed"}}},
+   {"steps": ["find-names-tag-words"], "card": "workflow", "job": "find-names-tag-words", "state": "done",
+    "child_id": "thread-names", "why": null, "blank_versos": null,
+    "left_out": [{"page_id": "p5", "page": "CACIQUES_INDIOS,17,D.5_0005.jpg", "why": "its reading is too uncertain to find names in (the reader was 41% sure, below 70%); read it with a better reader first"}],
+    "account": {"state": "done", "pages_total": 3, "pages_done": 3, "pages_failed": 0, "pages_left": 0,
+                "failures": [], "retried": 0, "waiting_reason": null, "reason": null, "interrupted": false,
+                "estimate_seconds_left": null, "offer": null}},
+   {"steps": ["find-the-documents"], "card": "find-documents", "job": "find-the-documents", "state": "done",
+    "child_id": "fd-1", "why": null, "left_out": null, "account": null}
+  ]
+ },
+ "summary": {
+  "job_id": "afaeecb4", "state": "done", "finished": true, "pages": 6, "pages_read": 4,
+  "names": [{"kind": "person", "label": "People", "count": 9}], "dates": 2, "pages_dated": 2, "statements": 3,
+  "documents_proposed": 2, "documents_accepted": 0, "groups_proposed": 1, "entries": null,
+  "pages_with_lines": 5, "pages_with_regions": 5, "lines": ["4 of 6 pages read"],
+  "left_out": [{"page_id": "p6", "page": "CACIQUES_INDIOS,17,D.5_0006.jpg", "why": "a blank page: its image holds almost no ink"}],
+  "failed": [{"steps": ["find-lines", "read-a-line"], "thread_id": "thread-read", "pages_failed": 1,
+              "failures": [{"page": "CACIQUES_INDIOS,17,D.5_0004.jpg", "document_id": "p4", "reason": "the model ran out of memory", "retried": true}],
+              "offer": "Read the 1 page that failed"}],
+  "pages_failed": 1, "skipped": [], "not_run": []
+ },
+ "setup": {"languages": ["es-Latn"], "scripts": ["Latn"], "purposes": ["transcribe", "names"]},
+ "languages_used": {"Spanish": 3},
+ "folders": {"CACIQUES_INDIOS,17,D.5": ["CACIQUES_INDIOS,17,D.5_0001.jpg", "CACIQUES_INDIOS,17,D.5_0002.jpg",
+   "CACIQUES_INDIOS,17,D.5_0003.jpg", "CACIQUES_INDIOS,17,D.5_0004.jpg", "CACIQUES_INDIOS,17,D.5_0005.jpg",
+   "CACIQUES_INDIOS,17,D.5_0006.jpg"]},
+ "proposals": [{"id": "prop-1", "folder_id": "f1", "folder": "CACIQUES_INDIOS,17,D.5", "state": "current",
+   "documents": [{"index": 0, "name": "Carta", "page_ids": ["p1", "p2", "p3"], "first_position": 0, "last_position": 2, "date": "1617-03-04", "confidence": 0.8},
+                 {"index": 1, "name": "Sentencia", "page_ids": ["p4", "p5", "p6"], "first_position": 3, "last_position": 5, "date": null, "confidence": 0.7}]}],
+ "texts": {"p6": ""}
+}
