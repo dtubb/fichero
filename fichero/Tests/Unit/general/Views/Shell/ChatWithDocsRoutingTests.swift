@@ -88,7 +88,7 @@ final class ChatWithDocsRoutingTests: XCTestCase {
         let source = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Presentation.swift")
         let helpers = try Self.appSource("Views/Sidebar/ItemRow/SidebarItemRow+Helpers.swift")
 
-        XCTAssertTrue(source.contains("Label(\"Add to Chat\", systemImage: \"plus.circle\")"))
+        XCTAssertTrue(source.contains("AddToChatMenuItem(add:"))
         XCTAssertTrue(source.contains("Menu(\"Move to Folder\")"))
         XCTAssertTrue(helpers.contains("sidebarState.dropErrorMessage = error.localizedDescription"))
         XCTAssertTrue(source.contains("onOpenChatWithCurrentScope()"))

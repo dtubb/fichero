@@ -37,6 +37,9 @@ struct ItemVerbsTarget: Equatable {
     // Group 4 (#5652): proposed documents the selection names, and one source's direction.
     var proposals: ProposalVerbs?
     var direction: DirectionVerbs?
+    // Group 6 (#5652): a workflow run and a chat on the selection.
+    var runWorkflow: WorkflowRunVerbs?
+    var addToChat: (@MainActor () -> Void)?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.ids == rhs.ids
@@ -45,6 +48,7 @@ struct ItemVerbsTarget: Equatable {
             && lhs.deletableCount == rhs.deletableCount
             && lhs.offered == rhs.offered
             && lhs.proposals == rhs.proposals && lhs.direction == rhs.direction
+            && lhs.runWorkflow == rhs.runWorkflow && (lhs.addToChat != nil) == (rhs.addToChat != nil)
     }
 
     /// Which verbs have an action, in order: what the menu shows enabled.

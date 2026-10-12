@@ -30,7 +30,8 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
             "the Run Workflow submenu must not be gated on a non-empty target list (#4419)"
         )
         XCTAssertTrue(source.contains("resolution.isEmpty"))
-        XCTAssertTrue(source.contains("Nothing to run on"))
+        // The shared Run Workflow ▸ shell says "Nothing to run on" (#5652, `RunWorkflowMenuItem`).
+        XCTAssertTrue(source.contains("RunWorkflowMenuItem("))
         XCTAssertTrue(source.contains("resolution.ignoredSelection"))
     }
 
@@ -41,8 +42,9 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
     func testBothRunSurfacesStateMultiDocumentScopeInTheMenu() throws {
         for url in [try sidebarPresentationURL(), try libraryContextMenuURL()] {
             let source = try String(contentsOf: url)
+            // The shared shell states it (`ItemVerbs.runScopeLine`, #5652) from the count each surface passes.
             XCTAssertTrue(
-                source.contains("Runs on \\(resolution.targetIds.count) documents"),
+                source.contains("targetCount: resolution.isEmpty ? 0 : resolution.targetIds.count"),
                 "\(url.lastPathComponent) must state a >1-document scope in the menu"
             )
         }
@@ -74,7 +76,8 @@ final class WorkflowContextMenuTargetsTests: XCTestCase {
             "the Run Workflow submenu must not be gated on a non-empty target list (#4419)"
         )
         XCTAssertTrue(source.contains("resolution.isEmpty"))
-        XCTAssertTrue(source.contains("Nothing to run on"))
+        // The shared Run Workflow ▸ shell says "Nothing to run on" (#5652, `RunWorkflowMenuItem`).
+        XCTAssertTrue(source.contains("RunWorkflowMenuItem("))
         XCTAssertTrue(source.contains("resolution.ignoredSelection"))
     }
 

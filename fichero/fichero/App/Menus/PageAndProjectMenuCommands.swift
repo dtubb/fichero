@@ -127,6 +127,8 @@ struct PageAndProjectMenuCommands: Commands {
                 if featureManager.isWorkflowRunOnSelectionEnabled {
                     Divider()
                     FocusedRunWorkflowOnSelectionButton()
+                    // The context menus' own Run Workflow ▸ on the focused selection (#5652).
+                    FocusedRunWorkflowMenu()
                 }
             }
         }
@@ -135,6 +137,8 @@ struct PageAndProjectMenuCommands: Commands {
         if featureManager.isChatEnabled {
             Menu("Chat") {
                 FocusedNewChatButton()
+                // The context menus' own Add to Chat on the focused selection (#5652).
+                FocusedAddToChatButton()
             }
         }
     }

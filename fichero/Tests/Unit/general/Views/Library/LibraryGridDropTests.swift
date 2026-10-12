@@ -96,7 +96,7 @@ final class LibraryContextMenuParityTests: XCTestCase {
     func testGridMenuGainsSidebarParityActions() throws {
         let url = try AppSource.root().appendingPathComponent("Views/Library/LibraryView+ContextMenu.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
-        XCTAssertTrue(source.contains("Label(\"Add to Chat\""))
+        XCTAssertTrue(source.contains("AddToChatMenuItem(add:"))
         // The shared items File and Edit render (#5652).
         XCTAssertTrue(source.contains("DuplicateItemMenuItem(target: clicked)"))
         XCTAssertTrue(source.contains("MakeAliasMenuItem(target: clicked)"))

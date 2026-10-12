@@ -349,9 +349,17 @@ Behaviours (slice 1):
   Cancel were found unwired (no caller passes their actions): they are disabled rather than presses that do
   nothing, and have no menu-bar item until they are wired (#5652). Pinned by `ProjectVerbsMenuTests` and
   `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: Run Workflow
-  ▸ and Add to Chat on the selection; the dataset rows' and the Inspector header's Exclude; the automation rows'
-  verbs once they are wired.
+- `menus.project.run-and-chat-one-component` — **[OK]** (#5652 slice 4, group 6) **Built 2026-10-12 (app), not yet
+  seen:** Run Workflow ▸ and Add to Chat are ONE item each (`FocusedCommandButtons+RunAndChatVerbs.swift`): Run
+  Workflow ▸'s shell (its label, the scope it says before the run — "Runs on N documents", "Runs on this item only —
+  it is outside your selection" — and "Nothing to run on") holds each surface's own workflow list (the sidebar's
+  sections, the Items list's folders), and **Project › Workflows ▸ Run Workflow ▸** renders it on the focused Items
+  list's selection, run through the list's one batch run; Add to Chat is the sidebar's and the Items list's item and
+  **Project › Chat ▸ Add to Chat** on the focused selection. Each is disabled with its reason otherwise. Run Workflow
+  on Selection… (⇧⌘R, the picker) stays beside it. Pinned by `RunAndChatMenuTests` and
+  `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: the dataset
+  rows' and the Inspector header's Exclude; the automation rows' verbs once they are wired.
 
 ---
 

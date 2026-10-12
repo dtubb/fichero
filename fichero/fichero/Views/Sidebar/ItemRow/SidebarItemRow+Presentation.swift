@@ -104,27 +104,12 @@ extension SidebarItemRow {
             // it somehow cannot, the disabled row below names the reason.
             if !availableWorkflows.isEmpty {
                 Divider()
-                Menu("Run Workflow") {
-                    if resolution.isEmpty {
-                        Button("Nothing to run on") {}
-                            .disabled(true)
-                    } else {
-                        // Silently discarding a selection is the same defect as
-                        // silently widening one (#4396) — so say it, in the menu,
-                        // before the run rather than after.
-                        if resolution.ignoredSelection {
-                            Text("Runs on this item only — it is outside your selection")
-                            Divider()
-                        } else if resolution.targetIds.count > 1 {
-                            // The reciprocal honesty: a run that reaches BEYOND
-                            // this row (a folder's descendants, or a live
-                            // multi-selection this row belongs to) states its
-                            // width before the click, not after (2026-08-15:
-                            // a stale gallery select-all scoped a one-row
-                            // right-click to 63 documents with no warning).
-                            Text("Runs on \(resolution.targetIds.count) documents")
-                            Divider()
-                        }
+                // Run Workflow ▸'s one shell (#5652): it says what the run reaches before the click — never
+                // silently discarding a selection (#4396), never silently widening one (2026-08-15).
+                RunWorkflowMenuItem(
+                    targetCount: resolution.isEmpty ? 0 : resolution.targetIds.count,
+                    ignoredSelection: resolution.ignoredSelection
+                ) {
                         // Two named groups (#4450): a global default is part
                         // of the app and must read as one wherever you are.
                         let sections = Self.workflowMenuSections(availableWorkflows)
@@ -145,7 +130,6 @@ extension SidebarItemRow {
                                 }
                             }
                         }
-                    }
                 }
                 .onAppear {
                     Task { @MainActor in
@@ -286,14 +270,13 @@ extension SidebarItemRow {
     @ViewBuilder
     private var chatWithScopeAction: some View {
         if case .document = item.itemType, let onOpenChatWithCurrentScope {
-            Button {
+            // Project › Chat ▸ Add to Chat's own item (#5652).
+            AddToChatMenuItem(add: {
                 selectedItemId = item.id
                 Task { @MainActor in
                     onOpenChatWithCurrentScope()
                 }
-            } label: {
-                Label("Add to Chat", systemImage: "plus.circle")
-            }
+            })
             Divider()
         }
     }

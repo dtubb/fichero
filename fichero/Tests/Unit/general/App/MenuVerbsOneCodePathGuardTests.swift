@@ -87,6 +87,10 @@ struct MenuVerbsOneCodePathGuardTests {
         // Group 4: the bar's submenu over proposed documents.
         let proposalVerbs = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+ProposalVerbs.swift"
         #expect(spelling("Proposed Document") == [proposalVerbs])
+        // Group 6: Run Workflow ▸'s shell and Add to Chat. The Chat Inspector's own Add to Chat is its search's.
+        let runAndChat = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+RunAndChatVerbs.swift"
+        #expect(spelling("Nothing to run on") == [runAndChat])
+        #expect(spelling("Add to Chat") == [runAndChat, "Views/Chat/Inspector/ChatInspector+ScopedDocuments.swift"])
         // Group 5: a project's verbs.
         let projectVerbs = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+ProjectVerbs.swift"
         for word in ["Rename Project…", "Share Project…", "Delete Project…", "Close Project"] {

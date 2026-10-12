@@ -133,16 +133,15 @@ extension LibraryView {
     @ViewBuilder
     private func addToChatMenuItem(for document: Document) -> some View {
         if let onAddToChat, document.docType != .folder {
-            Button {
+            // Project › Chat ▸ Add to Chat's own item (#5652).
+            AddToChatMenuItem(add: {
                 // Right-click acts on the clicked item unless it's part of
                 // the current selection (Finder semantics).
                 if !selection.contains(document.id) {
                     selection = [document.id]
                 }
                 onAddToChat()
-            } label: {
-                Label("Add to Chat", systemImage: "bubble.left.and.text.bubble.right")
-            }
+            })
             Divider()
         }
     }
@@ -322,22 +321,12 @@ extension LibraryView {
         // how the affordance silently vanished for a whole subtree.
         if featureManager.isWorkflowRunOnSelectionEnabled,
            !availableWorkflows.isEmpty {
-            Menu {
-                if resolution.isEmpty {
-                    Button("Nothing to run on") {}
-                        .disabled(true)
-                } else {
-                    if resolution.ignoredSelection {
-                        Text("Runs on this item only — it is outside your selection")
-                        Divider()
-                    } else if resolution.targetIds.count > 1 {
-                        // Same honesty as the sidebar menu (2026-08-15): a run
-                        // wider than the clicked row states its width BEFORE
-                        // the click — a select-all can silently scope a
-                        // one-row right-click to the whole folder.
-                        Text("Runs on \(resolution.targetIds.count) documents")
-                        Divider()
-                    }
+            // Project › Workflows ▸ Run Workflow ▸'s own shell (#5652): the scope said before the run, the same
+            // honesty as the sidebar's (2026-08-15).
+            RunWorkflowMenuItem(
+                targetCount: resolution.isEmpty ? 0 : resolution.targetIds.count,
+                ignoredSelection: resolution.ignoredSelection
+            ) {
                     RunWorkflowSubmenuItems(
                         workflows: availableWorkflows
                     ) { workflowId, providerOverride, modelOverride in
@@ -358,9 +347,6 @@ extension LibraryView {
                             )
                         }
                     }
-                }
-            } label: {
-                Label("Run Workflow", systemImage: "flowchart")
             }
             .onAppear {
                 Task { @MainActor in
@@ -516,6 +502,19 @@ extension LibraryView {
         var target = itemVerbsTarget(for: filteredDocuments.filter { selection.contains($0.id) })
         if let proposals = proposalTarget(for: selection) {
             target.proposals = ProposalVerbs(target: proposals) { answerProposals($0, target: proposals) }
+        }
+        let selectedDocuments = target.documents
+        if featureManager.isWorkflowRunOnSelectionEnabled, !libraryWorkflows.isEmpty {
+            let ids = selectedDocuments.map(\.id)
+            target.runWorkflow = WorkflowRunVerbs(workflows: libraryWorkflows, targetCount: ids.count) { workflowId, provider, model in
+                Task { @MainActor in
+                    selectedDocumentIdsForBatch = ids
+                    await runBatchWorkflow(workflowId: workflowId, providerOverride: provider, modelOverride: model)
+                }
+            }
+        }
+        if let onAddToChat, selectedDocuments.contains(where: { $0.docType != .folder }) {
+            target.addToChat = { onAddToChat() }
         }
         if target.documents.count == 1, let one = target.documents.first {
             target.direction = DirectionVerbs(
