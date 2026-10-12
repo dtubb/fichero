@@ -6,6 +6,8 @@ Contains:
 - Background runner that streams SSE events
 """
 
+from __future__ import annotations
+
 import logging
 import queue
 import re
@@ -27,8 +29,6 @@ from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_steps import close_open_steps
 
-from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest, SSEEvent
-
 logger = logging.getLogger(__name__)
 
 # NOTE: builder / runtime are imported at CALL time, not here (#3950). Between
@@ -36,6 +36,10 @@ logger = logging.getLogger(__name__)
 # module is reachable from api/routes/workflow_execution at engine startup, so
 # those imports ran before the HTTP socket was ever bound.
 if TYPE_CHECKING:  # pragma: no cover - import-time typing only
+    # The route schemas are imported where they are used, not here: importing any route module imports api.main
+    # first (#3950), which imports the routes that import this module, so a cold `import runner` (the library
+    # open marking runs interrupted, #5608) found this module half made (#5645).
+    from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest
     from fichero_server.llm.usage import UsageTotals
     from fichero_server.workflows.builder import SystemicErrorDetected
 
@@ -951,6 +955,8 @@ async def run_and_wait(db: Database, workflow: Workflow, inputs: dict[str, Any],
     import asyncio  # noqa: PLC0415
     from uuid import uuid4  # noqa: PLC0415
 
+    from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest  # noqa: PLC0415
+
     thread_id = thread_id or f"thread-{uuid4().hex[:12]}"
     request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs=dict(inputs or {}), thread_id=thread_id)
     finished = await start_run(db, workflow, request, thread_id, parent_job=parent_job, started_by=started_by)
@@ -994,6 +1000,9 @@ async def _run_workflow_in_background(
     pause/cancel, and hits the completion/finalize document boundary exactly
     like a live run, instead of blocking the FastAPI loop with ``ainvoke``.
     """
+    # Bound here, so every closure below finds it (see the TYPE_CHECKING import above).
+    from fichero_server.api.routes.workflow_execution.schemas import SSEEvent  # noqa: PLC0415
+
     # SystemicErrorDetected is caught below; an `except` clause is a global
     # lookup, so it must be bound in this scope. The runtime entry points are
     # NOT imported here — they are module-level passthroughs above, because

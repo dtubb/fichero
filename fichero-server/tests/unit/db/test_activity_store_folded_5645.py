@@ -199,3 +199,35 @@ def test_a_new_library_has_no_old_activity_tables(tmp_path):
         assert {"idx_workflowrunrecords_started_at", "idx_activityeventrecords_timestamp"} <= indexes
     finally:
         db_manager.close_database(package)
+
+
+_OPEN_COLD = """
+import sys
+from pathlib import Path
+
+from fichero_server.db.manager import db_manager
+
+db = db_manager.get_database(Path(sys.argv[1]))
+print(db.execute_fetchone("SELECT status FROM workflowrunrecords WHERE id = 'run-07'")[0])
+"""
+
+
+def test_an_engine_that_opens_a_library_first_thing_marks_its_unfinished_runs(tmp_path):
+    """A fresh engine whose first act is opening a library (no route imported yet) folds it and marks the run it
+    did not finish interrupted. WHY: marking imports the runner, and a cold `import runner` met its own routes half
+    made (`WorkflowEventHub` from a partially initialized module), so the run stayed 'running'; found by the 10k-run
+    parity script on the M4."""
+    import os
+    import subprocess
+    import sys
+
+    path = _old_library(tmp_path)
+    conn = duckdb.connect(str(path))
+    conn.execute("UPDATE workflow_runs SET status = 'running' WHERE thread_id = 'run-07'")
+    conn.close()
+    out = subprocess.run([sys.executable, "-c", _OPEN_COLD, str(path.parent)], capture_output=True, text=True,
+                         env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)}, timeout=300)
+
+    assert out.returncode == 0, out.stderr[-2000:]
+    assert "partially initialized" not in out.stderr, out.stderr[-2000:]
+    assert out.stdout.strip().splitlines()[-1] != "running"

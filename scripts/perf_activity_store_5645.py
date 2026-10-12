@@ -183,7 +183,7 @@ def main() -> None:
 
             def flush(thread=thread, whole=whole):
                 if hasattr(store, "flush_node_boundary"):
-                    run(store.flush_node_boundary(thread, progress_timeline=timeline, new_log_lines=["a line"]))
+                    run(store.flush_node_boundary(thread, progress_timeline=timeline, log_text="a line", replace=False))
                 else:
                     run(store.update_workflow_run(thread_id=thread, progress_timeline=timeline,
                                                   execution_log=whole + "a line\n"))
