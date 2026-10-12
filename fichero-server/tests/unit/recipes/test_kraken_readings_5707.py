@@ -15,6 +15,7 @@ import time
 from fichero_server.llm import kraken_runtime
 from fichero_server.models import ContentRepresentation, DocType, Document, FileType
 from tests.unit.mcp.test_onboarding_journey_through_mcp import _call, agent  # noqa: F401  (fixture)
+from tests.unit.mcp.test_reading_journey_through_mcp import assert_no_download
 from tests.unit.mcp.test_reading_journey_through_mcp import engine as _engine  # noqa: F401  (fixture)
 from tests.unit.recipes.test_recipe_execution_to_spec import _png
 from tests.unit.recipes.test_regions_one_pass_5689 import PAYLOAD
@@ -72,6 +73,7 @@ def test_a_kraken_reading_keeps_its_certainty_is_written_once_and_the_newest_sho
     said.update(text="Item dijo el testigo", sure=0.88)
     again = _call(agent, "fichero_recipes_start_project", {"redo": ["read"]})["started"]["job_id"]
     assert _finish(agent, again)["state"] == "done"
+    assert_no_download(db)
     assert "Item dijo el testigo" in document_text(db, page.id).text
     assert "Yten dixo" not in document_text(db, page.id).text
     # As an agent lists the page's lines (the operator's `segments list-document`): the newest too.
@@ -121,6 +123,7 @@ def test_after_a_re_read_of_kraken_s_own_pass_the_line_shows_the_newest_reading(
         kraken_runtime.ReadLine("Item dijo el testigo", confidence=0.9) for _ in lines])
     again = _call(agent, "fichero_recipes_start_project", {"redo": ["read"]})["started"]["job_id"]
     assert _finish(agent, again)["state"] == "done"
+    assert_no_download(db)
 
     lines = [s for s in client.get(f"/api/segments/document/{page.id}").json()["segments"] if s["kind"] == "line"]
     assert lines and {s["text"] for s in lines} == {"Item dijo el testigo"}, [s["text"] for s in lines]

@@ -55,6 +55,8 @@ def engine(monkeypatch, app_db):
     monkeypatch.setattr(kraken_runtime, "recognize_to_geometry", cards.recognize)
     monkeypatch.setattr(kraken_runtime, "resolve_recognition_model",
                         lambda ref: ("/models/mccatmus.mlmodel", "kraken-mccatmus"))
+    # The reader is on this Mac, whatever this machine holds: Start never queues its download (no network).
+    monkeypatch.setattr(kraken_runtime, "recognition_model_path", lambda name: "/models/mccatmus.mlmodel")
     monkeypatch.setattr(local_models, "spacy_pipeline_available", lambda name: True)
     monkeypatch.setattr(validation, "validate_workflow_llm_preflight", lambda *a, **k: [])
     named: list[str] = []
@@ -67,6 +69,14 @@ def engine(monkeypatch, app_db):
     cards.named = named
     yield cards
     jobs.set_paused(False)
+
+
+def assert_no_download(db) -> None:
+    """A unit test never fetches a model: no download job was queued."""
+    from fichero_server.llm.local_models import DOWNLOAD_KIND
+
+    queued = db.execute_fetchall("SELECT id, reason FROM jobs WHERE kind = ?", [DOWNLOAD_KIND])
+    assert not queued, f"a model download was queued: {queued}"
 
 
 def test_the_reading_journey_through_mcp(agent, client, db, tmp_path, test_package, engine):  # noqa: F811
@@ -102,3 +112,4 @@ def test_the_reading_journey_through_mcp(agent, client, db, tmp_path, test_packa
     summary = _call(agent, "fichero_recipes_run_summary", {"job_id": run_id})
     assert any(line.startswith("Left out: ") and UNSURE in line for line in summary["lines"]), summary["lines"]
     assert "Names not looked for on 1 page: their reading is too uncertain" in summary["lines"], summary["lines"]
+    assert_no_download(db)

@@ -15,7 +15,8 @@ import time
 
 from fichero_server.models import DocType, Document, FileType
 from tests.unit.mcp.test_onboarding_journey_through_mcp import _call, agent  # noqa: F401  (fixture)
-from tests.unit.mcp.test_reading_journey_through_mcp import UnsureCards, engine as _engine  # noqa: F401
+from tests.unit.mcp.test_reading_journey_through_mcp import UnsureCards, assert_no_download  # noqa: F401
+from tests.unit.mcp.test_reading_journey_through_mcp import engine as _engine  # noqa: F401  (fixture)
 from tests.unit.recipes.test_recipe_execution_to_spec import _png
 
 RECIPE = {"fichero_recipe": 1, "id": "t/reads", "version": "0.1.0", "title": "Reads", "steps": [
@@ -69,3 +70,4 @@ def test_a_reading_run_says_which_step_reads_and_how_many_pages(agent, client, d
             break
         time.sleep(0.3)
     assert status["state"] == "done", status
+    assert_no_download(db)
