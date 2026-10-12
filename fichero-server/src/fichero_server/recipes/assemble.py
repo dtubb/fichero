@@ -451,14 +451,29 @@ def _language_rank(card: Card, a: Answers | None) -> int:
     return 0 if a.languages <= card.languages else 1
 
 
-def _period_rank(card: Card, a: Answers | None) -> int:
-    """0: its period covers the project's; 1: either states none; 2: its period is another (#5516)."""
+def in_period(card: Card, a: Answers | None) -> bool | None:
+    """Whether a card's period meets the project's (#5516, #5683): True or False, None when either states none."""
     from fichero_server.recipes.hands import period_years
 
     years = period_years(a.period) if a is not None else None
     if years is None or card.period is None:
-        return 1
-    return 0 if card.period[0] <= years[1] and years[0] <= card.period[1] else 2
+        return None
+    return card.period[0] <= years[1] and years[0] <= card.period[1]
+
+
+def _period_rank(card: Card, a: Answers | None) -> tuple[int, int]:
+    """0: its period covers the project's; 1: either states none; 2: its period is another (#5516). Among those that
+    cover it, the one centred nearest the project's period, in whole centuries (#5683: the medieval cards reach the
+    16th century at their end, McCATMuS is made around a 16th-century page)."""
+    from fichero_server.recipes.hands import period_years
+
+    meets = in_period(card, a)
+    if meets is None:
+        return 1, 0
+    if not meets:
+        return 2, 0
+    years = period_years(a.period)
+    return 0, int(abs(sum(card.period) / 2 - sum(years) / 2) // 100)
 
 
 def _material_rank(card: Card, material: str) -> int:
@@ -541,6 +556,8 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     if best.languages is not None and job in LANGUAGE_JOBS:
         reasons.append(f"lists {', '.join(sorted(a.languages))}")
     if job in READING_JOBS:  # a reader's own reasons: what it reads, how well, how it is measured (#5682)
+        if in_period(best, a):
+            reasons.append(f"made for pages of {best.period[0]}–{best.period[1]}, the project's period")
         if material in best.material:
             reasons.append(f"made for {material}")
         acc = best.cer_measured_here if best.cer_measured_here is not None else best.cer_published

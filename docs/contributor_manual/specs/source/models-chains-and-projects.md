@@ -3753,6 +3753,17 @@ Finding models
   a bake-off measures it, and its card names where it came from (`card.source`). An installed vision
   model runs at Start and is scored in the bake-off like a catalogue one. *Pinned by
   `test_model_discovery.py`.*
+- `source.recipe.period-weighs-in-the-reader-rank` — **[OK]** (#5683, on #5516's fit tier in
+  `source.recipe.script-reader-first`) among the readers whose period covers the project's, the one centred nearest
+  the project's period comes first, in whole centuries (for a 16th-century project McCATMuS, 1500–2100, before
+  CATMuS Medieval and COMMA, 800–1550, whose periods reach it only at their end); the chosen reader's reasons say
+  "made for pages of 1500–2100, the project's period". The finder takes the period too
+  (`GET /api/recipes/candidates?period=`), and lists the page readers for `read-a-line` (Apple Vision, a vision
+  model; a line step reads the lines Kraken found with them) as the person's to choose, with no rule rank, as the
+  bake-off counts them. The bake-off's contenders are at most two of each kind
+  (`source.try.bakeoff-is-the-same-tool`), and one whose licence is not yet accepted is named, not scored. WHY
+  (2026-10-11, the MCP onboarding walk): a project saved as 16th century, Popayán, ranked McCATMuS (installed)
+  4th, behind two medieval readers. Tested in `fichero-server/tests/unit/recipes/test_period_ranks_readers_5683.py`.
 - `source.recipe.script-reader-first` — **[OK]** (#5593; built 2026-10-08: `made_for_script` and `_rank_key` in `recipes/assemble.py`, a record's material in `discovery._row_material`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) among the readers that pass the hard
   constraints, one **made for the asked script** comes before a generic one: every script its card
   states is the asked one, its parent (Latin for Fraktur) or one of its parts (kana for Japanese), its

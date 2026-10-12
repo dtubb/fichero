@@ -5,9 +5,9 @@ out-of-the-box models". The bake-off is the evaluation job (`training/evaluation
 corrected sample pages: there is ONE comparison code path, so nothing here reads a page or scores one.
 This module only decides what goes in and reads what came out:
 
-* **Candidates.** The top three readers for the `read-a-line` step by rule rank (the same hard
-  constraints and fixed order setup assembles the recipe with, `recipes/assemble.py`), for the project's
-  script and its default material. Tesseract joins for print and typescript when its card has data for
+* **Candidates.** At most two readers of each kind (Kraken, Apple Vision, an MLX vision model, a cloud reader;
+  `PER_KIND`, ruled 2026-10-11: search wide, the bake-off decides), from everything the finder found, for the
+  project's script and its default material; the rules' order only chooses who takes part within a kind. Tesseract joins for print and typescript when its card has data for
   the project's language; never for handwriting. A cloud reader takes part only where the project
   allows the cloud (the rules already refuse it otherwise), and its whole-volume cost is shown before
   anything runs. A candidate the evaluation cannot score here (not on this Mac, its runtime not in this
@@ -99,6 +99,9 @@ def _not_scored_because(card: Card, reader: str | None, model: str | None, provi
 
     if not card.runs_here:
         return card.cannot_run_because or "its runtime is not in this build yet (its card says so): named, not scored"
+    if not card.open_licence:
+        # Reading pages with it is using it: a licence not yet accepted is accepted first (#5683).
+        return f"its licence ({card.licence or 'not open'}) is not accepted yet: accept it to compare it"
     if reader not in ("kraken", "vision") or model is None:
         return "the evaluation job cannot read with this kind of model yet"
     if reader == "vision" and provider == "apple" and not on_this_mac(model, reader, provider):
@@ -151,7 +154,7 @@ def _tesseract_has_the_language(card: Card, a: Answers) -> bool:
     return bool(a.languages) and (card.languages is None or a.languages <= card.languages)
 
 
-#: The kinds of reader a bake-off always tries, beside the rules' top three (#5660 item 7): Kraken's readers, Apple
+#: The kinds of reader a bake-off always tries, at most `PER_KIND` of each (#5660 item 7): Kraken's readers, Apple
 #: Vision, an MLX vision model, and a cloud reader where a provider is set up and the project lets pages leave.
 FAMILIES = ("kraken", "apple", "mlx", "cloud")
 

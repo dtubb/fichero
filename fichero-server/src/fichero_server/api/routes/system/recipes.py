@@ -749,6 +749,7 @@ def _optional_library(request: Request) -> Optional[Path]:
 
 def _answers(answers: dict[str, Any]) -> Answers:
     """Setup's answers as the rules read them (the one place they are turned into `Answers`)."""
+
     a = normalise_answers(answers, strict=True)
     return Answers(
         purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
@@ -948,6 +949,7 @@ async def model_candidates(
     scripts: str, languages: str = "", material: str = "handwriting", job: str = "read-a-line",
     online: bool = False, cloud_allowed: bool = False, mac_memory_gb: Optional[float] = None,
     step: Optional[str] = None,
+    period: Optional[str] = None,
     library_path: Optional[str] = Depends(optional_library_path),
 ) -> ModelCandidateList:
     """Every candidate for a step's job (a reader's by default; any job a card can name, #5619) for these scripts
@@ -961,8 +963,10 @@ async def model_candidates(
     pipeline and Hub tags (`STEP_SEARCHES`); a job with no search of its own says so. With `step` (a step of the open project's recipe), the
     step's reader now is marked `chosen` and listed first, the person's choice included when the finder would not
     list it for these answers (#5660 item 8). Each candidate says plainly whether it ships with Fichero, is on this
-    Mac or can be downloaded, with its size (`availability`). Refused (422), in words, for an unknown script,
-    language, material or job."""
+    Mac or can be downloaded, with its size (`availability`). With `period` ("16th century", "1650–1700"), a reader
+    made for it ranks first (#5683). For `read-a-line`, the page readers (Apple Vision, a vision model) are listed
+    too, the person's to choose with no rule rank: a line step reads Kraken's lines with them, as the bake-off
+    counts them. Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
     from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, rank_key
@@ -998,13 +1002,20 @@ async def model_candidates(
         raise HTTPException(status_code=422, detail="name at least one script")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
                 cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
-                search_embedder=search_embedder())
+                search_embedder=search_embedder(), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
         search = await run_in_threadpool(_search_job, request, library_path, tags, job)
     not_searched = None if library_path else NO_PROJECT
     cards, sources = await run_in_threadpool(
         discover, a, online=online, search=search, not_searched=not_searched, job=job)
+    if job == "read-a-line":
+        # A page reader reads the lines' pictures too (`start._reading_run`, the bake-off's `fits`): offered for the
+        # line step, the person's to choose; the rules rank only the line readers (#5683).
+        from dataclasses import replace as _replace
+
+        cards = [c if job in c.jobs or "read-a-page" not in c.jobs
+                 else _replace(c, jobs=c.jobs | {job}, offered_only=True) for c in cards]
     cards = [c for c in cards if job in c.jobs]
     chosen_id = await run_in_threadpool(_step_reader, request, library_path, step) if step else None
     if chosen_id and chosen_id not in {c.id for c in cards}:
