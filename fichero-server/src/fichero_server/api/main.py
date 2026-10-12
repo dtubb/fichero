@@ -97,14 +97,17 @@ def _resolve_engine_version() -> str:
     a venv's install metadata is from whenever it was last installed (#5679,
     `contract.dev-engine-version-is-its-source`). A built engine has no ``pyproject.toml`` there.
     """
-    import tomllib
+    import re
 
     pyproject = Path(__file__).resolve().parents[3] / "pyproject.toml"
     if pyproject.is_file():
-        try:
-            return str(tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"])
-        except (OSError, KeyError, tomllib.TOMLDecodeError) as exc:
-            raise RuntimeError(f"the source checkout's {pyproject} names no version") from exc
+        # The [project] table's own `version = "..."`, its first line of that name; read with `re` (already loaded),
+        # not tomllib, which would add four modules to every engine start (#3950's import budget).
+        found = re.search(r'^\[project\][^\[]*?^version\s*=\s*"([^"]+)"',
+                          pyproject.read_text(encoding="utf-8"), re.M | re.S)
+        if found is None:
+            raise RuntimeError(f"the source checkout's {pyproject} names no version")
+        return found.group(1)
     for dist_name in ("fichero-server", "fichero_server"):
         try:
             return package_version(dist_name)
