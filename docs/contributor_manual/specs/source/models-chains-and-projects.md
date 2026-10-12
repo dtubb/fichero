@@ -2715,14 +2715,19 @@ Profiles (the defaults section of a recipe)
   any model's review from a run outside the recipe; `done.effective_model`, pinned by
   `fichero-server/tests/unit/recipes/test_start_plan_counts_what_ran_5616.py`, which also pins `last_run` and
   `last_why` on a step a failed run left unfinished);
-  finding names, on a page some entity names as a page it was found on (a page whose text names no one
-  leaves no trace, so it is looked at again). The pages a step runs on are worked out when it starts, so pages a
+  finding names, on a page some entity names as a page it was found on, or one a finished run's names step
+  ran on (#5706: a page whose text names no one is done once looked at). The pages a step runs on are worked out when it starts, so pages a
   split made earlier in the same run are read like any others. **Find Regions and redo (#5689):** a page whose regions the step's own model found is done for
   Find Regions (for Kraken's segmenter, which keeps the page's lines with its regions, a page that has lines
   too; regions found before it did are found once more, with their lines, so Read never segments the page
   itself). The plan as started says what it redoes: a step named in `redo` "runs again on all N pages, as
   asked (redo)", never "already done on 87 of 92". *Test:*
-  `fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py`.
+  `fichero-server/tests/unit/recipes/test_regions_one_pass_5689.py`. **What a step ran on counts (#5706):** a step whose output may leave no trace on a page (Find Names on a page
+  naming no one, Prepare on a clear page) keeps on the run the pages it ran on and ended well (`ran_on`,
+  `runner.RAN_ON_JOBS`), and the plan counts them done (`done.pages_a_run_did`), so a page is not "to do" after
+  every run. A stage's account counts every page done when it read them all in one call and ended well (Names,
+  Dates: never "0 of 92" after 1,193 names), and its offer says the stage's own verb ("Find names on the 3 pages
+  that failed", `run_view.offer_words`). *Test:* `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py`.
 - `source.job.publish` — **[OK]** (#5390, #2535; built: the `publish` card in `recipes/start.py` and `recipes/runner.py`; tested in `fichero-server/tests/unit/recipes/test_publish_to_spec.py`) a recipe's `publish` step writes the project as a static
   website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
   site export (`export_service.export_eleventy_site`), into the folder its `where` setting names on the

@@ -108,6 +108,18 @@ class SkippedStep(BaseModel):
         "in setup fixes it"))
 
 
+#: The verb a stage's offer says (#5706: "Read the 92 pages not done" on a names step).
+_OFFER_VERBS = {"find-names-tag-words": "Find names on", "work-out-dates": "Work out dates on",
+                "find-statements": "Find statements on", "correct": "Correct",
+                "prepare-the-image": "Prepare", "split-into-entries": "Split into entries"}
+
+
+def offer_words(job: str | None, label: str) -> str:
+    """The account's offer ("Read the 3 pages that failed") in the stage's own verb."""
+    verb = _OFFER_VERBS.get(job or "")
+    return f"{verb} {label[len('Read '):]}" if verb and label.startswith("Read ") else label
+
+
 async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
     """The run's status with each started workflow stage's account, and `waiting_for` and
     `estimate_seconds_left` for the run: what it waits for now, and the running stage's time left."""
@@ -118,6 +130,10 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
         step["account"] = None
         if step.get("card") == "workflow" and step.get("child_id"):
             step["account"] = await run_account(db, step["child_id"])
+            if step["account"] is not None and step["account"].offer is not None:
+                offer = step["account"].offer.model_copy(
+                    update={"label": offer_words(step.get("job"), step["account"].offer.label)})
+                step["account"] = step["account"].model_copy(update={"offer": offer})
         if step["state"] == "running":
             running = step
     waiting = status["reason"] if status["state"] == "waiting" else None
@@ -361,7 +377,8 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
                 continue
             failed.append(StageFailures(steps=step["steps"], thread_id=child, pages_failed=account.pages_failed,
                                         failures=account.failures,
-                                        offer=account.offer.label if account.offer else None))
+                                        offer=offer_words(step.get("job"), account.offer.label)
+                                        if account.offer else None))
     proposed, accepted, groups = _found_documents(db, status["steps"])
     # The pages a stage left out as blank: not read by this run, whatever an earlier one gave them (#5705: "Read 92
     # of 92 pages" with 5 left out).

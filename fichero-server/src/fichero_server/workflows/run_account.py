@@ -163,9 +163,13 @@ def build_account(*, status: str | None, reason: str | None, state: dict[str, An
     total = max(totals)
     if not total and scope_ids:  # stopped before the run reached its pages
         total = len(scope_ids)
+    run_state = account_state(status, reason)
+    if not pages and run_state == "done":
+        # A run whose steps read every page in one call and say nothing page by page (Find Names, Work Out Dates):
+        # done is every page it was given, never "0 of 92" after 1,193 names (#5706).
+        done = list(range(total))
     left = max(0, total - len(done) - len(failed))
 
-    run_state = account_state(status, reason)
     account = RunAccount(
         state=run_state, pages_total=total, pages_done=len(done), pages_failed=len(failed), pages_left=left,
         failures=[PageFailure(page=str(p["file"] or "?").rsplit("/", 1)[-1], document_id=p["document_id"],

@@ -995,6 +995,8 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
             child, state, why = None, "failed", could_not_start(card, exc)
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
+        if state == "done" and card.get("job") in RAN_ON_JOBS:
+            scratch["ran_on"] = list(documents)  # a page it looked at and found nothing on is done (#5706)
         _add(step, scratch)
         # An earlier batch's worse end stands (`_settle`).
         step.update(state=before if before != "running" else "waiting", child_id=before_child)
@@ -1074,6 +1076,9 @@ def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: in
     return None
 
 
+#: The steps whose output may leave no trace on a page (a page naming no one; a page clear enough to need no
+#: preparing): the pages each ran on are kept on the run, so the next plan counts them done (#5706).
+RAN_ON_JOBS = frozenset({"find-names-tag-words", "prepare-the-image"})
 #: What a step is doing, by its last job, as the run's line says it (#5685).
 _DOING = {"find-lines": "Finding the lines", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
           "correct": "Correcting the readings", "find-names-tag-words": "Finding names",

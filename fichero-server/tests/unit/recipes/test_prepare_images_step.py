@@ -115,8 +115,8 @@ def test_the_step_is_a_card_start_runs_before_lines(client, tmp_path):
 def test_start_prepares_the_faded_page_and_lines_read_the_prepared_copy(client, db, pages, tmp_path, engine):
     """"It runs before lines, and the original image is kept": the faded page gets a new rendition, its contrast
     raised, in the page's own frame; the clear page is left alone; lines and reading read the prepared copy of the
-    faded page and the original of the clear one; the original file is untouched. Run again, a prepared page is not
-    prepared twice."""
+    faded page and the original of the clear one; the original file is untouched. Run again, neither page is looked
+    at twice (#5706)."""
     faded, clear = _faded_and_clear(db, pages, tmp_path)
     before = _digest(faded.path)
     _save(client, _recipe(tmp_path, PREP, LINES, READ))
@@ -143,7 +143,9 @@ def test_start_prepares_the_faded_page_and_lines_read_the_prepared_copy(client, 
 
     again = _finished(client, _start(client))
     assert again["state"] == "done", again
-    assert again["steps"][0]["prepared"] == {"prepared": 0, "clear": 1, "no_image": 0}  # only the clear page looked at
+    # Neither page is looked at again: the faded one is prepared, and the clear one was looked at and found clear
+    # (#5706: the plan said "already done on 4 of 92" after a run that found 88 clear).
+    assert again["steps"][0].get("prepared") is None and again["steps"][0]["state"] == "done", again["steps"][0]
     assert len([r for r in db.query(Rendition, document_id=faded.id) if r.role == "prepared"]) == 1
 
 

@@ -12,10 +12,11 @@ redo the step:
 * reading lines (with or without finding lines first): a page with a live pass, read by the step's own model,
   that has lines;
 * reading a page: a page with a transcription saved by the step's own model;
-* preparing the image: a page with a prepared rendition;
+* preparing the image: a page with a prepared rendition, or one a finished run's step looked at and found
+  clear (#5706);
 * correcting: a page with a reviewed transcription (the paleographer's review) saved by the step's own model;
-* finding names: a page some entity names as a page it was found on (#5584). A page whose text names no one
-  leaves no trace, so it is looked at again.
+* finding names: a page some entity names as a page it was found on (#5584), or one a finished run's names
+  step ran on (#5706): a page whose text names no one is done once looked at.
 
 Every other card cannot tell, and runs on every page.
 """
@@ -216,6 +217,23 @@ def effective_model(db: Any, card: dict[str, Any]) -> str | None:
     return (workflow.model or None) if workflow is not None else None
 
 
+def pages_a_run_did(db: Any, job: str) -> set[str]:
+    """The pages a finished recipe run's step of this job ran on and ended well (`runner.RAN_ON_JOBS`, #5706)."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.runner import KIND
+
+    out: set[str] = set()
+    for row in jobs.find_jobs(db, kinds=[KIND], states=["done", "failed", "cancelled"]):
+        found = jobs.read_job(db, row["id"]) or {}
+        detail = json.loads(found.get("detail") or "{}")
+        for card, step in zip(detail.get("runs") or [], detail.get("steps") or []):
+            if card.get("job") == job:
+                out.update(step.get("ran_on") or [])
+    return out
+
+
 def pages_with_names(db: Any) -> set[str]:
     """Every page some entity was found on (`KnowledgeEntity.source_document_ids`): the pages the names
     step has been over."""
@@ -240,11 +258,11 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     if job == "prepare-the-image":
         from fichero_server.recipes.prepare import prepared
 
-        return prepared(db, doc_id) is not None
+        return prepared(db, doc_id) is not None or doc_id in pages_a_run_did(db, job)
     if job == "correct":
         return _has_review(db, doc_id, effective_model(db, card), card.get("workflow_id"))
     if job == "find-names-tag-words":
-        return doc_id in pages_with_names(db)
+        return doc_id in pages_with_names(db) or doc_id in pages_a_run_did(db, job)
     return None
 
 
@@ -253,8 +271,14 @@ def split_done(db: Any, card: dict[str, Any], pages: list[str]) -> tuple[list[st
     if card.get("job") not in KNOWS_DONE:
         return pages, None
     if card.get("job") == "find-names-tag-words":  # one read of the entities, not one per page
-        named = pages_with_names(db)
+        named = pages_with_names(db) | pages_a_run_did(db, "find-names-tag-words")
         todo = [p for p in pages if p not in named]
+        return todo, len(pages) - len(todo)
+    if card.get("job") == "prepare-the-image":  # the runs read once, not once per page
+        ran = pages_a_run_did(db, "prepare-the-image")
+        from fichero_server.recipes.prepare import prepared
+
+        todo = [p for p in pages if p not in ran and prepared(db, p) is None]
         return todo, len(pages) - len(todo)
     todo = [p for p in pages if not is_done(db, card, p)]
     return todo, len(pages) - len(todo)
