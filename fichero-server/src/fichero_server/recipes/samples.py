@@ -332,16 +332,18 @@ def _column(card: Any, plan: dict[str, Any]) -> dict[str, Any]:
             "why": "; ".join(plan["refusals"]) or None, "state": "waiting" if not plan["refusals"] else "not run"}
 
 
-def _similar(a: str, b: str) -> float | None:
-    """1 less the character distance between two readings (each way, averaged); None when both are empty."""
+def _similar(a: str, b: str, why: list[str]) -> float | None:
+    """1 less the character distance between two readings (each way, averaged); None when neither way can be
+    measured, with the reason added to `why` (the candidate's measures say it)."""
+    from fichero_server.workflows.run_comparison import RunComparisonError
     from fichero_server.workflows.transcription_accuracy import character_error_rate
 
     scores = []
     for ref, hyp in ((a, b), (b, a)):
         try:
             scores.append(max(0.0, 1.0 - character_error_rate(ref, hyp).cer))
-        except Exception:  # noqa: BLE001 -- an empty side: nothing to compare that way
-            continue
+        except RunComparisonError as exc:  # an empty side, or one too long to compare: said in the measures
+            why.append(str(exc))
     return sum(scores) / len(scores) if scores else None
 
 
@@ -366,9 +368,13 @@ def _measure(db: Any, stage_id: str, runs: list[dict[str, Any]]) -> list[dict[st
     for i, run in enumerate(runs):
         others = [r for j, r in enumerate(runs) if j != i]
         if stage_id in TEXT_STAGES:
+            why: list[str] = []
             agree = [x for o in others for p, text in run["texts"].items()
-                     if (x := _similar(text, o["texts"].get(p, ""))) is not None]
-            out.append({"kind": "text", "agreement": _mean(agree), "cer": _cer_on_checked(db, run["texts"])})
+                     if (x := _similar(text, o["texts"].get(p, ""), why)) is not None]
+            measured = {"kind": "text", "agreement": _mean(agree), "cer": _cer_on_checked(db, run["texts"], why)}
+            if why:
+                measured["not_measured"] = "couldn't measure: " + "; ".join(dict.fromkeys(why))
+            out.append(measured)
         elif stage_id in SHAPE_STAGES:
             best = [max((_iou(box, other) for other in o["boxes"].get(p, [])), default=0.0)
                     for o in others for p, boxes in run["boxes"].items() for box in boxes]
@@ -385,9 +391,11 @@ def _measure(db: Any, stage_id: str, runs: list[dict[str, Any]]) -> list[dict[st
     return out
 
 
-def _cer_on_checked(db: Any, texts: dict[str, str]) -> float | None:
-    """The character error rate of these pages' readings on the lines a person corrected on them; None when none."""
+def _cer_on_checked(db: Any, texts: dict[str, str], why: list[str]) -> float | None:
+    """The character error rate of these pages' readings on the lines a person corrected on them; None when none,
+    with the reason a page could not be scored added to `why`."""
     from fichero_server.training.evaluation import reference_page
+    from fichero_server.workflows.run_comparison import RunComparisonError
     from fichero_server.workflows.transcription_accuracy import character_error_rate
 
     distance = chars = 0
@@ -398,7 +406,8 @@ def _cer_on_checked(db: Any, texts: dict[str, str]) -> float | None:
         reference = "\n".join(line["text"] for line in page["lines"])
         try:
             score = character_error_rate(reference, text)
-        except Exception:  # noqa: BLE001 -- an empty reference or reading: not scored
+        except RunComparisonError as exc:  # an empty reference, or a page too long to compare: said in the measures
+            why.append(str(exc))
             continue
         distance += score.distance
         chars += score.reference_chars
