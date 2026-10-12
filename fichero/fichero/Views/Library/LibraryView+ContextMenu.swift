@@ -510,8 +510,18 @@ extension LibraryView {
         return target
     }
 
-    /// The selection as Edit's and File's item verbs act on it while this pane has focus.
+    /// The selection as Edit's and File's item verbs act on it while this pane has focus: its documents, the
+    /// proposed documents it names, and one source's direction.
     var selectionItemVerbs: ItemVerbsTarget {
-        itemVerbsTarget(for: filteredDocuments.filter { selection.contains($0.id) })
+        var target = itemVerbsTarget(for: filteredDocuments.filter { selection.contains($0.id) })
+        if let proposals = proposalTarget(for: selection) {
+            target.proposals = ProposalVerbs(target: proposals) { answerProposals($0, target: proposals) }
+        }
+        if target.documents.count == 1, let one = target.documents.first {
+            target.direction = DirectionVerbs(
+                nodeId: one.id, actionsService: activeLibraryReference?.actionsService, steps: windowState.steps
+            )
+        }
+        return target
     }
 }

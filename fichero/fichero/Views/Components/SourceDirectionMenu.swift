@@ -8,7 +8,9 @@ private let sourceDirectionLogger = Logger(subsystem: "app.fichero.fichero", cat
 struct SourceDirectionMenu: View {
     let nodeId: String
     let actionsService: ActionsService?
-    var title = "Direction"
+    var title = ItemVerbs.directionTitle
+    /// The window's steps, for the menu bar (#5652), which is outside any window's environment; nil: the view's own.
+    var steps: WindowSteps?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
 
     var body: some View {
@@ -25,7 +27,7 @@ struct SourceDirectionMenu: View {
 
     private func apply(_ direction: String?) {
         guard let actionsService else { return }
-        let windowSteps = windowSteps
+        let windowSteps = steps ?? windowSteps
         let nodeId = nodeId
         Task {
             do {

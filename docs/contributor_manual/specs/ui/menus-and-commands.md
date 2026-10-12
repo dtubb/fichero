@@ -330,8 +330,15 @@ Behaviours (slice 1):
   Order list, the selected Reader line and the selected picture publish), each disabled with its reason under it.
   The undo step's name is the item's title. No chords. Pinned by `LineVerbsMenuTests` and
   `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: proposed
-  documents and Source direction ▸; the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
+- `menus.edit.proposals-and-direction` — **[OK]** (#5652 slice 4, group 4) **Built 2026-10-12 (app), not yet
+  seen:** **Edit › Proposed Document ▸** renders the Items list's own menu over proposed documents
+  (`ProposedDocumentsMenu`: Accept, Reject and, for one, Split Here, Move Page and Join with Next) on the proposals
+  the focused selection names, answered through the list's one path (`answerProposals`); **Edit › Direction ▸**
+  renders the Items list's and the Inspector's own `SourceDirectionMenu` on one selected folder, document or page,
+  with the window's steps for ⌘Z (`FocusedCommandButtons+ProposalVerbs.swift`). Each is disabled with its reason
+  under it otherwise. Pinned by `ProposalAndDirectionMenuTests` and
+  `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
+- `menus.project.later-slices` — **[GAP]** (#5652) Edit parity for the rest of the context-menu verbs: the project header row, automation rows and Activity › Delete; Run Workflow ▸ and Add to Chat on the
   selection; the dataset rows' and the Inspector header's Exclude.
 
 ---

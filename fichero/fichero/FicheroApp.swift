@@ -493,6 +493,8 @@ struct FicheroApp: App {
 
                 // Exclude / Include, Bookmark…, Add to Workspace…: the context menus' own items (#5652).
                 FocusedItemOrganiseButtons()
+                // Proposed Document ▸ and Direction ▸: the Items list's own menus (#5652).
+                FocusedProposalAndDirectionMenus()
 
                 // The Trash's verbs (#5243): the same components the Trash pane's context menu shows.
                 FocusedPutBackButton()

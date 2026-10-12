@@ -34,6 +34,9 @@ struct ItemVerbsTarget: Equatable {
     var quickLook: (@MainActor () -> Void)?
     /// New Folder in the pane's own place (the folder it shows), whatever is selected.
     var newFolder: (@MainActor () -> Void)?
+    // Group 4 (#5652): proposed documents the selection names, and one source's direction.
+    var proposals: ProposalVerbs?
+    var direction: DirectionVerbs?
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.ids == rhs.ids
@@ -41,6 +44,7 @@ struct ItemVerbsTarget: Equatable {
             && lhs.documents.map(\.excludeFromSearch) == rhs.documents.map(\.excludeFromSearch)
             && lhs.deletableCount == rhs.deletableCount
             && lhs.offered == rhs.offered
+            && lhs.proposals == rhs.proposals && lhs.direction == rhs.direction
     }
 
     /// Which verbs have an action, in order: what the menu shows enabled.

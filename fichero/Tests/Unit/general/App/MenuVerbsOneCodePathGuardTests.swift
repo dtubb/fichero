@@ -61,7 +61,7 @@ struct MenuVerbsOneCodePathGuardTests {
     /// item (the dataset rows' menu and the Inspector's header, later groups): a shrinking allowlist.
     @Test("the item verbs' words are spelled only in the shared items")
     func itemVerbWordsLiveInOnePlace() throws {
-        let shared = "App/Menus/FocusedCommands/FocusedCommandButtons+ItemVerbs.swift"
+        let shared = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+ItemVerbs.swift"
         let files = try Self.appFiles()
         func spelling(_ word: String) -> Set<String> {
             Set(files.filter { $0.text.contains("\"\(word)\"") }.map(\.path))
@@ -75,15 +75,18 @@ struct MenuVerbsOneCodePathGuardTests {
         ])
         #expect(spelling("Group as Stack").isEmpty, "Group is one item, named Group")
         // Group 2: opening, copying and finding an item.
-        let openVerbs = "App/Menus/FocusedCommands/FocusedCommandButtons+OpenVerbs.swift"
+        let openVerbs = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+OpenVerbs.swift"
         for word in ["Make Alias", "Quick Look", "Open in New Tab", "Open in New Window"] {
             #expect(spelling(word) == [openVerbs], "\(word) is spelled outside the shared items")
         }
         // Group 3: a line's and a segment's verbs.
-        let lineVerbs = "App/Menus/FocusedCommands/FocusedCommandButtons+LineVerbs.swift"
+        let lineVerbs = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+LineVerbs.swift"
         for word in ["Correct This Line…", "Create Named Order"] {
             #expect(spelling(word) == [lineVerbs], "\(word) is spelled outside the shared items")
         }
+        // Group 4: the bar's submenu over proposed documents.
+        let proposalVerbs = "App/Menus/FocusedCommands/ItemVerbs/FocusedCommandButtons+ProposalVerbs.swift"
+        #expect(spelling("Proposed Document") == [proposalVerbs])
     }
 
     @Test("the shared Activity and Train items take no chord")
