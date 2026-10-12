@@ -106,3 +106,37 @@ def test_the_finder_says_whether_each_mlx_model_fits_this_mac(client):
     three = next(f for cid, f in fits.items() if "Qwen2.5-VL-3B-Instruct-4bit" in cid)
     assert (seven["word"], three["word"]) == ("won't fit", "fits") and seven["reason"]
     assert all(f is None for cid, f in fits.items() if not cid.startswith("mlx:"))
+    assert "8,192 tokens" in three["reason"]  # a page step that says nothing more: the default context
+
+
+# --- the step's own context (#5641) -------------------------------------------------------------------
+
+
+def test_a_steps_context_is_its_prompt_and_image_plus_its_answer():
+    assert li.step_context_tokens(max_tokens=1024) == li.PROMPT_AND_IMAGE_TOKENS + 1024
+    assert li.step_context_tokens(lines=40) == li.PROMPT_AND_IMAGE_TOKENS + 40 * li.TOKENS_PER_LINE
+    assert li.step_context_tokens(max_tokens=1024, lines=40) == li.PROMPT_AND_IMAGE_TOKENS + 1024  # the bound
+    assert li.step_context_tokens() == li.DEFAULT_CONTEXT_TOKENS  # a step that says neither
+
+
+def test_the_load_judges_the_fit_by_the_calls_own_context():
+    """A model that won't fit at the default context loads for a call whose context is short."""
+    model = SimpleNamespace(model_id="x/mid-4bit", repo_id="x/mid-4bit", display_name="Mid", capabilities=("text",),
+                            download_size_bytes=int(4.5 * GB), kv_bytes_per_token=144 * 1024, page_memory_bytes=None)
+    check = lambda: assert_memory_available_for_model(  # noqa: E731
+        model, catalog=[model], available_bytes=lambda: 8 * GB, pressure_level=lambda: 1, physical_bytes=lambda: 8 * GB)
+    with pytest.raises(LocalModelMemoryUnavailableError):
+        check()
+    with li.reading_with_context(li.step_context_tokens(max_tokens=1024)):
+        check()
+    with pytest.raises(LocalModelMemoryUnavailableError):
+        check()  # the context is the call's only
+
+
+def test_the_finder_judges_a_line_step_by_a_lines_context(client):
+    answer = client.get("/api/recipes/candidates", params={"scripts": "Latn", "languages": "es",
+                                                           "job": "read-a-line", "mac_memory_gb": 8.6})
+    assert answer.status_code == 200, answer.text
+    said = [i["fit"]["reason"] for i in answer.json()["items"] if i["fit"]]
+    line = li.step_context_tokens(lines=1)
+    assert said and all(f"{line:,} tokens" in reason for reason in said)

@@ -986,6 +986,22 @@ def _step_for_job(request: Request, library_path: str, job: str) -> Optional[str
     return next((str(s.get("id")) for s in recipe.get("steps") or [] if s.get("job") == job), None)
 
 
+def _step_context(request: Request, library_path: Optional[str], step: Optional[str], job: str) -> int:
+    """The context a step's model reads with (#5641): its settings' `max_tokens` where it sets one, a line's for a
+    line reader, else the default."""
+    from fichero_server.llm.local_inference import step_context_tokens
+
+    settings: dict[str, Any] = {}
+    if step and library_path:
+        from fichero_server.api.main import _get_library_database_for_access
+
+        db = _get_library_database_for_access(request, library_path, write=False)
+        recipe = read_project_setup(_library(db))["recipe"] or {}
+        found = next((s for s in recipe.get("steps") or [] if s.get("id") == step), None) or {}
+        settings = found.get("settings") if isinstance(found.get("settings"), dict) else {}
+    return step_context_tokens(max_tokens=settings.get("max_tokens"), lines=1 if job == "read-a-line" else None)
+
+
 def _step_reader(request: Request, library_path: Optional[str], step: str) -> Optional[str]:
     """The card id of the open project's step's reader now (its project-scope override, else the rules' choice)."""
     if not library_path:
@@ -1104,12 +1120,13 @@ async def model_candidates(
     models = {c.id: _mlx_model_of(c) for c in cards}
     catalogue = [*MANAGED_MLX_MODELS.values(), *(m for m in models.values() if m is not None)]
     physical = int((mac_memory_gb or _this_machine_memory_gb()) * 1e9)
+    context = await run_in_threadpool(_step_context, request, library_path, step, job)
 
     def fit(c: Any) -> Optional[ModelFit]:
         model = models.get(c.id)
         if model is None:
             return None
-        made = fit_estimate(model, physical_memory=physical, catalog=catalogue)
+        made = fit_estimate(model, context, physical_memory=physical, catalog=catalogue)
         return ModelFit(word=made.word, reason=made.reason, smaller=made.smaller)
 
     def measured(c: Any) -> str:

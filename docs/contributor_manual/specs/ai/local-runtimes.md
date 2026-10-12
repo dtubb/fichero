@@ -347,8 +347,12 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   (`DEFAULT_CONTEXT_TOKENS`). "fits": within two thirds of physical memory (`MLX_COMFORT_SHARE`, Apple Metal's
   `recommendedMaxWorkingSetSize` on 8-16 GB Macs, the working set MLX reports and Ollama and llama.cpp take as
   a Mac's GPU memory); "tight": above that, up to the ceiling; a model whose note says reading a page needs a
-  bigger Mac is at least tight. *Not built: the words in Set Up and on the step (the app), the step's own
-  context length, the Mac's own Metal reading in place of the share.* *Test:*
+  bigger Mac is at least tight. **The step's own context (built 2026-10-12):** a call that loads a model judges
+  the fit by its own context, its prompt and image (2,048 tokens) plus the answer it allows (`max_tokens`), not
+  the default (`step_context_tokens`, `reading_with_context`); the finder, asked for a step, counts that step's
+  `max_tokens` where its settings give one, a line's for a line reader (the prompt and image plus 24 tokens a
+  line), and the 8,192-token default for a step that says neither. *Not built: the words in Set Up and on the
+  step (the app), a page's own line count, the Mac's own Metal reading in place of the share.* *Test:*
   `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py`.
 - `runtime.mlx.refuse-only-what-would-crash` — **[PARTIAL]** (#5641) a model that can run on MLX runs. The
   refusal line is a measured ceiling, the point where macOS starts swapping heavily, measured on an

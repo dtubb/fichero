@@ -4341,10 +4341,15 @@ async def _ensure_managed_local_provider_ready(config: LLMConfig, capability: st
                 else:
                     status = await manager.restart_after_crash()
             else:
-                if not (manager.state in (LocalServiceState.healthy, LocalServiceState.degraded)
-                        and manager.process.is_running()):
-                    await _wait_for_memory_to_load(model_id, custom_command=custom_command)
-                status = await _start_when_memory_allows(manager, model_id, custom_command=custom_command)
+                # The fit is judged for this call's own context: its prompt and image plus the answer it
+                # allows (`max_tokens`), not the default (#5641).
+                from fichero_server.llm.local_inference import reading_with_context, step_context_tokens
+
+                with reading_with_context(step_context_tokens(max_tokens=config.max_tokens)):
+                    if not (manager.state in (LocalServiceState.healthy, LocalServiceState.degraded)
+                            and manager.process.is_running()):
+                        await _wait_for_memory_to_load(model_id, custom_command=custom_command)
+                    status = await _start_when_memory_allows(manager, model_id, custom_command=custom_command)
         except LocalInferenceRuntimeMissingError as exc:
             raise LocalModelRuntimeMissingError(str(exc)) from exc
         except LocalInferenceHardwareError as exc:

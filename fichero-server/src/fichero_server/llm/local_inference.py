@@ -94,6 +94,35 @@ MLX_COMFORT_SHARE = 2 / 3
 #: replaces it (`runtime.mlx.refuse-only-what-would-crash`, [PARTIAL]). 8 GB: 6 GB, today's 75% there.
 MLX_MAC_RESERVE_BYTES = 2 * 1024**3
 FITS, TIGHT, WONT_FIT = "fits", "tight", "won't fit"
+#: A step's context beside its answer: the instruction and a page image (about 1,000-2,500 tokens at Qwen2.5-VL's
+#: resolution) or a line's picture.
+PROMPT_AND_IMAGE_TOKENS = 2048
+#: A manuscript line's reading in tokens: 8-12 words at about two tokens a word.
+TOKENS_PER_LINE = 24
+#: The context of the read being loaded for (#5641): set by the call that asks for the model, read by the load's
+#: check, so a step's own context, not the default, decides whether its model fits.
+_step_context: ContextVar[int | None] = ContextVar("fichero_step_context_tokens", default=None)
+
+
+def step_context_tokens(*, max_tokens: int | None = None, lines: int | None = None) -> int:
+    """A step's real context (#5641, `runtime.mlx.fit-estimate`): the prompt and image plus its answer, bounded by
+    the step's `max_tokens` where it sets one, else its lines at `TOKENS_PER_LINE`; the default for a step that
+    says neither."""
+    if max_tokens:
+        return PROMPT_AND_IMAGE_TOKENS + int(max_tokens)
+    if lines:
+        return PROMPT_AND_IMAGE_TOKENS + int(lines) * TOKENS_PER_LINE
+    return DEFAULT_CONTEXT_TOKENS
+
+
+@contextlib.contextmanager
+def reading_with_context(context_tokens: int | None):
+    """The load's check counts this context while the block runs (one call's model load)."""
+    token = _step_context.set(context_tokens)
+    try:
+        yield
+    finally:
+        _step_context.reset(token)
 
 
 @dataclass(frozen=True)
@@ -222,7 +251,7 @@ def assert_memory_available_for_model(
     from fichero_server.llm import kraken_runtime
 
     total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
-    estimate = fit_estimate(spec, DEFAULT_CONTEXT_TOKENS, total or 0, catalog=catalog)
+    estimate = fit_estimate(spec, _step_context.get() or DEFAULT_CONTEXT_TOKENS, total or 0, catalog=catalog)
     need = estimate.need_bytes
     if estimate.word == WONT_FIT:  # the one rule (#5641): what the finder says "won't fit" is what is refused
         fits = [] if estimate.smaller else _smaller_models_that_fit(spec, estimate.ceiling_bytes, catalog)
