@@ -153,9 +153,12 @@ def test_each_steps_search_asks_by_its_own_pipeline_and_tags_and_keeps_its_finds
     assert not layout.runs_here and "layout model" in layout.cannot_run_because
 
 
-def test_a_steps_search_is_its_own_job_and_a_step_without_one_says_so(client, db, monkeypatch):
+def test_a_steps_search_is_its_own_job_and_a_step_without_one_says_so(jobs_run_by_the_test, client, db, monkeypatch):
     """The step's search is queued as its own `find-models` job, by job and languages, beside the reader search;
-    a job with no search of its own says so in place of "Searched for readers only"."""
+    a job with no search of its own says so in place of "Searched for readers only".
+
+    `jobs_run_by_the_test` first (#5701): queuing the search wakes the lanes, and a lane thread then ran the same
+    job beside the test's own run, so the search ran twice on a loaded machine. The test runs it, once."""
     subject = discovery._subject(frozenset({"es"}), "find-statements")
     assert (discovery._job_of(subject), discovery._languages_of(subject)) == ("find-statements", frozenset({"es"}))
     reader = discovery._subject(frozenset({"es"}))
@@ -168,6 +171,7 @@ def test_a_steps_search_is_its_own_job_and_a_step_without_one_says_so(client, db
 
     row = discovery.search(db, frozenset({"es"}), "find-statements")
     assert jobs.job_id_for(db, discovery.SEARCH_KIND, subject) == row["id"]  # queued by this step's subject
+    assert jobs.read_job(db, row["id"])["state"] == "waiting", "no lane took it: this test runs it, once"
     discovery._run_search(db, subject)
     assert ran == [("find-statements", frozenset({"es"}))]
 
