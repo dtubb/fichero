@@ -4660,7 +4660,9 @@ async def process_vision(
                             continue
                         _boxes.append(_box.model_copy(update={
                             "text": _text, "char_start": _cursor, "char_end": _cursor + len(_text),
-                            "source": "kraken-htr"}))
+                            "source": "kraken-htr",
+                            # How sure Kraken was of the line, kept on its reading (#5707, #5694's bar).
+                            "confidence": getattr(_text, "confidence", None)}))
                         _joined.append(_text)
                         _cursor += len(_text) + 1
                     return geometry.model_copy(update={

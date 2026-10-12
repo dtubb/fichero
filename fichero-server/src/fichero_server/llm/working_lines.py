@@ -123,9 +123,17 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
     from fichero_server.actions.registry import ActionContext, registry
 
     ctx = ActionContext(actor=actor, run_id=run_id, library_path=library_path, is_bootstrap=True)
+    from fichero_server.models import ContentRepresentation
+
+    # A reading this result already wrote on the line is not written again (#5707: one stored twice, 40 ms apart).
+    have = {(r.segment_id, r.kind, r.content, r.derived_from_artifact_id, r.level)
+            for r in db.query(ContentRepresentation, document_id=document_id)
+            if artifact_id and r.derived_from_artifact_id == artifact_id and not r.retracted_at}
     made = []
     for segment_id, text, *certainty in readings:
         if not (text or "").strip():
+            continue
+        if (segment_id, kind, text.strip(), artifact_id, level) in have:
             continue
         made.append(registry.invoke(db, "representation.create", {
             "document_id": document_id, "segment_id": segment_id, "kind": kind, "content": text.strip(),

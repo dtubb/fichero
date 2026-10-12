@@ -91,6 +91,20 @@ logger = logging.getLogger(__name__)
 
 _T = TypeVar("_T")
 
+
+class ReadLine(str):
+    """A line Kraken read: its text, and how sure Kraken was of it (#5707: the readings written onto a page's lines
+    kept no certainty, so #5694's bar never fired on a real run). A `str`, so every caller that reads text is
+    unchanged."""
+
+    confidence: float | None
+    char_confidences: list[float] | None
+
+    def __new__(cls, text: str, *, confidence: float | None = None, char_confidences: list[float] | None = None):
+        made = super().__new__(cls, text)
+        made.confidence, made.char_confidences = confidence, char_confidences
+        return made
+
 #: Kraken's pinned version and its missing-package list live in
 #: `pyproject.toml`'s `[tool.fichero.kraken_bundle]` table -- the build step
 #: and the packaging test read that table directly. This module deliberately
@@ -948,8 +962,11 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
             regions={}, line_orders=[])
         net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
         predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
-    read = {str(ln["id"]): str(getattr(r, "prediction", r) or "") for ln, r in zip(usable, predictions)}
-    return [read.get(str(ln["id"]), "") for ln in lines]
+    read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
+                                     char_confidences=[round(float(c), 4) for c in getattr(r, "confidences", None) or []]
+                                     or None)
+            for ln, r in zip(usable, predictions)}
+    return [read.get(str(ln["id"]), ReadLine("")) for ln in lines]
 
 
 def read_given_lines(
@@ -958,13 +975,13 @@ def read_given_lines(
     lines: list[dict[str, object]],
     *,
     run_call: Callable[[Callable[[], _T]], _T] | None = None,
-) -> list[str]:
+) -> list[ReadLine]:
     """Read lines already found (each `{"id", "baseline", "polygon"}` in page pixels) with a reader,
     on their own baselines and outlines, without finding lines again: Kraken's rough read of each line,
-    in the order given ("" for a line with too little geometry to read). The teacher-line check reads
-    with it (`source.lines.reading-checked-against-the-page`, #5446)."""
+    in the order given ("" for a line with too little geometry to read), each with how sure Kraken was (#5707). The
+    teacher-line check reads with it (`source.lines.reading-checked-against-the-page`, #5446)."""
     if not _usable(lines):
-        return ["" for _ in lines]
+        return [ReadLine("") for _ in lines]
     caller = run_call or _kraken_call
     try:
         return caller(lambda: _read_given_raw(image_path, model_path, lines))
