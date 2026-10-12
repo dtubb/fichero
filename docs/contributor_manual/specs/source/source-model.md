@@ -1265,10 +1265,15 @@ action record holding a researcher's words is ruled out.
   (its run, its place, its text); a flush inserts only its new lines, so what a flush writes, and the write-ahead log
   it grows, follow the new lines, not the log's size (an append to one growing value rewrote the whole value: a
   checkpoint every few flushes of a 2 MB log, on the run's own path). A run's log reads as it always did (the lines
-  joined, `get_workflow_run` unchanged). A library's logs from before are moved into lines at open,
-  `Database.RUN_LOG_FOLD_CHUNK` runs to a transaction, each run's lines checked against its log before the log value
-  is cleared, and the fold recorded once none is left; a run not moved yet reads its old value, then its lines.
-  Tested in `fichero-server/tests/unit/db/test_run_log_lines_5711.py`. *Not built:* the LangGraph checkpointer (to be ruled separate or folded;
+  joined, `get_workflow_run` unchanged). A library's logs from before are never moved at open (a big history took
+  tens of seconds there): a run whose log is still a value reads that value, then its lines; a run written again
+  moves its own value into lines first, in the same transaction; and the rest move in the background, as
+  housekeeping ("Tidy the run history", `workflows.run_log_tidy`, the database lane at background QoS): 50 runs to a
+  transaction, each run's lines checked against its value before the value is cleared (a chunk that does not read
+  back rolls back, the values kept), stepping aside whenever the throttle holds background work or a person is
+  waiting and taken up again later, and marking the library done only once no value is left. Opening a library
+  reads one setting, or one run, and queues the job when it is needed. Tested in
+  `fichero-server/tests/unit/db/test_run_log_lines_5711.py`. *Not built:* the LangGraph checkpointer (to be ruled separate or folded;
   the plan is on #5645).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.
