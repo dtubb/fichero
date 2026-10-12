@@ -540,14 +540,15 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         reasons.append(f"made for {', '.join(sorted(a.scripts))}")
     if best.languages is not None and job in LANGUAGE_JOBS:
         reasons.append(f"lists {', '.join(sorted(a.languages))}")
-    if material in best.material:
-        reasons.append(f"made for {material}")
-    acc = best.cer_measured_here if best.cer_measured_here is not None else best.cer_published
-    if acc is not None:
-        where = "on your pages" if best.cer_measured_here is not None else "as published"
-        reasons.append(f"CER {acc * 100:.1f}% {where}")
-    if best.cer_measured_here is None:
-        reasons.append("unmeasured on your pages until a bake-off measures it")
+    if job in READING_JOBS:  # a reader's own reasons: what it reads, how well, how it is measured (#5682)
+        if material in best.material:
+            reasons.append(f"made for {material}")
+        acc = best.cer_measured_here if best.cer_measured_here is not None else best.cer_published
+        if acc is not None:
+            where = "on your pages" if best.cer_measured_here is not None else "as published"
+            reasons.append(f"CER {acc * 100:.1f}% {where}")
+        if best.cer_measured_here is None:
+            reasons.append("unmeasured on your pages until a bake-off measures it")
     if best.offered_because:
         reasons.append(best.offered_because)
     if best.installed:
