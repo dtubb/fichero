@@ -135,7 +135,8 @@ def test_status_follows_importability_when_installed(monkeypatch: pytest.MonkeyP
 
     status = kraken_runtime.runtime_status()
 
-    assert status == {"installed": True, "kraken_version": "7.1.1", "reason": None}
+    # It also says whether its native libraries load here (#5684); they do in the test venv.
+    assert status == {"installed": True, "loads": True, "kraken_version": "7.1.1", "reason": None}
 
 
 def test_status_is_honest_when_not_bundled(monkeypatch: pytest.MonkeyPatch) -> None:

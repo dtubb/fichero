@@ -74,10 +74,9 @@ def _kraken_status_response() -> KrakenRuntimeStatusResponse:
     payload = runtime_status()
     return KrakenRuntimeStatusResponse(
         installed=bool(payload["installed"]),
-        # "available" here means the app can act on this row at all — always
-        # true now: Kraken is either bundled or it is a packaging bug, never
-        # something the user can install from here.
-        available=True,
+        # "available": Kraken can run here. Bundled is not enough: its native libraries must load (#5684);
+        # a packaging bug either way, never something the user installs from here.
+        available=bool(payload.get("loads")),
         kraken_version=payload.get("kraken_version"),
         reason=payload.get("reason"),
     )

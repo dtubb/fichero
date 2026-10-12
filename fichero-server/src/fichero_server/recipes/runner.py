@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from collections import Counter
@@ -530,6 +531,26 @@ def _run_publish(db: Any, card: dict[str, Any], parent: str) -> tuple[str | None
     return None, "done", None
 
 
+logger = logging.getLogger(__name__)
+
+
+def could_not_start(card: dict[str, Any], exc: Exception) -> str:
+    """One plain line for a step whose work raised before it could report an end (#5684): what the person can do,
+    never the technical text, which goes to the log. A native library that would not load (a dlopen, a missing
+    dylib) is said as such."""
+    from fichero_server.recipes.jobs import get_job
+
+    known = get_job(card.get("job") or "")
+    topic = known.topic if known else None
+    title = topic.title if topic else ", ".join(card["steps"])
+    text = str(exc)
+    if isinstance(exc, (ImportError, OSError)) and any(w in text for w in ("dlopen", "Library not loaded", ".dylib",
+                                                                             ".so")):
+        return f"{title} could not start: a library it needs would not load on this Mac. Restart Fichero, or reinstall."
+    first = (text.strip().splitlines() or [type(exc).__name__])[0]
+    return f"{title} could not start: {first[:160]}"
+
+
 def run(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.execution.cancellation import clear_cancellation
 
@@ -899,28 +920,13 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         step.update(state="running", child_id=None)
         jobs.save_detail(db, job_id, json.dumps(detail), reason=jobs.STOPPING if _stop_asked(job_id) else
                          f"Running step {named}: {_folders_words(detail)}")
-        if card["card"] == "workflow" and card.get("readers"):
-            child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
-        elif card["card"] == "workflow":
-            child, state, why = _run_workflow(db, card, documents, job_id)
-        elif card["card"] == "check":
-            child, state, why = _run_check(db, card, documents, job_id, started_by)
-        elif card["card"] == "find-documents":
-            child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
-        elif card["card"] == "entries":
-            child, state, why = _run_entries(db, card, documents, job_id, scratch)
-        elif card["card"] == "prepare":
-            child, state, why = _run_prepare(db, documents, job_id, scratch)
-        elif card["card"] == "regions":
-            child, state, why = _run_regions(db, card, documents, job_id, scratch)
-        elif card["card"] == "table":
-            child, state, why = _run_table(db, card, documents, job_id, scratch)
-        elif card["card"] == "publish":
-            child, state, why = _run_publish(db, card, job_id)
-        elif card["card"] == "embed":
-            child, state, why = _run_embed(db, documents, job_id, started_by)
-        else:
-            child, state, why = _run_export(db, card, documents)
+        try:
+            child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by)
+        except (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach):
+            raise  # the queue's own: stopped, to come back later, out of reach
+        except Exception as exc:  # noqa: BLE001 -- the step fails alone, said in one line; the rest still run (#5684)
+            logger.exception("recipe step %s could not start", named)
+            child, state, why = None, "failed", could_not_start(card, exc)
         if state != "done" and _stop_asked(job_id):  # it was stopped with the run (#5609)
             state, why = "cancelled", "Stopped by you"
         _add(step, scratch)
@@ -928,23 +934,58 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         step.update(state=before if before != "running" else "waiting", child_id=before_child)
         _settle(step, state, child, why)
         here[index]["state"] = states[index] = state
-        if card["card"] == "workflow" and state == "done":
-            # The step changed these pages' work: every kept export rewrites them (#5485).
-            from fichero_server import kept_export
-
-            kept_export.queue_rewrites(db, documents)
-        if state in ("done", "failed"):
-            # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
-            # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
-            none_done, pages_failed = _did_no_page(db, card, child, scratch)
-            outright = state == "failed" and none_done
-            step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1 if outright else 0
-            if state == "failed" or pages_failed:
-                _note_batch(step, batch, state, child, why or (f"{pages_failed} pages failed" if pages_failed else None))
-        if state not in ("done", "cancelled"):
-            problems.append(f"step {named} {state}: {why or 'no reason given'}")
+        _after_the_step(db, card, step, batch, documents, state, child, why, scratch, problems, named)
         jobs.save_detail(db, job_id, json.dumps(detail))  # the step's end on this batch is a checkpoint
     return problems
+
+
+def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], job_id: str,
+              scratch: dict[str, Any], started_by: str) -> tuple[str | None, str, str | None]:
+    """One step's work on a batch's pages, by its card: (its job, its end, why)."""
+    if card["card"] == "workflow" and card.get("readers"):
+        child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
+    elif card["card"] == "workflow":
+        child, state, why = _run_workflow(db, card, documents, job_id)
+    elif card["card"] == "check":
+        child, state, why = _run_check(db, card, documents, job_id, started_by)
+    elif card["card"] == "find-documents":
+        child, state, why = _run_find_documents(db, card, documents, job_id, started_by)
+    elif card["card"] == "entries":
+        child, state, why = _run_entries(db, card, documents, job_id, scratch)
+    elif card["card"] == "prepare":
+        child, state, why = _run_prepare(db, documents, job_id, scratch)
+    elif card["card"] == "regions":
+        child, state, why = _run_regions(db, card, documents, job_id, scratch)
+    elif card["card"] == "table":
+        child, state, why = _run_table(db, card, documents, job_id, scratch)
+    elif card["card"] == "publish":
+        child, state, why = _run_publish(db, card, job_id)
+    elif card["card"] == "embed":
+        child, state, why = _run_embed(db, documents, job_id, started_by)
+    else:
+        child, state, why = _run_export(db, card, documents)
+    return child, state, why
+
+
+def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: dict[str, Any], documents: list[str],
+                    state: str, child: str | None, why: str | None, scratch: dict[str, Any], problems: list[str],
+                    named: str) -> None:
+    """What a step's end on a batch leaves: kept exports rewritten, its failed batches noted, the problem said."""
+    if card["card"] == "workflow" and state == "done":
+        # The step changed these pages' work: every kept export rewrites them (#5485).
+        from fichero_server import kept_export
+
+        kept_export.queue_rewrites(db, documents)
+    if state in ("done", "failed"):
+        # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
+        # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
+        none_done, pages_failed = _did_no_page(db, card, child, scratch)
+        outright = state == "failed" and none_done
+        step["outright_in_a_row"] = step.get("outright_in_a_row", 0) + 1 if outright else 0
+        if state == "failed" or pages_failed:
+            _note_batch(step, batch, state, child, why or (f"{pages_failed} pages failed" if pages_failed else None))
+    if state not in ("done", "cancelled"):
+        problems.append(f"step {named} {state}: {why or 'no reason given'}")
 
 
 def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: int) -> str | None:

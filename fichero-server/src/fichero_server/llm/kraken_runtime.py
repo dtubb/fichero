@@ -65,6 +65,8 @@ from __future__ import annotations
 import ctypes
 import re
 import ctypes.util
+import functools
+import importlib
 import importlib.metadata
 import importlib.util
 import json
@@ -604,6 +606,24 @@ def is_installed() -> bool:
     return importlib.util.find_spec("kraken") is not None
 
 
+#: The native library Kraken's segmenter loads first (blla's scipy.ndimage, with numpy): importing it says whether
+#: Kraken can run here, without paying torch's import (#5684: scipy's dylib would not load and status said available).
+_NATIVE_PROBE = "scipy.ndimage"
+CANNOT_LOAD = ("Kraken's maths library would not load on this Mac, so lines and regions cannot be found. "
+               "Restart Fichero, or reinstall.")
+
+
+@functools.lru_cache(maxsize=1)
+def _libraries_load() -> bool:
+    """Whether the native libraries Kraken needs load in this process; the technical text goes to the log."""
+    try:
+        importlib.import_module(_NATIVE_PROBE)
+    except (ImportError, OSError) as exc:
+        logger.warning("Kraken cannot load %s here: %s", _NATIVE_PROBE, exc)
+        return False
+    return True
+
+
 def runtime_status() -> dict[str, object]:
     installed = is_installed()
     version: str | None = None
@@ -612,10 +632,14 @@ def runtime_status() -> dict[str, object]:
             version = importlib.metadata.version("kraken")
         except importlib.metadata.PackageNotFoundError:
             version = None
+    loads = installed and _libraries_load()
     return {
         "installed": installed,
+        "loads": loads,
         "kraken_version": version,
         "reason": None
+        if loads
+        else CANNOT_LOAD
         if installed
         else (
             "Kraken is not bundled in this build — this is a packaging problem, "
