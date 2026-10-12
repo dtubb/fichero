@@ -113,7 +113,7 @@ struct ReaderLineRow: View {
         .contextMenu { CorrectThisLineButton(segment: segment) { correcting = $0 } }
         .correctThisLine($correcting)
         // Page › Segments › Correct This Line… on the selected line (#5652), the same verb as this row's menu.
-        .focusedValue(\.lineVerbs, isSelected && CorrectLine.offers(segment)
+        .focusedSceneValue(\.lineVerbs, isSelected && CorrectLine.offers(segment)
             ? LineVerbsTarget(segment: segment, correct: { correcting = segment }) : nil)
         .task(id: segment.id) {
             if let segmentService { await editor.load(segmentService) }

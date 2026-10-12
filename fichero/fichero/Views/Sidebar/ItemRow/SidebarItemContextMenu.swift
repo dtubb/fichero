@@ -17,11 +17,8 @@ struct SidebarItemContextMenu: View {
     @Bindable var renameState: RenameStateManager
     @Bindable var deleteState: DeleteStateManager
 
-    // Optional callbacks for automation actions
-    var onPause: (() -> Void)?
-    var onResume: (() -> Void)?
-    var onTrigger: (() -> Void)?  // For schedules - "Run Now"
-    var onCancel: (() -> Void)?   // For batches - "Cancel"
+    /// A schedule's, trigger's or batch's own verbs (#5712): the engine's actions, as Project › Workflows ▸ offers them.
+    var automation: AutomationVerbsTarget?
     /// Workflow rows only: duplicate via the backend endpoint — also the
     /// blessed path for editing locked Default presets ("Default workflows
     /// are read-only; duplicate to edit", engine 403).
@@ -96,71 +93,13 @@ struct SidebarItemContextMenu: View {
         deleteTargets.isEmpty ? [item] : deleteTargets
     }
 
-    /// An automation row's own verbs. No caller passes these actions today, so each is off rather than a press
-    /// that does nothing (#5652's inventory found them unwired); the menu bar has none until they are.
+    /// An automation row's own verbs (#5712): what its state allows, each the engine's own action.
     @ViewBuilder
     private var automationActions: some View {
-        switch item.itemType {
-        case .schedule(let schedule):
-            if schedule.status == "active" {
-                Button {
-                    onPause?()
-                } label: {
-                    Label("Pause", systemImage: "pause")
-                }
-                .disabled(onPause == nil)
-
-                Button {
-                    onTrigger?()
-                } label: {
-                    Label("Run Now", systemImage: "play.fill")
-                }
-                .disabled(onTrigger == nil)
-            } else if schedule.status == "paused" {
-                Button {
-                    onResume?()
-                } label: {
-                    Label("Resume", systemImage: "play")
-                }
-                .disabled(onResume == nil)
+        if let automation {
+            ForEach(automation.offered, id: \.self) { verb in
+                AutomationVerbMenuItem(verb: verb, target: automation)
             }
-
-        case .trigger(let trigger):
-            if trigger.status == "active" {
-                Button {
-                    onPause?()
-                } label: {
-                    Label("Pause", systemImage: "pause")
-                }
-                .disabled(onPause == nil)
-            } else if trigger.status == "paused" {
-                Button {
-                    onResume?()
-                } label: {
-                    Label("Resume", systemImage: "play")
-                }
-                .disabled(onResume == nil)
-            }
-
-        case .batch(let batch):
-            if batch.status == "running" || batch.status == "pending" {
-                Button {
-                    onPause?()
-                } label: {
-                    Label("Pause", systemImage: "pause")
-                }
-                .disabled(onPause == nil)
-
-                Button {
-                    onCancel?()
-                } label: {
-                    Label("Cancel", systemImage: "xmark.circle")
-                }
-                .disabled(onCancel == nil)
-            }
-
-        default:
-            EmptyView()
         }
     }
 

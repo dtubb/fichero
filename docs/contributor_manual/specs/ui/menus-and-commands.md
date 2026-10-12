@@ -364,8 +364,17 @@ Behaviours (slice 1):
   and exclude through its one operation (`ItemVerbs.setExcluded`), as the browse menus and Edit do; the words are
   spelled nowhere else. Pinned by `ItemVerbsMenuTests` and
   `MenuVerbsOneCodePathGuardTests.itemVerbWordsLiveInOnePlace`.
-- `menus.project.later-slices` — **[GAP]** (#5652, #5712) Edit parity for the sidebar's automation rows' Pause,
-  Resume, Run Now and Cancel, once they are wired (#5712).
+- `menus.project.automation-verbs` — **[OK]** (#5712, #5652 slice 4) **Built 2026-10-12 (app), not yet seen:** a
+  schedule's Pause, Resume and Run Now, a trigger's Pause and Resume, and a batch's Pause, Resume and Cancel Batch
+  are the engine's own actions (`/api/schedules/{id}/pause|resume|trigger`, `/api/triggers/{id}/pause|resume`,
+  `/api/batches/{id}/pause|resume|cancel`, through `AutomationAPIService` and `BatchService`), offered by the row's
+  state (`AutomationVerbs.offered`), ONE item each (`FocusedCommandButtons+AutomationVerbs.swift`): the row's menu
+  renders them, and **Project › Workflows ▸** renders them on the sidebar's selected automation row, each disabled
+  with its reason. After a verb the sidebar reads its schedules, triggers and runs again; a refusal is said on the
+  sidebar's banner. They had been offered with no action behind them (found in group 5). Pinned by
+  `AutomationVerbsMenuTests`.
+- `menus.context-matches-bar.slice-4-done` — **[OK]** (#5652) every context-menu verb the 2026-10-12 inventory
+  listed is in the menu bar through its one shared component (groups 1-7 and #5712 above).
 
 ---
 

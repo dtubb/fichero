@@ -98,10 +98,37 @@ struct SidebarItemRow: View {
     @State var isCommittingRename = false
     @State var isPulsing = false
 
-    var onAutomationPause: (() -> Void)?
-    var onAutomationResume: (() -> Void)?
-    var onAutomationTrigger: (() -> Void)?
-    var onAutomationCancel: (() -> Void)?
+    /// An automation verb changed a schedule, trigger or batch: the sidebar reads them again (#5712).
+    var onAutomationChanged: (() -> Void)?
+
+    /// This row's automation verbs (#5712): the engine's own actions, the same items Project › Workflows ▸ renders;
+    /// nil for a row that is not a schedule, trigger or batch.
+    var automationTarget: AutomationVerbsTarget? {
+        let kind: String
+        switch item.itemType {
+        case .schedule: kind = "schedule"
+        case .trigger: kind = "trigger"
+        case .batch: kind = "batch"
+        default: return nil
+        }
+        guard let library else { return nil }
+        let itemType = item.itemType
+        let name = item.name
+        let changed = onAutomationChanged
+        let sidebarState = sidebarState
+        return AutomationVerbsTarget(rowId: item.id, kind: kind, offered: AutomationVerbs.offered(for: itemType)) { verb in
+            Task { @MainActor in
+                do {
+                    try await AutomationVerbs.perform(
+                        verb, on: itemType, automation: library.automationService, batches: library.batchService
+                    )
+                    changed?()
+                } catch {
+                    sidebarState.dropErrorMessage = "Couldn't \(verb.title.lowercased()) \(name): \(error.localizedDescription)"
+                }
+            }
+        }
+    }
 
     var isFolder: Bool {
         guard case .document(let doc) = item.itemType else { return false }

@@ -45,10 +45,7 @@ extension SidebarItemRow {
                 ),
                 renameState: renameState,
                 deleteState: deleteState,
-                onPause: onAutomationPause,
-                onResume: onAutomationResume,
-                onTrigger: onAutomationTrigger,
-                onCancel: onAutomationCancel,
+                automation: automationTarget,
                 onDuplicate: workflowDuplicateAction,
                 onMakeAlias: makeAliasAction
             )

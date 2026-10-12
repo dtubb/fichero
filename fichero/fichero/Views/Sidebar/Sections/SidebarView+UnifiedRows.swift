@@ -219,7 +219,14 @@ extension SidebarView {
             onOpenChatWithCurrentScope: onOpenChatWithCurrentScope
         ,
             mergeSelectionAbove: mergeAbove,
-            mergeSelectionBelow: mergeBelow
+            mergeSelectionBelow: mergeBelow,
+            // A schedule, trigger or batch changed by its own verb: read them again (#5712).
+            onAutomationChanged: {
+                Task { @MainActor in
+                    await loadAutomationData()
+                    await loadActivityData()
+                }
+            }
         )
         .contentShape(Rectangle())
         // Full payload (#4123): document rows export a real file copy + RTF

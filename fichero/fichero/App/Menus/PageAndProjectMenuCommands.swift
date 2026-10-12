@@ -122,6 +122,8 @@ struct PageAndProjectMenuCommands: Commands {
                 if featureManager.isAutomationEnabled {
                     Divider()
                     FocusedNewScheduleButton()
+                    // The selected schedule's, trigger's or batch's own verbs (#5712).
+                    FocusedAutomationVerbButtons()
                 }
 
                 if featureManager.isWorkflowRunOnSelectionEnabled {

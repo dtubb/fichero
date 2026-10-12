@@ -87,7 +87,7 @@ struct SegmentsPictureGrid: View {
             if opens(id) { OpenSegmentMenuItem(target: openTarget(id)) }
         }
         // Page › Segments › Open on the selected picture (#5652), the same item as its menu.
-        .focusedValue(\.lineVerbs, selected == id ? openTarget(id) : nil)
+        .focusedSceneValue(\.lineVerbs, selected == id ? openTarget(id) : nil)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected == id ? [.isButton, .isSelected] : .isButton)
         .task(id: id) { await load(id) }
