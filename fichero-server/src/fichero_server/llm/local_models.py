@@ -237,6 +237,16 @@ class BundledModel(RuntimeError):
     """A model that ships inside the app: there is nothing a delete could remove."""
 
 
+def embedding_model_installed(model_id: str) -> bool | None:
+    """Whether a search embedder is in this Mac's FastEmbed store, as `list_embeddings_models` reads it; None for a
+    model that is not an embedder Fichero lists (#5681: the finder said "Downloads when first used" for one here)."""
+    key = next((k for k in EMBEDDINGS_MODELS if k.lower() == model_id.lower()), None)
+    if key is None:
+        return None
+    folder = LocalModelManager()._embeddings_model_dir(key)
+    return folder.is_dir() and next(folder.rglob("*"), None) is not None
+
+
 def spacy_pipeline_available(name: str) -> bool:
     """In the model store, or bundled with the app."""
     return spacy_pipeline_path(name) is not None or name in _spacy_installed_models()

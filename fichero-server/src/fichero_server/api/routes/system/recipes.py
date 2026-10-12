@@ -965,7 +965,7 @@ async def model_candidates(
     language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _rank_key, _refusal
+    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, rank_key
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
         candidate_availability,
@@ -997,7 +997,8 @@ async def model_candidates(
     if not script_codes:
         raise HTTPException(status_code=422, detail="name at least one script")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
-                cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb())
+                cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
+                search_embedder=search_embedder())
     search = None
     if online and egress_allowed() and library_path:
         search = await run_in_threadpool(_search_job, request, library_path, tags, job)
@@ -1011,7 +1012,7 @@ async def model_candidates(
 
         cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id][:1]
     kept = sorted((c for c in cards if c.runs_here and not c.offered_only and _refusal(job, c, a, material) is None),
-                  key=lambda c: _rank_key(c, material, a))
+                  key=lambda c: rank_key(job, c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
 
     def refused(c: Any) -> Optional[str]:

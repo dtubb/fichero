@@ -495,6 +495,20 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     )
 
 
+def other_space(card: Card, a: Answers) -> bool:
+    """Whether an embedder's vectors would be in another space than this engine's search (#5574, #5681): any other
+    model moves a project's vectors, which only the explicit migration may do."""
+    engine = a.search_embedder.lower()
+    return not engine or str(card.pin.get("hf", "")).lower() != engine
+
+
+def rank_key(job: str, card: Card, material: str, a: Answers | None = None) -> tuple:
+    """The rules' order for a job's candidates: the search step's embedder in the engine's space first (#5681), then
+    the fixed order (`_rank_key`)."""
+    first = (other_space(card, a),) if job == "make-a-vector" and a is not None else ()
+    return (*first, *_rank_key(card, material, a))
+
+
 def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None) -> Choice:
     material = material or a.material
     kept = [c for c in cards if _refusal(job, c, a, material) is None]
@@ -519,9 +533,7 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     if job == "make-a-vector":
         # The embedder: the one this engine's search embeds with, where its card covers all the project's
         # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.
-        engine = a.search_embedder.lower()
-        pool = sorted(pool, key=lambda c: (not engine or str(c.pin.get("hf", "")).lower() != engine,
-                                           c.size_gb, c.id))[:1]
+        pool = sorted(pool, key=lambda c: (other_space(c, a), c.size_gb, c.id))[:1]
     best = sorted(pool, key=lambda c: _rank_key(c, material, a))[0]
     reasons = [f"its card names this job; covers {', '.join(sorted(a.scripts))}"]
     if made_for_script(best, a):

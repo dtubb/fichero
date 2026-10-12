@@ -425,6 +425,12 @@ def candidate_installed(card: Card) -> bool | None:
         return bool(spacy_pipeline_available(str(card.pin["spacy"])))
     if card.pin.get("kraken_version") == "bundled" or "builtin" in card.pin:
         return True
+    if "make-a-vector" in card.jobs and card.pin.get("hf"):
+        from fichero_server.llm import local_models
+
+        here = local_models.embedding_model_installed(str(card.pin["hf"]))
+        if here is not None:
+            return here
     if card.pin.get("zenodo"):
         # A Kraken reader: downloaded (Settings, Set Up, or a run that fetched it) or not yet (#5660 item 3).
         from fichero_server.llm.kraken_runtime import is_recognition_model_installed
