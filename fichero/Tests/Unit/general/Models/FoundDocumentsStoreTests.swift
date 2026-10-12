@@ -180,7 +180,8 @@ struct FoundDocumentsStoreTests {
         #expect(steps.undoName == "Accept 3 Documents")
 
         steps.undo()
-        for _ in 0..<100 where !FoundDocumentsURLProtocol.seen.contains(where: { $0.path == "/api/actions/audit/undo" }) {
+        // Bounded at 10 s: under the full suite the undo landed after a 2 s bound had run out.
+        for _ in 0..<500 where !FoundDocumentsURLProtocol.seen.contains(where: { $0.path == "/api/actions/audit/undo" }) {
             try await Task.sleep(for: .milliseconds(20))
         }
         let undo = try #require(FoundDocumentsURLProtocol.seen.last { $0.path == "/api/actions/audit/undo" })
