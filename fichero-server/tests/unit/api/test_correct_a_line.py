@@ -37,6 +37,7 @@ def test_source_reading_correct_a_line__segment_and_text_only(db, client):
     assert (made["document_id"], made["segment_id"]) == (doc_id, segment_id)
     assert made["corrects_representation_id"] == file_reading
     assert made["kind"] == "transcription"
+    assert made["provenance_kind"] == "human"  # a person's reading (#5499), so the bake-off counts it
     answer = _counts(db, segment_id)
     assert (answer.representation_id, answer.basis.value) == (made["id"], "correction")
     assert "the line, corrected" in document_text(db, doc_id).text
