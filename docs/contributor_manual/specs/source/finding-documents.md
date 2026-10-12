@@ -219,6 +219,17 @@ involve the company it names. Lessons the tool must carry:
   `fichero-server/tests/unit/finddocs/test_find_documents_adjust.py`. **Built 2026-10-10 (engine).**
   **Built 2026-10-11 (app):** the Items pane's review (`finddocs.review.items`). *Not built: moving a card on
   the canvas (`finddocs.canvas.drawn`).*
+- `finddocs.undo-keeps-later-work` — **[OK]** (#5698) undoing one answer on a proposal (an accept, a reject,
+  a split, a join, a page moved) takes back only what that answer changed and keeps every later answer: an
+  accept's or a reject's undo puts back the documents and groups it decided, each only while it still holds
+  what that answer left; when a later answer changed one of them, or an adjustment's proposal has changed since
+  (an adjustment renumbers the documents, so it is undone whole or not at all), the undo is refused in words
+  (409, `reason: changed`), changing nothing, and says to undo the later answer first. An answer recorded
+  before this rule that cannot be told apart from later ones is refused the same way, never guessed. Reject
+  answers with its `audit_id`, as accept and the adjustments do. WHY (2026-10-11, the MCP walk): accept
+  document 2, reject document 0, undo the accept, and document 0 was back to proposed (every answer was saved
+  as a snapshot of the whole proposal and put back whole). Tested in
+  `fichero-server/tests/unit/finddocs/test_undo_keeps_later_answers_5698.py`.
 - `finddocs.review.items` — **[PARTIAL]** (#5550) after a run, a folder's Items list shows each document still
   proposed as a proposal, never as a document: one row per proposed document, marked Proposed with a dashed
   outline, its name, its pages ("Pages 3–5"), its kind and how sure the run was, holding its pages beneath it

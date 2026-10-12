@@ -27,6 +27,7 @@ from fichero_server.models.found_documents import (
     DocumentsProposal,
     FindDocumentsAcceptRequest,
     FindDocumentsAcceptResult,
+    FindDocumentsRejectResult,
     FindDocumentsAdjustResult,
     FindDocumentsJoinRequest,
     FindDocumentsMovePageRequest,
@@ -160,19 +161,21 @@ async def accept_find_documents_proposal(
                                      **result.result)
 
 
-@router.post("/proposals/{proposal_id}/reject", response_model=DocumentsProposal,
+@router.post("/proposals/{proposal_id}/reject", response_model=FindDocumentsRejectResult,
              summary="Reject proposed documents (kept, for the project's own model to learn from)")
 async def reject_find_documents_proposal(
     proposal_id: str,
     body: FindDocumentsRejectRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
-) -> DocumentsProposal:
+) -> FindDocumentsRejectResult:
+    """Reject proposed documents: kept, marked rejected, for the project's own model to learn from. One audited
+    action: undoing it (its `audit_id`) puts back only the documents it rejected (#5698)."""
     try:
-        registry.invoke(db, "finddocs.reject", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
+        result = registry.invoke(db, "finddocs.reject", {"proposal_id": proposal_id, **body.model_dump()}, ctx)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return finddocs_store.read(db, proposal_id)
+    return FindDocumentsRejectResult(**finddocs_store.read(db, proposal_id).model_dump(), audit_id=result.audit_id)
 
 
 _ADJUST_RESPONSES = {

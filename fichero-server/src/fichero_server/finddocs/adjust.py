@@ -54,6 +54,8 @@ class FindDocumentsUnadjustParams(BaseModel):
 
     proposal_id: str
     before: dict[str, Any]
+    #: The proposal as the adjustment left it (#5698): the undo is refused when it is not so any more.
+    left: dict[str, Any] | None = None
 
 
 _RESTORED = ("documents", "groups", "examples")
@@ -114,7 +116,7 @@ def _commit(db: Any, proposal: DocumentsProposal, before: dict[str, Any],
     store.write(db, proposal)
     result = {"proposal_id": proposal.id, "examples": [e.model_dump(mode="json") for e in examples]}
     return result, ChangeSpec(domains=["document"], target_ids=[proposal.id],
-                              after={"proposal_id": proposal.id, "before": before})
+                              after={"proposal_id": proposal.id, "before": before, "left": _snapshot(proposal)})
 
 
 def _snapshot(proposal: DocumentsProposal) -> dict[str, Any]:
@@ -129,7 +131,8 @@ def _now() -> str:
 
 
 def _invert(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
-    return ("finddocs.unadjust", {"proposal_id": after["proposal_id"], "before": after["before"]}) if after else None
+    return ("finddocs.unadjust", {"proposal_id": after["proposal_id"], "before": after["before"],
+                                  "left": after.get("left")}) if after else None
 
 
 @action("finddocs.split", FindDocumentsSplitParams, domains=["document"], undoable=True, invert=_invert)
@@ -218,6 +221,13 @@ def _action_move_page(db: Any, params: FindDocumentsMovePageParams, ctx: ActionC
 @action("finddocs.unadjust", FindDocumentsUnadjustParams, domains=["document"], undoable=False)
 def _action_unadjust(db: Any, params: FindDocumentsUnadjustParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     proposal = store.read(db, params.proposal_id)
+    # An adjustment renumbers the documents: it is undone whole, so only while the proposal is as it left it, and
+    # a later answer (an accept names pages, not the proposal, so the general rule misses it) is never wiped (#5698).
+    if params.left is None or _snapshot(proposal) != params.left:
+        from fichero_server.actions.undo import UndoRefused
+
+        raise UndoRefused(409, "changed", "A later answer on this proposal changed it since this adjustment; undo "
+                                          "that later answer first, so it is not lost.")
     restored = DocumentsProposal.model_validate({**proposal.model_dump(mode="json"),
                                                  **{k: params.before[k] for k in _RESTORED if k in params.before}})
     store.write(db, restored)

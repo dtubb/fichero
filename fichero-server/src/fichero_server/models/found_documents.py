@@ -175,6 +175,13 @@ class FindDocumentsAdjustResult(BaseModel):
     audit_id: str = Field(description="The adjustment's audit row: undoing it restores the proposal exactly.")
 
 
+class FindDocumentsRejectResult(DocumentsProposal):
+    """The proposal after a reject, and the reject's audit row (#5698): the proposal's own fields, so a caller that
+    read a proposal reads this one."""
+
+    audit_id: str = Field(description="The reject's audit row: undoing it puts back only the documents it rejected.")
+
+
 class FindDocumentsAcceptResult(BaseModel):
     proposal: DocumentsProposal
     accepted: list[int]

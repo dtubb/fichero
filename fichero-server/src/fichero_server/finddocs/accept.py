@@ -61,12 +61,18 @@ class FindDocumentsUnacceptParams(BaseModel):
     folder_id: str | None = None
     canvas_before: list[dict[str, Any]] = Field(default_factory=list)
     node_ids: list[str] = Field(default_factory=list)
+    #: An audit row from before #5698: the whole proposal's states (only this accept's own are put back).
     states_before: dict[str, Any] = Field(default_factory=dict)
+    #: What this accept changed, each item's [before, after] (#5698): only those are put back.
+    changed: dict[str, Any] | None = None
 
 
 class FindDocumentsRestateParams(BaseModel):
     proposal_id: str
-    states_before: dict[str, Any]
+    #: An audit row from before #5698: the whole proposal's states, which cannot be told from later answers.
+    states_before: dict[str, Any] = Field(default_factory=dict)
+    #: What the reject changed, each item's [before, after] (#5698).
+    changed: dict[str, Any] | None = None
 
 
 def _state(item: Any) -> list[Any]:
@@ -91,6 +97,49 @@ def _restate(proposal: Any, states: dict[str, Any]) -> None:
         _set_state(d, states.get("documents", {}).get(str(d.index)))
     for g in proposal.groups:
         _set_state(g, states.get("groups", {}).get(str(g.index)))
+
+
+def _changed(before: dict[str, Any], proposal: Any) -> dict[str, Any]:
+    """The documents and groups one answer changed, each [its state before, the state the answer left] (#5698)."""
+    after = _states(proposal)
+    return {kind: {i: [was, after[kind][i]] for i, was in before[kind].items() if was != after[kind].get(i)}
+            for kind in ("documents", "groups")}
+
+
+#: Said when a later answer changed what an undo would put back (`finddocs.undo-keeps-later-work`, #5698).
+LATER_ANSWER = ("A later answer on this proposal changed {what} since; undo that later answer first, so it is not "
+                "lost.")
+
+
+def _refused(what: str) -> Exception:
+    from fichero_server.actions.undo import UndoRefused
+
+    return UndoRefused(409, "changed", LATER_ANSWER.format(what=what))
+
+
+def _check_unchanged(proposal: Any, changed: dict[str, Any]) -> None:
+    """Refuse, before anything is put back, when an item this answer changed no longer holds what it left."""
+    now = _states(proposal)
+    moved = [f"{'document' if kind == 'documents' else 'group'} {i}"
+             for kind in ("documents", "groups") for i, (_was, left) in changed.get(kind, {}).items()
+             if now[kind].get(i) != left]
+    if moved:
+        raise _refused(", ".join(moved))
+
+
+def _put_back(proposal: Any, changed: dict[str, Any]) -> None:
+    """Only the items this answer changed, each as it was before it (#5698); every other answer stays."""
+    _restate(proposal, {kind: {i: was for i, (was, _left) in changed.get(kind, {}).items()}
+                        for kind in ("documents", "groups")})
+
+
+def _own_of_legacy_accept(proposal: Any, params: "FindDocumentsUnacceptParams") -> dict[str, Any]:
+    """An accept recorded before #5698 saved the whole proposal; its own items are those it accepted as the
+    nodes it made or the pages it kept, still so: only they are put back."""
+    own = set(params.made) | set(params.prototypes_before)
+    return {kind: {str(item.index): [params.states_before.get(kind, {}).get(str(item.index)), _state(item)]
+                   for item in items if item.state == "accepted" and item.accepted_as in own}
+            for kind, items in (("documents", proposal.documents), ("groups", proposal.groups))}
 
 
 def _decision(proposal: Any, ctx: ActionContext) -> FoundDocumentsDecision:
@@ -290,7 +339,7 @@ def _action_accept(db: Any, params: FindDocumentsAcceptParams, ctx: ActionContex
     after = {"proposal_id": proposal.id, "made": made, "values_made": values_made,
              "prototypes_before": prototypes_before, "kind_records_before": kind_records_before,
              "folder_id": proposal.folder_id,
-             "canvas_before": canvas_before, "node_ids": node_ids, "states_before": states_before}
+             "canvas_before": canvas_before, "node_ids": node_ids, "changed": _changed(states_before, proposal)}
     spec = ChangeSpec(domains=["document", "canvas"], target_ids=touched, after=after, emit_type="document.updated",
                       document_ids=touched, emit_fn=_emit(proposal.folder_id, node_ids))
     return {"accepted": [d.index for d in chosen], "groups_made": made}, spec
@@ -306,6 +355,9 @@ def _action_unaccept(db: Any, params: FindDocumentsUnacceptParams, ctx: ActionCo
     )
     from fichero_server.models import Document
 
+    proposal = store.read(db, params.proposal_id)
+    changed = params.changed if params.changed is not None else _own_of_legacy_accept(proposal, params)
+    _check_unchanged(proposal, changed)  # before anything is put back (#5698)
     restored: list[str] = []
     for group_id in reversed(params.made):
         _group, children = ungroup_document_impl(db, group_id)
@@ -322,8 +374,7 @@ def _action_unaccept(db: Any, params: FindDocumentsUnacceptParams, ctx: ActionCo
     if params.folder_id and params.node_ids:
         _action_restore_canvas_layout(db, CanvasLayoutRestoreParams(
             folder_id=params.folder_id, rows=params.canvas_before, current_item_ids=params.node_ids), ctx)
-    proposal = store.read(db, params.proposal_id)
-    _restate(proposal, params.states_before)
+    _put_back(proposal, changed)
     store.write(db, proposal)
     touched = sorted({*params.made, *restored, *params.prototypes_before})
     spec = ChangeSpec(domains=["document", "canvas"], target_ids=touched,
@@ -334,8 +385,10 @@ def _action_unaccept(db: Any, params: FindDocumentsUnacceptParams, ctx: ActionCo
 
 
 def _invert_reject(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
-    return ("finddocs.restate", {"proposal_id": after["proposal_id"], "states_before": after["states_before"]}) \
-        if after else None
+    if not after:
+        return None
+    return ("finddocs.restate", {"proposal_id": after["proposal_id"], "changed": after.get("changed"),
+                                 "states_before": after.get("states_before") or {}})
 
 
 @action("finddocs.reject", FindDocumentsRejectParams, domains=["document"], undoable=True, invert=_invert_reject)
@@ -352,12 +405,17 @@ def _action_reject(db: Any, params: FindDocumentsRejectParams, ctx: ActionContex
     store.write(db, proposal)
     return ({"rejected": params.document_indexes},
             ChangeSpec(domains=["document"], target_ids=[proposal.id],
-                       after={"proposal_id": proposal.id, "states_before": states_before}))
+                       after={"proposal_id": proposal.id, "changed": _changed(states_before, proposal)}))
 
 
 @action("finddocs.restate", FindDocumentsRestateParams, domains=["document"], undoable=False)
 def _action_restate(db: Any, params: FindDocumentsRestateParams, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     proposal = store.read(db, params.proposal_id)
-    _restate(proposal, params.states_before)
+    if params.changed is None:
+        # Recorded before #5698 as the whole proposal: its own answer cannot be told from later ones. Never guessed.
+        raise _refused("what this answer was saved with (it was recorded before an undo could tell its own "
+                       "documents apart); answer those documents again instead of undoing,")
+    _check_unchanged(proposal, params.changed)
+    _put_back(proposal, params.changed)
     store.write(db, proposal)
     return {"proposal_id": proposal.id}, ChangeSpec(domains=["document"], target_ids=[proposal.id])
