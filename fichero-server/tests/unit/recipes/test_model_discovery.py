@@ -147,7 +147,8 @@ def test_a_model_fichero_trained_is_a_candidate_and_the_recipe_chooses_an_instal
 
     _, items, _ = _candidates(client, scripts="Jpan", languages="ja")
     card = items["mlx:installed/fichero-trained/kuzushiji@trained"]
-    assert card["licence"] == "trained by you" and card["rule_rank"] == 1
+    # Its card does not say not_for_release: false, so it is not released (#5683); still the rules' first choice.
+    assert card["licence"] == "trained by you; not for release" and card["rule_rank"] == 1
 
     r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["ja"],
                                                    "scripts": ["Jpan"], "mac_memory_gb": 32})
