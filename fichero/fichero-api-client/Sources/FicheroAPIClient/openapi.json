@@ -14003,6 +14003,18 @@
               "title": "Period"
             },
             "description": "'16th century', '1650\u20131700' or a year"
+          },
+          {
+            "name": "languages",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "description": "the project's languages, comma-separated; a hand particular to others is left out",
+              "title": "Languages"
+            },
+            "description": "the project's languages, comma-separated; a hand particular to others is left out"
           }
         ],
         "responses": {

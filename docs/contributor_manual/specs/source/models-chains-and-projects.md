@@ -2900,7 +2900,10 @@ Setup
   (`StageCandidateChooser`, up to three ticked, `StageCandidateChoice`); Compare on These Pages sends them as
   `candidates`, none when none are ticked; each column says how it compared by kind ("4.1% character errors" or
   "80% agreement" for text, "80% overlap" for shapes, "found 12, 3 only here" for items,
-  `StageCandidate.quality`). Pinned by `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`.
+  `StageCandidate.quality`). Pinned by `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`. **Names finds what is here (#5688):** every spaCy
+  pipeline installed on this Mac for the project's language is a card for Find names (beside the shipped small
+  one, and the text models already here), so a Names try compares them by default; one not installed is not a
+  candidate. *Test:* `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
   every stage page; the person can pick others in the window, and the choice holds for every stage. **Order
@@ -2953,7 +2956,12 @@ Setup
   picture example and mapped to the Hugging Face tags readers carry; anything else is typed and kept as
   typed, and "Not sure" is an answer. *Test:* pytest, the hands offered for Latin script in the 15th
   century and in the 18th, each with its picture and tags; pure Swift, a listed hand and a typed one
-  round-trip as tokens.
+  round-trip as tokens. **From the overnight walk (#5688):** the hands
+  offered follow the project as saved: with no period or language asked, `GET /api/recipes/hands` reads the open
+  project's period and languages; a hand written in particular languages (Kurrent in German; Procesal and the
+  Spanish humanistic cursive in Spanish; Secretary in English) is offered only to a project in one of them, the
+  others to any. A hand typed is kept as typed, so a curated id cannot be told from a typed word and is not
+  refused. *Test:* `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
 - `source.onboard.material.feeds-the-reader-search` — **[PARTIAL]** (#5668) Built 2026-10-11 (engine): the hand's tags join the Hugging Face tag search (`discovery.search_hugging_face(hand_tags)`, from the open project's answers in the search job); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the period in the search.* the period and the hand feed the
   search for readers (the Hugging Face tags people use, such as `htr`, `catmus`, `kurrent`, with the
   language tags) and the comparison of readers. *Test:* pytest, the finder's query for a Kurrent hand
@@ -3710,7 +3718,10 @@ Finding models
   text models to download, and the cloud models of the person's provider rows (with none, a Claude card
   that says to add it in Settings › AI first); spaCy stays the default, these are the person's to choose
   (`discovery.other_text_cards`), and use-candidate keeps the choice, which the Start plan runs with
-  (`fichero-server/tests/unit/recipes/test_set_up_steps_5660.py`).
+  (`fichero-server/tests/unit/recipes/test_set_up_steps_5660.py`). **`chosen` without `step` (#5688):** a finder asked
+  for a job with no step named marks the open project's step for that job (its first) as `chosen`, so the
+  step's own model is never shown as not chosen. *Test:*
+  `fichero-server/tests/unit/recipes/test_set_up_follows_the_project_5688.py`.
 - `source.find.candidates-fit-the-step` — **[PARTIAL]** (#5668 walkthrough section 4) *Built: a model in this Mac's MLX store or catalogue with a vision path is a reader only, never a card for a text job (`discovery.local_text_cards`, `other_text_cards`); Find regions lists Kraken's segmenter and the YOLO model; pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`. Not built: cloud and Ollama models are general chat models and stay offered for text jobs whatever they can see.* a step's candidates are only
   models whose kind does that step's job: readers (OCR and HTR, vision models) for reading; text models for
   Find names, Find statements, Split into entries and Extract to a table; layout models for Find regions;

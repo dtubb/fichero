@@ -27,6 +27,8 @@ class Hand:
     tags: tuple[str, ...]
     #: A word of what it looks like, until each hand has its picture.
     looks: str
+    #: The languages it was written in, where that is particular to it (Kurrent: German); empty for any (#5688).
+    languages: tuple[str, ...] = ()
 
 
 HANDS: tuple[Hand, ...] = (
@@ -37,14 +39,14 @@ HANDS: tuple[Hand, ...] = (
     Hand("gothic-cursiva", "Gothic cursiva", "Latn", 13, 16, ("cursiva", "gothic"),
          "joined, looped ascenders; the documents' hand"),
     Hand("secretary", "Secretary", "Latn", 15, 17, ("secretary-hand", "secretary"),
-         "angular, with a reversed e and a looped d"),
+         "angular, with a reversed e and a looped d", ("en",)),
     Hand("humanistic", "Humanistic", "Latn", 15, 16, ("humanistic",), "rounded, upright, modelled on Caroline"),
     Hand("italic", "Italic", "Latn", 15, 18, ("italic",), "slanted and joined"),
     Hand("procesal", "Procesal", "Latn", 16, 17, ("procesal", "spanish-paleography"),
-         "Spanish court hand, letters run into chains"),
+         "Spanish court hand, letters run into chains", ("es",)),
     Hand("spanish-humanistic-cursive", "Spanish humanistic cursive (bastarda)", "Latn", 16, 18,
-         ("bastarda", "humanistic"), "the Spanish colonial archives' everyday hand"),
-    Hand("kurrent", "Kurrent", "Latn", 16, 20, ("kurrent",), "German cursive, steep and pointed"),
+         ("bastarda", "humanistic"), "the Spanish colonial archives' everyday hand", ("es",)),
+    Hand("kurrent", "Kurrent", "Latn", 16, 20, ("kurrent",), "German cursive, steep and pointed", ("de",)),
     Hand("copperplate", "Copperplate", "Latn", 18, 19, ("copperplate",), "round, slanted, thick and thin strokes"),
     Hand("naskh", "Naskh", "Arab", 10, 20, ("naskh",), "rounded and clear, the book hand"),
     Hand("nastaliq", "Nastaʿlīq", "Arab", 14, 20, ("nastaliq",), "hanging, sloping words"),
@@ -77,12 +79,16 @@ def _century(year: int) -> int:
     return (year - 1) // 100 + 1
 
 
-def hands_for(script: str, period: str | None = None) -> list[Hand]:
-    """The curated hands for a script, those written in the period's centuries when it is read, in century order."""
+def hands_for(script: str, period: str | None = None, languages: list[str] | None = None) -> list[Hand]:
+    """The curated hands for a script, those written in the period's centuries when it is read, and in one of the
+    project's languages where a hand is particular to some (#5688), in century order."""
     years = period_years(period)
+    asked = {lang.split("-")[0] for lang in languages or []}
     out = []
     for hand in HANDS:
         if hand.script != script:
+            continue
+        if asked and hand.languages and not asked & set(hand.languages):
             continue
         if years and (hand.to_century < _century(years[0]) or hand.from_century > _century(years[1])):
             continue

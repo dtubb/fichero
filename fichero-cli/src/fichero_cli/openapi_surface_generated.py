@@ -13140,6 +13140,7 @@ def register_generated_openapi_commands(
     @target_app.command("list-hands")
     def recipes_list_hands_get(
         ctx: typer.Context,
+        languages: Optional[str] = typer.Option(None, '--languages', help="the project's languages, comma-separated; a hand particular to others is left out."),
         period: Optional[str] = typer.Option(None, '--period', help="'16th century', '1650–1700' or a year."),
         script: Optional[str] = typer.Option(None, '--script', help='ISO 15924 script code.'),
     ) -> None:
@@ -13147,6 +13148,7 @@ def register_generated_openapi_commands(
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/hands"
             params = {
+                "languages": languages,
                 "period": period,
                 "script": script,
             }

@@ -6217,11 +6217,12 @@ def fichero_recipes_derived_facts(
 
 def fichero_recipes_list_hands(
     *,
+    languages: Annotated[Optional[str], Field(description="the project's languages, comma-separated; a hand particular to others is left out")] = None,
     period: Annotated[Optional[str], Field(description="'16th century', '1650–1700' or a year")] = None,
     script: Annotated[Optional[str], Field(description='ISO 15924 script code')] = None,
 ) -> Any:
     "List Hands\n\nWhich hand: the curated hands for a script, those written in the period's centuries when it is read, each with\nits Hugging Face tags and what it looks like (section 7c, `source.onboard.material.which-hand`). Anything else can\nbe typed and is kept as typed; 'not-sure' is an answer.\n\nRoute: GET /api/recipes/hands (toolset `recipes`; reads)."
-    return _rt.call("GET", "/api/recipes/hands", params={"period": period, "script": script})
+    return _rt.call("GET", "/api/recipes/hands", params={"languages": languages, "period": period, "script": script})
 
 
 def fichero_recipes_list_jobs(

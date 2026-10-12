@@ -194,6 +194,28 @@ TEXT_MODEL_JOBS = frozenset({"find-statements", "split-into-entries",
 _TEXT_SERVERS = frozenset({"ollama", "lmstudio"})
 
 
+def installed_spacy_cards(languages: frozenset[str], seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
+    """A Find names card for every spaCy pipeline installed on this Mac for the project's languages that no shipped
+    card pins (#5688: a Names try compared the shipped small one alone, beside an installed medium one)."""
+    from fichero_server.llm.local_models import SPACY_MODELS, spacy_pipeline_available
+
+    pinned = {str(c.pin.get("spacy")) for c in seed if "spacy" in c.pin}
+    asked = {t.split("-")[0] for t in languages}
+    out = []
+    for name, info in SPACY_MODELS.items():
+        lang = str(info.get("language") or "")
+        if name in pinned or (asked and lang not in asked) or not spacy_pipeline_available(name):
+            continue
+        out.append(Card(
+            id=f"spacy:pkg/{name}@installed", pin={"spacy": name, "version": "installed"},
+            jobs=frozenset({"find-names-tag-words"}), scripts=None, languages=frozenset({lang}) if lang else None,
+            material=frozenset(), open_licence=True, licence=str(info.get("licence") or ""),
+            size_gb=round(float(info.get("disk_mb") or 0) / 1000, 3), note=f"spaCy {name}", source="installed",
+            installed=True, offered_because=f"installed on this Mac: the spaCy pipeline {name}",
+        ))
+    return out
+
+
 def _is_embedder(model: Any) -> bool:
     caps = {str(c).lower() for c in (getattr(model, "capabilities", None) or [])}
     return bool(caps & {"embedding", "embeddings", "embed"}) or "embed" in str(model.model_id).lower()
@@ -1195,6 +1217,8 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     if job in TEXT_MODEL_JOBS:
         # A job a text model does: the text models here and on the person's own servers (#5619).
         installed = [*local_text_cards(seed), *other_text_cards()]
+        if job == "find-names-tag-words":  # the spaCy pipelines installed here, beside the shipped one (#5688)
+            installed += installed_spacy_cards(a.languages, seed)
         sources.append({"source": "installed", "state": "read", "count": len(installed),
                         "detail": f"{len(installed)} on this Mac, your servers or the cloud"})
     else:

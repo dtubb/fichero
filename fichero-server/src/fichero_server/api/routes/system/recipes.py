@@ -482,18 +482,26 @@ def _ordinal(n: int) -> str:
 
 
 @router.get("/hands", response_model=HandList)
-async def list_hands(script: str = Query("Latn", description="ISO 15924 script code"),
-                     period: Optional[str] = Query(None, description="'16th century', '1650–1700' or a year")) -> HandList:
+async def list_hands(request: Request, script: str = Query("Latn", description="ISO 15924 script code"),
+                     period: Optional[str] = Query(None, description="'16th century', '1650–1700' or a year"),
+                     languages: Optional[str] = Query(None, description=(
+                         "the project's languages, comma-separated; a hand particular to others is left out"))
+                     ) -> HandList:
     """Which hand: the curated hands for a script, those written in the period's centuries when it is read, each with
     its Hugging Face tags and what it looks like (section 7c, `source.onboard.material.which-hand`). Anything else can
     be typed and is kept as typed; 'not-sure' is an answer."""
     from fichero_server.recipes.hands import hands_for, period_years
 
+    # With none asked, the open project's own answers (#5688): its period and languages as saved.
+    library = _optional_library(request)
+    saved = (read_project_setup(library)["answers"] or {}) if library else {}
+    period = period or saved.get("period")
+    asked = [t for t in (languages or "").split(",") if t.strip()] or list(saved.get("languages") or [])
     years = period_years(period)
     items = [HandOption(id=h.id, title=h.title, script=h.script, tags=list(h.tags), looks=h.looks,
                         centuries=(f"{_ordinal(h.from_century)} century" if h.from_century == h.to_century
                                    else f"{_ordinal(h.from_century)}–{_ordinal(h.to_century)} century"))
-             for h in hands_for(script, period)]
+             for h in hands_for(script, period, asked)]
     return HandList(items=items, period_years=list(years) if years else None)
 
 
@@ -927,6 +935,15 @@ def _search_job(request: Request, library_path: str, languages: frozenset[str], 
     return search(_get_library_database_for_access(request, library_path, write=False), languages, job)
 
 
+def _step_for_job(request: Request, library_path: str, job: str) -> Optional[str]:
+    """The open project's first step of this job, or None."""
+    from fichero_server.api.main import _get_library_database_for_access
+
+    db = _get_library_database_for_access(request, library_path, write=False)
+    recipe = read_project_setup(_library(db))["recipe"] or {}
+    return next((str(s.get("id")) for s in recipe.get("steps") or [] if s.get("job") == job), None)
+
+
 def _step_reader(request: Request, library_path: Optional[str], step: str) -> Optional[str]:
     """The card id of the open project's step's reader now (its project-scope override, else the rules' choice)."""
     if not library_path:
@@ -1017,6 +1034,9 @@ async def model_candidates(
         cards = [c if job in c.jobs or "read-a-page" not in c.jobs
                  else _replace(c, jobs=c.jobs | {job}, offered_only=True) for c in cards]
     cards = [c for c in cards if job in c.jobs]
+    if step is None and library_path:
+        # No step named: the open project's step for this job is the one whose model is `chosen` (#5688).
+        step = await run_in_threadpool(_step_for_job, request, library_path, job)
     chosen_id = await run_in_threadpool(_step_reader, request, library_path, step) if step else None
     if chosen_id and chosen_id not in {c.id for c in cards}:
         from fichero_server.recipes.discovery import known_cards
