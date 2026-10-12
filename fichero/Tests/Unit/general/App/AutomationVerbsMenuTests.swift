@@ -122,6 +122,24 @@ struct AutomationVerbsMenuTests {
         ])
     }
 
+    /// The sidebar's list and rename reach the engine too (#5712): the service used to answer with nothing, so no
+    /// schedule or trigger was ever listed.
+    @Test("the sidebar's list and rename go through the project's generated client")
+    func listAndRenameReachTheEngine() async {
+        let (automation, _) = services()
+        await #expect(throws: (any Error).self) { _ = try await automation.listSchedules(limit: 100) }
+        await #expect(throws: (any Error).self) { _ = try await automation.listTriggers(limit: 100) }
+        await #expect(throws: AutomationAPIServiceError.self) {
+            try await automation.updateSchedule(scheduleId: "s-1", newName: "Weekly")
+        }
+        await #expect(throws: AutomationAPIServiceError.self) {
+            try await automation.updateTrigger(triggerId: "t-1", newName: "Watch Letters")
+        }
+        #expect(AutomationEngine.recorded() == [
+            "GET /api/schedules", "GET /api/triggers", "PUT /api/schedules/s-1", "PUT /api/triggers/t-1",
+        ])
+    }
+
     @Test("a verb the row does not have is refused before any request")
     func notOffered() async {
         let (automation, batches) = services()

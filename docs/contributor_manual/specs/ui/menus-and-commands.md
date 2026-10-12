@@ -371,8 +371,10 @@ Behaviours (slice 1):
   state (`AutomationVerbs.offered`), ONE item each (`FocusedCommandButtons+AutomationVerbs.swift`): the row's menu
   renders them, and **Project › Workflows ▸** renders them on the sidebar's selected automation row, each disabled
   with its reason. After a verb the sidebar reads its schedules, triggers and runs again; a refusal is said on the
-  sidebar's banner. They had been offered with no action behind them (found in group 5). Pinned by
-  `AutomationVerbsMenuTests`.
+  sidebar's banner. They had been offered with no action behind them (found in group 5). The sidebar's
+  `AutomationAPIService` had answered every call with nothing (no schedule or trigger was ever listed); it now
+  goes through the one typed `AutomationService` on the project's generated client, and renames through the update
+  route. Pinned by `AutomationVerbsMenuTests`.
 - `menus.context-matches-bar.slice-4-done` — **[OK]** (#5652) every context-menu verb the 2026-10-12 inventory
   listed is in the menu bar through its one shared component (groups 1-7 and #5712 above).
 
