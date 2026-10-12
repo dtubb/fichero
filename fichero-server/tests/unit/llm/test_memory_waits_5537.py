@@ -82,7 +82,9 @@ def test_on_the_air_the_trained_3b_proceeds(tmp_path):
 
 
 def test_the_need_is_the_resident_weights_plus_a_margin():
-    assert mlx_memory_need_bytes(THREE_B) == THREE_B.download_size_bytes + local_inference._MLX_LOAD_MARGIN_BYTES
+    """The fit estimate's need (#5641): weights, the KV cache for the default context, and the overhead."""
+    kv = THREE_B.kv_bytes_per_token * local_inference.DEFAULT_CONTEXT_TOKENS
+    assert mlx_memory_need_bytes(THREE_B) == THREE_B.download_size_bytes + kv + local_inference.MLX_OVERHEAD_BYTES
     assert mlx_memory_need_bytes(THREE_B) < 4 * GB
 
 

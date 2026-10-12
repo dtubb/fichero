@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import threading
 from collections import deque
+from dataclasses import dataclass
 from contextvars import ContextVar
 from functools import lru_cache
 import logging
@@ -73,11 +74,120 @@ class LocalModelMemoryShortError(MemoryShortError):
 #: whole need on one machine.
 _MLX_LOAD_MARGIN_BYTES = 1 * 1024**3
 _MLX_MEMORY_NEED_ENV_VAR = "FICHERO_MLX_MEMORY_NEED_MB"
-#: The ceiling: a model whose need is above this share of the Mac's physical memory is too big for
-#: it and is refused up front (never waited for: no amount of waiting frees the OS and the app). On
-#: an 8 GB Mac that is 6 GB, so models up to ~5 GB of weights: the 3B (2.9 GB) loads, the 7B/8B
-#: 4-bit (5.3-5.4 GB) do not. ponytail: a share, not a measurement of what macOS and the app keep.
-_MLX_CEILING_SHARE = 0.75
+# --- The fit estimate (#5641, `runtime.mlx.fit-estimate`): one rule for the finder and the load ----------
+#: The context a step reads a page with, in tokens, when the step says no other: a page image (about 1,000-2,500
+#: tokens at Qwen2.5-VL's resolution), the instruction, and up to a few thousand tokens of answer.
+DEFAULT_CONTEXT_TOKENS = 8192
+#: The KV cache per token when the model's config is not known: the largest in the catalogue (Qwen3-VL-8B and
+#: Qwen3-4B, 144 KiB at fp16), so an unknown model is never estimated small.
+KV_BYTES_PER_TOKEN_UNKNOWN = 36 * 8 * 128 * 4
+#: What a load needs beyond its weights and KV cache: activations, the vision tower's image tensors, the
+#: runtime. Set so the 3B 4-bit's need stays at the 3.9 GB that read pages on an 8 GB Air (#5537).
+MLX_OVERHEAD_BYTES = int(0.75 * 1024**3)
+#: "fits" up to this share of physical memory: Apple's Metal `recommendedMaxWorkingSetSize`, the GPU working
+#: set macOS keeps resident without paging, which MLX reports as `max_recommended_working_set_size` and Ollama
+#: and llama.cpp take as a Mac's GPU memory. About two thirds of memory on 8-16 GB Macs. ponytail: the share,
+#: not the Mac's own reading; read it from MLX in the engine once it is measured against this (#5641).
+MLX_COMFORT_SHARE = 2 / 3
+#: What macOS and Fichero keep: above physical memory less this, a load pages so hard the Mac stalls or the
+#: model process is killed ("won't fit"). ponytail: not measured; the swap point on an 8 GB and a 16 GB Mac
+#: replaces it (`runtime.mlx.refuse-only-what-would-crash`, [PARTIAL]). 8 GB: 6 GB, today's 75% there.
+MLX_MAC_RESERVE_BYTES = 2 * 1024**3
+FITS, TIGHT, WONT_FIT = "fits", "tight", "won't fit"
+
+
+@dataclass(frozen=True)
+class FitEstimate:
+    """What loading a model and reading with it needs on this Mac, in one word and one line (#5641)."""
+
+    word: str
+    reason: str
+    need_bytes: int
+    comfort_bytes: int
+    ceiling_bytes: int
+    #: A smaller build of the same model that fits, by name, when this one won't (`runtime.mlx.offer-a-way-to-fit`).
+    smaller: str | None = None
+
+
+def _gb(n: float) -> str:
+    return f"{n / 1024**3:.1f} GB"
+
+
+def _family(repo_id: str) -> str:
+    """A model's name without its build: `Qwen2.5-VL-7B-Instruct-4bit` and `-8bit` are one model."""
+    import re
+
+    return re.sub(r"[-_](\d+bit|bf16|fp16|fp32|mxfp4|dwq|\d+bit-dwq|q\d(_k_m)?)$", "", (repo_id or "").lower())
+
+
+def _need_parts(model: Any, context_tokens: int) -> tuple[int, int]:
+    weights = int(getattr(model, "download_size_bytes", 0) or 0)
+    per_token = getattr(model, "kv_bytes_per_token", None) or KV_BYTES_PER_TOKEN_UNKNOWN
+    return weights, int(per_token) * max(0, int(context_tokens))
+
+
+def fit_estimate(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS, physical_memory: int | None = None,
+                 *, catalog: Any = None) -> FitEstimate:
+    """Weights + the KV cache for `context_tokens` + overhead, against this Mac's memory (#5641): "fits" within
+    the working set macOS keeps resident (`MLX_COMFORT_SHARE`), "tight" up to the ceiling (it runs, slower, idle
+    models unloaded first), "won't fit" above it (refused in words, with a smaller build of the same model or a
+    shorter context that would fit). `FICHERO_MLX_MEMORY_NEED_MB` overrides the whole need on one machine."""
+    from fichero_server.llm import kraken_runtime
+
+    weights, kv = _need_parts(model, context_tokens)
+    need = weights + kv + MLX_OVERHEAD_BYTES
+    override = os.environ.get(_MLX_MEMORY_NEED_ENV_VAR)
+    if override:
+        try:
+            need = int(float(override) * 1024 * 1024)
+        except ValueError:
+            logger.warning("%s=%r is not a number; using the estimate", _MLX_MEMORY_NEED_ENV_VAR, override)
+    total = physical_memory if physical_memory is not None else kraken_runtime._physical_memory_bytes()
+    name = getattr(model, "display_name", None) or getattr(model, "repo_id", "the model")
+    if not total:
+        return FitEstimate(FITS, f"{name} needs about {_gb(need)}; this Mac's memory could not be read",
+                           need, need, need)
+    comfort, ceiling = int(total * MLX_COMFORT_SHARE), max(0, total - MLX_MAC_RESERVE_BYTES)
+    parts = f"{_gb(weights)} of weights, {_gb(kv)} for {context_tokens:,} tokens of context"
+    if need > ceiling:
+        smaller = _smaller_build(model, context_tokens, total, catalog)
+        shorter = (ceiling - weights - MLX_OVERHEAD_BYTES) // (
+            getattr(model, "kv_bytes_per_token", None) or KV_BYTES_PER_TOKEN_UNKNOWN)
+        way = (f"; {smaller} fits" if smaller
+               else f"; with a context of {int(shorter):,} tokens it would fit" if shorter >= 2048 else "")
+        return FitEstimate(WONT_FIT, f"{name} needs about {_gb(need)} ({parts}), more than this Mac's "
+                           f"{_gb(total)} can give a model (about {_gb(ceiling)}){way}", need, comfort, ceiling,
+                           smaller)
+    page = getattr(model, "page_memory_bytes", None)
+    if need > comfort or (page and total < page):
+        said = (f"its note says reading a page needs a {_gb(page)} Mac" if page and total < page and need <= comfort
+                else f"more than the {_gb(comfort)} macOS keeps for the GPU")
+        return FitEstimate(TIGHT, f"{name} needs about {_gb(need)} ({parts}), {said}: it runs, slower, with idle "
+                           "models unloaded first", need, comfort, ceiling)
+    return FitEstimate(FITS, f"{name} needs about {_gb(need)} ({parts}) of this Mac's {_gb(total)}",
+                       need, comfort, ceiling)
+
+
+def _smaller_build(model: Any, context_tokens: int, total: int, catalog: Any) -> str | None:
+    """A smaller build of the same model in the catalogue that fits this Mac, the largest first; None if none."""
+    if catalog is None:
+        from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+        catalog = MANAGED_MLX_MODELS.values()
+    family = _family(getattr(model, "repo_id", ""))
+    ceiling = total - MLX_MAC_RESERVE_BYTES
+    builds = []
+    for other in catalog:
+        if (other is model or _family(getattr(other, "repo_id", "")) != family
+                or getattr(other, "repo_id", None) == getattr(model, "repo_id", None)):
+            continue
+        weights, kv = _need_parts(other, context_tokens)
+        if weights and weights + kv + MLX_OVERHEAD_BYTES <= ceiling:
+            builds.append((weights, other))
+    if not builds:
+        return None
+    best = max(builds, key=lambda b: b[0])[1]
+    return getattr(best, "display_name", None) or best.repo_id
 
 #: How long a model load waits for memory before its page fails with the reason (#5537). Well under
 #: the lane's hold limit (`execution.jobs.HOLD_LIMIT_SECONDS`, 900 s), which ends a slot held longer:
@@ -87,15 +197,10 @@ MEMORY_WAIT_LIMIT_SECONDS = 300.0
 MEMORY_LOOK_AGAIN_SECONDS = 5.0
 
 
-def mlx_memory_need_bytes(spec: Any) -> int:
-    """How much free memory loading this catalog model and reading a page with it needs."""
-    override = os.environ.get(_MLX_MEMORY_NEED_ENV_VAR)
-    if override:
-        try:
-            return int(float(override) * 1024 * 1024)
-        except ValueError:
-            logger.warning("%s=%r is not a number; using the estimate", _MLX_MEMORY_NEED_ENV_VAR, override)
-    return int(spec.download_size_bytes) + _MLX_LOAD_MARGIN_BYTES
+def mlx_memory_need_bytes(spec: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS) -> int:
+    """How much free memory loading this catalog model and reading a page with it needs: the fit estimate's
+    need (#5641), so the load, the throttle and the finder count it alike."""
+    return fit_estimate(spec, context_tokens, physical_memory=0).need_bytes
 
 
 def assert_memory_available_for_model(
@@ -108,24 +213,21 @@ def assert_memory_available_for_model(
 ) -> None:
     """Decide BEFORE the model's process starts whether loading it now is safe (#5221, #5537).
 
-    Too big for this Mac at all (its need above `_MLX_CEILING_SHARE` of physical memory): refused
-    for good, `LocalModelMemoryUnavailableError`, with a model that would fit. Otherwise THE memory
+    Too big for this Mac at all (the fit estimate's "won't fit", #5641): refused for good,
+    `LocalModelMemoryUnavailableError`, with a smaller build or model that would fit. Otherwise THE memory
     check, `throttle.memory_short`, with this model's need: short of memory, or pressure CRITICAL,
     raises `LocalModelMemoryShortError` -- the load waits. The readers are injectable so a test never
     depends on the real machine."""
     from fichero_server.execution.throttle import memory_short
     from fichero_server.llm import kraken_runtime
 
-    need = mlx_memory_need_bytes(spec)
     total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
-    gb = lambda n: f"{n / 1024**3:.1f} GB"  # noqa: E731
-    if total and need > total * _MLX_CEILING_SHARE:
-        ceiling = int(total * _MLX_CEILING_SHARE)
-        fits = _smaller_models_that_fit(spec, ceiling, catalog)
+    estimate = fit_estimate(spec, DEFAULT_CONTEXT_TOKENS, total or 0, catalog=catalog)
+    need = estimate.need_bytes
+    if estimate.word == WONT_FIT:  # the one rule (#5641): what the finder says "won't fit" is what is refused
+        fits = [] if estimate.smaller else _smaller_models_that_fit(spec, estimate.ceiling_bytes, catalog)
         raise LocalModelMemoryUnavailableError(
-            f"{spec.display_name} needs about {gb(need)} to load and read a page, more than this Mac's "
-            f"{gb(total)} of memory can give a model (about {gb(ceiling)})."
-            + (f" Use a smaller model: {', '.join(fits)}." if fits else ""))
+            f"{estimate.reason}." + (f" Use a smaller model: {', '.join(fits)}." if fits else ""))
     reason = memory_short(
         available_bytes=available_bytes or kraken_runtime._available_memory_bytes,
         pressure_level=pressure_level or kraken_runtime._memory_pressure_level,
@@ -247,7 +349,13 @@ def local_reads_at_once(spec: Any, *, physical_bytes: Any = None) -> int:
     from fichero_server.llm import kraken_runtime
 
     total = (physical_bytes or kraken_runtime._physical_memory_bytes)()
-    return reads_at_once_for(mlx_memory_need_bytes(spec), total)
+    return reads_at_once_for(one_read_need_bytes(spec), total)
+
+
+def one_read_need_bytes(spec: Any) -> int:
+    """What `reads_at_once_for` counts a model from: its weights, loaded once, plus one read's margin. Not the fit
+    estimate's need (#5641), which counts the KV cache for a whole context; the read slots keep their own rule."""
+    return int(spec.download_size_bytes) + _MLX_LOAD_MARGIN_BYTES
 
 
 def reads_at_once_for(need_bytes: int | None, total_bytes: int | None) -> int:

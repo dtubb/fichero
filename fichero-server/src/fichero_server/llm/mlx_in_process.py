@@ -155,11 +155,11 @@ class InProcessLocalInferenceProcess(ManagedLocalInferenceProcess):
     def _need_and_total(self) -> tuple[int | None, int | None]:
         """The model's estimated need and this Mac's memory, for `kv_settings` (None when unknown)."""
         from fichero_server.llm import kraken_runtime
-        from fichero_server.llm.local_inference import mlx_memory_need_bytes
+        from fichero_server.llm.local_inference import one_read_need_bytes
         from fichero_server.llm.mlx_model_store import get_mlx_model_store
 
         try:
-            need = mlx_memory_need_bytes(get_mlx_model_store().spec(self.profile.model_id))
+            need = one_read_need_bytes(get_mlx_model_store().spec(self.profile.model_id))
         except KeyError:
             need = None
         return need, kraken_runtime._physical_memory_bytes()

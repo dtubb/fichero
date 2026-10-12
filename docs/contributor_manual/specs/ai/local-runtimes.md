@@ -336,21 +336,35 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   before either is adopted.
 - `runtime.pytorch.device-chosen` — **[GAP]** (#5370) PyTorch work (PyKEEN, a YOLO detector) uses
   MPS where it measures faster on the fixture and the CPU otherwise; nothing hard-codes the device.
-- `runtime.mlx.fit-estimate` — **[GAP]** (#5641) before an MLX model loads, Fichero estimates what it
-  needs: its weights, plus the KV cache for the step's context length (a long page needs more), at the
-  cache precision it would run with, plus a fixed overhead. It says "fits", "tight" or "won't fit" in
-  Set Up, in the model finder and on the step, before anything is downloaded or loaded. Today the only
-  check is weights plus 1 GB against 75% of memory (`llm/local_inference.py`
-  `assert_memory_available_for_model`), made at load time.
-- `runtime.mlx.refuse-only-what-would-crash` — **[GAP]** (#5641) a model that can run on MLX runs. The
+- `runtime.mlx.fit-estimate` — **[PARTIAL]** (#5641) before an MLX model loads, Fichero estimates what it
+  needs: its weights, plus the KV cache for the step's context length (2 × layers × KV heads × head size × 2
+  bytes per token, from the model's own config; a long page needs more), plus a fixed overhead (0.75 GB:
+  activations, the vision tower's image tensors, the runtime). It says "fits", "tight" or "won't fit", each with
+  one line naming the parts. **Built 2026-10-12 (engine):** `llm/local_inference.fit_estimate(model,
+  context_tokens, physical_memory)` is the one rule: the load's check (`assert_memory_available_for_model`) and
+  the throttle's need (`mlx_memory_need_bytes`) read it, and the model finder lists it on every MLX candidate
+  (`GET /api/recipes/candidates`, each item's `fit`). The default context is 8,192 tokens
+  (`DEFAULT_CONTEXT_TOKENS`). "fits": within two thirds of physical memory (`MLX_COMFORT_SHARE`, Apple Metal's
+  `recommendedMaxWorkingSetSize` on 8-16 GB Macs, the working set MLX reports and Ollama and llama.cpp take as
+  a Mac's GPU memory); "tight": above that, up to the ceiling; a model whose note says reading a page needs a
+  bigger Mac is at least tight. *Not built: the words in Set Up and on the step (the app), the step's own
+  context length, the Mac's own Metal reading in place of the share.* *Test:*
+  `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py`.
+- `runtime.mlx.refuse-only-what-would-crash` — **[PARTIAL]** (#5641) a model that can run on MLX runs. The
   refusal line is a measured ceiling, the point where macOS starts swapping heavily, measured on an
   8 GB and a 16 GB Mac with the fixture pages; below it the model loads (idle models unloaded first,
   one heavy model at a time when memory is busy, #5622). Above it the step refuses in words, naming the
-  estimate and the ceiling. Today's 75% of memory refuses small models that would run.
-- `runtime.mlx.offer-a-way-to-fit` — **[GAP]** (#5641) a model that won't fit is offered a way to fit:
+  estimate and the ceiling. **Built 2026-10-12, provisional:** the ceiling is physical memory less 2 GB for
+  macOS and Fichero (`MLX_MAC_RESERVE_BYTES`: 6 GB on an 8 GB Mac, today's 75% there; 14 GB on 16 GB, where 75%
+  was 12), and "won't fit" is exactly what the load refuses. *Not measured: the swap point on an 8 GB and a
+  16 GB Mac, which replaces the 2 GB.*
+- `runtime.mlx.offer-a-way-to-fit` — **[PARTIAL]** (#5641) a model that won't fit is offered a way to fit:
   a smaller quantized build of the same model (from the model finder), a quantized KV cache, or a
   shorter context. MLX cannot split a model between GPU and CPU as Ollama does; a smaller build is the
-  Mac's equivalent.
+  Mac's equivalent. **Built 2026-10-12:** the largest smaller build of the same model (its name without its
+  build: `-4bit`, `-8bit`, `-bf16` …) in the catalogue and the finder's list that fits is named (`fit.smaller`);
+  with none, the longest context that would fit, when it is at least 2,048 tokens. *Not built: a quantized KV
+  cache as the way.*
 - `runtime.mlx.kv-cache-settings` — **[PARTIAL]** (#5641) the bundled MLX server's KV-cache settings
   are chosen per load: the batch is the client's pages at once (`MLX_VLM_MAX_NUM_SEQS` equals
   `local_reads_at_once`, `llm/local_inference.reads_at_once_for`, built 2026-10-10). *Not built:* a

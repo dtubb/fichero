@@ -46,6 +46,10 @@ class ManagedModelSpec:
     #: more than `min_memory_bytes`, the floor for loading it. None: the load floor is enough, or
     #: nothing more is known. Only a measurement or the model's own note sets it (#5520).
     page_memory_bytes: int | None = None
+    #: The KV cache one token of context holds, at fp16: 2 (K and V) x layers x KV heads x head size x 2
+    #: bytes, from the model's own config (#5641, `runtime.mlx.fit-estimate`). None: not known, and the fit
+    #: estimate takes the largest in the catalogue.
+    kv_bytes_per_token: int | None = None
 
 
 #: How often a running download's bytes on disk are re-counted for its progress (#5523).
@@ -97,6 +101,7 @@ class ManagedModelDownloadJob:
 MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
     # --- Vision / OCR -------------------------------------------------------
     "Qwen2.5-VL-3B": ManagedModelSpec(
+        kv_bytes_per_token=36864,
         model_id="Qwen2.5-VL-3B",
         repo_id="mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
         revision="46d4cf06a06ffc1a766c214174f9cbed2f45bcab",
@@ -109,6 +114,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         tested_status="verified",
     ),
     "mlx-community/Qwen3-VL-8B": ManagedModelSpec(
+        kv_bytes_per_token=147456,
         model_id="mlx-community/Qwen3-VL-8B",
         repo_id="mlx-community/Qwen3-VL-8B-Instruct-4bit",
         revision="defcdea7cc7a4b0858fea563cbbce171d328e457",
@@ -132,6 +138,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         page_memory_bytes=24 * 1024**3,
     ),
     "Qwen2.5-VL-7B": ManagedModelSpec(
+        kv_bytes_per_token=57344,
         model_id="Qwen2.5-VL-7B",
         # The reader and corrector the recipe rules pin (`recipes/seed/cards.yaml`), so a recipe step
         # naming it can be installed and served here rather than refused as unknown (#5496).
@@ -160,6 +167,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         note="Purpose-built document OCR (layout, tables, handwriting) rather than a general VLM. Not yet run inside Fichero -- untested here.",
     ),
     "Nanonets-OCR": ManagedModelSpec(
+        kv_bytes_per_token=36864,
         model_id="Nanonets-OCR",
         repo_id="mlx-community/Nanonets-OCR-s-4bit",
         revision="b02d1c6c18c7c31ad0ea0bf139f80b9bcf756218",
@@ -208,6 +216,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
     ),
     # --- Text ---------------------------------------------------------------
     "Qwen3-4B-Instruct": ManagedModelSpec(
+        kv_bytes_per_token=147456,
         model_id="Qwen3-4B-Instruct",
         repo_id="mlx-community/Qwen3-4B-Instruct-2507-4bit",
         revision="50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
@@ -219,6 +228,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         note="General text work on-device -- summarise, extract, rewrite -- without sending a document anywhere. Untested here.",
     ),
     "Llama-3.2-3B-Instruct": ManagedModelSpec(
+        kv_bytes_per_token=114688,
         model_id="Llama-3.2-3B-Instruct",
         repo_id="mlx-community/Llama-3.2-3B-Instruct-4bit",
         revision="7f0dc925e0d0afb0322d96f9255cfddf2ba5636e",
@@ -268,6 +278,20 @@ def run_model_choice(provider: str | None, model: str | None) -> tuple[str | Non
     if not provider_text and model_text.startswith(f"{TRAINED_ORG}/"):
         return "omlx", model_text
     return provider, model
+
+
+def kv_bytes_per_token(config: dict[str, Any]) -> int | None:
+    """The KV cache per token of context a model's config.json implies, at fp16 (#5641); None when it does not
+    say. A vision model's language model is under `text_config`."""
+    text = config.get("text_config") if isinstance(config.get("text_config"), dict) else config
+    try:
+        layers = int(text["num_hidden_layers"])
+        heads = int(text["num_attention_heads"])
+        kv_heads = int(text.get("num_key_value_heads") or heads)
+        head_dim = int(text.get("head_dim") or int(text["hidden_size"]) // heads)
+    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        return None
+    return 2 * layers * kv_heads * head_dim * 2
 
 
 def trained_base_spec(card: dict[str, Any]) -> ManagedModelSpec | None:
@@ -584,6 +608,7 @@ class MLXModelStore:
                                         "Not for release." if card.get("not_for_release") else ""])),
             tested_status="untested",
             page_memory_bytes=card.get("page_memory_bytes") or (base.page_memory_bytes if base else None),
+            kv_bytes_per_token=base.kv_bytes_per_token if base else None,  # its base's layers (#5641)
         )
 
     def found_spec(self, repo_id: str) -> ManagedModelSpec | None:
@@ -615,6 +640,7 @@ class MLXModelStore:
             capabilities=("text", "vision") if "vision_config" in config else ("text",),
             note="Found in your model store, not from the Fichero catalogue: its card is made from its own "
                  "config. Not measured here yet.",
+            kv_bytes_per_token=kv_bytes_per_token(config),
         )
 
     def global_trained_dir(self, model_id: str) -> Path:

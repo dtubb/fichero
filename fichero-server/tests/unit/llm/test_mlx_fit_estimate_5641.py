@@ -1,0 +1,108 @@
+"""An MLX model's fit is estimated before it loads, by one rule the finder and the load share (#5641), tested to the
+spec: `runtime.mlx.fit-estimate`, `runtime.mlx.refuse-only-what-would-crash`, `runtime.mlx.offer-a-way-to-fit`
+(docs/contributor_manual/specs/ai/local-runtimes.md).
+
+WHY: the only check was weights + 1 GB against 75% of memory, made at load time; nothing said before a download
+whether a model would run, a long context was not counted, and a refusal never named a smaller build of the same
+model. The machine is never read: physical memory is passed in.
+"""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+from fichero_server.llm import local_inference as li
+from fichero_server.llm.local_inference import (
+    FITS,
+    TIGHT,
+    WONT_FIT,
+    LocalModelMemoryUnavailableError,
+    assert_memory_available_for_model,
+    fit_estimate,
+)
+from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, kv_bytes_per_token
+
+GB = 1024**3
+THREE_B = MANAGED_MLX_MODELS["Qwen2.5-VL-3B"]
+SEVEN_B = MANAGED_MLX_MODELS["Qwen2.5-VL-7B"]
+EIGHT_B = MANAGED_MLX_MODELS["mlx-community/Qwen3-VL-8B"]
+
+
+def test_the_need_is_weights_plus_the_kv_cache_for_the_context_plus_overhead():
+    short, long = fit_estimate(THREE_B, 2048, 16 * GB), fit_estimate(THREE_B, 32768, 16 * GB)
+    assert short.need_bytes == THREE_B.download_size_bytes + 2048 * THREE_B.kv_bytes_per_token + li.MLX_OVERHEAD_BYTES
+    assert long.need_bytes - short.need_bytes == (32768 - 2048) * THREE_B.kv_bytes_per_token  # a long page needs more
+    assert "tokens of context" in short.reason
+
+
+def test_on_an_8_gb_mac_the_3b_fits_and_the_7b_wont_fit_in_words():
+    """This Mac's case: an 8 GB Air read pages with the 3B; the 7B 4-bit never loaded there."""
+    assert fit_estimate(THREE_B, physical_memory=8 * GB).word == FITS
+    seven = fit_estimate(SEVEN_B, physical_memory=8 * GB)
+    assert seven.word == WONT_FIT
+    assert "8.0 GB" in seven.reason and "6.0 GB" in seven.reason  # this Mac's memory, and what it can give a model
+
+
+def test_on_a_16_gb_mac_the_7b_fits_and_a_model_whose_note_wants_more_is_tight():
+    assert fit_estimate(SEVEN_B, physical_memory=16 * GB).word == FITS
+    eight = fit_estimate(EIGHT_B, physical_memory=16 * GB)  # its note: reading a page needs a 24 GB Mac
+    assert eight.word == TIGHT and "it runs" in eight.reason
+
+
+def test_between_the_comfort_line_and_the_ceiling_is_tight_and_still_runs():
+    model = SimpleNamespace(repo_id="x/big-4bit", display_name="Big", download_size_bytes=11 * GB,
+                            kv_bytes_per_token=36 * 1024)
+    made = fit_estimate(model, physical_memory=16 * GB)  # about 12 GB: above 10.7 GB, below 14 GB
+    assert made.comfort_bytes < made.need_bytes <= made.ceiling_bytes and made.word == TIGHT
+
+
+def test_a_model_that_wont_fit_is_offered_a_smaller_build_of_the_same_model():
+    eight_bit = SimpleNamespace(repo_id="mlx-community/Qwen2.5-VL-7B-Instruct-8bit", display_name="Qwen2.5 VL 7B 8-bit",
+                                download_size_bytes=int(8.3 * GB), kv_bytes_per_token=SEVEN_B.kv_bytes_per_token)
+    three_bit = SimpleNamespace(repo_id="mlx-community/Qwen2.5-VL-7B-Instruct-3bit", display_name="Qwen2.5 VL 7B 3-bit",
+                                download_size_bytes=int(3.4 * GB), kv_bytes_per_token=SEVEN_B.kv_bytes_per_token)
+    other = SimpleNamespace(repo_id="mlx-community/Llama-3.2-1B-4bit", display_name="Llama 1B",
+                            download_size_bytes=GB, kv_bytes_per_token=None)
+    made = fit_estimate(eight_bit, physical_memory=8 * GB, catalog=[eight_bit, SEVEN_B, three_bit, other])
+    assert made.word == WONT_FIT and made.smaller == "Qwen2.5 VL 7B 3-bit"  # the largest build that fits, same model
+    assert "Qwen2.5 VL 7B 3-bit fits" in made.reason
+
+
+def test_with_no_smaller_build_a_shorter_context_is_offered_when_it_would_fit():
+    model = SimpleNamespace(repo_id="x/only-4bit", display_name="Only", download_size_bytes=int(4.5 * GB),
+                            kv_bytes_per_token=144 * 1024)
+    made = fit_estimate(model, context_tokens=32768, physical_memory=8 * GB, catalog=[model])
+    assert made.word == WONT_FIT and made.smaller is None and "with a context of" in made.reason
+
+
+def test_the_load_refuses_exactly_what_the_estimate_calls_wont_fit():
+    """One rule: the finder's 'won't fit' is the load's refusal, and nothing else is refused for size."""
+    for spec, ram in ((THREE_B, 8), (SEVEN_B, 8), (SEVEN_B, 16), (EIGHT_B, 16)):
+        word = fit_estimate(spec, physical_memory=ram * GB).word
+        check = lambda: assert_memory_available_for_model(  # noqa: E731
+            spec, available_bytes=lambda: ram * GB, pressure_level=lambda: 1, physical_bytes=lambda: ram * GB)
+        if word == WONT_FIT:
+            with pytest.raises(LocalModelMemoryUnavailableError):
+                check()
+        else:
+            check()
+
+
+def test_a_models_kv_cache_is_read_from_its_own_config():
+    qwen_vl = {"text_config": {"num_hidden_layers": 28, "num_attention_heads": 28, "num_key_value_heads": 4,
+                               "hidden_size": 3584}}
+    assert kv_bytes_per_token(qwen_vl) == SEVEN_B.kv_bytes_per_token == 56 * 1024
+    assert kv_bytes_per_token({"model_type": "unknown"}) is None
+
+
+def test_the_finder_says_whether_each_mlx_model_fits_this_mac(client):
+    answer = client.get("/api/recipes/candidates", params={"scripts": "Latn", "languages": "es",
+                                                           "job": "read-a-page", "mac_memory_gb": 8.6})
+    assert answer.status_code == 200, answer.text
+    fits = {i["id"]: i["fit"] for i in answer.json()["items"]}
+    seven = next(f for cid, f in fits.items() if "Qwen2.5-VL-7B-Instruct-4bit" in cid)
+    three = next(f for cid, f in fits.items() if "Qwen2.5-VL-3B-Instruct-4bit" in cid)
+    assert (seven["word"], three["word"]) == ("won't fit", "fits") and seven["reason"]
+    assert all(f is None for cid, f in fits.items() if not cid.startswith("mlx:"))

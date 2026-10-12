@@ -873,6 +873,45 @@ class CandidateAvailability(str, Enum):
     not_here = "not_here"
 
 
+class ModelFit(BaseModel):
+    """Whether an MLX model fits this Mac to read with, before anything is downloaded or loaded (#5641,
+    `runtime.mlx.fit-estimate`): the same rule the load applies."""
+
+    word: Literal["fits", "tight", "won't fit"]
+    reason: str = Field(description="one line: what it needs (weights, KV cache, context) against this Mac")
+    smaller: Optional[str] = Field(default=None, description=(
+        "a smaller build of the same model that fits, when this one won't (`runtime.mlx.offer-a-way-to-fit`)"))
+
+
+def _mlx_model_of(card: Any) -> Any:
+    """The MLX model a card names, as the fit estimate reads it: the catalogue's spec, a model trained or found in
+    the store (never the Hub), else its stated download size; None for a card that is not an MLX model or states
+    no size."""
+    from types import SimpleNamespace
+
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
+
+    if not str(card.id).startswith("mlx:"):
+        return None
+    repo = str((card.pin or {}).get("hf") or "")
+    for spec in MANAGED_MLX_MODELS.values():
+        if spec.repo_id == repo:
+            return spec
+    store = get_mlx_model_store()
+    try:
+        if store.trained_card(repo) is not None:
+            return store.spec(repo)
+        found = store.found_spec(repo)
+    except Exception:  # noqa: BLE001 - a store that cannot be read gives no fit, never a failed listing
+        found = None
+    if found is not None:
+        return found
+    if not card.size_gb:
+        return None
+    return SimpleNamespace(repo_id=repo, display_name=card.note.strip().rstrip(".") or repo,
+                           download_size_bytes=int(card.size_gb * 1e9), kv_bytes_per_token=None)
+
+
 class ModelCandidate(BaseModel):
     """One reader candidate as a card: where it came from, why it is offered, what it states, and what
     the rules make of it for the project's scripts, languages and material."""
@@ -913,6 +952,9 @@ class ModelCandidate(BaseModel):
     availability_words: str = Field(description=(
         "the same, in one short phrase with its size: 'Ships with Fichero', 'On this Mac (16 MB)', 'Download "
         "(2.3 GB)', 'Runs at openai', 'Fichero cannot run it yet (…)'"))
+    fit: Optional[ModelFit] = Field(default=None, description=(
+        "for an MLX model: whether it fits this Mac to read with ('fits', 'tight', 'won't fit') and why, by the rule "
+        "the load applies (#5641); null for any other model"))
     chosen: bool = Field(default=False, description=(
         "with `step`: this is the step's reader now (the person's choice, or the rules' when none was made); "
         "listed first (#5660 item 8)"))
@@ -1056,6 +1098,20 @@ async def model_candidates(
             return (_refusal(job, c, a, material) or (None, None))[1]
         return (_refusal(job, c, a, material) or (None, None))[1]
 
+    from fichero_server.llm.local_inference import fit_estimate
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+
+    models = {c.id: _mlx_model_of(c) for c in cards}
+    catalogue = [*MANAGED_MLX_MODELS.values(), *(m for m in models.values() if m is not None)]
+    physical = int((mac_memory_gb or _this_machine_memory_gb()) * 1e9)
+
+    def fit(c: Any) -> Optional[ModelFit]:
+        model = models.get(c.id)
+        if model is None:
+            return None
+        made = fit_estimate(model, physical_memory=physical, catalog=catalogue)
+        return ModelFit(word=made.word, reason=made.reason, smaller=made.smaller)
+
     def measured(c: Any) -> str:
         if c.cer_measured_here is not None:
             return f"CER {c.cer_measured_here * 100:.1f}% on your pages"
@@ -1073,7 +1129,7 @@ async def model_candidates(
         rule_rank=rank.get(c.id), refused=refused(c),
         installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
-        availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id,
+        availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id, fit=fit(c),
     ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
