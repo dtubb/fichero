@@ -9007,6 +9007,11 @@
             "type": "boolean"
           },
           {
+            "name": "period",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "scripts",
             "required": true,
             "type": "string"

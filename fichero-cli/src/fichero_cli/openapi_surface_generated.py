@@ -13085,6 +13085,7 @@ def register_generated_openapi_commands(
         mac_memory_gb: Optional[float] = typer.Option(None, '--mac-memory-gb', help='Mac Memory Gb.'),
         material: Optional[str] = typer.Option(None, '--material', help='Material.'),
         online: Optional[bool] = typer.Option(None, '--online/--no-online', help='Online.'),
+        period: Optional[str] = typer.Option(None, '--period', help='Period.'),
         scripts: str = typer.Option(..., '--scripts', help='Scripts.'),
         step: Optional[str] = typer.Option(None, '--step', help='Step.'),
     ) -> None:
@@ -13098,6 +13099,7 @@ def register_generated_openapi_commands(
                 "mac_memory_gb": mac_memory_gb,
                 "material": material,
                 "online": online,
+                "period": period,
                 "scripts": scripts,
                 "step": step,
             }
