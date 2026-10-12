@@ -140,3 +140,26 @@ def test_the_finder_judges_a_line_step_by_a_lines_context(client):
     said = [i["fit"]["reason"] for i in answer.json()["items"] if i["fit"]]
     line = li.step_context_tokens(lines=1)
     assert said and all(f"{line:,} tokens" in reason for reason in said)
+
+
+def test_a_page_is_judged_by_its_own_working_lines(db, tmp_path):
+    """A page read with a model on this Mac: its context is its working lines' answer, and a call is judged at the
+    smaller of that and its own max_tokens."""
+    from pathlib import Path
+
+    from fichero_server.models import DocType, Document
+    from fichero_server.llm.working_lines import working_lines
+    from tests.unit.training.test_kraken_training_set import _page
+
+    folder = Document(name="F", doc_type=DocType.folder)
+    db.save(folder)
+    lined, bare = _page(db, tmp_path, "1_Hoja", folder), _page(db, tmp_path, "2_Hoja", folder, read_by=None)
+    library = str(Path(db.path).parent)
+    count = len(working_lines(db, lined.id).lines)
+    assert count and li.page_lines_context(library, lined.id) == li.step_context_tokens(lines=count)
+    assert li.page_lines_context(library, bare.id) is None  # no lines: the call's own max_tokens decides
+
+    with li.reading_with_context(li.step_context_tokens(lines=count)):
+        assert li.call_context_tokens(8192) == li.step_context_tokens(lines=count)  # the page's, smaller
+        assert li.call_context_tokens(16) == li.step_context_tokens(max_tokens=16)  # a short call's own
+    assert li.call_context_tokens(8192) == li.step_context_tokens(max_tokens=8192)

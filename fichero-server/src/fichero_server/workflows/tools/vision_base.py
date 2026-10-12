@@ -4148,11 +4148,16 @@ async def process_vision(
             # so Kraken or the embedder never load beside it (#5358); a model off this Mac (a
             # cloud, or an Ollama on another machine, #5586) takes the network lane, whose cap is
             # one per Mac, shared by every run (`activity.run.lane-cap-per-mac`).
-            return await hold_lane(
-                library_path, "read-a-page", doc_id_for_file or Path(file_path).name,
-                model=f"{_provider}:{effective_config.model}", work=call, run_id=task_id,
-                lane="local-ml" if runs_on_this_mac(effective_config) else "network",
-            )
+            from fichero_server.llm.local_inference import page_lines_context, reading_with_context
+
+            # A model on this Mac is judged for this page's own context: its working lines' answer (#5641).
+            with reading_with_context(page_lines_context(library_path, doc_id_for_file)
+                                      if runs_on_this_mac(effective_config) else None):
+                return await hold_lane(
+                    library_path, "read-a-page", doc_id_for_file or Path(file_path).name,
+                    model=f"{_provider}:{effective_config.model}", work=call, run_id=task_id,
+                    lane="local-ml" if runs_on_this_mac(effective_config) else "network",
+                )
 
         try:
             # Pre-extracted text fast path. If the document record for

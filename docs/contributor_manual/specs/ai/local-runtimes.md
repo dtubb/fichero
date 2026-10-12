@@ -351,8 +351,10 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   the fit by its own context, its prompt and image (2,048 tokens) plus the answer it allows (`max_tokens`), not
   the default (`step_context_tokens`, `reading_with_context`); the finder, asked for a step, counts that step's
   `max_tokens` where its settings give one, a line's for a line reader (the prompt and image plus 24 tokens a
-  line), and the 8,192-token default for a step that says neither. *Not built: the words in Set Up and on the
-  step (the app), a page's own line count, the Mac's own Metal reading in place of the share.* *Test:*
+  line), and the 8,192-token default for a step that says neither. A page read with a model on this Mac is judged
+  by its own working lines (`page_lines_context`: the prompt and image plus 24 tokens a line), the call at the
+  smaller of that and its own `max_tokens` (`call_context_tokens`). *Not built: the words in Set Up and on the
+  step (the app), the Mac's own Metal reading in place of the share.* *Test:*
   `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py`.
 - `runtime.mlx.refuse-only-what-would-crash` — **[PARTIAL]** (#5641) a model that can run on MLX runs. The
   refusal line is a measured ceiling, the point where macOS starts swapping heavily, measured on an

@@ -115,6 +115,29 @@ def step_context_tokens(*, max_tokens: int | None = None, lines: int | None = No
     return DEFAULT_CONTEXT_TOKENS
 
 
+def call_context_tokens(max_tokens: int | None) -> int:
+    """The context a model call is judged at (#5641): the reading step's own (its page's lines, set by
+    `reading_with_context`) or the call's `max_tokens`, whichever is smaller: the answer is bounded by the one
+    and is about the other."""
+    own = step_context_tokens(max_tokens=max_tokens)
+    outer = _step_context.get()
+    return min(outer, own) if outer else own
+
+
+def page_lines_context(library_path: str | None, document_id: str | None) -> int | None:
+    """A page's context from its own working lines (#5641): None when it has none, or the page cannot be read."""
+    if not library_path or not document_id:
+        return None
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.llm.working_lines import working_lines
+
+        found = working_lines(db_manager.get_database(library_path), document_id)
+    except Exception:  # noqa: BLE001 - no lines known: the call's own max_tokens decides, as before
+        return None
+    return step_context_tokens(lines=len(found.lines)) if found is not None and found.lines else None
+
+
 @contextlib.contextmanager
 def reading_with_context(context_tokens: int | None):
     """The load's check counts this context while the block runs (one call's model load)."""
