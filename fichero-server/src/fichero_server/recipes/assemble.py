@@ -288,7 +288,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
     if material == "handwriting" and card.material and "handwriting" not in card.material:
         return "no-reader-for-material", "it is made for print or typescript, never handwriting"
     if not card.open_licence:
-        return "licence-not-accepted", "its licence is not open (accept it to use it)"
+        return "licence-not-accepted", _licence_words(card.licence)
     if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
         return "cloud-not-allowed", "it runs in the cloud and this project keeps pages on this Mac"
     if card.local and card.memory_gb > a.mac_memory_gb - MEMORY_HEADROOM_GB:
@@ -442,6 +442,20 @@ def _problem(job: str, cards: list[Card], a: Answers, material: str, detail: str
     return {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
             "nearest": nearest,
             "refused": [{"card": c.id, "why": r[1]} for c, r in sorted(refusals, key=lambda cr: cr[0].id)]}
+
+
+#: Licences that are open and copyleft: said so, never "not open" (#5687).
+COPYLEFT = frozenset({"agpl-3.0", "gpl-3.0", "gpl-2.0", "lgpl-3.0", "lgpl-2.1", "agpl-3.0-only", "gpl-3.0-only"})
+
+
+def _licence_words(licence: str | None) -> str:
+    """Why a card's licence needs accepting, in words (`source.onboard.models.licence-accepted-once`, #5687)."""
+    name = (licence or "").strip()
+    if not name:
+        return "its licence is not stated: accept it to use it"
+    if name.lower() in COPYLEFT:
+        return f"its licence, {name}, is copyleft: accept it to use it"
+    return f"its licence, {name}, needs accepting: accept it to use it"
 
 
 def _language_rank(card: Card, a: Answers | None) -> int:

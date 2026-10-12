@@ -234,6 +234,9 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
         result.update(bakeoff=record["id"], job_id=record["job_id"], how="the comparison of candidates on these pages")
         _write(library, stage_id, result)
         return result
+    if "read" in stage.needs and not _any_reading(db, ids):
+        raise ValueError(f"These pages have no reading yet: {stage.title} needs Read. Try Read on them, or Start, "
+                         "first.")
     step = _main_step(recipe, stage)
     cards = _cards_for(setup, step, candidates) if step is not None else []
     if candidates and len(cards) < len(set(candidates)):
@@ -251,6 +254,10 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
                 else "a cost that is not known")
         raise PermissionError(f"Trying {stage.title} on {len(ids)} pages uses the cloud and costs {said}: "
                               "try it again with your yes to the cost")
+    from fichero_server.recipes.start import queue_downloads
+
+    for _card, plan in runnable:  # what a candidate needs is fetched as Start fetches it; its run waits (#5687)
+        queue_downloads(db, plan, started_by=started_by)
     own_plan = runnable[0][1]
     columns = [_column(card, plan) for card, plan in tried if card is not None]
     register_job_kinds()
@@ -270,6 +277,42 @@ COMPARED = 3
 TEXT_STAGES = frozenset({"read", "normalise", "translate"})
 SHAPE_STAGES = frozenset({"find-regions", "find-lines"})
 ITEM_STAGES = frozenset({"names", "statements", "dates"})
+
+
+def _any_reading(db: Any, page_ids: list[str]) -> bool:
+    """Whether any of these pages has text to work from: a reading, or its own text (a page imported as text)."""
+    from fichero_server.models import Document
+    from fichero_server.recipes.run_view import _has_reading
+
+    return any(((doc := db.get(Document, page_id)) is not None and (doc.page_content or "").strip())
+               or _has_reading(db, page_id) for page_id in page_ids)
+
+
+def _sentence(text: str | None) -> str | None:
+    """A failure as a person reads it: never an exception's class name in front (#5687)."""
+    if not text:
+        return text
+    import re
+
+    return re.sub(r"^(?:[A-Za-z_][\w.]*(?:Error|Exception|Unavailable|Missing)): ", "", text.strip())
+
+
+def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0) -> str | None:
+    """Wait for the models this candidate's plan needs to land; why not, in words, when one cannot."""
+    from fichero_server.execution import jobs
+
+    for download in plan.get("downloads") or []:
+        name = download.get("name") or download.get("model")
+        if not download.get("job_id"):
+            return f"it needs {name} downloaded first, and its download did not start"
+        while True:
+            row = jobs.read_job(db, download["job_id"]) or {}
+            if row.get("state") == "done":
+                break
+            if row.get("state") in ("failed", "cancelled", None):
+                return f"{name} could not be downloaded: {_sentence(row.get('reason')) or 'the download stopped'}"
+            time.sleep(every)
+    return None
 
 
 def _bakeoff_ready(db: Any, page_ids: list[str]) -> bool:
@@ -386,9 +429,12 @@ def _measure(db: Any, stage_id: str, runs: list[dict[str, Any]]) -> list[dict[st
                 measured["not_measured"] = "couldn't measure: " + "; ".join(dict.fromkeys(why))
             out.append(measured)
         elif stage_id in SHAPE_STAGES:
+            from collections import Counter
+
             best = [max((_iou(box, other) for other in o["boxes"].get(p, [])), default=0.0)
                     for o in others for p, boxes in run["boxes"].items() for box in boxes]
-            out.append({"kind": "shapes", "agreement": _mean(best), "cer": None})
+            out.append({"kind": "shapes", "agreement": _mean(best), "cer": None, "found": len(run["items"]),
+                        "kinds": dict(Counter(run["items"]))})
         elif stage_id in ITEM_STAGES:
             mine = set(run["items"])
             theirs = set().union(*(set(o["items"]) for o in others)) if others else set()
@@ -518,7 +564,12 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         copy_into_target(db, copy, plan, mode=TransferMode.copy, actor="try", finish=False)
         back = {new: old for old, new in plan.id_map.items()}
         pages = [plan.id_map[i] for i in page_ids if i in plan.id_map]
-        cards = _stage_plan(db, stage, setup, len(pages))["runs"]
+        stage_plan = _stage_plan(db, stage, setup, len(pages))
+        missing = _await_downloads(db, stage_plan)
+        if missing:
+            out.update(state="failed", error=missing)
+            return out
+        cards = stage_plan["runs"]
         before = _snapshot(copy)
         ran, extra = [], {}
         for card in cards:
@@ -545,11 +596,11 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         texts, boxes, items = _for_comparing(copy, before, back, stage_id)
         out.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
                    made={**made, **extra}, texts=texts, boxes=boxes, items=items)
-        failed = [r["why"] for r in ran if r["state"] == "failed" and r.get("why")]
+        failed = [_sentence(r["why"]) for r in ran if r["state"] == "failed" and r.get("why")]
         if failed:
             out["error"] = "; ".join(failed)
-    except Exception as exc:  # noqa: BLE001 -- the try says why; the project is untouched either way
-        out.update(state="failed", error=f"{type(exc).__name__}: {exc}")
+    except Exception as exc:  # noqa: BLE001 -- the try says why, in words; the project is untouched either way
+        out.update(state="failed", error=_sentence(str(exc)) or "the run stopped")
     finally:
         db_manager.close_database(scratch)
         shutil.rmtree(scratch, ignore_errors=True)
@@ -600,11 +651,15 @@ def _for_comparing(copy: Any, before: dict[str, set[str]], back: dict[str, str],
             texts[page] = (texts.get(page, "") + "\n" + r.content.strip()).strip()
     shape = "region" if stage_id == "find-regions" else "line"
     boxes: dict[str, list[list[float]]] = {}
+    labels: list[str] = []
     for seg in new.get("Segment", []):
         page = back.get(seg.document_id or "")
         if page is not None and seg.kind == shape:
             boxes.setdefault(page, []).append([seg.bbox_x, seg.bbox_y, seg.bbox_w, seg.bbox_h])
-    if stage_id == "statements":
+            labels.append(seg.kind_raw or shape)
+    if stage_id in SHAPE_STAGES:
+        items = labels
+    elif stage_id == "statements":
         items = [_readable(c) for c in new.get("KnowledgeClaim", [])]
     elif stage_id == "dates":
         items = [f"{back[d.id]}:{d.date_jdn}" for d in copy.all(Document) if d.id in back and d.date_jdn is not None]

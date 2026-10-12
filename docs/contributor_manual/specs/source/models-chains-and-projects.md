@@ -2888,7 +2888,14 @@ Setup
   and the try refused (402) without `cost_ok`; a candidate Start could not run is a column that says why. Read
   and Find Lines keep the bake-off (its evaluation job over the corrected lines) when no candidates are named and
   the samples hold its ground truth; otherwise they are compared the same way. *Test:*
-  `fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py`. **Built 2026-10-11 (app, the choice
+  `fichero-server/tests/unit/recipes/test_stage_compares_candidates_5668.py`. **From the overnight walk
+  (#5687):** a candidate whose model is not on this Mac is fetched before it runs, as Start fetches it (a
+  `download-model` job in Activity), and its run waits for it; one that cannot be fetched says why, in words.
+  Every `why` is a sentence, never an exception's class name. Find Regions' and Find Lines' measures carry
+  what was found (`found`, and `kinds`: each label and how many) with one candidate as with three. A stage
+  that needs Read (Names, Statements, Organise …), tried on pages that have no reading yet, is refused (422):
+  "These pages have no reading yet: Names needs Read." *Test:*
+  `fichero-server/tests/unit/recipes/test_stage_try_words_5687.py`. **Built 2026-10-11 (app, the choice
   and the measures):** the stage page lists its main step's candidates from the per-step finder
   (`StageCandidateChooser`, up to three ticked, `StageCandidateChoice`); Compare on These Pages sends them as
   `candidates`, none when none are ticked; each column says how it compared by kind ("4.1% character errors" or
@@ -3015,7 +3022,9 @@ Setup
 - `source.onboard.models.licence-accepted-once` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** one tick accepts the licence, then Accept and Use works (`LicenceReviewSheet.canAccept`), and the sheet no longer inherits a disabled presenter; pinned by `SetUpButtonsActTests`. *Not built: an open-licence default for Find Regions (engine).* Find Regions has a default under an
   open licence, and a model under a licence that needs accepting is accepted once, after which Accept and
   Use for This Step works. *Test:* pure Swift, accepting enables the button.
-
+ **Copyleft is open (#5687):** a licence that needs accepting is said by name and what it
+  is: AGPL-3.0 and the other copyleft licences are open and copyleft ("its licence, AGPL-3.0, is copyleft: accept
+  it to use it"), never "not open"; another unlisted licence says it needs accepting.
 - `source.onboard.sheet-fits-its-window` — **[PARTIAL]** (#5624) **Built 2026-10-09 (app), not yet seen:**
   rows of checkboxes and tokens wrap (`FlowLayout`: the kinds of names, the kinds of material, the language and
   script tokens), the step column takes `minWidth: 0` and the page body never widens the button row; pinned by

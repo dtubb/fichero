@@ -71,7 +71,8 @@ def _pages(db, tmp_path, n: int) -> list[Document]:
         path = tmp_path / "scans" / f"p{i:03d}.jpg"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"x" * (1000 + (i * 37) % 500 + (5000 if i == 7 else 0) - (900 if i == 11 else 0)))
-        doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path))
+        doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path),
+                       page_content="Muy señor mío")  # a page with text: Names needs Read (#5687)
         db.save(doc)
         out.append(doc)
     return out

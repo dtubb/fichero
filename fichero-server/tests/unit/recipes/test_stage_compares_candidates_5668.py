@@ -30,7 +30,8 @@ def _pages(db, tmp_path, n: int = 2) -> list[Document]:
         path = tmp_path / "scans" / f"{i + 1}_Hoja_{530 + i}_Recto.png"
         path.parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (200, 300), (235, 230, 220)).save(path)
-        doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path))
+        doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path),
+                       page_content="Muy señor mío")  # a page with text: Names needs Read (#5687)
         db.save(doc)
         out.append(doc)
     return out
@@ -103,6 +104,7 @@ def test_find_regions_is_compared_by_the_overlap_of_its_shapes(client, db, tmp_p
         "regions": [{"id": "r1", "type": "text", "polygon": [[20, 30], [120, 30], [120, 180], [20, 180]]}]})
     monkeypatch.setattr(yolo_runtime, "detect_regions", lambda path, model_id=None, **k: [
         yolo_runtime.Region(kind_raw="Text", rect=[0.1, 0.1, 0.5, 0.4], confidence=0.9)])
+    monkeypatch.setattr(yolo_runtime, "is_installed", lambda model_id: True)  # here: nothing to fetch (#5687)
     named = ["kraken:builtin/blla@bundled", "yolo:hf/hantian/yolo-doclaynet/yolov11n@unpinned"]
 
     started = client.post("/api/recipes/stages/find-regions/try", json={"candidates": named})
@@ -136,6 +138,10 @@ def test_read_is_compared_by_agreement_and_by_errors_on_lines_a_person_corrected
         return "thread-x", "done", None
 
     monkeypatch.setattr(runner, "_run_workflow", fake_run)
+    # The two readers are on this Mac: nothing to fetch before they run (#5687 fetches what is not).
+    monkeypatch.setattr("fichero_server.recipes.start.missing_models", lambda runs: [])
+    monkeypatch.setattr("fichero_server.recipes.start.runtime_to_set_up", lambda runs: [])
+    monkeypatch.setattr("fichero_server.recipes.start.local_models_to_download", lambda runs: [])
     monkeypatch.setattr(evaluation, "reference_page", lambda db, page_id, checked: (
         {"lines": [{"id": "l1", "text": "Muy señor mío"}]}, None) if page_id == page.id else (None, "not checked"))
     named = ["kraken:zenodo/10.5281/zenodo.21788410@unpinned", "kraken:zenodo/10.5281/zenodo.13788177@unpinned"]
