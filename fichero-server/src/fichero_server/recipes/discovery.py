@@ -133,6 +133,18 @@ def _front_matter(readme: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _trained_terms(card: dict[str, Any]) -> tuple[str, bool, frozenset[str] | None]:
+    """(licence, open, languages) of a model Fichero trained, from its own card (#5683,
+    `source.model.trained-card-keeps-its-release`). Open to use (it is the person's own; `open_licence` is whether
+    the rules may choose it without a licence to accept), but its licence says "not for release" unless its card
+    says `not_for_release: false`, the one release test; its languages as the card names them, never its base's
+    README's (None: not said)."""
+    from fichero_server.training.project_models import _may_publish
+
+    licence = "trained by you" if _may_publish(card) else "trained by you; not for release"
+    return licence, True, _tags(card.get("languages"))
+
+
 def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
     """A card for every complete MLX vision model in this engine's store that no shipped card pins."""
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
@@ -150,8 +162,9 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
             continue
         trained = store.trained_card(model_id)
         meta = _front_matter(store.snapshot_path(spec) / "README.md")
+        languages = _tags(meta.get("language"))
         if trained is not None:
-            licence, open_licence = "trained by you", True
+            licence, open_licence, languages = _trained_terms(trained)
             why = f"installed on this Mac: {spec.display_name}, a vision model you trained"
         else:
             licence = str(meta.get("license_name") or meta.get("license") or "")
@@ -162,7 +175,7 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
         out[model_id] = Card(
             id=f"mlx:installed/{spec.repo_id}@{spec.revision}",
             pin={"hf": spec.repo_id, "revision": spec.revision},
-            jobs=READER_JOBS, scripts=None, languages=_tags(meta.get("language")), material=frozenset(),
+            jobs=READER_JOBS, scripts=None, languages=languages, material=frozenset(),
             open_licence=open_licence, size_gb=round(spec.download_size_bytes / 1e9, 3),
             memory_gb=round(memory / 1024**3, 2), trainable=True, licence=licence,
             note=spec.display_name, source="installed", offered_because=why, installed=True,
@@ -205,16 +218,17 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
         spec = store.spec(model_id)
         if tuple(spec.capabilities) != ("text",) or not store.is_complete(spec):
             continue  # a model with a vision path reads pages: a reader, never a text job's (#5668)
-        if store.trained_card(model_id) is not None:
-            licence = "trained by you"
+        if (trained := store.trained_card(model_id)) is not None:
+            licence, open_licence, _languages = _trained_terms(trained)
         else:
             licence = licence_of.get(spec.repo_id) or str(
                 (meta := _front_matter(store.snapshot_path(spec) / "README.md")).get("license_name")
                 or meta.get("license") or "")
+            open_licence = _is_open(licence)
         out[f"mlx:{model_id}"] = Card(
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
-            open_licence=licence == "trained by you" or _is_open(licence), licence=licence,
+            open_licence=open_licence, licence=licence,
             size_gb=round(spec.download_size_bytes / 1e9, 3),
             memory_gb=round(spec.min_memory_bytes / 1024**3, 2),  # text alone: no page image to hold
             note=spec.display_name, source="installed", installed=True,

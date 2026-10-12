@@ -3823,6 +3823,14 @@ node; a model appears in the sidebar only inside a training node, as its base or
   where it lives (`lives`: `project`, `global`, `both`; `compute.model.lives-in-project`).* training is a node in the sidebar; the
   base model and every model a run produced show inside it. A model with no training stays in
   Settings only.
+- `source.model.trained-card-keeps-its-release` — **[OK]** (#5683) the card a recipe sees for a model Fichero
+  trained says what its own card says: its licence "trained by you; not for release" unless its card says
+  `not_for_release: false` (the one test, `training.project_models._may_publish`), and the languages its card
+  names, never its base model's README's (a reader taught on Spanish notebooks is not an English one). It stays
+  usable in the person's own projects (`open_licence`: no licence to accept); releasing is what it never does. WHY (2026-10-11, the MCP onboarding walk): the trained Mosquera reader, taught on Sergio's
+  notebooks, showed `open_licence: true` and `languages: ["en"]` while its own card said not for release; Sergio's
+  pages may train a model but never be released. Built: `recipes.discovery.installed_cards` and
+  `local_text_cards`; tested in `fichero-server/tests/unit/recipes/test_trained_card_keeps_its_release_5683.py`.
 - `source.model.node-inspector` — **[OK]** (#5439) *Built (engine): `GET /api/training/model` gives
   one trained model's facts from its card: base, teacher, training set, job, when and where it trained,
   the newest held-out CER per normalisation policy (null before any evaluation) and every evaluation,
