@@ -15,7 +15,7 @@
   "single-pass"
  ],
  "config": {
-  "preset_version": 3
+  "preset_version": 4
  },
  "nodes": [
   {

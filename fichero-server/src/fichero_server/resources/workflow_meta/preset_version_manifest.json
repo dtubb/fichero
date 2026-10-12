@@ -172,8 +172,8 @@
   "sha256": "65c3b798a9be178fae8b2e3e652ef173a2f5269d17450dc06ec31f5819a9fb53"
  },
  "transcribe_kraken.json": {
-  "preset_version": 3,
-  "sha256": "2e5c53b6c29364f6e0dac2995d2af2b1ee1ada89fad2237ac394bbe94eb25bb8"
+  "preset_version": 4,
+  "sha256": "ecac54fd28e7b27a118d52d4ccdd9ea6b9b808e16b66e8c15f027fe5be515d8f"
  },
  "transcribe_manuscript.json": {
   "preset_version": 4,
