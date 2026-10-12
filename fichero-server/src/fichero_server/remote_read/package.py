@@ -16,6 +16,8 @@ and Fichero's own runner (`remote_read/runner.py`) with the polite fetcher besid
 """
 from __future__ import annotations
 
+from fichero_server.core.naturalsort import in_folder_order
+
 import hashlib
 import json
 import shutil
@@ -95,7 +97,7 @@ def pages_to_read(db: Any, scope_ids: list[str]) -> list[Any]:
         if kind in ("file", "page") and (doc.path or meta.get("iiif_service")):
             pages.append(doc)
         children = sorted(db.query(Document, parent_id=doc.id),
-                          key=lambda d: (d.sequence if d.sequence is not None else 1 << 30, d.name or "", d.id))
+                          key=in_folder_order)  # the one shared order (#5693)
         for child in children:
             visit(child)
 

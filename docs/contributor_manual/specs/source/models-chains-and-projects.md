@@ -2915,6 +2915,12 @@ Setup
   every stage page; the person can pick others in the window, and the choice holds for every stage. **Order
   (#5686):** "first" and "last" are as Items shows the pages, each folder in its own order (its sort order,
   then the name read naturally: `2_Hoja` before `10_Hoja`), never the order an import happened to make them.
+  **One order everywhere (#5693):** Items, Find the Documents, the samples, the Inspector's pages, a training
+  set and a remote read all sort a folder's children by one shared key (`core.naturalsort.in_folder_order`:
+  the order a person set, then a page's place in its file, then the name read naturally), so no surface shows
+  a folder's pages in another order. Nothing is stored at import: `sequence` on an image means its page
+  within a multi-page file, and a stored number would put pages added later at the end. *Test:*
+  `fichero-server/tests/unit/recipes/test_one_page_order_5693.py`.
   *Test:* pytest, the proposal on a folder of 1, 4 and 200 pages; pure Swift, a page picked by hand
   replaces a proposed one.
 - `source.onboard.stages.sample-result` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine half): a try whose steps use the cloud is refused (402) with its cost until `cost_ok`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the result drawn in place (B).* Try on These Pages runs the stage on the

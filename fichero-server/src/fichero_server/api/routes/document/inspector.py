@@ -9,6 +9,8 @@ SwiftUI inspector would make.
 
 from __future__ import annotations
 
+from fichero_server.core.naturalsort import in_folder_order
+
 import logging
 from typing import Annotated, Any
 
@@ -233,7 +235,7 @@ async def document_outline(
     descendants = [d for d in db.query(Document) if d.id in doc_ids and d.id != document_id]
     pages = sorted(
         [d for d in descendants if d.doc_type == DocType.page],
-        key=lambda d: (d.sequence or 0, d.name),
+        key=in_folder_order,  # the one shared order (#5693)
     )
     chunks = [d for d in descendants if d.doc_type == DocType.chunk]
 

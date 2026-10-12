@@ -40,7 +40,7 @@ def _folder(library: Path) -> Path:
 def _pages(db: Any) -> list[Any]:
     """The project's material as Items shows it (#5686): each folder's pages in its own order (sort order, then the
     name read naturally), the folders in the same order, never the order an import happened to create them."""
-    from fichero_server.core.naturalsort import natural_key
+    from fichero_server.core.naturalsort import in_folder_order
     from fichero_server.models import Document
 
     pages = [d for d in (db.get(Document, i) for i in db.unit_of_work_ids()) if d is not None]
@@ -48,8 +48,8 @@ def _pages(db: Any) -> list[Any]:
 
     def key(doc: Any) -> tuple:
         folder = folders.get(doc.parent_id)
-        place = (folder.sort_order is None, folder.sort_order or 0, natural_key(folder.name)) if folder else (True, 0, ())
-        return (*place, doc.parent_id or "", doc.sort_order is None, doc.sort_order or 0, natural_key(doc.name))
+        # The folders in their order, then each folder's pages in theirs: the one shared order (#5693).
+        return (folder is None, in_folder_order(folder) if folder else (), doc.parent_id or "", in_folder_order(doc))
 
     return sorted(pages, key=key)
 

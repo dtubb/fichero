@@ -24,6 +24,8 @@ are not built yet; `flags_checked` names the flags this set was checked for.
 """
 from __future__ import annotations
 
+from fichero_server.core.naturalsort import in_folder_order
+
 import json
 import shutil
 from collections import Counter
@@ -107,7 +109,7 @@ def pages_in_scope(db: Any, scope_ids: list[str]) -> list[Any]:
             return
         seen.add(doc.id)
         children = sorted(db.query(Document, parent_id=doc.id),
-                          key=lambda d: (d.sequence if d.sequence is not None else 1 << 30, d.name or ""))
+                          key=in_folder_order)  # the one shared order (#5693)
         if getattr(doc, "path", None) and getattr(doc.doc_type, "value", doc.doc_type) in ("file", "page"):
             pages.append(doc)
         for child in children:
