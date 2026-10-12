@@ -79,7 +79,8 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
         if runsHere {
             said.append("free, on this Mac")
         } else if let value = costUsd?.value {
-            let price = value.formatted(.currency(code: "USD"))
+            // A price in US dollars reads "$0.04" everywhere; the machine's locale would say "US$0.04" in Canada.
+            let price = value.formatted(.currency(code: "USD").locale(Locale(identifier: "en_US")))
             said.append(costUsd?.basis == "estimate" ? "about \(price)" : price)
         } else {
             said.append("price not known")
