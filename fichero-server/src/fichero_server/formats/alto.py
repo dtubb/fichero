@@ -402,8 +402,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
     # so they are declared lost rather than copied onto every line, which would turn one
     # stated fact into hundreds (#5085).
     if page.language:
-        if _looks_like_a_tag(page.language):
-            page_el.set("LANG", page.language)
+        if _looks_like_a_tag(_as_tag(page.language)):
+            page_el.set("LANG", _as_tag(page.language))
         else:
             report.note(
                 "the page's language",
@@ -513,8 +513,8 @@ def write(page: SourcePage, report: LossReport) -> bytes:
             # stores, #2092, and what PAGE XML uses) is not one, so it cannot be
             # written here and the loss is reported rather than emitting something
             # that fails `xsd:language`.
-            if _looks_like_a_tag(segment.language):
-                element.set("LANG", segment.language)
+            if _looks_like_a_tag(_as_tag(segment.language)):
+                element.set("LANG", _as_tag(segment.language))
             else:
                 report.note(
                     "language",
@@ -657,6 +657,19 @@ def _bounds(polygon: list[list[float]] | None) -> list[float] | None:
     xs = [p[0] for p in polygon]
     ys = [p[1] for p in polygon]
     return [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+
+
+def _as_tag(value: str) -> str:
+    """The engine's language NAME as ALTO's BCP 47 tag (`German` -> `de`, #5517); the value itself when no language
+    answers to it (a tag already, or a name nothing knows)."""
+    from fichero_server.recipes.names import resolve_language
+
+    if _looks_like_a_tag(value):
+        return value  # a tag stays as the file had it (`heb` is not rewritten `he`)
+    try:
+        return resolve_language(value)
+    except ValueError:
+        return value
 
 
 def _looks_like_a_tag(value: str) -> bool:

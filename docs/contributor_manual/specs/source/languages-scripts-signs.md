@@ -165,6 +165,20 @@ Language and script
   (#5078); a second `language_code` field beside it was rejected, because two fields that can
   disagree about one language, with nothing reconciling `"Spanish"` and `es`, manufactures exactly
   the drift this programme removes.
+- `source.lang.imported-language-is-a-name` — **[OK]** (#5517, 2026-10-11) an imported file's language lands
+  as the engine's canonical language NAME whatever the file spelled (`source.lang.registries`: names, not tags,
+  until #5078): ALTO's `LANG="de"` and PAGE XML's `primaryLanguage="German"` both land as `German`; a value no
+  language answers to is kept as written. The file's own script and direction are kept. Each writer gives its
+  format's form back: PAGE XML its enumerated name, ALTO the tag (`de`), so both still round-trip. A segment
+  the file says nothing about stays empty and resolves through the cascade. *Test:*
+  `fichero-server/tests/unit/api/test_imported_language_5517.py`.
+- `source.lang.project-facts-from-setup` — **[OK]** (#5517, 2026-10-11) the project rung of the cascade
+  reads Set Up's answers when the project states no fact of its own: its one script, its one language (as
+  its name) and that script's direction (Set Up's own answer for it, else the script's), each at the project's
+  level. A project that answered Syriac resolves an imported line that says nothing as Syriac,
+  right to left (`GET /api/source-settings/resolve`), where it resolved nothing. Several scripts or
+  languages answered: no project fact (a line's own then decides). A fact set in Source Settings wins.
+  *Test:* `fichero-server/tests/unit/api/test_imported_language_5517.py`.
 - `source.lang.project-declared` — **[OK]** (→ #4938) a project can declare a script no registry
   has: `LibraryScript` records the code, a name and an encoding, and `assert_known_script` —
   called by `representation.create` and by `segment.update` — refuses a private-use code the

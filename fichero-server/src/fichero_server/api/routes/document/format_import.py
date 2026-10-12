@@ -57,6 +57,7 @@ from fichero_server.api.routes.document.segments import (
 )
 from fichero_server.db import Database
 from fichero_server.formats import UnknownFormat, format_for, format_named, read_page
+from fichero_server.models.source_declarations import canonical_language
 from fichero_server.formats.harness import SourcePage
 from fichero_server.models import ContentRepresentation, DocType, Document, Segment, Status
 from fichero_server.models.anchors import SourceAnchor
@@ -729,6 +730,9 @@ def write_page_into_library(
         # Slice 9's three facts arrive WITH the segment, with provenance saying the
         # file said so -- not a person and not a detector. An imported `rtl` Arabic
         # line is readable as such the moment the import finishes.
+        # The file's language as the engine's canonical name, whatever the file spelled (#5517): ALTO's `de` and
+        # PAGE XML's `German` are one language.
+        segment.language = canonical_language(segment.language)
         row.language = segment.language
         row.script = segment.script
         row.direction = segment.direction

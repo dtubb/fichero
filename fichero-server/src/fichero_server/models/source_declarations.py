@@ -51,7 +51,11 @@ from pydantic import BaseModel, Field
 from fichero_server.core.timeutil import utc_now
 from fichero_server.models.knowledge import LibrarySetting
 from fichero_server.llm.language_policy import (
+    LEVEL_PROJECT,
     SOURCE_DERIVED_FROM_SCRIPT,
+    SOURCE_USER,
+    STATUS_KNOWN,
+    build_language_meta,
     NEVER_DETERMINED,
     RESOLVED,
     SCRIPT_PRIVATE_USE_PREFIX,
@@ -531,7 +535,53 @@ def project_facts(db: Any) -> ProjectFacts:
         meta = payload.get("meta")
         if isinstance(meta, dict):
             facts[f"{key}_meta"] = meta
+    for key, (value, meta) in _facts_from_setup(db).items():
+        if key not in facts:  # a fact the project states itself wins
+            facts[key], facts[f"{key}_meta"] = value, meta
     return ProjectFacts(**facts)
+
+
+def canonical_language(value: str | None) -> str | None:
+    """A language as the engine stores it, its canonical NAME (`source.lang.registries`, until #5078), whatever a
+    file spelled: `de` and `German` both `German`; a value no language answers to, as written (#5517)."""
+    if not value or not value.strip():
+        return None
+    from fichero_server.recipes.names import language_name, resolve_language
+
+    try:
+        tag = resolve_language(value.strip())
+    except ValueError:
+        return value.strip()
+    name = language_name(tag)
+    return name if name != tag else value.strip()
+
+
+def _facts_from_setup(db: Any) -> dict[str, tuple[str, dict[str, Any]]]:
+    """Set Up's answers as the project's facts, where it answered one script and one language
+    (`source.lang.project-facts-from-setup`, #5517): the script, the language as its name, and that script's
+    direction (Set Up's own answer for it, else the script's)."""
+    from pathlib import Path
+
+    try:
+        from fichero_server.recipes.answers import default_direction
+        from fichero_server.recipes.project import read_project_setup
+
+        answers = read_project_setup(Path(db.path).parent).get("answers") or {}
+    except Exception:  # noqa: BLE001 -- no setup to read (a bare database): nothing from it
+        return {}
+    meta = build_language_meta(status=STATUS_KNOWN, source=SOURCE_USER, level=LEVEL_PROJECT,
+                               basis="answered in Set Up")
+    out: dict[str, tuple[str, dict[str, Any]]] = {}
+    scripts = [s for s in answers.get("scripts") or [] if s]
+    languages = [lang for lang in answers.get("languages") or [] if lang]
+    if len(scripts) == 1:
+        script = str(scripts[0])
+        out["script"] = (script, meta)
+        direction = (answers.get("directions") or {}).get(script) or default_direction(script)
+        out["direction"] = (str(direction), meta)
+    if len(languages) == 1 and (name := canonical_language(str(languages[0]))):
+        out["language"] = (name, meta)
+    return out
 
 
 def set_project_fact(

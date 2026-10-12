@@ -177,6 +177,11 @@ def _language_out(value: str | None, report: LossReport) -> str | None:
         return None
     languages, _scripts = _schema_vocabularies()
     matched = languages.get(value.strip().lower())
+    if matched is None:
+        # A tag (or another spelling) as its name, when one language answers to it (#5517).
+        from fichero_server.models.source_declarations import canonical_language
+
+        matched = languages.get((canonical_language(value) or "").lower())
     if matched:
         return matched
     report.note(

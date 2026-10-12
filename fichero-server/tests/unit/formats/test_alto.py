@@ -128,7 +128,7 @@ class TestWritingAltoDeclaresWhatItCannotCarry:
         page = SourcePage(
             image_size=(1000, 1000),
             segments=[
-                PageSegment(kind="word", ref="w1", language="Spanish",
+                PageSegment(kind="word", ref="w1", language="Spanglish of Nowhere",
                             rect=[0.1, 0.1, 0.1, 0.02],
                             readings=[("transcription", "dios")]),
             ],
@@ -190,9 +190,8 @@ class TestOneModelOneHarness:
 
         assert data.startswith(b"<?xml")
         assert b"alto/ns-v4" in data
-        # And the conversion is honest about the crossing: PAGE XML carries a
-        # language NAME, which ALTO cannot express.
-        assert "language" in report.lost
+        # PAGE XML carries a language NAME; ALTO writes it as its tag (#5517), so the crossing keeps it.
+        assert "language" not in report.lost and b'LANG="' in data
 
     def test_the_words_survive_the_crossing(self):
         page = read_page("pagexml", PAGEXML_FIXTURE.read_bytes())
@@ -248,7 +247,7 @@ class TestTheWriterNamesItsLossesWithoutValidating:
         page = SourcePage(
             image_size=(1000, 1000),
             segments=[
-                PageSegment(kind="word", ref="w1", language="Spanish",
+                PageSegment(kind="word", ref="w1", language="Spanglish of Nowhere",
                             rect=[0.1, 0.1, 0.1, 0.02],
                             readings=[("transcription", "dios")]),
             ],
@@ -304,8 +303,8 @@ class TestTheWriterNamesItsLossesWithoutValidating:
         assert b"alto/ns-v4" in data
         crossed_words = data.count(b"<String")
         assert crossed_words == sum(1 for s in page.segments if s.kind == "word")
-        # Honest about the crossing: PAGE XML carries a language NAME, ALTO cannot.
-        assert "language" in report.lost
+        # PAGE XML carries a language NAME; ALTO writes it as its tag (#5517).
+        assert "language" not in report.lost
 
 
 class TestTheImplicitParentIsWrittenAndMarked:
@@ -520,15 +519,20 @@ class TestARealHebrewExportStatesItsLanguageWhereAltoDoesNotAllowIt:
         assert "the page's language" not in report.lost
 
     def test_a_language_NAME_on_the_page_is_still_a_loss_not_an_invalid_file(self):
-        """`Page@LANG` is `xsd:language`, a BCP 47 tag. A NAME ("Hebrew", what PAGE XML
-        stores) would fail the schema, so it is reported and not written."""
+        """`Page@LANG` is `xsd:language`, a BCP 47 tag. A NAME no language answers to would fail the schema, so
+        it is reported and not written; a known one ("Hebrew", what PAGE XML stores) is written as its tag
+        (#5517)."""
         page = read_page("alto", self.FIXTURE.read_bytes())
-        page.language = "Hebrew"
+        page.language = "Spanglish of Nowhere"
 
         back, report = round_trip("alto", page)
 
         assert back.language is None
         assert "the page's language" in report.lost
+
+        page.language = "Hebrew"
+        back, report = round_trip("alto", page)
+        assert back.language == "he" and "the page's language" not in report.lost
 
     def test_the_lines_own_languages_do_survive_the_round_trip(self):
         """Per-element `LANG` is where ALTO does allow it, so those must come back —
