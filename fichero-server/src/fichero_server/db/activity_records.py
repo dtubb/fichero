@@ -16,6 +16,8 @@ EVENTS = "activityeventrecords"
 RUNS = "workflowrunrecords"
 #: A run's log, one row per line (#5711).
 LINES = "workflowrunloglines"
+#: Recorded once no run's log is a value from before #5711 any more (`workflows.run_log_tidy`).
+LOGS_AS_LINES_SETTING = "run_logs_as_lines_5711"
 
 #: A dead process leaves these statuses behind (#4316); 'paused' is not one (#5357: it needs no process).
 SWEEPABLE_STATUSES = ("running", "accepted")
@@ -144,9 +146,55 @@ _INSERT_LINES = (f"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random
                  "FROM (SELECT unnest(?::VARCHAR[]) AS x, unnest(range(1, len(?::VARCHAR[]) + 1)) AS s)")
 
 
+def move_values_into_lines(db: Any, thread_ids: list[str]) -> int:
+    """The logs of these runs that are still values from before #5711, moved into lines: numbered far below 0, so a
+    line added later follows them; checked against the value they came from, and only then the value cleared. Raises
+    when a log does not read back, so the caller's transaction rolls back and the value stays. Returns how many runs
+    it moved; a run with no value is left as it is (the common case: one point read)."""
+    if not thread_ids:
+        return 0
+    marks = ", ".join("?" for _ in thread_ids)
+    ids = [r[0] for r in db.execute_fetchall(
+        f"SELECT id FROM {RUNS} WHERE id IN ({marks}) AND execution_log IS NOT NULL", list(thread_ids))]
+    if not ids:
+        return 0
+    marks = ", ".join("?" for _ in ids)
+    # A constant offset, not the run's own line count: carrying the count beside every line made it 6x slower.
+    db.execute(f"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, id, s - 1000000000, "
+               "part FROM (SELECT id, unnest(string_split(execution_log, chr(10))) AS part, "
+               "unnest(range(1, len(string_split(execution_log, chr(10))) + 1)) AS s "
+               f"FROM {RUNS} WHERE id IN ({marks}) AND execution_log <> '')", ids)
+    wrong = db.execute_fetchall(
+        f"SELECT r.id FROM {RUNS} r WHERE r.id IN ({marks}) AND r.execution_log <> '' AND r.execution_log IS "
+        f"DISTINCT FROM (SELECT string_agg(l.line, chr(10) ORDER BY l.seq) FROM {LINES} l WHERE l.run_id = r.id "
+        "AND l.seq <= 0)", ids)
+    if wrong:
+        raise RuntimeError(f"{len(wrong)} run logs did not read back from their lines (first: {wrong[0][0]}); "
+                           "left as they were")
+    db.execute(f"UPDATE {RUNS} SET execution_log = NULL WHERE id IN ({marks})", ids)
+    return len(ids)
+
+
+def logs_as_lines_done(db: Any) -> bool:
+    """Whether this library is marked as having no run log left as a value (`LOGS_AS_LINES_SETTING`)."""
+    return db.execute_fetchone("SELECT 1 FROM librarysettings WHERE id = ?", [LOGS_AS_LINES_SETTING]) is not None
+
+
+def mark_logs_as_lines_done(db: Any) -> None:
+    db.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now()) ON CONFLICT (id) DO NOTHING",
+               [LOGS_AS_LINES_SETTING])
+
+
+def runs_with_values(db: Any, limit: int) -> list[str]:
+    """Up to `limit` runs whose logs are still values from before #5711."""
+    return [r[0] for r in db.execute_fetchall(
+        f"SELECT id FROM {RUNS} WHERE execution_log IS NOT NULL LIMIT ?", [limit])]
+
+
 def put_log(db: Any, thread_id: str, text: str, *, replace: bool) -> None:
     """A run's log written as lines (#5711): replaced (its lines, and any value kept from before, gone first), or
-    `text`'s lines added after its last, so a write is as big as what it adds."""
+    `text`'s lines added after its last, so a write is as big as what it adds. A log still a value from before is
+    moved into lines first, in the same transaction (a run written again folds itself)."""
     lines = text.split("\n") if text else []
     if replace:
         with db.transaction():
@@ -156,8 +204,10 @@ def put_log(db: Any, thread_id: str, text: str, *, replace: bool) -> None:
             if lines:
                 db.execute(_INSERT_LINES.format(base="0"), [thread_id, lines, lines])
     elif lines:
-        db.execute(_INSERT_LINES.format(base=f"(SELECT COALESCE(max(seq), 0) FROM {LINES} WHERE run_id = ?)"),
-                   [thread_id, thread_id, lines, lines])
+        with db.transaction():
+            move_values_into_lines(db, [thread_id])
+            db.execute(_INSERT_LINES.format(base=f"(SELECT COALESCE(max(seq), 0) FROM {LINES} WHERE run_id = ?)"),
+                       [thread_id, thread_id, lines, lines])
 
 
 def read_log(db: Any, thread_id: str, kept: Optional[str]) -> Optional[str]:
@@ -214,9 +264,11 @@ def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> l
         f"WHERE id IN ({', '.join('?' for _ in thread_ids)}){running} RETURNING id", list(thread_ids))
     deleted = [row[0] for row in rows if row and row[0]]
     if deleted:  # the log says so, a line of its own after its last (#5711)
-        db.execute(f"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, r, "
-                   f"COALESCE((SELECT max(seq) FROM {LINES} WHERE run_id = r), 0) + 1, 'Run history deleted' "
-                   "FROM (SELECT unnest(?::VARCHAR[]) AS r)", [deleted])
+        with db.transaction():
+            move_values_into_lines(db, deleted)
+            db.execute(f"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, r, "
+                       f"COALESCE((SELECT max(seq) FROM {LINES} WHERE run_id = r), 0) + 1, 'Run history deleted' "
+                       "FROM (SELECT unnest(?::VARCHAR[]) AS r)", [deleted])
     return deleted
 
 

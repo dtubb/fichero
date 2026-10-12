@@ -315,6 +315,14 @@ class DatabaseManager:
                 except Exception:
                     logger.exception("Could not resume the library's jobs")
 
+                # Run logs from before #5711 move into lines in the background, never at open.
+                try:
+                    from fichero_server.workflows import run_log_tidy
+
+                    run_log_tidy.queue_if_needed(db)
+                except Exception:
+                    logger.exception("Could not queue the run history's housekeeping")
+
                 # Convert the library's stored geometry to the page model, in the background,
                 # after the migrations above (#5222, ruled 2026-09-20). Returns at once; it
                 # never delays the open, and unconverted pages read through as before.
