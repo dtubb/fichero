@@ -17,8 +17,13 @@ import WebKit
 /// many ranges each highlight holds is the behaviour the reader sees. The page
 /// is the transcript markup the engine template renders (`.transcript-page`
 /// with `data-page-id`, text in `.transcript-page-body`).
+///
+/// Serialized, on ONE web view (#5713): in parallel, with a web view per test, a full FicheroTests run
+/// started eight WebContent loads at once, each on its own 30s watchdog, while ~3,500 main-actor tests
+/// held the main thread WebKit answers on; in 2 of 3 full runs the watchdogs fired first ("WebKit did
+/// not start"). One process, one load at a time: each watchdog times its own load only.
 @MainActor
-@Suite("Reader lights every hit on the page (#5466)")
+@Suite("Reader lights every hit on the page (#5466)", .serialized)
 struct ReaderAllHitsTests {
 
     // MARK: - A real web view
@@ -68,7 +73,9 @@ struct ReaderAllHitsTests {
     </div></div></body></html>
     """
 
-    private let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+    /// Every test loads its page afresh into this one view (`load()`), so nothing carries over between tests.
+    private static let sharedWebView = WKWebView(frame: NSRect(x: 0, y: 0, width: 600, height: 400))
+    private var webView: WKWebView { Self.sharedWebView }
     private let watcher = LoadWatcher()
 
     private func load() async throws { try await watcher.load(Self.html, into: webView) }

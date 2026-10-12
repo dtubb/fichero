@@ -39,7 +39,13 @@ import WebKit
 /// to reveal it. On a handwriting-transcription corpus — a page returned as a
 /// single line, a numeric sequence, a run where the model inferred no word
 /// boundaries — that input is normal, not exotic.
+///
+/// Serialized (#5713): in parallel, a full FicheroTests run started this suite's WebContent loads all
+/// at once, each on its own 30s watchdog, while ~3,500 main-actor tests held the main thread WebKit
+/// answers on, and the watchdogs fired first ("WebKit could not start"). One load at a time, so each
+/// watchdog times its own load only. A web view per width stays: the width is what is measured.
 @MainActor
+@Suite(.serialized)
 struct ReaderTranscriptWrapTests {
 
     // MARK: - Measuring a real render
