@@ -119,6 +119,10 @@ final class ActivityStore: ChangeEventConsumer {
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
     private(set) var machine: Components.Schemas.MachineState?
     private var jobsPollTask: Task<Void, Never>?
+    /// Says work starting, finishing and failing to VoiceOver (#3724); a test seam.
+    var announce: (String) -> Void = ActivityStore.postAnnouncement
+    /// Whether a jobs read has landed: the first one announces nothing (`announcement(from:to:)`).
+    private var jobsReadOnce = false
     /// This store polls the jobs read, so its mode follows a change made
     /// elsewhere: the Activity window's Start / Stop reads such a store.
     var pollsJobs: Bool { jobsPollTask != nil }
@@ -220,6 +224,11 @@ final class ActivityStore: ChangeEventConsumer {
             let snapshot = try await activityService.getBackgroundJobs()
             // Applied before any other wait, and the mode only if no set was answered meanwhile.
             applyMachineReadings(snapshot, modeIsCurrent: modeAnswers == answersBefore)
+            // Started, finished and failed, said once per read where this store is the one polling (#3724).
+            if pollsJobs, let said = Self.announcement(from: jobsReadOnce ? backgroundJobs : nil, to: snapshot.jobs) {
+                announce(said)
+            }
+            jobsReadOnce = true
             if backgroundJobs != snapshot.jobs {
                 // A job of its own whose details are open (its tree is loaded,
                 // #5561) is re-read when its row changes: the same one-key
