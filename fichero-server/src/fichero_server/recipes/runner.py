@@ -437,7 +437,8 @@ def _run_regions(db: Any, card: dict[str, Any], documents: list[str], parent: st
     from fichero_server.recipes.regions import find_regions
 
     step["regions_found"] = find_regions(db, documents, parent, card["model"], stop=lambda: _stop_asked(parent),
-                                         provider=card.get("provider") or "yolo")
+                                         provider=card.get("provider") or "yolo",
+                                         say=lambda words: jobs.say(db, parent, words))
     if _stop_asked(parent):
         return None, "cancelled", "Stopped by you"
     return None, "done", None

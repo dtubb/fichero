@@ -9,8 +9,12 @@ model makes them a machine's pass (never a person's) and the Layers list names w
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any, Callable
+
+#: How often a page waiting on the throttle looks again (#5685).
+WAIT_POLL_SECONDS = 5.0
 
 
 def geometry(regions: list[Any], width: int, height: int, *, model: str, provider: str = "yolo") -> Any:
@@ -47,10 +51,14 @@ def kraken_regions(path: str) -> list[Any]:
 
 
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
-                 stop: Callable[[], bool] | None = None, provider: str = "yolo") -> dict[str, int]:
+                 stop: Callable[[], bool] | None = None, provider: str = "yolo",
+                 say: Callable[[str], None] | None = None) -> dict[str, int]:
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at). `stop` is
-    asked before each page."""
+    asked before each page. Before each page, while the throttle holds background work, it waits, and `say` is told
+    why; between pages `say` is told the pages done (#5685, `activity.throttle.power-heat-memory`)."""
+    from fichero_server.execution import throttle
+
     from PIL import Image
 
     from fichero_server.llm import LLMConfig
@@ -62,9 +70,15 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
 
     library = str(Path(db.path).parent)
     account = {"pages": 0, "regions": 0, "no_image": 0}
-    for doc_id in documents:
+    for number, doc_id in enumerate(documents):
+        while (why := throttle.why_wait()) and not (stop is not None and stop()):
+            if say is not None:
+                say(why)
+            time.sleep(WAIT_POLL_SECONDS)
         if stop is not None and stop():
             break
+        if say is not None:
+            say(f"Finding regions: {number} of {len(documents)} pages")
         doc = db.get(Document, doc_id)
         # The page's image as every step finds it: a copied page's stored path is inside the package (#5668).
         path = _resolve_abs_path(doc, library) if doc is not None else ""
@@ -81,4 +95,6 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             ocr_geometry=geometry(found, width, height, model=model, provider=provider)))
         account["pages"] += 1
         account["regions"] += len(found)
+    if say is not None and documents and not (stop is not None and stop()):
+        say(f"Finding regions: {len(documents)} of {len(documents)} pages")
     return account

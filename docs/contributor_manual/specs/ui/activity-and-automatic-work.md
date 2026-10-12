@@ -1223,6 +1223,11 @@ and node, not by job); a retry action for failed pages.
   `fichero-server/tests/unit/jobs/test_throttle.py`). A long job checks at its own boundaries: training on this Mac holds
   at every batch while the Mac is in use, hot or on battery, and lets memory go when it is tight
   (`fichero-server/tests/unit/jobs/test_training_on_this_mac.py`). Still a gap: slowing rather than waiting, and the other lanes.
+  **[OK]** (#5685) a recipe step that reads pages inside the run (Find Regions) checks before each page: while
+  the throttle holds background work, the run's row says so ("Waiting: you're using the Mac") and holds, Stop
+  still heard; between pages it counts pages, not folders ("Finding regions: 3 of 92 pages"). Before, the row said
+  "Running step find-regions: 0 of 1 folder done" while `machine.why_wait` said wait (the 2026-10-11 MCP walk);
+  `fichero-server/tests/unit/recipes/test_regions_step_waits_and_counts_pages_5685.py`.
   **[OK]** (#5654) a job waiting for memory on the model lane names its own model and that model's own need:
   a call to a model on this Mac's model server its need ("Qwen2.5-VL 3B (OCR) needs about 3.9 GB …"), or,
   with that model already loaded, one more read's margin; a Kraken page "Kraken needs about 2.5 GB …". Before,
