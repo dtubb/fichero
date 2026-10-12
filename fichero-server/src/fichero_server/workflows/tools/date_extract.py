@@ -203,6 +203,7 @@ def resolve_page_date(
     project_languages: list[str] | None = None,
     previous: int | None = None,
     volume_range: tuple[int, int] | None = None,
+    text: str | None = None,
 ) -> tuple[HistoricalDate | None, str, PageDate]:
     """(parsed date | None, status, what the heading said). Pure — no DB access.
 
@@ -211,18 +212,23 @@ def resolve_page_date(
     numeric heading no language settles (both readings), so the tool can
     record them instead of reporting a plain "none found".
 
+    ``text``: the page's text by its lines (`page_text_in_lines`), when the
+    caller has it; else ``page_content`` as stored (#5709: a text derived from
+    line readings is one line, and its heading is then the whole page).
+
     ``day_first`` is an explicit override. Unset, the order of an ambiguous
     numeric date comes from the document's language, else the project's
     setup languages (``histdate.day_first_for_languages``), else none.
     """
-    if is_explicitly_undated(_first_line(doc.page_content)):
+    text = doc.page_content if text is None else text
+    if is_explicitly_undated(_first_line(text)):
         return None, STATUS_UNDATED_EXPLICIT, PageDate()
     if day_first is None:
         day_first = day_first_for_languages(
             read_document_language(doc).language, project_languages
         )
     finding = find_page_date(
-        doc.page_content and ftfy.fix_text(doc.page_content) or "",
+        text and ftfy.fix_text(text) or "",
         year_start_march=year_start_march,
         assume_julian=assume_julian,
         volume_years=volume_years,
@@ -369,6 +375,7 @@ async def date_extract_tool(
     volume_years = {vid: years_from_name(v.name) for vid, v in volumes.items()}
     volume_spans = {vid: range_from_name(v.name) for vid, v in volumes.items()}
     carry: dict[str, int] = {}
+    from fichero_server.actions.page_text_cache import page_text_in_lines
 
     for _key, doc_id, volume_id in queue:
         doc = db.get(Document, doc_id)
@@ -386,6 +393,7 @@ async def date_extract_tool(
             project_languages=project_languages,
             previous=carry.get(volume_id) if volume_id else None,
             volume_range=span,
+            text=page_text_in_lines(db, doc),  # the heading is its first lines (#5709)
         )
         if volume_id:
             if parsed is not None and (parsed.meta or {}).get("precision") == "range" and span is None:

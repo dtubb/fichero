@@ -100,7 +100,7 @@ class TestDateExtractSeparatesTheTwoEvents:
         saved: list = []
         emitted: list[dict] = []
         db = MagicMock()
-        db.get.return_value = doc
+        db.get.side_effect = lambda model, _id: doc if model is Document else None  # pages only (#5709)
         db.save.side_effect = lambda row: saved.append(row)
 
         with (

@@ -51,6 +51,25 @@ def test_a_page_text_a_person_wrote_is_read_as_written(db):
     assert job._text(db, page) == "Their own\ntext"
 
 
+def test_work_out_dates_reads_a_page_heading_by_its_lines(db):
+    """The same flattened page, through the dates step: its heading is its first lines, not the whole page as one
+    ("0 pages dated" after the redo; 3 of 92 on the project's copy read by their lines)."""
+    import asyncio
+    from unittest.mock import MagicMock, patch
+
+    from fichero_server.workflows.tools.date_extract import date_extract_tool
+
+    page = _read_page(db, "67_Hoja_563_Recto.JPG", ["1563", "En la ciudad de Santa Fe", "ante mi el escribano"])
+    with patch("fichero_server.workflows.tools.date_extract.db_manager") as manager, patch(
+            "fichero_server.workflows.tools.date_extract.emit_workflow_document_changes"), patch(
+            "fichero_server.workflows.tools.date_extract.emit_workflow_artifact_changes"):
+        manager.get_database.return_value = db
+        asyncio.run(date_extract_tool({"documents": [{"id": page.id}]}, {"library_path": str(db.path)}, MagicMock()))
+
+    dated = db.get(Document, page.id)
+    assert dated.date_jdn is not None and dated.date_meta["heading"] == "1563", dated.date_meta
+
+
 def test_find_the_documents_runs_at_utility_qos_whoever_waits():
     job.register_job_kinds()
 

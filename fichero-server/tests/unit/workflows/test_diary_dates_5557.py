@@ -161,7 +161,7 @@ def _run(docs: list[Document], order: list[str]) -> dict:
 
     rows = {d.id: d for d in docs}
     db = MagicMock()
-    db.get.side_effect = lambda _model, doc_id: rows.get(doc_id)
+    db.get.side_effect = lambda model, doc_id: rows.get(doc_id) if model is Document else None
     with patch("fichero_server.workflows.tools.date_extract.db_manager") as mgr, patch(
         "fichero_server.workflows.tools.date_extract.emit_workflow_document_changes"
     ), patch("fichero_server.workflows.tools.date_extract.emit_workflow_artifact_changes"), patch(
