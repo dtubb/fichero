@@ -129,7 +129,9 @@ struct ProjectRunStripView: View {
             ProjectRunStripRow(
                 strip: strip,
                 failure: failure,
-                onReadAgain: readAgain,
+                readAgain: { threadId, offer in
+                    .stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })
+                },
                 onShowDetails: { showDetails(strip.jobId) },
                 onClose: { store.putAwayProjectRun() }
             )
@@ -141,21 +143,14 @@ struct ProjectRunStripView: View {
         ActivityWindowSelectionState.shared.select(ActivitySelection(jobId: jobId, libraryId: libraryId))
         openWindow(id: ActivityWindowSelectionState.detailWindowID)
     }
-
-    /// A stage's failed pages, read again through the store's one route.
-    private func readAgain(_ threadId: String) {
-        Task {
-            failure = await store.readPagesAgain(runThreadId: threadId)
-                .map { "Couldn't read the pages again: \($0)" }
-        }
-    }
 }
 
 /// One strip, drawn from its words.
 struct ProjectRunStripRow: View {
     let strip: ProjectRunStrip
     let failure: String?
-    let onReadAgain: (String) -> Void
+    /// A stage's Read Again target (`ActivityRunMenuTarget.stage`): the shared item Activity renders (#5652).
+    let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
     let onShowDetails: () -> Void
     let onClose: () -> Void
 
@@ -177,7 +172,8 @@ struct ProjectRunStripRow: View {
             Spacer(minLength: 8)
             ForEach(strip.failed) { stage in
                 if let offer = stage.offer {
-                    Button(offer) { onReadAgain(stage.threadId) }
+                    ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))
+                        .labelStyle(.titleOnly)
                         .controlSize(.small)
                         .help(stage.text)
                         .accessibilityIdentifier("project.runStrip.readAgain")
@@ -207,7 +203,8 @@ struct ProjectRunStripRow: View {
         strip: ProjectRunStrip(
             jobId: "run-1", isLive: true, title: "Transcribe (Kraken) · stage 1 of 3",
             detail: "40 done · 2 failed · 158 left · 12 min left · Waiting: memory is tight"),
-        failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
+        failure: nil, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) },
+        onShowDetails: {}, onClose: {}
     )
     .frame(width: 720)
 }
@@ -220,7 +217,8 @@ struct ProjectRunStripRow: View {
             failed: [ActivityDetails.Summary.Failed(
                 id: "thread-1", text: "Transcribe (Kraken): 5 pages failed",
                 offer: "Read the 5 pages that failed", threadId: "thread-1")]),
-        failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
+        failure: nil, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) },
+        onShowDetails: {}, onClose: {}
     )
     .frame(width: 720)
 }

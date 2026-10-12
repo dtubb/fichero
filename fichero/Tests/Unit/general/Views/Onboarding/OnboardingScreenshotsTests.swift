@@ -282,7 +282,8 @@ struct OnboardingScreenshotsTests {
                 jobId: "recipe-run", isLive: true, title: "Find lines · stage 1 of 5",
                 detail: "12 done · 0 failed · 80 left · 9 min left · "
                     + "Waiting for Qwen2.5-VL 7B (OCR) to download for step correct"),
-            failure: nil, onReadAgain: { _ in }, onShowDetails: {}, onClose: {}
+            failure: nil, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) },
+            onShowDetails: {}, onClose: {}
         ).padding(.horizontal, 12).frame(maxHeight: .infinity))
         // The training section (#5660 item 9) is drawn in 07-ready-whole-plan; on its own it rendered as a clear picture.
         // A drop onto another project (#2397): the dry run's plan, before Move.
@@ -292,7 +293,10 @@ struct OnboardingScreenshotsTests {
         // A finished recipe run's details by Set Up's stages (#5670): what each made, and why Statements was skipped.
         let stageCards = try ActivityStageCardsTests.cards()
         try await shot("14-run-by-stage.png", CGSize(width: 460, height: 720), ScrollView {
-            ActivityDetailsStageCards(cards: stageCards, perform: { _ in }).padding(22)
+            ActivityDetailsStageCards(
+                cards: stageCards, perform: { _ in },
+                readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) }
+            ).padding(22)
         })
 
         #expect(written.count == 14)

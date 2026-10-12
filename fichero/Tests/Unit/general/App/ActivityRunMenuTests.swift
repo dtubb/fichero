@@ -68,6 +68,43 @@ struct ActivityRunMenuTests {
         #expect(!window.contains("Button(\"Stop\")"))
         #expect(!window.contains("Button(action: readAgain)"))
         #expect(!window.contains("func readAgain("))
+        #expect(!window.contains("func readPagesAgain("))
+        #expect(!window.contains("store.cancelJob("))
+    }
+
+    /// The four architecture rules' one code path: the details, its stage cards and summary, and the
+    /// project window's run strip render the same items, and only the shared target calls the store.
+    @Test("the Activity details and the project's run strip render the same items, through one store call")
+    func detailsAndStripUseTheSameItems() throws {
+        let details = try Self.appSource("Views/Activity/Detail/ActivityDetailsView.swift")
+        #expect(details.contains("case .control(.stop): ActivityStopMenuItem(target: run)"))
+        #expect(details.contains("case .readAgain: ActivityReadAgainMenuItem(target: run)"))
+        #expect(details.contains("ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))"))
+        #expect(details.contains("details: details, run: runTarget(details)"))
+        let cards = try Self.appSource("Views/Activity/Detail/ActivityDetailsStageCards.swift")
+        #expect(cards.contains("ActivityReadAgainMenuItem(target: readAgain(failed.threadId, offer))"))
+        let strip = try Self.appSource("Views/Activity/ProjectRunStrip.swift")
+        #expect(strip.contains("ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))"))
+        #expect(strip.contains(".stage(threadId: threadId, offer: offer, store: store, report: { failure = $0 })"))
+        for (name, source) in [("details", details), ("stage cards", cards), ("run strip", strip)] {
+            #expect(!source.contains("store.readPagesAgain("), "\(name) reads pages again around the shared item")
+            #expect(!source.contains("store.cancelJob("), "\(name) stops a job around the shared item")
+            #expect(!source.contains("Button(offer)"), "\(name) draws its own Read Again button")
+        }
+        let shared = try Self.appSource("App/Menus/FocusedCommands/FocusedCommandButtons+Activity.swift")
+        #expect(shared.contains("store.readPagesAgain(runThreadId: runThreadId)"))
+        #expect(shared.contains("store.cancelJob(jobId: jobId, runThreadId: runThreadId)"))
+    }
+
+    @Test("a stage's target offers Read Again on that stage's thread and never Stop")
+    func stageTarget() {
+        let target = ActivityRunMenuTarget.stage(
+            threadId: "thread-2", offer: "Read the 5 pages that failed", store: nil, report: { _ in }
+        )
+        #expect(target.rowId == "thread-2")
+        #expect(FocusedActivityRunButtons.readAgainTitle(target) == "Read the 5 pages that failed")
+        #expect(FocusedActivityRunButtons.readAgainDisabledReason(target) == nil)
+        #expect(FocusedActivityRunButtons.stopDisabledReason(target) != nil)
     }
 
     private static func appSource(_ relativePath: String) throws -> String {

@@ -257,9 +257,11 @@ Behaviours (slice 1):
   seen:** Project › Activity › **Stop** and **Read Again** act on the Activity window's one selected run
   (`FocusedActivityRunButtons`, on the `activityRun` focused value the window publishes). Each is ONE
   item, `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` (`FocusedCommandButtons+Activity.swift`),
-  rendered by the menu bar, the Activity table's context menu and the row's own icon buttons, on the one
-  target `ActivityMonitorWindow.runMenuTarget(for:)` makes, so Stop is the row's job cancel and Read Again
-  the store's `readPagesAgain` in all three. Read Again reads as the run's own offer ("Read the 3 pages
+  rendered by the menu bar, the Activity table's context menu and the row's own icon buttons, the
+  Activity details' actions, its stage cards and summary, and the project window's run strip. Every one
+  acts on an `ActivityRunMenuTarget` made by `make(…)` (a row) or `stage(…)` (one stage's failed pages),
+  whose closures are the only place the app calls `ActivityStore.cancelJob` and `readPagesAgain` for
+  them: one code path. Read Again reads as the run's own offer ("Read the 3 pages
   that failed"). Disabled with its reason under it when no run is selected, when the run is not running
   or waiting (Stop), or when it has ended with nothing to read again (Read Again). No chords: ⌘. is the
   system's cancel. Pinned by `ActivityRunMenuTests` and

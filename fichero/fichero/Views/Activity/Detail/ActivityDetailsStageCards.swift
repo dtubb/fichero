@@ -6,6 +6,8 @@ import SwiftUI
 struct ActivityDetailsStageCards: View {
     let cards: [ActivityDetails.StageCard]
     let perform: (ActivityDetails.Action) -> Void
+    /// A stage's Read Again target (`ActivityRunMenuTarget.stage`), for the shared item (#5652).
+    let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -44,7 +46,8 @@ struct ActivityDetailsStageCards: View {
                 HStack(alignment: .firstTextBaseline) {
                     Label(failed.text, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                     if let offer = failed.offer {
-                        Button(offer) { perform(.readStageAgain(threadId: failed.threadId, label: offer)) }
+                        ActivityReadAgainMenuItem(target: readAgain(failed.threadId, offer))
+                            .labelStyle(.titleOnly)
                             .controlSize(.small)
                     }
                 }
@@ -105,7 +108,7 @@ struct ActivityDetailsStageCards: View {
                   why: nil, offersSetUp: false, failed: nil),
             .init(id: "statements", title: "Statements", state: .skipped, done: 0, total: 0, made: [],
                   why: "No model for Find statements.", offersSetUp: true, failed: nil)
-        ], perform: { _ in })
+        ], perform: { _ in }, readAgain: { .stage(threadId: $0, offer: $1, store: nil, report: { _ in }) })
         .padding()
     }
     .frame(width: 420, height: 560)

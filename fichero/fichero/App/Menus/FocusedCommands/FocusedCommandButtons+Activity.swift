@@ -2,10 +2,11 @@ import SwiftUI
 
 // MARK: - Activity's Stop and Read Again in the menu bar (#5652 slice 3, `menus.context-matches-bar`)
 
-/// What one Activity row offers: Stop while it runs or waits, and the run's own "read again" offer once
-/// it has ended (`ActivityMonitorRow.readAgainLabel`). Made by `ActivityMonitorWindow.runMenuTarget(for:)`
-/// for the row's own buttons, its context menu and the menu bar alike, so all three call the same
-/// closures.
+/// What one Activity row, or one stage's failed pages, offers: Stop while it runs or waits, and the
+/// run's own "read again" offer once it has ended (`ActivityMonitorRow.readAgainLabel`). Made ONLY by
+/// `make(…)` / `stage(…)`, whose closures are the one Stop (`ActivityStore.cancelJob`) and the one Read
+/// Again (`ActivityStore.readPagesAgain`): the Activity row's buttons, its context menu, the menu bar,
+/// the Activity details and the project window's run strip all act through them.
 struct ActivityRunMenuTarget: Equatable {
     let rowId: String
     let rowName: String
@@ -17,6 +18,39 @@ struct ActivityRunMenuTarget: Equatable {
 
     static func == (lhs: Self, rhs: Self) -> Bool {
         lhs.rowId == rhs.rowId && lhs.canStop == rhs.canStop && lhs.readAgainLabel == rhs.readAgainLabel
+    }
+
+    /// A row's target. `report` gets the failure in words, or nil when the engine took it.
+    static func make(
+        rowId: String, rowName: String, canStop: Bool, jobId: String?, runThreadId: String?,
+        readAgainLabel: String?, store: ActivityStore?, report: @escaping @MainActor (String?) -> Void
+    ) -> Self {
+        Self(
+            rowId: rowId, rowName: rowName, canStop: canStop, readAgainLabel: readAgainLabel,
+            stop: {
+                guard let store, let jobId else { return }
+                Task {
+                    report(await store.cancelJob(jobId: jobId, runThreadId: runThreadId)
+                        .map { "Couldn't stop \(rowName): \($0)" })
+                }
+            },
+            readAgain: {
+                guard let store, let runThreadId else { return }
+                Task {
+                    report(await store.readPagesAgain(runThreadId: runThreadId)
+                        .map { "Couldn't read the pages again: \($0)" })
+                }
+            }
+        )
+    }
+
+    /// One stage's failed pages (the details' stage cards and summary, the project window's run strip):
+    /// Read Again only, on that stage's thread.
+    static func stage(
+        threadId: String, offer: String, store: ActivityStore?, report: @escaping @MainActor (String?) -> Void
+    ) -> Self {
+        make(rowId: threadId, rowName: offer, canStop: false, jobId: nil, runThreadId: threadId,
+             readAgainLabel: offer, store: store, report: report)
     }
 }
 

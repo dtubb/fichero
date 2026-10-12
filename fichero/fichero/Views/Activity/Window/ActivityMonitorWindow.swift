@@ -253,25 +253,27 @@ struct ActivityMonitorWindow: View {
     }
 
     private func runMenuTarget(for row: ActivityMonitorRow) -> ActivityRunMenuTarget {
-        ActivityRunMenuTarget(
-            rowId: row.id, rowName: row.name,
-            canStop: row.controls.contains(.stop),
-            readAgainLabel: row.readAgainLabel,
-            stop: { Task { await act(.stop, on: row) } },
-            readAgain: { Task { await readPagesAgain(row) } }
+        .make(
+            rowId: row.id, rowName: row.name, canStop: row.controls.contains(.stop),
+            jobId: row.jobId, runThreadId: row.runThreadId, readAgainLabel: row.readAgainLabel,
+            store: library(for: row.libraryId)?.activityStore, report: { notice = $0 }
         )
     }
 
     /// Pause, Resume or Stop one row's job through the audited job actions;
-    /// the engine's answer is set on that row in place.
+    /// the engine's answer is set on that row in place. Stop is the shared one (`runMenuTarget(for:)`).
     private func act(_ control: ActivityMonitorRow.Control, on row: ActivityMonitorRow) async {
+        if control == .stop {
+            runMenuTarget(for: row).stop()
+            return
+        }
         guard let jobId = control.isRetry ? row.retryJobId : row.jobId,
               let store = library(for: row.libraryId)?.activityStore else { return }
         let failure: String?
         switch control {
         case .pause: failure = await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId)
         case .resume: failure = await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId)
-        case .stop: failure = await store.cancelJob(jobId: jobId, runThreadId: row.runThreadId)
+        case .stop: return
         case .retry, .carryOn: failure = await store.retryJob(jobId: jobId, runThreadId: row.runThreadId)
         }
         notice = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
@@ -284,13 +286,6 @@ struct ActivityMonitorWindow: View {
         guard let selection = row.selection else { return }
         selectionState.select(selection)
         openWindow(id: ActivityWindowSelectionState.detailWindowID)
-    }
-
-    /// The run's offer at its end (#5555): one new run over the pages it did not do.
-    private func readPagesAgain(_ row: ActivityMonitorRow) async {
-        guard let threadId = row.runThreadId, let store = library(for: row.libraryId)?.activityStore else { return }
-        let failure = await store.readPagesAgain(runThreadId: threadId)
-        notice = failure.map { "Couldn't read the pages of \(row.name) again: \($0)" }
     }
 
     /// The ONE delete operation (#4960), routed per row's OWN library. Only

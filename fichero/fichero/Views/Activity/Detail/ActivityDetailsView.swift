@@ -55,11 +55,15 @@ struct ActivityDetailsView: View {
                 if !details.stageCards.isEmpty {
                     // A recipe run by Set Up's stages (#5670): what each made, and why one did not run, under it.
                     ActivityDetailsStageCards(
-                        cards: details.stageCards, perform: { action in Task { await perform(action, details) } }
+                        cards: details.stageCards, perform: { action in Task { await perform(action, details) } },
+                        readAgain: stageTarget
                     )
                 } else {
                     if let summary = details.summary {
-                        ActivityDetailsSummary(summary: summary, perform: { action in Task { await perform(action, details) } })
+                        ActivityDetailsSummary(
+                            summary: summary, perform: { action in Task { await perform(action, details) } },
+                            readAgain: stageTarget
+                        )
                     }
                     if !details.stages.isEmpty {
                         ActivityDetailsStages(stages: details.stages)
@@ -68,7 +72,10 @@ struct ActivityDetailsView: View {
                 if !details.failedPages.isEmpty {
                     ActivityDetailsFailedPages(details: details)
                 }
-                ActivityDetailsActions(details: details, perform: { action in Task { await perform(action, details) } })
+                ActivityDetailsActions(
+                    details: details, run: runTarget(details),
+                    perform: { action in Task { await perform(action, details) } }
+                )
                 if details.isLive {
                     // The Start / Stop control (ruled 2026-10-09): go ahead although the Mac is in use, or
                     // pause all work; beside the row's own Pause and Stop (#5623).
@@ -93,23 +100,45 @@ struct ActivityDetailsView: View {
         }
     }
 
+    /// Stop and Read Again on this row: the target the shared items act through (#5652), made as the
+    /// Activity table makes it; Read Again is the run's offer as the actions word it.
+    private func runTarget(_ details: ActivityDetails) -> ActivityRunMenuTarget {
+        let row = details.row
+        var offer: String?
+        for action in details.actions {
+            if case .readAgain(let label) = action { offer = label }
+        }
+        return .make(
+            rowId: row.id, rowName: row.name, canStop: row.controls.contains(.stop),
+            jobId: row.jobId, runThreadId: details.runThreadId, readAgainLabel: offer,
+            store: store, report: { actionFailure = $0 }
+        )
+    }
+
+    /// One stage's failed pages, read again through the shared item's target (#5652).
+    private func stageTarget(threadId: String, offer: String) -> ActivityRunMenuTarget {
+        .stage(threadId: threadId, offer: offer, store: store, report: { actionFailure = $0 })
+    }
+
     private func perform(_ action: ActivityDetails.Action, _ details: ActivityDetails) async {
         let row = details.row
         var failure: String?
         switch action {
+        case .control(.stop):
+            runTarget(details).stop()
+            return
         case .control(let control):
             guard let jobId = control.isRetry ? row.retryJobId : row.jobId else { return }
             switch control {
             case .pause: failure = await store.setJobPaused(jobId: jobId, paused: true, runThreadId: row.runThreadId)
             case .resume: failure = await store.setJobPaused(jobId: jobId, paused: false, runThreadId: row.runThreadId)
-            case .stop: failure = await store.cancelJob(jobId: jobId, runThreadId: row.runThreadId)
+            case .stop: return
             case .retry, .carryOn: failure = await store.retryJob(jobId: jobId, runThreadId: row.runThreadId)
             }
             failure = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
         case .readAgain:
-            guard let threadId = details.runThreadId else { return }
-            failure = await store.readPagesAgain(runThreadId: threadId)
-                .map { "Couldn't read the pages again: \($0)" }
+            runTarget(details).readAgain()
+            return
         case .openPage(let documentId):
             UIVerbs.openNode(documentId)
         case .showPages(let ids):
@@ -120,9 +149,9 @@ struct ActivityDetailsView: View {
             }
         case .showTrace(let threadId):
             trace = TraceSubject(threadId: threadId)
-        case .readStageAgain(let threadId, _):
-            failure = await store.readPagesAgain(runThreadId: threadId)
-                .map { "Couldn't read the pages again: \($0)" }
+        case .readStageAgain(let threadId, let label):
+            stageTarget(threadId: threadId, offer: label).readAgain()
+            return
         case .openSetUp(let stage):
             if let libraryId = selection.libraryId {
                 LibraryManager.shared.requestSetUp(for: libraryId, stage: stage)
@@ -235,14 +264,23 @@ private struct ActivityDetailsFailedPages: View {
 /// The row's actions; one that does not apply is absent, not disabled.
 private struct ActivityDetailsActions: View {
     let details: ActivityDetails
+    /// Stop and Read Again: the same items the Activity table and Project › Activity render (#5652).
+    let run: ActivityRunMenuTarget
     let perform: (ActivityDetails.Action) -> Void
 
     var body: some View {
         if !details.actions.isEmpty {
             HStack(spacing: 8) {
                 ForEach(details.actions, id: \.self) { action in
-                    Button { perform(action) } label: {
-                        Label(Self.label(action), systemImage: Self.symbol(action))
+                    Group {
+                        switch action {
+                        case .control(.stop): ActivityStopMenuItem(target: run)
+                        case .readAgain: ActivityReadAgainMenuItem(target: run)
+                        default:
+                            Button { perform(action) } label: {
+                                Label(Self.label(action), systemImage: Self.symbol(action))
+                            }
+                        }
                     }
                     .accessibilityIdentifier("activity.details.action.\(Self.identifier(action))")
                 }
@@ -332,6 +370,8 @@ private struct ActivityDetailsStages: View {
 private struct ActivityDetailsSummary: View {
     let summary: ActivityDetails.Summary
     let perform: (ActivityDetails.Action) -> Void
+    /// A stage's Read Again target (`ActivityRunMenuTarget.stage`), for the shared item.
+    let readAgain: (_ threadId: String, _ offer: String) -> ActivityRunMenuTarget
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -343,7 +383,8 @@ private struct ActivityDetailsSummary: View {
                 HStack(alignment: .firstTextBaseline) {
                     Label(stage.text, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                     if let offer = stage.offer {
-                        Button(offer) { perform(.readStageAgain(threadId: stage.threadId, label: offer)) }
+                        ActivityReadAgainMenuItem(target: readAgain(stage.threadId, offer))
+                            .labelStyle(.titleOnly)
                             .controlSize(.small)
                             .accessibilityIdentifier("activity.details.summary.readAgain")
                     }
