@@ -22,8 +22,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
-from fichero_server.core.duckdb_session import connect_utc
-
 # NOTE: fichero_server.workflows.runtime is imported at CALL time, not here (#3950).
 # It pulls builder -> langgraph -> the whole tool universe (~700 modules,
 # seconds of import). This module is imported by api/routes/batch.py just to
@@ -32,11 +30,44 @@ from fichero_server.core.duckdb_session import connect_utc
 # something the type definitions need. Keeping this at module scope made
 # binding the HTTP socket wait for langgraph.
 from fichero_server.workflows.activity import get_activity_tracker
-from fichero_server.workflows.activity_store import duckdb_connection_lock
 from fichero_server.workflows.workflow_store import WorkflowStore
 
 logger = logging.getLogger(__name__)
 MAX_BATCH_CACHE_SIZE = 512
+
+#: The library file a library's managed Database keeps (`db_manager.get_database`).
+LIBRARY_FILE = "fichero.duckdb"
+#: A loose database file a test or tool hands the store: its own Database, one per file in this process.
+_LOOSE: dict[str, Any] = {}
+_LOOSE_LOCK = threading.Lock()
+
+
+def _library_database(db_path: str) -> Any:
+    """The library's one managed Database for `db_path` (#5645, `source.store.one-managed-database`): the open
+    Database holding that file, else the library's through `db_manager`; a loose file (a test's, a tool's) gets a
+    Database of its own, kept for the process. The batch store keeps no connection of its own."""
+    import os
+
+    from fichero_server.db import Database
+    from fichero_server.db.manager import db_manager
+
+    real = os.path.realpath(db_path)
+    for db in list(db_manager._databases.values()):
+        if os.path.realpath(str(db.path)) == real:
+            return db
+    path = Path(db_path)
+    if path.name == LIBRARY_FILE:
+        return db_manager.get_database(path.parent)
+    with _LOOSE_LOCK:
+        if real not in _LOOSE:
+            _LOOSE[real] = Database(path)
+        return _LOOSE[real]
+
+
+def _item_of(record: Any) -> "BatchItem":
+    return BatchItem(thread_id=record.thread_id, item_index=record.item_index, inputs=dict(record.inputs or {}),
+                     status=BatchItemStatus(record.status), error=record.error,
+                     started_at=ensure_utc(record.started_at), completed_at=ensure_utc(record.completed_at))
 
 
 class BatchStatus(str, Enum):
@@ -211,62 +242,14 @@ class BatchManager:
         # holds references into that registry, keyed by batch_id.
         self._cancel_events: dict[str, threading.Event] = {}
         self._pause_events: dict[str, asyncio.Event] = {}
-        self._init_database()
+        # The library's one managed Database (#5645): its rows are `BatchRecord` and `BatchItemRecord`.
+        self.db = _library_database(db_path)
 
     def _remember_batch(self, batch: BatchExecution) -> None:
         self._batches[batch.batch_id] = batch
         self._batches.move_to_end(batch.batch_id)
         while len(self._batches) > MAX_BATCH_CACHE_SIZE:
             self._batches.popitem(last=False)
-
-    def _init_database(self) -> None:
-        """Initialize database tables for batch tracking."""
-        conn = connect_utc(self.db_path)
-        try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS batches (
-                    batch_id TEXT PRIMARY KEY,
-                    workflow_id TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    max_concurrent INTEGER DEFAULT 5,
-                    created_at TIMESTAMP NOT NULL,
-                    started_at TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    error_message TEXT
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS batch_items (
-                    batch_id TEXT NOT NULL,
-                    thread_id TEXT NOT NULL,
-                    item_index INTEGER NOT NULL,
-                    inputs JSON NOT NULL,
-                    status TEXT NOT NULL,
-                    error TEXT,
-                    started_at TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    PRIMARY KEY (batch_id, thread_id)
-                )
-            """)
-
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_batch_items_batch_id
-                ON batch_items(batch_id)
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS batch_progress_snapshots (
-                    batch_id TEXT NOT NULL,
-                    timestamp TIMESTAMP NOT NULL,
-                    completed_count INTEGER,
-                    failed_count INTEGER,
-                    avg_duration_ms FLOAT,
-                    PRIMARY KEY (batch_id, timestamp)
-                )
-            """)
-        finally:
-            conn.close()
 
     async def create_batch(
         self,
@@ -321,53 +304,22 @@ class BatchManager:
         return batch
 
     async def _save_batch(self, batch: BatchExecution) -> None:
-        """Save batch state to database."""
+        """Save the batch and its items through the library's managed Database (#5645)."""
+        from fichero_server.models.batches import BatchItemRecord, BatchRecord
 
         def _save():
-            with duckdb_connection_lock(self.db_path):
-                conn = connect_utc(self.db_path)
-                try:
-                    # Save batch
-                    conn.execute(
-                    """
-                    INSERT OR REPLACE INTO batches
-                    (batch_id, workflow_id, status, max_concurrent, created_at, started_at, completed_at, error_message)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        batch.batch_id,
-                        batch.workflow_id,
-                        batch.status.value,
-                        batch.max_concurrent,
-                        batch.created_at,
-                        batch.started_at,
-                        batch.completed_at,
-                        batch.error_message,
-                    ],
-                )
-
-                    # Save items
-                    for item in batch.items:
-
-                        conn.execute(
-                        """
-                        INSERT OR REPLACE INTO batch_items
-                        (batch_id, thread_id, item_index, inputs, status, error, started_at, completed_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                        [
-                            batch.batch_id,
-                            item.thread_id,
-                            item.item_index,
-                            json.dumps(item.inputs),
-                            item.status.value,
-                            item.error,
-                            item.started_at,
-                            item.completed_at,
-                        ],
-                        )
-                finally:
-                    conn.close()
+            # One transaction: a batch and its items are never saved half (the old store wrote them one by one).
+            with self.db.transaction():
+                self.db.save(BatchRecord(
+                    id=batch.batch_id, workflow_id=batch.workflow_id, status=batch.status.value,
+                    max_concurrent=batch.max_concurrent, created_at=batch.created_at, started_at=batch.started_at,
+                    completed_at=batch.completed_at, error_message=batch.error_message))
+                self.db.save_many([
+                    BatchItemRecord(id=BatchItemRecord.key(batch.batch_id, item.thread_id), batch_id=batch.batch_id,
+                                    thread_id=item.thread_id, item_index=item.item_index, inputs=item.inputs,
+                                    status=item.status.value, error=item.error, started_at=item.started_at,
+                                    completed_at=item.completed_at)
+                    for item in batch.items])
 
         await asyncio.to_thread(_save)
 
@@ -382,71 +334,25 @@ class BatchManager:
         return await self._load_batch(batch_id)
 
     async def _load_batch(self, batch_id: str) -> Optional[BatchExecution]:
-        """Load batch from database."""
+        """Load a batch and its items through the library's managed Database (#5645)."""
+        from fichero_server.models.batches import BatchItemRecord, BatchRecord
 
         def _load():
-            conn = connect_utc(self.db_path)
-            try:
-                # Load batch
-                result = conn.execute(
-                    """
-                    SELECT workflow_id, status, max_concurrent, created_at,
-                           started_at, completed_at, error_message
-                    FROM batches WHERE batch_id = ?
-                """,
-                    [batch_id],
-                ).fetchone()
-
-                if not result:
-                    return None
-
-                (
-                    workflow_id,
-                    status,
-                    max_concurrent,
-                    created_at,
-                    started_at,
-                    completed_at,
-                    error_message,
-                ) = result
-
-                # Load items
-                items_result = conn.execute(
-                    """
-                    SELECT thread_id, item_index, inputs, status, error, started_at, completed_at
-                    FROM batch_items WHERE batch_id = ?
-                    ORDER BY item_index
-                """,
-                    [batch_id],
-                ).fetchall()
-
-
-                items = [
-                    BatchItem(
-                        thread_id=row[0],
-                        item_index=row[1],
-                        inputs=json.loads(row[2]) if row[2] else {},
-                        status=BatchItemStatus(row[3]),
-                        error=row[4],
-                        started_at=ensure_utc(row[5]),
-                        completed_at=ensure_utc(row[6]),
-                    )
-                    for row in items_result
-                ]
-
-                return BatchExecution(
-                    batch_id=batch_id,
-                    workflow_id=workflow_id,
-                    status=BatchStatus(status),
-                    items=items,
-                    created_at=created_at,
-                    started_at=started_at,
-                    completed_at=completed_at,
-                    error_message=error_message,
-                    max_concurrent=max_concurrent,
-                )
-            finally:
-                conn.close()
+            record = self.db.get(BatchRecord, batch_id)
+            if record is None:
+                return None
+            items = sorted(self.db.query(BatchItemRecord, batch_id=batch_id), key=lambda r: r.item_index)
+            return BatchExecution(
+                batch_id=batch_id,
+                workflow_id=record.workflow_id,
+                status=BatchStatus(record.status),
+                items=[_item_of(r) for r in items],
+                created_at=ensure_utc(record.created_at),
+                started_at=ensure_utc(record.started_at),
+                completed_at=ensure_utc(record.completed_at),
+                error_message=record.error_message,
+                max_concurrent=record.max_concurrent,
+            )
 
         batch = await asyncio.to_thread(_load)
         if batch:
@@ -461,31 +367,14 @@ class BatchManager:
     ) -> list[BatchExecution]:
         """List batches with optional filtering."""
 
+        from fichero_server.models.batches import BatchRecord
+
         def _list():
-            conn = connect_utc(self.db_path)
-            try:
-                if status:
-                    result = conn.execute(
-                        """
-                        SELECT batch_id FROM batches
-                        WHERE status = ?
-                        ORDER BY created_at DESC
-                        LIMIT ? OFFSET ?
-                    """,
-                        [status.value, limit, offset],
-                    ).fetchall()
-                else:
-                    result = conn.execute(
-                        """
-                        SELECT batch_id FROM batches
-                        ORDER BY created_at DESC
-                        LIMIT ? OFFSET ?
-                    """,
-                        [limit, offset],
-                    ).fetchall()
-                return [row[0] for row in result]
-            finally:
-                conn.close()
+            # ponytail: sorted and paged here (`Database.query` filters by equality only); a library holds tens of
+            # batches, not thousands. Push the order into SQL if that ever changes.
+            records = self.db.query(BatchRecord, status=status.value) if status else self.db.query(BatchRecord)
+            records.sort(key=lambda r: ensure_utc(r.created_at), reverse=True)
+            return [r.id for r in records[offset:offset + limit]]
 
         batch_ids = await asyncio.to_thread(_list)
         batches = []
@@ -907,17 +796,14 @@ class BatchManager:
     async def delete_batch(self, batch_id: str) -> None:
         """Delete a batch and its items."""
 
+        from fichero_server.models.batches import BatchItemRecord, BatchRecord
+
         def _delete():
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute("DELETE FROM batch_items WHERE batch_id = ?", [batch_id])
-                conn.execute(
-                    "DELETE FROM batch_progress_snapshots WHERE batch_id = ?",
-                    [batch_id],
-                )
-                conn.execute("DELETE FROM batches WHERE batch_id = ?", [batch_id])
-            finally:
-                conn.close()
+            for item in self.db.query(BatchItemRecord, batch_id=batch_id):
+                self.db.delete(item)
+            record = self.db.get(BatchRecord, batch_id)
+            if record is not None:
+                self.db.delete(record)
 
         await asyncio.to_thread(_delete)
 

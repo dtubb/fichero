@@ -1234,5 +1234,16 @@ action record holding a researcher's words is ruled out.
 ## Triaged from the backlog (2026-10-04)
 - `source.store.every-model-registered` — **[GAP]** (#5055) every persisted model is in `Database._all_schema_models`, so a library open creates every table and index.
 - `source.store.saved-is-found-after-a-crash` — **[OK]** (#5644) what a run saved is found after the engine was killed mid-work: a page's segment pass and its lines are listed, its run's activity is found, and a library damaged before the fix opens repaired, once. DuckDB 1.4–1.5.6 writes stale secondary indexes at the first checkpoint after replaying a WAL (`scripts/repro_duckdb_wal_index.py`); the first open of a file after a crash rebuilds them in `core/duckdb_session.py::connect_utc`, whoever opens it. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py` (a real engine process killed mid-write).
+- `source.store.one-managed-database` — **[PARTIAL]** (#5645) a library's stores keep their rows as registered
+  models through the library's one managed `Database` (one connection, one lock, opened through `connect_utc`), not
+  through connections and hand-made tables of their own. A library made before a store was folded opens with every
+  row it had: at open, after the schema is made, the old table's rows the model's table lacks are copied (by their
+  old key, so an interrupted copy finishes next time), the copy is checked key by key, and only then is the fold
+  recorded on the library (so a row the store later deletes is never copied back). The old table is kept, untouched,
+  until a later step removes it. A failed check is a migration failure on `/api/health` and is tried again at the
+  next open. **Built:** `BatchManager` (`batches`, `batch_items` → `BatchRecord`, `BatchItemRecord`;
+  `Database._fold_batch_tables`), tested in `fichero-server/tests/unit/db/test_batch_store_folded_5645.py`.
+  *Not built:* `FileWatcher`, `WorkflowScheduler`, `ActivityStore`, and the LangGraph checkpointer (to be ruled
+  separate or folded; the plan is on #5645).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.
