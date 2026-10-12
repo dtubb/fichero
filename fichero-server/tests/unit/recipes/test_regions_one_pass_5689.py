@@ -63,3 +63,36 @@ def test_find_regions_says_how_far_it_is_page_by_page(db, tmp_path, monkeypatch)
                     "Finding regions: 2 of 2 pages"], said
     assert progress_words(23, 92, elapsed=230.0) == "23 of 92 pages, about 12 min left"
     assert progress_words(92, 92, elapsed=900.0) == "92 of 92 pages"
+
+
+CARD = {"job": "find-regions", "card": "regions", "provider": "kraken", "model": "blla", "steps": ["regions"]}
+
+
+def test_a_restart_knows_which_pages_have_their_regions(db, tmp_path, monkeypatch):
+    """WHY: a re-Start ran Find Regions on all 92 pages again ("cannot tell what is done"), 25 minutes a Start."""
+    from fichero_server.recipes.done import _note, split_done
+    from fichero_server.recipes.regions import find_regions
+
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: PAYLOAD)
+    first, second = _pages(db, tmp_path, 2)
+    find_regions(db, [first.id], "run-1", "blla", provider="kraken")
+
+    todo, done = split_done(db, CARD, [first.id, second.id])
+    assert (todo, done) == ([second.id], 1)
+    assert _note(done, 2, "pages") == "already done on 1 of 2 pages; runs on the other 1"
+    # Another model's regions are not this step's.
+    assert split_done(db, {**CARD, "provider": "yolo", "model": "yolov8-doclaynet"}, [first.id])[1] == 0
+
+
+def test_the_started_plan_says_a_redone_step_runs_again(db, tmp_path, monkeypatch):
+    """WHY: Start with --redo read-a-line still said "already done on 87 of 92 pages; runs on the other 5"."""
+    from fichero_server.recipes.done import annotate
+    from fichero_server.recipes.regions import find_regions
+
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: PAYLOAD)
+    (page,) = _pages(db, tmp_path, 1)
+    find_regions(db, [page.id], "run-1", "blla", provider="kraken")
+
+    assert annotate(db, {"runs": [dict(CARD)]})["runs"][0]["note"] == "already done on all 1 pages; nothing to run"
+    said = annotate(db, {"runs": [dict(CARD)]}, redo={"regions"})["runs"][0]["note"]
+    assert said == "runs again on all 1 pages, as asked (redo)"

@@ -1472,7 +1472,7 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     counted = plan["estimate"].get("counted")
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"]), "counted": counted}
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
-    return annotate(db, plan, within=within)
+    return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
 
 
 @router.get("/project/start", response_model=StartPlan)

@@ -1060,7 +1060,7 @@ def started_plan(db: Any, job_id: str) -> dict[str, Any]:
     """What a run was started with: its cards and the steps it skipped, as it holds them."""
     row = jobs.read_job(db, job_id)
     detail = json.loads((row or {}).get("detail") or "{}")
-    return {"runs": detail.get("runs", []), "skipped": detail.get("skipped", [])}
+    return {"runs": detail.get("runs", []), "skipped": detail.get("skipped", []), "redo": detail.get("redo") or []}
 
 
 def unfinished_steps(db: Any) -> dict[str, dict[str, str]]:

@@ -6,6 +6,8 @@ photographs. Of those, the ones that already have the card's output are left alo
 redo the step:
 
 * splitting: a photograph already cut into pages;
+* finding regions: a page with regions the step's own model found; for Kraken's segmenter, which keeps the
+  page's lines with its regions (#5689), a page that has lines too;
 * finding lines: a page with a live pass that has lines;
 * reading lines (with or without finding lines first): a page with a live pass, read by the step's own model,
   that has lines;
@@ -22,7 +24,7 @@ from __future__ import annotations
 from typing import Any
 
 #: Jobs whose output a page can be seen to have.
-KNOWS_DONE = frozenset({"split-pages", "find-lines", "read-a-line", "read-a-page", "prepare-the-image",
+KNOWS_DONE = frozenset({"split-pages", "find-regions", "find-lines", "read-a-line", "read-a-page", "prepare-the-image",
                         "correct", "find-names-tag-words"})
 #: What the correcting step's workflow (the paleographer's review, `transcribe_review`) saves on a page.
 REVIEWED = "transcription_review"
@@ -152,6 +154,17 @@ def _has_lines(db: Any, doc_id: str, model: str | None) -> bool:
     return False
 
 
+def _has_regions(db: Any, doc_id: str, model: str | None, *, with_lines: bool) -> bool:
+    """Regions the step's model found on the page (#5689: a re-Start found them again on all 92 pages, 25 minutes).
+    `with_lines`: Kraken's regions come with the page's lines; regions found before they did leave the page
+    to be segmented once more, so Read reads lines rather than segmenting the page itself."""
+    from fichero_server.models import Artifact
+
+    found = any(a.artifact_type == "regions" and (model is None or a.model == model)
+                for a in db.query(Artifact, document_id=doc_id))
+    return found and (not with_lines or _has_lines(db, doc_id, None))
+
+
 def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
     """The model read the page's lines: a pass of its own with lines (before #5487), or a reading it wrote
     onto the page's lines (one line pass per page, read many times: the reading names the model's page
@@ -216,6 +229,8 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     job = card.get("job")
     if job == "split-pages":
         return bool(_children(db, doc_id))
+    if job == "find-regions":
+        return _has_regions(db, doc_id, card.get("model"), with_lines=card.get("provider") == "kraken")
     if job == "find-lines":
         return _has_lines(db, doc_id, None)
     if job == "read-a-line":
@@ -257,7 +272,7 @@ def _note(done: int | None, of: int, unit: str) -> str:
 
 
 def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]] | None = None,
-             within: set[str] | None = None) -> dict[str, Any]:
+             within: set[str] | None = None, redo: set[str] | None = None) -> dict[str, Any]:
     """Each run in the Start plan with `done`, `of` and a `note`, as things stand now; a run whose steps the last
     run did not finish (`unfinished`, `runner.unfinished_steps`) says so with `last_run` and `last_why`, and
     that Start runs it again (#5498). `within`: only these documents (a folder's)."""
@@ -267,6 +282,8 @@ def annotate(db: Any, plan: dict[str, Any], unfinished: dict[str, dict[str, str]
         card["done"], card["of"] = done, len(pages)
         unit = "photographs" if card.get("job") == "split-pages" else "pages"
         card["note"] = _note(done, len(pages), unit)
+        if redo and redo.intersection(card["steps"]):  # the run was asked to do it again (#5689)
+            card["note"] = f"runs again on all {len(pages)} {unit}, as asked (redo)"
         last = next(((sid, (unfinished or {})[sid]) for sid in card["steps"] if sid in (unfinished or {})), None)
         if last is not None:
             sid, outcome = last
