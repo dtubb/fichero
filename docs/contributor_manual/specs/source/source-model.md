@@ -1261,7 +1261,14 @@ action record holding a researcher's words is ruled out.
   `workflow_runs` is retired, #5644's repair at connect covering its cause), tested in
   `fichero-server/tests/unit/db/test_activity_store_folded_5645.py` and
   `fichero-server/tests/unit/workflows/test_workflow_runs_index_corruption.py`; parity measured by
-  `scripts/perf_activity_store_5645.py`. *Not built:* the LangGraph checkpointer (to be ruled separate or folded;
+  `scripts/perf_activity_store_5645.py`. **A run's log is its lines (#5711):** one `WorkflowRunLogLine` row per line
+  (its run, its place, its text); a flush inserts only its new lines, so what a flush writes, and the write-ahead log
+  it grows, follow the new lines, not the log's size (an append to one growing value rewrote the whole value: a
+  checkpoint every few flushes of a 2 MB log, on the run's own path). A run's log reads as it always did (the lines
+  joined, `get_workflow_run` unchanged). A library's logs from before are moved into lines at open,
+  `Database.RUN_LOG_FOLD_CHUNK` runs to a transaction, each run's lines checked against its log before the log value
+  is cleared, and the fold recorded once none is left; a run not moved yet reads its old value, then its lines.
+  Tested in `fichero-server/tests/unit/db/test_run_log_lines_5711.py`. *Not built:* the LangGraph checkpointer (to be ruled separate or folded;
   the plan is on #5645).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

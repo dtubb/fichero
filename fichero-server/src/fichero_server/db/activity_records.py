@@ -14,6 +14,8 @@ from typing import Any, Optional
 
 EVENTS = "activityeventrecords"
 RUNS = "workflowrunrecords"
+#: A run's log, one row per line (#5711).
+LINES = "workflowrunloglines"
 
 #: A dead process leaves these statuses behind (#4316); 'paused' is not one (#5357: it needs no process).
 SWEEPABLE_STATUSES = ("running", "accepted")
@@ -111,7 +113,6 @@ def upsert_run(db: Any, *, thread_id: str, workflow_id: str, workflow_name: str,
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT (id) DO UPDATE SET
             python_code = COALESCE(EXCLUDED.python_code, {RUNS}.python_code),
-            execution_log = COALESCE(EXCLUDED.execution_log, {RUNS}.execution_log),
             workflow_snapshot = COALESCE(EXCLUDED.workflow_snapshot, {RUNS}.workflow_snapshot),
             node_name_map = COALESCE(EXCLUDED.node_name_map, {RUNS}.node_name_map),
             progress_timeline = COALESCE(EXCLUDED.progress_timeline, {RUNS}.progress_timeline),
@@ -120,36 +121,69 @@ def upsert_run(db: Any, *, thread_id: str, workflow_id: str, workflow_name: str,
             estimated_cost = COALESCE(EXCLUDED.estimated_cost, {RUNS}.estimated_cost),
             status = EXCLUDED.status,
             workflow_name = EXCLUDED.workflow_name""",
-        [thread_id, workflow_id, workflow_name, python_code, execution_log, _json(workflow_snapshot),
+        [thread_id, workflow_id, workflow_name, python_code, None, _json(workflow_snapshot),
          _json(node_name_map), _json(progress_timeline), diagram_mermaid, status, started_at,
          _json(resolved_scope), estimated_cost])
+    if execution_log is not None:
+        put_log(db, thread_id, execution_log, replace=True)
 
 
 def update_run(db: Any, thread_id: str, fields: dict[str, Any]) -> None:
-    """Set the given columns of one run (a None value is not given, as before)."""
+    """Set the given columns of one run (a None value is not given, as before); a log given replaces its lines."""
+    log = fields.get("execution_log")
     given = {k: (json.dumps(v) if k in ("progress_timeline", "run_usage") else v)
-             for k, v in fields.items() if v is not None}
+             for k, v in fields.items() if v is not None and k != "execution_log"}
     if given:
         db.execute(f"UPDATE {RUNS} SET {', '.join(f'{k} = ?' for k in given)} WHERE id = ?",
                    [*given.values(), thread_id])
+    if log is not None:
+        put_log(db, thread_id, log, replace=True)
+
+
+_INSERT_LINES = (f"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, ?, {{base}} + s, x "
+                 "FROM (SELECT unnest(?::VARCHAR[]) AS x, unnest(range(1, len(?::VARCHAR[]) + 1)) AS s)")
+
+
+def put_log(db: Any, thread_id: str, text: str, *, replace: bool) -> None:
+    """A run's log written as lines (#5711): replaced (its lines, and any value kept from before, gone first), or
+    `text`'s lines added after its last, so a write is as big as what it adds."""
+    lines = text.split("\n") if text else []
+    if replace:
+        with db.transaction():
+            db.execute(f"DELETE FROM {LINES} WHERE run_id = ?", [thread_id])
+            db.execute(f"UPDATE {RUNS} SET execution_log = NULL WHERE id = ? AND execution_log IS NOT NULL",
+                       [thread_id])
+            if lines:
+                db.execute(_INSERT_LINES.format(base="0"), [thread_id, lines, lines])
+    elif lines:
+        db.execute(_INSERT_LINES.format(base=f"(SELECT COALESCE(max(seq), 0) FROM {LINES} WHERE run_id = ?)"),
+                   [thread_id, thread_id, lines, lines])
+
+
+def read_log(db: Any, thread_id: str, kept: Optional[str]) -> Optional[str]:
+    """A run's log: a value kept from before #5711 that is not moved into lines yet, then its lines, joined."""
+    joined = db.execute_fetchone(f"SELECT string_agg(line, chr(10) ORDER BY seq) FROM {LINES} WHERE run_id = ?",
+                                 [thread_id])[0]
+    parts = [p for p in (kept or None, joined) if p is not None]
+    return "\n".join(parts) if parts else None
 
 
 def flush_node_boundary(db: Any, thread_id: str, progress_timeline: dict, log_text: str, *, replace: bool) -> None:
     """A node-boundary flush (#4314): the progress timeline, and the log either replaced (a run's first flush in
-    this process, as before) or only its new lines appended, so a flush's cost does not grow with the run's log."""
-    if replace:
-        db.execute(f"UPDATE {RUNS} SET progress_timeline = ?, execution_log = ? WHERE id = ?",
-                   [json.dumps(progress_timeline), log_text, thread_id])
-    elif log_text:
-        db.execute(f"UPDATE {RUNS} SET progress_timeline = ?, execution_log = CASE WHEN COALESCE(execution_log, '') = "
-                   f"'' THEN ? ELSE execution_log || chr(10) || ? END WHERE id = ?",
-                   [json.dumps(progress_timeline), log_text, log_text, thread_id])
-    else:
-        db.execute(f"UPDATE {RUNS} SET progress_timeline = ? WHERE id = ?", [json.dumps(progress_timeline), thread_id])
+    this process, as before) or only its new lines added (#5711: rows of their own, so neither the flush nor the
+    write-ahead log it grows follows the log's size)."""
+    db.execute(f"UPDATE {RUNS} SET progress_timeline = ? WHERE id = ?", [json.dumps(progress_timeline), thread_id])
+    if replace or log_text:
+        put_log(db, thread_id, log_text, replace=replace)
 
 
 def get_run(db: Any, thread_id: str) -> Optional[tuple]:
-    return db.execute_fetchone(f"SELECT {', '.join(RUN_COLUMNS)} FROM {RUNS} WHERE id = ?", [thread_id])
+    """Every column of one run, its log read from its lines (#5711)."""
+    row = db.execute_fetchone(f"SELECT {', '.join(RUN_COLUMNS)} FROM {RUNS} WHERE id = ?", [thread_id])
+    if row is None:
+        return None
+    at = RUN_COLUMNS.index("execution_log")
+    return (*row[:at], read_log(db, thread_id, row[at]), *row[at + 1:])
 
 
 def list_runs(db: Any, *, workflow_id: Optional[str], statuses: Optional[list[str]], exclude_deleted: bool,
@@ -176,10 +210,14 @@ def soft_delete_runs(db: Any, thread_ids: list[str], *, skip_running: bool) -> l
         return []
     running = " AND status != 'running'" if skip_running else ""
     rows = db.execute_fetchall(
-        f"UPDATE {RUNS} SET status = 'deleted', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP), "
-        f"execution_log = COALESCE(execution_log, '') || 'Run history deleted' || chr(10) "
+        f"UPDATE {RUNS} SET status = 'deleted', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) "
         f"WHERE id IN ({', '.join('?' for _ in thread_ids)}){running} RETURNING id", list(thread_ids))
-    return [row[0] for row in rows if row and row[0]]
+    deleted = [row[0] for row in rows if row and row[0]]
+    if deleted:  # the log says so, a line of its own after its last (#5711)
+        db.execute(f"INSERT INTO {LINES} (id, run_id, seq, line) SELECT gen_random_uuid()::VARCHAR, r, "
+                   f"COALESCE((SELECT max(seq) FROM {LINES} WHERE run_id = r), 0) + 1, 'Run history deleted' "
+                   "FROM (SELECT unnest(?::VARCHAR[]) AS r)", [deleted])
+    return deleted
 
 
 def run_ids_by_status(db: Any, statuses: list[str]) -> list[str]:

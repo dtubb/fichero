@@ -52,3 +52,14 @@ class WorkflowRunRecord(BaseModel):
     resolved_scope: Optional[dict[str, Any]] = None
     run_usage: Optional[dict[str, Any]] = None
     estimated_cost: Optional[float] = None
+
+
+class WorkflowRunLogLine(BaseModel):
+    """One line of a run's log (#5711): a flush inserts its new lines, never the whole log again. A run's log is its
+    lines joined in `seq` order (`db.activity_records.read_log`); a log from before is moved here at open
+    (`Database._fold_run_logs_to_lines`), its lines numbered up to 0, so lines added later (from 1) follow them."""
+
+    id: str
+    run_id: str = Field(description="The run's thread id (`WorkflowRunRecord.id`).")
+    seq: int
+    line: str

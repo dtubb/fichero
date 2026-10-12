@@ -1140,6 +1140,7 @@ class Database(DatabaseEmbeddingMixin):
             self._fold_watcher_tables,
             self._fold_scheduler_tables,
             self._fold_activity_tables,
+            self._fold_run_logs_to_lines,
         ))
 
     #: An open-time step slower than this is logged as a warning, named (#5228).
@@ -1186,6 +1187,10 @@ class Database(DatabaseEmbeddingMixin):
     #: Rows copied to a transaction when the activity store folds: a run carries its code and log, and a library can
     #: hold tens of thousands (#5645: a fold holds one chunk's rows, never the whole history).
     ACTIVITY_FOLD_CHUNK = 500
+    #: Records that every run's log from before #5711 is its lines now.
+    RUN_LOG_FOLD_SETTING = "run_logs_as_lines_5711"
+    #: Runs whose logs are moved into lines in one transaction: a log can be megabytes (#5711).
+    RUN_LOG_FOLD_CHUNK = 50
 
     def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, Any, str, str]], *,
                         chunk: int | None = None) -> None:
@@ -1388,6 +1393,52 @@ class Database(DatabaseEmbeddingMixin):
              "SELECT count(*) FROM workflow_runs WHERE started_at > ?"),
         ], chunk=self.ACTIVITY_FOLD_CHUNK)
 
+    def _fold_run_logs_to_lines(self) -> None:
+        """Each run's log kept as one value (before #5711) moved into `WorkflowRunLogLine` rows,
+        `RUN_LOG_FOLD_CHUNK` runs to a transaction: its lines inserted numbered up to 0, checked against the value
+        they came from, and only then the value cleared. A chunk that fails rolls back, is a migration failure, and is
+        tried again at the next open; until then its runs read their value, then any lines after it. Recorded once no
+        value is left, so a later open reads one setting."""
+        from fichero_server.db.migrations.schema import _run_atomic_migration
+
+        conn = self.conn
+        if conn.execute("SELECT 1 FROM librarysettings WHERE id = ?", [self.RUN_LOG_FOLD_SETTING]).fetchone():
+            return
+        chunk = self.RUN_LOG_FOLD_CHUNK
+        while True:
+            moved = [0]
+
+            def _chunk() -> None:
+                ids = [r[0] for r in conn.execute(
+                    "SELECT id FROM workflowrunrecords WHERE execution_log IS NOT NULL LIMIT ?", [chunk]).fetchall()]
+                moved[0] = len(ids)
+                if not ids:
+                    conn.execute("INSERT INTO librarysettings (id, value, updated_at) VALUES (?, '1', now())",
+                                 [self.RUN_LOG_FOLD_SETTING])
+                    return
+                marks = ", ".join("?" for _ in ids)
+                # Numbered from far below 0, so a line added later (from 1, or after the last) follows them. A constant,
+                # not the run's own line count: carrying the count beside every line made the fold 6x slower.
+                conn.execute(
+                    "INSERT INTO workflowrunloglines (id, run_id, seq, line) "
+                    "SELECT gen_random_uuid()::VARCHAR, id, s - 1000000000, part FROM ("
+                    "SELECT id, unnest(string_split(execution_log, chr(10))) AS part, "
+                    "unnest(range(1, len(string_split(execution_log, chr(10))) + 1)) AS s "
+                    f"FROM workflowrunrecords WHERE id IN ({marks}) AND execution_log <> '')", ids)
+                wrong = conn.execute(
+                    f"SELECT r.id FROM workflowrunrecords r WHERE r.id IN ({marks}) AND r.execution_log <> '' AND "
+                    "r.execution_log IS DISTINCT FROM (SELECT string_agg(l.line, chr(10) ORDER BY l.seq) "
+                    "FROM workflowrunloglines l WHERE l.run_id = r.id AND l.seq <= 0)", ids).fetchall()
+                if wrong:
+                    raise RuntimeError(f"{len(wrong)} run logs did not read back from their lines "
+                                       f"(first: {wrong[0][0]}); left as they were")
+                conn.execute(f"UPDATE workflowrunrecords SET execution_log = NULL WHERE id IN ({marks})", ids)
+
+            failures = len(self.migration_failures)
+            _run_atomic_migration(conn, "fold_run_logs_5711", _chunk, self.migration_failures)
+            if len(self.migration_failures) > failures or not moved[0]:
+                return
+
     #: Records that this library's indexes were rebuilt once, repairing any written by a replay
     #: before the fix (#5644). A library with no settings table yet is new: nothing to repair.
     INDEXES_REPAIRED_SETTING = "indexes_rebuilt_after_wal_replay_5644"
@@ -1543,7 +1594,11 @@ class Database(DatabaseEmbeddingMixin):
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
         from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
         from fichero_server.models.schedules import ScheduleRecord, ScheduleRunRecord
-        from fichero_server.models.activity_records import ActivityEventRecord, WorkflowRunRecord
+        from fichero_server.models.activity_records import (
+            ActivityEventRecord,
+            WorkflowRunLogLine,
+            WorkflowRunRecord,
+        )
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
             Interpretation,
@@ -1799,6 +1854,8 @@ class Database(DatabaseEmbeddingMixin):
             # #5645: the activity store (was `activities`, `workflow_runs`).
             ActivityEventRecord,
             WorkflowRunRecord,
+            # #5711: a run's log, one row per line.
+            WorkflowRunLogLine,
         )
 
     def _materialize_schema(self) -> None:
@@ -7864,8 +7921,8 @@ class Database(DatabaseEmbeddingMixin):
             # library.
             if (
                 first_reconcile_this_connection
-                and table in {"activityeventrecords", "workflowrunrecords"}
-                and {"activityeventrecords", "workflowrunrecords"} <= self._tables_created
+                and table in {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"}
+                and {"activityeventrecords", "workflowrunrecords", "workflowrunloglines"} <= self._tables_created
             ):
                 from fichero_server.db.migrations.schema import migrate_activity_record_indices
                 migrate_activity_record_indices(self.conn)
