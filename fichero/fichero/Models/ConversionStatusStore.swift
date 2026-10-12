@@ -125,8 +125,8 @@ final class ConversionStatusStore {
     func refresh() async {
         do {
             let response = try await client.api.conversionStatusApiConversionStatusGet()
-            if case .ok(let ok) = response {
-                status = Self.snapshot(try ok.body.json)
+            if case .ok(let okResponse) = response {
+                status = Self.snapshot(try okResponse.body.json)
             }
         } catch {
             // Best-effort: the line is a courtesy, never a blocker. Logged, not shown.
@@ -167,4 +167,3 @@ final class ConversionStatusStore {
         )
     }
 }
-

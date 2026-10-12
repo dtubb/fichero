@@ -56,7 +56,6 @@ extension ContentView {
 
     // MARK: - State Restoration
 
-    // swiftlint:disable:next cyclomatic_complexity
     func restoreViewMode(type: String, itemId: String?) -> AppViewMode {
         if let mode = Self.restoredIdFreeViewMode(type: type) { return mode }
         switch type {

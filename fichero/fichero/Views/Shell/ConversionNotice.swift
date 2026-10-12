@@ -26,9 +26,9 @@ struct ConversionNotice: View {
                 try? await Task.sleep(for: .seconds(3))
             } while !Task.isCancelled
         }
-        .sheet(isPresented: $showingReport, onDismiss: { Task { await store.markSeen() } }) {
+        .sheet(isPresented: $showingReport, onDismiss: { Task { await store.markSeen() } }, content: {
             ConversionReportSheet(status: store.status) { showingReport = false }
-        }
+        })
     }
 }
 

@@ -39,8 +39,8 @@ final class BundledFonts {
         guard cascade.isEmpty else { return }
         // The list through the generated client (#5263), never a hand-built path. An older engine
         // with no route answers 404, which is not `.ok`: no fonts, no crash.
-        guard case .ok(let ok)? = try? await client.api.listFontsApiFontsGet(.init()),
-              let list = try? ok.body.json else { return }
+        guard case .ok(let okResponse)? = try? await client.api.listFontsApiFontsGet(.init()),
+              let list = try? okResponse.body.json else { return }
         var found: [CTFontDescriptor] = []
         // Each file is fetched from the url the engine's list names -- the engine's own path, as data.
         for url in Self.fontURLs(in: list) {

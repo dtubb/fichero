@@ -55,7 +55,6 @@ struct WorkflowExecution: Identifiable {
     }
 }
 
-
 //  Below: moved here from WorkflowExecutionService.swift for file_length (#5113),
 //  byte-for-byte. They belong beside WorkflowExecution above — the service moves these
 //  shapes, it does not own them.

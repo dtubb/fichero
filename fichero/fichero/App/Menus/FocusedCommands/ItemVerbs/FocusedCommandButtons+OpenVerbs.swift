@@ -59,8 +59,10 @@ extension ItemVerbs {
 extension ItemVerbsTarget {
     /// The three open verbs over a surface's own actions (the Reader, the Preview's pages, the claim cards use them
     /// too, through `OpenInMenuItems`).
-    @MainActor static func opening(id: String, open: (() -> Void)?, openInNewTab: @escaping () -> Void,
-                        openInNewWindow: @escaping () -> Void) -> Self {
+    @MainActor static func opening(
+        id: String, open: (() -> Void)?, openInNewTab: @escaping () -> Void,
+        openInNewWindow: @escaping () -> Void
+    ) -> Self {
         var target = Self(ids: [id], documents: [])
         if let open { target.open = { open() } }
         target.openInNewTab = { openInNewTab() }

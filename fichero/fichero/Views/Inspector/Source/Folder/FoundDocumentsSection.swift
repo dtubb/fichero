@@ -123,7 +123,7 @@ private struct FoundDocumentRow: View {
             .init(proposalId: "p1", document: .init(
                 index: 1, name: "Carta", pageIds: ["d"], firstPosition: 3, lastPosition: 3,
                 kind: "Carta", confidence: 0.64, reasons: ["a salutation opens the page"]
-            )),
+            ))
         ],
         busy: false,
         errorMessage: nil,

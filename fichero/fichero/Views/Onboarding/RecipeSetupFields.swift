@@ -233,8 +233,8 @@ struct RecipeAboutFields: View {
                 ForEach(RecipeSetupStore.materialKinds, id: \.self) { kind in
                     Toggle(kind.capitalized, isOn: Binding(
                         get: { store.materials.contains(kind) },
-                        set: { on in
-                            if on {
+                        set: { isOn in
+                            if isOn {
                                 store.materials.append(kind)
                             } else if store.materials.count > 1 {
                                 store.materials.removeAll { $0 == kind }

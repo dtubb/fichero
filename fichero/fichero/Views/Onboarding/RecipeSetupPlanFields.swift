@@ -35,8 +35,8 @@ struct JobQuestionFields: View {
                     ForEach(Self.entityKinds, id: \.id) { kind in
                         Toggle(kind.title, isOn: Binding(
                             get: { store.jobAnswers.entityKinds.contains(kind.id) },
-                            set: { on in
-                                if on {
+                            set: { isOn in
+                                if isOn {
                                     store.jobAnswers.entityKinds.append(kind.id)
                                 } else {
                                     store.jobAnswers.entityKinds.removeAll { $0 == kind.id }

@@ -630,9 +630,9 @@ extension RecipeSetupStore {
     /// tag carrying its glottocode, so nothing a person picks is lost.
     func searchLanguages(_ query: String) async -> [CodeChoice] {
         do {
-            guard case .ok(let ok) = try await client.api.searchLanguagesApiRecipesLanguagesGet(
+            guard case .ok(let okResponse) = try await client.api.searchLanguagesApiRecipesLanguagesGet(
                 query: .init(q: query, limit: 8)) else { return [] }
-            return try ok.body.json.items.map { match in
+            return try okResponse.body.json.items.map { match in
                 let code = match.code ?? match.glottocode.map { "und-x-\($0)" } ?? match.name
                 let detail = [match.language.map { "dialect of \($0)" }, match.glottocode.map { "Glottolog \($0)" }]
                     .compactMap { $0 }.joined(separator: " · ")
@@ -648,9 +648,9 @@ extension RecipeSetupStore {
     /// Search every ISO 15924 script.
     func searchScripts(_ query: String) async -> [CodeChoice] {
         do {
-            guard case .ok(let ok) = try await client.api.searchScriptsApiRecipesScriptsGet(
+            guard case .ok(let okResponse) = try await client.api.searchScriptsApiRecipesScriptsGet(
                 query: .init(q: query, limit: 8)) else { return [] }
-            return try ok.body.json.items.map { CodeChoice(code: $0.code, name: $0.name, detail: nil) }
+            return try okResponse.body.json.items.map { CodeChoice(code: $0.code, name: $0.name, detail: nil) }
         } catch {
             if !error.isCancellationError { errorMessage = "Could not search scripts: \(error.localizedDescription)" }
             return []
@@ -754,9 +754,9 @@ extension RecipeSetupStore {
     func loadDerived() async {
         guard !scripts.isEmpty else { derivedScripts = [:]; return }
         do {
-            guard case .ok(let ok) = try await client.api.derivedFactsApiRecipesDerivedGet(
+            guard case .ok(let okResponse) = try await client.api.derivedFactsApiRecipesDerivedGet(
                 query: .init(scripts: scripts.joined(separator: ","))) else { return }
-            for facts in try ok.body.json.scripts { derivedScripts[facts.script] = facts }
+            for facts in try okResponse.body.json.scripts { derivedScripts[facts.script] = facts }
         } catch {
             if !error.isCancellationError { errorMessage = "Could not work out the scripts: \(error.localizedDescription)" }
         }
