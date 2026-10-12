@@ -90,16 +90,14 @@ struct PreviewSelectionDefaultsTests {
 
     // MARK: - Per-pane word boxes
 
-    @Test("the image surface's box toggle is per-pane state")
+    @Test("the image surface's box toggle is per pane only, starting on")
     func boxToggleIsPerPane() throws {
         let viewer = try appSource("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
-        #expect(viewer.contains("@State var ocrBoxesEnabled"))
+        #expect(viewer.contains("@PaneStorage(paneOnly: \"imagePreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"))
         #expect(!viewer.contains("@AppStorage(\"imagePreview.ocrBoxesEnabled\")"),
                 "shared storage is the desync: hiding boxes on the left split hid the right")
-        // The default is still remembered for the next pane. (Asserted on the
-        // write's key, not the full call — quoting the full literal trips the
-        // UserDefaults-isolation guard on a string that never executes.)
-        #expect(viewer.contains(".set(enabled, forKey: \"imagePreview.ocrBoxesEnabled\")"))
+        // #5504: no app-wide default is remembered for the next pane — a stale one drew bare images.
+        #expect(!viewer.contains("forKey: \"imagePreview.ocrBoxesEnabled\""))
     }
 
     // MARK: - The rendition axis is visible

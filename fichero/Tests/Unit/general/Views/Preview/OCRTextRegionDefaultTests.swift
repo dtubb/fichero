@@ -28,29 +28,22 @@ struct OCRTextRegionDefaultTests {
 
     @Test("both preview surfaces default their text regions on")
     func bothSurfacesDefaultOn() throws {
-        // The IMAGE surface is per-PANE since 2026-09-02 (Daniel: hiding
-        // boxes on the left split hid them on the right): @State seeded from
-        // the shared default, written back on change. Default still ON.
+        // Both surfaces are per pane ONLY (#5504): a pane with no saved choice starts ON,
+        // never from the app-wide key an old toggle left off (which drew bare images).
         let image = try AppSource.text("Views/Preview/ImageViewer/ZoomableImagePreviewMac.swift")
         #expect(
-            image.contains(
-                ".object(forKey: \"imagePreview.ocrBoxesEnabled\") as? Bool ?? true"
-            ),
-            "imagePreview.ocrBoxesEnabled must default on — see #4418/#4497"
+            image.contains("@PaneStorage(paneOnly: \"imagePreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
+            "imagePreview.ocrBoxesEnabled must default on, per pane only — see #4418/#4497/#5504"
         )
         #expect(
-            !image.contains("as? Bool ?? false"),
-            "imagePreview.ocrBoxesEnabled is back to default-off, which ships a switch nobody finds"
-        )
-        #expect(
-            image.contains("@State var ocrBoxesEnabled"),
-            "the image surface's boxes toggle must be per-pane state, not shared storage"
+            !image.contains("forKey: \"imagePreview.ocrBoxesEnabled\""),
+            "the image surface must not read or write the app-wide boxes key (#5504)"
         )
 
         let pdf = try AppSource.text("Views/Preview/PDFViewer/PDFPageWithToolbar.swift")
         #expect(
-            pdf.contains("@PaneStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),  // per pane, #5280
-            "pdfPreview.ocrBoxesEnabled must default on — see #4418/#4497"
+            pdf.contains("@PaneStorage(paneOnly: \"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = true"),
+            "pdfPreview.ocrBoxesEnabled must default on, per pane only — see #4418/#4497/#5504"
         )
         #expect(
             !pdf.contains("@AppStorage(\"pdfPreview.ocrBoxesEnabled\") var ocrBoxesEnabled = false"),

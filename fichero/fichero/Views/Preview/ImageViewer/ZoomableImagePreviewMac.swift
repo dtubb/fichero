@@ -173,12 +173,11 @@ struct ZoomableImagePreview: View {
     /// its text is a page the transcription never read. Shipping that
     /// default-off left a switch nobody would find, which the standing rule
     /// calls worse than absent.
-    /// PER-PANE since 2026-09-02 (Daniel: "I hide bounding boxes on left, and
-    /// applies to right"): @State seeded from the shared default, written back
-    /// on change — so a split can show boxes on one side only, while a fresh
-    /// pane still opens the way the last toggle left things.
-    @State var ocrBoxesEnabled = EngineConfig.defaults
-        .object(forKey: "imagePreview.ocrBoxesEnabled") as? Bool ?? true
+    /// PER PANE ONLY (#5504): each pane remembers its own choice, so a split can
+    /// show boxes on one side only, and a pane with no saved choice starts ON. It
+    /// used to start from the app-wide key, which a removed toggle had left off,
+    /// so every new pane drew a bare image.
+    @PaneStorage(paneOnly: "imagePreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30). ON by
     /// default (Daniel, 2026-08-31): his container had this key stuck at 0,
     /// so every mark the markup row drew saved correctly and then rendered
@@ -365,9 +364,7 @@ struct ZoomableImagePreview: View {
             windowState?.offerRegionSelection(regionSelection)
             // The workspace's layer defaults, per pane (Q2). Nil fields leave the remembered value.
             imageVisible = PreviewLayerDefaults.start(workspace: panePreviewLayers?.image, remembered: imageVisible)
-            ocrBoxesEnabled = PreviewLayerDefaults.start(
-                workspace: panePreviewLayers?.wordBoxes, remembered: ocrBoxesEnabled
-            )
+            if let wordBoxes = panePreviewLayers?.wordBoxes { ocrBoxesEnabled = wordBoxes }
         }
         .onChange(of: renditionIndex) { _, _ in publishHeadChrome() }
     }
@@ -415,13 +412,6 @@ struct ZoomableImagePreview: View {
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }
             .onChange(of: magnifierLocked) { wasLocked, isLocked in
                 handleMagnifierLockChanged(wasLocked, isLocked)
-            }
-            // Per-pane boxes: the toggle changes THIS pane; the default is
-            // remembered for the next pane that mounts.
-            .onChange(of: ocrBoxesEnabled) { _, enabled in
-                if PreviewLayerDefaults.shouldRemember(enabled, workspace: panePreviewLayers?.wordBoxes) {
-                    EngineConfig.defaults.set(enabled, forKey: "imagePreview.ocrBoxesEnabled")
-                }
             }
             // Using this pane's selection makes it the one the Inspector and the markup row act on.
             .onChange(of: regionSelection.indices) { _, _ in

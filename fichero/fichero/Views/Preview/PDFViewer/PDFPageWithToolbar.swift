@@ -123,8 +123,9 @@ struct PDFPageWithToolbar: View {
     @State var pdfRegionSelection = RegionSelection()
     /// ON by default (#4418) — same reasoning as the image surface: geometry
     /// that exists but is never drawn is geometry nobody can check a
-    /// transcription against.
-    @PaneStorage("pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
+    /// transcription against. Per pane only (#5504): a new pane starts ON, whatever the
+    /// app-wide key an old toggle left behind.
+    @PaneStorage(paneOnly: "pdfPreview.ocrBoxesEnabled") var ocrBoxesEnabled = true
     /// Annotation overlays show/hide (what-to-show menu, 2026-08-30).
     @PaneStorage("preview.annotationsEnabled") var annotationsEnabled = true
     @State var ocrGeometry: OCRGeometry?

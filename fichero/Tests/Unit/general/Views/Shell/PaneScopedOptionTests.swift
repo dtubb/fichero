@@ -32,4 +32,15 @@ struct PaneScopedOptionTests {
         #expect(PaneScopedOption.setting(6, in: "{}", pane: nil) == "{}")
         #expect(PaneScopedOption.value("not json", pane: left, shared: 4) == 4)
     }
+
+    /// #5504: the word boxes read the app-wide key, left false by a removed toggle, so every new
+    /// Preview pane drew no boxes. A pane-only option starts from its declared default instead.
+    @Test("a pane-only option starts from its declared default, never the stale shared value")
+    func paneOnlyIgnoresSharedValue() {
+        let map = PaneScopedOption.setting(false, in: "{}", pane: left)
+        #expect(PaneScopedOption.value(map, pane: right, shared: false, paneOnly: true) == true)
+        #expect(PaneScopedOption.value(map, pane: nil, shared: false, paneOnly: true) == true)
+        #expect(PaneScopedOption.value(map, pane: left, shared: true, paneOnly: true) == false)
+        #expect(PaneScopedOption.value(map, pane: right, shared: false, paneOnly: nil) == false)
+    }
 }

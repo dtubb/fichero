@@ -15,6 +15,12 @@ enum PaneScopedOption {
         return entry
     }
 
+    /// A pane-only option (#5504) passes its declared default as `paneOnly`: a pane with no entry
+    /// starts from that, never from the shared key (which an old app-wide toggle may have left off).
+    static func value<V: Codable>(_ mapJSON: String, pane: UUID?, shared: V, paneOnly: V?) -> V {
+        value(mapJSON, pane: pane, shared: paneOnly ?? shared)
+    }
+
     static func setting<V: Codable>(_ value: V, in mapJSON: String, pane: UUID?) -> String {
         guard let pane else { return mapJSON }
         var map = decode(mapJSON, as: V.self) ?? [:]
@@ -36,14 +42,25 @@ struct PaneStorage<Value: Codable>: DynamicProperty {
     @Environment(\.paneLeafId) private var pane
     private let shared: AppStorage<Value>
     private let map: AppStorage<String>
+    /// Set for a pane-only option (#5504): its declared default. Such an option never reads or
+    /// writes the shared key; a view with no pane keeps its choice in `unpaned` for its lifetime.
+    private let paneOnly: Value?
+    @State private var unpaned: Value?
 
     var wrappedValue: Value {
-        get { PaneScopedOption.value(map.wrappedValue, pane: pane, shared: shared.wrappedValue) }
+        get {
+            if paneOnly != nil, pane == nil, let unpaned { return unpaned }
+            return PaneScopedOption.value(map.wrappedValue, pane: pane, shared: shared.wrappedValue, paneOnly: paneOnly)
+        }
         nonmutating set {
             if pane != nil {
                 map.wrappedValue = PaneScopedOption.setting(newValue, in: map.wrappedValue, pane: pane)
             }
-            shared.wrappedValue = newValue
+            if paneOnly == nil {
+                shared.wrappedValue = newValue
+            } else if pane == nil {
+                unpaned = newValue
+            }
         }
     }
 
@@ -51,14 +68,20 @@ struct PaneStorage<Value: Codable>: DynamicProperty {
         Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
     }
 
-    private init(shared: AppStorage<Value>, key: String) {
+    private init(shared: AppStorage<Value>, key: String, paneOnly: Value? = nil) {
         self.shared = shared
         self.map = AppStorage(wrappedValue: "{}", key + ".byPane")
+        self.paneOnly = paneOnly
     }
 }
 
 extension PaneStorage where Value == Bool {
     init(wrappedValue: Bool, _ key: String) { self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key) }
+
+    /// Per pane only (#5504): a pane with no saved choice starts at `wrappedValue`.
+    init(wrappedValue: Bool, paneOnly key: String) {
+        self.init(shared: AppStorage(wrappedValue: wrappedValue, key), key: key, paneOnly: wrappedValue)
+    }
 }
 
 extension PaneStorage where Value == Int {

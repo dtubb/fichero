@@ -306,11 +306,13 @@ a box and how sure it is stay as its stroke (`layers.state.drawn`), not its colo
   hides sidebar rows; it never switches a layer.
   The menu moves into the pane menu (What to Show ▸) under `panes-workspaces.md`'s
   `panes.chrome.one-pane-menu` (#5435); the layers do not change with it.
-- `layers.toggle.remembered-per-pane` — **[OK]** each switch is remembered per pane, with workspace
+- `layers.toggle.remembered-per-pane` — **[OK]** (#5504) each switch is remembered per pane, with workspace
   defaults: `@PaneStorage` keys `preview.annotationsEnabled`, `preview.regionsEnabled`,
   `imagePreview.inlineTextEnabled` (`ZoomableImagePreviewMac.swift:176-196`) and
   `PreviewLayerDefaults` for image and word boxes (`Layers/ImageLayer.swift`). New layers use the
-  same storage.
+  same storage. The word boxes are per pane only (`@PaneStorage(paneOnly:)`, image and PDF): a pane
+  with no saved choice starts ON and never reads or writes the app-wide key. Until #5504 they
+  started from that key, which a removed toggle had left off, so every new Preview drew a bare page.
 - `layers.toggle.empty-layer-says-so` — **[GAP]** (#4941) a layer with nothing on this page stays
   in the menu, dimmed, with "None on this page" as its help, so turning it on is never a silent
   no-op. (This follows the rule of #5413, where the sidebar's knowledge rows appear only when they
