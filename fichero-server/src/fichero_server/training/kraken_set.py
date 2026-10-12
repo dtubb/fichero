@@ -78,8 +78,13 @@ class TrainingSet:
         job's say what the preview said."""
         whys = Counter(m["why"] for m in self.missing)
         said = "; ".join(f"{n} page{'s' if n != 1 else ''}: {why}" for why, n in whys.most_common())
-        return (f"nothing to train on: no page in scope has a pass read by {self.teacher} with read lines"
-                + (f" ({said})" if said else "") + (f"; {len(self.held_out)} held out" if self.held_out else ""))
+        held = f"; {len(self.held_out)} held out" if self.held_out else ""
+        if not said:
+            return f"nothing to train on: no page in scope{held}"
+        # The whys first: an opening that named the pass sent a photograph's absence looking like a scope fault
+        # (#5710).
+        count = len(self.missing)
+        return f"nothing to train on: none of the {count} page{'s' if count != 1 else ''} in scope can teach: {said}{held}"
 
     def manifest(self) -> dict[str, Any]:
         return {

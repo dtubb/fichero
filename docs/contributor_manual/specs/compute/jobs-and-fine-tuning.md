@@ -713,8 +713,12 @@ needs them.
   (`resolve_source`: a copy-imported page's stored path is inside the package), never the stored path as it
   stands; the checks, the reasons and text extraction likewise. A start whose set would be empty (on this Mac,
   on Hugging Face, or the vision card) is refused up front (422) with the preview's own whys counted ("nothing
-  to train on: … (86 pages: no pass read by …)"), and nothing is queued; the job's refusal says the same.
-  *Test:* `fichero-server/tests/unit/training/test_copied_pages_train_5699.py`.
+  to train on: none of the 86 pages in scope can teach: 86 pages: no pass read by …"), and nothing is queued;
+  the job's refusal says the same. The whys come first (#5710: an opening that named the pass made two pages
+  whose photographs were not found look like a scope that missed subfolders). A folder in scope reaches the
+  pages in its subfolders.
+  *Test:* `fichero-server/tests/unit/training/test_copied_pages_train_5699.py`,
+  `fichero-server/tests/unit/training/test_training_scope_5710.py`.
 - `compute.tune.kraken-recognition` — **[PARTIAL]** (#4621, #5240) *Built on Hugging Face Jobs (#5398): `ketos train -f page -q early` from a base reader card, best model returned; on this Mac and in the image, and held-out scores, not built.* a `train-kraken-recognition` job runs `ketos train` on the
   training set, from a base model card or from nothing, and returns the best model, its log,
   and character and word error rates on the held-out part. *Data:* the training set's split
