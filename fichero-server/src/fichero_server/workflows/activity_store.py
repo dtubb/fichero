@@ -487,12 +487,10 @@ class ActivityStore:
         await asyncio.to_thread(records.flush_node_boundary, self.db, thread_id, progress_timeline, log_text,
                                 replace=replace)
 
-    async def append_execution_log(self, thread_id: str, log_line: str) -> None:
-        """Append a line to the execution log."""
-        await asyncio.to_thread(records.append_log, self.db, thread_id, log_line)
-
     def _row_to_workflow_run(self, row: tuple) -> WorkflowRun:
-        """A run's row (`records.RUN_COLUMNS`, or the list's light projection) as a WorkflowRun."""
+        """A run's row (`records.RUN_COLUMNS`, or the list's light projection) as a WorkflowRun. A listed run
+        (`records.LIST_COLUMNS`) carries no code, log, snapshot, node map or diagram: those read as empty, and a
+        caller that needs them reads the run itself (`get_workflow_run`)."""
 
         def _obj(value):
             return json.loads(value) if isinstance(value, str) and value else (value or None)
@@ -523,7 +521,7 @@ class ActivityStore:
             # None for a run recorded before the column existed, which is not the same as one that cost nothing.
             run_usage=_obj(row[15]),
             # None for a legacy run or one whose model could not be priced at start (not the same as free).
-            estimated_cost=row[16],
+            estimated_cost=row[16] if len(row) > 16 else None,
         )
 
     async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:

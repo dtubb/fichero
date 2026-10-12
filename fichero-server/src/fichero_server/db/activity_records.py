@@ -148,11 +148,6 @@ def flush_node_boundary(db: Any, thread_id: str, progress_timeline: dict, log_te
         db.execute(f"UPDATE {RUNS} SET progress_timeline = ? WHERE id = ?", [json.dumps(progress_timeline), thread_id])
 
 
-def append_log(db: Any, thread_id: str, line: str) -> None:
-    db.execute(f"UPDATE {RUNS} SET execution_log = COALESCE(execution_log, '') || ? || chr(10) WHERE id = ?",
-               [line, thread_id])
-
-
 def get_run(db: Any, thread_id: str) -> Optional[tuple]:
     return db.execute_fetchone(f"SELECT {', '.join(RUN_COLUMNS)} FROM {RUNS} WHERE id = ?", [thread_id])
 

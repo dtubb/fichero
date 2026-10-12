@@ -230,3 +230,34 @@ async def test_timeline_flushes_at_node_boundary_before_terminal(
     # And the terminal failed update still lands with the timeline.
     terminal = [c for c in tracker.store.update_calls if c.get("status") == "failed"]
     assert terminal and terminal[-1]["progress_timeline"] is not None
+
+
+@pytest.mark.asyncio
+async def test_a_run_s_first_flush_in_a_process_replaces_the_log_then_appends(monkeypatch, tmp_path):
+    """#5645: the first node-boundary flush in this process replaces the stored log, whatever a previous process
+    (an engine since restarted, a resumed run) wrote there; each later flush appends only the lines since the last
+    one, so together they are the whole log, each line once."""
+    thread_id = "thread-append"
+
+    class _App:
+        async def astream_events(self, *_a, **_k):
+            for node in ("node-1", "node-2"):
+                yield {"event": "on_chain_start", "name": node, "data": {}}
+                yield {"event": "on_chain_end", "name": node, "data": {"output": {}}}
+
+    tracker = _RecordingActivityTracker()
+    events = _wire(monkeypatch, tracker, _App(), tmp_path)
+    runner._set_workflow_state(thread_id, {"events": events})
+    workflow = Workflow(id="wf-append", name="Append", format="nodes",
+                        nodes=[{"id": "node-1", "tool": "transcribe", "label": "node-1"},
+                               {"id": "node-2", "tool": "clean_text", "label": "node-2"}],
+                        edges=[{"source": "node-1", "target": "node-2"}])
+    await runner._run_workflow_in_background(thread_id, workflow,
+                                             ExecuteWorkflowRequest(workflow_id="wf-append", inputs={}),
+                                             SimpleNamespace(path=tmp_path / "library.duckdb"))
+
+    flushes = [c for c in tracker.store.update_calls if "replace" in c]
+    assert len(flushes) >= 2
+    assert flushes[0]["replace"] is True and all(c["replace"] is False for c in flushes[1:])
+    lines = [line for c in flushes for line in c["execution_log"].splitlines()]
+    assert len(lines) == len(set(lines)), "no line is flushed twice"
