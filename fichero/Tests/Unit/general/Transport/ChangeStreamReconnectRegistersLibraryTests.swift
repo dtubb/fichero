@@ -126,4 +126,28 @@ struct ChangeStreamReconnectRegistersLibraryTests {
         )
         #expect(Array(ReconnectRegistryURLProtocol.recordedAdds().prefix(2)) == [url.path, url.path])
     }
+
+    /// WHY: #5662. The test above flaked in the full suite: a parallel suite changed the app's host
+    /// and posted the host-change notification, the injected store rebound its mock client to that
+    /// host, and the reconnect's registration went there (the error swallowed), so only one add
+    /// landed. Here the host change is made on purpose, in a preference suite of this test's own:
+    /// a store given its own client must keep registering through it.
+    @Test("a host change elsewhere does not move an injected registry's registrations")
+    func hostChangeKeepsTheInjectedClient() async throws {
+        ReconnectRegistryURLProtocol.reset()
+        setenv("FICHERO_AUTH_TOKEN", "test-token", 1)
+        try await EngineConfig.withIsolatedTestDefaults {
+            let registry = makeRegistry()
+            let url = URL(fileURLWithPath: "/Users/Shared/ReconnectTest.fichero")
+            await registry.noteOpenedLibrary(url: url, displayName: "Reconnect Test")
+
+            EngineConfig.defaults.set("https://elsewhere.tailnet.example", forKey: EngineConfig.userDefaultsKey)
+            NotificationCenter.default.post(name: EngineConfig.engineHostDidChangeNotification, object: nil)
+            // Any rebind is a main-actor task the observer starts; let it run before registering again.
+            try await Task.sleep(for: .milliseconds(200))
+
+            await registry.noteReconnected(url: url, displayName: "Reconnect Test")
+            #expect(ReconnectRegistryURLProtocol.recordedAdds() == [url.path, url.path])
+        }
+    }
 }
