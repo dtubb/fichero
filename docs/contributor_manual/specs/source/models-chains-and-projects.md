@@ -2896,7 +2896,9 @@ Setup
   `StageCandidate.quality`). Pinned by `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`.
 - `source.onboard.stages.samples-proposed` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine): `recipes/samples.py`, `GET`/`PUT /api/recipes/samples` (the choice kept beside the setup); pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. Fichero proposes 3 to 5 sample pages,
   spread across the material (first, last, evenly spaced, the largest and smallest images), shown on
-  every stage page; the person can pick others in the window, and the choice holds for every stage.
+  every stage page; the person can pick others in the window, and the choice holds for every stage. **Order
+  (#5686):** "first" and "last" are as Items shows the pages, each folder in its own order (its sort order,
+  then the name read naturally: `2_Hoja` before `10_Hoja`), never the order an import happened to make them.
   *Test:* pytest, the proposal on a folder of 1, 4 and 200 pages; pure Swift, a page picked by hand
   replaces a proposed one.
 - `source.onboard.stages.sample-result` — **[PARTIAL]** (#5668) **App built 2026-10-11, not yet seen:** `SetupStageSamples` and `SetupStageTryStore` (the samples with why, Try on These Pages, the cost asked first, the result per page and the names); pinned by `SetupStagesTests`. Built 2026-10-11 (engine half): a try whose steps use the cloud is refused (402) with its cost until `cost_ok`; pinned by `fichero-server/tests/unit/recipes/test_setup_samples_5668.py`. *Not built: the result drawn in place (B).* Try on These Pages runs the stage on the
@@ -2917,6 +2919,9 @@ Setup
   of one folder, which 3 to 5 pages spread across the material are not. So for Organise, Fichero proposes
   one run of consecutive pages instead: up to 12 in the folder's own order, from the folder with the
   most pages, starting at its first page, each saying why (`GET /api/recipes/samples?stage=organise`).
+  The run is Organise's alone; every other stage, Find Regions included, gets the spread samples (#5686). The
+  folder's own order is Items' (natural), the order Find the Documents reads a folder in too, so the run is
+  `1_` to `12_`, never `10_`, `11_` … `1_`.
   The person may try it on pages of their own choosing instead (`page_ids`). The try copies the run into
   a scratch project, as every try does, and runs Find the Documents there with nothing accepted by
   itself (`accept_above` none), and Split into entries with the step's model where the recipe has it.

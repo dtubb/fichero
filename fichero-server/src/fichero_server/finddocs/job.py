@@ -44,7 +44,11 @@ def _file_type(doc: Any) -> str:
 
 
 def _ordered(docs: list[Any]) -> list[Any]:
-    return sorted(docs, key=lambda d: (d.sort_order is None, d.sort_order or 0, d.name or "", d.id))
+    """A folder's children as Items shows them: its sort order, then the name read naturally (`2_` before `10_`,
+    #5686), never the names as strings."""
+    from fichero_server.core.naturalsort import natural_key
+
+    return sorted(docs, key=lambda d: (d.sort_order is None, d.sort_order or 0, natural_key(d.name), d.id))
 
 
 def _children(db: Any, parent_id: str | None) -> list[Any]:

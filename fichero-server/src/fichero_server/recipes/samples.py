@@ -29,6 +29,8 @@ TRY_KIND = "try-a-stage"
 MAX_SAMPLES, MIN_SAMPLES = 5, 3
 #: Organise's sample is one run of neighbouring pages, at most this long (`organise-tried-on-a-run`).
 RUN_LENGTH = 12
+#: The stages tried on that run; every other stage gets the spread samples (#5686).
+RUN_STAGES = frozenset({"organise"})
 
 
 def _folder(library: Path) -> Path:
@@ -36,10 +38,20 @@ def _folder(library: Path) -> Path:
 
 
 def _pages(db: Any) -> list[Any]:
-    """The project's material in creation order, as a started recipe runs over it."""
+    """The project's material as Items shows it (#5686): each folder's pages in its own order (sort order, then the
+    name read naturally), the folders in the same order, never the order an import happened to create them."""
+    from fichero_server.core.naturalsort import natural_key
     from fichero_server.models import Document
 
-    return [d for d in (db.get(Document, i) for i in db.unit_of_work_ids()) if d is not None]
+    pages = [d for d in (db.get(Document, i) for i in db.unit_of_work_ids()) if d is not None]
+    folders = {p.parent_id: db.get(Document, p.parent_id) for p in pages if p.parent_id}
+
+    def key(doc: Any) -> tuple:
+        folder = folders.get(doc.parent_id)
+        place = (folder.sort_order is None, folder.sort_order or 0, natural_key(folder.name)) if folder else (True, 0, ())
+        return (*place, doc.parent_id or "", doc.sort_order is None, doc.sort_order or 0, natural_key(doc.name))
+
+    return sorted(pages, key=key)
 
 
 def _size(library: Path, doc: Any) -> int:
@@ -98,9 +110,7 @@ def chosen(db: Any, stage: str | None = None) -> dict[str, Any]:
     consecutive pages it is tried on (`propose_run`): pages chosen across the material cannot show a document's
     end."""
     from fichero_server.models import Document
-    from fichero_server.recipes.stages import TRIED_ON_ITS_OWN
-
-    if stage in TRIED_ON_ITS_OWN:
+    if stage in RUN_STAGES:
         return {"chosen_by": "fichero", "pages": propose_run(db)}
     library = Path(db.path).parent
     try:
