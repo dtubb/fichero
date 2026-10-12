@@ -30,13 +30,16 @@ def geometry(regions: list[Any], width: int, height: int, *, model: str, provide
                              metadata={"pixel_frame": {"width": width, "height": height}})
 
 
-def progress_words(done: int, total: int, *, elapsed: float) -> str:
-    """How far Find Regions is, for the run's line (#5689): "23 of 92 pages, about 12 min left"."""
+def progress_words(done: int, total: int, *, elapsed: float = 0.0, seconds_left: float | None = None) -> str:
+    """How far a step is, for the run's line (#5689, #5685): "23 of 92 pages, about 12 min left", from the time it
+    has taken so far or the time its own account says is left."""
     import math
 
     said = f"{done} of {total} pages"
-    if 0 < done < total and elapsed > 0:
-        said += f", about {max(1, math.ceil(elapsed / done * (total - done) / 60))} min left"
+    if seconds_left is None and 0 < done < total and elapsed > 0:
+        seconds_left = elapsed / done * (total - done)
+    if seconds_left and 0 < done < total:
+        said += f", about {max(1, math.ceil(seconds_left / 60))} min left"
     return said
 
 

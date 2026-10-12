@@ -1069,6 +1069,24 @@ def _blocked(cards: list[dict[str, Any]], steps: list[dict[str, Any]], index: in
     return None
 
 
+#: What a step is doing, by its last job, as the run's line says it (#5685).
+_DOING = {"find-lines": "Finding the lines", "read-a-line": "Reading the lines", "read-a-page": "Reading the pages",
+          "correct": "Correcting the readings", "find-names-tag-words": "Finding names",
+          "find-statements": "Finding statements", "prepare-the-image": "Preparing the images",
+          "find-regions": "Finding regions", "split-pages": "Splitting the pages"}
+_READERS = {"kraken": "Kraken", "apple": "Apple Vision", "spacy": "spaCy"}
+
+
+def doing_words(card: dict[str, Any]) -> str:
+    """"Reading the lines with Kraken": the step's job and who does it, never its step ids (#5685)."""
+    job = card.get("job") or ""
+    said = _DOING.get(job, f"Running {job or 'a step'}")
+    provider = (card.get("provider_override") or card.get("provider") or "").lower()
+    model = card.get("model_override") or card.get("model")
+    reader = _READERS.get(provider) or (str(model).rsplit("/", 1)[-1] if model and provider else None)
+    return f"{said} with {reader}" if reader else said
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
     """A recipe run: its state and each card's, read from the card's own job (the row Activity shows) once it
     has one, so this and Activity are one account (#5498). A run still waiting says what it waits for."""
@@ -1080,6 +1098,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
                                     for c in detail.get("runs", [])]
     for card, step in zip(detail.get("runs", []), steps):
         step["job"] = card.get("job")  # what the stage does, by its last job (a reading, names, dates)
+        step["doing"] = doing_words(card)
     for step in steps:
         if step["state"] == "running" and not step.get("child_id") and row["state"] == "running":
             # The step learns its job's id only when the job returns: while it runs, its job is the run's

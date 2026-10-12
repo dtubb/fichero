@@ -586,7 +586,27 @@ def waiting_reason_under(db: "Database", run_id: str) -> str | None:
     job_id, kind, state, reason, created_at, run_after = row
     if state != "waiting":
         return reason
+    if _lane_held_by(db, _lane_of(job_id, kind), run_id):
+        return None  # its turn behind this run's own pages: the run is reading, not waiting (#5685)
     return waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+
+
+def _lane_held_by(db: "Database", lane_name: str, run_id: str) -> bool:
+    """Every job running on the lane is this run's own (a page of it, or the run itself)."""
+    lane = _scheduler.lanes.get(lane_name)
+    running = list(lane.running) if lane is not None else []
+    if not running:
+        return False
+    for job_id in running:
+        seen: set[str] = set()
+        current: str | None = job_id
+        while current and current not in seen and current != run_id:
+            seen.add(current)
+            row = db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [current])
+            current = row[0] if row else None
+        if current != run_id:
+            return False
+    return True
 
 
 def last_heard(db: "Database", run_id: str) -> Any:

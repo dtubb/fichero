@@ -129,6 +129,14 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
         waiting = account.waiting_reason
     status["waiting_for"] = waiting
     status["estimate_seconds_left"] = account.estimate_seconds_left if account is not None else None
+    if (status["state"] == "running" and running is not None and account is not None and account.pages_total
+            and (status["reason"] or "").startswith("Running step")):
+        # The step reading and its pages, never "0 of 1 folder" while its pages are read (#5685).
+        from fichero_server.recipes.regions import progress_words
+
+        status["reason"] = (f"{running.get('doing') or 'Running'}: "
+                            + progress_words(account.pages_done, account.pages_total,
+                                             seconds_left=account.estimate_seconds_left))
     return status
 
 

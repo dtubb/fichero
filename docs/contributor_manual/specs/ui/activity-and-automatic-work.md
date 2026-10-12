@@ -768,6 +768,14 @@ workflow by hand: a hand run is a job like any other.
   `testActivityWindowRowShowsReason_aWaitingJobSaysWhatItWaitsFor`). Not yet seen in the app.
   Still a gap: no row carries its lane (neither the `jobs` table nor `JobTree` nor `BackgroundJob`
   has it, `api/routes/system/activity.py:127-146`).
+- `activity.run.says-what-it-reads` — **[PARTIAL]** (#5685) while a recipe run's step reads its pages, the run's
+  line names the step by what it does and who does it, and counts its pages, never its step ids or folders:
+  "Reading the lines with Kraken: 56 of 87 pages, about 12 min left" (the step's own account's pages and time
+  left, the words of Find Regions' line, #5689). A page waiting its turn behind the run's own pages is not
+  something the run waits for: the run says nothing of a lane only its own pages hold ("Waiting for the model
+  lane: Transcribe (Kraken) is reading" was the run waiting for itself). *Test:*
+  `fichero-server/tests/unit/mcp/test_run_says_what_it_reads_5685.py`, through MCP on the real scheduler, caught
+  mid-read.
 - `activity.waiting-says-why` — **[PARTIAL]** (#5606) a waiting row says what it truly waits for
   now, and never has no reason: paused by you, when paused; the lane and what holds it, when the
   lane is full (#5622: it names what the row would still wait for if the person stepped away; rows
