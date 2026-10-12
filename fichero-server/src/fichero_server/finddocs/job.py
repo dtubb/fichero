@@ -103,6 +103,13 @@ def _text(db: Any, doc: Any) -> str:
     return reading.content if reading is not None else ""
 
 
+def _too_uncertain(db: Any, page_id: str) -> bool:
+    """Below the one certainty bar (#5694's), shared so Names and Find the Documents judge text alike (#5675)."""
+    from fichero_server.recipes.runner import reading_too_uncertain
+
+    return reading_too_uncertain(db, page_id)
+
+
 def _image_of(db: Any, page: Any) -> str:
     """The page's image as every step finds it (`source.pages.image-found-wherever-kept`): a copied page's stored
     path is inside the package."""
@@ -198,7 +205,7 @@ def page_inputs(db: Any, pages: list[Any], *, job_id: str | None = None) -> list
         _stop_point(job_id)
         ink, image_hash = _look(_image_of(db, page))
         out.append(PageInput(id=page.id, text=_text(db, page), ink=ink, image_hash=image_hash,
-                             names=names.get(page.id, [])))
+                             names=names.get(page.id, []), text_uncertain=_too_uncertain(db, page.id)))
     return out
 
 

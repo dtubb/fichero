@@ -156,6 +156,13 @@ involve the company it names. Lessons the tool must carry:
   before (Cópiese/notifíquese, "(fdo)", letter closings), folio numbers restarting or running on, and a
   sentence or a word running over the break (the cheap rule: page n ends mid-sentence and n+1 starts in
   lower case). Each document's confidence is the least sure of its start, its end and its inner joins.
+  **Not on text the reader wasn't sure of (#5675):** the rules that read a page's text (its opening or closing
+  cues, its folio number, a sentence or word running over the break) take no evidence from a page whose
+  reading is below the same certainty bar Find Names uses (#5694, `runner.reading_too_uncertain`); the join
+  says so, a `text-too-uncertain` signal of weight 0 with "text too uncertain to judge", so noise from a poor
+  reader neither makes nor buries a boundary. A page with no stored certainty is read as before; the blank,
+  verso and duplicate findings are unchanged. *Test:*
+  `fichero-server/tests/unit/finddocs/test_uncertain_text_is_not_evidence_5675.py`.
   *Not built: the look of the page (an image embedding), a language model's surprise at the join.*
 - `finddocs.kinds.prototypes` — **[PARTIAL]** (#5550) each proposed document is matched to a prototype or
   proposes a new one, and its attribute values are filled from the pages and cited to them. **Built

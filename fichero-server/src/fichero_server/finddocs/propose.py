@@ -72,6 +72,8 @@ class PageInput:
     image_hash: int | None = None
     #: Names the knowledge graph found on the page (people and organisations), where present.
     names: list[str] = field(default_factory=list)
+    #: Its reading is below the certainty bar (#5675): its text is no evidence for or against a boundary.
+    text_uncertain: bool = False
 
     @property
     def lines(self) -> list[str]:
@@ -199,14 +201,23 @@ def _folio(page: PageInput) -> int | None:
     return None
 
 
+#: What a join says when a page's reading was too uncertain to read its text as evidence (#5675).
+TEXT_TOO_UNCERTAIN = "text too uncertain to judge"
+
+
 def _join(previous: PageInput, page: PageInput) -> ProposedJoin:
-    signals = _cue_signals(page, "opening")
+    # A page read too uncertainly gives its text no say (#5675): no cues, no folio, no running over the break.
+    signals = [] if page.text_uncertain else _cue_signals(page, "opening")
     opening = min(C.OPENING_CAP, sum(s.weight for s in signals))
-    closing_signals = _cue_signals(previous, "closing")
+    closing_signals = [] if previous.text_uncertain else _cue_signals(previous, "closing")
     closing = min(C.CLOSING_CAP, sum(s.weight for s in closing_signals))
     signals += closing_signals
+    for uncertain in (p for p in (previous, page) if p.text_uncertain):
+        signals.append(Signal(cue="text-too-uncertain", role="continuity", weight=0.0, page_id=uncertain.id,
+                              line=TEXT_TOO_UNCERTAIN))
     furniture = 0.0
-    folio, folio_before = _folio(page), _folio(previous)
+    folio = None if page.text_uncertain else _folio(page)
+    folio_before = None if previous.text_uncertain else _folio(previous)
     if folio == 1:
         furniture = C.NUMBERING_RESTARTS
         signals.append(Signal(cue="numbering-restarts", role="furniture", weight=furniture, page_id=page.id))
@@ -215,7 +226,7 @@ def _join(previous: PageInput, page: PageInput) -> ProposedJoin:
         signals.append(Signal(cue="numbering-continues", role="furniture", weight=furniture, page_id=page.id))
     continuity = 0.0
     before_lines, after_lines = previous.lines, page.lines
-    if before_lines and after_lines:
+    if before_lines and after_lines and not (previous.text_uncertain or page.text_uncertain):
         last, first = before_lines[-1], after_lines[0]
         first_letter = next((c for c in first if c.isalpha()), "")
         if last.endswith("-") and not last.endswith("--"):

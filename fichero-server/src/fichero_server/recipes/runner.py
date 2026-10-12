@@ -72,6 +72,13 @@ def reading_confidence(db: Any, doc_id: str) -> float | None:
     return sum(sure) / len(sure) if sure else None
 
 
+def reading_too_uncertain(db: Any, doc_id: str) -> bool:
+    """The page's reading is below the bar a page's text is judged by (#5694 Names, #5675 Find the Documents);
+    False when its reader gave no certainty."""
+    sure = reading_confidence(db, doc_id)
+    return sure is not None and sure < NAMES_MIN_CONFIDENCE
+
+
 def too_uncertain_for_names(db: Any, documents: list[str]) -> list[dict[str, str]]:
     """The pages whose reading is too uncertain to find names in, each named with why (#5694)."""
     from fichero_server.models import Document
