@@ -80,13 +80,15 @@ final class TrainedModelsStore {
     }
 
     /// Make it available in every project (#5539, `training.model.make-global`): the audited
-    /// `training.make_model_global` through its route; the model is re-read, so the Inspector says where it lives
-    /// now. Nil when done, else why not in words.
+    /// `training.make_model_global` through its route. Its one entry is patched in place from the answer: a
+    /// project's model made global lives in both (`lives`, #5539), so it is not offered again. Nil when done, else
+    /// why not in words.
     func makeGlobal(_ modelId: String) async -> String? {
         do {
             switch try await client.api.makeTrainedModelGlobalApiTrainingModelsMakeGlobalPost(body: .json(.init(model: modelId))) {
-            case .ok:
-                await loadModel(modelId)
+            case .ok(let success):
+                let made = try success.body.json
+                inspected[made.modelId]?.lives = "both"
                 return nil
             case .unprocessableContent:
                 return "The engine did not accept this model id."

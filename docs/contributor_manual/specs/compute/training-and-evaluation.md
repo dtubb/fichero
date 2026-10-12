@@ -422,7 +422,7 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
 - `training.model.make-global` — **[OK]** (#5539) Make it available in every project is the audited
   `training.make_model_global`; built in the engine (`compute.model.make-global`) and on the node: the
   Inspector's "Where It Can Be Used" says where it lives and offers **Make Available in Every Project** while it
-  lives in this project only, then reads the model again (`TrainedModelsStore.makeGlobal`,
+  lives in this project only, then says it lives in both (`TrainedModelsStore.makeGlobal`,
   `TrainedModelNodeActionsTests`). *Not pinned: the drawn button.*
 - `training.model.neural-engine` — **[GAP]** (#5556) Run it on the Neural Engine converts to Core ML, scores
   the conversion against the original on the held-out pages, and replaces it only within the noise band.

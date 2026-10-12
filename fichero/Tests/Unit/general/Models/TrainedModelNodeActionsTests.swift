@@ -75,7 +75,7 @@ struct TrainedModelNodeActionsTests {
         let sent = try #require(ModelNodeEngine.seen.first { $0.path == "/api/training/models/make-global" })
         #expect(sent.body["model"] as? String == modelId)
         let after = ModelNodeFacts(try #require(store.inspected[modelId]))
-        #expect(!after.livesOnlyHere, "re-read: not offered again")
+        #expect(!after.livesOnlyHere, "patched in place: not offered again")
         #expect(after.lives == "This project and every other project")
     }
 
