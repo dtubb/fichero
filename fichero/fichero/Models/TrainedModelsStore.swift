@@ -22,6 +22,8 @@ final class TrainedModelsStore {
     private(set) var errorMessage: String?
     /// Why one model's Inspector facts could not be read, by model id.
     private(set) var inspectErrors: [String: String] = [:]
+    /// The models its newest evaluation compared each model with, on the same pages (`loadCompared`), by model id.
+    private(set) var compared: [String: [ModelNodeFacts.Compared]] = [:]
 
     private let client: FicheroClient
 
@@ -76,6 +78,55 @@ final class TrainedModelsStore {
             inspectErrors[modelId] = "Could not read this model: \(error.localizedDescription)"
         }
     }
+
+    /// Make it available in every project (#5539, `training.model.make-global`): the audited
+    /// `training.make_model_global` through its route; the model is re-read, so the Inspector says where it lives
+    /// now. Nil when done, else why not in words.
+    func makeGlobal(_ modelId: String) async -> String? {
+        do {
+            switch try await client.api.makeTrainedModelGlobalApiTrainingModelsMakeGlobalPost(body: .json(.init(model: modelId))) {
+            case .ok:
+                await loadModel(modelId)
+                return nil
+            case .unprocessableContent:
+                return "The engine did not accept this model id."
+            case .undocumented(let code, let payload):
+                return await EngineErrorDetail.message(from: payload) ?? "Could not make it available everywhere (HTTP \(code))."
+            }
+        } catch {
+            return "Could not make it available everywhere: \(error.localizedDescription)"
+        }
+    }
+
+    /// The models its newest evaluation compared it with (its base among them), each one's CER on the same pages in
+    /// that same job (#5439, `training.model.error-beside-base`), by model id. Each comes from that model's card
+    /// (`GET /api/evaluation/scores`), the entry with the evaluation's job id; nothing is worked out here.
+    func loadCompared(_ modelId: String) async {
+        guard let model = inspected[modelId], let last = model.evaluationHistory.last.flatMap(Self.object),
+              let jobId = last["job_id"] as? String else { return }
+        let reader: Operations.ModelScoresApiEvaluationScoresGet.Input.Query.ReaderPayload =
+            model.kind == "kraken-reader" ? .kraken : .vision
+        var rows: [ModelNodeFacts.Compared] = []
+        for other in last["compared_with"] as? [String] ?? [] {
+            guard case .ok(let success)? = try? await client.api.modelScoresApiEvaluationScoresGet(
+                query: .init(model: other, reader: reader)
+            ), let scores = try? success.body.json else { continue }
+            let entry = scores.evaluations.compactMap(Self.object).last { $0["job_id"] as? String == jobId }
+            rows.append(ModelNodeFacts.Compared(model: other, cer: Self.cerByPolicy(entry)))
+        }
+        compared[modelId] = rows
+    }
+
+    /// One evaluation record as plain JSON values.
+    private static func object(_ container: OpenAPIRuntime.OpenAPIObjectContainer) -> [String: Any]? {
+        (try? JSONEncoder().encode(container)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    }
+
+    /// An evaluation entry's CER by policy, as its card wrote it; empty when it has none.
+    private static func cerByPolicy(_ entry: [String: Any]?) -> [String: Double?] {
+        let scores = entry?["scores"] as? [String: Any] ?? [:]
+        return scores.mapValues { ($0 as? [String: Any])?["cer"] as? Double }
+    }
 }
 
 /// What the model Inspector says, worded from one model's card. Pure, so each sentence the
@@ -85,6 +136,23 @@ struct ModelNodeFacts {
         let policy: String
         let cer: String
     }
+
+    /// Another model the same evaluation read the same pages with (its base among them), and its CER by policy as
+    /// that model's card wrote it for that job; empty when its card kept none (#5439, `training.model.error-beside-base`).
+    struct Compared: Equatable {
+        let model: String
+        let cer: [String: Double?]
+
+        /// "kraken-mccatmus: 7.4%" under one policy, or "Not measured".
+        func says(policy: String) -> String {
+            "\(model): \(ModelNodeFacts.percent(cer[policy] ?? nil))"
+        }
+    }
+
+    /// Whether it can still be made available in every project: it lives only in this project (`lives`).
+    let livesOnlyHere: Bool
+    /// Where it lives, in words.
+    let lives: String
 
     static let notEvaluated = "Not evaluated yet"
     static let notForRelease = "This model was trained on material not for release"
@@ -138,6 +206,16 @@ struct ModelNodeFacts {
         licenceNote = model.licenceNote
         mayPublish = model.mayPublish
         publish = model.mayPublish ? "May be published" : (model.releaseNote ?? Self.notForRelease)
+        livesOnlyHere = model.lives == "project"
+        lives = Self.livesWords(model.lives)
+    }
+
+    static func livesWords(_ lives: String?) -> String {
+        switch lives {
+        case "project": return "This project only"
+        case "both": return "This project and every other project"
+        default: return "Every project"
+        }
     }
 
     static func kindName(_ kind: String) -> String {

@@ -405,9 +405,12 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   Training), its name and VoiceOver label from `SidebarTrainingNode.name` (`source.model.node-in-sidebar`,
   `source.model.node-inspector`). Pinned by `fichero/Tests/Unit/general/Models/TrainedModelsStoreTests.swift`
   (`theNodeIsNamedModels`). *Not pinned: the drawn row.*
-- `training.model.error-beside-base` — **[GAP]** (#5439, #5441) the Inspector shows the model's held-out
-  error rate beside its base's on the same pages and policy, and time, cost and epochs from the run; today
-  it shows the model's CER per policy and the base's name only.
+- `training.model.error-beside-base` — **[PARTIAL]** (#5439, #5441) the Inspector shows the model's held-out
+  error rate beside its base's on the same pages and policy, and time, cost and epochs from the run. Built:
+  "On the Same Pages" lists every model its newest evaluation compared it with (its base among them, when the
+  evaluation added the out-of-the-box readers), each with its CER per policy from its own card's entry for that
+  same job (`TrainedModelsStore.loadCompared`, `TrainedModelNodeActionsTests`). Not built: time, cost and epochs
+  from the run (the card does not keep them), and WER (`training.eval.wer-beside-cer`).
 - `training.model.how-it-was-made` — **[PARTIAL]** (#5439, #5538) the Inspector shows pages, teacher,
   flagged lines left out by flag, settings and place; built: base, teacher, set, job, where and when; not:
   flags by kind, settings, the three sets.
@@ -416,8 +419,11 @@ Every evaluation keeps, beside its totals, the material to see what went wrong:
   node.
 - `training.model.compare-on-more-pages` — **[PARTIAL]** (#5439) Compare on more pages starts an evaluation
   job on named pages against the current choice; built in the engine (`distill.eval.job`), not from the node.
-- `training.model.make-global` — **[PARTIAL]** (#5539) Make it available in every project is the audited
-  `training.make_model_global`; built in the engine (`compute.model.make-global`), not from the node.
+- `training.model.make-global` — **[OK]** (#5539) Make it available in every project is the audited
+  `training.make_model_global`; built in the engine (`compute.model.make-global`) and on the node: the
+  Inspector's "Where It Can Be Used" says where it lives and offers **Make Available in Every Project** while it
+  lives in this project only, then reads the model again (`TrainedModelsStore.makeGlobal`,
+  `TrainedModelNodeActionsTests`). *Not pinned: the drawn button.*
 - `training.model.neural-engine` — **[GAP]** (#5556) Run it on the Neural Engine converts to Core ML, scores
   the conversion against the original on the held-out pages, and replaces it only within the noise band.
 

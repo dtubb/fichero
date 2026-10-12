@@ -19,11 +19,17 @@ extension SidebarSelectionState {
 struct ModelNodeInspector: View {
     let store: TrainedModelsStore
     let modelId: String
+    /// Why Make Available in Every Project did not happen; nil after it did.
+    @State private var makeGlobalNote: String?
+    @State private var makingGlobal = false
 
     var body: some View {
         Group {
             if let model = store.inspected[modelId] {
-                ModelNodeInspectorForm(facts: ModelNodeFacts(model))
+                ModelNodeInspectorForm(
+                    facts: ModelNodeFacts(model), compared: store.compared[modelId] ?? [],
+                    makeGlobal: makingGlobal ? nil : { Task { await makeGlobal() } }, makeGlobalNote: makeGlobalNote
+                )
             } else if let message = store.inspectErrors[modelId] {
                 ContentUnavailableView(
                     "Model Not Available", systemImage: "brain", description: Text(message)
@@ -34,14 +40,27 @@ struct ModelNodeInspector: View {
             }
         }
         .task(id: modelId) {
+            makeGlobalNote = nil
             await store.loadModel(modelId)
+            await store.loadCompared(modelId)
         }
+    }
+
+    private func makeGlobal() async {
+        makingGlobal = true
+        makeGlobalNote = await store.makeGlobal(modelId)
+        makingGlobal = false
     }
 }
 
 /// The Inspector's sections, from one model's worded facts.
 struct ModelNodeInspectorForm: View {
     let facts: ModelNodeFacts
+    /// The models the same evaluation read the same pages with, its base among them (#5439).
+    var compared: [ModelNodeFacts.Compared] = []
+    /// Make Available in Every Project (#5539); nil while it runs, or where it cannot be offered.
+    var makeGlobal: (() -> Void)?
+    var makeGlobalNote: String?
 
     var body: some View {
         Form {
@@ -74,10 +93,31 @@ struct ModelNodeInspectorForm: View {
                     Text(ModelNodeFacts.notEvaluated).foregroundStyle(.secondary)
                 }
             }
+            if let scores = facts.scores, !compared.isEmpty {
+                // Beside its base on the same pages and policy (`training.model.error-beside-base`).
+                Section("On the Same Pages") {
+                    ForEach(compared, id: \.model) { other in
+                        ForEach(scores, id: \.policy) { score in
+                            LabeledContent(score.policy, value: other.says(policy: score.policy))
+                        }
+                    }
+                }
+            }
             Section("Size and Where It Runs") {
                 LabeledContent("Size", value: facts.size)
                 ForEach(facts.runsOn, id: \.self) { place in
                     Text(place)
+                }
+            }
+            Section("Where It Can Be Used") {
+                LabeledContent("Available In", value: facts.lives)
+                if facts.livesOnlyHere {
+                    Button("Make Available in Every Project") { makeGlobal?() }
+                        .disabled(makeGlobal == nil)
+                        .help("Copy it to this Mac's models, so every project can read with it")
+                }
+                if let makeGlobalNote {
+                    Text(makeGlobalNote).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Licence and Release") {
