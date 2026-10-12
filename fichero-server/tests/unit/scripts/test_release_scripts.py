@@ -173,6 +173,15 @@ def test_release_all_always_rebuilds_engine_before_packaging() -> None:
     assert '--skip-backend) SKIP_BACKEND=true' not in text
 
 
+def test_release_all_checks_closed_issues_strictly_before_signing() -> None:
+    """A release stops when check_closed_issues_landed cannot check (no origin, no gh): on dev machines and the
+    M4 that is a plain SKIP, so only `--strict` keeps the release from shipping on a check that saw nothing."""
+    text = _script_text(RELEASE_ALL)
+    check = text.index('check_closed_issues_landed.py" --strict')
+    assert check < text.index("── Preflight: codesign keychain access ──")
+    assert check < text.index('preflight-embedded-engine.sh" --rebuild')
+
+
 def test_release_all_cleans_only_macos_archive_before_macos_archive() -> None:
     text = _script_text(RELEASE_ALL)
     cleanup = text.index('rm -rf "$MAC_ARCHIVE_PATH"')

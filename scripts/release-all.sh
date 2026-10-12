@@ -282,6 +282,17 @@ if ! PYTHONPATH="$ROOT_DIR/fichero-server/src:$ROOT_DIR/fichero-cli/src:$ROOT_DI
 fi
 
 echo
+echo "── Preflight: closed issues landed ──"
+# --strict: a release stops when it cannot check (no origin/integration ref, no
+# working gh), where dev machines and the M4 only print SKIP (exit 0). A release
+# must never ship on a check that saw nothing.
+if ! (cd "$ROOT_DIR" && "$RELEASE_DOCS_PY" "$ROOT_DIR/scripts/check_closed_issues_landed.py" --strict); then
+  echo "error: closed issues are not all landed on origin/integration, or this machine cannot check." >&2
+  echo "       Push, or fetch origin and sign gh in, then re-run." >&2
+  exit 1
+fi
+
+echo
 echo "── Preflight: codesign keychain access ──"
 # Fail fast if codesign would hang on a keychain prompt mid-release. Only test
 # the identities the active lanes will actually sign with.
