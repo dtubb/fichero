@@ -130,8 +130,8 @@ struct ActivityMonitorWindow: View {
             TableColumn("") { row in
                 ActivityRowControls(
                     row: row,
+                    run: runMenuTarget(for: row),
                     perform: { control in Task { await act(control, on: row) } },
-                    readAgain: { Task { await readPagesAgain(row) } },
                     showDetails: { showDetails(for: row) }
                 )
             }
@@ -154,8 +154,8 @@ struct ActivityMonitorWindow: View {
         .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
         .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
             if ids.count == 1, let id = ids.first, let target = runMenuTarget(for: id) {
-                if target.canStop { Button("Stop") { target.stop() } }
-                if let label = target.readAgainLabel { Button(label) { target.readAgain() } }
+                if target.canStop { ActivityStopMenuItem(target: target) }
+                if target.readAgainLabel != nil { ActivityReadAgainMenuItem(target: target) }
             }
             Button("Delete", role: .destructive) {
                 Task { await deleteRuns(withIDs: ids) }
@@ -246,22 +246,20 @@ struct ActivityMonitorWindow: View {
 
     // MARK: - Actions
 
-    /// Stop and Read Again for one row, shared by the context menu and the menu bar (#5652).
+    /// Stop and Read Again for one row, shared by the row's own buttons, its context menu and the menu
+    /// bar (#5652): each renders `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` on this target.
     private func runMenuTarget(for id: ActivityMonitorRow.ID) -> ActivityRunMenuTarget? {
-        guard let row = Self.find(id, in: sortedRows) else { return nil }
-        return ActivityRunMenuTarget(
+        Self.find(id, in: sortedRows).map(runMenuTarget(for:))
+    }
+
+    private func runMenuTarget(for row: ActivityMonitorRow) -> ActivityRunMenuTarget {
+        ActivityRunMenuTarget(
             rowId: row.id, rowName: row.name,
             canStop: row.controls.contains(.stop),
             readAgainLabel: row.readAgainLabel,
             stop: { Task { await act(.stop, on: row) } },
-            readAgain: { Task { await readAgain(row) } }
+            readAgain: { Task { await readPagesAgain(row) } }
         )
-    }
-
-    /// The run's "read again" offer, as the details' button makes it (`ActivityDetailsView`).
-    private func readAgain(_ row: ActivityMonitorRow) async {
-        guard let threadId = row.runThreadId, let store = library(for: row.libraryId)?.activityStore else { return }
-        notice = await store.readPagesAgain(runThreadId: threadId).map { "Couldn't read the pages again: \($0)" }
     }
 
     /// Pause, Resume or Stop one row's job through the audited job actions;
@@ -417,29 +415,34 @@ private struct ActivityElapsedCell: View {
 /// run with pages it did not do, its one offer ("Read the 3 pages that failed").
 private struct ActivityRowControls: View {
     let row: ActivityMonitorRow
+    /// Stop and Read Again: the same items the context menu and Project › Activity render (#5652).
+    let run: ActivityRunMenuTarget
     let perform: (ActivityMonitorRow.Control) -> Void
-    let readAgain: () -> Void
     let showDetails: () -> Void
 
     var body: some View {
         HStack(spacing: 4) {
             if let offer = row.readAgainLabel {
-                Button(action: readAgain) {
-                    Label(offer, systemImage: "arrow.clockwise")
-                        .labelStyle(.iconOnly)
-                }
-                .buttonStyle(.borderless)
-                .help(offer)
-                .accessibilityLabel(offer)
-                .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).readAgain")
+                ActivityReadAgainMenuItem(target: run)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help(offer)
+                    .accessibilityLabel(offer)
+                    .accessibilityIdentifier("activity.row.\(row.jobId ?? row.id).readAgain")
             }
             ForEach(row.controls) { control in
-                Button {
-                    perform(control)
-                } label: {
-                    Label(control.label, systemImage: control.systemImage)
-                        .labelStyle(.iconOnly)
+                Group {
+                    if control == .stop {
+                        ActivityStopMenuItem(target: run)
+                    } else {
+                        Button {
+                            perform(control)
+                        } label: {
+                            Label(control.label, systemImage: control.systemImage)
+                        }
+                    }
                 }
+                .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
                 .help("\(control.label) \(row.name)")
                 .accessibilityLabel("\(control.label) \(row.name)")

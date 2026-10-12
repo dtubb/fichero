@@ -253,9 +253,19 @@ Behaviours (slice 1):
   (BibTeX (.bib)…, Markdown Static Site…), Grant Folder Access…; File › Set Up Project… is gone (it is
   Project › Set Up…); pinned by
   `MenuTerminologyBoundaryTests.testFileMenuLabelsSayProjectAndUseTheEllipsis`.
+- `menus.project.activity-stop-read-again` — **[OK]** (#5652 slice 3) **Built 2026-10-12 (app), not yet
+  seen:** Project › Activity › **Stop** and **Read Again** act on the Activity window's one selected run
+  (`FocusedActivityRunButtons`, on the `activityRun` focused value the window publishes). Each is ONE
+  item, `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` (`FocusedCommandButtons+Activity.swift`),
+  rendered by the menu bar, the Activity table's context menu and the row's own icon buttons, on the one
+  target `ActivityMonitorWindow.runMenuTarget(for:)` makes, so Stop is the row's job cancel and Read Again
+  the store's `readPagesAgain` in all three. Read Again reads as the run's own offer ("Read the 3 pages
+  that failed"). Disabled with its reason under it when no run is selected, when the run is not running
+  or waiting (Stop), or when it has ended with nothing to read again (Read Again). No chords: ⌘. is the
+  system's cancel. Pinned by `ActivityRunMenuTests` and
+  `MenuTerminologyBoundaryTests.testActivityStopAndReadAgainAreInTheMenuBar`.
 - `menus.project.later-slices` — **[GAP]** (#5652) Train a Model… with the Models node rename and the
-  model row's menu; Project › Read › Reading ▸ and Read → Page; Activity's Stop and Read Again in the
-  menu bar; Edit parity for every context-menu verb.
+  model row's menu; Project › Read › Reading ▸ and Read → Page; Edit parity for every context-menu verb.
 
 ---
 
