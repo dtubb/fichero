@@ -1,7 +1,11 @@
 """
-ActivityStore — DuckDB-backed persistence for activity events and workflow runs.
+ActivityStore -- activity events and workflow runs, kept as models through the library's one managed Database (#5645).
 
-Included by activity.py via composition (ActivityTracker.store).
+Included by activity.py via composition (ActivityTracker.store). The rows are `ActivityEventRecord` and
+`WorkflowRunRecord` (`models.activity_records`); the ordered, paged and partial SQL is the persistence layer's
+(`db.activity_records`), on the managed connection under its lock. Callers get the `Activity` and `WorkflowRun` they
+always did. A library made before this kept them in `activities` and `workflow_runs`; `Database._fold_activity_tables`
+copies them once, at open.
 """
 
 from __future__ import annotations
@@ -9,14 +13,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import threading
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from typing import Any, Optional
-
-import duckdb
-from fichero_server.core.duckdb_session import connect_utc
 
 from fichero_server.workflows.activity_types import (
     Activity,
@@ -29,43 +28,17 @@ from fichero_server.workflows.activity_types import (
 
 logger = logging.getLogger(__name__)
 
-_connection_locks: dict[str, threading.RLock] = {}
-_connection_locks_guard = threading.Lock()
+
+class _Records:
+    """`db.activity_records`, imported at first use, not at engine start (#3950's import budget)."""
+
+    def __getattr__(self, name: str) -> Any:
+        from fichero_server.db import activity_records
+
+        return getattr(activity_records, name)
 
 
-def duckdb_connection_lock(db_path: str) -> threading.RLock:
-    """Return the process-local lock for independent DuckDB connections."""
-    with _connection_locks_guard:
-        return _connection_locks.setdefault(str(db_path), threading.RLock())
-
-
-# Columns of workflow_runs in the canonical CREATE TABLE order. Used by the
-# crash-safe rebuild path so the rebuilt table is byte-for-byte equivalent.
-_WORKFLOW_RUNS_COLUMNS = (
-    "thread_id",
-    "workflow_id",
-    "workflow_name",
-    "python_code",
-    "execution_log",
-    "status",
-    "started_at",
-    "completed_at",
-    "duration_ms",
-    "error",
-    "workflow_snapshot",
-    "node_name_map",
-    "progress_timeline",
-    "diagram_mermaid",
-    "resolved_scope",
-    "run_usage",
-    "estimated_cost",
-)
-
-# Secondary indexes on workflow_runs that must be recreated after a rebuild.
-_WORKFLOW_RUNS_INDEXES = (
-    ("idx_workflow_runs_workflow_id", "workflow_runs(workflow_id)"),
-    ("idx_workflow_runs_started_at", "workflow_runs(started_at DESC)"),
-)
+records = _Records()
 
 _STALE_RUN_ERROR = (
     "Run interrupted: process crashed or was killed before completion "
@@ -77,8 +50,6 @@ _STALE_RUN_ERROR = (
 # 'paused' run is NOT swept (#5357, `activity.durable.paused-stays-paused`): it
 # needs no process, and its Resume carries on from its checkpoint on disk, after
 # a relaunch as before one. Inlined as SQL fragments below.
-_SWEEPABLE_STATUSES = ("running", "accepted")
-_SWEEPABLE_STATUS_SQL = ", ".join(f"'{s}'" for s in _SWEEPABLE_STATUSES)
 
 _PROGRESS_EVENT_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("node_id", ("node_id", "node")),
@@ -326,482 +297,26 @@ def _hydrate_progress_timeline(
     return hydrated
 
 
-def _sql_quote(value: str) -> str:
-    """Safely embed a string literal in the rebuild's generated SQL."""
-    return "'" + value.replace("'", "''") + "'"
-
-
-def _rebuild_workflow_runs_flipping_stale(
-    db_path: str,
-    *,
-    started_before: Optional[datetime] = None,
-    exclude_thread_ids: tuple[str, ...] = (),
-) -> Optional[list[str]]:
-    """Crash-safe recovery: rebuild ``workflow_runs`` with stale 'running' rows
-    flipped to 'failed', WITHOUT any in-place index-backed DELETE/UPDATE.
-
-    DuckDB maintains an ART index for the ``thread_id`` PRIMARY KEY (plus the
-    secondary indexes). After a crash + WAL replay the index can desync from
-    the table heap; an in-place ``UPDATE``/``DELETE`` then raises::
-
-        Invalid Input Error: Failed to delete all rows from index.
-        Only deleted 0 out of N rows.
-
-    which DuckDB escalates to a FATAL error that invalidates the *entire*
-    database for the lifetime of the process (#1362). Every later query
-    against that connection then 500s with "database has been invalidated".
-
-    A ``CREATE TABLE ... AS SELECT`` reads the heap and writes a brand-new
-    table + fresh indexes, so it never touches the corrupt ART delete path.
-    We DROP the old table and RENAME the new one into place inside a single
-    transaction, so a crash mid-rebuild leaves the original intact.
-
-    Args:
-        db_path: Path to the library DuckDB file.
-        started_before: When set, only rows with ``started_at < started_before``
-            are flipped (mirrors ``recover_stale_runs`` max_age semantics).
-            When ``None``, every ``running`` row is flipped (startup guard).
-
-    Returns:
-        The ``thread_id`` of every row flipped 'running' -> 'failed'. ``None``
-        if the rebuild itself failed (caller should treat as "degraded, do not
-        raise"). The ids — not just a count — because the caller must settle
-        each dead run's documents through ``finalize_run_documents`` (#4379);
-        a bare count cannot name what to settle.
-    """
-    # Use a FRESH connection: the caller's connection may already be poisoned
-    # by the FatalException that sent us down this path.
-    conn = connect_utc(db_path)
-    try:
-        # Build the status-flip CASE. Only non-terminal rows (optionally older
-        # than the cutoff, and never a live run this process is tracking)
-        # become 'failed'; everything else is copied verbatim. (#4316)
-        flip_predicate = f"status IN ({_SWEEPABLE_STATUS_SQL})"
-        if started_before is not None:
-            flip_predicate += (
-                " AND started_at < TIMESTAMP '"
-                f"{started_before.strftime('%Y-%m-%d %H:%M:%S')}'"
-            )
-        if exclude_thread_ids:
-            excluded = ", ".join(_sql_quote(t) for t in exclude_thread_ids)
-            flip_predicate += f" AND thread_id NOT IN ({excluded})"
-
-        status_expr = f"CASE WHEN {flip_predicate} THEN 'failed' ELSE status END"
-        error_expr = (
-            f"CASE WHEN {flip_predicate} "
-            f"THEN COALESCE(error, '{_STALE_RUN_ERROR}') ELSE error END"
-        )
-        completed_expr = (
-            f"CASE WHEN {flip_predicate} "
-            "THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END"
-        )
-
-        # Rebuild only the columns this table ACTUALLY has. The canonical
-        # list grows as the schema does (run_usage, 2026-09-03), and a table
-        # that predates a column — a library opened before the migration, or
-        # a fixture built from the original CREATE TABLE — would otherwise
-        # make the rebuild fail on a missing column and leave the corrupt
-        # index unrepaired. Recovery must not be the thing that needs the
-        # newest schema.
-        try:
-            cursor = conn.execute("SELECT * FROM workflow_runs LIMIT 0")
-            present = {str(col[0]) for col in (cursor.description or [])}
-        except Exception:  # pragma: no cover - defensive; assume canonical
-            present = set()
-        columns = [
-            c for c in _WORKFLOW_RUNS_COLUMNS if c in present
-        ] or list(_WORKFLOW_RUNS_COLUMNS)
-
-        select_cols = []
-        for col in columns:
-            if col == "status":
-                select_cols.append(f"{status_expr} AS status")
-            elif col == "error":
-                select_cols.append(f"{error_expr} AS error")
-            elif col == "completed_at":
-                select_cols.append(f"{completed_expr} AS completed_at")
-            else:
-                select_cols.append(col)
-        select_expr = ", ".join(select_cols)
-
-        # Name the rows we will flip (read-only SELECT — safe on a fresh conn).
-        # Captured BEFORE the rebuild: afterwards the predicate no longer
-        # matches them, because they are the rows the rebuild just flipped.
-        flipped_ids = [
-            row[0]
-            for row in conn.execute(
-                f"SELECT thread_id FROM workflow_runs WHERE {flip_predicate}"
-            ).fetchall()
-            if row and row[0]
-        ]
-        flipped = len(flipped_ids)
-
-        conn.execute("BEGIN TRANSACTION")
-        conn.execute("DROP TABLE IF EXISTS workflow_runs__rebuild")
-        conn.execute(
-            f"CREATE TABLE workflow_runs__rebuild AS "
-            f"SELECT {select_expr} FROM workflow_runs"
-        )
-        conn.execute("DROP TABLE workflow_runs")
-        conn.execute(
-            "ALTER TABLE workflow_runs__rebuild RENAME TO workflow_runs"
-        )
-        conn.execute("COMMIT")
-
-        # CREATE TABLE AS does NOT carry over the PRIMARY KEY or secondary
-        # indexes — recreate them so query plans and uniqueness are preserved.
-        # A UNIQUE index on thread_id reinstates the PK's enforcement.
-        try:
-            conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_workflow_runs_thread_id "
-                "ON workflow_runs(thread_id)"
-            )
-        except Exception as idx_exc:  # pragma: no cover - defensive
-            logger.warning(
-                "workflow_runs rebuild: could not recreate thread_id unique "
-                "index (non-fatal): %s",
-                idx_exc,
-            )
-        for idx_name, idx_target in _WORKFLOW_RUNS_INDEXES:
-            try:
-                conn.execute(
-                    f"CREATE INDEX IF NOT EXISTS {idx_name} ON {idx_target}"
-                )
-            except Exception as idx_exc:  # pragma: no cover - defensive
-                logger.warning(
-                    "workflow_runs rebuild: could not recreate index %s "
-                    "(non-fatal): %s",
-                    idx_name,
-                    idx_exc,
-                )
-
-        logger.warning(
-            "workflow_runs rebuilt crash-safe: flipped %d stale 'running' "
-            "run(s) to 'failed' (sidestepped ART-index delete bug, #1362)",
-            flipped,
-        )
-        return flipped_ids
-    except Exception:
-        # The rebuild itself failed. Roll back if a txn is open, log, and
-        # report degraded — NEVER re-raise, or we re-poison library-open.
-        try:
-            conn.execute("ROLLBACK")
-        except Exception:
-            pass
-        logger.exception(
-            "workflow_runs crash-safe rebuild FAILED for %s — the ART index "
-            "on workflow_runs (thread_id PK + secondary indexes) is corrupt "
-            "and could not be rebuilt; stale rows left as-is and WORKFLOW-RUN "
-            "HISTORY MAY BE INCOMPLETE. The library itself remains open "
-            "(#1362/#39)",
-            db_path,
-        )
-        return None
-    finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
-
-
-def _recover_stale_workflow_runs(
-    conn: "duckdb.DuckDBPyConnection",
-    db_path: str,
-    *,
-    started_before: Optional[datetime] = None,
-    exclude_thread_ids: tuple[str, ...] = (),
-) -> Optional[list[str]]:
-    """Flip stale 'running' workflow_runs to 'failed' without ever leaving the
-    connection (or the DB) in a poisoned state.
-
-    Fast path: a normal in-place UPDATE on the supplied ``conn``.
-    Fallback: if that raises ANY ``duckdb.Error`` (notably the FATAL
-    "Failed to delete all rows from index"), the connection is now poisoned,
-    so we discard it and rebuild the table from scratch on a fresh connection
-    via :func:`_rebuild_workflow_runs_flipping_stale`.
-
-    Args:
-        conn: The (possibly-soon-to-be-poisoned) connection to try first.
-        db_path: Library DuckDB path, used to open a fresh connection on fallback.
-        started_before: Optional cutoff; see the rebuild helper.
-
-    Returns:
-        The ``thread_id`` of every flipped row, or ``None`` if even the rebuild
-        failed (degraded). Ids rather than a count so the caller can settle
-        each dead run's documents (#4379).
-    """
-    params: list = [_STALE_RUN_ERROR]
-    where = f"status IN ({_SWEEPABLE_STATUS_SQL})"
-    if started_before is not None:
-        where += " AND started_at < ?"
-    if exclude_thread_ids:
-        placeholders = ", ".join("?" * len(exclude_thread_ids))
-        where += f" AND thread_id NOT IN ({placeholders})"
-
-    sql = f"""
-        UPDATE workflow_runs
-        SET status = 'failed',
-            error = COALESCE(error, ?),
-            completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)
-        WHERE {where}
-        RETURNING thread_id
-    """
-    if started_before is not None:
-        params.append(started_before)
-    params.extend(exclude_thread_ids)
-
-    try:
-        # Pre-count is cheap and lets us report even though RETURNING also works.
-        result = conn.execute(sql, params)
-        rows = result.fetchall() if result else []
-        flipped_ids = [row[0] for row in rows if row and row[0]]
-        flipped = len(flipped_ids)
-        if flipped:
-            logger.warning(
-                "recover_stale_runs: flipped %d stale 'running' run(s) to "
-                "'failed' (in-place) for %s",
-                flipped,
-                db_path,
-            )
-        return flipped_ids
-    except duckdb.Error as exc:
-        # Connection is now poisoned (FATAL index error or otherwise).
-        logger.warning(
-            "recover_stale_runs: in-place UPDATE failed (%s: %s) — falling "
-            "back to crash-safe table rebuild for %s (#1362)",
-            type(exc).__name__,
-            exc,
-            db_path,
-        )
-        # A DuckDB FatalException invalidates the database INSTANCE
-        # process-wide, and the instance is only discarded once its LAST
-        # connection closes. Any open connection — this one, and the
-        # library's long-lived managed one — pins the poisoned instance, so
-        # every 'fresh' duckdb.connect(db_path) below would join it and the
-        # rebuild could never succeed; the library then 500s 'database has
-        # been invalidated' on every request, on every spawn (#39's bricked
-        # state). Release both pins BEFORE rebuilding: a fatal during
-        # recovery must degrade workflow history, never the library.
-        try:
-            conn.close()
-        except Exception:
-            pass
-        _reopen_managed_library_connection(db_path)
-        return _rebuild_workflow_runs_flipping_stale(
-            db_path,
-            started_before=started_before,
-            exclude_thread_ids=exclude_thread_ids,
-        )
-
-
 def unfinished_runs(db: Any) -> list[tuple[str, Any]]:
-    """(thread id, started at) of every run whose record says it is not finished, through the project's
-    own connection (opening a project, #5555). None when the project has no run table yet."""
-    if not db.execute_fetchone(
-            "SELECT 1 FROM information_schema.tables WHERE table_name = 'workflow_runs' LIMIT 1"):
-        return []
-    return [(r[0], r[1]) for r in db.execute_fetchall(
-        f"SELECT thread_id, started_at FROM workflow_runs WHERE status IN ({_SWEEPABLE_STATUS_SQL})")]
+    """(thread id, started at) of every run whose record says it is not finished, through the project's own
+    connection (opening a project, #5555)."""
+    return records.unfinished_runs(db)
 
 
 def mark_run_failed(db: Any, thread_id: str, reason: str) -> None:
     """A run's record ends failed with `reason` (an interrupted run, #5555)."""
-    db.execute("UPDATE workflow_runs SET status = 'failed', error = ?, "
-               "completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE thread_id = ?", [reason, thread_id])
-
-
-def _reopen_managed_library_connection(db_path: str) -> None:
-    """Reopen the library's managed shared connection, if one is cached.
-
-    Best-effort and loud on failure — the caller is already on a degraded
-    path and must proceed to the rebuild either way.
-    """
-    try:
-        from fichero_server.db.manager import db_manager
-
-        package = str(Path(db_path).parent)
-        if package not in db_manager.open_library_paths():
-            return  # No managed connection to reopen (tests, CLI, early boot).
-        db = db_manager.get_database(package)
-        db._reconnect_after_invalidated()  # noqa: SLF001 — the sanctioned seam
-        logger.warning(
-            "Reopened the managed library connection for %s after a "
-            "workflow_runs recovery fatal; the library stays usable",
-            package,
-        )
-    except Exception as reopen_exc:
-        logger.error(
-            "Could not reopen the managed library connection for %s after a "
-            "recovery fatal: %s — library queries may keep failing until the "
-            "library is closed and reopened",
-            db_path,
-            reopen_exc,
-        )
+    records.mark_run_failed(db, thread_id, reason)
 
 
 class ActivityStore:
-    """
-    Persistent storage for activity events.
-
-    Uses DuckDB for efficient querying and analytics.
-    """
+    """Activity events and workflow runs of one library, through its one managed Database (#5645)."""
 
     def __init__(self, db_path: str):
-        """Initialize activity store with database path."""
+        """The store for the library whose database file is `db_path`."""
+        from fichero_server.db.manager import database_for_file
+
         self.db_path = db_path
-        self._init_database()
-
-    # ponytail: not a managed shared conn (#2508). Every method below opens a
-    # FRESH ``conn = duckdb.connect(self.db_path)`` for the duration of one
-    # operation and closes it — a connection-per-operation pattern, never the
-    # package's managed Database connection. So the Database._lock seam and the
-    # locked execute()/execute_fetchall() helpers do not apply here. Folding
-    # ActivityStore onto the shared Database is a separate architectural call
-    # (lead review).
-
-    def _init_database(self) -> None:
-        """Initialize database tables for activity tracking."""
-        conn = connect_utc(self.db_path)
-        try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS activities (
-                    id TEXT PRIMARY KEY,
-                    type TEXT NOT NULL,
-                    level TEXT NOT NULL,
-                    timestamp TIMESTAMP NOT NULL,
-                    message TEXT NOT NULL,
-                    workflow_id TEXT,
-                    batch_id TEXT,
-                    thread_id TEXT,
-                    node_id TEXT,
-                    metadata JSON,
-                    duration_ms FLOAT,
-                    error TEXT
-                )
-            """)
-
-            # Workflow runs table - stores run-level data including code and logs
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS workflow_runs (
-                    thread_id TEXT PRIMARY KEY,
-                    workflow_id TEXT NOT NULL,
-                    workflow_name TEXT NOT NULL,
-                    python_code TEXT,
-                    execution_log TEXT,
-                    status TEXT DEFAULT 'running',
-                    started_at TIMESTAMP NOT NULL,
-                    completed_at TIMESTAMP,
-                    duration_ms FLOAT,
-                    error TEXT
-                )
-            """)
-
-            # Add new columns for workflow snapshot, node mapping, progress, and diagram
-            # These allow historical runs to be visualized even if workflow is deleted
-            try:
-                conn.execute(
-                    "ALTER TABLE workflow_runs ADD COLUMN workflow_snapshot JSON"
-                )
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                conn.execute("ALTER TABLE workflow_runs ADD COLUMN node_name_map JSON")
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                conn.execute(
-                    "ALTER TABLE workflow_runs ADD COLUMN progress_timeline JSON"
-                )
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                # #4384/#4396: what the run was ACTUALLY scoped to, resolved by
-                # the server. Without it a run records what workflow ran but
-                # never what it ran ON, so Activity cannot report scope and an
-                # over-scoped run is invisible until its effects show up in the
-                # data — which is how #4396 was found.
-                conn.execute(
-                    "ALTER TABLE workflow_runs ADD COLUMN resolved_scope JSON"
-                )
-            except Exception:
-                pass  # Column already exists
-
-            try:
-                conn.execute(
-                    "ALTER TABLE workflow_runs ADD COLUMN diagram_mermaid TEXT"
-                )
-            except Exception:
-                pass  # Column already exists
-
-            # What the run actually SPENT (2026-09-03): provider-reported
-            # tokens and the cost computed from them, per run. Without it
-            # Activity could show a run's duration to the millisecond and
-            # not a cent of its cost — the numbers existed in the engine
-            # log and died there. IF NOT EXISTS rather than the sibling
-            # try/except idiom: the swallowed-exception seam is at its
-            # baseline, and DuckDB can say idempotent without a swallow.
-            conn.execute(
-                "ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS run_usage JSON"
-            )
-
-            # What the run was ESTIMATED to cost, computed at start from the
-            # resolved model and page count (2026-09-05). Stored beside
-            # run_usage so a run row carries "est → actual" as one fact and
-            # Activity can show the estimate against the bill — the calibration
-            # Daniel asked to keep. NULL = unpriced at estimate time (an
-            # unpriceable model), kept distinct from a real zero (a free model);
-            # a single per-run figure, anchored on the run's first paid model.
-            conn.execute(
-                "ALTER TABLE workflow_runs ADD COLUMN IF NOT EXISTS "
-                "estimated_cost DOUBLE"
-            )
-
-            # Indexes for efficient queries
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_timestamp
-                ON activities(timestamp DESC)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_type
-                ON activities(type)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_workflow_id
-                ON activities(workflow_id)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_batch_id
-                ON activities(batch_id)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_activities_level
-                ON activities(level)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_workflow_runs_workflow_id
-                ON workflow_runs(workflow_id)
-            """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_workflow_runs_started_at
-                ON workflow_runs(started_at DESC)
-            """)
-
-            # NOTE (#4316): the cutoff-less zombie sweep that used to run here
-            # on EVERY ActivityStore construction is gone — reopening a library
-            # mid-run constructed a fresh store and flipped LIVE runs to
-            # 'failed' (F5). Recovery now happens only via
-            # ActivityTracker/_recover_stale_runs_bg (activity.py), which
-            # excludes the runs this process is actively tracking; the
-            # crash-safe rebuild path (#1362) is preserved inside
-            # _recover_stale_workflow_runs.
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+        self.db = database_for_file(db_path)
 
     async def save(self, activity: Activity) -> None:
         """Save an activity to the database."""
@@ -809,136 +324,40 @@ class ActivityStore:
 
     def save_now(self, activity: Activity) -> None:
         """Save an activity on the caller's thread: for a caller with no event loop (a job or timer thread,
-        `activity.persists-from-any-thread`)."""
-
-        def _save():
-            logger.info(f"ActivityStore.save: connecting to {self.db_path}")
-            with duckdb_connection_lock(self.db_path):
-                conn = connect_utc(self.db_path)
-                try:
-                    conn.execute(
-                    """
-                    INSERT INTO activities
-                    (id, type, level, timestamp, message, workflow_id, batch_id,
-                     thread_id, node_id, metadata, duration_ms, error)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        activity.id,
-                        activity.type.value,
-                        activity.level.value,
-                        activity.timestamp,
-                        activity.message,
-                        activity.workflow_id,
-                        activity.batch_id,
-                        activity.thread_id,
-                        activity.node_id,
-                        json.dumps(activity.metadata) if activity.metadata else None,
-                        activity.duration_ms,
-                        activity.error,
-                    ],
-                )
-                    logger.info(f"ActivityStore.save: INSERT successful for {activity.id}")
-                except Exception as e:
-                    logger.error(f"ActivityStore.save: INSERT failed: {e}")
-                    raise
-                finally:
-                    conn.close()
-
-        _save()
+        `activity.persists-from-any-thread`). One plain INSERT on the managed connection."""
+        records.insert_event(self.db, {
+            "id": activity.id, "type": activity.type.value, "level": activity.level.value,
+            "timestamp": activity.timestamp, "message": activity.message, "workflow_id": activity.workflow_id,
+            "batch_id": activity.batch_id, "thread_id": activity.thread_id, "node_id": activity.node_id,
+            "metadata": activity.metadata or None, "duration_ms": activity.duration_ms, "error": activity.error})
 
     async def query(self, filter: ActivityFilter) -> list[Activity]:
-        """Query activities with filtering."""
+        """Query activities with filtering, newest first; a deleted run's events never show (#4960)."""
 
         def _query():
-            conn = connect_utc(self.db_path)
-            try:
-                conditions = []
-                params = []
-
-                if filter.types:
-                    placeholders = ", ".join("?" * len(filter.types))
-                    conditions.append(f"type IN ({placeholders})")
-                    params.extend([t.value for t in filter.types])
-
-                if filter.levels:
-                    placeholders = ", ".join("?" * len(filter.levels))
-                    conditions.append(f"level IN ({placeholders})")
-                    params.extend([lvl.value for lvl in filter.levels])
-
-                if filter.workflow_id:
-                    conditions.append("workflow_id = ?")
-                    params.append(filter.workflow_id)
-
-                if filter.batch_id:
-                    conditions.append("batch_id = ?")
-                    params.append(filter.batch_id)
-
-                if filter.thread_id:
-                    conditions.append("thread_id = ?")
-                    params.append(filter.thread_id)
-
-                if filter.since:
-                    conditions.append("timestamp >= ?")
-                    params.append(filter.since)
-
-                if filter.until:
-                    conditions.append("timestamp <= ?")
-                    params.append(filter.until)
-
-                if filter.search:
-                    conditions.append("message ILIKE ?")
-                    params.append(f"%{filter.search}%")
-
-                # #4960: a deleted run's events must not resurrect it in any
-                # Activity surface that derives status from the newest event
-                # for a thread — the exclusion belongs in SQL (an anti-join
-                # against `workflow_runs`), not a Python filter, so listing
-                # cost never grows with how many runs have been deleted.
-                # `thread_id IS NULL` events (batch/import activity with no
-                # run) are never excluded — the subquery only ever matches a
-                # real deleted run's own thread_id.
-                conditions.append(
-                    "(thread_id IS NULL OR thread_id NOT IN "
-                    "(SELECT thread_id FROM workflow_runs WHERE status = 'deleted'))"
+            rows = records.query_events(
+                self.db, types=[t.value for t in filter.types or []], levels=[lvl.value for lvl in filter.levels or []],
+                workflow_id=filter.workflow_id, batch_id=filter.batch_id, thread_id=filter.thread_id,
+                since=filter.since, until=filter.until, search=filter.search, limit=filter.limit,
+                offset=filter.offset)
+            return [
+                Activity(
+                    id=row[0],
+                    type=ActivityType(row[1]),
+                    level=ActivityLevel(row[2]),
+                    # naive stored value IS UTC (#4347) -- re-attach offset
+                    timestamp=ensure_utc(row[3]),
+                    message=row[4],
+                    workflow_id=row[5],
+                    batch_id=row[6],
+                    thread_id=row[7],
+                    node_id=row[8],
+                    metadata=(json.loads(row[9]) if isinstance(row[9], str) else row[9]) or {},
+                    duration_ms=row[10],
+                    error=row[11],
                 )
-
-                where_clause = " AND ".join(conditions) if conditions else "1=1"
-
-                query = f"""
-                    SELECT id, type, level, timestamp, message, workflow_id,
-                           batch_id, thread_id, node_id, metadata, duration_ms, error
-                    FROM activities
-                    WHERE {where_clause}
-                    ORDER BY timestamp DESC
-                    LIMIT ? OFFSET ?
-                """
-                params.extend([filter.limit, filter.offset])
-
-                result = conn.execute(query, params).fetchall()
-
-                activities = []
-                for row in result:
-                    activities.append(
-                        Activity(
-                            id=row[0],
-                            type=ActivityType(row[1]),
-                            level=ActivityLevel(row[2]),
-                            # naive stored value IS UTC (#4347) — re-attach offset
-                            timestamp=ensure_utc(row[3]),
-                            message=row[4],
-                            workflow_id=row[5],
-                            batch_id=row[6],
-                            thread_id=row[7],
-                            node_id=row[8],
-                            metadata=json.loads(row[9]) if row[9] else {},
-                            duration_ms=row[10],
-                            error=row[11],
-                        )
-                    )
-                return activities
-            finally:
-                conn.close()
+                for row in rows
+            ]
 
         return await asyncio.to_thread(_query)
 
@@ -954,131 +373,38 @@ class ActivityStore:
             until = utc_now()
 
         def _get_stats():
-            conn = connect_utc(self.db_path)
-            try:
-                # Count by type
-                type_counts = conn.execute(
-                    """
-                    SELECT type, COUNT(*) as count
-                    FROM activities
-                    WHERE timestamp >= ? AND timestamp <= ?
-                    GROUP BY type
-                """,
-                    [since, until],
-                ).fetchall()
-
-                # Count by level
-                level_counts = conn.execute(
-                    """
-                    SELECT level, COUNT(*) as count
-                    FROM activities
-                    WHERE timestamp >= ? AND timestamp <= ?
-                    GROUP BY level
-                """,
-                    [since, until],
-                ).fetchall()
-
-                # Average workflow duration
-                avg_duration = conn.execute(
-                    """
-                    SELECT AVG(duration_ms)
-                    FROM activities
-                    WHERE type = 'workflow_completed'
-                    AND timestamp >= ? AND timestamp <= ?
-                    AND duration_ms IS NOT NULL
-                """,
-                    [since, until],
-                ).fetchone()[0]
-
-                # Success rate (completed vs failed workflows)
-                workflow_counts = conn.execute(
-                    """
-                    SELECT type, COUNT(*) as count
-                    FROM activities
-                    WHERE type IN ('workflow_completed', 'workflow_failed')
-                    AND timestamp >= ? AND timestamp <= ?
-                    GROUP BY type
-                """,
-                    [since, until],
-                ).fetchall()
-
-                completed = sum(
-                    c[1] for c in workflow_counts if c[0] == "workflow_completed"
-                )
-                failed = sum(c[1] for c in workflow_counts if c[0] == "workflow_failed")
-                total_workflows = completed + failed
-                success_rate = (
-                    (completed / total_workflows * 100)
-                    if total_workflows > 0
-                    else 100.0
-                )
-
-                # Total count
-                total = conn.execute(
-                    """
-                    SELECT COUNT(*)
-                    FROM activities
-                    WHERE timestamp >= ? AND timestamp <= ?
-                """,
-                    [since, until],
-                ).fetchone()[0]
-
-                return ActivityStats(
-                    total_activities=total,
-                    activities_by_type={t[0]: t[1] for t in type_counts},
-                    activities_by_level={lc[0]: lc[1] for lc in level_counts},
-                    error_count=sum(lc[1] for lc in level_counts if lc[0] == "error"),
-                    warning_count=sum(
-                        lc[1] for lc in level_counts if lc[0] == "warning"
-                    ),
-                    avg_workflow_duration_ms=avg_duration,
-                    success_rate=success_rate,
-                    period_start=since,
-                    period_end=until,
-                )
-            finally:
-                conn.close()
+            got = records.event_stats(self.db, since, until)
+            by_type = {t[0]: t[1] for t in got["by_type"]}
+            by_level = {lc[0]: lc[1] for lc in got["by_level"]}
+            completed = by_type.get("workflow_completed", 0)
+            failed = by_type.get("workflow_failed", 0)
+            total_workflows = completed + failed
+            return ActivityStats(
+                total_activities=got["total"],
+                activities_by_type=by_type,
+                activities_by_level=by_level,
+                error_count=by_level.get("error", 0),
+                warning_count=by_level.get("warning", 0),
+                avg_workflow_duration_ms=got["avg_duration"],
+                success_rate=(completed / total_workflows * 100) if total_workflows > 0 else 100.0,
+                period_start=since,
+                period_end=until,
+            )
 
         return await asyncio.to_thread(_get_stats)
 
     def delete_old_sync(self, older_than: datetime) -> int:
         """Delete activities older than specified date (sync, for use inside registry.invoke)."""
-        conn = connect_utc(self.db_path)
-        try:
-            result = conn.execute(
-                """
-                DELETE FROM activities
-                WHERE timestamp < ?
-            """,
-                [older_than],
-            )
-            return result.fetchone()[0] if result else 0
-        finally:
-            conn.close()
+        return records.delete_events_before(self.db, older_than)
 
     async def delete_old(self, older_than: datetime) -> int:
         """Delete activities older than specified date."""
         return await asyncio.to_thread(self.delete_old_sync, older_than)
 
     def delete_by_id_sync(self, activity_id: str) -> int:
-        """Delete ONE activity by id (sync, for use inside registry.invoke).
-
-        Returns the number of rows removed — 0 when the id is unknown (already
-        gone or never existed), so the caller can 404 honestly rather than
-        report a delete that did nothing.
-        """
-        conn = connect_utc(self.db_path)
-        try:
-            result = conn.execute(
-                """
-                DELETE FROM activities
-                WHERE id = ?
-            """,
-                [activity_id],
-            )
-            return result.fetchone()[0] if result else 0
-        finally:
-            conn.close()
+        """Delete ONE activity by id (sync, for use inside registry.invoke). 0 when the id is unknown, so the caller
+        can 404 honestly rather than report a delete that did nothing."""
+        return records.delete_event(self.db, activity_id)
 
     async def delete_by_id(self, activity_id: str) -> int:
         """Delete ONE activity by id."""
@@ -1104,72 +430,18 @@ class ActivityStore:
         resolved_scope: Optional[dict] = None,
         estimated_cost: Optional[float] = None,
     ) -> None:
-        """Save a new workflow run record.
+        """Save a new workflow run record (a value not given keeps the one kept, at a restart).
 
-        ``resolved_scope`` is what the SERVER resolved the run to operate on —
-        not what the client asked for (#4384/#4396). Recording the client's
-        request would hide exactly the defect worth catching: #4396 was a
-        client sending a whole folder for a one-file selection, and only the
-        resolved set shows that.
+        ``resolved_scope`` is what the SERVER resolved the run to operate on -- not what the client asked for
+        (#4384/#4396): #4396 was a client sending a whole folder for a one-file selection, and only the resolved set
+        shows that.
         """
-
-        def _save():
-            conn = connect_utc(self.db_path)
-            try:
-                # Convert dicts to JSON strings
-                workflow_snapshot_json = (
-                    json.dumps(workflow_snapshot) if workflow_snapshot else None
-                )
-                node_name_map_json = (
-                    json.dumps(node_name_map) if node_name_map else None
-                )
-                progress_timeline_json = (
-                    json.dumps(progress_timeline) if progress_timeline else None
-                )
-                resolved_scope_json = (
-                    json.dumps(resolved_scope) if resolved_scope else None
-                )
-
-                conn.execute(
-                    """
-                    INSERT INTO workflow_runs
-                    (thread_id, workflow_id, workflow_name, python_code, execution_log,
-                     workflow_snapshot, node_name_map, progress_timeline,
-                     diagram_mermaid, status, started_at, resolved_scope,
-                     estimated_cost)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT (thread_id) DO UPDATE SET
-                        python_code = COALESCE(EXCLUDED.python_code, workflow_runs.python_code),
-                        execution_log = COALESCE(EXCLUDED.execution_log, workflow_runs.execution_log),
-                        workflow_snapshot = COALESCE(EXCLUDED.workflow_snapshot, workflow_runs.workflow_snapshot),
-                        node_name_map = COALESCE(EXCLUDED.node_name_map, workflow_runs.node_name_map),
-                        progress_timeline = COALESCE(EXCLUDED.progress_timeline, workflow_runs.progress_timeline),
-                        diagram_mermaid = COALESCE(EXCLUDED.diagram_mermaid, workflow_runs.diagram_mermaid),
-                        resolved_scope = COALESCE(EXCLUDED.resolved_scope, workflow_runs.resolved_scope),
-                        estimated_cost = COALESCE(EXCLUDED.estimated_cost, workflow_runs.estimated_cost),
-                        status = EXCLUDED.status,
-                        workflow_name = EXCLUDED.workflow_name
-                """,
-                    [
-                        thread_id,
-                        workflow_id,
-                        workflow_name,
-                        python_code,
-                        execution_log,
-                        workflow_snapshot_json,
-                        node_name_map_json,
-                        progress_timeline_json,
-                        diagram_mermaid,
-                        status,
-                        started_at or datetime.now(timezone.utc),
-                        resolved_scope_json,
-                        estimated_cost,
-                    ],
-                )
-            finally:
-                conn.close()
-
-        await asyncio.to_thread(_save)
+        await asyncio.to_thread(
+            records.upsert_run, self.db, thread_id=thread_id, workflow_id=workflow_id, workflow_name=workflow_name,
+            python_code=python_code, execution_log=execution_log, workflow_snapshot=workflow_snapshot,
+            node_name_map=node_name_map, progress_timeline=progress_timeline, diagram_mermaid=diagram_mermaid,
+            status=status, started_at=started_at or datetime.now(timezone.utc), resolved_scope=resolved_scope,
+            estimated_cost=estimated_cost)
         # The run's row in the one job table follows its record (#5353, `activity.jobs-are-a-tree`).
         from fichero_server.execution import jobs
 
@@ -1188,248 +460,97 @@ class ActivityStore:
     ) -> None:
         """Update an existing workflow run record.
 
-        ``run_usage`` is the run's own accounting — tokens, model calls and
-        cost — written on EVERY terminal path, not just success. A run that
-        failed halfway still spent the money it spent (2026-09-03).
+        ``run_usage`` is the run's own accounting -- tokens, model calls and cost -- written on EVERY terminal path,
+        not just success: a run that failed halfway still spent what it spent (2026-09-03).
 
-        A run whose project was closed while it ran (#5608) keeps its state: the runner's end after the close
-        (its pages stopped by the close) is not how it ended; the project's next open marks it interrupted.
+        A run whose project was closed while it ran (#5608) keeps its state: the runner's end after the close (its
+        pages stopped by the close) is not how it ended; the project's next open marks it interrupted.
         """
         from fichero_server.workflows.run_account import closed_mid_run
 
         if closed_mid_run(thread_id):
             status = error = completed_at = None
 
-        def _update():
-            conn = connect_utc(self.db_path)
-            try:
-                updates = []
-                params = []
-
-                if status is not None:
-                    updates.append("status = ?")
-                    params.append(status)
-                if execution_log is not None:
-                    updates.append("execution_log = ?")
-                    params.append(execution_log)
-                if progress_timeline is not None:
-                    updates.append("progress_timeline = ?")
-                    params.append(json.dumps(progress_timeline))
-                if duration_ms is not None:
-                    updates.append("duration_ms = ?")
-                    params.append(duration_ms)
-                if error is not None:
-                    updates.append("error = ?")
-                    params.append(error)
-                if completed_at is not None:
-                    updates.append("completed_at = ?")
-                    params.append(completed_at)
-                if run_usage is not None:
-                    updates.append("run_usage = ?")
-                    params.append(json.dumps(run_usage))
-
-                if updates:
-                    params.append(thread_id)
-                    conn.execute(
-                        f"""
-                        UPDATE workflow_runs
-                        SET {", ".join(updates)}
-                        WHERE thread_id = ?
-                    """,
-                        params,
-                    )
-            finally:
-                conn.close()
-
-        await asyncio.to_thread(_update)
+        await asyncio.to_thread(records.update_run, self.db, thread_id, {
+            "status": status, "execution_log": execution_log, "progress_timeline": progress_timeline,
+            "duration_ms": duration_ms, "error": error, "completed_at": completed_at, "run_usage": run_usage})
         if status is not None:  # the run's job row follows (#5353)
             from fichero_server.execution import jobs
 
             await asyncio.to_thread(jobs.record_run, self.db_path, thread_id, status=status, reason=error)
 
+    async def flush_node_boundary(self, thread_id: str, *, progress_timeline: dict, log_text: str,
+                                  replace: bool) -> None:
+        """A node-boundary flush (#4314): the timeline, and the log replaced (the run's first flush in this process)
+        or only its new lines appended (#5645: the whole log was rewritten at every node, so a flush grew with the
+        run, and on the managed connection it would hold the library's lock that long)."""
+        await asyncio.to_thread(records.flush_node_boundary, self.db, thread_id, progress_timeline, log_text,
+                                replace=replace)
+
     async def append_execution_log(self, thread_id: str, log_line: str) -> None:
         """Append a line to the execution log."""
-
-        def _append():
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute(
-                    """
-                    UPDATE workflow_runs
-                    SET execution_log = COALESCE(execution_log, '') || ? || '\n'
-                    WHERE thread_id = ?
-                """,
-                    [log_line, thread_id],
-                )
-            finally:
-                conn.close()
-
-        await asyncio.to_thread(_append)
+        await asyncio.to_thread(records.append_log, self.db, thread_id, log_line)
 
     def _row_to_workflow_run(self, row: tuple) -> WorkflowRun:
-        """Convert a database row to a WorkflowRun instance."""
-        workflow_snapshot = json.loads(row[10]) if row[10] else None
-        node_name_map = json.loads(row[11]) if row[11] else None
-        progress_timeline = json.loads(row[12]) if row[12] else None
+        """A run's row (`records.RUN_COLUMNS`, or the list's light projection) as a WorkflowRun."""
+
+        def _obj(value):
+            return json.loads(value) if isinstance(value, str) and value else (value or None)
+
         progress_timeline = _hydrate_progress_timeline(
-            progress_timeline,
+            _obj(row[12]),
             status=row[5],
             error=row[9],
             execution_log=row[4],
         )
-
         return WorkflowRun(
             thread_id=row[0],
             workflow_id=row[1],
             workflow_name=row[2],
-            python_code=row[3],
-            execution_log=row[4],
+            python_code=row[3] or "",
+            execution_log=row[4] or "",
             status=row[5],
-            # DuckDB TIMESTAMP columns are naive; by the #4347 contract a stored
-            # naive value IS UTC, so re-attach the offset on the way out rather
-            # than letting an offset-less ISO string reach the client.
+            # by the #4347 contract a stored naive value IS UTC: re-attach the offset on the way out
             started_at=ensure_utc(row[6]),
             completed_at=ensure_utc(row[7]),
             duration_ms=row[8],
             error=row[9],
-            workflow_snapshot=workflow_snapshot,
-            node_name_map=node_name_map,
+            workflow_snapshot=_obj(row[10]),
+            node_name_map=_obj(row[11]),
             progress_timeline=progress_timeline,
             diagram_mermaid=row[13],
-            # #4384: what the run was scoped to. Index 14 — the SELECTs
-            # feeding this mapping all list resolved_scope last.
-            resolved_scope=json.loads(row[14]) if len(row) > 14 and row[14] else None,
-            # Index 15 — run_usage trails resolved_scope in every SELECT
-            # below. None for runs recorded before the column existed, which
-            # is not the same as a run that cost nothing.
-            run_usage=json.loads(row[15]) if len(row) > 15 and row[15] else None,
-            # Index 16 — estimated_cost trails run_usage in every SELECT. None
-            # for a legacy run or one whose model could not be priced at start
-            # (unpriced), which is not the same as a run estimated to be free.
-            estimated_cost=row[16] if len(row) > 16 else None,
+            resolved_scope=_obj(row[14]),
+            # None for a run recorded before the column existed, which is not the same as one that cost nothing.
+            run_usage=_obj(row[15]),
+            # None for a legacy run or one whose model could not be priced at start (not the same as free).
+            estimated_cost=row[16],
         )
 
     async def get_workflow_run(self, thread_id: str) -> Optional[WorkflowRun]:
-        """Get a workflow run by thread_id."""
+        """Get a workflow run by thread_id, every column."""
 
         def _get():
-            conn = connect_utc(self.db_path)
-            try:
-                result = conn.execute(
-                    """
-                    SELECT thread_id, workflow_id, workflow_name, python_code,
-                           execution_log, status, started_at, completed_at,
-                           duration_ms, error, workflow_snapshot, node_name_map,
-                           progress_timeline, diagram_mermaid, resolved_scope,
-                           run_usage, estimated_cost
-                    FROM workflow_runs
-                    WHERE thread_id = ?
-                """,
-                    [thread_id],
-                ).fetchone()
-
-                if result:
-                    return self._row_to_workflow_run(result)
-                return None
-            finally:
-                conn.close()
+            row = records.get_run(self.db, thread_id)
+            return self._row_to_workflow_run(row) if row else None
 
         return await asyncio.to_thread(_get)
 
     async def delete_workflow_run(self, thread_id: str) -> int:
         """Mark a persisted workflow run as deleted."""
-
-        def _delete():
-            conn = connect_utc(self.db_path)
-            try:
-                rows = conn.execute(
-                    """
-                    UPDATE workflow_runs
-                    SET status = 'deleted',
-                        completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
-                        execution_log = COALESCE(execution_log, '') || 'Run history deleted\n'
-                    WHERE thread_id = ?
-                    RETURNING thread_id
-                    """,
-                    [thread_id],
-                ).fetchall()
-                return len(rows)
-            finally:
-                conn.close()
-
-        return await asyncio.to_thread(_delete)
+        return len(await asyncio.to_thread(records.soft_delete_runs, self.db, [thread_id], skip_running=False))
 
     def delete_workflow_runs_sync(self, thread_ids: list[str]) -> list[str]:
-        """Soft-delete ``workflow_runs`` rows. Nothing is destroyed.
-
-        #4960, revised: an earlier version of this method also hard-deleted
-        the thread's ``activities`` rows, to stop a deleted run resurrecting
-        via the event log. Reversed on review: the app promises "you can put
-        it back later," and the coming Trash needs a deleted run's history
-        intact to restore. Go slow with anything that destroys rows.
-
-        The resurrection is now stopped on the READ side instead: ``query()``
-        below excludes every event whose ``thread_id`` belongs to a
-        ``status='deleted'`` run, via a SQL anti-join against
-        ``workflow_runs`` — not a Python filter, so it costs nothing extra
-        as deleted runs pile up. Flipping the run's status back (a future
-        "Put Back") makes both the run AND its events reappear, because
-        nothing here ever removed the events.
-
-        Bulk (one UPDATE, not one per id) so a "clear failed" over hundreds
-        of ids costs O(1) queries, not O(n). Sync — for use inside
-        ``registry.invoke`` (one-audited-action-layer rule). Checkpoints are
-        NOT touched here: callers that also want checkpoint rows gone (the
-        single-thread HTTP delete route) do that themselves, as
-        ``delete_thread`` already did before this method existed.
-
-        Returns the thread_ids actually found and soft-deleted (already-
-        deleted, running, or unknown ids are silently absent, never an
-        error — the same "0 means nothing to do" shape ``delete_by_id_sync``
-        uses).
-        """
-        if not thread_ids:
-            return []
-        conn = connect_utc(self.db_path)
-        try:
-            placeholders = ", ".join("?" * len(thread_ids))
-            rows = conn.execute(
-                f"""
-                UPDATE workflow_runs
-                SET status = 'deleted',
-                    completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
-                    execution_log = COALESCE(execution_log, '') || 'Run history deleted\n'
-                WHERE thread_id IN ({placeholders}) AND status != 'running'
-                RETURNING thread_id
-                """,
-                list(thread_ids),
-            ).fetchall()
-            return [row[0] for row in rows if row and row[0]]
-        finally:
-            conn.close()
+        """Soft-delete runs. Nothing is destroyed (#4960, revised: the app promises "you can put it back later", and
+        the Trash needs a deleted run's history to restore it). A deleted run's events are hidden on the READ side
+        (`query`'s anti-join). Bulk: one UPDATE, not one per id. Sync, for use inside ``registry.invoke``.
+        Checkpoints are not touched. Returns the ids actually soft-deleted (already deleted, running or unknown ids
+        are absent, never an error)."""
+        return records.soft_delete_runs(self.db, thread_ids, skip_running=True)
 
     def workflow_run_ids_by_status_sync(self, statuses: list[str]) -> list[str]:
-        """Thread ids of every non-deleted run whose status is in ``statuses``.
-
-        Resolves a filter (e.g. "clear failed" -> ``["failed"]``) to concrete
-        ids at invoke time, so the delete action's audit record always names
-        exactly what it removed — never "whatever matched, unlogged."
-        """
-        if not statuses:
-            return []
-        conn = connect_utc(self.db_path)
-        try:
-            placeholders = ", ".join("?" * len(statuses))
-            rows = conn.execute(
-                f"""
-                SELECT thread_id FROM workflow_runs
-                WHERE status IN ({placeholders}) AND status != 'deleted'
-                """,
-                list(statuses),
-            ).fetchall()
-            return [row[0] for row in rows if row and row[0]]
-        finally:
-            conn.close()
+        """Thread ids of every non-deleted run whose status is in ``statuses`` (resolved at invoke time, so a delete's
+        audit record names exactly what it removed)."""
+        return records.run_ids_by_status(self.db, statuses)
 
     async def list_workflow_runs(
         self,
@@ -1440,54 +561,14 @@ class ActivityStore:
         statuses: Optional[list[str]] = None,
         exclude_deleted: bool = True,
     ) -> list[WorkflowRun]:
-        """List workflow runs, optionally filtered by workflow_id.
-
-        #4960: ``offset``, ``statuses`` and ``exclude_deleted`` added for the
-        engine "list runs" route the Activity window/table reads — paging and
-        filtering pushed to SQL (``ORDER BY ... LIMIT ... OFFSET``, one
-        query) so the route's cost does not grow with the total run count,
-        the same shape the #4975 fix already applied to the Inspector.
-        Existing callers (unfiltered, no offset) keep their exact prior
-        behaviour: ``exclude_deleted`` defaults True, but every existing
-        caller only ever kept ``running``/``failed`` rows downstream anyway,
-        so this changes nothing observable for them.
-        """
+        """Runs newest first, paged and filtered in SQL (#4960: the cost does not grow with the runs a library holds),
+        each in the light projection: no code, log, snapshot, node map or diagram (#5645: Activity polls this; read
+        one run whole with `get_workflow_run`)."""
 
         def _list():
-            conn = connect_utc(self.db_path)
-            try:
-                where = []
-                params: list = []
-                if workflow_id:
-                    where.append("workflow_id = ?")
-                    params.append(workflow_id)
-                if statuses:
-                    placeholders = ", ".join("?" * len(statuses))
-                    where.append(f"status IN ({placeholders})")
-                    params.extend(statuses)
-                elif exclude_deleted:
-                    where.append("status != 'deleted'")
-                where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-                params.extend([limit, offset])
-
-                result = conn.execute(
-                    f"""
-                    SELECT thread_id, workflow_id, workflow_name, python_code,
-                           execution_log, status, started_at, completed_at,
-                           duration_ms, error, workflow_snapshot, node_name_map,
-                           progress_timeline, diagram_mermaid, resolved_scope,
-                           run_usage, estimated_cost
-                    FROM workflow_runs
-                    {where_sql}
-                    ORDER BY started_at DESC, thread_id DESC
-                    LIMIT ? OFFSET ?
-                    """,
-                    params,
-                ).fetchall()
-
-                return [self._row_to_workflow_run(row) for row in result]
-            finally:
-                conn.close()
+            rows = records.list_runs(self.db, workflow_id=workflow_id, statuses=statuses,
+                                     exclude_deleted=exclude_deleted, limit=limit, offset=offset)
+            return [self._row_to_workflow_run(row) for row in rows]
 
         return await asyncio.to_thread(_list)
 
@@ -1496,43 +577,26 @@ class ActivityStore:
         max_age_hours: int = 2,
         exclude_thread_ids: tuple[str, ...] = (),
     ) -> list[str]:
-        """Transition stale non-terminal workflow_run rows to 'failed' and
-        return the ``thread_id`` of every run flipped.
+        """Flip stale unfinished runs ('running', 'accepted') older than ``max_age_hours`` to 'failed' and return their
+        ``thread_id``s, so the caller can settle the documents they left processing (#4379). Runs this process is
+        tracking (``exclude_thread_ids``) are never flipped (F5).
 
-        Sweeps EVERY non-terminal status — 'running', 'accepted', 'paused'
-        (#4316) — for runs whose worker died without reaching a terminal
-        state (crash, OOM, app restart, or a dev-loop reload killing the
-        worker mid-run — #4379). Only rows older than ``max_age_hours`` are
-        touched, and runs named in ``exclude_thread_ids`` (the ones THIS
-        process is actively tracking) are never flipped, so reopening a
-        library mid-run can't fail a live run (F5).
-
-        The ids matter because flipping the RUN row is only half of a
-        terminal transition: the documents that run left at
-        ``Status.processing`` must also be settled, and only the caller (which
-        has the library ``Database``) can do that. Returning ids rather than a
-        count is what makes that possible (#4379).
-        """
+        On the managed connection: a stale index after a crashed session's WAL replay, the FATAL #1362's table rebuild
+        guarded against, is rebuilt by `connect_utc` at open (#5644), and the managed Database recovers its own
+        connection should one still happen. A failure here is logged and nothing is flipped; it never takes the
+        library down."""
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
 
         def _recover():
-            # Crash-safe: in-place UPDATE first, table rebuild on ART-index
-            # FATAL (#1362). Never poisons the live library connection.
-            conn = connect_utc(self.db_path)
             try:
-                recovered = _recover_stale_workflow_runs(
-                    conn,
-                    self.db_path,
-                    started_before=cutoff,
-                    exclude_thread_ids=tuple(exclude_thread_ids),
-                )
-            finally:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-            # None means even the rebuild failed; nothing was flipped, so
-            # there is nothing for the caller to settle either.
-            return recovered or []
+                flipped = records.recover_stale(self.db, error=_STALE_RUN_ERROR, started_before=cutoff,
+                                                exclude_thread_ids=tuple(exclude_thread_ids))
+            except Exception as exc:  # noqa: BLE001 -- recovery degrades run history, never the library
+                logger.error("recover_stale_runs: could not flip stale runs for %s: %s", self.db_path, exc)
+                return []
+            if flipped:
+                logger.warning("recover_stale_runs: flipped %d stale run(s) to 'failed' for %s", len(flipped),
+                               self.db_path)
+            return flipped
 
         return await asyncio.to_thread(_recover)

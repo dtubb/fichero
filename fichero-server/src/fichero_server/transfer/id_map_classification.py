@@ -311,6 +311,12 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "ScheduleRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ScheduleRunRecord.schedule_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ScheduleRunRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    # #5645: the activity store, folded from `activities` and `workflow_runs` onto models.
+    "ActivityEventRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "ActivityEventRecord.batch_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "ActivityEventRecord.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "ActivityEventRecord.node_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
+    "WorkflowRunRecord.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "ProviderRef.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- hand-written SQL tables --------------------------------------------------------------
     "table:sync_files.document_id": (CUT, "a moved document's tie to a synced folder is severed and listed (finding 9)"),
@@ -330,8 +336,6 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "table:activities.node_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:activities.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:activities.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:workflow_runs.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
-    "table:workflow_runs.workflow_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:checkpoints.checkpoint_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:checkpoints.parent_checkpoint_id": (NOT_DOCUMENT_SCOPED, _HISTORY),
     "table:checkpoints.thread_id": (NOT_DOCUMENT_SCOPED, _HISTORY),

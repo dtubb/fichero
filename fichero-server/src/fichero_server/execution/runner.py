@@ -1023,6 +1023,10 @@ async def _run_workflow_in_background(
     start_time = datetime.now(timezone.utc)
     node_start_times: dict[str, datetime] = {}
     execution_log_lines: list[str] = []  # Collect execution logs
+    # How many of those lines the node-boundary flush has written (#5645): None until the first flush, which replaces
+    # the stored log as before; each later flush appends only the lines since, so a flush stays the same size however
+    # long the run's log grows.
+    log_lines_flushed: list[int | None] = [None]
     progress_timeline: dict[str, Any] = {
         "nodes": {},
         "steps": [],
@@ -2173,11 +2177,15 @@ async def _run_workflow_in_background(
                     # to lose the WHOLE timeline. Best-effort: a flush failure
                     # must never fail the run.
                     try:
-                        await activity_tracker.store.update_workflow_run(
-                            thread_id=thread_id,
+                        flushed = log_lines_flushed[0]
+                        lines = list(execution_log_lines)
+                        await activity_tracker.store.flush_node_boundary(
+                            thread_id,
                             progress_timeline=progress_timeline,
-                            execution_log="\n".join(execution_log_lines),
+                            log_text="\n".join(lines if flushed is None else lines[flushed:]),
+                            replace=flushed is None,
                         )
+                        log_lines_flushed[0] = len(lines)
                     except Exception as flush_exc:
                         logger.warning(
                             "progress_timeline node-boundary flush failed for "

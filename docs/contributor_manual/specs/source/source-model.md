@@ -1252,7 +1252,16 @@ action record holding a researcher's words is ruled out.
   could not be loaded), tested in `fichero-server/tests/unit/db/test_watcher_store_folded_5645.py`;
   `WorkflowScheduler` (`schedules`, `schedule_runs` → `ScheduleRecord`, `ScheduleRunRecord`; a schedule's start and
   end dates now come back as UTC instants, the old store gave them naive), tested in
-  `fichero-server/tests/unit/db/test_scheduler_store_folded_5645.py`. *Not built:* `ActivityStore`, and the
-  LangGraph checkpointer (to be ruled separate or folded; the plan is on #5645).
+  `fichero-server/tests/unit/db/test_scheduler_store_folded_5645.py`; `ActivityStore` (`activities`,
+  `workflow_runs` → `ActivityEventRecord`, `WorkflowRunRecord`; its ordered, paged and one-column SQL in
+  `db.activity_records`, on the managed connection; folded `Database.ACTIVITY_FOLD_CHUNK` rows to a transaction, so a
+  big history is never held at once; Activity's list reads a light row, no code, log, snapshot, node map or diagram;
+  a run's node-boundary flush replaces its log once per process and then appends only the new lines, so a flush does
+  not grow with the run; the old `activities` table is no longer made at every open; #1362's hand-rolled rebuild of
+  `workflow_runs` is retired, #5644's repair at connect covering its cause), tested in
+  `fichero-server/tests/unit/db/test_activity_store_folded_5645.py` and
+  `fichero-server/tests/unit/workflows/test_workflow_runs_index_corruption.py`; parity measured by
+  `scripts/perf_activity_store_5645.py`. *Not built:* the LangGraph checkpointer (to be ruled separate or folded;
+  the plan is on #5645).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

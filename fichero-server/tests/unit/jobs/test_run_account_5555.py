@@ -188,7 +188,7 @@ def _ghost(db, thread_id, workflow, page_ids, *, last_heard):
     jobs.record_run(db.path, thread_id, status="running", name=workflow.name)
     jobs.record_step(db.path, thread_id, "transcribe", status="running", name="Transcribe")
     started = last_heard - timedelta(minutes=3)  # the run started before its page was read
-    db.execute("UPDATE workflow_runs SET started_at = ? WHERE thread_id = ?", [started, thread_id])
+    db.execute("UPDATE workflowrunrecords SET started_at = ? WHERE id = ?", [started, thread_id])  # #5645
     db.execute("UPDATE jobs SET created_at = ?, started_at = ? WHERE id LIKE ?", [started, started, f"{thread_id}%"])
     db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, started_at, "
                "finished_at, parent_id) VALUES ('page-1', 'read-a-page', 'p0.png', 'done', 0, 'workflow', ?, ?, ?, ?)",

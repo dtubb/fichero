@@ -31,6 +31,11 @@ class _RecordingActivityStore:
     async def update_workflow_run(self, **kwargs):
         self.update_calls.append(kwargs)
 
+    async def flush_node_boundary(self, thread_id, *, progress_timeline, log_text, replace):
+        # The runner's node-boundary flush (#5645: its log replaced once, then appended): recorded as an update.
+        self.update_calls.append({"thread_id": thread_id, "progress_timeline": progress_timeline,
+                                  "execution_log": log_text, "replace": replace})
+
 
 class _RecordingActivityTracker:
     def __init__(self):

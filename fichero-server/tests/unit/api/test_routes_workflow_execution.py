@@ -604,17 +604,10 @@ class TestDeleteWorkflowRunsAction:
     def _raw_activity_count(self, db, thread_id: str) -> int:
         """Bypass `query()`'s deleted-run exclusion — the ground truth of
         what is actually IN the table, for asserting nothing was destroyed."""
-        from fichero_server.core.duckdb_session import connect_utc
-        from fichero_server.workflows.activity import get_activity_tracker
-
-        store = get_activity_tracker(str(db.path)).store
-        conn = connect_utc(store.db_path)
-        try:
-            return conn.execute(
-                "SELECT COUNT(*) FROM activities WHERE thread_id = ?", [thread_id]
-            ).fetchone()[0]
-        finally:
-            conn.close()
+        # The events are ActivityEventRecord rows on the library's managed connection (#5645).
+        return db.execute_fetchone(
+            "SELECT COUNT(*) FROM activityeventrecords WHERE thread_id = ?", [thread_id]
+        )[0]
 
     def test_deleted_run_is_hidden_but_nothing_is_destroyed(self, client, db):
         """Revised #4960: the resurrection fix moved from destroying rows
