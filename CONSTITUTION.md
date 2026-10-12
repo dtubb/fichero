@@ -23,6 +23,11 @@ The codebase has these core capabilities:
    the app includes chat and model-management surfaces.
 7. **Multiple clients.** The same engine is consumed by the macOS app, the
    `fichero` CLI, and `fichero-mcp`.
+8. **Set Up and recipes.** A project's setup answers become a recipe that runs by
+   itself: prepare the images, find regions and lines, read, normalise, then
+   organise (Find the Documents), find names and dates, and index for search.
+   Each step can compare 2–3 candidate models, says what it did in words, and
+   leaves a page out with a reason rather than guessing.
 
 ## How It Works
 

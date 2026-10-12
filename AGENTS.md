@@ -118,6 +118,31 @@ coverage table (milestone→spec→manual, and spec→milestone/manual). Rules o
 
 ---
 
+## Handoff — state, machines and the rules that apply in any harness
+
+Read this first when you pick the work up from another session or another tool (Claude Code, OpenCode, Codex). Nothing below depends on one harness's memory.
+
+**Where state lives.** GitHub issues and milestones are the source of truth (labels: `needs-your-test`, `needs-your-decision`, `residue`). `STATE.md` (current state, "Next Session — Start Here"), `HISTORY.md` and `MEMORY.md` are gitignored and live in the repo-root checkout `~/code/fichero`. Branches: `integration` is what is tested and pushed; `main` is only ever fast-forwarded by the manager locally, and pushed to GitHub only by the maintainer. Unfinished work is kept as commits on its own branch (never merged half-done): `c-batch-store` (#5711 run-log lines; its fold at open is too slow), `b-residues` (#5713 WebKit test flake).
+
+**Commands that matter.**
+- Dev engine for the Xcode "Fichero (Dev Local)" scheme: `scripts/start_dev_local_engine.sh` (restarts it from this checkout; scratch base `~/Fichero Dev Test/state`). The maintainer runs the app from Xcode himself; you restart the engine, he presses ⌘R.
+- Engine suite on the second Mac: `ssh m4`, then `scripts/m4_suite_by_dir.sh <out-dir>` (one pytest per test directory; wait for `DONE` in `SUMMARY.txt`). Push the commit there with `git push -f m4:code/fichero-test.git <sha>:refs/heads/check`, then in `~/code/fichero-worktrees/check` `git fetch ~/code/fichero-test.git check && git reset --hard FETCH_HEAD`. Use it only when idle and on AC; never fill its disk.
+- Contract regen without a Swift toolchain run: `FICHERO_FEATURE_TIER=dev FICHERO_PYTHON_BIN=<venv>/bin/python bash fichero-server/scripts/sync_openapi_schema.sh` (put a stub `swift` that prints "Build complete" first on PATH to skip the 7 GB client build); then `check_contract_identity_current`, `check_openapi_route_set_current`, `check_mcp_generated_current`.
+- Real-run check of onboarding on a scratch project: `scripts/realrun_check.py "~/Fichero Dev Test/<project>.fichero" --redo read-a-line,find-names-tag-words` (it refuses any other path).
+
+**Rules from the maintainer that outlive a session.**
+- Real data is never touched by tests, workers or experiments: `~/Fichero`, `~/Fichero Projects` (Marshall Diaries and the other collections), and the saved app containers `~/Library/Containers/app.fichero.fichero*.saved-2026-10-10` (restore only when told). Use a scratch copy under `~/Fichero Dev Test`.
+- Push only `integration`, and only after the gates are green (combined tree: app suite + engine suite + every guard). Never push `main`, tag, or release without the maintainer. Never print the Hugging Face token or enter a password.
+- No `xcodebuild test` while the maintainer is using the app (the test host shares its bundle id and quits his app). One `xcodebuild` at a time. Do not take over the screen.
+- Sergio-derived models are trained but never released. No change to a shipped dependency (`pyproject.toml`) without the maintainer. Do not author `docs/user_manual/`. Do not quote the maintainer verbatim in specs.
+- Cost: use the cheapest model that will do; spawn no subagents unless asked (and then the smallest model). Fix 5–10 issues in one milestone, then test once; test to the spec; do not spend the session testing.
+- **Test to spec, as practised.** (1) Write or amend the spec entry first: a behaviour ID, tagged `[OK]`, `[PARTIAL]`, `[GAP]` or `[BROKEN]` (the last two cite an issue). (2) Write the test from the spec's words and see it fail (red) before the fix. (3) The test cites the spec ID, and the spec cites the test: `check_specs_have_tests`, `check_spec_behaviors_are_tagged`, `check_spec_broken_has_issue`, `check_spec_milestones` and `check_spec_manual_refs` hold the binding in both directions. (4) Test behaviour (build the item, press it against a stub engine, read the answer), never that a word appears in the source: `check_capability_scrapes` rejects new presence-scrapes, and only absence scans may be baselined. (5) Then the gate on the combined tree. The full method is in `docs/contributor_manual/TESTING-CONSTITUTION.md` and `TEST-TEMPLATE.md`; the spec loop is under "Worker Orchestration".
+- Close an issue only when its fix is on `integration` AND, for anything that reads, names, dates or organises pages, a real run (not just the suites) has confirmed it; otherwise label it `needs-your-test`.
+
+**Tools.** In Claude Code the jcodemunch index and the pyright/swift LSP plugins speed up navigation; in another harness use the repo's own search (`rg`), `fichero` CLI and the MCP server (`fichero-server/.venv/bin/python -m fichero_mcp.server`). The rules above and the pitfalls below hold either way.
+
+---
+
 ## Worker Orchestration
 
 Fichero is built by AI coding agents, **one layer deep** (spec:
