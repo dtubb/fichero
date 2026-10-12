@@ -102,7 +102,9 @@ def test_adding_a_layer_proposes_its_jobs_for_the_pages_already_there_with_an_es
     assert step["title"] == topic["title"] and step["explanation"] == f"{topic['short']} {topic['long']}"
     saved = client.get("/api/recipes/project").json()
     assert saved["answers"]["layers"] == ["entities"]
-    assert [s["job"] for s in saved["recipe"]["steps"]] == ["find-lines", "read-a-line", "correct", NAMES]
+    # Correct is off until a corrector is here or asked for (#5677), and the recipe says so.
+    assert [s["job"] for s in saved["recipe"]["steps"]] == ["find-lines", "read-a-line", NAMES]
+    assert [o["job"] for o in saved["recipe"]["left_off"]] == ["correct"]
     assert next(s for s in saved["recipe"]["steps"] if s["job"] == "read-a-line")["model"] == MCCATMUS
 
 
@@ -153,7 +155,8 @@ def test_before_the_first_yes_the_added_layer_runs_with_the_whole_recipe(client,
     """A project not yet started shows the whole recipe, the added layer in it; Start runs it all once and
     clears the proposal, so the names are not run a second time."""
     plan = _add(client, layers=["entities"]).json()
-    assert [run["steps"] for run in plan["runs"]] == [["find-lines", "read-a-line"], ["correct"], [NAMES]]
+    assert [run["steps"] for run in plan["runs"]] == [["find-lines", "read-a-line"], [NAMES]]  # Correct off (#5677)
+    assert any("Correct" in line for line in plan["left_off"])
     assert plan["proposed"]["layers"] == ["entities"]
     assert _start(client)["proposed"] is None
 
@@ -185,7 +188,7 @@ def test_setup_assembles_an_added_layer_too(client):
     """The app re-proposes from the saved answers; an added layer in them keeps its steps, in order."""
     r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["es"],
                                                    "scripts": ["Latn"], "layers": ["entities"]})
-    assert [s["job"] for s in r.json()["steps"]] == ["find-lines", "read-a-line", "correct", NAMES]
+    assert [s["job"] for s in r.json()["steps"]] == ["find-lines", "read-a-line", NAMES]  # Correct off (#5677)
 
 
 def test_the_plan_says_which_layers_can_be_added_now(client, project):
