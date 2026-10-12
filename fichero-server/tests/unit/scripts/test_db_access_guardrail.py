@@ -87,7 +87,6 @@ ALLOWLIST: frozenset[str] = frozenset(
         "workflows/cache.py",
         "workflows/checkpointer.py",
         "workflows/activity_store.py",
-        "workflows/scheduler.py",
     }
 )
 

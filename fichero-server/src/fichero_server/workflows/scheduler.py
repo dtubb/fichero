@@ -10,7 +10,6 @@ Provides scheduling capabilities for automated workflow execution:
 """
 
 import asyncio
-import json
 import logging
 import uuid
 from collections import OrderedDict
@@ -20,7 +19,6 @@ from fichero_server.core.timeutil import ensure_utc, utc_now
 from enum import Enum
 from typing import Any, Optional
 
-from fichero_server.core.duckdb_session import connect_utc
 
 # apscheduler is imported lazily inside the methods that use it (constructors,
 # trigger factories, JobLookupError catches). Keeping it off module scope defers
@@ -154,7 +152,10 @@ class WorkflowScheduler:
 
         self._schedules: OrderedDict[str, Schedule] = OrderedDict()
         self._bg_tasks: set[asyncio.Task] = set()
-        self._init_database()
+        from fichero_server.db.manager import database_for_file
+
+        # The library's one managed Database (#5645): its rows are `ScheduleRecord` and `ScheduleRunRecord`.
+        self.db = database_for_file(db_path)
 
     def _remember_schedule(self, schedule: Schedule) -> None:
         self._schedules[schedule.schedule_id] = schedule
@@ -168,67 +169,6 @@ class WorkflowScheduler:
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
         return task
-
-    def _init_database(self) -> None:
-        """Initialize database tables for schedule tracking."""
-        # ponytail: not a managed shared conn (#2508). Every method here opens a
-        # FRESH ``conn = duckdb.connect(self.db_path)`` per operation and closes
-        # it — a connection-per-operation pattern, not the package's managed
-        # Database connection. Database._lock and the locked execute() helpers do
-        # not apply. Folding the scheduler onto the shared Database is a separate
-        # architectural call (lead review).
-        conn = connect_utc(self.db_path)
-        try:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS schedules (
-                    schedule_id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    workflow_id TEXT NOT NULL,
-                    schedule_type TEXT NOT NULL,
-                    cron_expression TEXT,
-                    interval_seconds INTEGER,
-                    run_at TIMESTAMP,
-                    timezone TEXT DEFAULT 'UTC',
-                    start_date TIMESTAMP,
-                    end_date TIMESTAMP,
-                    max_runs INTEGER,
-                    inputs JSON DEFAULT '{}',
-                    status TEXT NOT NULL,
-                    use_batch BOOLEAN DEFAULT FALSE,
-                    batch_items JSON DEFAULT '[]',
-                    max_concurrent INTEGER DEFAULT 5,
-                    created_at TIMESTAMP NOT NULL,
-                    updated_at TIMESTAMP NOT NULL,
-                    last_run_at TIMESTAMP,
-                    next_run_at TIMESTAMP,
-                    run_count INTEGER DEFAULT 0,
-                    error_message TEXT
-                )
-            """)
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS schedule_runs (
-                    run_id TEXT PRIMARY KEY,
-                    schedule_id TEXT NOT NULL,
-                    started_at TIMESTAMP NOT NULL,
-                    completed_at TIMESTAMP,
-                    status TEXT NOT NULL,
-                    batch_id TEXT,
-                    error TEXT
-                )
-            """)
-
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_schedule_runs_schedule
-                ON schedule_runs(schedule_id)
-            """)
-
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_schedules_status
-                ON schedules(status)
-            """)
-        finally:
-            conn.close()
 
     async def start(self) -> None:
         """Start the scheduler and load existing schedules."""
@@ -247,54 +187,19 @@ class WorkflowScheduler:
     async def _load_schedules(self) -> None:
         """Load active schedules from database and register with APScheduler."""
 
+        from fichero_server.models.schedules import ScheduleRecord
+
         def _load():
-            conn = connect_utc(self.db_path)
-            try:
-                results = conn.execute("""
-                    SELECT * FROM schedules WHERE status = 'active'
-                """).fetchall()
-                return results
-            finally:
-                conn.close()
+            return self.db.query(ScheduleRecord, status=ScheduleStatus.ACTIVE.value)
 
         rows = await asyncio.to_thread(_load)
 
         for row in rows:
-            schedule = self._row_to_schedule(row)
+            schedule = _schedule_of(row)
             self._remember_schedule(schedule)
             self._register_job(schedule)
 
         logger.info(f"Loaded {len(rows)} active schedules")
-
-    def _row_to_schedule(self, row) -> Schedule:
-        """Convert database row to Schedule object."""
-
-        return Schedule(
-            schedule_id=row[0],
-            name=row[1],
-            workflow_id=row[2],
-            config=ScheduleConfig(
-                schedule_type=ScheduleType(row[3]),
-                cron_expression=row[4],
-                interval_seconds=row[5],
-                run_at=ensure_utc(row[6]),
-                timezone=row[7] or "UTC",
-                start_date=row[8],
-                end_date=row[9],
-                max_runs=row[10],
-            ),
-            inputs=json.loads(row[11]) if row[11] else {},
-            status=ScheduleStatus(row[12]),
-            use_batch=row[13],
-            batch_items=json.loads(row[14]) if row[14] else [],
-            max_concurrent=row[15] or 5,
-            created_at=ensure_utc(row[16]),
-            updated_at=ensure_utc(row[17]),
-            last_run_at=ensure_utc(row[18]),
-            next_run_at=ensure_utc(row[19]),
-            run_count=row[20] or 0,
-            error_message=row[21],
-        )
 
     async def create_schedule(
         self,
@@ -534,75 +439,19 @@ class WorkflowScheduler:
         """Save schedule to database."""
 
         def _save():
-
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO schedules (
-                        schedule_id, name, workflow_id, schedule_type,
-                        cron_expression, interval_seconds, run_at, timezone,
-                        start_date, end_date, max_runs, inputs, status,
-                        use_batch, batch_items, max_concurrent,
-                        created_at, updated_at, last_run_at, next_run_at,
-                        run_count, error_message
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        schedule.schedule_id,
-                        schedule.name,
-                        schedule.workflow_id,
-                        schedule.config.schedule_type.value,
-                        schedule.config.cron_expression,
-                        schedule.config.interval_seconds,
-                        schedule.config.run_at,
-                        schedule.config.timezone,
-                        schedule.config.start_date,
-                        schedule.config.end_date,
-                        schedule.config.max_runs,
-                        json.dumps(schedule.inputs),
-                        schedule.status.value,
-                        schedule.use_batch,
-                        json.dumps(schedule.batch_items),
-                        schedule.max_concurrent,
-                        schedule.created_at,
-                        schedule.updated_at,
-                        schedule.last_run_at,
-                        schedule.next_run_at,
-                        schedule.run_count,
-                        schedule.error_message,
-                    ],
-                )
-            finally:
-                conn.close()
+            self.db.save(_record_of(schedule))
 
         await asyncio.to_thread(_save)
 
     async def _save_run(self, run: ScheduleRun) -> None:
         """Save schedule run to database."""
 
+        from fichero_server.models.schedules import ScheduleRunRecord
+
         def _save():
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute(
-                    """
-                    INSERT OR REPLACE INTO schedule_runs (
-                        run_id, schedule_id, started_at, completed_at,
-                        status, batch_id, error
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                    [
-                        run.run_id,
-                        run.schedule_id,
-                        run.started_at,
-                        run.completed_at,
-                        run.status,
-                        run.batch_id,
-                        run.error,
-                    ],
-                )
-            finally:
-                conn.close()
+            self.db.save(ScheduleRunRecord(
+                id=run.run_id, schedule_id=run.schedule_id, started_at=run.started_at, completed_at=run.completed_at,
+                status=run.status, batch_id=run.batch_id, error=run.error))
 
         await asyncio.to_thread(_save)
 
@@ -612,22 +461,14 @@ class WorkflowScheduler:
             self._schedules.move_to_end(schedule_id)
             return self._schedules[schedule_id]
 
-        def _load():
-            conn = connect_utc(self.db_path)
-            try:
-                result = conn.execute(
-                    "SELECT * FROM schedules WHERE schedule_id = ?", [schedule_id]
-                ).fetchone()
-                return result
-            finally:
-                conn.close()
+        from fichero_server.models.schedules import ScheduleRecord
 
-        row = await asyncio.to_thread(_load)
-        if row:
-            schedule = self._row_to_schedule(row)
-            self._remember_schedule(schedule)
-            return schedule
-        return None
+        record = await asyncio.to_thread(self.db.get, ScheduleRecord, schedule_id)
+        if record is None:
+            return None
+        schedule = _schedule_of(record)
+        self._remember_schedule(schedule)
+        return schedule
 
     async def list_schedules(
         self,
@@ -638,29 +479,22 @@ class WorkflowScheduler:
     ) -> list[Schedule]:
         """List schedules with optional filtering."""
 
+        from fichero_server.models.schedules import ScheduleRecord
+
         def _list():
-            conn = connect_utc(self.db_path)
-            try:
-                query = "SELECT * FROM schedules WHERE 1=1"
-                params = []
-
-                if status:
-                    query += " AND status = ?"
-                    params.append(status.value)
-                if workflow_id:
-                    query += " AND workflow_id = ?"
-                    params.append(workflow_id)
-
-                query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-                params.extend([limit, offset])
-
-                results = conn.execute(query, params).fetchall()
-                return results
-            finally:
-                conn.close()
+            filters = {}
+            if status:
+                filters["status"] = status.value
+            if workflow_id:
+                filters["workflow_id"] = workflow_id
+            # ponytail: sorted and paged here (`Database.query` filters by equality only); a library holds a handful
+            # of schedules. Push the order into SQL if that ever changes.
+            records = self.db.query(ScheduleRecord, **filters)
+            records.sort(key=lambda r: ensure_utc(r.created_at), reverse=True)
+            return records[offset:offset + limit]
 
         rows = await asyncio.to_thread(_list)
-        return [self._row_to_schedule(row) for row in rows]
+        return [_schedule_of(row) for row in rows]
 
     async def pause_schedule(self, schedule_id: str) -> Schedule:
         """Pause a schedule."""
@@ -773,17 +607,15 @@ class WorkflowScheduler:
             # not be silently swallowed (#2507).
 
         # Remove from database
+        from fichero_server.models.schedules import ScheduleRecord, ScheduleRunRecord
+
         def _delete():
-            conn = connect_utc(self.db_path)
-            try:
-                conn.execute(
-                    "DELETE FROM schedule_runs WHERE schedule_id = ?", [schedule_id]
-                )
-                conn.execute(
-                    "DELETE FROM schedules WHERE schedule_id = ?", [schedule_id]
-                )
-            finally:
-                conn.close()
+            with self.db.transaction():  # the schedule and its runs go together, or not at all
+                for run in self.db.query(ScheduleRunRecord, schedule_id=schedule_id):
+                    self.db.delete(run)
+                record = self.db.get(ScheduleRecord, schedule_id)
+                if record is not None:
+                    self.db.delete(record)
 
         await asyncio.to_thread(_delete)
 
@@ -800,34 +632,25 @@ class WorkflowScheduler:
     ) -> list[ScheduleRun]:
         """Get run history for a schedule."""
 
+        from fichero_server.models.schedules import ScheduleRunRecord
+
         def _get_runs():
-            conn = connect_utc(self.db_path)
-            try:
-                results = conn.execute(
-                    """
-                    SELECT run_id, schedule_id, started_at, completed_at,
-                           status, batch_id, error
-                    FROM schedule_runs
-                    WHERE schedule_id = ?
-                    ORDER BY started_at DESC
-                    LIMIT ?
-                """,
-                    [schedule_id, limit],
-                ).fetchall()
-                return results
-            finally:
-                conn.close()
+            # ponytail: newest first, sorted here (`Database.query` filters by equality only); a schedule's history is
+            # small. Push the order into SQL if that ever changes.
+            records = self.db.query(ScheduleRunRecord, schedule_id=schedule_id)
+            records.sort(key=lambda r: ensure_utc(r.started_at), reverse=True)
+            return records[:limit]
 
         rows = await asyncio.to_thread(_get_runs)
         return [
             ScheduleRun(
-                run_id=row[0],
-                schedule_id=row[1],
-                started_at=ensure_utc(row[2]),
-                completed_at=ensure_utc(row[3]),
-                status=row[4],
-                batch_id=row[5],
-                error=row[6],
+                run_id=row.id,
+                schedule_id=row.schedule_id,
+                started_at=ensure_utc(row.started_at),
+                completed_at=ensure_utc(row.completed_at),
+                status=row.status,
+                batch_id=row.batch_id,
+                error=row.error,
             )
             for row in rows
         ]
@@ -879,6 +702,53 @@ class WorkflowScheduler:
             run.error = str(e)
             run.completed_at = _utcnow()
             await self._save_run(run)
+
+
+def _record_of(schedule: Schedule) -> Any:
+    """A schedule as the library keeps it (#5645)."""
+    from fichero_server.models.schedules import ScheduleRecord
+
+    config = schedule.config
+    return ScheduleRecord(
+        id=schedule.schedule_id, name=schedule.name, workflow_id=schedule.workflow_id,
+        schedule_type=config.schedule_type.value, cron_expression=config.cron_expression,
+        interval_seconds=config.interval_seconds, run_at=config.run_at, timezone=config.timezone,
+        start_date=config.start_date, end_date=config.end_date, max_runs=config.max_runs,
+        inputs=dict(schedule.inputs), status=schedule.status.value, use_batch=schedule.use_batch,
+        batch_items=list(schedule.batch_items), max_concurrent=schedule.max_concurrent,
+        created_at=schedule.created_at, updated_at=schedule.updated_at, last_run_at=schedule.last_run_at,
+        next_run_at=schedule.next_run_at, run_count=schedule.run_count, error_message=schedule.error_message)
+
+
+def _schedule_of(record: Any) -> Schedule:
+    """A kept schedule as the scheduler works with it, field by field; every time a UTC instant (#5645: the old store
+    gave the start and end dates back naive)."""
+    return Schedule(
+        schedule_id=record.id,
+        name=record.name,
+        workflow_id=record.workflow_id,
+        config=ScheduleConfig(
+            schedule_type=ScheduleType(record.schedule_type),
+            cron_expression=record.cron_expression,
+            interval_seconds=record.interval_seconds,
+            run_at=ensure_utc(record.run_at),
+            timezone=record.timezone or "UTC",
+            start_date=ensure_utc(record.start_date),
+            end_date=ensure_utc(record.end_date),
+            max_runs=record.max_runs,
+        ),
+        inputs=dict(record.inputs or {}),
+        status=ScheduleStatus(record.status),
+        use_batch=record.use_batch,
+        batch_items=list(record.batch_items or []),
+        max_concurrent=record.max_concurrent,
+        created_at=ensure_utc(record.created_at),
+        updated_at=ensure_utc(record.updated_at),
+        last_run_at=ensure_utc(record.last_run_at),
+        next_run_at=ensure_utc(record.next_run_at),
+        run_count=record.run_count,
+        error_message=record.error_message,
+    )
 
 
 # Global scheduler instance

@@ -1249,8 +1249,10 @@ action record holding a researcher's words is ruled out.
   `BatchItemRecord`), tested in `fichero-server/tests/unit/db/test_batch_store_folded_5645.py`; `FileWatcherManager`
   (`file_triggers`, `trigger_executions` → `FileTriggerRecord`, `TriggerExecutionRecord`; a trigger is now read by
   its fields: reading the old table by position took its `events` from its `recursive` column, and a kept trigger
-  could not be loaded), tested in `fichero-server/tests/unit/db/test_watcher_store_folded_5645.py`. *Not built:*
-  `WorkflowScheduler`, `ActivityStore`, and the LangGraph checkpointer (to be ruled separate or folded; the plan
-  is on #5645).
+  could not be loaded), tested in `fichero-server/tests/unit/db/test_watcher_store_folded_5645.py`;
+  `WorkflowScheduler` (`schedules`, `schedule_runs` → `ScheduleRecord`, `ScheduleRunRecord`; a schedule's start and
+  end dates now come back as UTC instants, the old store gave them naive), tested in
+  `fichero-server/tests/unit/db/test_scheduler_store_folded_5645.py`. *Not built:* `ActivityStore`, and the
+  LangGraph checkpointer (to be ruled separate or folded; the plan is on #5645).
 - `source.store.fresh-open-invariant` — **[GAP]** (#5056) a guard opens a real library and asserts every registered model's table and declared index exists.
 - `source.certainty.damage-and-certainty-model` — **[GAP]** (#5097) slice 14's certainty and damage get behaviours: a scholar's certainty about a reading and physical damage on the page are two separate records.

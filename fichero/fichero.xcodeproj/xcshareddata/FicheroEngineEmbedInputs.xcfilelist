@@ -434,6 +434,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/models/reading_orders.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/readings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/research.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/rights.py
+$(SRCROOT)/../fichero-server/src/fichero_server/models/schedules.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/segments.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/signs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/models/source_declarations.py

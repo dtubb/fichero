@@ -1138,6 +1138,7 @@ class Database(DatabaseEmbeddingMixin):
             self._backfill_workflow_documents,
             self._fold_batch_tables,
             self._fold_watcher_tables,
+            self._fold_scheduler_tables,
         ))
 
     #: An open-time step slower than this is logged as a warning, named (#5228).
@@ -1177,6 +1178,8 @@ class Database(DatabaseEmbeddingMixin):
     BATCH_TABLES_FOLDED_SETTING = "batch_tables_folded_5645"
     #: The same for the file watcher's `file_triggers` and `trigger_executions` (#5645).
     WATCHER_TABLES_FOLDED_SETTING = "watcher_tables_folded_5645"
+    #: The same for the scheduler's `schedules` and `schedule_runs` (#5645).
+    SCHEDULER_TABLES_FOLDED_SETTING = "scheduler_tables_folded_5645"
 
     def _fold_old_store(self, name: str, setting: str, copies: list[tuple[str, str, str, str]]) -> None:
         """Copy one store's rows from the tables it made by hand into its models' tables, once (#5645,
@@ -1278,6 +1281,29 @@ class Database(DatabaseEmbeddingMixin):
              "SELECT count(*) FROM trigger_executions WHERE execution_id NOT IN "
              "(SELECT id FROM triggerexecutionrecords)",
              "SELECT count(*) FROM trigger_executions WHERE triggered_at > ?"),
+        ])
+
+    def _fold_scheduler_tables(self) -> None:
+        """The scheduler's `schedules` and `schedule_runs` into `ScheduleRecord` and `ScheduleRunRecord` (#5645). The old
+        table's defaults fill a column an older row left empty; a run whose schedule is gone is copied as it is."""
+        self._fold_old_store("scheduler", self.SCHEDULER_TABLES_FOLDED_SETTING, [
+            ("schedules",
+             "INSERT INTO schedulerecords (id, name, workflow_id, schedule_type, cron_expression, interval_seconds, "
+             "run_at, timezone, start_date, end_date, max_runs, inputs, status, use_batch, batch_items, "
+             "max_concurrent, created_at, updated_at, last_run_at, next_run_at, run_count, error_message) "
+             "SELECT s.schedule_id, s.name, s.workflow_id, s.schedule_type, s.cron_expression, s.interval_seconds, "
+             "s.run_at, COALESCE(s.timezone, 'UTC'), s.start_date, s.end_date, s.max_runs, COALESCE(s.inputs, '{}'), "
+             "s.status, COALESCE(s.use_batch, FALSE), COALESCE(s.batch_items, '[]'), COALESCE(s.max_concurrent, 5), "
+             "s.created_at, s.updated_at, s.last_run_at, s.next_run_at, COALESCE(s.run_count, 0), s.error_message "
+             "FROM schedules s WHERE s.schedule_id NOT IN (SELECT id FROM schedulerecords)",
+             "SELECT count(*) FROM schedules WHERE schedule_id NOT IN (SELECT id FROM schedulerecords)",
+             "SELECT count(*) FROM schedules WHERE created_at > ?"),
+            ("schedule_runs",
+             "INSERT INTO schedulerunrecords (id, schedule_id, started_at, completed_at, status, batch_id, error) "
+             "SELECT r.run_id, r.schedule_id, r.started_at, r.completed_at, r.status, r.batch_id, r.error "
+             "FROM schedule_runs r WHERE r.run_id NOT IN (SELECT id FROM schedulerunrecords)",
+             "SELECT count(*) FROM schedule_runs WHERE run_id NOT IN (SELECT id FROM schedulerunrecords)",
+             "SELECT count(*) FROM schedule_runs WHERE started_at > ?"),
         ])
 
     #: Records that this library's indexes were rebuilt once, repairing any written by a replay
@@ -1434,6 +1460,7 @@ class Database(DatabaseEmbeddingMixin):
     def _all_schema_models(self) -> tuple[type[BaseModel], ...]:
         from fichero_server.models.batches import BatchItemRecord, BatchRecord
         from fichero_server.models.file_triggers import FileTriggerRecord, TriggerExecutionRecord
+        from fichero_server.models.schedules import ScheduleRecord, ScheduleRunRecord
         from fichero_server.models.hermeneutics import (
             HermeneuticCircleState,
             Interpretation,
@@ -1683,6 +1710,9 @@ class Database(DatabaseEmbeddingMixin):
             # #5645: the file watcher's store (was `file_triggers`, `trigger_executions`).
             FileTriggerRecord,
             TriggerExecutionRecord,
+            # #5645: the scheduler's store (was `schedules`, `schedule_runs`).
+            ScheduleRecord,
+            ScheduleRunRecord,
         )
 
     def _materialize_schema(self) -> None:
