@@ -113,19 +113,26 @@ enum SegmentsPane {
         segment.text == nil && readingKinds.contains(segment.kind.lowercased())
     }
 
-    /// A row's words: its kind, then its reading when it has one ("Line · ܐܒܪܗܡ…").
+    /// A row's words: its kind and its place on the level, then its reading when it has one ("Line 6 · ܐܒܪܗܡ…"),
+    /// so a read line keeps its number like an unread one (#5505). `numbered: false` for a list gathered across
+    /// pages, where a row's index is no place. A cell is named by its place already, so it takes no count.
     /// `direction` is the segment's resolved one (#5199): its words are an isolate in it, so a Syriac line
     /// reads right to left after the Latin kind and never reorders it. A caption stays one row, so a
     /// vertical line's words are isolated as written rather than stacked.
-    static func rowLabel(_ segment: Segment?, at index: Int, direction: String? = nil) -> String {
+    static func rowLabel(_ segment: Segment?, at index: Int, direction: String? = nil, numbered: Bool = true) -> String {
         let kind = segment.map(InspectorPath.name(of:)) ?? "Segment"
+        let named = segment?.cell != nil ? kind : "\(kind) \(index + 1)"
         guard let text = segment?.text?.trimmingCharacters(in: .whitespaces), !text.isEmpty else {
-            // A cell is named by its place already; a count after it would read as another number.
-            let named = segment?.cell != nil ? kind : "\(kind) \(index + 1)"
             return segment.map(lacksReading) == true ? named + " · No reading" : named
         }
         let horizontal = direction == "ttb" || direction == "btt" ? nil : direction
-        return "\(kind) · \(SegmentLabel.layout(text, direction: horizontal).text)"
+        return "\(numbered ? named : kind) · \(SegmentLabel.layout(text, direction: horizontal).text)"
+    }
+
+    /// What an unread row's help says to do (#5505); nil for a row with a reading or of a kind that has none.
+    static func rowHelp(_ segment: Segment?) -> String? {
+        guard let segment, lacksReading(segment) else { return nil }
+        return "No text yet. Type it with Correct This Line, or read the page again."
     }
 }
 

@@ -20,8 +20,9 @@ struct ReadingOrderList: View {
     var rowLabel: ((String, Int) -> String)?
     /// The ids a row click or double-click wrote into the focused selection: the Inspector's hold (#5424).
     var onSelected: (([String]) -> Void)?
-    /// The Segments pane's: each row holds its children, nested (a region its lines, a line its words), with
-    /// the swatch of the colour its box is drawn in (hierarchy A, #5426). The Inspector's list stays one level.
+    /// Each row holds its children, nested (a region its lines, a line its words), with the swatch of the colour
+    /// its box is drawn in (hierarchy A, #5426): the Segments pane's and the page's Order tab (#5505). The
+    /// Inspector's list of one segment's children stays one level.
     var nests = false
 
     @Environment(ReadingOrderService.self) private var service: ReadingOrderService?
@@ -237,6 +238,8 @@ struct ReadingOrderList: View {
             Text(rowLabel?(segmentId, index) ?? label(for: segmentId, at: index))
                 .font(BundledFonts.shared.font(.body))
                 .lineLimit(2)
+                // An unread line says what to do (#5505).
+                .help(SegmentsPane.rowHelp(segment(segmentId)) ?? "")
             // A line the teacher-line check flagged (#5446): marked, its scores on hover.
             if let line = flags?.flag(segmentId: segmentId, documentId: documentId) {
                 Spacer(minLength: 4)
@@ -290,13 +293,15 @@ struct ReadingOrderList: View {
         store.registerUndo(auditId: auditId, steps: windowSteps, actionsService: actionStore?.actionsService)
     }
 
-    /// The line's own words when the page has them, else "line 3": a list of ids reads as nothing.
+    /// "Line 6 · its words", as the Segments pane labels it (#5505): one label on every surface, the number kept
+    /// once a line has a reading.
     private func label(for segmentId: String, at index: Int) -> String {
-        guard let segmentService else { return "Segment \(index + 1)" }
-        let segment = SegmentStore.shared(for: segmentService)
-            .segments(documentId: documentId).first { $0.id == segmentId }
-        if let text = segment?.text, !text.isEmpty { return text }
-        return SegmentsPane.rowLabel(segment, at: index)
+        guard segmentService != nil else { return "Segment \(index + 1)" }
+        return SegmentsPane.rowLabel(segment(segmentId), at: index)
+    }
+
+    private func segment(_ segmentId: String) -> Segment? {
+        segmentService.flatMap { SegmentStore.shared(for: $0).segments(documentId: documentId).first { $0.id == segmentId } }
     }
 
     private static func keyName(_ key: KeyEquivalent) -> String {

@@ -75,7 +75,8 @@ struct SourceSectionView: View {
                 SourceOutlineView(documentId: document.id)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .order:
-                ReadingOrderList(documentId: document.id, onSelected: { held = .init(wrote: $0, shown: []) })
+                // Lines grouped under their region, each with its region's tone (#5505), as in the Segments pane.
+                ReadingOrderList(documentId: document.id, onSelected: { held = .init(wrote: $0, shown: []) }, nests: true)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

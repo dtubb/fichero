@@ -61,7 +61,7 @@ enum SegmentsGathered {
             if segment == nil { parts.append("its segment could not be read") }
             return Row(
                 id: attribution.id, segmentId: attribution.segmentId, documentId: segment?.documentId,
-                title: SegmentsPane.rowLabel(segment, at: index), detail: parts.joined(separator: " · ")
+                title: SegmentsPane.rowLabel(segment, at: index, numbered: false), detail: parts.joined(separator: " · ")
             )
         }
     }
@@ -72,7 +72,7 @@ enum SegmentsGathered {
             let segment = use.segmentId.flatMap { segments[$0] }
             return Row(
                 id: use.representationId, segmentId: use.segmentId, documentId: use.documentId,
-                title: SegmentsPane.rowLabel(segment, at: index),
+                title: SegmentsPane.rowLabel(segment, at: index, numbered: false),
                 detail: use.count == 1 ? "once" : "\(use.count) times"
             )
         }
@@ -92,13 +92,13 @@ enum SegmentsGathered {
     /// proposed it and how sure; the row opens the newer segment.
     static func matchRows(_ matches: [Match], documentId: String, segments: [String: Segment]) -> [Row] {
         matches.enumerated().map { index, match in
-            var parts = ["was " + SegmentsPane.rowLabel(segments[match.fromSegmentId], at: index)]
+            var parts = ["was " + SegmentsPane.rowLabel(segments[match.fromSegmentId], at: index, numbered: false)]
             if let proposedBy = match.proposedBy { parts.append("proposed by \(proposedBy)") }
             if let certainty = match.certainty { parts.append("sure \(Int((certainty * 100).rounded()))%") }
             if let note = match.note { parts.append(note) }
             return Row(
                 id: match.id, segmentId: match.toSegmentId, documentId: documentId,
-                title: SegmentsPane.rowLabel(segments[match.toSegmentId], at: index),
+                title: SegmentsPane.rowLabel(segments[match.toSegmentId], at: index, numbered: false),
                 detail: parts.joined(separator: " · "), matchId: match.id
             )
         }

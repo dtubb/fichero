@@ -30,14 +30,19 @@ struct SegmentsPaneTests {
         #expect(path.map(\.segmentId) == [nil, "r1", "l1"])
     }
 
-    @Test("a row reads as its kind and its words, or its kind and place when it has none")
+    /// #5505: a read line lost its number ("Line · y por el precio…"), so the list seemed to jump 5 to 7.
+    @Test("a row reads as its kind, its place and its words; an unread one says so and what to do")
     func rowLabels() {
         // The words are an isolate (#5199): FSI...PDI with no direction resolved, RLI...PDI for an rtl line.
-        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: " ܐܒ "), at: 0) == "Line · \u{2068}ܐܒ\u{2069}")
-        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: "ܐܒ"), at: 0, direction: "rtl") == "Line · \u{2067}ܐܒ\u{2069}")
+        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: " ܐܒ "), at: 0) == "Line 1 · \u{2068}ܐܒ\u{2069}")
+        #expect(SegmentsPane.rowLabel(segment("l1", kind: "line", text: "ܐܒ"), at: 0, direction: "rtl") == "Line 1 · \u{2067}ܐܒ\u{2069}")
         #expect(SegmentsPane.rowLabel(segment("r1", kind: "region"), at: 2) == "Region 3")
         #expect(SegmentsPane.rowLabel(nil, at: 0) == "Segment 1")
         #expect(SegmentsPane.rowLabel(segment("l2", kind: "line"), at: 1) == "Line 2 · No reading", "a line with no reading says so")
+        let read = segment("l6", kind: "line", text: "y por el precio")
+        #expect(SegmentsPane.rowLabel(read, at: 5) == "Line 6 · \u{2068}y por el precio\u{2069}", "a read line keeps its number")
+        #expect(SegmentsPane.rowHelp(segment("l2", kind: "line"))?.contains("Correct This Line") == true, "an unread line says what to do")
+        #expect(SegmentsPane.rowHelp(segment("l6", kind: "line", text: "y por")) == nil)
     }
 }
 

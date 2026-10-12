@@ -1768,7 +1768,11 @@ from the region instead of the role.
   the same hierarchy: lines indented under their region's row with its swatch, words disclosed under
   their line, each row in the colour its box is drawn in. Built 2026-10-05 for the list (pinned by
   `SegmentHierarchyTests` and the hosted pane in `ImportedPageDrawsItsBoxesTests`); the strip and grid
-  carry each picture's swatch but stay one level; not yet seen in the app.
+  carry each picture's swatch but stay one level; not yet seen in the app. The page's Order tab in the
+  Inspector nests the same way (#5505), and every row on both reads "Line 6 · its words": a read line
+  keeps its number, and an unread one's help says to type it with Correct This Line or read the page
+  again (`SegmentsPane.rowLabel`, `rowHelp`; `SegmentsPaneTests.rowLabels`). Lists gathered across pages
+  (a hand's, a sign's, matches) stay unnumbered.
 - `source.editor.hierarchy.reader-shows-regions` — **[PARTIAL]** (#5426) the Reader marks each region's
   block of lines with its hue, and a highlighted word, line or region is drawn in that hue. Built
   2026-10-05: the Reader's text rules each block (`ReaderRegionRules`, `test_reader_region_rules.py`).

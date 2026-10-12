@@ -1533,7 +1533,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         XCTAssertEqual(line.kind, "line")
         // Bidi-isolated since #5199, so a right-to-left reading cannot reorder "Line ·".
         XCTAssertEqual(SegmentsPane.rowLabel(line, at: 0),
-                       "Line · \u{2068}" + (line.text ?? "").trimmingCharacters(in: .whitespaces) + "\u{2069}")
+                       "Line 1 · \u{2068}" + (line.text ?? "").trimmingCharacters(in: .whitespaces) + "\u{2069}")
         XCTAssertEqual(SegmentsPane.path(pageTitle: "page", to: region, in: segments).map(\.title), ["page", "Region"])
 
         await orders.show(childrenOf: nil)
@@ -2444,7 +2444,7 @@ final class ImportedPageDrawsItsBoxesTests: XCTestCase {
         await store.load(documentId: "doc-0001", force: true)
         let typed = try XCTUnwrap(store.segments(documentId: "doc-0001").first { $0.id == "seg-drawn-0001" })
         XCTAssertFalse(SegmentsPane.lacksReading(typed), "the mark goes once it has a reading")
-        XCTAssertEqual(SegmentsPane.rowLabel(typed, at: 16), "Line · \u{2068}ܫܠܡܐ\u{2069}")  // isolated, #5199
+        XCTAssertEqual(SegmentsPane.rowLabel(typed, at: 16), "Line 17 · \u{2068}ܫܠܡܐ\u{2069}")  // isolated, #5199
         let redrawn = try XCTUnwrap(SegmentDisplay.selected(for: "doc-0001", store: store))
         XCTAssertFalse(redrawn.geometry.boxes[try XCTUnwrap(typed.boxIndex)].noReading)
     }
