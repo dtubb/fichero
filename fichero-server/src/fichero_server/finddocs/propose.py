@@ -26,6 +26,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from functools import lru_cache
 
 from fichero_server.finddocs import cues as C
 from fichero_server.models.found_documents import (
@@ -84,6 +85,9 @@ def _fold(text: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)).lower()
 
 
+# ponytail: a cache, because the officials check compares every party with every other (#5709: hundreds of names a
+# document from a noisy reading made it 28 s); bounded, a folder is a few thousand names.
+@lru_cache(maxsize=8192)
 def _norm_text(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", _fold(text)).strip()
 
