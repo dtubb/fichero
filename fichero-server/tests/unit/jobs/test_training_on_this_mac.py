@@ -144,6 +144,25 @@ def test_compute_tune_on_this_mac__waits_on_memory_pressure_then_resumes_without
     assert detail["phase"] == "done" and detail["reader_id"].startswith("kraken-trained-")
 
 
+def test_a_job_that_waits_for_memory_is_looked_at_again_though_its_lane_had_forgotten_the_project(
+        db, client, notebook, mac, ketos):
+    """#5702: while the training ran, its row was `running`, so a scan of the lane found nothing waiting in the
+    project and forgot it as idle; when the job then waited for memory, the lane had no project left to look at,
+    its thread ended, and the job sat waiting until some unrelated wake (the test above failed about 1 in 5).
+    Here the lane forgets the project mid-run on purpose, as that scan did: the job must still come back."""
+    job_id = _start(client, notebook)
+    assert ketos.after_first_epoch.wait(30)
+    lane = jobs._scheduler.lanes["local-ml"]
+    with jobs._scheduler._lock:
+        lane.libraries.clear()  # what an idle scan does while the job's row says `running`
+    mac["memory"] = True
+    ketos.go.set()
+    assert _wait_for(lambda: _row(db, job_id)[0] == "waiting")
+    mac["memory"] = False
+    assert _wait_for(lambda: _row(db, job_id)[0] == "done", seconds=10.0), _row(db, job_id)
+    assert ketos.epochs_run == [0, 1]
+
+
 def test_compute_tune_measured_on_16gb__the_card_has_the_runs_figures(db, client, notebook, mac, ketos):
     """Behaviour `compute.tune.measured-on-16gb`: "every training run records its peak memory and what it used
     (CPU, GPU, Neural Engine) on the job and on the resulting card ... the card of a trained model has those

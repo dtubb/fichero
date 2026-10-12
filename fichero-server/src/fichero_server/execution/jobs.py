@@ -2294,6 +2294,11 @@ class _Scheduler:
                            [state, reason, job_id])
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                # Its project has waiting work again: a scan while this job ran saw its row `running`, found
+                # nothing waiting there and forgot the project as idle, and the lane would then have nothing
+                # to look again at; its thread ended and this job waited for an unrelated wake (#5702).
+                with self._lock:
+                    lane.libraries.add(key)
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
         if db_manager.open_database(key) is db:
