@@ -778,7 +778,9 @@ workflow by hand: a hand run is a job like any other.
   thumbnails are made first", #5585); the lane is named "Waiting for the model lane: Paleographer
   Review is reading", the holder named by the run it reads for, else by its kind; a reason the job recorded
   itself; else its turn on its lane. The import's "Processing imported pages" row, while none of
-  its stages runs, is `waiting` with the same reason. Before: a throttle scan's words stayed on
+  its stages runs, is `waiting` with the same reason. It counts pages, each once: a page with its own text is
+  one page, and only a PDF's pages add to the count (#5690: a 92-page project counted 178, each page once when
+  queued and again for its embed; `fichero-server/tests/unit/importers/test_imported_pages_counted_once_5690.py`). Before: a throttle scan's words stayed on
   the rows after the Mac went idle (embeds said "you're using the Mac" with `in_use` false while
   a recipe's reading held the lane), and the import's row sat at 100 of 406 with reason null.
   Built: one function decides every waiting row's reason when it is read (`execution/jobs.py`

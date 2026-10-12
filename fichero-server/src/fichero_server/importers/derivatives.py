@@ -481,9 +481,11 @@ def _embed_document_tree(
         except Exception as exc:
             return f"could not list pages: {type(exc).__name__}: {exc}"
         targets.extend(child for child in children if child.page_content)
-    # Declare the real size before the first page, not after the last.
+    # Declare the real size before the first page, not after the last. The document itself was counted when it
+    # was queued, and its stage's end ticks it: only its pages are more (#5690: a page with its own text counted
+    # twice, 178 for a 92-page project).
     if library is not None:
-        _progress_expand(library, len(targets))
+        _progress_expand(library, sum(1 for t in targets if t is not doc))
     for target in targets:
         try:
             if db.has_embedding(target.id):
@@ -512,7 +514,7 @@ def _embed_document_tree(
         # leave the total unreachable and the bar stuck just short of the end
         # — the same silence this whole change is removing, arrived at from
         # the other side.
-        if library is not None:
+        if library is not None and target is not doc:
             _progress_tick(library)
     if targets:
         # chars + rss make the 951s-for-"1 target" case explicable at a
