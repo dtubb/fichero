@@ -113,3 +113,103 @@ def test_a_missing_gh_binary_is_also_blind(monkeypatch):
     monkeypatch.setattr(mod.subprocess, "run", missing)
     with pytest.raises(mod.Blind):
         mod.closed_since(24)
+
+
+# ── The whole script on a fake git repo: a stand-in `gh`, a local bare "origin", no network ──────────────────
+
+
+def _bin(tmp_path: Path, gh_answer: str | None) -> Path:
+    """A PATH holding git and, unless None, a `gh` that prints this closed-issue listing."""
+    import os
+    import shutil
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    os.symlink(shutil.which("git"), bin_dir / "git")
+    if gh_answer is not None:
+        (tmp_path / "gh.json").write_text(gh_answer)
+        gh = bin_dir / "gh"
+        gh.write_text(f"#!/bin/sh\n/bin/cat '{tmp_path / 'gh.json'}'\n")
+        gh.chmod(0o755)
+    return bin_dir
+
+
+def _git(repo: Path, *args: str) -> None:
+    import subprocess
+
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True,
+                   env={"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "HOME": str(repo),
+                        "PATH": "/usr/bin:/bin", "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+
+
+def _repo(tmp_path: Path, *, with_origin: bool) -> Path:
+    """A repo whose pushed commit cites #100 and whose unpushed commit cites #200."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q", "-b", "integration")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "fix: pushed (#100)")
+    if with_origin:
+        _git(tmp_path, "init", "-q", "--bare", "origin.git")
+        _git(repo, "remote", "add", "origin", str(tmp_path / "origin.git"))
+        _git(repo, "push", "-q", "origin", "integration")
+        _git(repo, "fetch", "-q", "origin")
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "fix: not pushed (#200)")
+    return repo
+
+
+def _closed(*numbers: int) -> str:
+    import json
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return json.dumps([{"number": n, "closedAt": now, "title": f"issue {n}"} for n in numbers])
+
+
+def _run(repo: Path, bin_dir: Path, *args: str):
+    import subprocess
+    import sys
+
+    return subprocess.run([sys.executable, str(_SCRIPT), *args], cwd=repo, capture_output=True, text=True,
+                          env={"PATH": str(bin_dir), "HOME": str(repo), "GIT_CONFIG_GLOBAL": "/dev/null",
+                               "GIT_CONFIG_NOSYSTEM": "1"}, timeout=60)
+
+
+def test_it_still_fails_on_a_closed_issue_whose_only_commit_is_unpushed(tmp_path):
+    repo = _repo(tmp_path, with_origin=True)
+    bad = _run(repo, _bin(tmp_path, _closed(100, 200)))
+    assert bad.returncode == 1, bad.stdout + bad.stderr
+    assert "#200" in bad.stdout and "#100" not in bad.stdout.split("FAIL", 1)[1]
+
+
+def test_it_passes_when_every_closed_issue_is_pushed(tmp_path):
+    repo = _repo(tmp_path, with_origin=True)
+    ok = _run(repo, _bin(tmp_path, _closed(100)))
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert "OK: every closed issue" in ok.stdout
+
+
+def test_a_checkout_with_no_origin_says_it_cannot_check_and_does_not_fail(tmp_path):
+    """The M4's check tree: a fetch with no `origin` remote. A skip, named as one, never an OK."""
+    repo = _repo(tmp_path, with_origin=False)
+    skipped = _run(repo, _bin(tmp_path, _closed(200)))
+    assert skipped.returncode == 0, skipped.stdout + skipped.stderr
+    assert "SKIP: cannot check here" in skipped.stdout and "no `origin` remote" in skipped.stdout
+    assert "OK" not in skipped.stdout
+    assert _run(repo, tmp_path / "bin", "--strict").returncode == 2
+
+
+def test_no_gh_says_it_cannot_check_and_does_not_fail(tmp_path):
+    repo = _repo(tmp_path, with_origin=True)
+    skipped = _run(repo, _bin(tmp_path, None))
+    assert skipped.returncode == 0, skipped.stdout + skipped.stderr
+    assert "SKIP: cannot check here: no working gh" in skipped.stdout
+    assert "OK" not in skipped.stdout
+    assert _run(repo, tmp_path / "bin", "--strict").returncode == 2
+
+
+def test_outside_any_git_repository_it_still_fails(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    out = _run(empty, _bin(tmp_path, _closed(200)))
+    assert out.returncode == 1 and "not a git repository" in out.stderr

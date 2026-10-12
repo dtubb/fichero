@@ -5,9 +5,12 @@ Catches the case the pre-close ancestor check cannot: closing against a commit
 that is real and in the lane's local tree, but has not been pushed. That window
 opens every time a merge lands and stays open until the push.
 
-Usage:  check_closed_issues_landed.py [--hours 24] [--remote origin/integration]
-Exit 0 = every recently-closed issue is backed by a pushed commit.
-Exit 1 = at least one is not.
+Usage:  check_closed_issues_landed.py [--hours 24] [--remote origin/integration] [--strict]
+Exit 0 = every recently-closed issue is backed by a pushed commit, or (printed
+         as "SKIP: cannot check here", never as OK) this checkout has no remote
+         ref to compare against or no working `gh` (a test machine's bare fetch).
+Exit 1 = at least one is not; or not a git repository at all.
+Exit 2 = --strict, and it could not check (the old answer for a missing remote or gh).
 
 -----------------------------------------------------------------------------
 DO NOT "OPTIMISE" THE CORPUS ONTO THE REMOTE. Read this before editing.
@@ -33,8 +36,12 @@ create a local commit citing a closed issue, do not push it, and assert this
 script exits 1. A guardrail with no proof it can fail is decoration.
 
 Two related invariants, for the same reason:
-  * Unresolvable --remote exits 1 (see main). It must never "pass" by having
-    nothing to compare against.
+  * It must never report OK with nothing to compare against. A checkout with
+    no --remote ref (the M4's bare fetch has no `origin`) or no working `gh`
+    cannot check, and says so: "SKIP: cannot check here: <why>", exit 0, so a
+    test machine's guard sweep is not red for what that machine lacks.
+    `--strict` makes that exit 2. Not a git repository at all is still exit 1:
+    that is a broken input, not a machine without a remote.
   * An issue with NO citing commit is SKIPPED, not failed. Duplicates, audits,
     already-implemented triage closures, and work that lands as data rather
     than code (e.g. a default_workflows/*.json preset) legitimately cite
@@ -135,18 +142,26 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--hours", type=int, default=24)
     ap.add_argument("--remote", default="origin/integration")
+    ap.add_argument("--strict", action="store_true", help="exit 2, not 0, when it cannot check here")
     args = ap.parse_args()
 
-    if not sh("git", "rev-parse", "--verify", args.remote).strip():
-        print(f"FAIL: {args.remote} does not resolve. Run `git fetch` first.", file=sys.stderr)
+    def cannot_check(why: str) -> int:
+        print(f"SKIP: cannot check here: {why}. Nothing was checked; this is not a pass.")
+        return 2 if args.strict else 0
+
+    if not sh("git", "rev-parse", "--git-dir").strip():
+        print("FAIL: not a git repository.", file=sys.stderr)
         return 1
+    if not sh("git", "rev-parse", "--verify", "--quiet", args.remote).strip():
+        remote = args.remote.split("/", 1)[0]
+        if remote not in sh("git", "remote").split():
+            return cannot_check(f"this checkout has no `{remote}` remote to compare {args.remote} against")
+        return cannot_check(f"{args.remote} does not resolve (run `git fetch {remote}`)")
 
     try:
         closed = closed_since(args.hours)
     except Blind as exc:
-        print(f"BLIND: {exc}", file=sys.stderr)
-        print("Refusing to report success on input I could not read.", file=sys.stderr)
-        return 2
+        return cannot_check(f"no working gh: {exc}")
     if not closed:
         print(f"OK: no issues closed in the last {args.hours}h.")
         return 0
