@@ -233,6 +233,7 @@ struct ExportCopyMenuItem: View {
 /// What Edit's item verbs act on: the focused Items list's selection, else the focused sidebar's. In the sidebar,
 /// Rename and Delete go through its own actions; Exclude, Bookmark, Add to Workspace and Export a Copy are the Items
 /// list's (the sidebar's pickers are per row, since its rows span projects), and say so.
+@MainActor
 enum FocusedItemVerbs {
     static func target(items: ItemVerbsTarget?, actions: SidebarActions?, info: SidebarSelectionInfo?) -> ItemVerbsTarget? {
         if let items { return items }
