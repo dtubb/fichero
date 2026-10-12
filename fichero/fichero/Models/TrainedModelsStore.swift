@@ -104,7 +104,7 @@ final class TrainedModelsStore {
     /// that same job (#5439, `training.model.error-beside-base`), by model id. Each comes from that model's card
     /// (`GET /api/evaluation/scores`), the entry with the evaluation's job id; nothing is worked out here.
     func loadCompared(_ modelId: String) async {
-        guard let model = inspected[modelId], let last = model.evaluationHistory.last.flatMap(Self.object),
+        guard let model = inspected[modelId], let last = model.evaluationHistory.last.flatMap { Self.object($0) },
               let jobId = last["job_id"] as? String else { return }
         let reader: Operations.ModelScoresApiEvaluationScoresGet.Input.Query.ReaderPayload =
             model.kind == "kraken-reader" ? .kraken : .vision
@@ -113,15 +113,16 @@ final class TrainedModelsStore {
             guard case .ok(let success)? = try? await client.api.modelScoresApiEvaluationScoresGet(
                 query: .init(model: other, reader: reader)
             ), let scores = try? success.body.json else { continue }
-            let entry = scores.evaluations.compactMap(Self.object).last { $0["job_id"] as? String == jobId }
+            let entry = scores.evaluations.compactMap { Self.object($0) }.last { $0["job_id"] as? String == jobId }
             rows.append(ModelNodeFacts.Compared(model: other, cer: Self.cerByPolicy(entry)))
         }
         compared[modelId] = rows
     }
 
     /// One evaluation record as plain JSON values.
-    private static func object(_ container: OpenAPIRuntime.OpenAPIObjectContainer) -> [String: Any]? {
-        (try? JSONEncoder().encode(container)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+    /// A free-form object from the contract (the generator wraps each array element in its own payload type) as a dictionary.
+    private nonisolated static func object<T: Encodable>(_ value: T) -> [String: Any]? {
+        (try? JSONEncoder().encode(value)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
     }
 
     /// An evaluation entry's CER by policy, as its card wrote it; empty when it has none.
