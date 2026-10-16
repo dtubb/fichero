@@ -245,3 +245,58 @@ def test_the_review_knows_a_page_listed_by_segment_id_from_a_paragraph():
     assert shows_segment_lines([f"{sid} | el dicho escrivano"])
     assert not shows_segment_lines("el dicho escrivano vezino de la ciudad")
     assert not shows_segment_lines(None)
+
+
+def _shipped_review_prompts():
+    """Every `transcribe_review` node of every shipped workflow, with the prompt it carries (what a recipe sends)."""
+    import json
+    from pathlib import Path
+
+    import fichero_server
+
+    root = Path(fichero_server.__file__).parent / "resources" / "default_workflows"
+    found = []
+    for path in sorted(root.glob("*.json")):
+        for node in json.loads(path.read_text()).get("nodes", []):
+            data = node.get("data") or {}
+            config = node.get("config") or data.get("config") or {}
+            if (node.get("tool") or node.get("type") or data.get("tool")) == "transcribe_review" and config.get("prompt"):
+                found.append(pytest.param(config["prompt"], id=f"{path.stem}:{node.get('id')}"))
+    return found
+
+
+def test_the_shipped_review_prompts_are_found():
+    """A floor under the parametrised test below, so it cannot pass by finding nothing (the preset has r1, r2, r3)."""
+    assert len(_shipped_review_prompts()) >= 3
+
+
+@pytest.mark.asyncio
+async def test_every_shipped_review_node_ties_its_answer_to_the_lines(page, monkeypatch):
+    """`source.job.review-asks-one-answer-line-per-segment-id` through the REAL prompts a recipe sends, not a stand-in:
+    a model that answers by id only when asked is tied to the lines under each shipped node's own prompt (one review
+    after another on the same page, each changing the last line so its tie is visible).
+    WHY: the first fix changed the default prompt, which no preset uses; the page stayed untied."""
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.transcribe_review import transcribe_review
+
+    first, second, third = _lines(page)
+    turn = {"n": 0}
+
+    async def model(images, prompt, config, **kw):
+        if not ("one line per" in prompt.lower() and "segment id" in prompt.lower()):
+            return "el dicho escrivano vezino de la ciudad y lo firmo"
+        return (f"{first.id} | el dicho escrivano\n{second.id} | vezino de la cibdad\n"
+                f"{third.id} | y lo firmo {turn['n']}")
+
+    monkeypatch.setattr(llm, "vision", model)
+    prompts = [param.values[0] for param in _shipped_review_prompts()]
+    for number, shipped_prompt in enumerate(prompts, start=1):
+        turn["n"] = number
+        result = await transcribe_review(
+            inputs={"files": page["src"]["files"], "documents": page["src"]["documents"],
+                    "skip_if_artifact_exists": False, "prompt": shipped_prompt},
+            state={"library_path": page["library"], "task_id": f"run-review-{number}"},
+            llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
+        assert not result.get("error"), result.get("error")
+        assert _counting(page)[2] == f"y lo firmo {number}", f"prompt {number} of {len(prompts)} was not tied"
