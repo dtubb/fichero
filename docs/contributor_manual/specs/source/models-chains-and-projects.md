@@ -2395,6 +2395,37 @@ Jobs and chains
   (the review's answer is asked by id) and #5720 (the per-line re-ask); the read step for non-Kraken readers on a page
   with lines is not built. *Test:* run Apple Vision, then a stub vision model, on a page with three lines: each pass
   has three readings tied to the three segments.
+- `source.job.review-is-built-from-the-project-and-a-profile` — **[GAP]** (#5723) the review (the `correct` job,
+  `transcribe_paleography_review`) is not written for one language. Its prompts are built from the recipe's answers
+  (language, script, period, place, hand, material) and a shipped profile chosen by the same rules as a reader card;
+  Spanish colonial notarial (genres carta de poder, probanza; ç/c/z, f-/h-; dela, quel, desta; the `mer[ce]d`
+  convention) is one profile, with others beside it as the read presets already are (es_moderna, en_secretary, latin).
+  The three passes become lenses (abbreviations and formulary; orthography and consistency; names and dates) the recipe
+  turns on, each with the cost per page shown first and its effect on the error rate shown by the A/B; a project with
+  no profile for its language and period says so and offers the generic review, never the Spanish one. WHY
+  (2026-10-16): the preset's wording is Spanish colonial whatever the project says, and the node's language is
+  "auto". *Test:* an English secretary-hand project is never sent "carta de poder" or "ç/c/z"; a Spanish colonial one
+  is.
+- `source.job.review-is-segment-native` — **[GAP]** (#5724) the review is given the page's lines as `<segment id> |
+  box | maker | confidence | text` and answers `<segment id> | <text>` with a flag per line (certain, uncertain,
+  unreadable) and a short note; it never changes a line a person read; it leaves an uncertain line uncertain, keeping the
+  machine's confidence (#5694), rather than inventing text; and a corrected line records which lens changed it. Builds
+  on `source.job.review-asks-one-answer-line-per-segment-id`, which asks for the ids; today the preset's prompts say
+  only "same line breaks" and think in text, not segments. *Test:* a stub that marks one line unreadable leaves it
+  unchanged and flagged; a person's line is returned unchanged by the stub and untouched in the project.
+- `source.job.review-uses-the-projects-names-and-places` — **[GAP]** (#5725) the review is given the project's
+  confirmed names and places (its knowledge-graph entities and gazetteer, the Find Names result) as a word list, so a
+  name is spelled one way throughout; its reference search covers that graph and the project's corrected pages, not
+  only other completed documents (hybrid search, limit 5, today); names it confirms go back to the graph; and a place
+  where passes or readers disagree is shown by `find-where-readers-disagree`. *Test:* a stub reviewer given "Popayán"
+  in the list and a reading "Popaian" returns the list's spelling for that line.
+- `source.recipe.workflow-gaps` — **[GAP]** (#5726) surveyed 2026-10-16 against 60 default workflows: a page read by
+  a model that answers by segment id (`transcribe_htr` and `transcribe_cloud` are page text; `read_lines_kraken_vision`
+  is per line); a review for each language the read presets cover; `classify_script`, which exists only inside
+  `transcribe_auto_detect`, as a step the recipe can use; and a workflow that exports tied lines as PAGE XML training
+  pairs (the code is in `training/`; no workflow seen, to be confirmed). Workflows with no recipe job today (not gaps
+  by themselves): `paleo_regesto`, `paleo_translate_english`, the translate set, `extract_geo`, `extract_table`,
+  `extract_events_timeline`, `describe_visual`, `clean_up_text`, `ner_per_page_local`, the `convert_to_*` set.
 - `source.job.review-asks-one-answer-line-per-segment-id` — **[BROKEN]** (#5719) the paleographer review, shown the
   page's lines as `<segment id> | box | maker | text`, is told to answer one line per shown line as `<segment id> |
   <corrected text>`, in the same order, never merging, splitting, dropping or adding a line; the prompt it is sent
