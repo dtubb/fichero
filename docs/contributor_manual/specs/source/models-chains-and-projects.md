@@ -2458,9 +2458,11 @@ Jobs and chains
   answers nothing usable, the step fails for that page and the Kraken readings are unchanged.
 - `source.try.asking-granularity-is-measured` — **[GAP]** (#5722) how a model is asked is an option the A/B measures,
   not a constant: the whole page, a region (a paragraph, the unit Kraken's regions give) at a time, or a few lines at a
-  time, always with segment ids and always answered by id. A card states the granularity it was made for where it
-  knows (a small vision model: paragraph or line; a large one: page); the bake-off tries the top candidates at each
-  granularity within the cost shown beforehand, and the table names the granularity beside each row, so a smaller
+  time, always with segment ids and always answered by id. A card states `lines_per_request`, the most lines the model is asked to read at once (decided 2026-10-16: a field
+  on the card, never found by trying: a large cloud model, the whole page; a 2B local model, a few lines), and a request
+  never exceeds it; a region longer than it is split on line boundaries. The bake-off tries the two best candidates
+  (by their score at their default granularity) and any the person named, at each granularity,
+  within the cost shown beforehand; the others run once at their default, and the table names the granularity beside each row, so a smaller
   model can win at paragraph. The recipe takes the winner's model AND granularity; if none beats the Kraken reading on
   the person's corrected pages, the recipe keeps Kraken's reading and says so. *Test:* a stub whose answers are right
   only per paragraph wins at paragraph and loses at page; the recipe records both.
@@ -3955,8 +3957,8 @@ Finding models
   Han, Hangul, Arabic, Thai) it states print only, since nothing says it reads their hands (one account says cursive Chinese
   is near zero, unverified).
   The engine keeps its language handling (the project's language is passed and a locale Vision does not honour
-  raises) and turns language correction off for the bake-off's reading, so old spelling is not pulled toward modern
-  words (to be confirmed by a measurement, not assumed).
+  raises) and turns language correction off for the bake-off's reading (decided 2026-10-16), so old spelling is not
+  pulled toward modern words; one measurement on a corrected page, on and off, confirms it and is kept in the issue.
 - `source.try.on-device-model-is-a-reader` — **[GAP]** (#5716) the macOS 27 on-device model (Foundation Models with
   image input, and the OCR tool of `compute/distillation.md`) is a reader the bake-off offers and scores like any
   other, beside Kraken, Apple Vision, an MLX vision model and a cloud reader (at most two of each kind; the
