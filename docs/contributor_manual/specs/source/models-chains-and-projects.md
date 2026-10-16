@@ -3853,10 +3853,11 @@ Finding models
   (`source.try.bakeoff-is-the-same-tool`), and one whose licence is not yet accepted is named, not scored. WHY
   (2026-10-11, the MCP onboarding walk): a project saved as 16th century, Popayán, ranked McCATMuS (installed)
   4th, behind two medieval readers. Tested in `fichero-server/tests/unit/recipes/test_period_ranks_readers_5683.py`.
-- `source.recipe.unstated-period-is-offered-not-chosen` — **[GAP]** (#5714) for a project whose period is before 1900
-  and whose material is handwriting, a reader whose card states no period is offered to the person and measured by
+- `source.recipe.unstated-period-is-offered-not-chosen` — **[GAP]** (#5714) for a project that states a period and
+  whose material is handwriting, a reader whose card states no period is offered to the person and measured by
   the bake-off, and is never the rules' choice; the rules choose a reader whose stated period covers the project's
-  (McCATMuS, 1500-2100, for a 16th-century hand) or say there is none. WHY (2026-10-13, the maintainer's onboarding
+  (McCATMuS, 1500-2100, for a 16th-century hand) or say there is none. The rule names no date and no script, so it
+  holds for a Chinese or an Arabic project as for a Spanish one. WHY (2026-10-13, the maintainer's onboarding
   walk): the rules took Apple Vision for reading pages because it states handwriting, costs nothing and needs no
   download, though nothing states it reads a 16th-century hand; its failure would have shown only as a poor score.
   Alone this does not stop the next unmeasured generic reader (a Qwen vision card) taking its place; the same rule
@@ -3864,7 +3865,9 @@ Finding models
   vision model that state no period, is given the period-matched reader, or a named gap, never either of them.
 - `source.recipe.apple-vision-is-for-modern-writing` — **[GAP]** (#5715) Apple Vision's card states `period: [1900, 2100]`
   (Apple publishes no handwriting or period claim for `VNRecognizeTextRequest`: the Vision documentation, read on
-  2026-10-13, is silent; the maintainer's own use reads 20th- and 21st-century hands). A card whose stated period does
+  2026-10-13, is silent; the maintainer's own use reads 20th- and 21st-century hands, so the 1900-2100 period is stated
+  from use, not measured, and is replaced by a measurement on the person's pages as soon as the bake-off has one).
+  A card whose stated period does
   not overlap the project's is refused for that project (`no-reader-for-period`, "it is made for 1900-2100, and this
   project's pages are of the 16th century"), and the bake-off names it once with that reason, as it names a reader that
   cannot run here, never silently dropped and never scored for a project it was not made for. `_period_rank` ranks
@@ -3883,6 +3886,25 @@ Finding models
   text is read against the corrected lines like any other. The call is made once per page, not per line, and its
   cold start is shown in the table's speed. *Test:* with a stub that refuses, the table says "not read: refused" and
   gives no CER; with a stub that answers, the row scores. Needs a spec of `fm-bridge`'s image call before code.
+- `source.find.models-that-run-remotely` — **[GAP]** (#5717) the search for models offers those that need a bigger
+  machine than this Mac, not only builds it can run: today `discovery.search_hugging_face` keeps an MLX build or a
+  model the Hub names an MLX conversion for, and never offers the rest. A model found for remote compute
+  (`remote_read/`) is a card that says where it would run and what it costs, offered and measured like any other,
+  never the rules' choice. The sources searched are named in the finder (Kraken's repository on Zenodo, Hugging Face,
+  the person's remote endpoints) and so are the ones not searched (Transkribus models, HTR-United), never left
+  implied. *Test:* a safetensors vision model with no MLX conversion is listed as "runs on remote compute", with its
+  size and cost; with no remote compute set up it is listed as unavailable, with why.
+- `source.try.cloud-models-are-compared-for-reading-and-cleanup` — **[GAP]** (#5718) the person's cloud models
+  (Claude, Gemini, OpenAI, OpenRouter, whatever their provider rows enable; the spec names none, the rows do) are
+  compared by the A/B, for reading (a reader kind of the bake-off today: `remote_reader_cards`) AND for clean-up,
+  the Correct step, which has no comparison and no cloud text card today (`TEXT_MODEL_JOBS` lacks it). A clean-up
+  candidate takes each page's reading and returns it cleaned; it is scored against the person's corrected lines and
+  against the uncleaned reading, so the table says whether it helped or made the text worse (a model that rewrites
+  old spelling into modern words scores worse, and says so). The cost for the sample is shown before anything runs;
+  a cloud candidate takes part only where the project lets pages leave; a model that does not list the project's
+  language is refused for a rewriting job (`REWRITING_JOBS`). Never the rules' choice. *Test:* with a stub cloud
+  model that modernises spelling, its row has a higher error rate than the uncleaned reading and the table says
+  "made it worse"; with one that fixes a slip it says "better".
 - `source.recipe.script-reader-first` — **[OK]** (#5593; built 2026-10-08: `made_for_script` and `_rank_key` in `recipes/assemble.py`, a record's material in `discovery._row_material`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) among the readers that pass the hard
   constraints, one **made for the asked script** comes before a generic one: every script its card
   states is the asked one, its parent (Latin for Fraktur) or one of its parts (kana for Japanese), its
