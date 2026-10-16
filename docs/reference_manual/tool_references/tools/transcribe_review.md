@@ -96,6 +96,11 @@ Rules:
   verbatim. Do not paraphrase or reformat.
 - Do not invent text that is not visibly present.
 
+If the prior transcription is a list of lines, each as `<segment id> | box |
+maker | text`, answer with exactly one line per listed line, in the same
+order, as `<segment id> | <corrected text>`: keep every id, and never merge,
+split, drop or add a line. (This is how a correction is tied back to its line.)
+
 The prior transcription appears in the Context section above. The image
 follows.
 ```

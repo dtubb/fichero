@@ -2386,6 +2386,30 @@ Jobs and chains
   reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
   while a better reading of the line exists. On Mosquera this is 319 of 374 pages, whose only shaped
   lines are Apple Vision's (C01_030: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
+- `source.read.once-lines-exist-every-reading-ties-to-a-line` — **[GAP]** (#5721) on a page that already has lines
+  (segments), every reader's output is a reading of those lines, whatever the reader is: Kraken, Apple Vision (run on
+  the line's rectangle), an MLX or cloud vision model (shown each line's crop), or the one the recipe chose. Page-level
+  text with no line under it is a draft a person may promote, never the step's result, and the step says so when it
+  could only produce that. WHY (2026-10-16, page 39_Hoja_549_Recto.JPG, project 17402): Kraken's pass held 44 lines;
+  the Apple Vision pass and the Qwen pass each held the whole page as text with 0 segments. Built in part by #5719
+  (the review's answer is asked by id) and #5720 (the per-line re-ask); the read step for non-Kraken readers on a page
+  with lines is not built. *Test:* run Apple Vision, then a stub vision model, on a page with three lines: each pass
+  has three readings tied to the three segments.
+- `source.job.review-asks-one-answer-line-per-segment-id` — **[BROKEN]** (#5719) the paleographer review, shown the
+  page's lines as `<segment id> | box | maker | text`, is told to answer one line per shown line as `<segment id> |
+  <corrected text>`, in the same order, never merging, splitting, dropping or adding a line; the prompt it is sent
+  says so. WHY (2026-10-16, page 39_Hoja_549_Recto.JPG, project 17402): the default prompt said only "output only the
+  corrected transcription"; Qwen2.5-VL answered 16 lines for 44, `correct_lines` matched nothing, and the review
+  stayed a page text tied to no line (its pass has no segments, its geometry "not supported"). *Test:* a model that
+  answers by id only when the prompt asks for it ties its corrections to the lines; one asked nothing answers a
+  paragraph and the step says "not tied to lines".
+- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[GAP]** (#5720) a review answer that still cannot be
+  matched is re-asked in batches of up to eight lines, each line cut from the page and sent with its current text
+  (as `llm/line_reader.py` cuts and reads them), the model answering a JSON array of corrected texts, a batch that
+  does not match re-asked line by line, never guessed into place; the lines then tie by construction, for a model
+  that does not localise text as for one that does, a cloud model as a local one. *Test:* with a stub that answers a
+  paragraph to the page and arrays to the batches, every line is tied; with one that answers nothing usable, the
+  page stays "not tied to lines".
 - `source.job.correct-onto-lines` — **[OK]** (#5654) *Built 2026-10-10: the paleographer's review
   (`workflows/tools/transcribe_review.py`, the `correct` job's workflow) is shown the page's lines
   (`tool_context`), and each review it saves is put back onto them (`llm/working_lines.correct_lines`):
