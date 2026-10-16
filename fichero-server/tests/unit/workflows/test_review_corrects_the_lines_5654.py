@@ -197,3 +197,34 @@ async def test_a_review_that_cannot_be_matched_stays_an_artifact_and_says_so(pag
     said = result["results"][0]["lines"]
     assert said.startswith("not tied to lines")
     assert any(note.endswith(said) for note in result["notes"])
+
+
+@pytest.mark.asyncio
+async def test_the_review_prompt_asks_for_one_answer_line_per_segment_id(page, monkeypatch):
+    """`source.job.review-asks-one-answer-line-per-segment-id` (#5719): a model that answers by segment id only
+    when the prompt it is sent asks for that gets its corrections tied to the lines; one that is not asked
+    answers a paragraph and nothing is tied.
+    WHY: Qwen2.5-VL answered 16 lines for 44 on 39_Hoja_549_Recto.JPG because the prompt never asked for one
+    line per segment id."""
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.transcribe_review import transcribe_review
+
+    first, second, third = _lines(page)
+
+    async def model(images, prompt, config, **kw):
+        asked = "one line per" in prompt.lower() and "segment id" in prompt.lower()
+        if not asked:
+            return "el dicho escrivano vezino de la ciudad y lo firmo"
+        return f"{first.id} | el dicho escrivano\n{second.id} | vezino de la ciudad\n{third.id} | y lo firmo"
+
+    monkeypatch.setattr(llm, "vision", model)
+    result = await transcribe_review(
+        inputs={"files": page["src"]["files"], "documents": page["src"]["documents"],
+                "skip_if_artifact_exists": False},
+        state={"library_path": page["library"], "task_id": "run-review-2"},
+        llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
+    assert not result.get("error"), result.get("error")
+
+    assert _counting(page) == ["el dicho escrivano", "vezino de la ciudad", "y lo firmo"]
+    assert result["results"][0]["lines"] == "1 of 3 line(s) corrected"
