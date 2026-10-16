@@ -2403,13 +2403,24 @@ Jobs and chains
   stayed a page text tied to no line (its pass has no segments, its geometry "not supported"). *Test:* a model that
   answers by id only when the prompt asks for it ties its corrections to the lines; one asked nothing answers a
   paragraph and the step says "not tied to lines".
-- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[GAP]** (#5720) a review answer that still cannot be
-  matched is re-asked in batches of up to eight lines, each line cut from the page and sent with its current text
-  (as `llm/line_reader.py` cuts and reads them), the model answering a JSON array of corrected texts, a batch that
-  does not match re-asked line by line, never guessed into place; the lines then tie by construction, for a model
-  that does not localise text as for one that does, a cloud model as a local one. *Test:* with a stub that answers a
-  paragraph to the page and arrays to the batches, every line is tied; with one that answers nothing usable, the
-  page stays "not tied to lines".
+- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[GAP]** (#5720, #5722) hybrid, decided 2026-10-16: a
+  correction is first asked of the whole page (one call, the image and every line with its id and box, the answer
+  `id | text` per line, #5719); the lines it leaves out or cannot match are then re-asked in batches of up to eight,
+  each line cut from the page and sent with its current text, the page's own text beside it for context, the model
+  answering a JSON array, a batch that does not match re-asked line by line (as `llm/line_reader.py` does), never
+  guessed into place. Where a line still cannot be tied, THAT PAGE'S STEP FAILS, naming the model, the lines and why;
+  it does not end as "not tied to lines". Kraken's reading stays the line's counting reading, so a failed correction
+  loses nothing. For a model that does not localise text as for one that does, a cloud model as a local one. *Test:*
+  with a stub that answers a paragraph to the page and arrays to the batches, every line is tied; with one that
+  answers nothing usable, the step fails for that page and the Kraken readings are unchanged.
+- `source.try.asking-granularity-is-measured` — **[GAP]** (#5722) how a model is asked is an option the A/B measures,
+  not a constant: the whole page, a region (a paragraph, the unit Kraken's regions give) at a time, or a few lines at a
+  time, always with segment ids and always answered by id. A card states the granularity it was made for where it
+  knows (a small vision model: paragraph or line; a large one: page); the bake-off tries the top candidates at each
+  granularity within the cost shown beforehand, and the table names the granularity beside each row, so a smaller
+  model can win at paragraph. The recipe takes the winner's model AND granularity; if none beats the Kraken reading on
+  the person's corrected pages, the recipe keeps Kraken's reading and says so. *Test:* a stub whose answers are right
+  only per paragraph wins at paragraph and loses at page; the recipe records both.
 - `source.job.correct-onto-lines` — **[OK]** (#5654) *Built 2026-10-10: the paleographer's review
   (`workflows/tools/transcribe_review.py`, the `correct` job's workflow) is shown the page's lines
   (`tool_context`), and each review it saves is put back onto them (`llm/working_lines.correct_lines`):
