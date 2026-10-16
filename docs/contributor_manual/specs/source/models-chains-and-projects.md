@@ -2417,7 +2417,9 @@ Jobs and chains
   confirmed names and places (its knowledge-graph entities and gazetteer, the Find Names result) as a word list, so a
   name is spelled one way throughout; its reference search covers that graph and the project's corrected pages, not
   only other completed documents (hybrid search, limit 5, today); names it confirms go back to the graph; and a place
-  where passes or readers disagree is shown by `find-where-readers-disagree`. *Test:* a stub reviewer given "Popayán"
+  where passes or readers disagree is shown by `find-where-readers-disagree`. A place or person carries its variants
+  across scripts and spellings (Popayán, Popaian; 北京, Beijing), and the review is given every variant of an entity it
+  may meet. *Test:* a stub reviewer given "Popayán"
   in the list and a reading "Popaian" returns the list's spelling for that line.
 - `source.recipe.workflow-gaps` — **[GAP]** (#5726) surveyed 2026-10-16 against 60 default workflows: a page read by
   a model that answers by segment id (`transcribe_htr` and `transcribe_cloud` are page text; `read_lines_kraken_vision`
@@ -2426,6 +2428,16 @@ Jobs and chains
   pairs (the code is in `training/`; no workflow seen, to be confirmed). Workflows with no recipe job today (not gaps
   by themselves): `paleo_regesto`, `paleo_translate_english`, the translate set, `extract_geo`, `extract_table`,
   `extract_events_timeline`, `describe_visual`, `clean_up_text`, `ner_per_page_local`, the `convert_to_*` set.
+- `source.recipe.nothing-assumes-spaces-direction-or-an-alphabet` — **[GAP]** (#5728) the review, the profiles, the
+  granularity and the A/B's scoring hold for Spanish colonial, German Kurrent, Aramaic (Hebrew square script and Syriac,
+  right to left) and Chinese (vertical columns, no spaces, variant and abbreviated characters). A profile carries its
+  own letter or character audit (Latin: u/v, i/j, long-s; Kurrent: minim runs, ſ/s; Hebrew and Aramaic: ד/ר, ב/כ,
+  final forms; Chinese: variant forms, popular abbreviations, absent punctuation); no lens assumes word spaces, a left to
+  right order or an alphabet. A region is a region whatever its direction, and a line is a segment: its direction,
+  script and language come from the segment, never from the language's name, and the review keeps them. The table's
+  WER appears only where the script separates words; Chinese is scored by character. *Test:* the matrix of the four,
+  each with a stub reviewer, never sent another's wording, and a right-to-left and a vertical page both returned in
+  their segments' reading order.
 - `source.job.review-asks-one-answer-line-per-segment-id` — **[BROKEN]** (#5719) the paleographer review, shown the
   page's lines as `<segment id> | box | maker | text`, is told to answer one line per shown line as `<segment id> |
   <corrected text>`, in the same order, never merging, splitting, dropping or adding a line; the prompt it is sent
@@ -3939,6 +3951,9 @@ Finding models
   cannot run here, never silently dropped and never scored for a project it was not made for. `_period_rank` ranks
   and `_refusal` does not today, so the card alone would still enter the bake-off. *Test:* the same project's
   bake-off lists Apple Vision as not taking part, with that reason; a 20th-century project still lists and scores it.
+  The card states handwriting for Latin script only (the one use observed); for the other scripts it lists (Cyrillic,
+  Han, Hangul, Arabic, Thai) it states print only, since nothing says it reads their hands (one account says cursive Chinese
+  is near zero, unverified).
   The engine keeps its language handling (the project's language is passed and a locale Vision does not honour
   raises) and turns language correction off for the bake-off's reading, so old spelling is not pulled toward modern
   words (to be confirmed by a measurement, not assumed).
