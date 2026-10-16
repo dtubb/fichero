@@ -3853,6 +3853,36 @@ Finding models
   (`source.try.bakeoff-is-the-same-tool`), and one whose licence is not yet accepted is named, not scored. WHY
   (2026-10-11, the MCP onboarding walk): a project saved as 16th century, Popayán, ranked McCATMuS (installed)
   4th, behind two medieval readers. Tested in `fichero-server/tests/unit/recipes/test_period_ranks_readers_5683.py`.
+- `source.recipe.unstated-period-is-offered-not-chosen` — **[GAP]** (#5714) for a project whose period is before 1900
+  and whose material is handwriting, a reader whose card states no period is offered to the person and measured by
+  the bake-off, and is never the rules' choice; the rules choose a reader whose stated period covers the project's
+  (McCATMuS, 1500-2100, for a 16th-century hand) or say there is none. WHY (2026-10-13, the maintainer's onboarding
+  walk): the rules took Apple Vision for reading pages because it states handwriting, costs nothing and needs no
+  download, though nothing states it reads a 16th-century hand; its failure would have shown only as a poor score.
+  Alone this does not stop the next unmeasured generic reader (a Qwen vision card) taking its place; the same rule
+  covers it. *Test:* a 16th-century Spanish handwriting project, with an installed Apple Vision and an uninstalled
+  vision model that state no period, is given the period-matched reader, or a named gap, never either of them.
+- `source.recipe.apple-vision-is-for-modern-writing` — **[GAP]** (#5715) Apple Vision's card states `period: [1900, 2100]`
+  (Apple publishes no handwriting or period claim for `VNRecognizeTextRequest`: the Vision documentation, read on
+  2026-10-13, is silent; the maintainer's own use reads 20th- and 21st-century hands). A card whose stated period does
+  not overlap the project's is refused for that project (`no-reader-for-period`, "it is made for 1900-2100, and this
+  project's pages are of the 16th century"), and the bake-off names it once with that reason, as it names a reader that
+  cannot run here, never silently dropped and never scored for a project it was not made for. `_period_rank` ranks
+  and `_refusal` does not today, so the card alone would still enter the bake-off. *Test:* the same project's
+  bake-off lists Apple Vision as not taking part, with that reason; a 20th-century project still lists and scores it.
+  The engine keeps its language handling (the project's language is passed and a locale Vision does not honour
+  raises) and turns language correction off for the bake-off's reading, so old spelling is not pulled toward modern
+  words (to be confirmed by a measurement, not assumed).
+- `source.try.on-device-model-is-a-reader` — **[GAP]** (#5716) the macOS 27 on-device model (Foundation Models with
+  image input, and the OCR tool of `compute/distillation.md`) is a reader the bake-off offers and scores like any
+  other, beside Kraken, Apple Vision, an MLX vision model and a cloud reader (at most two of each kind; the
+  person may name the readers they want compared, so a cloud model such as Gemini or Claude, an MLX Qwen model or
+  a Hugging Face model takes part when named, and the cap only chooses among those not named). It is never the
+  rules' choice. Where Apple Intelligence is off or the OS is older it is named once with why. A refusal ("may contain
+  unsafe content"), an empty answer or a paraphrase is not read, with why, and never scores as a perfect reading; its
+  text is read against the corrected lines like any other. The call is made once per page, not per line, and its
+  cold start is shown in the table's speed. *Test:* with a stub that refuses, the table says "not read: refused" and
+  gives no CER; with a stub that answers, the row scores. Needs a spec of `fm-bridge`'s image call before code.
 - `source.recipe.script-reader-first` — **[OK]** (#5593; built 2026-10-08: `made_for_script` and `_rank_key` in `recipes/assemble.py`, a record's material in `discovery._row_material`; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) among the readers that pass the hard
   constraints, one **made for the asked script** comes before a generic one: every script its card
   states is the asked one, its parent (Latin for Fraktur) or one of its parts (kana for Japanese), its
@@ -4158,8 +4188,9 @@ TrOCR family (https://huggingface.co/medieval-data), CHURRO (https://github.com/
 Tesseract's data list (https://tesseract-ocr.github.io/tessdoc/Data-Files.html) and HTR-United's
 schema (https://htr-united.github.io/document-your-data.html).
 
-Not verified in this pass: what Apple Vision does with handwriting,
-right-to-left, vertical text and single-line pictures (to be probed at run time); a fair
+Not verified in this pass: what Apple Vision does with handwriting
+(Apple's Vision documentation, read 2026-10-13, makes no handwriting or period claim; see
+`source.recipe.apple-vision-is-for-modern-writing`), right-to-left, vertical text and single-line pictures (to be probed at run time); a fair
 comparison of line-by-line against whole-page reading by vision-language models; whether the
 Hugging Face revisions in the example exist (they are illustrative).
 
