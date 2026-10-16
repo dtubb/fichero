@@ -20,6 +20,7 @@ prompt.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from fichero_server.llm import LLMConfig
@@ -88,13 +89,27 @@ Rules:
   verbatim. Do not paraphrase or reformat.
 - Do not invent text that is not visibly present.
 
-If the prior transcription is a list of lines, each as `<segment id> | box |
-maker | text`, answer with exactly one line per listed line, in the same
-order, as `<segment id> | <corrected text>`: keep every id, and never merge,
-split, drop or add a line. (This is how a correction is tied back to its line.)
-
 The prior transcription appears in the Context section above. The image
 follows."""
+
+
+#: Asked of the model whatever prompt a node carries (the Paleographer Review preset has its own, three): a page's
+#: lines are shown as `<segment id> | x y w h | maker | text`, and a correction is only tied back to its line when the
+#: answer names it (`source.job.review-asks-one-answer-line-per-segment-id`).
+ANSWER_BY_ID = (
+    "The prior transcription is a list of lines, each as `<segment id> | box | maker | text`. Answer with exactly one "
+    "line per listed line, in the same order, as `<segment id> | <corrected text>`: keep every id, and never merge, "
+    "split, drop or add a line."
+)
+#: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
+#: next pass of a preset is given as its context.
+_SHOWN_LINE = re.compile(r"^[0-9a-f]{32} \| ", re.MULTILINE)
+
+
+def shows_segment_lines(prior_text: Any) -> bool:
+    """Whether the context given to the model lists a page's lines by segment id."""
+    shown = prior_text if isinstance(prior_text, list) else [prior_text or ""]
+    return any(_SHOWN_LINE.search(str(text)) for text in shown)
 
 
 def build_transcribe_review_prompt(config: dict) -> str:
@@ -177,6 +192,8 @@ async def transcribe_review(
 
     update_page_content = inputs.get("update_page_content", True)
     prompt = inputs.get("prompt") or _DEFAULT_REVIEW_PROMPT
+    if shows_segment_lines(prior_text):
+        prompt = f"{prompt}\n\n{ANSWER_BY_ID}"
 
     tool_config = VisionToolConfig(
         artifact_type="transcription_review",

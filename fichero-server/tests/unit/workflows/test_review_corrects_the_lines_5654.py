@@ -205,7 +205,8 @@ async def test_the_review_prompt_asks_for_one_answer_line_per_segment_id(page, m
     when the prompt it is sent asks for that gets its corrections tied to the lines; one that is not asked
     answers a paragraph and nothing is tied.
     WHY: Qwen2.5-VL answered 16 lines for 44 on 39_Hoja_549_Recto.JPG because the prompt never asked for one
-    line per segment id."""
+    line per segment id; the Paleographer Review preset (r1, r2, r3) carries its own prompts, so the ask is made
+    by the tool whatever prompt it is given."""
     from fichero_server import llm
     from fichero_server.llm import LLMConfig
     from fichero_server.workflows.tools.transcribe_review import transcribe_review
@@ -221,10 +222,26 @@ async def test_the_review_prompt_asks_for_one_answer_line_per_segment_id(page, m
     monkeypatch.setattr(llm, "vision", model)
     result = await transcribe_review(
         inputs={"files": page["src"]["files"], "documents": page["src"]["documents"],
-                "skip_if_artifact_exists": False},
+                "skip_if_artifact_exists": False,
+                # the preset's own wording (Paleographer Review r1): the recipe never sends the default prompt
+                "prompt": "You are a paleographer reviewing an EXISTING transcription. Output the COMPLETE "
+                          "corrected transcription (same line breaks), nothing else."},
         state={"library_path": page["library"], "task_id": "run-review-2"},
         llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
     assert not result.get("error"), result.get("error")
 
     assert _counting(page) == ["el dicho escrivano", "vezino de la ciudad", "y lo firmo"]
     assert result["results"][0]["lines"] == "1 of 3 line(s) corrected"
+
+
+def test_the_review_knows_a_page_listed_by_segment_id_from_a_paragraph():
+    """`source.job.review-asks-one-answer-line-per-segment-id`: the ask is made for the lines as shown and for an
+    earlier pass's answer by id (what Paleographer Review's r2 and r3 are given), never for a plain paragraph.
+    WHY: r2 and r3 take r1's output as context; if only the first pass asked, the later passes would untie it."""
+    from fichero_server.workflows.tools.transcribe_review import shows_segment_lines
+
+    sid = "595a7e84a5595d528eff5bf33244635e"
+    assert shows_segment_lines(f"{sid} | 0.1 0.2 0.5 0.03 | machine | el dicho")
+    assert shows_segment_lines([f"{sid} | el dicho escrivano"])
+    assert not shows_segment_lines("el dicho escrivano vezino de la ciudad")
+    assert not shows_segment_lines(None)
