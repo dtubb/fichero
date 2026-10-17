@@ -1,0 +1,27 @@
+id: zh
+title: Chinese, columns (stub)
+status: stub
+suits:
+  languages: [zh]
+  scripts: [Hani, Hans, Hant]
+  material: [handwriting]
+context: >-
+  The writing is Chinese, in characters, usually in columns that run from the top down and from the right to the
+  left, with no spaces between words. A stub: it states what makes the hand hard, not yet the genres and
+  conventions of a particular dynasty or kind of document.
+lenses:
+  abbreviations:
+    title: abbreviations, contractions and formulary
+    text: |
+      - Check abbreviated and variant forms of characters (cursive and simplified shortcuts); expand only where certain, in brackets, and otherwise keep the form as written.
+      - Check the document's genre against its usual formula; propose formula readings only as [UNCERTAIN: ...].
+  orthography:
+    title: orthography and consistency
+    text: |
+      - Read each column from top to bottom and the columns in the order the page runs; keep that order. Do not add spaces between words.
+      - Character audit: characters of near-identical shape, and variant forms of one character; where the draft's character implies a stroke the image does not show, correct it. Keep the variant the scribe wrote; do not normalise it.
+  names-and-dates:
+    title: names, dates and the final check
+    text: |
+      - Collect names, places and dates (including reign-year dates); the same person must read the same way throughout. Mark what cannot be resolved [UNCERTAIN: ...].
+      - Uncertainty and layout audit: [UNCERTAIN: ...] resolves or keeps its best reading; [ILLEGIBLE] is confirmed; column breaks, seals and marginalia are where the page has them.

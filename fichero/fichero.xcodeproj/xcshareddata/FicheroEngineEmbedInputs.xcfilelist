@@ -463,6 +463,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/regions.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/review_profiles.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/routes.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/run_view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
@@ -472,6 +473,12 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/iso15924.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-autonyms.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-scripts.txt
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/_frame.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/aramaic.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/de-kurrent.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/es-colonial.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/generic.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/zh.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/README.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/correct-line.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/statements.prompt.md

@@ -46,7 +46,7 @@ Second-pass QA of a prior transcription against the image
 | `chunk_size_chars` | integer | 0 | Chunk large input text above this character budget (0=auto). |
 | `force_ocr` | boolean | no | Force image processing instead of existing text. |
 | `language` | string | auto | Language hint for the reviewer (es / en / auto). |
-| `lens` | string | — | The lens this review looks through (a recipe's name for it); recorded with the corrections. |
+| `lens` | string | — | The pass this review makes (abbreviations, orthography, names-and-dates): with no prompt set, its prompt is built from the project and its profile; recorded with the corrections. |
 | `match_mode` | string | prefer | Match mode. One of: prefer, strict, inform. |
 | `max_image_dimension` | integer | 8192 | Max image size. |
 | `max_items` | integer | 10 | List max items. |

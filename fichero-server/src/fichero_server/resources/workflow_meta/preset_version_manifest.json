@@ -204,8 +204,8 @@
   "sha256": "15b8d361b04170a63190e2055cde7634db9e0c8d039472fba87d32e8c33cf34e"
  },
  "transcribe_paleography_review.json": {
-  "preset_version": 1,
-  "sha256": "470870fd1cf9352a2565ddc3b05762fa1dddbf3912270a84d8070af71bf98ad1"
+  "preset_version": 2,
+  "sha256": "f7055aba42b3aa5e829f1e07895d8ac2b7b2d36c010c18619062767e48412ae1"
  },
  "transcribe_review_pipeline.json": {
   "preset_version": 1,

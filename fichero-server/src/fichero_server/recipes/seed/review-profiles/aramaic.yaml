@@ -1,0 +1,27 @@
+id: aramaic
+title: Aramaic, right to left (stub)
+status: stub
+suits:
+  languages: [arc]
+  scripts: [Hebr, Syrc, Armi]
+  material: [handwriting]
+context: >-
+  The writing is Aramaic, read from right to left, in a consonantal script whose letters change shape at the end of
+  a word and whose vowels are often not written. A stub: it states what makes the hand hard, not yet the genres or
+  dialects of a particular place and century.
+lenses:
+  abbreviations:
+    title: abbreviations, contractions and formulary
+    text: |
+      - Verify every expansion; brackets only around letters supplied by expansion. Keep an unexpanded abbreviation or sigla exactly as written when the expansion is not certain.
+      - Check the document's genre against its usual formula; propose formula readings only as [UNCERTAIN: ...].
+  orthography:
+    title: orthography and consistency
+    text: |
+      - Read each line from right to left and keep that order. Letter-shape audit: letters of near-identical shape in this script, and the end-of-word forms. Where the draft's spelling implies a stroke the image does not show, correct it.
+      - Write vowel signs and diacritics only where the page has them; never add them.
+  names-and-dates:
+    title: names, dates and the final check
+    text: |
+      - Collect names, places and dates; the same person must read the same way throughout. Mark what cannot be resolved [UNCERTAIN: ...].
+      - Uncertainty and layout audit: [UNCERTAIN: ...] resolves or keeps its best reading; [ILLEGIBLE] is confirmed; line breaks and marginalia are where the page has them.

@@ -254,6 +254,7 @@ def _shipped_review_prompts():
     from pathlib import Path
 
     import fichero_server
+    from fichero_server.workflows.tools.transcribe_review import build_transcribe_review_prompt
 
     root = Path(fichero_server.__file__).parent / "resources" / "default_workflows"
     found = []
@@ -261,8 +262,9 @@ def _shipped_review_prompts():
         for node in json.loads(path.read_text()).get("nodes", []):
             data = node.get("data") or {}
             config = node.get("config") or data.get("config") or {}
-            if (node.get("tool") or node.get("type") or data.get("tool")) == "transcribe_review" and config.get("prompt"):
-                found.append(pytest.param(config["prompt"], id=f"{path.stem}:{node.get('id')}"))
+            if (node.get("tool") or node.get("type") or data.get("tool")) == "transcribe_review" and (
+                    config.get("prompt") or config.get("lens")):
+                found.append(pytest.param(build_transcribe_review_prompt(config), id=f"{path.stem}:{node.get('id')}"))
     return found
 
 
@@ -364,8 +366,58 @@ async def test_a_corrected_line_records_the_lens_that_changed_it_5724(page, monk
     WHY: an apparatus must say which look at the page made a change, so a lens is judged by what it changed."""
     from fichero_server.models import Artifact, ContentRepresentation
 
-    first, second, third = _lines(page)
+    second = _lines(page)[1]
     await _review(page, monkeypatch, f"{second.id} | certain | vezino de la ciudad", lens="orthography")
     (new,) = [r for r in _readings(page, second) if r.content == "vezino de la ciudad"]
     artifact = page["db"].get(Artifact, page["db"].get(ContentRepresentation, new.id).derived_from_artifact_id)
     assert artifact.data["lens"] == "orthography"
+
+
+def _shipped_review_node_configs():
+    import json
+    from pathlib import Path
+
+    import fichero_server
+
+    path = Path(fichero_server.__file__).parent / "resources" / "default_workflows" / "transcribe_paleography_review.json"
+    return [node["config"] for node in json.loads(path.read_text())["nodes"] if node.get("tool") == "transcribe_review"]
+
+
+@pytest.mark.asyncio
+async def test_the_shipped_review_is_built_from_the_projects_answers_5723(page, monkeypatch):
+    """`source.job.review-is-built-from-the-project-and-a-profile`, through the REAL preset (Paleographer Review's own
+    three nodes) and the project's saved setup: an English project is never sent "carta de poder" or "ç/c/z", a
+    Spanish colonial one is.
+    WHY: the preset's prompts were Spanish colonial whatever the project said."""
+    from pathlib import Path
+
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.recipes.project import write_project_setup
+    from fichero_server.workflows.tools.transcribe_review import transcribe_review
+
+    seen = []
+
+    async def model(images, prompt, config, **kw):
+        seen.append(prompt)
+        return "el dicho escrivano\nvezino de la cibdad\ny lo firmo"
+
+    monkeypatch.setattr(llm, "vision", model)
+    configs = _shipped_review_node_configs()
+    assert len(configs) == 3
+    for tags, years, sent in ((["en"], "1600", False), (["es"], "1650", True)):
+        write_project_setup(Path(page["db"].path).parent, {
+            "purposes": ["transcribe"], "languages": tags, "scripts": ["Latn"], "materials": ["handwriting"],
+            "period": years}, None)
+        seen.clear()
+        for config in configs:
+            result = await transcribe_review(
+                inputs={**config, "files": page["src"]["files"], "documents": page["src"]["documents"],
+                        "skip_if_artifact_exists": False},
+                state={"library_path": page["library"], "task_id": "run-profile"},
+                llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
+            assert not result.get("error"), result.get("error")
+            assert any("profile" in n or "review is used" in n for n in result["notes"])
+        assert len(seen) >= 3
+        for prompt in seen:
+            assert ("carta de poder" in prompt or "ç/c/z" in prompt) is sent, (tags, prompt)

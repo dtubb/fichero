@@ -51,7 +51,7 @@ REVIEW_CONFIG = {
     },
     "lens": {
         "type": "string",
-        "description": "The lens this review looks through (a recipe's name for it); recorded with the corrections",
+        "description": "The pass this review makes (abbreviations, orthography, names-and-dates): with no prompt set, its prompt is built from the project and its profile; recorded with the corrections",
         "x-group": "advanced",
     },
     "skip_if_artifact_exists": {
@@ -120,8 +120,28 @@ def shows_segment_lines(prior_text: Any) -> bool:
 
 
 def build_transcribe_review_prompt(config: dict) -> str:
-    """Expose the prompt to the workflow editor UI."""
-    return config.get("prompt", _DEFAULT_REVIEW_PROMPT)
+    """Expose the prompt to the workflow editor UI. A node with a `lens` and no prompt is built at run time from
+    the project; the editor shows what the generic profile would send."""
+    if config.get("prompt"):
+        return config["prompt"]
+    if config.get("lens"):
+        from fichero_server.recipes.review_profiles import review_prompt
+
+        return review_prompt(config["lens"], None)[0]
+    return _DEFAULT_REVIEW_PROMPT
+
+
+def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
+    """The prompt for `lens` built from the project's setup answers and the profile they choose
+    (`source.job.review-is-built-from-the-project-and-a-profile`), and which profile that was."""
+    from pathlib import Path
+
+    from fichero_server.db import db_manager
+    from fichero_server.recipes.project import read_project_setup
+    from fichero_server.recipes.review_profiles import review_prompt
+
+    answers = read_project_setup(Path(db_manager.get_database(library_path).path).parent)["answers"] if library_path else None
+    return review_prompt(lens, answers)
 
 
 # =============================================================================
@@ -198,7 +218,10 @@ async def transcribe_review(
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", True)
-    prompt = inputs.get("prompt") or _DEFAULT_REVIEW_PROMPT
+    prompt, profile_said = inputs.get("prompt"), None
+    if not prompt and inputs.get("lens"):
+        prompt, profile_said = _project_prompt(inputs["lens"], state.get("library_path", ""))
+    prompt = prompt or _DEFAULT_REVIEW_PROMPT
     if shows_segment_lines(prior_text):
         prompt = f"{prompt}\n\n{ANSWER_BY_ID}"
 
@@ -229,6 +252,8 @@ async def transcribe_review(
         # commentary-shaped so the run goes red.
         postprocess_text=sanitize_transcription,
     )
+    if profile_said:
+        result.setdefault("notes", []).append(profile_said)
     library_path = state.get("library_path", "")
     if library_path and result.get("artifacts"):
         import asyncio

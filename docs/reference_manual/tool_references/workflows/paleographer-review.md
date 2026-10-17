@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-Use this when: a document ALREADY has a transcription (from any Transcribe preset, any model) and you want a paleographer's review of it against the image. Three staged passes with extended thinking — abbreviations & formulary, orthography & consistency, final layer — all on the ONE model you pick at run time (transcribe with one model, review with another if you like). Writes the reviewed text as the document's content. Replaces the Ensemble preset.
+Use this when: a document ALREADY has a transcription (from any Transcribe preset, any model) and you want a paleographer's review of it against the image. Three staged passes with extended thinking — abbreviations & formulary, orthography & consistency, names, dates & the final check — all on the ONE model you pick at run time (transcribe with one model, review with another if you like). Writes the reviewed text as the document's content. Replaces the Ensemble preset.
 
 | | |
 | --- | --- |
@@ -27,7 +27,7 @@ Settings this step uses:
 | Option | Value |
 | --- | --- |
 | `language` | auto |
-| `prompt` | You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading. **This pass: abbreviations, contractions, and formulary.** - Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text. - Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written. - Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read. - Output the COMPLETE corrected transcription (same line breaks), nothing else. |
+| `lens` | abbreviations |
 | `thinking_mode` | long |
 | `update_page_content` | no |
 | `vision_mode` | llm |
@@ -35,13 +35,18 @@ Settings this step uses:
 What this step asks the model:
 
 ```text
-You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading.
+You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time: think through every hard line against the strokes before accepting or changing a reading. Change only what the strokes justify.
 
-**This pass: abbreviations, contractions, and formulary.**
-- Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text.
-- Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written.
-- Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read.
-- Output the COMPLETE corrected transcription (same line breaks), nothing else.
+This review makes no assumption about the language, the genre or the conventions of the documents: it reads the strokes, not what the words are expected to be.
+
+**This pass: abbreviations, contractions and formulary.**
+- Verify every expansion. Brackets belong ONLY around letters supplied by expansion; remove bracket noise around letters that are visible on the page.
+- Expand an abbreviation the draft left unexpanded only where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written.
+- Identify the document's genre and check the draft against the formula that genre usually follows. Where the draft breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...]; never insert formula text as if it were read.
+
+Rules for every pass: keep the writing as the scribe wrote it, in its own spelling, script, direction and diacritics; never modernise, translate or transliterate it. Brackets belong only around letters or signs supplied by expansion. Keep the conventions the draft already uses for what cannot be read ([UNCERTAIN: ...], [ILLEGIBLE], [deleted: ...]). Do not invent text that is not visibly present. If a line is already correct, return it unchanged.
+
+Output the COMPLETE corrected transcription (same line breaks), nothing else.
 ```
 
 ### 3. Reference Corpus Search
@@ -65,7 +70,7 @@ Settings this step uses:
 | Option | Value |
 | --- | --- |
 | `language` | auto |
-| `prompt` | You are a paleographer continuing the review of a transcription against its manuscript image. The previous pass's text is provided as context. Think carefully; change only what the strokes justify. **This pass: orthography, phonology, and consistency.** - Letter-shape audit for the period: u/v, i/j/y, b/v, ç/c/z, f-/h-, rr/ss, long-s/f, rn/m, c/e, u/n, t/l. Where the draft's spelling implies a stroke the image does not show, correct it. - Diphthongs and vowel groups: verify ie/ue/ei readings against minim count and ligature shape (quien/quyen, dies/diez class). - Word segmentation: period writing runs words together (dela, quel, desta, ques) — transcribe as written, but verify the split the draft chose matches the pen lifts. - CONSISTENCY: collect every personal name, place name, and date in the text (and in any provided reference material). The same person must read the same way throughout; a date must agree with the document's own docket or heading. Where readings conflict, correct to the better-attested form and mark the loser [UNCERTAIN: ...] — flag any conflict you cannot resolve. - Output the COMPLETE corrected transcription (same line breaks), nothing else. |
+| `lens` | orthography |
 | `thinking_mode` | long |
 | `update_page_content` | no |
 | `vision_mode` | llm |
@@ -73,14 +78,18 @@ Settings this step uses:
 What this step asks the model:
 
 ```text
-You are a paleographer continuing the review of a transcription against its manuscript image. The previous pass's text is provided as context. Think carefully; change only what the strokes justify.
+You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time: think through every hard line against the strokes before accepting or changing a reading. Change only what the strokes justify.
 
-**This pass: orthography, phonology, and consistency.**
-- Letter-shape audit for the period: u/v, i/j/y, b/v, ç/c/z, f-/h-, rr/ss, long-s/f, rn/m, c/e, u/n, t/l. Where the draft's spelling implies a stroke the image does not show, correct it.
-- Diphthongs and vowel groups: verify ie/ue/ei readings against minim count and ligature shape (quien/quyen, dies/diez class).
-- Word segmentation: period writing runs words together (dela, quel, desta, ques) — transcribe as written, but verify the split the draft chose matches the pen lifts.
-- CONSISTENCY: collect every personal name, place name, and date in the text (and in any provided reference material). The same person must read the same way throughout; a date must agree with the document's own docket or heading. Where readings conflict, correct to the better-attested form and mark the loser [UNCERTAIN: ...] — flag any conflict you cannot resolve.
-- Output the COMPLETE corrected transcription (same line breaks), nothing else.
+This review makes no assumption about the language, the genre or the conventions of the documents: it reads the strokes, not what the words are expected to be.
+
+**This pass: orthography and consistency.**
+- Letter-shape audit: where the draft's spelling implies a stroke the image does not show, correct it. Watch for letters of this script that look alike, and for ligatures read as two letters (or the reverse).
+- Word division: transcribe the words as the scribe divided them, but check the split the draft chose against the pen lifts and the gaps.
+- Consistency: the same word or name must be spelled the way the scribe spells it elsewhere on the page; where two readings conflict, keep the better-attested one and mark the other [UNCERTAIN: ...].
+
+Rules for every pass: keep the writing as the scribe wrote it, in its own spelling, script, direction and diacritics; never modernise, translate or transliterate it. Brackets belong only around letters or signs supplied by expansion. Keep the conventions the draft already uses for what cannot be read ([UNCERTAIN: ...], [ILLEGIBLE], [deleted: ...]). Do not invent text that is not visibly present. If a line is already correct, return it unchanged.
+
+Output the COMPLETE corrected transcription (same line breaks), nothing else.
 ```
 
 ### 5. Review 3 — Final Layer
@@ -92,7 +101,7 @@ Settings this step uses:
 | Option | Value |
 | --- | --- |
 | `language` | auto |
-| `prompt` | You are the final reviewing paleographer. The reviewed transcription is provided as context; the manuscript image is before you. **This pass: the final layer.** - Uncertainty audit: every [UNCERTAIN: ...] either resolves (the strokes decide) or stays with its best single reading inside the marker; every [ILLEGIBLE] is confirmed truly unreadable at this image's resolution. - Layout check: line breaks, marginalia positions [M.N.], insertions, [deleted: ...], [Rúbrica]/[Sello] placements match the page. - Bracket discipline final check: brackets only around expansion-supplied letters; no per-letter spray; no stop-after-every-word. - Output the FINAL complete transcription, nothing else. It becomes the document's text. |
+| `lens` | names-and-dates |
 | `thinking_mode` | medium |
 | `update_page_content` | yes |
 | `vision_mode` | llm |
@@ -100,11 +109,16 @@ Settings this step uses:
 What this step asks the model:
 
 ```text
-You are the final reviewing paleographer. The reviewed transcription is provided as context; the manuscript image is before you.
+You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time: think through every hard line against the strokes before accepting or changing a reading. Change only what the strokes justify.
 
-**This pass: the final layer.**
-- Uncertainty audit: every [UNCERTAIN: ...] either resolves (the strokes decide) or stays with its best single reading inside the marker; every [ILLEGIBLE] is confirmed truly unreadable at this image's resolution.
-- Layout check: line breaks, marginalia positions [M.N.], insertions, [deleted: ...], [Rúbrica]/[Sello] placements match the page.
-- Bracket discipline final check: brackets only around expansion-supplied letters; no per-letter spray; no stop-after-every-word.
-- Output the FINAL complete transcription, nothing else. It becomes the document's text.
+This review makes no assumption about the language, the genre or the conventions of the documents: it reads the strokes, not what the words are expected to be.
+
+**This pass: names, dates and the final check.**
+- Collect every personal name, place name and date on the page (and in any reference material provided). The same person must read the same way throughout; a date must agree with the document's own heading or docket. Mark what cannot be resolved [UNCERTAIN: ...].
+- Uncertainty audit: every [UNCERTAIN: ...] either resolves (the strokes decide) or stays with its best single reading; every [ILLEGIBLE] is confirmed truly unreadable at this resolution.
+- Layout check: line breaks, marginalia, insertions, deletions, signatures and seals are where the page has them.
+
+Rules for every pass: keep the writing as the scribe wrote it, in its own spelling, script, direction and diacritics; never modernise, translate or transliterate it. Brackets belong only around letters or signs supplied by expansion. Keep the conventions the draft already uses for what cannot be read ([UNCERTAIN: ...], [ILLEGIBLE], [deleted: ...]). Do not invent text that is not visibly present. If a line is already correct, return it unchanged.
+
+Output the COMPLETE corrected transcription (same line breaks), nothing else.
 ```
