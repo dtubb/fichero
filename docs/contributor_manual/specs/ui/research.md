@@ -305,7 +305,7 @@ Inspector content, not as a rival top-level surface.
 - `research.browser-pane-trust-boundary` — **[PARTIAL]** (implemented, unpinned; #4798)
   `ResearchBrowserPane`'s only library crossing is the audited `browser-save` action; no
   library/KG read tool is exposed to the embedded WebView (`ResearchBrowserPane.swift:6-13`).
-- `research.embedded-browser-home-surface` — **ANSWERED (creative-director ruling,
+- `research.embedded-browser-home-surface` — **[GAP]** (#4798) **ANSWERED (creative-director ruling,
   2026-09-18, third round, recorded in `modes-to-panes.md`'s Rulings): the embedded
   browser lives INSIDE the Source/Preview pane, no browser pane kind, no tab strip of its
   own.** This behavior id retires in favor of `modes-to-panes.md`'s three:
@@ -320,7 +320,7 @@ Inspector content, not as a rival top-level surface.
   not decided; pages being scratch is not the same claim as logins being scratch. See
   `modes-to-panes.md`'s `m2p.scratch-browsing-persists-nothing` note and #4810 for the
   options.
-- `research.compare-folds-into-chat` — **SUPERSEDED (creative-director ruling, 2026-09-18):**
+- `research.compare-folds-into-chat` — **[GAP]** (#4798) **SUPERSEDED (creative-director ruling, 2026-09-18):**
   this behavior described chat's Compare tab reusing `ModelComparisonView()` as Comparison's
   home. That design is retired: Comparison is now panes + a diff lens (a "run with A and B"
   action leaves two sibling artifacts shown in two Reader panes), never a chat tab, node, or

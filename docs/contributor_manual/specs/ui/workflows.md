@@ -296,7 +296,7 @@ refs), `run_comparison.py`/`model_comparison.py` (the Compare Models feature).
   scoreboard tracking quality/cost over time. ISSUE: #4344.
 - `workflows.run.cost-tracking-per-node` — **[GAP]** no per-node/per-workflow
   spend visibility. ISSUE: #4343.
-- `workflows.run.comparison-node` — **RESHAPED (creative-director ruling, 2026-09-18, same as
+- `workflows.run.comparison-node` — **[GAP]** (#4797) **RESHAPED (creative-director ruling, 2026-09-18, same as
   `research.md`'s `research.compare-folds-into-chat`):** the RESULT side of this design is
   retired — there is no persisted comparison node, view or window; a comparison's result is two
   sibling artifacts shown in two Reader panes with a diff lens. The PRODUCING side survives: a

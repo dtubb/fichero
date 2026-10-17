@@ -16,8 +16,8 @@
 `.author-and-guideline`, `.corrections-are-new`, `.equal-alternatives`,
 `.chosen-is-worked-out`, `.chosen-follows-project-rule`, `.machine-is-labelled`,
 `.maker-set-by-engine`, `.written-read-pair`, `.stretch-names-its-reading`,
-`.char-confidence-on-line`; `source.pass.working`, `source.pass.working-follows-project-rule`;
-`source.point.by-id-or-span`, `source.point.text-is-derived`. (`source.statement.*` is its own
+`.char-confidence-on-line`; `source.pass.working` **[OK]**, `source.pass.working-follows-project-rule`;
+`source.point.by-id-or-span`, `source.point.text-is-derived` **[OK]**. (`source.statement.*` is its own
 later step. Corrected 2026-09-20: slice 6 re-points nothing, it only reports. The lasting
 segment id lives in the anchor, `SourceAnchor.segment_id`, one shape for readings, marks,
 supports and claims; it is built HERE, under #4932, with `resolve_anchor`; see "Where a
@@ -390,7 +390,7 @@ conversion changes nothing a reader sees, so nobody is shown anything new.
 
 **Pins:** `source.lang.cascade`, `.says-where-from`, `.reading-overrides`, `.three-facts`,
 `.registries`, `.project-declared`, `.unknown-is-not-unexamined`, `.many-per-page`;
-`source.dir.per-segment`, `.logical-order-stored`; the engine half of
+`source.dir.per-segment` **[OK]**, `.logical-order-stored`; the engine half of
 `source.resolve.one-cascade`. (`source.dir.reader-lays-out` is app work, after the editor.)
 
 **What exists.** `llm/language_policy.py` resolves **one document's language**:
@@ -481,7 +481,7 @@ one); a direction outside the list; setting a value on a `legacy:` segment.
 - `source.dir.per-segment`: `rtl` on a region is inherited by its lines; `alternating` set on a
   region is reported for each line; with nothing set, `Arab` gives `rtl` at level
   `derived-from-script`.
-- `source.dir.logical-order-stored`: a reading with Arabic and digits is stored and returned
+- `source.dir.logical-order-stored` **[OK]**: a reading with Arabic and digits is stored and returned
   byte for byte in reading order.
 - Equal answers with `resolve_language` on an old library, in all four policy modes.
 
@@ -643,8 +643,8 @@ one idea, already built, already read by four levels.
 
 ## Slice 10 — named reading orders, flows, and the one typed-link record (#4930, #4931)
 
-**Pins:** `source.order.named-multiple`, `source.order.next-previous`, `source.segment.flow`;
-`source.link.typed`, `source.link.any-depth`, `source.link.both-ways`. (`source.canvas.*` is app
+**Pins:** `source.order.named-multiple` **[OK]**, `source.order.next-previous` **[OK]**, `source.segment.flow` **[OK]**;
+`source.link.typed` **[OK]**, `source.link.any-depth` **[GAP]** (#4930), `source.link.both-ways` **[OK]**. (`source.canvas.*` is app
 work and waits for the canvas's own spec, → #3085.)
 
 ### Reading orders
