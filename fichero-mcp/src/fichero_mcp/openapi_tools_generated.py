@@ -5106,6 +5106,14 @@ def fichero_machines_pair(
     return _rt.call("POST", "/api/machines/pair", json=_rt.body({"address": address, "code": code}))
 
 
+def fichero_machines_forget(
+    *,
+    machine_id: Annotated[str, Field(description='Machine Id')],
+) -> Any:
+    "Forget a paired machine: remove its saved token on this Mac\n\nOwner only. Removes this Mac's saved token; the device stays listed on the far Mac until it revokes it.\n\nRoute: DELETE /api/machines/{machine_id} (toolset `machines`; changes data, as the agent account when one exists)."
+    return _rt.call("DELETE", f"/api/machines/{machine_id}")
+
+
 def fichero_mcp_servers_list(
 ) -> Any:
     'List Mcp Servers\n\nList all MCP servers.\n\nRoute: GET /api/mcp-servers (toolset `mcp-servers`; reads).'
@@ -9348,6 +9356,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_locations_resolve", "locations", "POST", "/api/locations/resolve", fichero_locations_resolve),
     GeneratedTool("fichero_machines_list", "machines", "GET", "/api/machines", fichero_machines_list),
     GeneratedTool("fichero_machines_pair", "machines", "POST", "/api/machines/pair", fichero_machines_pair),
+    GeneratedTool("fichero_machines_forget", "machines", "DELETE", "/api/machines/{machine_id}", fichero_machines_forget),
     GeneratedTool("fichero_mcp_servers_list", "mcp-servers", "GET", "/api/mcp-servers", fichero_mcp_servers_list),
     GeneratedTool("fichero_mcp_servers_create", "mcp-servers", "POST", "/api/mcp-servers", fichero_mcp_servers_create),
     GeneratedTool("fichero_mcp_servers_get_all_tools", "mcp-servers", "GET", "/api/mcp-servers/tools/all", fichero_mcp_servers_get_all_tools),

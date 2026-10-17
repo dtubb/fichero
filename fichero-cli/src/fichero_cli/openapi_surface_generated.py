@@ -10762,6 +10762,22 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("forget-a-paired-remove-its-saved-token-on-this-mac", hidden=True)
+    @target_app.command("forget")
+    def machines_forget_delete(
+        ctx: typer.Context,
+        machine_id: str = typer.Argument(..., help='Machine Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Forget a paired machine: remove its saved token on this Mac (DELETE /api/machines/{machine_id})."""
+        if not yes:
+            typer.confirm("Delete machines?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/machines/{machine_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('mcp')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp endpoints.', no_args_is_help=True)
