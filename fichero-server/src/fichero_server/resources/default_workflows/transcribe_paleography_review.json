@@ -13,7 +13,7 @@
   "artifact"
  ],
  "config": {
-  "preset_version": 2,
+  "preset_version": 3,
   "variant_group": "paleographer-review",
   "variant": "review"
  },
@@ -80,7 +80,7 @@
    "config": {
     "vision_mode": "llm",
     "language": "auto",
-    "update_page_content": true,
+    "update_page_content": false,
     "thinking_mode": "medium",
     "lens": "names-and-dates"
    }

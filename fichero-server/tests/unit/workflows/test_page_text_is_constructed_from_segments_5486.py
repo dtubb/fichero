@@ -36,3 +36,19 @@ def test_the_correcting_step_does_not_write_the_page_text_by_default():
     import fichero_server.workflows.tools.transcribe_review  # noqa: F401  (registers the tool)
 
     assert TOOL_DEFS["transcribe_review"].config_defaults["update_page_content"] is False
+
+
+def test_no_shipped_review_node_writes_the_page_text():
+    """source.model.page-text-is-constructed-from-the-segments: the shipped workflows' correcting nodes (the recipe's
+    `correct` job runs Paleographer Review's r3) write readings onto lines, never the page text; the tool's default alone
+    does not decide it when a preset sets the option itself."""
+    import json
+
+    from fichero_server.workflows.default_workflows import _PRESETS_DIR
+
+    wrote = []
+    for path in sorted(_PRESETS_DIR.glob("*.json")):
+        for node in json.loads(path.read_text(encoding="utf-8")).get("nodes", []):
+            if node.get("tool") == "transcribe_review" and (node.get("config") or {}).get("update_page_content", False):
+                wrote.append(f"{path.name}:{node['id']}")
+    assert wrote == [], wrote
