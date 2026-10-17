@@ -141,12 +141,14 @@ final class PairingService {
         }
     }
 
-    /// This Mac's `.ts.net` address when Tailscale is running, else nil (#5318).
-    func detectedTailnetURL() async throws -> String? {
-        let response = try await client.api.detectedTailnetApiPairTailnetGet(.init())
+    /// Sharing state from the engine: the detected `.ts.net` address and, when the engine cannot
+    /// make the tailnet forward itself (sandbox), the one command to paste (#5318, #5317).
+    func sharingState() async throws -> SharingStateRecord {
+        let response = try await client.api.sharingStateApiPairSharingGet(.init())
         switch response {
         case .ok(let okResponse):
-            return try okResponse.body.json.tailnetUrl
+            let body = try okResponse.body.json
+            return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand)
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -292,4 +294,9 @@ struct ConnectedClientRecord: Identifiable, Equatable {
     let lastSeen: String
     let requests: Int
     let transport: String
+}
+
+struct SharingStateRecord: Equatable {
+    let tailnetURL: String?
+    let tailnetServeCommand: String?
 }
