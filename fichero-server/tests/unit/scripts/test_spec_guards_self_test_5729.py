@@ -37,3 +37,9 @@ def test_the_spec_test_linkage_guard_proves_it_can_fail_and_pass():
     test citing a missing spec both fail, a cited approved spec passes."""
     done = _run("check_specs_have_tests.py", "--self-test")
     assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
+
+
+def test_the_milestone_guard_proves_it_can_fail_and_pass():
+    """#5729: `check_spec_milestones --self-test`: an APPROVED spec with no Milestone header fails, one that declares it passes."""
+    done = _run("check_spec_milestones.py", "--self-test")
+    assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
