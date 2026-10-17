@@ -355,7 +355,12 @@ async def extract_entities_only(
     records = _iter_records(documents, db, left_out)
     first_record = next(records, None)
     if first_record is None:
+        shown = "; ".join(f"{e['name'] or e['document_id']} ({e['why']})" for e in left_out[:3])
+        more = f"; and {len(left_out) - 3} more" if len(left_out) > 3 else ""
         return {
+            # A run that read nothing fails, saying why: "completed" over 0 pages read as success (#5521).
+            "error": (f"no names found: none of the {len(documents)} selected pages has a reading to find them in: "
+                      f"{shown}{more}" if documents else "no names found: no page was selected"),
             "summary": {
                 "documents_processed": 0,
                 "entity_mentions_processed": 0,

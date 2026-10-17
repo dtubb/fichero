@@ -2421,6 +2421,15 @@ Jobs and chains
   across scripts and spellings (Popayán, Popaian; 北京, Beijing), and the review is given every variant of an entity it
   may meet. *Test:* a stub reviewer given "Popayán"
   in the list and a reading "Popaian" returns the list's spelling for that line.
+- `source.job.names-step-fails-on-nothing-read` — **[OK]** (#5521) a names run that processes no page does not complete:
+  the step fails, saying why: with no page selected the files source refuses ("would process nothing"), and when none of the N
+  selected pages has a reading the step's error says so, naming the first few with the reason each is left out. A run that reads at least one page and leaves others out still completes and names
+  them (`left_out`, #5691). WHY: a spaCy names workflow and the "NER per-page (local)" workflow both ended "completed"
+  over 0 pages with no error, which read as success. Tests: `tests/unit/workflows/test_names_step_fails_on_nothing_5521.py`
+  (`test_a_names_run_over_pages_with_no_reading_fails_and_says_why_5521`,
+  `test_a_names_run_over_no_page_fails_and_says_so_5521`, `test_a_page_left_out_beside_a_page_read_still_completes_5521`).
+  Owed from #5521: a spaCy pipeline for a language none ships (Latin, Greek), and the installed pipelines counted by the
+  recipe's finder (#5519, #5688 compares the ones installed here).
 - `source.recipe.workflow-gaps` — **[PARTIAL]** (#5726) done: `classify_script` is a shipped workflow of its own, Classify Script (a files source and the classify step, nothing else), so a person or a recipe can classify a page's script without running Transcribe (Auto-Detect) (`tests/unit/workflows/test_classify_script_workflow_5726.py`, `test_classify_script_is_a_workflow_of_its_own_5726`). Owed: the other three, and a recipe job for the classify step. Surveyed 2026-10-16 against 60 default workflows: a page read by
   a model that answers by segment id (`transcribe_htr` and `transcribe_cloud` are page text; `read_lines_kraken_vision`
   is per line); a review for each language the read presets cover; `classify_script`, which exists only inside

@@ -189,11 +189,12 @@ class TestFailedExtractionIsNotSuccess:
             "a failed extraction must not invent entity rows"
         )
 
-    def test_documents_without_text_report_zero_processed(
+    def test_documents_without_text_fail_the_run_and_say_why(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
-        """No text is a real outcome, and must be reported as zero — not as
-        a successful extraction of nothing."""
+        """No text is a real outcome, and must not be a successful extraction of
+        nothing: the run over pages with none fails, naming why (#5521; it once
+        completed with a summary of zero, which read as success)."""
         calls: list[str] = []
 
         async def record_call(**kwargs):
@@ -205,24 +206,13 @@ class TestFailedExtractionIsNotSuccess:
         db = db_manager.get_database(library_path)
         before_entities = len(db.all(KnowledgeEntity))
 
-        workflow, final_state = _run_stage_2(
-            library_path, folder_id, "ner-empty-run-1"
-        )
-        node_id = next(
-            node.id for node in workflow.nodes if node.tool == "extract_entities_only"
-        )
-        summary = ((final_state.get("outputs") or {}).get(node_id) or {}).get(
-            "summary"
-        ) or {}
+        with pytest.raises(Exception, match="has a reading to find them in"):
+            _run_stage_2(library_path, folder_id, "ner-empty-run-1")
 
         assert calls == [], (
             "extraction called the model on documents with no text — "
             f"prompts: {calls!r}"
         )
-        assert summary.get("documents_processed") == 0, (
-            f"no-text documents reported as processed: {summary}"
-        )
-        assert summary.get("entities_created", 0) == 0
         assert len(db.all(KnowledgeEntity)) == before_entities
 
 
