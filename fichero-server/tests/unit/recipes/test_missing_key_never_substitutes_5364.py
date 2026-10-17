@@ -30,3 +30,26 @@ def test_a_cloud_step_with_its_key_is_planned(monkeypatch):
     plan = plan_start(_recipe(LINES, READ, CLOUD_CORRECT), stays_local=False)
 
     assert not [s for s in plan["skipped"] if s["step"] == "correct"], plan["skipped"]
+
+
+def _keys(monkeypatch, key):
+    """The real lookup (provider info, then `get_api_key`) with only the keychain-and-environment read stubbed."""
+    from fichero_server import llm
+
+    llm.clear_api_key_cache()
+    monkeypatch.setattr(llm, "_read_api_key_uncached", lambda provider: key)
+    return llm
+
+
+def test_the_real_lookup_names_the_provider_of_a_cloud_pin_with_no_key(monkeypatch):
+    """source.recipe.missing-key-never-substitutes: through the provider table, not a stub of `provider_without_key`."""
+    llm = _keys(monkeypatch, None)
+    try:
+        assert start.provider_without_key(CLOUD_CORRECT) == "OpenAI"
+        _keys(monkeypatch, "sk-test")
+        assert start.provider_without_key(CLOUD_CORRECT) is None, "a configured key lets the step run"
+        _keys(monkeypatch, None)
+        assert start.provider_without_key(LINES) is None, "a local pin needs no key"
+        assert start.provider_without_key({**CLOUD_CORRECT, "model": {"cloud": "no-such-provider", "model": "x"}}) is None
+    finally:
+        llm.clear_api_key_cache()
