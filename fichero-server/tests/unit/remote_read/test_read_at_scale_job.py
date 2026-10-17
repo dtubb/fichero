@@ -395,3 +395,24 @@ def test_catch_up_skips_the_wait_once_and_brings_a_dropped_run_back(db, archive)
     assert plain_sleeps and len(slept) == len(plain_sleeps) - 1
     db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [plain_id])
     assert read_job.catch_up(db, plain_id) == "waiting"
+
+
+def test_catch_up_never_brings_back_a_finished_run_and_a_parent_must_be_a_real_step(db, archive, tmp_path):
+    """WHY (review 53): through a route, the CLI or MCP a finished run could be resent and billed again; and a made-up
+    parent would hang the run under nothing."""
+    import pytest
+
+    job_id, _subject = _start(db, archive)
+    for state in ("completed", "cancelled", "failed"):  # failed with no shard still out: nothing to catch up with
+        db.execute("UPDATE jobs SET state = ? WHERE id = ?", [state, job_id])
+        with pytest.raises(ValueError, match="nothing to catch up"):
+            read_job.catch_up(db, job_id)
+    detail = {"request": {}, "shards": {"0": {"state": "submitted", "far_id": "9_0"}}}
+    db.execute("UPDATE jobs SET state = 'failed', detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+    assert read_job.catch_up(db, job_id) == "waiting"  # failed with a shard still out: carries on
+
+    request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
+                                 pages_may_leave=True, parent_job_id="no-such-job")
+    with pytest.raises(ValueError, match="parent"):
+        read_job.start(db, request, started_by="owner", target_factory=FakeHub)
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ? AND parent_id = 'no-such-job'", [read_job.KIND])[0] == 0

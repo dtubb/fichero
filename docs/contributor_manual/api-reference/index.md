@@ -220,7 +220,7 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
 
 - Look at the far side now, after the Mac slept: a live run skips its next wait once; a run the scheduler dropped
   (paused or failed with shards still out) is queued again and carries on from its recorded shards. Answers
-  `{job_id, state}`; 404 for an unknown run. `GET /api/reading-at-scale/jobs/{job_id}` now also answers the
+  `{job_id, state}`; 404 for an unknown run; 409 for a run that has ended (completed, cancelled, or failed with no shard still out): a finished run is never resent. `parent_job_id` on a start must be an existing run or step job (422 otherwise). `GET /api/reading-at-scale/jobs/{job_id}` now also answers the
   run's `target`, `far_state`, `shards_done`/`shards_total`, `pages_landed`, each shard, `estimate` and `actual`; a
   run in `GET /api/activity/jobs` carries a `remote` summary and its `parent_id` (the step that sent it).
 
