@@ -7578,6 +7578,30 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("make-cluster-key")
+    def hpc_make_cluster_key_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Make Cluster Key (POST /api/hpc/clusters/{cluster_id}/key/make)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key/make"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-cluster-public-key")
+    def hpc_get_cluster_public_key_get(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Get Cluster Public Key (GET /api/hpc/clusters/{cluster_id}/key/public)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key/public"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("sign-in")
     def hpc_sign_in_post(
         ctx: typer.Context,
