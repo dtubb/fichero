@@ -252,6 +252,10 @@ class PassRead(BaseModel):
     #: working pass when it has shapes, else the next pass in the working-pass ranking that has them
     #: (`resolve_drawn_pass`). Exactly one pass is drawn when any has shapes; none when none has.
     drawn: bool = False
+    #: True on the WORKING pass when it has no shape to draw and another pass is drawn in its stead
+    #: (#4955, `source.pass.nothing-drawable-never-covers`): the app says the chosen result had no usable shapes.
+    #: False on a text-only page, where nothing is drawn at all.
+    shapeless: bool = False
     #: This pass's place in the working-pass ranking (`rank_passes`), 0 for the working pass; None
     #: for a pass the ranking does not hold (a georeferencing pass, which is never the page's text).
     rank: int | None = None

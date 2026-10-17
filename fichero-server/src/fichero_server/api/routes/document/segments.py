@@ -778,6 +778,7 @@ def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segmen
     for pass_read in passes:
         pass_read.rank = place.get(pass_read.id)
         pass_read.drawn = pass_read.id == drawn_id
+        pass_read.shapeless = drawn_id is not None and place.get(pass_read.id) == 0 and pass_read.id != drawn_id
         if pass_read.rank == 0:
             pass_read.working = True
             pass_read.working_basis = ranked[0].basis.value
