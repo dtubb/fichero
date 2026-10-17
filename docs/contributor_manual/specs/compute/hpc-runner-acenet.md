@@ -167,6 +167,7 @@ vLLM offline inference, `resume_from_checkpoint` with `--requeue` for training, 
 - `compute.hpc.test-connection` — **[GAP]** (#5642) checks the folder, Apptainer, the allocation and the GPU driver against the image's CUDA, and stages the image.
 - `compute.hpc.plan-before-send` — **[GAP]** (#5642) pages, model, GPUs, GPU hours and that pages leave the Mac, shown and agreed before anything is sent.
 - `compute.hpc.stage-as-shards` — **[GAP]** (#5642) pages travel as tar shards; tasks unpack to `$SLURM_TMPDIR`; nothing stays in `/scratch`.
+- `compute.hpc.sbatch-fits-the-site` — **[OK]** (#5457) the script names the allocation, a typed GPU (`--gres=gpu:h100:1`), `--signal=B:USR1@120` and `--requeue`, sets `HF_HUB_OFFLINE=1` (compute nodes are offline), and names a partition only when the person gave one. Test: `fichero-server/tests/unit/remote_read/test_read_on_slurm.py`.
 - `compute.hpc.submit-array` — **[GAP]** (#5642) one Slurm job per recipe step, each a throttled array with the allocation and the walltime signal; large models read by vLLM offline batch inference inside the task, no server.
 - `compute.hpc.nothing-heavy-on-a-login-node` — **[BROKEN]** (#5642; `remote_read/slurm.py:63-69` prefetches IIIF pages on the login node) no image build, page fetch or weight copy runs on a login node; the image comes from CI by pull, pages and weights by Globus or a data-transfer node.
 - `compute.hpc.batches-fit-the-walltime` — **[GAP]** (#5642) a batch is sized from measured pages per second to finish inside the site profile's shorter walltime class.

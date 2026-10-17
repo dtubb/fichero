@@ -103,7 +103,7 @@ class HpcClusterCreate(BaseModel):
     host_alias: str
     username: str
     remote_base_dir: str
-    partition: str = "default"
+    partition: str = ""
     account: Optional[str] = None
     ssh_port: int = 22
     #: Omit to create; pass an existing id to update that cluster in place.
