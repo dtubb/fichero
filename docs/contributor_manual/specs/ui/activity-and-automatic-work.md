@@ -1450,9 +1450,9 @@ code path.
 - `activity.run.resume-once` — **[OK]** (#5373) resuming a run that is already running is
   refused with 409, so two clicks never start two workers on one checkpoint thread; pinned by
   `fichero-server/tests/unit/workflows/test_resume_once_5373.py`.
-- `activity.run.resume-default-workflow` — **[BROKEN]** (#5373) a paused run of a shipped default
-  workflow resumes. Today resume loads the workflow from the store only, with no default fallback,
-  and answers 404 (`core.py:452-570`; compare `/execute` at `core.py:311-318`).
+- `activity.run.resume-default-workflow` — **[OK]** (#5373) a paused run of a shipped default
+  workflow resumes: resume finds the workflow as `/execute` does, falling back to the default; pinned by
+  `fichero-server/tests/unit/workflows/test_resume_default_workflow_5373.py`.
 - `activity.run.resume-from-snapshot` — **[BROKEN]** (#5373) a run resumes on the graph it started
   with, built from its own snapshot. Today resume rebuilds the graph from the current definition,
   so an edit made while paused changes the graph under the checkpoint.

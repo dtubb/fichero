@@ -484,6 +484,11 @@ async def resume_workflow(
         # Load workflow to rebuild graph
         store = WorkflowStore(db)
         workflow = store.get(workflow_id) if workflow_id != "unknown" else None
+        if not workflow and workflow_id != "unknown":
+            # A shipped default lives in the global library, as /execute finds it (#5373).
+            from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
+
+            workflow = resolve_default_workflow(workflow_id)
 
         if not workflow:
             raise HTTPException(

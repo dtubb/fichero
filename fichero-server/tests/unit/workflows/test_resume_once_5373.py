@@ -15,21 +15,25 @@ async def _asks(*args, **kwargs):
     return {"answer": interrupt({"kind": "human_review", "question": "Which grouping?"})}
 
 
-def test_a_second_resume_of_a_running_run_is_refused(client, db, request):
+def _paused_run(client, db, request, wf_id):
     from fichero_server.workflows import registry, validation
 
     registry._ensure_tools_loaded()
     register_tool(name="asks", display_name="Asks", input_ports=[], output_ports=[])(_asks)
     request.addfinalizer(lambda: (registry._TOOLS.pop("asks", None), registry._TOOL_DEFS.pop("asks", None)))
-    validation_stub = lambda *a, **k: []  # noqa: E731
     original = validation.validate_workflow_llm_preflight
-    validation.validate_workflow_llm_preflight = validation_stub
+    validation.validate_workflow_llm_preflight = lambda *a, **k: []
     request.addfinalizer(lambda: setattr(validation, "validate_workflow_llm_preflight", original))
-    db.save(Workflow(id="wf-resume-once", name="Resume once", nodes=[
-        {"id": "ask", "tool": "asks", "label": "Ask", "inputs": {}, "config": {}}], edges=[]))
-    thread_id = client.post("/api/workflow-execution/execute", json={"workflow_id": "wf-resume-once", "skip_cache": True}).json()["thread_id"]
+    workflow = Workflow(id=wf_id, name="Resume", nodes=[
+        {"id": "ask", "tool": "asks", "label": "Ask", "inputs": {}, "config": {}}], edges=[])
+    db.save(workflow)
+    thread_id = client.post("/api/workflow-execution/execute", json={"workflow_id": wf_id, "skip_cache": True}).json()["thread_id"]
     assert _wait_for(lambda: _status(client, thread_id) == "paused")
+    return thread_id, workflow
 
+
+def test_a_second_resume_of_a_running_run_is_refused(client, db, request):
+    thread_id, _ = _paused_run(client, db, request, "wf-resume-once")
     runner._running_workflows[thread_id]["status"] = "running"  # a first resume is under way
     r = client.post(f"/api/workflow-execution/threads/{thread_id}/resume", json={"answer": "split"})
 
