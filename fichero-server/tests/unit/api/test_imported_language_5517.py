@@ -97,3 +97,19 @@ def test_a_line_that_says_nothing_resolves_to_set_ups_script_and_its_direction(c
     assert facts["script"]["value"] == "Syrc", facts["script"]
     assert facts["direction"]["value"] == "rtl", facts["direction"]
     assert facts["script"]["level"] == "project" and facts["direction"]["level"] == "project", facts
+
+
+def test_a_page_with_no_language_resolves_to_set_ups_language_5756(client, db, tmp_path):
+    """"Its one language (as its name) … at the project's level": Set Up said Spanish, so a page and a line that
+    state nothing resolve Spanish from the project, never `never_determined` (#5756)."""
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["print"]}
+    recipe = client.post("/api/recipes/assemble", json={**answers, "mac_memory_gb": 32}).json()
+    assert client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe}).status_code == 200
+    doc = _page(db, tmp_path)
+    _import(client, doc, ALTO, "a.alto.xml")
+    line = _lines(db, doc)["l3"]
+
+    for params in ({"segment_id": line.id}, {"document_id": doc.id}):
+        facts = {s["key"]: s for s in client.get("/api/source-settings/resolve", params=params).json()["settings"]}
+        assert facts["language"]["value"] == "Spanish", facts["language"]
+        assert facts["language"]["level"] == "project", facts["language"]
