@@ -224,7 +224,7 @@ Settings this step uses:
 | `language` | auto |
 | `prompt` | You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading. **This pass: abbreviations, contractions, and formulary.** - Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text. - Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written. - Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read. - Output the COMPLETE corrected transcription (same line breaks), nothing else. Then apply, in the same pass: orthography and letter-shape audit for the period, and name/date consistency — flag conflicts, never silently choose. |
 | `thinking_mode` | medium |
-| `update_page_content` | yes |
+| `update_page_content` | no |
 | `vision_mode` | llm |
 
 What this step asks the model:
@@ -314,7 +314,7 @@ Settings this step uses:
 | `language` | auto |
 | `prompt` | You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading. **This pass: abbreviations, contractions, and formulary.** - Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text. - Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written. - Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read. - Output the COMPLETE corrected transcription (same line breaks), nothing else. Then apply, in the same pass: orthography and letter-shape audit for the period, and name/date consistency — flag conflicts, never silently choose. |
 | `thinking_mode` | long |
-| `update_page_content` | yes |
+| `update_page_content` | no |
 | `vision_mode` | llm |
 
 What this step asks the model:
