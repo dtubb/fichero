@@ -391,6 +391,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/kreuzberg_artifacts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/kreuzberg_cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/pdf_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/rtf_text.py
+$(SRCROOT)/../fichero-server/src/fichero_server/loaders/transcript_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/unified.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
