@@ -421,9 +421,13 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.call-records-the-card` — **[GAP]** (#4948) every call records on its page job, and on
   what it made, the card id that answered (with the macOS build for Apple, the dated id for a cloud
   alias).
-- `runtime.errors-are-typed` — **[GAP]** (#5353, #5367) a runtime failure reaches the job as its
+- `runtime.errors-are-typed` — **[PARTIAL]** (#5353, #5367) a runtime failure reaches the job as its
   typed kind (memory, unavailable in this build, needs a key, egress refused, quota, model missing),
-  from the exception the runtime raised; the runner stops matching message text.
+  from the exception the runtime raised; the runner stops matching message text. Built: the runner's
+  `_classify_provider_error(text, exc)` decides by the exception's type first (`_typed_failure`: quota, egress refused,
+  memory, model missing, unavailable in this build), message words only for an exception with no type; its test
+  `fichero-server/tests/unit/workflows/test_errors_are_typed_5353.py` is written, green NOT yet seen (no pytest during
+  gate3). Still a gap: "needs a key" has no exception type of its own yet, and the other call sites pass text only.
 
 ### E. Honest status
 
