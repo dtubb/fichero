@@ -360,10 +360,11 @@ very engine spawn those tests exist to exercise.
 
 ### F. Distribution and bundle hygiene (P3, not urgent)
 
-- `engine.dmg-mas-byte-identical-guard` — **[GAP]** (#3982) both app targets stage from the
-  same bundle path today (structurally sound per the issue's own read), but no automated parity
-  guard exists to keep a future config change from silently shipping two different engines; not
-  built.
+- `engine.dmg-mas-byte-identical-guard` — **[OK]** (#3982) DMG and App Store are configurations of
+  one `Fichero` target sharing one "Embed Fichero Server" phase with one unconditional source path;
+  a second phase, a second source, or a branch on the channel fails the guard. Pinned:
+  `fichero-server/tests/unit/scripts/test_embed_phase_one_engine_for_dmg_and_mas_3982.py`. The
+  sandbox-path half of the issue (MAS container HOME) is not covered here.
 - `engine.bundle-trim-litellm` — **[GAP]** (#3929) `litellm` (+ the AWS SDK it drags in via
   `botocore`, ~84 MB) remains a full dependency though project policy says LLM calls route
   through langchain providers and litellm is used for pricing-lookup ONLY; not vendored down or
