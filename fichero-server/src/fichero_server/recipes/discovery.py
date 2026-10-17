@@ -857,7 +857,7 @@ def remote_compute(*, price: bool = True) -> dict[str, Any]:
         try:
             out["price_per_hour_usd"] = target.price_per_hour(out["flavor"])
         except Exception as exc:  # noqa: BLE001 -- unreachable or unlisted: the price is unknown, the model still offered
-            logger.info("the price of %s on Hugging Face Jobs could not be read: %s", out["flavor"], exc)
+            out["why"] = f"the price could not be read: {exc}"
     return out
 
 
