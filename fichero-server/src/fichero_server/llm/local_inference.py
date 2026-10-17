@@ -13,11 +13,8 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from contextvars import ContextVar
-from functools import lru_cache
 import logging
 import os
-import platform
-import subprocess
 import time
 from datetime import UTC, datetime
 from enum import Enum
@@ -345,7 +342,8 @@ async def wait_for_memory_to_load(
         try:
             check(spec)
             return
-        except MemoryShortError as exc:
+        except MemoryShortError as short:
+            exc = short
             freed = release()
             if freed:
                 logger.info("Released %s to load %s", ", ".join(freed), spec.display_name)

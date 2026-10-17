@@ -3359,7 +3359,6 @@ def restore_documents_impl(
 #   * document.batch_exclude   -> document.restore (before snapshots)
 #   * document.delete          -> document.restore (doc + artifact snapshots)
 
-from fichero_server.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
 
 
 class DocumentUpdateActionParams(BaseModel):

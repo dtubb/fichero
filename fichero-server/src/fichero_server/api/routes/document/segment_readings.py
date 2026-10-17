@@ -1863,7 +1863,7 @@ def document_text(
         [d for _r, d, _l, _s in span_directions], span_neutral,
         [r for r, _d, _l, _s in span_directions], [sp.end - sp.start for _r, _d, _l, sp in span_directions],
     )
-    span_directions = [(r, d, l, sp) for (r, _d, l, sp), d in zip(span_directions, settled)]
+    span_directions = [(r, d, line, sp) for (r, _d, line, sp), d in zip(span_directions, settled)]
     blocks: list[TextBlock] = []
     for region_id, direction, direction_level, span in span_directions:
         non_orientable = direction in _NON_ORIENTABLE
