@@ -168,6 +168,30 @@ struct MobileCaptureUploadSummary: Equatable {
 }
 
 enum MobileCaptureQueueRouting {
+    /// Whether two engine host strings name the same host: scheme and host compare case-insensitively, a trailing
+    /// dot on the host and trailing slashes on the path do not count (#3281). An exact string compare would hold
+    /// an item for "https://Mac.local./" forever when the current host reads "https://mac.local".
+    static func sameHost(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs, let rhs else { return lhs == nil && rhs == nil }
+        return normalisedHost(lhs) == normalisedHost(rhs)
+    }
+
+    static func normalisedHost(_ raw: String) -> String {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        func stripped(_ value: String, _ mark: Character) -> String {
+            var out = value
+            while out.last == mark { out.removeLast() }
+            return out
+        }
+        guard var parts = URLComponents(string: text), let host = parts.host else {
+            return stripped(stripped(text.lowercased(), "/"), ".")
+        }
+        parts.scheme = parts.scheme?.lowercased()
+        parts.host = stripped(host.lowercased(), ".")
+        parts.path = stripped(parts.path, "/")
+        return parts.string ?? text.lowercased()
+    }
+
     static func canResumeUploads(
         backendHost: URL?,
         hasPairedLibraryPath: Bool = RemoteAccessConfig.hasPairedLibraryPath

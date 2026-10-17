@@ -27,7 +27,8 @@ extension MobileCaptureQueueStore {
         let retryableIndices = items.indices.filter { index in
             // An item aimed at a different host waits for that host; it is never
             // uploaded to whichever host happens to be current (#3281).
-            if let target = items[index].targetHost, target != uploader.backendHost?.absoluteString {
+            if let target = items[index].targetHost,
+               !MobileCaptureQueueRouting.sameHost(target, uploader.backendHost?.absoluteString) {
                 return false
             }
             switch items[index].uploadState {
