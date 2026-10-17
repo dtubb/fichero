@@ -9,7 +9,6 @@ struct MacRemoteClientPairingSection: View {
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var clientInvite = ""
-    @State private var expectedHostName = ""
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
     @State private var showingManualInvite = false
@@ -36,13 +35,15 @@ struct MacRemoteClientPairingSection: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    TextField("Host Mac name (optional, e.g. studio.local)", text: $expectedHostName)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-
                     TextField("Invite link or QR text", text: $clientInvite, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
+
+                    if let host = inviteHost {
+                        Text("Connects to \(host)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     HStack {
                         Button("Paste Link") {
@@ -87,6 +88,12 @@ struct MacRemoteClientPairingSection: View {
         }
     }
 
+    /// The host the pasted invite points at, shown read-only so the person sees where they are about to connect.
+    private var inviteHost: String? {
+        (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))
+            .flatMap { URL(string: $0.remoteURL)?.host }
+    }
+
     private func pasteInviteFromClipboard() {
         if let pasted = PlatformPasteboard.string() {
             clientInvite = pasted
@@ -102,9 +109,6 @@ struct MacRemoteClientPairingSection: View {
         let previousHost = engineHost
         do {
             let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
-            guard HostChoices.typedNameMatches(expectedHostName, inviteURL: pairingFields.remoteURL) else {
-                throw APIError.badRequest("This link points at a different Mac than \(expectedHostName). Ask that Mac for its link.")
-            }
             let result = try await RemoteClientPairing.pairDevice(
                 remoteURL: pairingFields.remoteURL,
                 pairCode: pairingFields.pairCode,
