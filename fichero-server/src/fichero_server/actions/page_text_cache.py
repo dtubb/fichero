@@ -383,6 +383,9 @@ def refresh_in_transaction(db: Any, spec: Any, action_name: str = "", params: An
 
 #: The job kind, named as the recipe job registry names it (`recipes/jobs.py`).
 REEMBED_KIND = "make-a-vector"
+#: The quiet period before a page's re-embed runs; each new correction pushes it later
+#: (`activity.derived.coalesced`, #5360), as the sync folder and kept export do.
+QUIET_SECONDS = 5.0
 
 
 def queue_reembed(db: Any, document_ids: list[str]) -> None:
@@ -396,8 +399,13 @@ def queue_reembed(db: Any, document_ids: list[str]) -> None:
     obeys the global pause, and survives quit (it used to be a daemon thread, lost on quit)."""
     from fichero_server.execution import jobs
 
+    from datetime import timedelta
+
+    from fichero_server.core.timeutil import utc_now
+
+    after = utc_now() + timedelta(seconds=QUIET_SECONDS)
     for document_id in document_ids:
-        jobs.enqueue(db, REEMBED_KIND, document_id, started_by="correction")
+        jobs.enqueue(db, REEMBED_KIND, document_id, started_by="correction", run_after=after)
     queue_reread_names(db, document_ids)
 
 

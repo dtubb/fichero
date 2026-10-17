@@ -723,7 +723,7 @@ workflow by hand: a hand run is a job like any other.
   `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`). Not yet seen in the
   app. Still a gap: greenhouse gas (`activity.ghg.estimate-with-its-basis`), and images run and
   steps run as counted measures of their own.
-- `activity.ghg.estimate-with-its-basis` — **[GAP]** (#5420) each run, step and page carries its
+- `activity.ghg.estimate-with-its-basis` — **[PARTIAL]** (#5420) Built: the arithmetic and the roll-up (`execution/ghg.py`, pinned by `fichero-server/tests/unit/jobs/test_ghg_estimate_with_its_basis_5420.py`): power x time x grid intensity, a missing figure is unknown never 0, a roll-up sums the known parts and takes the weakest basis. Still a gap: nothing reads the Mac's power draw, a target's rated hardware or a grid-intensity table into it, and no job row or window shows it. each run, step and page carries its
   greenhouse gas, rolled up the tree: an estimate from the energy it used times the grid intensity
   where that energy was drawn. Energy on this Mac is its power draw over the job's time; on a remote
   target, the target's stated hardware over the job's time. The figure always says its basis
@@ -1333,10 +1333,11 @@ and node, not by job); a retry action for failed pages.
   with the plan's why); an import after Start runs exactly the steps it names
   (`fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py`). Still a gap: the app's setup
   and Activity do not show it.
-- `activity.auto.reembed-on-change` — **[PARTIAL]** (#5360) a reading or segment change
+- `activity.auto.reembed-on-change` — **[OK]** (#5360) a reading or segment change
   re-derives the page text and re-embeds it. Built: the re-embed is a queued job written in the
   change's own transaction (`activity.correction-reembed-visible`, `actions/page_text_cache.py:366-376`).
-  Still a gap: a direct text edit (`PATCH` of `page_content`) re-embeds inline on the request.
+  A direct text edit (`PUT` of `page_content`) queues the same job instead of embedding on the request
+  (`fichero-server/tests/unit/jobs/test_text_edit_reembed_is_a_job_5360.py`).
 - `activity.auto.reextract-on-change` — **[PARTIAL]** (#5361) after a person
   corrects a page's text, its entities and claims are remade from the corrected text. Built
   (2026-10-03): where the library reads names automatically, a correction takes back the page's
@@ -1359,7 +1360,8 @@ and node, not by job); a retry action for failed pages.
   until they are remade.
 - `activity.derived.coalesced` — **[PARTIAL]** (#5360) many corrections to one page
   make one recompute job after a short quiet period. Built: one waiting job per kind and page
-  (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the quiet period.
+  (`fichero-server/tests/unit/jobs/test_job_queue.py`); the page's re-embed waits QUIET_SECONDS and each correction pushes it later
+  (`fichero-server/tests/unit/jobs/test_reembed_waits_for_a_quiet_period_5360.py`). Still a gap: the names re-read job does not wait yet.
 - `activity.derived.person-work-kept` — **[PARTIAL]** (#5361) a recompute withdraws
   only untouched machine rows; a row a person curated is kept and flagged with old and new excerpt.
   Built: the purge removes only draft rows nobody checked, linked or annotated (and keeps an entity
@@ -1433,7 +1435,10 @@ code path.
   whose stream ends on an interrupt or a breakpoint as paused ("awaiting_review", with the
   question), and resuming with the answer continues from the checkpoint
   (`fichero-server/tests/unit/workflows/test_review_step_pauses_the_run.py`). Still a gap: the test
-  builds the graph by hand; the run through the execute and resume routes is not pinned (#5429).
+  builds the graph by hand. Pinned through the routes too: a run started with `POST /execute` settles `paused`,
+  and `POST /threads/{id}/resume` with an answer delivers it to the tool and completes
+  (`fichero-server/tests/unit/workflows/test_review_step_pauses_through_the_routes_5429.py`). Still a gap: the
+  question reaching the app on the stream's `pause` event is not pinned (#5429).
   (Corrected 2026-10-04: this line said BROKEN after #5371 had landed.)
 - `activity.run.scheduled-runs-execute` — **[OK]** (#5372) *Built (2026-10-04): a schedule's run and a file
   trigger's runs start through `runner.start_run` (`runner.run_and_wait`), the way a run by hand
@@ -1442,18 +1447,17 @@ code path.
   watcher's thread asked for an event loop it did not have, which ended the watcher, and an
   extension named with its dot matched nothing) (`fichero-server/tests/unit/jobs/test_scheduled_and_triggered_runs.py`).* a scheduled or file-triggered run
   executes through the same path as a run started by hand.
-- `activity.run.resume-once` — **[BROKEN]** (#5373) resuming a run that is already running is
-  refused. Today `/threads/{id}/resume` never checks, so two clicks start two workers on one
-  checkpoint thread (`api/routes/workflow_execution/core.py:452-570`).
-- `activity.run.resume-default-workflow` — **[BROKEN]** (#5373) a paused run of a shipped default
-  workflow resumes. Today resume loads the workflow from the store only, with no default fallback,
-  and answers 404 (`core.py:452-570`; compare `/execute` at `core.py:311-318`).
+- `activity.run.resume-once` — **[OK]** (#5373) resuming a run that is already running is
+  refused with 409, so two clicks never start two workers on one checkpoint thread; pinned by
+  `fichero-server/tests/unit/workflows/test_resume_once_5373.py`.
+- `activity.run.resume-default-workflow` — **[OK]** (#5373) a paused run of a shipped default
+  workflow resumes: resume finds the workflow as `/execute` does, falling back to the default; pinned by
+  `fichero-server/tests/unit/workflows/test_resume_default_workflow_5373.py`.
 - `activity.run.resume-from-snapshot` — **[BROKEN]** (#5373) a run resumes on the graph it started
   with, built from its own snapshot. Today resume rebuilds the graph from the current definition,
   so an edit made while paused changes the graph under the checkpoint.
-- `activity.run.resume-keeps-model` — **[BROKEN]** (#5373) a resumed run uses the model the person
-  chose. Today resume builds a fresh request and drops the provider and model override
-  (`core.py:542-546`).
+- `activity.run.resume-keeps-model` — **[OK]** (#5373) a resumed run uses the provider and model the person chose when it started, read from the run's own snapshot; pinned by
+  `fichero-server/tests/unit/workflows/test_resume_keeps_model_5373.py`.
 - `activity.run.batch-off-the-request` — **[OK]** (#5374) *Built (2026-10-04): a batch runs on a worker
   thread of its own and its event stream follows it, so a client that disconnects stops listening, not
   the batch; each item is a run started by `runner.start_run`, the way every run by hand starts, with its
@@ -1593,11 +1597,14 @@ which merges live executions with each library's history and collects a library'
 `runLoadFailures`; `ActivityViewHelpers.swift` renders it.
 
 - `activity.store-owns-run-assembly` — **[PARTIAL]** (#3231, #493) `ActivityStore.rebuildRuns` merges live
-  and historical runs, sorts and dedupes; the view only renders `runs` and `runLoadFailures`. No
-  pinning test for `rebuildRuns` itself.
-- `activity.load-failures-are-honest` — **[PARTIAL]** (#3231) a library's failure to load its history
-  is collected into `runLoadFailures` and shown as a warning row naming the library, never dropped.
-  No pinning test.
+  and historical runs, sorts and dedupes; the view only renders `runs` and `runLoadFailures`. Pinned
+  by fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift (testRebuildRunsPatchesEachFreshRowIntoRuns,
+  testLoadMoreRunsAppendsWithoutDisturbingExistingRows); the live-over-historical dedupe has no test of its own yet.
+- `activity.load-failures-are-honest` — **[OK]** (#3231) a library's failure to load its history
+  is collected into `runLoadFailures` and shown as a warning row naming the library, never dropped;
+  pinned by fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift
+  (testActivityWindowHonestState_aFailedLoadNamesItsCauseAndClearsOnTheNextSuccess,
+  testJobsPollRefusalReachesTheFooterAndClearsOnTheNextGoodPoll).
 - `activity.change-events-patch-not-reload` — **[OK]** an activity change event updates the affected
   row in place; only a real domain mutation goes to the domain stores; neither bumps
   `refreshToken`. Pinned: `ActivityStoreTests.swift`, "folded change frame does NOT bump
@@ -1824,4 +1831,4 @@ Workflow-runner review, 2026-10-01 (read, one scheduled run reproduced, Kraken t
 - `activity.voiceover-announcements` — **[PARTIAL]** (#3724) import, indexing and workflow runs post an AccessibilityNotification announcement on started, completed and failed. Built: the jobs read every kind of work reports through says it, at the transitions only (a job of its own starting, failing with its reason, finishing or leaving the list; never a progress tick, a page's step, or what was running when the app first looked), several in one read as one announcement (`ActivityStore.announcement(from:to:)`, `ActivityAnnouncementTests`). Owed: hearing it with VoiceOver, and `.accessibilityValue` on the progress views.
 - `activity.run-control-is-global` — **[GAP]** (#5116) one global start, stop and pause over every file's steps, with per-file step tracking, for a library left running for days.
 - `activity.simple-for-its-reader` — **[GAP]** (#5117) Activity is redesigned from who reads it, not from the existing views.
-- `activity.window.newest-first-and-clear-all` **[BROKEN]** (#5016): the Activity window lists the newest run at the top, offers a way to delete every run at once, and its first row is never drawn under the title bar. (The 'just now' half is `activity.window.absolute-times`, built 2026-10-04.)
+- `activity.window.newest-first-and-clear-all` **[PARTIAL]** (#5016): the engine lists finished jobs newest first (pinned by fichero-server/tests/unit/jobs/test_activity_newest_first_5016.py); still owed on the Swift side, which needs a screen check: the window lists the newest run at the top, offers a way to delete every run at once, and its first row is never drawn under the title bar. (The 'just now' half is `activity.window.absolute-times`, built 2026-10-04.)

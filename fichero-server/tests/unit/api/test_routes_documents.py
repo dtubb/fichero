@@ -1161,7 +1161,7 @@ class TestUpdateDocument:
         assert payload["metadata"]["existing"] == "keep"
         assert payload["metadata"]["source"] == "manual"
         assert payload["metadata"]["page_content_user_edited_at"]
-        assert embed_calls == [doc.id]
+        assert embed_calls == [], "the re-embed is a queued job now (#5360), not inline"
 
     def test_update_position_round_trips(self, client):
         create = client.post("/api/documents", json={"name": "Positioned Node"})

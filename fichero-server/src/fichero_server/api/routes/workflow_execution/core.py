@@ -455,6 +455,14 @@ async def resume_workflow(
 
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
+        # A run that is live is not resumed again: two workers on one checkpoint thread
+        # (`activity.run.resume-once`, #5373).
+        from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
+
+        live = _running_workflows.get(thread_id)
+        if live and live.get("status") in ("accepted", "running"):
+            raise HTTPException(status_code=409, detail=f"The run {thread_id} is already running")
+
         # Get checkpoint
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
         checkpoint_tuple = await checkpointer.aget_tuple(config)
@@ -476,6 +484,11 @@ async def resume_workflow(
         # Load workflow to rebuild graph
         store = WorkflowStore(db)
         workflow = store.get(workflow_id) if workflow_id != "unknown" else None
+        if not workflow and workflow_id != "unknown":
+            # A shipped default lives in the global library, as /execute finds it (#5373).
+            from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
+
+            workflow = resolve_default_workflow(workflow_id)
 
         if not workflow:
             raise HTTPException(
@@ -510,10 +523,17 @@ async def resume_workflow(
             },
         )
 
+        # The run keeps the provider and model its person chose when it started
+        # (`activity.run.resume-keeps-model`, #5373), as read-again does.
+        started = await activity_tracker.store.get_workflow_run(thread_id)
+        snapshot = started.workflow_snapshot if started and isinstance(started.workflow_snapshot, dict) else {}
+        started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
         exec_request = ExecuteWorkflowRequest(
             workflow_id=workflow_id,
             inputs=(request.inputs if request and request.inputs else {}),
             thread_id=thread_id,
+            provider_override=started_with.get("provider_override"),
+            model_override=started_with.get("model_override"),
         )
 
         def _resume_workflow_thread() -> None:
