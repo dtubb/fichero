@@ -417,9 +417,11 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.every-runtime-on-a-lane` — **[PARTIAL]** (#5353, #5370) every model call is a row on a
   lane; local Whisper (`workflows/tools/audio_base.py:128-168`) and Apple's bridge
   (`llm/__init__.py:1485-1488`) take none today.
-- `ai.where.one-memory-number` — **[BROKEN]** (#5537) one measured resident size per model feeds
-  setup's rule, `runs_here`, the load gate and Start's peak; today three rules read three numbers
-  (`recipes/assemble.py:213`, `llm/local_model_choice.py:49-63`, `llm/local_inference.py:90-134`).
+- `ai.where.one-memory-number` — **[PARTIAL]** (#5537) one measured resident size per model feeds
+  setup's rule, `runs_here`, the load gate and Start's peak. Built (ruled by default 2026-10-17): `local_memory_gb(model)`
+  (`llm/local_inference.py`) is the load gate's need, and the shipped and installed text-model cards state it; pinned by
+  `fichero-server/tests/unit/recipes/test_one_memory_number_5537.py`. Still a gap: `runs_here`
+  (`llm/local_model_choice.py`) and the vision-reader cards still read `min_memory_bytes`, and Start's peak reads the card.
 - `ai.where.local-servers-measured` — **[GAP]** (#5537) Ollama and LM Studio on this Mac are asked
   what they hold and count in the memory sum and the reads-at-once rule; today both are
   `omlx`-only (`llm/__init__.py:1392,4230`).
