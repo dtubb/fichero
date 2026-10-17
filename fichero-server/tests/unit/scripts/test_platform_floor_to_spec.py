@@ -1,4 +1,4 @@
-"""Deployment floor is 26 (macOS 26 Tahoe and 27 both supported).
+"""Deployment floor: macOS 26 (Tahoe and 27 both supported), iOS 27 only.
 
 spec: xcode-build-configs (platform.deployment-floor-26, #5730)
 """
@@ -36,17 +36,18 @@ def _run_against(tmp_path: Path, pbx_text: str) -> list[str]:
 @pytest.mark.build_config
 def test_real_project_floor_is_26():
     pbx = _real_pbx()
-    assert "DEPLOYMENT_TARGET = 27" not in pbx
+    assert "MACOSX_DEPLOYMENT_TARGET = 27" not in pbx
+    assert "IPHONEOS_DEPLOYMENT_TARGET = 26" not in pbx
     assert _mod.check() == []
 
 
 @pytest.mark.build_config
-def test_a_target_left_at_27_is_caught(tmp_path):
+def test_a_mac_target_left_at_27_is_caught(tmp_path):
     pbx = _real_pbx().replace("MACOSX_DEPLOYMENT_TARGET = 26.0", "MACOSX_DEPLOYMENT_TARGET = 27.0", 1)
     assert any("MACOSX_DEPLOYMENT_TARGET floor is 26" in p for p in _run_against(tmp_path, pbx))
 
 
 @pytest.mark.build_config
-def test_an_ios_target_below_26_is_caught(tmp_path):
-    pbx = _real_pbx().replace("IPHONEOS_DEPLOYMENT_TARGET = 26.0", "IPHONEOS_DEPLOYMENT_TARGET = 18.0", 1)
-    assert any("IPHONEOS_DEPLOYMENT_TARGET floor is 26" in p for p in _run_against(tmp_path, pbx))
+def test_an_ios_target_at_26_is_caught(tmp_path):
+    pbx = _real_pbx().replace("IPHONEOS_DEPLOYMENT_TARGET = 27.0", "IPHONEOS_DEPLOYMENT_TARGET = 26.0", 1)
+    assert any("IPHONEOS_DEPLOYMENT_TARGET floor is 27" in p for p in _run_against(tmp_path, pbx))
