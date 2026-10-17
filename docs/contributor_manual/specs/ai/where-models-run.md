@@ -360,10 +360,13 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.offers-every-place` — **[GAP]** (#5582) for each step, the engine lists every offer
   (card × place) with fits, allowed, account, cost for the volume and speed, each with its basis.
   The Start plan, setup, MCP and the command line read the same list.
-- `ai.where.never-dropped-silently` — **[BROKEN]** (#5582, #5519) a model this Mac cannot run is
-  offered with the places that can run it, and an offer that is filtered out says why. Today
-  discovery keeps only MLX builds and lists the rest outside the rules
-  (`recipes/discovery.py:19-23,318-337`).
+- `ai.where.never-dropped-silently` — **[PARTIAL]** (#5582, #5519) a model this Mac cannot run is
+  listed with why, and nothing is dropped silently (ruled 2026-10-17: a "Not shown: <reason>" beside the offers). Built:
+  the step search (`search_hugging_face_for_step`) lists a GGUF-only repository as a row that is not runnable and says
+  "a GGUF build: this build runs MLX builds only"; its test
+  `fichero-server/tests/unit/recipes/test_step_search_drops_nothing_silently_5519.py` was written and seen red; green
+  NOT yet seen (no pytest during gate3). Still a gap: the reader finder's other filters, and the places that can run
+  it (waits on `ai.where.one-list-of-places`).
 - `ai.where.rank-pairs` — **[PARTIAL]** (#5582) the rules rank offers, not cards: hard filters,
   accuracy for the pair, this Mac first, cost, speed. Built for cards
   (`recipes/assemble.py:282-311`).

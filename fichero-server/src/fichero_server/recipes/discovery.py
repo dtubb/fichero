@@ -1193,8 +1193,9 @@ def _step_row(m: dict[str, Any], job: str, task: str) -> dict[str, Any]:
     return {"repo": repo, "job": job, "pipeline_tag": m.get("pipeline_tag") or task, "runs_here": runs,
             "licence": next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), ""),
             "languages": sorted(_hub_tags(m) or ()) or None, "downloads": int(m.get("downloads") or 0),
-            "cannot_run_because": "" if runs else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task,
-                                                                      "Fichero cannot run it yet")}
+            "cannot_run_because": "" if runs else (
+                "a GGUF build: this build runs MLX builds only" if _gguf_only(m)
+                else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task, "Fichero cannot run it yet"))}
 
 
 async def search_hugging_face_for_step(job: str, languages: frozenset[str],
@@ -1210,8 +1211,10 @@ async def search_hugging_face_for_step(job: str, languages: frozenset[str],
     for n, (task, tags) in enumerate(asks, 1):
         progress(f"Searching Hugging Face ({n} of {len(asks)})")
         for m in await _fetch_hf_models(task=task, tags=tags, limit=HF_LIMIT):
-            if m.get("pipeline_tag") not in (None, task) or _gguf_only(m):
+            if m.get("pipeline_tag") not in (None, task):
                 continue
+            # A GGUF-only repository is listed, not runnable and saying why: nothing is dropped silently
+            # (`ai.where.never-dropped-silently`, #5519).
             row = _step_row(m, job, task)
             rows.setdefault(row["repo"], row)
     return sorted(rows.values(), key=lambda r: (not r["runs_here"], -r["downloads"], r["repo"]))
