@@ -20,6 +20,7 @@ import SwiftUI
 struct ActivityDetailsView: View {
     let selection: ActivitySelection
     @Environment(ActivityStore.self) private var store
+    @Environment(AppState.self) private var appState
     @State private var trace: TraceSubject?
     @State private var actionFailure: String?
 
@@ -89,6 +90,9 @@ struct ActivityDetailsView: View {
                     Label(actionFailure, systemImage: "exclamationmark.triangle.fill")
                         .font(.callout)
                         .foregroundStyle(.orange)
+                }
+                if details.row.engineKind == "read-at-scale", let jobId = details.row.jobId {
+                    RemoteRunInspector(jobId: jobId, service: appState.remoteRunService)
                 }
                 ActivityDetailsLog(jobId: details.jobId, isLive: details.isLive, refreshKey: details.logKey)
                 if !details.resources.isEmpty {

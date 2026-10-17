@@ -324,3 +324,74 @@ def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
     assert counts == {"pending": 0, "submitted": 0, "landed": 4, "failed": 0}
     assert len(shell.sbatched) == 4
     assert read_job.status(db, started["job_id"])["landing"]["landed"] == 7
+
+
+# --- remote runs in Activity (`activity.remote-under-its-step`, #5740) -------------------------------------
+
+def _cluster_run(db, archive, tmp_path, **kw):
+    from fichero_server.remote_read.slurm_target import SlurmReadTarget
+    from fichero_server.workflows.remote_jobs import HpcClusterConfig
+
+    cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                               remote_base_dir="/project/def-lab/u", account="def-lab")
+    target = SlurmReadTarget(cluster, FakeClusterShell(tmp_path / "login"))
+    request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
+                                 pages_may_leave=True, target="r", **kw)
+    started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [started["job_id"]])[0]
+    return started["job_id"], subject, target
+
+
+def test_a_remote_run_hangs_under_the_step_that_sent_it(db, archive, tmp_path):
+    """WHY (`activity.remote-under-its-step`): the run is a child of its recipe step on the one job model."""
+    step = jobs.enqueue_remote(db, "recipe", "step-1", target="this-mac", detail="{}", reason="r", started_by="owner")
+    job_id, _s, _t = _cluster_run(db, archive, tmp_path, parent_job_id=step)
+    assert db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [job_id])[0] == step
+
+
+def test_the_row_and_inspector_say_where_it_runs_how_far_and_estimate_against_actual(db, archive, tmp_path):
+    """WHY: Row: target, far-side state, shards done of total, pages landed. Inspector: each shard, estimate vs actual."""
+    job_id, subject, target = _cluster_run(db, archive, tmp_path, expected_pages_per_second=2.0)
+    assert read_job.status(db, job_id)["far_state"] == "queued"
+    read_job.run(db, subject, target=target, sleep=lambda s: None)
+    status = read_job.status(db, job_id)
+    assert status["target"] == "r" and status["far_state"] == "done"
+    assert (status["shards_done"], status["shards_total"], status["pages_landed"]) == (4, 4, 7)
+    assert [s["state"] for s in status["shards"]] == ["landed"] * 4 and all("seconds" in s for s in status["shards"])
+    assert status["estimate"]["pages"] == 7 and status["estimate"]["gpu_hours"] == pytest.approx(7 / 2.0 / 3600, rel=0.01)
+    assert status["actual"]["seconds_per_shard"] >= 0
+    row = read_job.remote_row(status)
+    assert row["far_state"] == "done" and row["shards"] == "4 of 4 shards" and row["pages_landed"] == 7
+    assert row["offers"] == []  # nothing to cancel, retry or catch up on a finished run
+
+
+def test_far_state_in_words_and_the_offers_follow_it():
+    base = {"counts": {"pending": 0, "submitted": 0, "landed": 0, "failed": 0}, "state": "running"}
+    f = read_job.far_state
+    assert f({**base, "counts": {**base["counts"], "pending": 4}, "state": "waiting"}) == "queued"
+    assert f({**base, "counts": {**base["counts"], "submitted": 2, "pending": 2}}) == "running"
+    assert f({**base, "counts": {**base["counts"], "landed": 3, "failed": 1}, "state": "failed"}) == "failed"
+    assert f({**base, "counts": {**base["counts"], "landed": 4}, "state": "done"}) == "done"
+    running = read_job.remote_row({**base, "target": "r", "pages_landed": 0, "shards_done": 0, "shards_total": 4,
+                                   "counts": {**base["counts"], "submitted": 2, "pending": 2}})
+    assert running["offers"] == ["Cancel", "Catch up"]
+    failed = read_job.remote_row({**base, "target": "r", "state": "failed", "pages_landed": 4, "shards_done": 3,
+                                  "shards_total": 4, "counts": {**base["counts"], "landed": 3, "failed": 1}})
+    assert failed["offers"] == ["Retry failed shards"]
+
+
+def test_catch_up_skips_the_wait_once_and_brings_a_dropped_run_back(db, archive):
+    """WHY: after the Mac slept the loop is asked to look now, not after its sleep; a run the scheduler dropped
+    is queued again, carrying on from its recorded shards."""
+    job_id, subject = _start(db, archive)
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])
+    assert read_job.catch_up(db, job_id) == "running"
+    slept = []
+    read_job.run(db, subject, target=FakeHub(), sleep=slept.append)
+    assert "catch_up" not in json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])
+    plain_id, plain_subject = _start(db, archive)
+    plain_sleeps = []
+    read_job.run(db, plain_subject, target=FakeHub(), sleep=plain_sleeps.append)
+    assert plain_sleeps and len(slept) == len(plain_sleeps) - 1
+    db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [plain_id])
+    assert read_job.catch_up(db, plain_id) == "waiting"

@@ -247,6 +247,17 @@ struct ActivityJob: Identifiable, Equatable {
     let runId: String?
     /// When it failed, as the engine records it (`failed_at`); nil unless failed, and cleared on a retry.
     let failedAt: Date?
+    /// A run sent to a cluster or Hugging Face Jobs (`activity.remote-under-its-step`): the row says where, how far.
+    let remote: Remote?
+
+    struct Remote: Equatable {
+        let target: String
+        let farState: String
+        let shards: String
+        let pagesLanded: Int
+        /// "Rorqual · running · 3 of 4 shards · 120 pages landed": the row's words.
+        var words: String { "\(target) · \(farState) · \(shards) · \(pagesLanded) pages landed" }
+    }
 
     init(_ job: Components.Schemas.BackgroundJob) {
         self.id = job.id
@@ -262,6 +273,9 @@ struct ActivityJob: Identifiable, Equatable {
         self.offer = job.offer
         self.runId = job.runId
         self.failedAt = job.failedAt
+        self.remote = job.remote.map {
+            Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded)
+        }
     }
 
     /// Test/preview seam — construct without the generated schema.
@@ -278,7 +292,8 @@ struct ActivityJob: Identifiable, Equatable {
         parentId: String? = nil,
         offer: String? = nil,
         runId: String? = nil,
-        failedAt: Date? = nil
+        failedAt: Date? = nil,
+        remote: Remote? = nil
     ) {
         self.id = id
         self.taskType = taskType
@@ -293,6 +308,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.offer = offer
         self.runId = runId
         self.failedAt = failedAt
+        self.remote = remote
     }
 
     /// A determinate bar is only meaningful once the backend knows the total.
