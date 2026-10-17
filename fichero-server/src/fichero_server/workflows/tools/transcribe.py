@@ -282,6 +282,18 @@ def _pages_with_lines(documents: list, files: list, library_path: str) -> list[s
     return [i if i and working_lines(db, i) is not None else None for i in ids]
 
 
+def _drop_empty_readings(library_path: str, results: list[dict]) -> None:
+    """The empty transcription a failed line pass saved for a page, so the page-level read leaves just one."""
+    from fichero_server.db import db_manager
+    from fichero_server.models import Artifact
+
+    db = db_manager.get_database(library_path)
+    for r in results:
+        stub = db.get(Artifact, r["artifact_id"]) if r.get("artifact_id") and not (r.get("text") or "").strip() else None
+        if stub is not None and not (stub.content or "").strip():
+            db.delete(stub)
+
+
 def build_transcribe_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
     # `auto` is passed through, not normalised to a locale — the preview then
@@ -473,6 +485,7 @@ async def transcribe(
         empty = {r.get("file") for r in result.get("results") or [] if not (r.get("text") or "").strip()}
         again = [i for i, f in enumerate(files) if f in empty]
         if again:
+            await asyncio.to_thread(_drop_empty_readings, library_path, result["results"])
             redo = await process_vision(**{**read, "files": [files[i] for i in again],
                                            "documents": [documents[i] for i in again if i < len(documents or [])],
                                            "vision_mode": page_vision_mode, "lines_read_by": page_lines_read_by})
