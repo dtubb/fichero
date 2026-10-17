@@ -76,3 +76,13 @@ def test_offering_a_step_back_restores_it_exactly(monkeypatch):
     assert restored["steps"] == shared["steps"] and not restored.get("overrides")
     assert [s["id"] for s in taken["steps"]] == ["lines", "after"], "the recipe it came from is untouched"
 
+
+def test_a_step_that_read_from_the_removed_one_is_caught_by_the_check_not_left_dangling():
+    """source.recipe.take-without-missing-step: a step that needed what only the removed step gave is not left dangling:
+    the taken recipe fails the check naming that step, so it is never started half-fed."""
+    correct = {"id": "correct", "job": "correct", "model": LINES["model"], "runs_on": "this-mac"}
+    taken = take_without_missing_steps(_recipe(LINES, NEWER, correct))
+
+    problems = check_recipe(taken)
+
+    assert problems and any("Correct" in p and "no earlier step gives" in p for p in problems), problems
