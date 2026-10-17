@@ -4428,7 +4428,7 @@ drafts stay drafts and #5217 records why.
   (`test_the_readings_are_the_machines_never_a_persons`, `test_the_tie_writes_onto_the_pages_lines_and_never_makes_a_second_pass`) and
   `test_which_reading_counts_after_the_tie.py`) the alignment lands as a NEW reading on each line (`representation.create`, derived from the
   page reading), never overwrites a reading, and never replaces a person's or a confirmed one as the counting reading.
-- `source.align.confidence-per-line` — **[GAP]** (#5217) each aligned line carries how well the page text matched it (the score against the
+- `source.align.confidence-per-line` — **[OK]** (#5217; the score is the reading's `machine_confidence`, set by the job; tested in `fichero-server/tests/unit/check/test_tie_text_to_lines.py` (`test_each_aligned_line_carries_how_well_the_text_matched_it`, 12 pass) and `test_which_reading_counts_after_the_tie.py` (12 pass); the app showing it beside the line is the Swift half) each aligned line carries how well the page text matched it (the score against the
   rough read of the line, 0 to 1), kept on the reading it made and served with the line, so the person sees which lines to check; today the score
   is only in the job's result and in the reason of a rejected line.
 - `source.align.known-misalignments-fixture` — **[OK]** (#5217; tested in `fichero-server/tests/unit/check/test_align_text_to_lines_5217.py`: a clean control, a dropped line, two lines merged, two reordered; 5 pass) the aligner is pinned over a real two-page fixture with known misalignments: a
