@@ -98,8 +98,9 @@ follows."""
 #: answer names it (`source.job.review-asks-one-answer-line-per-segment-id`).
 ANSWER_BY_ID = (
     "The prior transcription is a list of lines, each as `<segment id> | box | maker | text`. Answer with exactly one "
-    "line per listed line, in the same order, as `<segment id> | <corrected text>`: keep every id, and never merge, "
-    "split, drop or add a line."
+    "line per listed line, in the same order, as `<segment id> | <certain, uncertain or unreadable> | <corrected "
+    "text>`: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
+    "never merge, split, drop or add a line."
 )
 #: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
 #: next pass of a preset is given as its context.

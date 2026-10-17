@@ -300,3 +300,17 @@ async def test_every_shipped_review_node_ties_its_answer_to_the_lines(page, monk
             llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
         assert not result.get("error"), result.get("error")
         assert _counting(page)[2] == f"y lo firmo {number}", f"prompt {number} of {len(prompts)} was not tied"
+
+
+@pytest.mark.asyncio
+async def test_a_line_the_review_flags_unreadable_is_left_as_read_and_says_so_5724(page, monkeypatch):
+    """`source.job.review-is-segment-native` (#5724): a flag per line; a line the model marks unreadable keeps
+    its reading (never invented text), the others are corrected by id.
+    WHY: a model forced to give text for a line it cannot read invents it."""
+    first, second, third = _lines(page)
+    result = await _review(page, monkeypatch, "\n".join([
+        f"{first.id} | certain | el dicho escriuano",
+        f"{second.id} | unreadable | xxxx",
+        f"{third.id} | certain | y lo firmó"]))
+    assert _counting(page) == ["el dicho escriuano", "vezino de la cibdad", "y lo firmó"]
+    assert "1 line(s) flagged unreadable" in result["results"][0]["lines"]

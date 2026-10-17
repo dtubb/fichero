@@ -182,10 +182,13 @@ def correct_lines(
     answer = [line.strip() for line in (text or "").splitlines() if line.strip()]
     ids = {segment_id for segment_id, _, _ in shown}
     by_id: dict[str, str] = {}
+    unreadable: set[str] = set()
     for line in answer:
         parts = [part.strip() for part in line.split("|")]
         if len(parts) >= 2 and parts[0] in ids:
             by_id[parts[0]] = parts[-1]
+            if len(parts) >= 3 and parts[1].lower() == "unreadable":
+                unreadable.add(parts[0])
     if answer and len(by_id) == len(answer):
         corrected = dict(by_id)
     elif len(answer) == len(shown):
@@ -197,7 +200,7 @@ def correct_lines(
     readings, derived_from, people = [], {}, 0
     for segment_id, representation_id, old in shown:
         new = corrected.get(segment_id)
-        if not new or " ".join(new.split()) == " ".join(old.split()):
+        if not new or segment_id in unreadable or " ".join(new.split()) == " ".join(old.split()):
             continue
         kind = getattr(counting.get(representation_id), "provenance_kind", None)
         if getattr(kind, "value", kind) == "human":
@@ -208,4 +211,5 @@ def correct_lines(
     made = write_readings(db, document_id=document_id, readings=readings, artifact_id=artifact_id,
                           run_id=run_id, level=level, library_path=library_path, derived_from=derived_from)
     said = f"{len(made)} of {len(shown)} line(s) corrected"
+    said += f"; {len(unreadable)} line(s) flagged unreadable, left as read" if unreadable else ""
     return made, said + (f"; {people} line(s) a person read kept" if people else "")
