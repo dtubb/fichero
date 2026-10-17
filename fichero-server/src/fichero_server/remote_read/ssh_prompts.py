@@ -199,8 +199,37 @@ def store_cluster_key(cluster_id: str, private_key: str) -> Path:
     return path
 
 
+class KeyExists(RuntimeError):
+    """A key is already made for this cluster; replacing it silently would orphan the one in CCDB."""
+
+
+def make_cluster_key(cluster_id: str) -> str:
+    """Make the cluster's Ed25519 pair with the system `ssh-keygen`; the private half stays in the engine's folder
+    (0600), the public half is returned to be added in CCDB (`compute.secret.fichero-makes-the-key`)."""
+    import subprocess
+
+    path = cluster_key_path(cluster_id)
+    if path.exists():
+        raise KeyExists(f"{cluster_id} already has a key: show its public half, or remove it first")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
+    done = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", f"fichero-{cluster_id}", "-f", str(path)],
+                          capture_output=True, text=True, timeout=30)
+    if done.returncode:
+        raise RuntimeError(f"ssh-keygen failed: {done.stderr.strip()[:200]}")
+    os.chmod(path, 0o600)
+    return public_key(cluster_id) or ""
+
+
+def public_key(cluster_id: str) -> str | None:
+    """The public half, to show again; None when no key is made."""
+    pub = cluster_key_path(cluster_id).with_name("id_ed25519.pub")
+    return pub.read_text().strip() if pub.exists() else None
+
+
 def remove_cluster_key(cluster_id: str) -> None:
     path = cluster_key_path(cluster_id)
+    path.with_name("id_ed25519.pub").unlink(missing_ok=True)
     path.unlink(missing_ok=True)
     try:
         path.parent.rmdir()

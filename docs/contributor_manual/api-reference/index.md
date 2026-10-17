@@ -205,6 +205,15 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   them. The action (`document.relink_originals`, audited, undoable) repoints the matched pages and folders and
   their recorded source paths. Server paths: owner only, inside an allowed location.
 
+## Making a cluster's key (#5238)
+
+`POST /api/hpc/clusters/{cluster_id}/key/make` · `GET /api/hpc/clusters/{cluster_id}/key/public`
+
+- The engine makes the cluster's Ed25519 pair with the system `ssh-keygen`; the private half stays in the engine's
+  folder (mode 0600) and is never returned. `make` answers `{cluster_id, public_key}`, to add to the person's own
+  cluster account (CCDB on the Alliance); 409 if a key is already made (it would orphan the one already added).
+  `public` shows the same public half again (404 before one is made). Owner only. `DELETE .../key` removes both halves.
+
 ## Remote runs in Activity (#5740)
 
 `POST /api/reading-at-scale/jobs/{job_id}/catch-up`
