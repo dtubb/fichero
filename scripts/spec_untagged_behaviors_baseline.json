@@ -1,13 +1,5 @@
 {
   "untagged": [
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.comment",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.context-menu-full",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.drag",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.drop",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.export-selection",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.interact.keyboard",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.version.author-mark",
-    "docs/contributor_manual/specs/kg/kg-interactions.md::kg.version.history",
     "docs/contributor_manual/specs/kg/kg-tables.md::kg.scale.bulk-correctness",
     "docs/contributor_manual/specs/kg/kg-tables.md::kg.scale.progress-cancel",
     "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.claim.create.source-optional-flagged",
