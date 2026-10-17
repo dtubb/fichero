@@ -183,6 +183,26 @@ def validate_extracted_table(text: str, output_style: str) -> str:
 # =============================================================================
 
 
+ROW_SEGMENTS_ASK = """
+
+The page's lines are listed above, each beginning with its id. Add to the JSON "row_segments": a list with one entry
+per row, each entry the ids of the lines that row was read from (copied exactly from the list)."""
+
+
+def only_known_segments(text: str, known: set[str]) -> str:
+    """A rows-as-JSON answer with `row_segments` cut to ids that are segments of the page (#5026,
+    `source.tool.results-name-their-segments`): a result never names a segment that is not there."""
+    import json
+
+    try:
+        answer = json.loads(_strip_fence(text))
+        named = answer["row_segments"]
+        answer["row_segments"] = [[i for i in (row if isinstance(row, list) else []) if i in known] for row in named]
+    except (ValueError, KeyError, TypeError):
+        return text
+    return json.dumps(answer, ensure_ascii=False)
+
+
 def _build_prompt(output_style: str, include_headers: bool) -> str:
     """Build the table extraction prompt."""
     header_text = (
@@ -320,6 +340,10 @@ async def table_extract(
     from fichero_server.tool_context import with_page_context
 
     context = with_page_context(context, documents, files, state.get("library_path", ""))
+    known = {line.split(" | ", 1)[0].strip() for c in ([context] if isinstance(context, str) else context or [])
+             for line in (c or "").splitlines() if line.count(" | ") >= 3}
+    if output_style == "json_rows" and known:
+        prompt += ROW_SEGMENTS_ASK
 
     return await process_vision(
         files=files,
@@ -342,5 +366,5 @@ async def table_extract(
         save_to_db=inputs.get("save_to_db", True),
         save_to_file_flag=inputs.get("save_to_file", False),
         metadata_field=inputs.get("metadata_field"),
-        postprocess_text=lambda t: validate_extracted_table(t, output_style),
+        postprocess_text=lambda t: only_known_segments(validate_extracted_table(t, output_style), known),
     )
