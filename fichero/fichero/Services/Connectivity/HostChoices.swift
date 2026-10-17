@@ -33,4 +33,13 @@ enum HostChoices {
         let full = t.contains("://") ? t : "https://" + (t.contains(".") ? t : t + ".local")
         return try? validatedRemoteURL(from: full, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
+
+    /// A typed host name is a check, not a way in: it must name the host the pasted invite points at,
+    /// so a link meant for another Mac is refused before any code is sent. Blank typed text matches.
+    static func typedNameMatches(_ typed: String, inviteURL: String) -> Bool {
+        if typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        guard let want = typedURL(typed)?.host?.lowercased(),
+              let got = URL(string: inviteURL)?.host?.lowercased() else { return false }
+        return want == got
+    }
 }
