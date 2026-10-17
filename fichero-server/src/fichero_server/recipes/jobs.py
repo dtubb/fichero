@@ -91,6 +91,7 @@ _LIST = "the two lists side by side, with precision and recall where a person ha
 _job("prepare-the-image", {"page_image"}, {"page_image", "rendition"}, "prepare", "the renditions side by side",
      ("operations",))
 _job("split-pages", {"page_image"}, {"page_image"}, "prepare", "the cut pages side by side")
+_job("find-the-script", {"page_image"}, {"script"}, "prepare", "the scripts found, side by side", ("model",))
 _job("find-regions", {"page_image"}, {"regions"}, "lines", _BOXES, ("model",))
 _job("find-lines", {"page_image"}, {"lines"}, "lines", _BOXES, ("model", "regions"))
 _job("put-in-order", {"lines"}, {"reading_order"}, "lines", "the two orders side by side")

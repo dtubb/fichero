@@ -20,8 +20,6 @@ from fichero_server.api.main import (
     LibraryAccessDeniedError, _is_allowed_local_path, db_manager, get_library_database_for_write,
 )
 
-#: The 403 code for a path outside every allowed root and grant (#5219).
-INGEST_PATH_OUTSIDE_ALLOWED = "library_outside_allowed_locations"
 from fichero_server.api.auth import actor_from_request
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.security import authz
@@ -29,6 +27,9 @@ from fichero_server.db import Database
 from fichero_server.importers.derivatives import queue_derivatives
 from fichero_server.importers.sources_folder import import_parent_id
 from fichero_server.models import Document, Status
+
+#: The 403 code for a path outside every allowed root and grant (#5219).
+INGEST_PATH_OUTSIDE_ALLOWED = "library_outside_allowed_locations"
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

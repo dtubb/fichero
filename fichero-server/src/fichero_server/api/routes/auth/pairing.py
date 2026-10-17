@@ -97,6 +97,10 @@ class PairCodeResponse(BaseModel):
 class PairRequest(BaseModel):
     code: str = Field(min_length=1)
     device_name: str = Field(min_length=1)
+    # Multi-user on: the device chooses and authenticates a person; it is bound to them, not to
+    # whoever minted the code (sharing.device-chooses-person, #2403).
+    username: str | None = None
+    password: str | None = None
 
 
 class EnrollmentRequest(BaseModel):
@@ -460,8 +464,20 @@ def pair_device(
             raise HTTPException(status_code=422, detail="device_name is required")
 
         user_id = record.user_id
+        chosen = None
+        if body.username is not None:
+            if not _use_multiuser_auth():
+                raise HTTPException(status_code=422, detail="choosing a person needs Multi-user on")
+            chosen = app_db.get_user_by_username(body.username.strip())
+            if chosen is None or not accounts.verify_password(
+                body.password or "", chosen.password_hash if chosen else accounts.hash_password("x")
+            ):
+                raise HTTPException(status_code=401, detail="invalid username or password")
+            if not chosen.active:
+                raise HTTPException(status_code=403, detail="user is disabled")
+            user_id = chosen.id
         if _use_multiuser_auth():
-            user = app_db.get_user(record.user_id)
+            user = chosen or app_db.get_user(record.user_id)
             if user is None or not user.active:
                 record.used = True
                 _PAIRING_CODES.pop(code, None)

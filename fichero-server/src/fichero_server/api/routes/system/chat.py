@@ -27,7 +27,6 @@ from fichero_server.models import (
     Conversation,
     DocType,
     Document,
-    Model as ModelModel,
 )
 from fichero_server.api.routes.document.documents import (
     WorkspaceCuratedItem,
