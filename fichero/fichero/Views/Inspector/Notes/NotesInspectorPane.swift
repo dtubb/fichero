@@ -138,8 +138,13 @@ struct NotesInspectorPane: View {
         do {
             _ = try await noteStore.update(noteId: noteId, body: body, expectedUpdatedAt: item.note.updatedAt)
         } catch NoteServiceError.stale {
-            staleSave = (noteId, body)
-            return
+            // Deleted on the other Mac: that delete wins here, so no dialog and nothing to keep.
+            await noteStore.reload()
+            if noteStore.notes.contains(where: { $0.id == noteId }) {
+                staleSave = (noteId, body)
+            } else {
+                notice = "This note was deleted on another Mac."
+            }
         }
         focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
     }

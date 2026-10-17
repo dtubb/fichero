@@ -9,9 +9,9 @@ import Testing
         #expect(NoteStaleResolution.decide(keepMine: true, currentUpdatedAt: now) == .saveAgainst(now))
     }
 
-    @Test func keepMineOfANoteDeletedOnTheOtherMacKeepsTheText() {
-        // WHY: the other Mac deleted the note; dropping the person's text here is silent data loss.
-        #expect(NoteStaleResolution.decide(keepMine: true, currentUpdatedAt: nil) == .copyBecauseDeleted)
+    @Test func aNoteDeletedOnTheOtherMacStaysDeleted() {
+        // WHY: shared editing: the other Mac's delete wins; no resurrection, no keep-mine offer.
+        #expect(NoteStaleResolution.decide(keepMine: true, currentUpdatedAt: nil) == .deletedElsewhere)
     }
 
     @Test func takeTheirsCopiesTheDroppedText() {
