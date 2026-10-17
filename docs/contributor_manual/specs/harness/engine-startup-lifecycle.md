@@ -170,6 +170,13 @@ very engine spawn those tests exist to exercise.
 
 ### A. Ownership and the app-scoped controller
 
+- `engine.mcp-never-spawns-a-second-engine` — **[PARTIAL]** (#5512) an MCP client attaches to the engine
+  that is running and never launches one: nothing under `fichero-mcp/src` or the CLI's `client.py`
+  imports `engine_manager`, `uvicorn` or `multiprocessing`, and only `ui_control.py` imports `subprocess` (to run `osascript` against the app's panes). Ruled 2026-10-17: attach-only; if none is
+  running the call fails saying so. Pinned by a source scan:
+  `fichero-server/tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py`. PARTIAL because the 2026-10-05
+  stray engines came from the user-level `~/.local/bin/fichero-mcp`, whose installed copy this scan
+  cannot see; the checkout has no spawn path to remove.
 - `engine.owned-by-app-not-window` — **[OK]** (→ #3945) `EngineLifecycleController` is
   owned by `FicheroAppDelegate`, started from `applicationDidFinishLaunching`, stopped from
   `applicationWillTerminate`; no `WindowGroup`/scene owns or triggers it. Pinned:
