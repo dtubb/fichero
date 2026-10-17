@@ -40,4 +40,10 @@ struct HostChoicesTests {
         #expect(HostChoices.typedURL("http://studio.local") == nil)
         #expect(HostChoices.typedURL("https://studio.local/path") == nil)
     }
+
+    @Test func typedNameMustMatchTheInviteHost() {
+        #expect(HostChoices.typedNameMatches("studio", inviteURL: "https://studio.local:8443"))
+        #expect(HostChoices.typedNameMatches("", inviteURL: "https://other.local"))
+        #expect(!HostChoices.typedNameMatches("studio", inviteURL: "https://other.local"))
+    }
 }

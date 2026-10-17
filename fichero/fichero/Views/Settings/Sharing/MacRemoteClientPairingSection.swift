@@ -9,6 +9,7 @@ struct MacRemoteClientPairingSection: View {
     @AppStorage(EngineConfig.userDefaultsKey) private var engineHost = EngineConfig.defaultHostString
 
     @State private var clientInvite = ""
+    @State private var expectedHostName = ""
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
     @State private var showingManualInvite = false
@@ -34,6 +35,10 @@ struct MacRemoteClientPairingSection: View {
                     Text("Use this only if the camera is unavailable.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    TextField("Host Mac name (optional, e.g. studio.local)", text: $expectedHostName)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
 
                     TextField("Invite link or QR text", text: $clientInvite, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
@@ -97,6 +102,9 @@ struct MacRemoteClientPairingSection: View {
         let previousHost = engineHost
         do {
             let pairingFields = try RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite)
+            guard HostChoices.typedNameMatches(expectedHostName, inviteURL: pairingFields.remoteURL) else {
+                throw APIError.badRequest("This link points at a different Mac than \(expectedHostName). Ask that Mac for its link.")
+            }
             let result = try await RemoteClientPairing.pairDevice(
                 remoteURL: pairingFields.remoteURL,
                 pairCode: pairingFields.pairCode,
