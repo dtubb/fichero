@@ -413,6 +413,13 @@ def _record_device_audit(
     return audit
 
 
+def _shares_at_ts_net() -> bool:
+    from urllib.parse import urlparse
+
+    public = (os.environ.get("FICHERO_PUBLIC_BASE_URL") or "").strip()
+    return (urlparse(public).hostname or "").lower().endswith(".ts.net")
+
+
 @router.get("/tailnet", response_model=TailnetOfferResponse)
 def detected_tailnet(
     request: Request,
@@ -456,8 +463,9 @@ def create_pairing_code(
         code=code,
         expires_at=expires_at,
         tailnet_url=tailnet_url or None,
-        # No pin for a tailnet address: pin only for .local (#5753).
-        spki_pin=None if tailnet_url else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
+        # By the sharing address the guest uses, not by whether Tailscale is up: .ts.net is system
+        # trust (no pin), anything else (.local, an IP) is pinned (#5753).
+        spki_pin=None if _shares_at_ts_net() else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
     )
 
 
