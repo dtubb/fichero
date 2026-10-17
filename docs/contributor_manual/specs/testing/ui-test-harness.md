@@ -126,7 +126,7 @@ runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section fi
   turns ANY provisioning error — including a present-but-broken harness — into `XCTSkip`, and
   `waitForLibraryReady()` has no class-level memoization, so a broken app connection can still cost
   N × 120 s across a run.
-- `harness.ios-sim-same-socket` [MISSING] (#4782) — no iOS/iPad UI test target constructs a
+- `harness.ios-sim-same-socket` [PARTIAL] (#4782) written, unrun: `fichero/Tests/UI/ios/IOSSimSameSocketTests.swift` connect()s the socket in FICHERO_FORCE_UDS_PATH (skips without it); the tester must start the harness engine on the Mac and pass TEST_RUNNER_FICHERO_FORCE_UDS_PATH, and the plan leg is not wired. Was: no iOS/iPad UI test target constructs a
   `UITestEngineHarness` or dials `FICHERO_FORCE_UDS_PATH` on a Simulator destination; nothing
   verifies a Simulator process can `connect()` the Mac runner's socket.
 - `empty-library-screen.removed` [OK] (#4783) — removed, not just mitigated: `noLibraryView` and
