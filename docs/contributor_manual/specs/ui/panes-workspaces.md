@@ -845,6 +845,13 @@ paired with the `panes.strip.fixed-extent-is-content-not-whole-pane` /
 `panes.split.peers-open-even` retags below, since both are the same "tested against sizing
 math, not a mounted pane" lesson.
 
+- `panes.visibility.hide-show-round-trip` — **[PARTIAL]** (#5027) hiding a kind keeps the
+  hidden leaves in `PaneList.hiddenPanes` (outside `nodes`, so counts and the renderer ignore
+  them); showing the kind puts the SAME pane back (id, size, kind, style) at its old top-level
+  index. A pane that sat inside a split returns at the end of the row, same id and config.
+  Pinned by `PaneHideShowRoundTripTests`. Left: restoring into the original split; any other
+  edit of the list (close, split) drops the stash.
+
 - `panes.model.per-pane-scope-and-kind-unread` — **[BROKEN]** (#4887) the pane MODEL already
   carries per-pane fields — `PaneScope` (`libraryId`, `documentId`, `folderId`) and
   `PaneConfig.libraryContentKind` (both `fichero/fichero/Models/PaneList.swift`) — but nothing

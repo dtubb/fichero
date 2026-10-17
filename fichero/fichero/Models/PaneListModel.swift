@@ -7,6 +7,16 @@ import Foundation
 
 struct PaneList: Codable, Sendable, Hashable {
     var nodes: [PaneNode]
+    /// Leaves `settingVisible(_, false)` took out, kept so showing the kind again brings back the SAME
+    /// pane (id, size, kind, style) at its old place (#5027). Not in `nodes`, so every reader of the
+    /// list (counts, renderer, `secondaryLeafIDs`) ignores it; `nil` when empty and in older workspaces.
+    var hiddenPanes: [HiddenPane]?
+
+    /// A hidden leaf and its top-level index when it had one (nil = it sat in a split: returns at the end).
+    struct HiddenPane: Codable, Sendable, Hashable {
+        var node: PaneNode
+        var index: Int?
+    }
 
     init(_ nodes: [PaneNode]) { self.nodes = nodes }
 
@@ -115,12 +125,29 @@ struct PaneList: Codable, Sendable, Hashable {
     func settingVisible(_ kind: PaneKind, _ visible: Bool) -> PaneList {
         let ids = leafIDs(of: kind)
         if visible {
-            return ids.isEmpty ? PaneList(nodes + [.leaf(kind)]) : self
+            guard ids.isEmpty else { return self }
+            let back = (hiddenPanes ?? []).filter { $0.node.kinds == [kind] }
+            guard !back.isEmpty else { return PaneList(nodes + [.leaf(kind)]) }
+            var result = PaneList(nodes)
+            for pane in back.sorted(by: { ($0.index ?? .max) < ($1.index ?? .max) }) {
+                result.nodes.insert(pane.node, at: min(pane.index ?? .max, result.nodes.count))
+            }
+            let rest = (hiddenPanes ?? []).filter { !back.contains($0) }
+            result.hiddenPanes = rest.isEmpty ? nil : rest
+            return result
         }
         guard !ids.isEmpty else { return self }
         var result = self
-        for id in ids { result = result.removingLeaf(id) }
-        return result.nodes.isEmpty ? self : result   // never empty the window
+        var kept: [HiddenPane] = []
+        for id in ids {
+            guard let node = nodes.lazy.compactMap({ $0.leafNode(withID: id) }).first else { continue }
+            let top = nodes.firstIndex { if case let .leaf(leafID, _, _, _) = $0 { return leafID == id }; return false }
+            kept.append(HiddenPane(node: node, index: top))
+            result = result.removingLeaf(id)
+        }
+        guard !result.nodes.isEmpty else { return self }   // never empty the window
+        result.hiddenPanes = (hiddenPanes ?? []) + kept
+        return result
     }
 
     /// The leaf ids that must render as SECONDARY panes — every leaf whose kind already appeared
