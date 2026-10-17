@@ -221,6 +221,39 @@ def main() -> int:
     return 0
 
 
+def _self_test() -> int:
+    """Run `check()` over scratch trees: a Swift test that scrapes AppSource and is not in the baseline is a NEW scrape,
+    a baseline entry that no longer scrapes is ratchet drift, and a tree with neither is clean (rule 0: a guard must
+    know when it is blind)."""
+    import tempfile
+
+    global ROOT, TESTS_DIR, BASELINE
+    real = ROOT, TESTS_DIR, BASELINE
+    scrape = 'let s = AppSource.read("X.swift")\nXCTAssertTrue(s.contains("New Entity"))\n'
+
+    def problems(files: dict[str, str], baseline: str) -> list[str]:
+        global ROOT, TESTS_DIR, BASELINE
+        with tempfile.TemporaryDirectory() as scratch:
+            ROOT = Path(scratch)
+            TESTS_DIR = ROOT / "fichero" / "Tests"
+            BASELINE = ROOT / "baseline.txt"
+            TESTS_DIR.mkdir(parents=True)
+            BASELINE.write_text(baseline)
+            for name, body in files.items():
+                (TESTS_DIR / name).write_text(body)
+            return check()
+
+    try:
+        new = problems({"ScrapeTests.swift": scrape}, "")
+        drift = problems({"CleanTests.swift": "XCTAssertTrue(true)\n"}, "fichero/Tests/CleanTests.swift\n")
+        clean = problems({"ScrapeTests.swift": scrape}, "fichero/Tests/ScrapeTests.swift\n")
+    finally:
+        ROOT, TESTS_DIR, BASELINE = real
+    ok = (any("NEW capability-scrape" in p for p in new), any("ratchet drift" in p for p in drift), clean) == (True, True, [])
+    print("self-test " + ("ok" if ok else "FAILED: a new scrape, a drifted baseline or a clean tree was judged wrongly"))
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
     if not TESTS_DIR.exists():
         print(
@@ -229,4 +262,4 @@ if __name__ == "__main__":
             file=sys.stderr,
         )
         raise SystemExit(2)
-    raise SystemExit(main())
+    raise SystemExit(_self_test() if "--self-test" in sys.argv else main())

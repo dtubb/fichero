@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import sys
 from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
@@ -130,5 +131,37 @@ def main() -> int:
     return 0
 
 
+def _self_test() -> int:
+    """Run `main()` over scratch trees: an APPROVED spec with no `Manual:` line fails, one that declares `Manual: TBD`
+    fails, one that points at a manual path passes (rule 0: a guard must know when it is blind)."""
+    import contextlib
+    import io
+    import os
+    import tempfile
+
+    def verdict(manual_line: str) -> int:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = pathlib.Path(scratch)
+            (root / SPECS_DIR).mkdir(parents=True)
+            (root / "docs/user_manual").mkdir(parents=True)
+            (root / "docs/user_manual/scratch.md").write_text("# Scratch\n", encoding="utf-8")
+            (root / SPECS_DIR / "scratch-surface.md").write_text(
+                f"# Scratch\n\nStatus: APPROVED\n{manual_line}\n", encoding="utf-8")
+            here = pathlib.Path.cwd()
+            os.chdir(root)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return main()
+            finally:
+                os.chdir(here)
+
+    missing, tbd, declared = verdict(""), verdict("Manual: TBD - what it must explain"), verdict(
+        "Manual: docs/user_manual/scratch.md")
+    ok = (missing, tbd, declared) == (1, 1, 0)
+    print("self-test " + ("ok" if ok else f"FAILED: expected (missing, tbd, declared) = (1, 1, 0), got "
+                                          f"({missing}, {tbd}, {declared})"))
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_self_test() if "--self-test" in sys.argv else main())
