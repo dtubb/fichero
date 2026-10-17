@@ -20,6 +20,7 @@ Everything here is pure geometry on numbers and arrays except `detect_document_o
 Apple Vision and returns None where it is unavailable, so the split degrades to the whole frame.
 """
 from __future__ import annotations
+from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
 
 from dataclasses import dataclass
 from typing import Any

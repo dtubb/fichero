@@ -28,11 +28,17 @@ class RemoteConnectionConfig:
 @dataclass(frozen=True)
 class SlurmJobConfig:
     job_name: str = "fichero-workflow"
-    partition: str = "default"
+    #: Empty means "not named": no `--partition`, the site's default applies (`compute.hpc.sbatch-fits-the-site`).
+    partition: str = ""
     time_limit: str = "02:00:00"
     cpus_per_task: int = 4
     mem_gb: int = 8
     gpus: int = 0
+    #: A typed GPU (`--gres=gpu:h100:1`); None takes any the site hands out.
+    gpu_type: str | None = None
+    account: str | None = None
+    #: Seconds before the time limit that the task is sent SIGUSR1, to checkpoint and exit (0: no warning).
+    signal_seconds: int = 120
     extra_sbatch_lines: list[str] = field(default_factory=list)
 
 
@@ -103,17 +109,26 @@ def build_slurm_script(
     lines = [
         "#!/usr/bin/env bash",
         f"#SBATCH --job-name={config.job_name}",
-        f"#SBATCH --partition={config.partition}",
         f"#SBATCH --time={config.time_limit}",
         f"#SBATCH --cpus-per-task={config.cpus_per_task}",
         f"#SBATCH --mem={config.mem_gb}G",
+        "#SBATCH --requeue",
     ]
+    if config.partition:
+        lines.append(f"#SBATCH --partition={config.partition}")
+    if config.account:
+        lines.append(f"#SBATCH --account={config.account}")
     if config.gpus > 0:
-        lines.append(f"#SBATCH --gres=gpu:{config.gpus}")
+        gpu = f"{config.gpu_type}:{config.gpus}" if config.gpu_type else f"{config.gpus}"
+        lines.append(f"#SBATCH --gres=gpu:{gpu}")
+    if config.signal_seconds > 0:
+        lines.append(f"#SBATCH --signal=B:USR1@{config.signal_seconds}")
     lines.extend(config.extra_sbatch_lines)
     lines.extend(
         [
             "set -euo pipefail",
+            # Compute nodes have no internet: a model that is not staged fails by name, never tries the Hub.
+            "export HF_HUB_OFFLINE=1",
             f"cd {shlex.quote(remote_workdir)}",
             cmd,
         ]
@@ -166,7 +181,7 @@ class HpcClusterConfig:
     host_alias: str
     username: str
     remote_base_dir: str
-    partition: str = "default"
+    partition: str = ""
     account: str | None = None
     ssh_port: int = 22
 
@@ -182,7 +197,6 @@ class HpcClusterConfig:
             "host_alias": self.host_alias,
             "username": self.username,
             "remote_base_dir": self.remote_base_dir,
-            "partition": self.partition,
         }
         missing = [k for k, v in required.items() if not (v or "").strip()]
         if missing:
@@ -222,7 +236,7 @@ class HpcClusterConfig:
             host_alias=str(data.get("host_alias", "")),
             username=str(data.get("username", "")),
             remote_base_dir=str(data.get("remote_base_dir", "")),
-            partition=str(data.get("partition", "default") or "default"),
+            partition=str(data.get("partition") or ""),
             account=(data.get("account") or None),
             ssh_port=int(data.get("ssh_port", 22) or 22),
         )
@@ -424,8 +438,6 @@ def build_remote_run_spec(
     # so build_slurm_script stays the single script renderer (iterate-not-replace).
     extra = list(base_config.extra_sbatch_lines)
     extra.append(f"#SBATCH {array_directive}")
-    if cluster.account:
-        extra.append(f"#SBATCH --account={cluster.account}")
     effective = SlurmJobConfig(
         job_name=base_config.job_name,
         partition=base_config.partition,
@@ -433,6 +445,9 @@ def build_remote_run_spec(
         cpus_per_task=base_config.cpus_per_task,
         mem_gb=base_config.mem_gb,
         gpus=base_config.gpus,
+        gpu_type=base_config.gpu_type,
+        account=base_config.account or cluster.account,
+        signal_seconds=base_config.signal_seconds,
         extra_sbatch_lines=extra,
     )
     command = runner_command or [
@@ -557,20 +572,33 @@ class SshCliSubmitter:
 
 
 def build_ssh_command(
-    cluster: HpcClusterConfig, remote_command: list[str]
+    cluster: HpcClusterConfig,
+    remote_command: list[str] | str,
+    *,
+    key: Path | None = None,
+    control_dir: Path | None = None,
+    ssh: str = "ssh",
 ) -> list[str]:
-    """Render the argv for running ``remote_command`` on the cluster over SSH.
+    """The ONE ssh argv builder (the dry-run path and ``SshShell`` both use it).
 
-    Uses the user's own ``Host`` alias (plan §4) and a ControlMaster-friendly
-    invocation. Pure command construction — this does NOT execute anything; the
-    v0 slice builds and returns commands so they can be reviewed and unit-tested
-    before any real shell-out is wired.
+    Uses the user's own ``Host`` alias (plan §4). With ``key`` it adds the unattended-login options
+    (key only, no prompts, first contact accepts a new host key); with ``control_dir`` it reuses one
+    ControlMaster connection. ``remote_command`` is an argv (quoted here) or an already-built string.
+    Pure command construction: nothing executes.
     """
-    joined = " ".join(shlex.quote(part) for part in remote_command)
+    joined = remote_command if isinstance(remote_command, str) else " ".join(shlex.quote(p) for p in remote_command)
+    opts: list[str] = []
+    if key is not None:
+        opts += ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
+                 "-o", "StrictHostKeyChecking=accept-new"]
+    if control_dir is not None:
+        opts += ["-o", "ControlMaster=auto", "-o", "ControlPersist=4h", "-o", f"ControlPath={control_dir}/%C"]
     return [
-        "ssh",
+        ssh,
+        *opts,
         "-p",
         str(cluster.ssh_port),
+        "--",  # destination can never be read as an ssh option
         f"{cluster.username}@{cluster.host_alias}",
         joined,
     ]
@@ -583,5 +611,5 @@ def build_sinfo_probe_command(cluster: HpcClusterConfig) -> list[str]:
     This renders that command; executing it is a later wiring step.
     """
     return build_ssh_command(
-        cluster, ["sinfo", "-p", cluster.partition, "-h", "-o", "%P|%a|%D"]
+        cluster, ["sinfo", *(["-p", cluster.partition] if cluster.partition else []), "-h", "-o", "%P|%a|%D"]
     )
