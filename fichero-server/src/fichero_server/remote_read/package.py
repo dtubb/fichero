@@ -55,6 +55,7 @@ class ReadStep:
     prompt: str | None = None
     lines_per_call: int = 1
     language: str | None = None
+    engine: str | None = None  # vlm: `vllm` reads a page's lines in one batched call (offline, no server)
 
     def describe(self) -> dict[str, Any]:
         out = {"reader": self.reader, "card": self.card, "lines_per_call": self.lines_per_call}
@@ -62,6 +63,8 @@ class ReadStep:
             out["model_file"] = f"models/{Path(self.model_file or '').name}"
         else:
             out.update({"model": self.model, "prompt": self.prompt, "language": self.language})
+            if self.engine:
+                out["engine"] = self.engine
         return out
 
 

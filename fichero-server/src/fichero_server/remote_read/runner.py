@@ -167,7 +167,49 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
     return read
 
 
-READERS = {"kraken": kraken_reader, "vlm": vlm_reader}
+def vllm_batch_asker(step: dict[str, Any]) -> Callable[[list[Any]], list[str | None]]:
+    """vLLM offline batch inference inside this process (no server): the model loads once; every line picture of a
+    page is answered in one `chat` call (`compute.hpc.vllm-offline-reader`)."""
+    from vllm import LLM, SamplingParams
+
+    llm = LLM(model=step["model"], tensor_parallel_size=int(step.get("tensor_parallel") or 1), max_model_len=4096)
+    sampling = SamplingParams(temperature=0, max_tokens=256)
+    prompt = step["prompt"]
+
+    def ask(pictures: list[Any]) -> list[str | None]:
+        messages = [[{"role": "user", "content": [{"type": "image_pil", "image_pil": p},
+                                                   {"type": "text", "text": prompt}]}] for p in pictures]
+        out = []
+        for result in llm.chat(messages, sampling_params=sampling):
+            parsed = parse_answer(result.outputs[0].text, 1)
+            out.append(parsed[0] if parsed else None)
+        return out
+
+    return ask
+
+
+def vllm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[Any], list[dict[str, Any]]]:
+    from importlib import resources
+
+    from kraken import blla
+    from kraken.lib import vgsl
+
+    segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
+    ask = vllm_batch_asker(step)
+
+    def read(image: Any) -> list[dict[str, Any]]:
+        lines = [line for line in _raw_lines(blla.segment(image, model=segmenter)) if line["polygon"]]
+        texts = ask([crop_line(image, line["polygon"]) for line in lines]) if lines else []
+        return [{**line, "text": text} for line, text in zip(lines, texts) if text is not None]
+
+    return read
+
+
+READERS = {"kraken": kraken_reader, "vlm": vlm_reader, "vlm-vllm": vllm_reader}
+
+
+def reader_for(step: dict[str, Any]) -> Callable[..., Callable[[Any], list[dict[str, Any]]]]:
+    return READERS["vlm-vllm" if step["reader"] == "vlm" and step.get("engine") == "vllm" else step["reader"]]
 
 
 # --- the shard ---------------------------------------------------------------------------------------
@@ -188,7 +230,7 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
     outcome_path = folder / "_outcome.json"
     outcome = json.loads(outcome_path.read_text(encoding="utf-8")) if outcome_path.exists() else {"sources": {}}
     fetcher = PoliteFetcher(get=get or urllib_get, sleep=sleep)
-    read = reader or READERS[step["reader"]](package, step, device)
+    read = reader or reader_for(step)(package, step, device)
     started = time.time()
     images = package
     if (package / f"shards/shard-{shard:05d}.tar").exists():  # staged as a tar: unpack to the node's own disk
