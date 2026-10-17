@@ -1955,6 +1955,22 @@ def _runtime_probes() -> dict[str, tuple[Callable[[], bool], str]]:
     }
 
 
+#: Route groups the app cannot work without; readiness checks the route table has each (#4874).
+_REQUIRED_ROUTES = ("/api/documents", "/api/search", "/api/segments", "/api/projects")
+
+
+def _missing_routes() -> list[str]:
+    """The required route groups the route table does not serve. Matches paths against the table already
+    loaded: no handler runs, no database or library is touched."""
+    from starlette.routing import Match
+
+    def served(path: str) -> bool:
+        scope = {"type": "http", "path": path, "method": "GET", "root_path": "", "query_string": b"", "headers": []}
+        return any(route.matches(scope)[0] != Match.NONE for route in app.routes)
+
+    return [path for path in _REQUIRED_ROUTES if not served(path)]
+
+
 @functools.lru_cache(maxsize=1)
 def _missing_required_modules() -> list[str]:
     """Each package or runtime this engine cannot find, with what needs it (checked without importing
@@ -1992,6 +2008,10 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
     response.missing_dependencies = _missing_required_modules()
+    missing_routes = _missing_routes()
+    if missing_routes:
+        response.status = "unhealthy"
+        response.error = f"routes not registered: {', '.join(missing_routes)}"
     if not nonce:
         return response
     secret = globals().get("_api_token")
