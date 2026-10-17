@@ -85,6 +85,9 @@ def _run(tool, db, test_package, monkeypatch, doc_id: str, **extra) -> str:
 
     image = str(sample_file("sample.jpg"))
     prompts: list[str] = []
+    page = db.get(Document, doc_id)
+    page.path = image  # the re-ask (#5720) cuts lines from the page image, so the page must have one on disk
+    db.save(page)
 
     async def seen_by_the_model(images, prompt, config, **kwargs):
         prompts.append(prompt)
