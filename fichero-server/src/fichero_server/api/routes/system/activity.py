@@ -235,6 +235,9 @@ class JobTree(BaseModel):
     cost_usd: Optional[float] = Field(
         None, description="what its model calls cost, from the vendored price list; null unless every one is priced")
     unpriced_models: list[str] = Field(default_factory=list, description="models under it the price list does not know")
+    places: dict[str, int] = Field(default_factory=dict, description=(
+        "where the model calls under this one ran, and how many went to each place: this_mac, own_machine, "
+        "provider (`ai.where.row-names-the-place`, #5582)"))
     # A workflow run's account (#5555): its status shows the same one. Its pages are what `done`,
     # `total` and `failed` count on the run's own node.
     account: Optional[RunAccount] = None

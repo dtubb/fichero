@@ -284,8 +284,9 @@ def _available(spacy_module, name: str, installed: set[str] | None = None) -> bo
 
 def _open(spacy_module, name: str):
     """Load a pipeline from the model store by path when downloaded there, else the bundled one by name."""
-    stored = _stored_path(name)
-    return spacy_module.load(stored) if stored is not None else spacy_module.load(name)
+    from fichero_server.llm.local_models import load_spacy_pipeline
+
+    return load_spacy_pipeline(name)  # the one pipeline NER and SVO share (#5370)
 
 
 def _load_named(name: str):

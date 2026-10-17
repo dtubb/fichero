@@ -326,10 +326,10 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.whisper.resident` — **[GAP]** (#5370, #4628) Whisper loads once and transcribes a
   folder's files in one resident process; today each file starts a Python process and loads the
   model (`llm/whisper_runtime.py:319`).
-- `runtime.spacy.one-pipeline-per-language` — **[GAP]** (#5370) one loaded pipeline per language
-  serves NER, SVO and morphology, parsing each page once and batches with `nlp.pipe`; today
-  `knowledge/spacy_ner.py` and `knowledge/spacy_svo.py` each load their own copy and parse each page
-  two to three times.
+- `runtime.spacy.one-pipeline-per-language` — **[PARTIAL]** (#5370) one loaded pipeline per model serves NER and SVO
+  (`llm/local_models.py` `load_spacy_pipeline`, with its lemmatizer, store first then bundled); pinned by
+  `fichero-server/tests/unit/knowledge/test_one_spacy_pipeline_per_model_5370.py`. Still a gap: morphology on the same
+  pipeline, and parsing each page once with `nlp.pipe` rather than two to three times.
 - `runtime.mlx.idle-unload-and-loading-state` — **[GAP]** (#5370, #5358) a resident MLX model is
   released after the lane's idle time, and while it loads the step says "Loading <model>"; today the
   server child stays up with no idle release and a 30–300 s warm-up is a silent wait *(review)*.
@@ -426,9 +426,13 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.call-records-the-card` — **[GAP]** (#4948) every call records on its page job, and on
   what it made, the card id that answered (with the macOS build for Apple, the dated id for a cloud
   alias).
-- `runtime.errors-are-typed` — **[GAP]** (#5353, #5367) a runtime failure reaches the job as its
+- `runtime.errors-are-typed` — **[PARTIAL]** (#5353, #5367) a runtime failure reaches the job as its
   typed kind (memory, unavailable in this build, needs a key, egress refused, quota, model missing),
-  from the exception the runtime raised; the runner stops matching message text.
+  from the exception the runtime raised; the runner stops matching message text. Built: the runner's
+  `_classify_provider_error(text, exc)` decides by the exception's type first (`_typed_failure`: quota, egress refused,
+  memory, model missing, unavailable in this build), message words only for an exception with no type; its test
+  `fichero-server/tests/unit/workflows/test_errors_are_typed_5353.py` is written, green NOT yet seen (no pytest during
+  gate3). Still a gap: "needs a key" has no exception type of its own yet, and the other call sites pass text only.
 
 ### E. Honest status
 
