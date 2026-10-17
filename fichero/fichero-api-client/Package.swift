@@ -12,7 +12,7 @@ let inMemorySettings: [SwiftSetting] = inMemoryTransport ? [.define("FICHERO_INM
 let package = Package(
     name: "FicheroAPIClient",
     platforms: [
-        .macOS("27.0"),
+        .macOS("26.0"),
         .iOS("27.0")
     ],
     products: [

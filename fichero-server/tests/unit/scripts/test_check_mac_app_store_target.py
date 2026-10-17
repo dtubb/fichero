@@ -1,4 +1,4 @@
-"""Tests for the Mac App Store target guardrail and the #3952 TestFlight
+"""Tests for the Mac App Store guardrail (the App Store build is a configuration of the one target, #5730) and the #3952 TestFlight
 get-task-allow fix.
 
 #3952 (P0, TestFlight launch blocker): the embedded Briefcase engine is signed
@@ -93,7 +93,7 @@ def test_embed_phase_asserts_no_get_task_allow() -> None:
     """The MAS 'Embed Fichero Server' build phase must reject get-task-allow on
     the signed engine (#3952). The build-time codesign never injects it, but the
     assertion is the backstop that proves the two-key set landed on the bytes."""
-    script = _embed_phase_script("Fichero (App Store)")
+    script = _embed_phase_script("Fichero")
     assert "com.apple.security.get-task-allow" in script, (
         "the embed phase must assert the signed engine does NOT carry get-task-allow (#3952)"
     )
@@ -106,7 +106,7 @@ def test_embed_phases_preflight_briefcase_bundle_before_copying() -> None:
     """Direct Xcode embedded builds must refresh/fail the Briefcase input before
     copying it. Otherwise the newest Swift app can ship an hours-old Python
     engine while source-level tests stay green (#3956)."""
-    for target_name in ("Fichero", "Fichero (App Store)"):
+    for target_name in ("Fichero",):
         script = _embed_phase_script(target_name)
         preflight_at = script.find("preflight-embedded-engine.sh")
         copy_at = script.find('cp -R "$ENGINE_SRC" "$ENGINE_DST"')
@@ -120,10 +120,9 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
     unchanged builds do not rerun the expensive copy/signing phase (#3991)."""
     input_file_list = "$(SRCROOT)/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
     staged_engine_input = "$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app"
-    expected_macos_outputs = {
-        "Fichero": "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app",
-        "Fichero (App Store)": "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app",
-    }
+    resources_output = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app"
+    helpers_output = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app"
+    expected_macos_outputs = {"Fichero": resources_output}
     project = json.loads(
         subprocess.run(
             ["plutil", "-convert", "json", "-o", "-", str(REPO_ROOT / "fichero" / "fichero.xcodeproj" / "project.pbxproj")],
@@ -152,10 +151,12 @@ def test_embed_phases_are_dependency_aware_not_always_out_of_date() -> None:
         for config_id in project[target["buildConfigurationList"]]["buildConfigurations"]:
             settings = project[config_id]["buildSettings"]
             assert settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH") == "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop"
-            assert settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]") == expected_macos_output
+            # One target (#5730): the App Store configuration embeds in Helpers, every other one in Resources.
+            want = helpers_output if project[config_id]["name"] == "App Store" else expected_macos_output
+            assert settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]") == want
 
     assert "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" in set(
-        _embed_phase("Fichero (App Store)").get("inputPaths", [])
+        _embed_phase("Fichero").get("inputPaths", [])
     )
 
 
@@ -294,3 +295,54 @@ def test_guardrail_would_reject_get_task_allow_in_engine_entitlements(tmp_path: 
     # get-task-allow key specifically is what #3952 is about.
     assert keys != expected
     assert "com.apple.security.get-task-allow" in keys
+
+
+# ---- the App Store build is a CONFIGURATION of the one target (#5730) ----
+
+import importlib.util  # noqa: E402
+import sys  # noqa: E402
+
+import pytest  # noqa: E402
+
+_SCRIPT = CHECK_MAS
+_SPEC = importlib.util.spec_from_file_location("check_mac_app_store_target", _SCRIPT)
+assert _SPEC and _SPEC.loader
+_mod = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = _mod
+_SPEC.loader.exec_module(_mod)  # type: ignore[attr-defined]
+
+
+def _run_against(tmp_path: Path, pbx_text: str) -> list[str]:
+    mutated = tmp_path / "project.pbxproj"
+    mutated.write_text(pbx_text, encoding="utf-8")
+    original = _mod.PROJ
+    _mod.PROJ = mutated
+    try:
+        return _mod.check()
+    finally:
+        _mod.PROJ = original
+
+
+@pytest.mark.build_config
+def test_the_guard_does_not_ask_for_a_second_target():
+    problems = _mod.check()
+    assert not any("is missing from project.pbxproj" in p for p in problems)
+
+
+@pytest.mark.build_config
+def test_a_project_without_an_app_store_configuration_is_caught(tmp_path):
+    pbx = _mod.PROJ.read_text(encoding="utf-8")
+    problems = _run_against(tmp_path, pbx)
+    assert any("no 'App Store' build configuration" in p for p in problems)
+
+
+@pytest.mark.build_config
+def test_the_real_project_has_an_app_store_configuration():
+    # [GAP] #5730: red until the maintainer adds the configuration in Xcode.
+    assert not any("no 'App Store' build configuration" in p for p in _mod.check())
+
+
+@pytest.mark.build_config
+def test_sparkle_is_removed_from_the_app_store_build():
+    # [GAP] #5730: red until a phase deletes Sparkle.framework for the App Store configuration.
+    assert not any("Remove Sparkle (App Store)" in p for p in _mod.check())
