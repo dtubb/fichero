@@ -35,19 +35,19 @@
 ## Behaviors to add
 
 ### Interactions
-- `kg.interact.drag` — entities + claims are `Transferable`; drag into note/workspace/
+- `kg.interact.drag` — **[GAP]** (#4643) entities + claims are `Transferable`; drag into note/workspace/
   canvas/folder; the drag payload carries the id + a standard serialization (JSON-LD item).
-- `kg.interact.drop` — a table accepts drops that make sense (a claim onto an entity links
+- `kg.interact.drop` — **[GAP]** (#4643) a table accepts drops that make sense (a claim onto an entity links
   them; a doc onto the claims table scopes/creates).
-- `kg.interact.context-menu-full` — one shared right-click verb set: open · edit · rename ·
+- `kg.interact.context-menu-full` — **[GAP]** (#4643) one shared right-click verb set: open · edit · rename ·
   **merge/combine** · bless/reject/retype · **comment** · delete · **export selection…**.
-- `kg.interact.comment` — a human comment/note on a claim or entity (distinct from a claim);
+- `kg.interact.comment` — **[GAP]** (#4643) a human comment/note on a claim or entity (distinct from a claim);
   authored + dated + provenance-tagged; a review/collaboration affordance. A comment is its own
   threaded record, anchored to any node (claim, entity, source, segment), and is never stored as
   a claim (ruled 2026-10-04).
-- `kg.interact.export-selection` — shift-select rows → export as **JSON-LD** (validated,
+- `kg.interact.export-selection` — **[GAP]** (#4643) shift-select rows → export as **JSON-LD** (validated,
   #4641) / JSONL / CSV; the selection is the scope.
-- `kg.interact.keyboard` — ⌘⌫ delete · ⌘A select-all · ⏎ open · F2/double-click rename
+- `kg.interact.keyboard` — **[GAP]** (#4643) ⌘⌫ delete · ⌘A select-all · ⏎ open · F2/double-click rename
   (shared selection grammar, #4436).
 
 ### Standards coverage (is it all in the design?)
@@ -58,9 +58,9 @@
   is the interaction/export surface for them.**
 
 ### Versioning (surfacing #4636 in the tables)
-- `kg.version.history` — a claim/entity shows its version history (who/model/when/reason/
+- `kg.version.history` — **[GAP]** (#4643) a claim/entity shows its version history (who/model/when/reason/
   cost — #4636) and can restore a prior version.
-- `kg.version.author-mark` — hand vs AI vs enriched-from-<source>, at a glance.
+- `kg.version.author-mark` — **[GAP]** (#4643) hand vs AI vs enriched-from-<source>, at a glance.
 
 ## Cross-surface / cross-platform test matrix (the "are they ALL testing?" answer)
 

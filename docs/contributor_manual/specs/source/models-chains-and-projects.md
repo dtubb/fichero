@@ -96,7 +96,11 @@ ruled 2026-10-04:
 - `recipe.distil.every-step-has-an-mcp-tool` — **[PARTIAL]** (#5455, #5454, #5441, #5446) every step
   in the table has an MCP tool that drives it, named in its row, so an agent drives Fichero as a
   person does through the screens and never drives Kraken, ketos or the engine's insides directly.
-  Built: the tools named in the table. Missing: those marked missing.
+  Built: the tools named in the table, and (R0 2026-10-17, read in `fichero-mcp/src/fichero_mcp/openapi_tools_generated.py`) the
+  recipe setup tools (`fichero_recipes_get_project_setup`, `_save_project_setup`), `routes_for_volume`, `start_project`,
+  `get_start_plan`, `choose_samples` and `use_candidate_for_step`, so the table's MCP column for steps 1, 2, 5 and 10 is
+  stale where it says missing. The true residue: a Hugging Face Hub publish (step 14), a clean-set export as a step (step 7),
+  and evaluate and choose as steps of their own (steps 9 and 10).
 
 ## Intent
 
@@ -1160,6 +1164,13 @@ plan's peak memory across steps. Ready shows none of it.
   and left alone. *Not built:* deskew (a straightened picture is not the page's frame, so the lines found on it
   would not map back until a rendition can carry its transform to the lines); stains, holes and uneven light are
   not measured; the measure is not yet judged by reading (`prep.judged-by-reading`).
+- `source.onboard.photographed-pages-asked` — **[PARTIAL]** (#5390; ruled 2026-10-17; engine half tested in
+  `fichero-server/tests/unit/recipes/test_photographed_pages_step.py`) setup **asks** whether the pages are photographs
+  (a book open on a table, two pages to a picture), and the default is off. Answered yes, a recipe that lines or reads
+  gets `split-pages` and `prepare-the-image` before lines, so the table, ruler and spiral are not read as text; answered
+  no or left unset, the recipe is unchanged. The answer is `photographs` on assemble; nothing guesses it. *Not built:*
+  the question in the app's setup, and the other three faults of #5390 (cloud options listed when allowed, running an
+  assembled recipe from the CLI, plain list values).
 - `source.onboard.auto.organise-is-a-stage` — **[GAP]** (#5550) Find the Documents is a recipe stage
   that runs after names and dates, on any material, images or text. Its proposals (boundaries, kinds as
   prototypes, groups, order) are drawn on the canvas for review. Nothing in the source moves until the
@@ -1187,9 +1198,15 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.volumes-in-batches` — **[OK]** (#5540; built as `source.recipe.batch-at-archive-scale` below, one batch per folder with every step finished on it before the next, progress per folder; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) a run over several volumes goes one
   volume at a time, with every stage finished on that volume before the next volume starts. Progress is
   shown per volume.
-- `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
-  train step's `offered_when` threshold, the offer appears by itself, with where, time and cost. Today
-  nothing watches the count and the app never reads `offered`.
+- `source.onboard.auto.train-offer-comes` — **[PARTIAL]** (#5440; reworded 2026-10-17, ruled; *built (engine): `train_offers.training_setting` and the setting on every Start-plan offer (`setting`, `does`); pinned by `fichero-server/tests/unit/recipes/test_training_setting_5440.py`. Not built: the onboarding screen that sets `answers.training`, and training actually starting by itself once the threshold is reached*) training runs by itself per an
+  onboarding setting, not a prompt: in the project's setup the person chooses how training happens (`answers.training`:
+  `here`, `huggingface` or `offered`). With no choice the default depends on the machine: a Mac with enough memory to train
+  a Kraken reader trains **here**, automatically; otherwise **huggingface** when a Hugging Face token is set up; else the
+  offer stays on the Start plan (`offered`). A choice that cannot be met (`huggingface` with no token) falls back to
+  `offered` and says why. No alert and no notification. The Start plan shows what it did and will do: each train offer
+  carries its `setting` (mode and the sentence that says why) and what the setting does once the corrected lines reach the
+  step's threshold. *Test:* the default by machine, an explicit choice winning, an unmeetable choice falling back with its
+  reason, and the setting on the Start plan's offers.
 - `source.onboard.auto.text-needs-no-reading` — **[PARTIAL]** (#5553, as
   `source.recipe.text-material-is-not-read`) material that is already text is a kind of its own. Its
   recipe starts from text (`STARTS_WITH` includes the page's text), its language is detected from the
@@ -2242,7 +2259,7 @@ Model cards
 
 Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each refines a card behaviour above under the same issue: `card-id` is `one-card`'s identity, `jobs-replace-capabilities` is `jobs-typed`'s rule, `licence-filled` is `licence-class` for Fichero's own catalogue.
 
-- `source.model.card-id` — **[GAP]** (#4948) every card has one id `<runtime>:<source>@<version>`
+- `source.model.card-id` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_seed_cards.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4948) every card has one id `<runtime>:<source>@<version>`
   as section 1 sets out; recipes, role defaults, runtime configurations, the making record and
   jobs store it; no surface stores a bare model name. Today there are five schemes (MLX repo+SHA,
   Whisper repo+revision, Kraken DOI, an embedding "space contract", bare cloud strings) and a
@@ -2386,14 +2403,14 @@ Jobs and chains
   reading of the same line (Apple Vision's OCR, a stock Kraken read) stays as history and never counts
   while a better reading of the line exists. On Mosquera this is 319 of 374 pages, whose only shaped
   lines are Apple Vision's (C01_030: `WtrtNI-`, `¥eTIQ`) or stock Kraken's.
-- `source.read.once-lines-exist-every-reading-ties-to-a-line` — **[PARTIAL]** (#5721) done in the Transcribe tool: on a page that already has lines, Apple Vision (on each line's own picture, one line a call) and a vision model (the line reader, a few pictures a call) read each line onto the page's working pass, as Kraken does, with no second pass and the page's text left alone (`tests/unit/workflows/test_every_reader_ties_to_lines_5721.py`: `test_apple_vision_on_a_page_with_lines_reads_each_line_and_makes_no_second_pass_5721`, `test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_words_land_on_them_5721`, `test_an_auto_reader_on_a_page_with_lines_ties_to_them_whichever_it_resolves_to_5721`, `test_a_reader_never_replaces_the_text_of_a_page_that_has_lines_5721`); a page with text and no instruction to read again is still passed through as before (`test_a_page_that_has_text_and_no_instruction_to_read_again_is_not_read_5721`); a page with no lines read by a model says its text is tied to no line (`test_a_page_with_no_lines_read_by_a_model_says_its_text_is_tied_to_no_line_5721`). Owed: a real run on a page like 39_Hoja_549_Recto.JPG; a run of several pages where only some have lines reads them page-level; Apple Vision is given the line's padded polygon bounds, not its exact rectangle. On a page that already has lines
+- `source.read.once-lines-exist-every-reading-ties-to-a-line` — **[PARTIAL]** (#5721) done in the Transcribe tool: on a page that already has lines, Apple Vision (on each line's own picture, one line a call) and a vision model (the line reader, a few pictures a call) read each line onto the page's working pass, as Kraken does, with no second pass and the page's text left alone (`tests/unit/workflows/test_every_reader_ties_to_lines_5721.py`: `test_apple_vision_on_a_page_with_lines_reads_each_line_and_makes_no_second_pass_5721`, `test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_words_land_on_them_5721`, `test_an_auto_reader_on_a_page_with_lines_ties_to_them_whichever_it_resolves_to_5721`, `test_a_reader_never_replaces_the_text_of_a_page_that_has_lines_5721`); a page with text and no instruction to read again is still passed through as before (`test_a_page_that_has_text_and_no_instruction_to_read_again_is_not_read_5721`); a page with no lines read by a model says its text is tied to no line (`test_a_page_with_no_lines_read_by_a_model_says_its_text_is_tied_to_no_line_5721`); a run where only some pages have lines reads every page whole and names the one with no lines (`test_a_run_where_only_some_pages_have_lines_reads_every_page_whole_and_says_which_has_no_lines_5721`); a page whose lines came back with no reading is read whole, only that page, with a note (`test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_of_several_pages_5721`). Owed: a real run on a page like 39_Hoja_549_Recto.JPG; Apple Vision is given the line's padded polygon bounds, not its exact rectangle. On a page that already has lines
   (segments), every reader's output is a reading of those lines, whatever the reader is: Kraken, Apple Vision (run on
   the line's rectangle), an MLX or cloud vision model (shown each line's crop), or the one the recipe chose. Page-level
   text with no line under it is a draft a person may promote, never the step's result, and the step says so when it
   could only produce that. WHY (2026-10-16, page 39_Hoja_549_Recto.JPG, project 17402): Kraken's pass held 44 lines;
   the Apple Vision pass and the Qwen pass each held the whole page as text with 0 segments. Built in part by #5719
   (the review's answer is asked by id) and #5720 (the per-line re-ask); the read step for non-Kraken readers on a page
-  with lines is not built. *Test:* run Apple Vision, then a stub vision model, on a page with three lines: each pass
+  with lines is built in the Transcribe tool (see the tests named above). *Test:* run Apple Vision, then a stub vision model, on a page with three lines: each pass
   has three readings tied to the three segments.
 - `source.job.review-is-built-from-the-project-and-a-profile` — **[PARTIAL]** (#5723) done: the review nodes carry a `lens` (abbreviations, orthography, names-and-dates) and no prompt, and the step builds its prompt at run time from the project's saved setup (language, script, direction, period, material; place and hand where setup records them) and a profile chosen by the reader-card rules (`recipes/review_profiles.py`, data files in `recipes/seed/review-profiles/`: es-colonial and generic, with de-kurrent, aramaic and zh as stubs; no language is named in code). A project no profile fits is told so and gets the generic review (`test_an_english_secretary_hand_project_is_never_sent_the_spanish_review`, `test_a_spanish_colonial_project_is_sent_the_spanish_colonial_review`, `test_spanish_outside_the_profiles_period_gets_the_generic_review_and_is_told_so`, `test_each_script_gets_its_profile_and_its_direction_is_said`, `test_the_shipped_review_is_built_from_the_projects_answers_5723` through the shipped preset). Owed: a recipe step turning lenses on or off with the cost per page shown first, and each lens's effect on the error rate shown by the A/B; the Transcribe (Auto-Detect) preset still carries its own Spanish review prompt; the stubs' genres. The review (the `correct` job,
   `transcribe_paleography_review`) is not written for one language. Its prompts are built from the recipe's answers
@@ -2430,13 +2447,19 @@ Jobs and chains
   `test_a_names_run_over_no_page_fails_and_says_so_5521`, `test_a_page_left_out_beside_a_page_read_still_completes_5521`).
   Owed from #5521: a spaCy pipeline for a language none ships (Latin, Greek), and the installed pipelines counted by the
   recipe's finder (#5519, #5688 compares the ones installed here).
-- `source.recipe.workflow-gaps` — **[PARTIAL]** (#5726) done: `classify_script` is a shipped workflow of its own, Classify Script (a files source and the classify step, nothing else), so a person or a recipe can classify a page's script without running Transcribe (Auto-Detect) (`tests/unit/workflows/test_classify_script_workflow_5726.py`, `test_classify_script_is_a_workflow_of_its_own_5726`). Owed: the other three, and a recipe job for the classify step. Surveyed 2026-10-16 against 60 default workflows: a page read by
+- `source.recipe.workflow-gaps` — **[PARTIAL]** (#5726) done: `classify_script` is a shipped workflow of its own, Classify Script (a files source and the classify step, nothing else), so a person or a recipe can classify a page's script without running Transcribe (Auto-Detect) (`tests/unit/workflows/test_classify_script_workflow_5726.py`, `test_classify_script_is_a_workflow_of_its_own_5726`). Owed, re-read 2026-10-17 (R1): of the four gaps, the recipe job for the classify step is `source.job.find-the-script` (built); a page read by a model that answers by segment id is `source.read.once-lines-exist-every-reading-ties-to-a-line` (on a page with lines the model is shown each line, `test_every_reader_ties_to_lines_5721.py`); a review for each language the read presets cover is `source.job.review-is-built-from-the-project-and-a-profile` (a profile chosen by the project's answers). Left: a workflow that exports tied lines as PAGE XML training pairs; the code is `training/kraken_set.export_training_set`, reached today through the audited `training.*` actions and the Start plan's train offers, not through a workflow (a question for the manager: is a workflow wanted too?). Surveyed 2026-10-16 against 60 default workflows: a page read by
   a model that answers by segment id (`transcribe_htr` and `transcribe_cloud` are page text; `read_lines_kraken_vision`
   is per line); a review for each language the read presets cover; `classify_script`, which exists only inside
   `transcribe_auto_detect`, as a step the recipe can use; and a workflow that exports tied lines as PAGE XML training
   pairs (the code is in `training/`; no workflow seen, to be confirmed). Workflows with no recipe job today (not gaps
   by themselves): `paleo_regesto`, `paleo_translate_english`, the translate set, `extract_geo`, `extract_table`,
   `extract_events_timeline`, `describe_visual`, `clean_up_text`, `ner_per_page_local`, the `convert_to_*` set.
+- `source.job.find-the-script` — **[OK]** (#5726; R1 2026-10-17; tested in `fichero-server/tests/unit/recipes/test_find_the_script_job_5726.py`, 3 pass, run alone 2026-10-17 after the gate3 pause) a recipe can name a step that finds a page's script and hand
+  (the classify step on its own, the shipped workflow Classify Script), so a project whose script is not known classifies it
+  without running Transcribe (Auto-Detect). It takes the page image and gives the script; it is a vision-model step, run with
+  the step's own model like Correct (a cloud, MLX or Apple model); it is in no purpose's default steps, so no recipe changes
+  until a person ticks it. *Test:* the job is registered with a place in the step order and a topic; a step naming it plans the
+  Classify Script workflow with the step's model as the run's override.
 - `source.recipe.nothing-assumes-spaces-direction-or-an-alphabet` — **[PARTIAL]** (#5728) done: the four-script matrix (`tests/unit/workflows/test_nothing_assumes_script_5728.py`): each is sent its own profile and none of another's wording (`test_each_script_is_never_sent_another_scripts_wording_5728`), the words every review shares assume no alphabet, spaces or direction (`test_what_every_profile_shares_assumes_no_alphabet_no_spaces_and_no_direction_5728`; the generic profile was reworded), a reviewer's answer in each script lands on its segments in their own order and leaves their script and direction as set (`test_each_scripts_review_lands_on_its_segments_in_their_reading_order_5728`, with the vertical page's columns in the segments' order, not the boxes'), and the table's WER is counted only where the script divides its words (`recipes/seed/scripts-without-word-spaces.txt`, `training.evaluation.word_errors`; `test_where_the_script_does_not_separate_words_the_page_is_scored_by_character_5728`, `test_where_the_script_separates_words_a_wrong_word_is_counted_5728`). Owed: the stub profiles' genres and audits; a real run on a right-to-left and a vertical page; granularity (#5722) over a vertical page; a script decided per line rather than per page when a page mixes scripts. The review, the profiles, the
   granularity and the A/B's scoring hold for ANY language and script, with none named in code; the test matrix is Spanish
   colonial, German Kurrent, Aramaic (Hebrew square script and Syriac, right to left) and Chinese (vertical columns, no
@@ -2449,7 +2472,7 @@ Jobs and chains
   WER appears only where the script separates words; Chinese is scored by character. *Test:* the matrix of the four,
   each with a stub reviewer, never sent another's wording, and a right-to-left and a vertical page both returned in
   their segments' reading order.
-- `source.job.review-asks-one-answer-line-per-segment-id` — **[BROKEN]** (#5719) the paleographer review, shown the
+- `source.job.review-asks-one-answer-line-per-segment-id` — **[OK]** (#5719; the review prompts ask for the ids and the answer is tied by id, pinned by `fichero-server/tests/unit/workflows/test_review_corrects_the_lines_5654.py`) the paleographer review, shown the
   page's lines as `<segment id> | box | maker | text`, is told to answer one line per shown line as `<segment id> |
   <corrected text>`, in the same order, never merging, splitting, dropping or adding a line; the prompt it is sent
   says so. WHY (2026-10-16, page 39_Hoja_549_Recto.JPG, project 17402): the default prompt said only "output only the
@@ -2657,7 +2680,7 @@ How a result was made
   reading against reading and scored against ground truth.
 
 Projects
-- `source.project.has-settings` — **[GAP]** (#4951) a project (today's library) has settings of its
+- `source.project.has-settings` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/api/test_project_setup_is_saved.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4951) a project (today's library) has settings of its
   own (purpose, recipe, defaults, rules, synced folders); one never set up behaves exactly as before.
 - `source.project.setup-saves-what-is-sent` — **[OK]** (#5584; built: the `project.save_setup` action keeps a
   part its params leave unset; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) saving a project's setup
@@ -3217,7 +3240,7 @@ Setup
 - `source.onboard.stages.explanation-always-shown` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStageRow`. every stage in the chooser shows
   its explanation whether or not it is ticked. *Test:* pure Swift, an unticked stage's row carries its
   sentence.
-- `source.onboard.stages.normalise-and-translate` — **[GAP]** (#5668) Normalise and Translate are two
+- `source.onboard.stages.normalise-and-translate` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/SetupStagesTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5668) Normalise and Translate are two
   stages: Normalise offers as written, abbreviations expanded, normalised spelling and modernised;
   Translate's target is any language, found by the language search. *Test:* pytest, the two stages and
   their questions; pure Swift, Translate's target field is the language search.
@@ -3285,7 +3308,7 @@ Setup
   shown; a step that a later step needs cannot be taken out, and Ready says which step needs it. *Test:*
   transcribe + search with `make-a-vector` taken out assembles transcription only and lists it as removed;
   taking out Find lines keeps it with `needed_by` Read each line; Start's plan has no vector step.
-- `source.onboard.teaches-the-method` — **[GAP]** (#4951, #5471, #5481) **Engine built 2026-10-04:** each
+- `source.onboard.teaches-the-method` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py` and `fichero/Tests/Unit/general/Models/TopicStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4951, #5471, #5481) **Engine built 2026-10-04:** each
   topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
   `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;
   pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py`. **App built 2026-10-05:**
@@ -3475,11 +3498,24 @@ Setup
   are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
   coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
   card id.
-- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** local candidates first in `assemble()`; the A/B that moves up is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. a step's starting choice is the cheapest
-  local candidate that passes the hard constraints (Tesseract, Kraken, or a local open OCR model);
-  a costlier option replaces it only after an A/B on the person's pages shows the cheap one misses
-  the bar and the person confirms; the comparison shows accuracy, cost and environmental cost side
-  by side; distilling and fine-tuning are offered as options, never defaults.
+- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; SUPERSEDED 2026-10-17, the code still follows it until the fallback-chain change lands; replaced by `source.recipe.candidates-fallback-chain` and
+  `source.recipe.placement-by-scale` below, ruled by the maintainer) the bulk reader is the BEST MEASURED candidate, not the cheapest local one.
+  What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
+  one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
+  fine-tuning are still offered as options, never defaults.
+- `source.recipe.candidates-fallback-chain` — **[GAP]** (#4950, #5582; ruled 2026-10-17) the candidates for a step are ranked best-measured first
+  (accuracy in one-point bands, measured on the person's pages, else published, else coverage); cheaper, then local, only break ties inside the
+  noise band (`source.train.noise-band-per-project`). Cloud candidates stay shown greyed with "needs permission" until the person has said in setup
+  that pages may leave this Mac (`source.onboard.pages-may-leave`). When the best candidate cannot run (no key, not enough memory, the repository
+  gone), the next one in the chain runs, and the plan says which and why; a missing key never substitutes silently
+  (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
+  cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
+- `source.recipe.placement-by-scale` — **[GAP]** (#4950; ruled 2026-10-17) where the chosen reader runs depends on the project's scale: about 100 or
+  about 1,000 pages run on this Mac; about 100,000 pages belong on ACENet or Hugging Face. Below a page threshold set in the plan the reader runs
+  locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
+  100,000, and stays here when pages may not leave.
+- `source.onboard.pages-may-leave` — **[GAP]** (#4951; ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
+  answer is yes (`answers.cloud_allowed`), and cloud candidates show greyed with "needs permission" until then.
 - `source.recipe.volume-rule` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** training offered from 5,000 pages in `assemble()`; cost and time limits not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
   from the start; above 100,000 a candidate whose whole-volume cost or time is beyond the limits
@@ -3555,7 +3591,7 @@ The recipe and its format
   purposes it suits.
 - `source.recipe.makes-a-workflow` — **[PARTIAL]** (#4950) **Built 2026-10-03 (engine):** `plan_start` maps each step to a shipped workflow by name with the step's model (`recipes/start.py`, four jobs so far), refusing by name a step it cannot map; a pinned Kraken reader reaches Transcribe (Kraken) as the run's `kraken` override (`workflows/validation.py`), and a reader outside the catalogue this Mac can fetch is refused; Start validates with `check_recipe`, and the assemble answer is a whole recipe (schema, version, suits); the runs are not started yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/workflows/test_kraken_reader_is_a_run_override.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. applying a recipe's steps makes and runs
   workflows; nothing runs except workflows.
-- `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe refers to workflows in the
+- `source.recipe.holds-no-second-copy` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4950) a recipe refers to workflows in the
   store by name and may carry its own, but never a copy of one the store holds; the locked default
   workflows stay in the store and shipped recipes refer to them (ruled 2026-10-01).
 - `source.recipe.stored-in-project` — **[GAP]** (#4950) a project's recipe (followed version,
@@ -3566,13 +3602,14 @@ The recipe and its format
   runs, so a step uses only what an earlier step or the source gives.
 - `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a
   different model (main text, marginal gloss, table, drawing).
-- `source.recipe.names-models-and-where` — **[GAP]** (#4950) a recipe names the model for each step,
+- `source.recipe.names-models-and-where` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py` and `test_yolo_pin_is_a_known_form.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4950) a recipe names the model for each step,
   pinned (Hugging Face repository and revision, Zenodo DOI, package and version, Kraken built-in
   and version, or a cloud provider's model id with the date measured) or a role default, and where
   it runs: `this-mac`, `cloud`, `cluster` or `gpu-service`.
   **(2026-10-11)** A YOLO layout model is pinned by its catalogue name (`{yolo: yolo-doclaynet-11n}`), the form
   the shipped card writes, and the recipe check knows it; a pin the check does not know is said in words, never
   as a list of its keys (`recipes/recipe.PIN_FORMS`; `fichero-server/tests/unit/recipes/test_yolo_pin_is_a_known_form.py`).
+- `source.recipe.placement-by-scale` — **[GAP]** (#4950, #5589) each step declares where it can run (Mac / GPU cluster / CPU cluster / cloud); the plan places a step by scale (local below a page threshold set in the plan, remote above) and by GPU saturation. A step reaches a `cluster` target only through its bound target (`source.recipe.runs-on-binds-to-a-target`). Supersedes `source.recipe.cheapest-local-first` (cheapest only within the noise band). *Test:* a 1,000-page step places local; a 100,000-page step places on the bound `cluster` target; a recipe with no bound cluster never places there.
 - `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
   and an unbound step waits with "No cluster is set up".
@@ -3581,10 +3618,10 @@ The recipe and its format
 - `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
-- `source.recipe.train-never-automatic` — **[GAP]** (#4950, #5336) a train step runs by itself only if the
-  person chose automatic training in setup (offered with a default such as distilling from a large
-  teacher, then fine-tuning a small model); otherwise it is offered when its condition is met and
-  runs only when the person starts it.
+- `source.recipe.train-never-automatic` — **[PARTIAL]** (#4950, #5336, #5440; reworded 2026-10-17; *built: a train step is never among what Start runs and
+  the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`*) training runs by itself only per
+  the onboarding setting (`answers.training`: here, huggingface or offered, defaulting by machine; see `source.onboard.auto.train-offer-comes`); with
+  `offered` it is offered when its condition is met and runs only when the person starts it. Never an alert.
 - `source.recipe.train-offered-per-step` — **[PARTIAL]** (#5660 item 9) for each step a model can be trained
   for, the Start plan offers "Train a model of your own for this step" (`train_offers`), offered later and never
   run at Start: the line reader (fine-tune a Kraken reader, on this Mac or Hugging Face Jobs; distil into an MLX
@@ -3747,8 +3784,13 @@ Running and failure
   updated, a removed step whose job now exists is offered back, never put back by itself. *Test:* the taken recipe
   passes the check and holds the record; the original is unchanged; the step is offered back once its job exists, and
   not before.
-- `source.recipe.pinned-model-gone` — **[GAP]** (#5364) a pinned model that can no longer be fetched
-  is reported by the check, naming the step, and the rule's next candidate is offered.
+- `source.recipe.pinned-model-gone` — **[PARTIAL]** (#5364; how it is known, ruled 2026-10-17; *built: `llm/failed_fetches.py`, the store's hook in `_run_download_in_process`, `recipe._check_not_gone`; pinned by `fichero-server/tests/unit/recipes/test_pinned_model_gone_5364.py`. Not built: offering the rule's next candidate, and the Kraken and Zenodo readers' fetches recording a failure*) a pinned model that can no longer be
+  fetched is reported by the check, naming the step, and the rule's next candidate is offered. It is known from the
+  model store's record of the last failed fetch: when a fetch fails for a reason that is not a dropped connection (the
+  repository is gone or refuses the request), the store writes the repository and the reason to `failed_fetches.json` in its
+  root, and removes the entry when the model lands. `check_recipe` reads that record and makes no network call. *Test:* a
+  failed fetch is recorded and a later one that lands clears it; the check names the step of a pin with a record, and not
+  one without.
 
 Sharing
 - `source.recipe.publish` — **[GAP]** (#5364) a recipe can be published to the community catalogue
@@ -3881,7 +3923,7 @@ Finding models
   waiting or running is reused. With no project open the online search is not run and the source says why.
   *Test:* the cold call returns before the Hub answers, with the job id; Activity lists the job; once it is
   done the next call lists what it found.
-- `source.find.app-finder-three-hosts` — **[GAP]** (#5611) the app's model finder is one view
+- `source.find.app-finder-three-hosts` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611) the app's model finder is one view
   (`ModelFinderView`) over one store per project (`ModelFinderStore`, on the project's own client, so every
   call names the project), shown in three places (ruled 2026-10-08): the project's Inspector (a Find a
   Reader disclosure under its readers), Set Up… › Ready (a Find a Reader… button beside a reading step's
@@ -3890,13 +3932,13 @@ Finding models
   since the scripts and languages are the project's answers). The finder never works out a candidate,
   a rank or a fit: it shows `GET /api/recipes/candidates` in the engine's order, and a change to the
   list replaces it as the engine answered it.
-- `source.find.app-card-says` — **[GAP]** (#5611) each candidate is a card: its name, the engine's
+- `source.find.app-card-says` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611) each candidate is a card: its name, the engine's
   reason it is offered (`offered_because`), its size in the engine's words (`size`: "1.2 GB" or "size
   not stated", never 0), where it came from in words (ships with Fichero, installed on this Mac, Kraken's
   repository, Hugging Face), what is measured on the project (`measured`), its licence when not open, and,
   when the rules refuse it, the rules' reason (`refused`) in place of an action. Each source's line
   (`sources[].detail`) is said once above the cards.
-- `source.find.app-card-actions` — **[GAP]** (#5611, #5612) a card's actions are only those an existing
+- `source.find.app-card-actions` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift` and `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611, #5612) a card's actions are only those an existing
   route serves: **Download** for any candidate that names a `download`, through the one download route
   (`POST /api/local-models/download/{runtime}/{model}`, the runtime and model its `download` names; the
   card then says Downloading… and Activity shows the job); **Use for This Step** in Set Up… on any
@@ -3917,7 +3959,7 @@ Finding models
   Pinned by `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. *Residue:* a
   Kraken reader has no download action (the run fetches it); the tag stays [GAP] until the app half is
   seen working.
-- `source.find.app-searching-line` — **[GAP]** (#5611) after Search Online the finder says
+- `source.find.app-searching-line` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611) after Search Online the finder says
   "Searching online…" with the job's reason, observed through the project's `ActivityStore` (the one
   poller of `GET /api/activity/jobs`) by the job's id (`search_job.id`, or the `find-models` kind's
   waiting row), never by a poller of its own; when the job leaves the list (done), the finder reads the
@@ -4377,4 +4419,55 @@ comparison of line-by-line against whole-page reading by vision-language models;
 Hugging Face revisions in the example exist (they are illustrative).
 
 ## Triaged from the backlog (2026-10-04)
-- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).
+- `source.segments.align-page-text-to-lines` **[GAP]** (#5217; split into the `source.align.*` entries below, to the "properly" bar): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).
+
+### Align Text to Lines, to the "properly" bar (#5217, #5486; ruled 2026-10-17)
+The tool is `tie-text-to-lines` (`checking/tie_text.py`, `source.job.tie-text-to-lines`); these entries are the bar it is built to. If one cannot be met,
+drafts stay drafts and #5217 records why.
+- `source.align.new-reading-never-overwrites` — **[OK]** (#5217; tested in `fichero-server/tests/unit/check/test_tie_text_to_lines.py`
+  (`test_the_readings_are_the_machines_never_a_persons`, `test_the_tie_writes_onto_the_pages_lines_and_never_makes_a_second_pass`) and
+  `test_which_reading_counts_after_the_tie.py`) the alignment lands as a NEW reading on each line (`representation.create`, derived from the
+  page reading), never overwrites a reading, and never replaces a person's or a confirmed one as the counting reading.
+- `source.align.confidence-per-line` — **[OK]** (#5217; the score is the reading's `machine_confidence`, set by the job; tested in `fichero-server/tests/unit/check/test_tie_text_to_lines.py` (`test_each_aligned_line_carries_how_well_the_text_matched_it`, 12 pass) and `test_which_reading_counts_after_the_tie.py` (12 pass); the app showing it beside the line is the Swift half) each aligned line carries how well the page text matched it (the score against the
+  rough read of the line, 0 to 1), kept on the reading it made and served with the line, so the person sees which lines to check; today the score
+  is only in the job's result and in the reason of a rejected line.
+- `source.align.known-misalignments-fixture` — **[OK]** (#5217; tested in `fichero-server/tests/unit/check/test_align_text_to_lines_5217.py`: a clean control, a dropped line, two lines merged, two reordered; 5 pass) the aligner is pinned over a real two-page fixture with known misalignments: a
+  line the reader dropped, two lines it merged, two it reordered; each case says what lands on which line and which lines are doubtful.
+- `source.align.below-threshold-stays-a-draft` — **[OK]** (#5217; `tie_text.page_is_draft`, `DRAFT_ABOVE` 0.5 stated not measured, the job counts `drafts` and flags the page; pinned by `test_align_text_to_lines_5217.py` and the unchanged `test_tie_text_to_lines.py`, 11 pass) a page whose alignment is too poor (the share of doubtful lines above a limit)
+  gets no readings at all: it stays a draft, flagged as "text on the page, not aligned to lines", never half-aligned; its lines keep their own reads.
+- `source.align.person-moves-text-between-lines` — **[GAP]** (#5217) for a line whose text landed on the wrong line a person can move the line's
+  first or last words to the neighbouring line, split a line or merge two (the segment split and merge actions exist and undo), each a new reading by
+  the person, every step undoable. *Test:* moving words from line 2 to line 3 gives each a new person reading and one undo restores both.
+
+## Behaviour ids for issues this spec described without one (R0, 2026-10-17)
+Each is described in the paragraph named; the id lets a test cite it.
+- `source.read.kraken-confidence-kept` — **[OK]** (#5707; tested in `fichero-server/tests/unit/recipes/test_kraken_readings_5707.py`) a
+  Kraken reader reading lines a page already has keeps each line's certainty on its reading, and a reading the same result already
+  wrote on a line is not written a second time (described under `source.onboard.auto.blank-pages-not-read`'s neighbours: "Not on
+  unreadable text").
+- `source.recipe.step-counts-its-pages` — **[OK]** (#5706; tested in `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py`)
+  a step whose output may leave no trace on a page (Find Names on a page naming no one, Prepare on a clear page) keeps on the run the pages
+  it ran on, and the plan counts them done, so a page is not "to do" after every run.
+- `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`) the pages a
+  run leaves out are the pages Find the Documents calls blank, by one rule; a written page is never sorted blank and left out of every later run.
+- `source.job.names-warn-on-unreadable` — **[OK]** (#5694; tested in `fichero-server/tests/unit/recipes/test_names_on_unreadable_text_5694.py`)
+  Find Names is not run on a page whose reading is too uncertain, and the step says which pages and why.
+- `source.extract.entry-text-from-its-lines` — **[PARTIAL]** (#5601; *built in part, pinned by `fichero-server/tests/unit/workflows/test_entries_over_lines_5601.py`;
+  the entries are child nodes, not yet units over their lines*) a diary entry is the set of lines it covers; its text is read from them, not copied.
+- `source.train.spacy-names-fine-tune` — **[GAP]** (#5536) a spaCy names model is fine-tuned on a project's confirmed names, on this Mac or on
+  Hugging Face; today the train offer for Find Names says "not available yet: Fichero has no spaCy trainer".
+- `source.train.regions-yolo` — **[PARTIAL]** (#5525; *built in part, pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`;
+  the table detectors are not built*) a YOLO layout model is trained on the person's corrected regions, on this Mac.
+- `source.lines.teacher-check-honest-end` — **[GAP]** (#5524) a teacher-line check that lands its verdicts ends "completed" with correct status counts,
+  and never "failed" with a memory message that contradicts the verdicts that landed; a passing line gets a verdict.
+- `source.lines.correct-this-line-verb` — **[PARTIAL]** (#5499; *built in part, pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`
+  and `test_import_ground_truth.py`*) correcting a line is one verb, not three ids and six flags, and a person's corrections count as the
+  bake-off's ground truth.
+- `source.try.compare-in-setup-works` — **[GAP]** (#5727) the Compare step in Set Up (the bake-off) works on a scratch project with enough
+  corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
+- `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
+  period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
+- `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
+  model's lines, and the readiness count matches what it trains on.
+- `source.train.noise-band-per-project` — **[GAP]** (#5692) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
+  measured), stored and served, so a comparison says when a difference is noise.

@@ -307,3 +307,15 @@ def test_the_alignment_gives_each_line_its_stretch():
     scored = tie_text.tie_lines(page, ["el dicho escrivano", "xxxxxxxxxxxxxxxxxx", "y lo firmo"])
     assert [s["tied"] for s in scored] == [True, False, True]
     assert scored[1]["text"] == "vecino de la ciudad"
+
+
+def test_each_aligned_line_carries_how_well_the_text_matched_it(client, db, page, reader):
+    """source.align.confidence-per-line (#5217): "each aligned line carries how well the page text matched it (the score against the
+    rough read of the line, 0 to 1), kept on the reading it made and served with the line".
+    WHY: the person must see which lines to check; the score was only in the job's result."""
+    _run(client, db, page)
+
+    tied = [(row, made) for row, made in _tied(db, page) if made]
+    assert tied and all(made.machine_confidence is not None and 0.0 <= made.machine_confidence <= 1.0
+                        for _row, made in tied), [m.machine_confidence for _r, m in tied]
+    assert all(made.machine_confidence >= tie_text.THRESHOLD for _row, made in tied), "a tied line matched at the threshold or above"

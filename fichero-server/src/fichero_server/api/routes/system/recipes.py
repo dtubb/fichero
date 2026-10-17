@@ -15,7 +15,7 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
@@ -144,6 +144,10 @@ class AssembleRequest(BaseModel):
         "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, "
         "keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread "
         "across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"))
+    photographs: Optional[bool] = Field(default=None, description=(
+        "the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, "
+        "and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the "
+        "images (source.onboard.photographed-pages-asked)"))
     job_answers: dict[str, Any] = Field(default_factory=dict, description=(
         "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the "
         "step it configures (source.onboard.auto.job-answers-read)"))
@@ -289,6 +293,12 @@ class AssembledRecipe(BaseModel):
     already_text: Optional[str] = Field(default=None, description=(
         "set when the material is all already text: what Ready says, that there is nothing to read and where the "
         "plan starts (source.recipe.text-material-is-not-read)"))
+
+
+def _hf_token_set() -> bool:
+    from fichero_server.llm import get_api_key
+
+    return bool(get_api_key("huggingface"))
 
 
 def _this_machine_memory_gb() -> float:
@@ -440,7 +450,7 @@ async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
     try:
         return await asyncio.to_thread(
             samples.start_try, db, stage, setup, page_ids=body.page_ids or None, cost_ok=body.cost_ok,
-            started_by=ctx.actor or "owner", candidates=body.candidates or None,
+            started_by=started_by_for(ctx), candidates=body.candidates or None,
             run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -766,7 +776,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
-        faded_pages=bool(a.get("faded_pages")),
+        faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
         job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
         search_embedder=search_embedder(),
     )
@@ -1242,6 +1252,9 @@ class StartEstimateRun(BaseModel):
     where: str
     pages: int
     cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
+    basis: str = Field(default="unpriced", description=(
+        "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other "
+        "place, or a model with no price): never a $0 for what is not known (#5590)"))
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
         "and the peak that comes to (#5537); null for any other run"))
@@ -1438,6 +1451,10 @@ class TrainOffer(BaseModel):
     readiness: dict[str, Any] = Field(description=(
         "whether the project has enough corrected material: counts, how many more lines and pages, and the "
         "sentence that says so (the bake-off's one count, at the train step's threshold)"))
+    setting: dict[str, str] = Field(description=(
+        "how training happens in this project (the onboarding setting `answers.training`, or the machine's default): "
+        "`mode` here, huggingface or offered, and `why`"))
+    does: str = Field(description="what the setting does once the corrected lines reach the threshold, in a sentence")
 
 
 class StartPlan(BaseModel):
@@ -1518,7 +1535,11 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
-    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local)
+    from fichero_server.recipes.train_offers import training_setting
+
+    setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
+                               hf_configured=_hf_token_set(), stays_local=stays_local)
+    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     elif within is None and not pages["pages"]:
@@ -1728,14 +1749,14 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         recipe = read_project_setup(library)["recipe"] or {}
         runner.register_job_kinds()
         # Start fetches what its steps need (#5664): each download queued now, and the run's steps on it wait.
-        queue_downloads(db, plan, started_by=ctx.actor or "owner")
+        queue_downloads(db, plan, started_by=started_by_for(ctx))
         record = {
             "started_at": utc_now_iso(timespec="seconds"),
             "recipe_id": recipe.get("id"),
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner", redo=params.redo,
+            "job_id": runner.enqueue(db, plan, documents=None, started_by=started_by_for(ctx), redo=params.redo,
                                      folder_id=params.folder_id),
             "folder_id": params.folder_id,
         }
@@ -2094,7 +2115,7 @@ async def start_bakeoff(
     if request is not None and request.step == "find-lines":
         try:
             record = bakeoff.start_lines(db, library, page_ids=request.page_ids or None,
-                                         now=utc_now_iso(timespec="seconds"), started_by=ctx.actor or "owner")
+                                         now=utc_now_iso(timespec="seconds"), started_by=started_by_for(ctx))
             return BakeoffResult(**bakeoff.result(db, library, record["id"]))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -518,11 +518,11 @@ get menu homes (e.g. View ▸ Filter ▸ per active view) or stay in-surface? De
 
 The beachball lesson applies to menus: **test the design, not the code.** Each ruling above gets a
 spec test so a regression fails CI, not the CD by hand:
-- `menus.bar-structure` — a source/policy test (the `MenuShortcutBoundaryTests` shape) asserts the
+- `menus.bar-structure` — **[GAP]** (#5652) a source/policy test (the `MenuShortcutBoundaryTests` shape) asserts the
   menu bar declares exactly these top-level menus and that each named command lives in its ruled
   home (e.g. Reader Lens under **Read**, New Workflow under **Knowledge**, Sort under **View ▸ Sort**),
   NOT in a generic dump. Fails if a command drifts back to the wrong menu.
-- `menus.submenu-nesting` — asserts View composes its groups as `Menu` submenus (Workspaces/Sort/
+- `menus.submenu-nesting` — **[GAP]** (#5652) asserts View composes its groups as `Menu` submenus (Workspaces/Sort/
   Preview/Layout), not flat sections.
 - `menus.no-hand-rolled-duplicates` / `menus.data-and-plus-agree` (below) — the "+" and Knowledge
   menu render the same shared components.

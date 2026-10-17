@@ -81,7 +81,7 @@ Found by running the harness end-to-end (report: `reports/ui-test-harness-findin
 The seeded library/socket/app-home live in the **xctrunner container tmp** (the containerized
 runner's `tempfile.gettempdir()`), NOT `/var/folders` as the Evidence section first assumed.
 
-- `harness.runner-gui` [ENV] — XCUITest needs an UNLOCKED GUI session; "Timed out enabling
+- `harness.runner-gui` [ENV] — **[GAP]** (#4808) XCUITest needs an UNLOCKED GUI session; "Timed out enabling
   automation mode" = locked screen, not a test failure. The runner/report must distinguish it.
 - `harness.engine-binds` — **[PARTIAL]** (#4808) fixed in code — `UITestEngineHarness.shortSocketPath`
   (`fichero/Tests/UI/general/UITestEngineHarness.swift:279`) binds the socket under

@@ -360,10 +360,13 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.offers-every-place` — **[GAP]** (#5582) for each step, the engine lists every offer
   (card × place) with fits, allowed, account, cost for the volume and speed, each with its basis.
   The Start plan, setup, MCP and the command line read the same list.
-- `ai.where.never-dropped-silently` — **[BROKEN]** (#5582, #5519) a model this Mac cannot run is
-  offered with the places that can run it, and an offer that is filtered out says why. Today
-  discovery keeps only MLX builds and lists the rest outside the rules
-  (`recipes/discovery.py:19-23,318-337`).
+- `ai.where.never-dropped-silently` — **[PARTIAL]** (#5582, #5519) a model this Mac cannot run is
+  listed with why, and nothing is dropped silently (ruled 2026-10-17: a "Not shown: <reason>" beside the offers). Built:
+  the step search (`search_hugging_face_for_step`) lists a GGUF-only repository as a row that is not runnable and says
+  "a GGUF build: this build runs MLX builds only"; its test
+  `fichero-server/tests/unit/recipes/test_step_search_drops_nothing_silently_5519.py` was written and seen red; green
+  NOT yet seen (no pytest during gate3). Still a gap: the reader finder's other filters, and the places that can run
+  it (waits on `ai.where.one-list-of-places`).
 - `ai.where.rank-pairs` — **[PARTIAL]** (#5582) the rules rank offers, not cards: hard filters,
   accuracy for the pair, this Mac first, cost, speed. Built for cards
   (`recipes/assemble.py:282-311`).
@@ -376,12 +379,16 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.one-pricer-every-place` — **[PARTIAL]** (#5240, #5582) token and hourly prices go
   through one pricer. Built: tokens (`llm/usage.py:227-272`); Hugging Face's hourly price is read
   separately (`training/hf_jobs.py:115-121`); cluster allocation is not counted.
-- `ai.where.estimate-names-the-place` — **[BROKEN]** (#5590) Start's estimate states each
-  step's place and its cost basis; today every place that is not `cloud:` is priced at $0
-  (`recipes/start.py:286-289`), a cluster step included.
-- `ai.where.remote-audio-priced` — **[BROKEN]** (#5591) a transcription sent to a provider
-  records its usage like any other call; today `audio_transcription` records none
-  (`llm/__init__.py:2792-2833`), so its cost is unknown.
+- `ai.where.estimate-names-the-place` — **[PARTIAL]** (#5590) Start's estimate states each
+  step's place and its cost basis (`free on this Mac`, `the model's listed rate`, `unpriced`): only this Mac is $0,
+  a cloud step is priced by the listed rate, any other place (a cluster) is unpriced and makes the total unknown;
+  pinned by `fichero-server/tests/unit/recipes/test_estimate_names_the_place_5590.py`. Still a gap: a cluster's
+  hourly rate is not read into the estimate (`ai.where.hourly-cost-in-the-account`).
+- `ai.where.remote-audio-priced` — **[PARTIAL]** (#5591) a transcription sent to a provider
+  records its usage like any other call: `audio_transcription` records the call with no tokens, so the
+  run account lists it and its cost reads unknown, never free; pinned by
+  `fichero-server/tests/unit/llm/test_remote_audio_priced_5591.py`. Still a gap: pricing it by the
+  minute needs the clip's duration and the provider's per-minute rate.
 - `ai.where.account-on-the-offer` — **[GAP]** (#5582, #5369) each offer shows the account it needs
   and its state, read through the same key lookup a call uses.
 
@@ -413,9 +420,11 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.every-runtime-on-a-lane` — **[PARTIAL]** (#5353, #5370) every model call is a row on a
   lane; local Whisper (`workflows/tools/audio_base.py:128-168`) and Apple's bridge
   (`llm/__init__.py:1485-1488`) take none today.
-- `ai.where.one-memory-number` — **[BROKEN]** (#5537) one measured resident size per model feeds
-  setup's rule, `runs_here`, the load gate and Start's peak; today three rules read three numbers
-  (`recipes/assemble.py:213`, `llm/local_model_choice.py:49-63`, `llm/local_inference.py:90-134`).
+- `ai.where.one-memory-number` — **[PARTIAL]** (#5537) one measured resident size per model feeds
+  setup's rule, `runs_here`, the load gate and Start's peak. Built (ruled by default 2026-10-17): `local_memory_gb(model)`
+  (`llm/local_inference.py`) is the load gate's need, and the shipped and installed text-model cards state it; pinned by
+  `fichero-server/tests/unit/recipes/test_one_memory_number_5537.py`. Still a gap: `runs_here`
+  (`llm/local_model_choice.py`) and the vision-reader cards still read `min_memory_bytes`, and Start's peak reads the card.
 - `ai.where.local-servers-measured` — **[GAP]** (#5537) Ollama and LM Studio on this Mac are asked
   what they hold and count in the memory sum and the reads-at-once rule; today both are
   `omlx`-only (`llm/__init__.py:1392,4230`).
@@ -424,8 +433,13 @@ person, never silently (`ai.where.fallback-free-and-asked`).
   jobs' attempts; LangChain's ten retries still run inside the slot (`llm/__init__.py:4568-4573`).
 - `ai.where.one-cloud-cap` — **[PARTIAL]** (#5358) one cap on calls to a place, inside or outside a
   project; today the lane's 4 and a process semaphore of 12 (`llm/__init__.py:138,1504-1510`).
-- `ai.where.row-names-the-place` — **[GAP]** (#5582) every call row and the run account name the
-  place, and pages sent per place; today a row carries `provider:model` only (`llm/__init__.py:1499`).
+- `ai.where.row-names-the-place` — **[PARTIAL]** (#5582) every call row and the run account name the
+  place, and pages sent per place. Built: each usage entry carries `place` (`_record_usage`, and the job row's
+  `note_usage`; pinned by `fichero-server/tests/unit/llm/test_where_models_run.py`, `usage[0]["place"] == OWN_MACHINE`);
+  and each node of a job's tree (`jobs.tree`, `GET /api/activity/jobs/{id}`, `JobTree.places`) carries `places`, the places
+  of the calls under it with how many went to each (pinned by
+  `fichero-server/tests/unit/jobs/test_row_names_the_place_5582.py`, through the route too). Still a gap: the run
+  account's own figure, and the app showing it.
 - `ai.where.hourly-cost-in-the-account` — **[GAP]** (#5240) a batch place's hours, at its listed
   price, roll into the run's cost in Activity beside token costs; today the roll-up counts tokens
   only (`execution/jobs.py:421-426`).

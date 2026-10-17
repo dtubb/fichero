@@ -45,7 +45,7 @@ shipped app breaks on config no test covered. And because the harness forces
   `ALL_FEATURES=1`: at minimum a **release**-gate run (what users get) plus the
   all-features dev run. A feature that works dev-on but is broken/hidden at release is a
   bug the current setup can't see.
-- `testenv.gate-availability` — for each tier, the capability-availability tests assert the
+- `testenv.gate-availability` — **[GAP]** (#5283) for each tier, the capability-availability tests assert the
   surfaces that tier SHOULD expose are reachable, and the ones it shouldn't are absent.
 
 ### C. Model / data locations
@@ -53,6 +53,12 @@ shipped app breaks on config no test covered. And because the harness forces
   home has none, so an embeddings test must point at a shared cached model (offline) or
   seed it — otherwise it downloads/hangs (the prewarm bug). Define one cached location the
   briefcase and an embeddings-testing engine both use.
+- `testenv.embedding-tests-never-skip` — **[GAP]** (#5528) an embedding test does not skip when
+  the model is missing. The model is put on the test machines and the tests run; a skip is a
+  failure (Rule 0). Ruled 2026-10-17.
+- `testenv.scratch-rows-forgotten-not-deleted` — **[GAP]** (#5532) test and scratch project rows
+  left in the real library are removed through the app's own forget-project action. Nothing on
+  disk is deleted. Ruled 2026-10-17.
 
 ## Test matrix
 
