@@ -33,6 +33,45 @@ final class BundledFonts {
     /// is immutable and thread-safe, so a reader sees either the empty list or the loaded one.
     nonisolated(unsafe) static private(set) var loadedCascade: [CTFontDescriptor] = []
 
+    /// The family transcription text is drawn in, from what setup derived for the library's script and period
+    /// or what a pane chose (`layers.text.font-from-script-and-period`, #5438); nil draws in the system font.
+    /// One value for the app, set when a library's workspace opens: the library being shown is the one it reads.
+    private(set) var transcriptionFamily: String? {
+        didSet { Self.loadedTranscriptionFamily = transcriptionFamily }
+    }
+
+    /// The same family for drawing code that runs off the main actor (the inline words on the image).
+    nonisolated(unsafe) static private(set) var loadedTranscriptionFamily: String?
+
+    /// Ask the engine which font this library's transcription uses: its saved script (the first), the period
+    /// the engine reads from the saved setup, and any choice stored with it. The engine owns the derivation.
+    func loadTranscriptionFont(from client: FicheroClient) async {
+        guard case .ok(let saved)? = try? await client.api.getProjectSetupApiRecipesProjectGet(),
+              let answers = try? saved.body.json.answers,
+              let data = try? JSONEncoder().encode(answers),
+              let script = Self.firstScript(inAnswers: data),
+              case .ok(let derived)? = try? await client.api.derivedFactsApiRecipesDerivedGet(
+                query: .init(scripts: script)),
+              let facts = try? derived.body.json.scripts.first else {
+            transcriptionFamily = nil
+            return
+        }
+        transcriptionFamily = facts.font
+    }
+
+    /// Remember a pane's choice for `script` with the library (nil returns to the derived font).
+    func chooseTranscriptionFont(_ family: String?, script: String, from client: FicheroClient) async {
+        guard case .ok(let done)? = try? await client.api.chooseFontApiRecipesFontPut(
+            body: .json(.init(script: script, font: family))),
+              let facts = try? done.body.json else { return }
+        transcriptionFamily = facts.font
+    }
+
+    nonisolated static func firstScript(inAnswers data: Data) -> String? {
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        return (object?["scripts"] as? [String])?.first
+    }
+
     /// Fetch the faces once, from the first engine that serves them. A face the engine does not serve is
     /// left out (an older engine has no route): the text still draws, with the system's fonts.
     func load(from client: FicheroClient) async {

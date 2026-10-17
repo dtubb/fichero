@@ -93,6 +93,7 @@ struct LibraryWorkspaceRoot: View {
                 }
                 // The engine's bundled fonts, for text the system cannot draw (MUFI, #5210): once per app.
                 await BundledFonts.shared.load(from: library.ficheroClient)
+                await BundledFonts.shared.loadTranscriptionFont(from: library.ficheroClient)
             }
         .environment(library.documentStore)
         #if canImport(UIKit) && !os(macOS)

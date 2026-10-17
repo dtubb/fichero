@@ -184,7 +184,7 @@ struct ReaderLineRow: View {
 
     private func horizontalField(rightToLeft: Bool) -> some View {
         TextField("Reading", text: $editor.draft, axis: .vertical)
-            .font(BundledFonts.shared.font(size: metrics.fontSize))
+            .font(BundledFonts.shared.font(size: metrics.fontSize, family: BundledFonts.shared.transcriptionFamily))
             .multilineTextAlignment(rightToLeft ? .trailing : .leading)
             .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
             .textFieldStyle(.plain)
