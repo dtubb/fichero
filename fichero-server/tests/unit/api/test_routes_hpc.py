@@ -171,3 +171,12 @@ class TestSignInAndKey:
         body = client.post(f"/api/hpc/clusters/{cid}/check").json()
         assert body["ok"] is False
         assert {s["name"]: s["state"] for s in body["steps"]}["gpus"] == "failed"
+
+    def test_listing_the_prompts_is_owner_only_like_answering(self):
+        from fichero_server.api.routes.ai import hpc
+
+        def deps(path, method):
+            route = next(r for r in hpc.router.routes if r.path.endswith(path) and method in r.methods)
+            return {d.call for d in route.dependant.dependencies}
+
+        assert hpc._require_owner_or_bootstrap in deps("/prompts", "GET")

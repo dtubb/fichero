@@ -32,3 +32,10 @@ def test_nothing_is_tried_when_the_login_itself_fails():
     result = check_cluster(Shell({"hostname": (255, "", "Permission denied (publickey)")}))
     assert result["ok"] is False and result["steps"][0]["state"] == "failed"
     assert all(s["state"] == "not tried" for s in result["steps"][1:])
+
+
+def test_apptainer_is_asked_through_a_login_shell_where_module_exists():
+    """WHY (review 41): `module` is a shell function of a login shell, and it answers on stderr."""
+    shell = Shell({})
+    check_cluster(shell)
+    assert "bash" in shell.ran
