@@ -564,6 +564,21 @@ Dates
 - `source.date.cycles-and-partials` — **[GAP]** (#4936) a recurring or partial date is a set of possible ranges.
 - `source.date.one-timeline` — **[GAP]** (#4936) sorting, search and the timeline use the common count across
   calendars.
+- `source.date.feast-days` — **[PARTIAL]** (#5542) a date written as a feast ("dia de San Juan de 1791", "Easter 1700",
+  "Michaelmas 1650") is worked out onto the common count: a fixed feast on its day of the year, a movable feast as days
+  after Easter (the computus, Gregorian, or the Julian Easter when the source kept the Julian calendar), and the answer
+  keeps its reasoning (the rule, Easter's day, the calendar). The table is a data file (`recipes/seed/feast-days.yaml`:
+  a name in any language is one more row, nothing named in code). A name that can mean two feasts ("San Juan": the
+  Baptist, or the Evangelist) takes the commoner, names the other as an alternative and lowers the confidence; a name the
+  table does not hold gives no date. Tests: `tests/unit/workflows/test_feast_days_5542.py`
+  (`test_a_movable_feast_is_days_after_easter_in_the_calendar_of_the_source_5542`,
+  `test_a_fixed_feast_is_its_day_and_keeps_its_reasoning_5542`,
+  `test_a_name_that_can_mean_two_feasts_names_the_other_and_is_less_sure_5542`,
+  `test_a_name_in_another_language_is_a_row_of_the_table_5542`,
+  `test_a_feast_the_table_does_not_hold_gives_no_date_5542`, `test_the_table_is_sound_5542`). Owed: a page whose
+  heading is a feast (`find_page_date` reads numeric and month headings only); regional calendars and the year's start
+  at Easter or Lady Day (a January feast in a year that began in March is taken in the year written); the saints' days
+  of a diocese; a row per language for the rest of the world's calendars.
 
 Marks and descriptions
 - `source.mark.any-level` — **[GAP]** (#4937) notes, highlights, checks and tags go on any segment, using the same
