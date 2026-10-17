@@ -1435,7 +1435,10 @@ code path.
   whose stream ends on an interrupt or a breakpoint as paused ("awaiting_review", with the
   question), and resuming with the answer continues from the checkpoint
   (`fichero-server/tests/unit/workflows/test_review_step_pauses_the_run.py`). Still a gap: the test
-  builds the graph by hand; the run through the execute and resume routes is not pinned (#5429).
+  builds the graph by hand. Pinned through the routes too: a run started with `POST /execute` settles `paused`,
+  and `POST /threads/{id}/resume` with an answer delivers it to the tool and completes
+  (`fichero-server/tests/unit/workflows/test_review_step_pauses_through_the_routes_5429.py`). Still a gap: the
+  question reaching the app on the stream's `pause` event is not pinned (#5429).
   (Corrected 2026-10-04: this line said BROKEN after #5371 had landed.)
 - `activity.run.scheduled-runs-execute` — **[OK]** (#5372) *Built (2026-10-04): a schedule's run and a file
   trigger's runs start through `runner.start_run` (`runner.run_and_wait`), the way a run by hand
