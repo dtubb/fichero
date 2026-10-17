@@ -1,0 +1,27 @@
+id: de-kurrent
+title: German, Kurrent hands (stub)
+status: stub
+suits:
+  languages: [de]
+  scripts: [Latn]
+  material: [handwriting]
+  period: [1500, 1950]
+context: >-
+  The writing is German cursive of the Kurrent family (Kurrent, Sütterlin and their kin). A stub: it states what
+  makes the hand hard, not yet the genres, abbreviations and spellings of a particular place and century.
+lenses:
+  abbreviations:
+    title: abbreviations, contractions and formulary
+    text: |
+      - Verify every expansion; brackets only around letters supplied by expansion. Keep an unexpanded abbreviation exactly as written when the expansion is not certain.
+      - Check the document's genre against its usual formula; propose formula readings only as [UNCERTAIN: ...].
+  orthography:
+    title: orthography and consistency
+    text: |
+      - Letter-shape audit for Kurrent: e/n/r, u/n/m (minims), h/b/k, long s against round s, the two forms of r, and the ligatures ch, ck, sch, tz. Where the draft's spelling implies a stroke the image does not show, correct it.
+      - Keep the period's spelling (th, ey, ä/ö/ü written with a superscript e); do not modernise.
+  names-and-dates:
+    title: names, dates and the final check
+    text: |
+      - Collect names, places and dates; the same person must read the same way throughout; a date must agree with the document's heading. Mark what cannot be resolved [UNCERTAIN: ...].
+      - Uncertainty and layout audit: [UNCERTAIN: ...] resolves or keeps its best reading; [ILLEGIBLE] is confirmed; line breaks and marginalia are where the page has them.
