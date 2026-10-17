@@ -336,9 +336,15 @@ def _classify_provider_error(error_text: str) -> dict[str, str]:
         }
     # #5019: a plain missing file is NOT an iCloud eviction; say only what is known.
     if "no such file" in text or "file not found" in text:
+        # #5019: name the file and the folder the engine could not reach; an empty path names nothing.
+        found = re.search(r"['\"]([^'\"]+)['\"]", error_text or "")
+        where = ""
+        if found:
+            folder, _, name = found.group(1).rpartition("/")
+            where = f" ({name} in {folder})" if folder else f" ({name})"
         return {
             "category": "file_unavailable",
-            "message": "A source file could not be found at its recorded location.",
+            "message": f"A source file could not be found at its recorded location{where}.",
             "action": "Check the file still exists there (moved, renamed or folder access lost) and re-run.",
         }
     if any(token in text for token in ("402", "429", "insufficient_quota", "quota", "rate limit", "rate_limit")):
