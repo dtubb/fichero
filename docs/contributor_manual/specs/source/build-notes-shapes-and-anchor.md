@@ -11,9 +11,9 @@
 
 ## Slice 7 — shapes beyond the rectangle (#4925)
 
-**Pins:** `source.segment.shape-kinds`, `source.segment.curved-baseline`,
-`source.segment.picture-by-shape`, the pictures part of `source.derived.recomputable`, and the
-first step of `source.builds-on-the-anchor`.
+**Pins:** `source.segment.shape-kinds` **[OK]**, `source.segment.curved-baseline` **[OK]**,
+`source.segment.picture-by-shape` **[OK]**, the pictures part of `source.derived.recomputable`, and the
+first step of `source.builds-on-the-anchor` **[OK]**.
 
 ### The size of the retirement, before anyone edits
 
@@ -127,16 +127,16 @@ provisional (`legacy:`) id is allowed (it is a read) but a picture asked across 
 alignment is refused with `RegionCropUnavailable`.
 
 **Tests, by behaviour.**
-- `source.segment.shape-kinds`: a point, a path, a polygon, two polygons, and a time span each
+- `source.segment.shape-kinds` **[OK]**: a point, a path, a polygon, two polygons, and a time span each
   store and read back; the old-rectangle fixture still refuses what it refused; an anchor saved
   before this slice (no `shapes`) still reads and means the same.
-- `source.segment.curved-baseline`: a five-point baseline round-trips; a Kraken line converted
+- `source.segment.curved-baseline` **[OK]**: a five-point baseline round-trips; a Kraken line converted
   in slice 6 keeps its baseline and its polygon.
-- `source.segment.picture-by-shape`: a triangle's picture is transparent outside the triangle;
+- `source.segment.picture-by-shape` **[OK]**: a triangle's picture is transparent outside the triangle;
   a tilted line's picture is level when straightened (the baseline's end points share a row,
   within a pixel); the same options twice return the same stored picture; a version bump makes
   a new one.
-- `source.builds-on-the-anchor` (first step): an agent note sent in the old shape is accepted
+- `source.builds-on-the-anchor` **[OK]** (first step): an agent note sent in the old shape is accepted
   and returned unchanged; `AgentNoteSourceAnchor` no longer exists in the code or the contract.
 - Old library: opens twice, no error, nothing rewritten.
 
