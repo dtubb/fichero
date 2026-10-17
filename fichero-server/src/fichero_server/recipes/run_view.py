@@ -234,6 +234,13 @@ def _has_reading(db: Any, doc_id: str) -> bool:
     return _has_page_reading(db, doc_id, None) or _has_line_readings(db, doc_id, None)
 
 
+def _fully_read(db: Any, doc_id: str) -> bool:
+    from fichero_server.recipes.done import lines_state
+
+    found, unread, _blank = lines_state(db, doc_id)
+    return not unread and (found > 0 or _has_reading(db, doc_id))
+
+
 def lines_unread(db: Any, pages: list[str]) -> int:
     from fichero_server.recipes.done import unread_on
 
@@ -242,10 +249,8 @@ def lines_unread(db: Any, pages: list[str]) -> int:
 
 
 def pages_fully_read(db: Any, pages: list[str]) -> list[str]:
-    from fichero_server.recipes.done import unread_on
-
     """The pages with a reading and none of their lines left without one."""
-    return [p for p in pages if _has_reading(db, p) and not unread_on(db, p)]
+    return [p for p in pages if _fully_read(db, p)]
 
 
 def _pages_dated(db: Any, pages: list[str]) -> int:
