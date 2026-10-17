@@ -1538,7 +1538,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     from fichero_server.recipes.train_offers import training_setting
 
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
-                               hf_configured=_hf_token_set())
+                               hf_configured=_hf_token_set(), stays_local=stays_local)
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
