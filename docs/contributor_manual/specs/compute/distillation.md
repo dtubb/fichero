@@ -246,11 +246,12 @@ Apple Vision cannot be trained. It can be given a list of words, so the project'
 terms are passed to it, and the check pages measure whether the list helps; the app says plainly that this
 reader is given words, not trained (#5554).
 Models trained elsewhere (YOLO, and Kraken where it converts) can be converted to run on the Neural Engine
-(Core AI on macOS 27, below), in less memory on the 8 GB Mac; a converted model is scored against its original
+(Core AI on macOS 27 only, below), in less memory on the 8 GB Mac; a converted model is scored against its original
 before it replaces it (#5556).
 
-**Apple's training paths, checked 2026-10-10** (the app targets macOS 27 and iOS 27 only; 26 is no longer
-supported, ruled the same day):
+**Apple's training paths, checked 2026-10-10** (the app supports macOS 26 and 27 and iOS 26 and 27, ruled
+2026-10-17, reversing the 2026-10-10 "27 only"; 27-only APIs are availability-gated and the UI says "needs macOS 27"
+where there is no 26 path, #5730):
 - **Foundation Models adapters: no path today.** Apple's adapter toolkit 26.0.0 is its last release and trains
   adapters only for the macOS 26 on-device model; it does not work with 27's model, and no toolkit for 27 is
   published. When one is, training needs a Mac with at least 32 GB or a Linux GPU (a Hugging Face GPU job, not

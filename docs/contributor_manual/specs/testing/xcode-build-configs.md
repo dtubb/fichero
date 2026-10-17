@@ -33,7 +33,8 @@ the gate.
 
 Cross-cutting invariants (all configs):
 - **arm64-only** — `EXCLUDED_ARCHS = x86_64` on the project configs (Golden Gate, Apple silicon).
-- **Deployment floor macOS 26** — support 26 + 27, require 26.
+- **Deployment floor macOS 26 / iOS 26** — support 26 (Tahoe) and 27 (Golden Gate), require 26 (ruled
+  2026-10-17, reversing the 2026-10-10 "27 only"; #5730). 27-only APIs are availability-gated.
 - **FicheroTests** carries `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` (else ~575 SIGTRAPs —
   see [[test-target-needs-mainactor-default-isolation]]).
 - The **embedded test plan** is attached to the Release Embedded scheme; dead plans stay deleted.
@@ -48,8 +49,18 @@ Cross-cutting invariants (all configs):
   `::test_debug_sandbox_flip_is_caught`.
 - `config.arm64-only` [OK] — every project config excludes `x86_64`. Pinned:
   `test_check_xcode_config_invariants.py::test_missing_excluded_archs_is_caught`.
-- `config.deployment-floor-26` [OK] — `MACOSX_DEPLOYMENT_TARGET` floor is 26. Pinned:
-  `test_check_xcode_config_invariants.py::test_wrong_deployment_floor_is_caught`.
+- `config.deployment-floor-26` — **[GAP]** (#5730) `MACOSX_DEPLOYMENT_TARGET` and `IPHONEOS_DEPLOYMENT_TARGET`
+  floor is 26. Today the project, `fichero-api-client/Package.swift` and the guard all still say 27.
+  Pinned: `test_check_xcode_config_invariants.py::test_wrong_deployment_floor_is_caught` (to assert 26).
+- `platform.supports-tahoe-and-golden-gate` — **[GAP]** (#5730) the app builds, launches and works on macOS 26
+  and 27, iOS 26 and 27. Test: `fichero-server/tests/unit/scripts/test_platform_floor_to_spec.py`.
+- `platform.deployment-floor-26` — **[GAP]** (#5730) project targets and the API client's platforms are 26.0 and
+  the guard rejects anything else. Test: `fichero-server/tests/unit/scripts/test_platform_floor_to_spec.py`.
+- `platform.27-only-api-gated` — **[GAP]** (#5730) every 27-only API (Foundation Models image input and OCR tool,
+  Core AI, 27 adapters) sits behind an availability check, with a 26 path where one exists. Test:
+  `fichero/Tests/PlatformAvailabilityTests.swift`.
+- `platform.needs-27-said-plainly` — **[GAP]** (#5730) where no 26 path exists the UI says "needs macOS 27"
+  rather than failing or hiding the control. Test: `fichero/Tests/PlatformAvailabilityTests.swift`.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
   Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
   `::test_mainactor_dropped_from_ficherotests_only_is_caught`.
