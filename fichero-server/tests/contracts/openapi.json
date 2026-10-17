@@ -17701,6 +17701,54 @@
         }
       }
     },
+    "/api/machines/{machine_id}": {
+      "delete": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Forget a paired machine: remove its saved token on this Mac",
+        "description": "Owner only. Removes this Mac's saved token; the device stays listed on the far Mac until it revokes it.",
+        "operationId": "forget_machine_api_machines__machine_id__delete",
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Machine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Forget Machine Api Machines  Machine Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/machines/pair": {
       "post": {
         "tags": [
@@ -58972,6 +59020,11 @@
           "revoked": {
             "type": "boolean",
             "title": "Revoked"
+          },
+          "paired_by_device_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Paired By Device Id"
           }
         },
         "type": "object",
@@ -60599,6 +60652,13 @@
             "nullable": true,
             "title": "Z Index",
             "description": "Its stacking order on the canvas."
+          },
+          "expected_updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Expected Updated At",
+            "description": "The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348)."
           }
         },
         "additionalProperties": false,
