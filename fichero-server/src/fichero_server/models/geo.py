@@ -258,8 +258,10 @@ def fit(transformation: str, sources: list[tuple[float, float]], targets: list[t
     if transformation == "projective":
         rows, rhs = [], []
         for (x, y), (u, v) in zip(s, dst):
-            rows.append([x, y, 1, 0, 0, 0, -u * x, -u * y]); rhs.append(u)
-            rows.append([0, 0, 0, x, y, 1, -v * x, -v * y]); rhs.append(v)
+            rows.append([x, y, 1, 0, 0, 0, -u * x, -u * y])
+            rhs.append(u)
+            rows.append([0, 0, 0, x, y, 1, -v * x, -v * y])
+            rhs.append(v)
         h, *_ = np.linalg.lstsq(np.asarray(rows), np.asarray(rhs), rcond=None)
 
         def projective(p):
