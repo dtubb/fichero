@@ -2421,7 +2421,7 @@ Jobs and chains
   across scripts and spellings (Popayán, Popaian; 北京, Beijing), and the review is given every variant of an entity it
   may meet. *Test:* a stub reviewer given "Popayán"
   in the list and a reading "Popaian" returns the list's spelling for that line.
-- `source.job.names-step-fails-on-nothing-read` — **[OK]** (#5521) a names run that processes no page does not complete:
+- `source.job.names-step-fails-on-nothing-read` — **[OK]** (#5521; ruled 2026-10-17: fail visibly, and a batch carries on and reports the count of pages left out, `summary.documents_left_out`) a names run that processes no page does not complete:
   the step fails, saying why: with no page selected the files source refuses ("would process nothing"), and when none of the N
   selected pages has a reading the step's error says so, naming the first few with the reason each is left out. A run that reads at least one page and leaves others out still completes and names
   them (`left_out`, #5691). WHY: a spaCy names workflow and the "NER per-page (local)" workflow both ended "completed"
