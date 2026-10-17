@@ -15,6 +15,9 @@ struct NotesInspectorPane: View {
 
     @Bindable var focused: FocusedNote
 
+    /// A save refused because another Mac edited the note first (#5348): the person picks whose text wins.
+    @State private var staleSave: (noteId: String, body: String)?
+
     private var selectedNote: NoteSelectionItem? {
         focused.id.flatMap { id in notes.first { $0.id == id } }
     }
@@ -91,6 +94,17 @@ struct NotesInspectorPane: View {
         .onChange(of: notes) { _, items in
             focused.resolve(in: items)
         }
+        .confirmationDialog(
+            "This note was changed on another Mac",
+            isPresented: Binding(get: { staleSave != nil }, set: { if !$0 { staleSave = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Keep mine") { Task { await resolveStale(keepMine: true) } }
+            Button("Take theirs") { Task { await resolveStale(keepMine: false) } }
+            Button("Cancel", role: .cancel) { staleSave = nil }
+        } message: {
+            Text("Nothing was saved. Keep your text over theirs, or take theirs and drop yours.")
+        }
     }
 
     private var notesToolbarStatusText: String {
@@ -113,7 +127,23 @@ struct NotesInspectorPane: View {
     // + WindowState (#3430). The store reloads its published `notes` internally.
     private func saveNote(_ item: NoteSelectionItem, body: String) async throws {
         guard let noteId = item.note.id else { return }
-        _ = try await noteStore.update(noteId: noteId, body: body)
+        do {
+            _ = try await noteStore.update(noteId: noteId, body: body, expectedUpdatedAt: item.note.updatedAt)
+        } catch NoteServiceError.stale {
+            staleSave = (noteId, body)
+            return
+        }
+        focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
+    }
+
+    /// Keep mine: read the current version, then save my text against it. Take theirs: just read theirs.
+    private func resolveStale(keepMine: Bool) async {
+        guard let pending = staleSave else { return }
+        staleSave = nil
+        await noteStore.reload()
+        if keepMine, let current = noteStore.notes.first(where: { $0.id == pending.noteId }) {
+            _ = try? await noteStore.update(noteId: pending.noteId, body: pending.body, expectedUpdatedAt: current.updatedAt)
+        }
         focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
     }
 

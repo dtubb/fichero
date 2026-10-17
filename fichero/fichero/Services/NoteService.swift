@@ -256,12 +256,15 @@ final class NoteService {
         return try note(from: try okResponse.body.json)
     }
 
-    func update(noteId: String, body: String) async throws -> NoteItem {
+    /// `expectedUpdatedAt` is the note's `updatedAt` as the editor last read it (#5348): when another
+    /// Mac saved since, the engine refuses with 409 and this throws `NoteServiceError.stale`.
+    func update(noteId: String, body: String, expectedUpdatedAt: Date? = nil) async throws -> NoteItem {
         syncLibraryPath()
         let response = try await client.api.patchNoteApiNotesNoteIdPatch(.init(
             path: .init(noteId: noteId),
-            body: .json(.init(body: body))
+            body: .json(.init(body: body, expectedUpdatedAt: expectedUpdatedAt))
         ))
+        if case .undocumented(statusCode: 409, _) = response { throw NoteServiceError.stale }
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
         let updated = try note(from: try okResponse.body.json)
         if let idx = notes.firstIndex(where: { $0.id == noteId }) {
@@ -307,6 +310,8 @@ enum NoteServiceError: LocalizedError {
     case emptyContainer
     case missingId
     case unexpectedResponse
+    /// Another Mac saved this note since it was opened (#5348); nothing was written.
+    case stale
 
     var errorDescription: String? {
         switch self {
@@ -314,6 +319,7 @@ enum NoteServiceError: LocalizedError {
         case .emptyContainer: return "Note response was empty"
         case .missingId: return "Note response was missing an id"
         case .unexpectedResponse: return "Unexpected note response"
+        case .stale: return "This note was changed on another Mac since you opened it. Nothing was saved."
         }
     }
 }
