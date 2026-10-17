@@ -210,7 +210,7 @@ exportable = not done. Every behavior below names which spine segment it lands o
   bump retains the prior; absent kind reads as absent.
 - `segment.test.transcription-language` — **[GAP]** (#4890) two transcriptions on one segment with different
   language/script both resolve; the segment default doesn't clobber a transcription's own.
-- `segment.test.cross-surface` (HARD-GATE) — the same segment yields the same anchor +
+- `segment.test.cross-surface` **[GAP]** (#4890) (HARD-GATE) — the same segment yields the same anchor +
   same text from backend, MCP, and CLI (the invariant the constitution requires).
 - `segment.test.resource-safety` — **[GAP]** (#4890) vector/crop production is bounded and does not peg the
   machine (Article 4 resource-safety).
