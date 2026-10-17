@@ -145,6 +145,8 @@ def _period_refusal(card: Card, a: Answers) -> str | None:
 def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int,
                remote_allowed: bool = False, sample_pages: int = 0, a: Answers | None = None) -> dict[str, Any]:
     reader, model, provider = _reader_of(card)
+    from fichero_server.training.evaluation import granularities_for
+
     wrong_period = _period_refusal(card, a) if a is not None else None
     return {
         "card": card.id, "name": reader_name(card), "pin": dict(card.pin), "role": role, "rule_rank": rule_rank,
@@ -154,6 +156,8 @@ def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int,
         "run_cost_usd": _cost(card, provider, model, sample_pages),
         "carbon_g_per_page": card.carbon_g_per_page, "trainable": card.trainable, "size_gb": card.size_gb,
         "material": sorted(card.material),
+        "lines_per_request": card.lines_per_request,
+        "granularities": list(granularities_for(reader, provider, card.lines_per_request)),
     }
 
 
@@ -234,7 +238,21 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
     return out
 
 
-def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int) -> dict[str, Any]:
+#: How many of the best vision candidates are asked at every granularity (`source.try.asking-granularity-is-measured`).
+TRIAL_BEST = 2
+
+
+def _trial_cost(scored: list[dict[str, Any]], named: list[str]) -> float:
+    """What asking the best candidates at their other granularities can cost at most, before anything runs: the
+    `TRIAL_BEST` dearest cloud candidates (who is best is not known yet) and any named, each run at its other
+    granularities. Unknown prices count as nothing here; `cost_known` already says the total is a lower bound."""
+    extra = {c["card"]: (c["run_cost_usd"]["value"] or 0.0) * (len(c.get("granularities") or ()) - 1)
+             for c in scored if not c["local"] and c.get("granularities")}
+    dearest = sorted(extra.values(), reverse=True)[:TRIAL_BEST]
+    return sum(dearest) + sum(v for card, v in extra.items() if card in named and v not in dearest)
+
+
+def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int, named: list[str] | None = None) -> dict[str, Any]:
     """Who would take part in a bake-off started now, and what it would cost, before anything is pressed (ruled
     2026-10-11): each candidate with its cost on the sample pages, the total of those that would be scored, and the
     sentence that says it."""
@@ -243,6 +261,8 @@ def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int) -> dict[str
     scored = [c for c in chosen if c["not_scored"] is None]
     paid = [c for c in scored if not c["local"]]
     total = sum(c["run_cost_usd"]["value"] or 0.0 for c in paid)
+    trial = _trial_cost(scored, named or [])
+    asked_again = [c for c in scored if c.get("granularities")]
     unknown = any(c["run_cost_usd"]["value"] is None for c in paid)
     if not paid:
         sentence = f"Every reader compared runs on this Mac: the comparison costs nothing ({len(scored)} readers)."
@@ -250,8 +270,11 @@ def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int) -> dict[str
         sentence = (f"The comparison costs {'at least ' if unknown else 'about '}${total:.2f}: {len(paid)} cloud "
                     f"reader{'s' if len(paid) != 1 else ''} on {len(pages)} page{'s' if len(pages) != 1 else ''}; "
                     f"the other {len(scored) - len(paid)} run on this Mac, free.")
-    return {"candidates": chosen, "pages": len(pages), "run_cost_usd": round(total, 4), "cost_known": not unknown,
-            "sentence": sentence}
+    if asked_again:
+        sentence += (" The two best readers that take a picture of each line, and any you name, are then asked again "
+                     "a line, a region and a page at a time" + (f": up to ${trial:.2f} more." if trial else ", free."))
+    return {"candidates": chosen, "pages": len(pages), "run_cost_usd": round(total, 4),
+            "granularity_run_cost_usd": round(trial, 4), "cost_known": not unknown, "sentence": sentence}
 
 
 # --- the ground truth ----------------------------------------------------------------------------------
@@ -338,12 +361,13 @@ def readiness(pages: list[dict[str, Any]], unmarked_pages: int = 0, *, min_lines
 
 
 def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: list[str] | None, volume: int,
-          run_evaluation: Callable[[dict[str, Any]], str], now: str) -> dict[str, Any]:
+          run_evaluation: Callable[[dict[str, Any]], str], now: str, named: list[str] | None = None) -> dict[str, Any]:
     """Check the ground truth, pick the candidates, start the one evaluation job and keep the record.
 
     `run_evaluation` takes an `EvaluationRunRequest` as a dict and returns the job id (the audited
     `evaluation.run` action). Refused in words, with nothing run, below the threshold or when no
-    candidate can be scored here."""
+    candidate can be scored here. `named`: card ids the person named, asked at every granularity whatever
+    their score."""
     pages, left_out = ground_truth(db, page_ids)
     ready = readiness(pages, unmarked_import_pages(db))
     if not ready["ready"]:
@@ -357,7 +381,9 @@ def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: li
     job_id = run_evaluation({
         "checked": None, "add_out_of_the_box": False, "held_out_ids": [p["document_id"] for p in pages],
         "language": sorted(a.languages)[0] if a.languages else None, "remote_allowed": bool(a.cloud_allowed),
-        "candidates": [{"model": c["model"], "reader": c["reader"], "provider": c["provider"]} for c in scored],
+        "candidates": [{"model": c["model"], "reader": c["reader"], "provider": c["provider"],
+                        "lines_per_request": c.get("lines_per_request")} for c in scored],
+        "granularities_for_best": TRIAL_BEST, "named": [c["model"] for c in scored if c["card"] in (named or [])],
     })
     record = {"id": job_id, "job_id": job_id, "step": STEP, "started_at": now, "material": a.material,
               "volume": volume, "pages": pages, "left_out": left_out,
@@ -470,43 +496,52 @@ def result(db: Any, library: Path, bakeoff_id: str) -> dict[str, Any]:
         # A record kept before rows carried a name reads it from the card now (one source: the card).
         row["name"] = c.get("name") or _name_of(c["card"])
         row.update(cer=None, policy=None, scores={}, per_page=[], pages_per_hour=None, seconds=None,
-                   measured=False, pages_read=None, pages_total=None, why=c["not_scored"], wer=None)
-        if c["not_scored"] is None:
-            entry = next((e for e in model_evaluations(c["model"], c["reader"])
-                          if e.get("job_id") == record["job_id"]), None)
-            if entry is not None:
-                row.update(_scored_row(entry))
-            else:
-                waiting = state in ("waiting", "running")
-                row["why"] = ("waiting for the evaluation job to score it" if waiting
-                              else f"the evaluation job ended ({state}) without scoring it")
-        rows.append(row)
+                   measured=False, pages_read=None, pages_total=None, why=c["not_scored"], wer=None,
+                   granularity=None, lines_per_request=c.get("lines_per_request"))
+        if c["not_scored"] is not None:
+            rows.append(row)
+            continue
+        # One row for each way the job asked it (#5722): a model asked at several granularities has several.
+        entries = [e for e in model_evaluations(c["model"], c["reader"]) if e.get("job_id") == record["job_id"]]
+        if not entries:
+            waiting = state in ("waiting", "running")
+            row["why"] = ("waiting for the evaluation job to score it" if waiting
+                          else f"the evaluation job ended ({state}) without scoring it")
+            rows.append(row)
+        for entry in entries:
+            rows.append({**row, **_scored_row(entry), "granularity": entry.get("granularity")})
     ranked = _rank(rows, record["material"], int(record.get("volume") or 0))
     # A winner only among the measured, and only when at least two were (#5531); none while still scoring.
+    # Two rows of one reader asked two ways are one reader.
     compared = [r for r in ranked if r["measured"] and r["cer"] is not None]
-    no_winner = None if waiting else no_winner_why([r["name"] or "a reader" for r in compared])
-    winner = compared[0]["card"] if not waiting and no_winner is None else None
+    no_winner = None if waiting else no_winner_why(list({r["card"]: r["name"] or "a reader" for r in compared}.values()))
+    winning = compared[0] if not waiting and no_winner is None else None
     return {**{k: record[k] for k in ("id", "job_id", "step", "started_at", "pages", "left_out", "lines")},
-            "state": state, "reason": job["reason"] if job else None, "rows": ranked, "winner": winner,
-            "no_winner_why": no_winner}
+            "state": state, "reason": job["reason"] if job else None, "rows": ranked,
+            "winner": winning["card"] if winning else None,
+            "winner_granularity": winning["granularity"] if winning else None, "no_winner_why": no_winner}
 
 
 # --- Use This --------------------------------------------------------------------------------------------
 
 
 def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *, scope: str,
-             folder_id: str | None, now: str) -> dict[str, Any]:
+             folder_id: str | None, now: str, granularity: str | None = None) -> dict[str, Any]:
     """The recipe with this bake-off's candidate as the step's reader for the scope, kept as an override.
 
     For the project, the step's own model is set from the candidate's card too, so Start reads with it;
     for a folder, only the override records it. A later Use This for the same step and scope replaces
-    the earlier override."""
+    the earlier override. A reader measured at several granularities is used at the one named (`granularity`),
+    else at its best-ranked row's; the step and the override record it (#5722)."""
     import copy
 
     if not recipe:
         raise BakeoffRefused("this project has no recipe yet: run setup first")
     name = reader_name(card) or "That reader"
-    row = next((r for r in table["rows"] if r["card"] == card.id), None)
+    row = next((r for r in table["rows"] if r["card"] == card.id
+                and (granularity is None or r.get("granularity") == granularity)), None)
+    if row is None and granularity is not None:
+        raise BakeoffRefused(f"{name} was not measured at that granularity ({granularity}) in this bake-off")
     if row is None:
         raise BakeoffRefused(f"{name} is not one of this bake-off's candidates")
     lines = table["step"] == LINES_STEP
@@ -526,10 +561,11 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
                f"checked lines; rank {row['rank']}" if lines else
                f"chosen in the bake-off on your pages: CER {row['cer'] * 100:.1f}% ({row['policy']}) on the "
                f"{row['pages_read']} of {_plural(row['pages_total'], 'page')} it read, {table['lines']} lines; "
-               f"rank {row['rank']}")
+               f"rank {row['rank']}" + (f", asked by {row['granularity']}" if row.get("granularity") else ""))
     override = {"step": step["id"], "scope": scope, "folder_id": folder_id if scope == "folder" else None,
                 "model": dict(card.pin), "card": card.id, "runs_on": card.runs_on, "from_bakeoff": table["id"],
-                "cer": row["cer"], "policy": row["policy"], "because": because, "at": now}
+                "cer": row["cer"], "policy": row["policy"], "because": because, "at": now,
+                "granularity": row.get("granularity")}
     out["overrides"] = [o for o in out.get("overrides") or []
                         if (o.get("step"), o.get("scope"), o.get("folder_id"))
                         != (override["step"], override["scope"], override["folder_id"])] + [override]
@@ -563,6 +599,10 @@ def apply_project_overrides(recipe: dict[str, Any], cards: list[Card]) -> dict[s
         measured = replace(card, cer_measured_here=override.get("cer"))
         step.update(_chosen(Choice(step["job"], measured, reasons=[override.get("because") or "chosen by you"])))
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
+        if override.get("granularity"):
+            step["granularity"] = override["granularity"]  # how the model is asked, as measured (#5722)
+        else:
+            step.pop("granularity", None)
     return recipe
 
 

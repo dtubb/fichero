@@ -1912,6 +1912,9 @@ class BakeoffStartRequest(BaseModel):
     step: Literal["read-a-line", "find-lines"] = Field(default="read-a-line", description=(
         "which step's models to compare: the readers (each scored by CER and WER against the checked text), or the "
         "line finders (each scored by how many checked lines it finds) (#5660 item 7)"))
+    named: list[str] = Field(default_factory=list, description=(
+        "card ids of readers the person named: each is asked a line, a region and a page at a time (#5722), "
+        "whatever its score; the two best also are"))
 
 
 class BakeoffPage(BaseModel):
@@ -1972,6 +1975,10 @@ class BakeoffRow(BaseModel):
                                "remote, still running, or 'not measured: read N of M pages (why)')")
     wer: Optional[float] = Field(default=None, description="a reader's word error rate over the pages it read (#5660)")
     lines_found: Optional[int] = Field(default=None, description="a line finder: the checked lines it found")
+    granularity: Optional[Literal["lines", "region", "page"]] = Field(default=None, description=(
+        "how a vision model was asked (#5722): a line, a region or the whole page a request; one row for each way it "
+        "was asked. None: a reader that reads a line at a time by nature"))
+    lines_per_request: Optional[int] = Field(default=None, description="its card's limit on lines in one request")
     lines_checked: Optional[int] = Field(default=None, description="a line finder: the checked lines on the pages")
     extra_lines: Optional[int] = Field(default=None, description="a line finder: its lines that match no checked one")
 
@@ -1989,6 +1996,8 @@ class BakeoffResult(BaseModel):
     rows: list[BakeoffRow]
     winner: Optional[str] = Field(default=None, description="the first measured row's card, only when at least two "
                                   "readers were measured")
+    winner_granularity: Optional[Literal["lines", "region", "page"]] = Field(default=None, description=(
+        "how the winner was asked, when it is a vision model (#5722)"))
     no_winner_why: Optional[str] = Field(default=None, description="when the job has finished with no winner, why, in "
                                          "words: only one reader could be compared, or no reader read these pages")
 
@@ -2030,6 +2039,8 @@ class BakeoffNextRun(BaseModel):
     candidates: list[BakeoffContender]
     pages: int = Field(description="the sample pages it would read")
     run_cost_usd: float = Field(description="the cloud readers' cost on the sample; 0 when every reader is local")
+    granularity_run_cost_usd: float = Field(default=0.0, description=(
+        "at most what asking the best readers a line, a region and a page at a time adds (#5722); 0 when free"))
     cost_known: bool = Field(description="false when a cloud reader's price is not known: the total is a lower bound")
     sentence: str
 
@@ -2046,6 +2057,8 @@ class BakeoffUseRequest(BaseModel):
     card: str = Field(description="the candidate's card id")
     scope: Literal["project", "folder"] = Field(default="project", description='Where the choice applies: the whole project, or one folder.')
     folder_id: Optional[str] = Field(default=None, description="the folder, when the scope is a folder")
+    granularity: Optional[Literal["lines", "region", "page"]] = Field(default=None, description=(
+        "a vision model measured at several granularities is used at this one (#5722); none: its best row's"))
 
 
 def _bakeoff() -> Any:
@@ -2089,6 +2102,7 @@ async def start_bakeoff(
         record = bakeoff.start(
             db, library, a, known_cards(a, include_not_built=True), page_ids=request.page_ids if request else None,
             volume=a.pages or count_pages(db), now=utc_now_iso(timespec="seconds"),
+            named=request.named if request else None,
             run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
         return BakeoffResult(**bakeoff.result(db, library, record["id"]))
     except ValueError as exc:
@@ -2154,7 +2168,7 @@ async def use_bakeoff_choice(
     setup = read_project_setup(library)
     try:
         recipe = bakeoff.use_this(setup["recipe"], table, card, scope=request.scope, folder_id=request.folder_id,
-                                  now=utc_now_iso(timespec="seconds"))
+                                  now=utc_now_iso(timespec="seconds"), granularity=request.granularity)
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

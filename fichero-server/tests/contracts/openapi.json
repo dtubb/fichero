@@ -51092,6 +51092,12 @@
             "title": "Run Cost Usd",
             "description": "the cloud readers' cost on the sample; 0 when every reader is local"
           },
+          "granularity_run_cost_usd": {
+            "type": "number",
+            "title": "Granularity Run Cost Usd",
+            "description": "at most what asking the best readers a line, a region and a page at a time adds (#5722); 0 when free",
+            "default": 0.0
+          },
           "cost_known": {
             "type": "boolean",
             "title": "Cost Known",
@@ -51298,6 +51304,17 @@
             "title": "Winner",
             "description": "the first measured row's card, only when at least two readers were measured"
           },
+          "winner_granularity": {
+            "type": "string",
+            "enum": [
+              "lines",
+              "region",
+              "page"
+            ],
+            "nullable": true,
+            "title": "Winner Granularity",
+            "description": "how the winner was asked, when it is a vision model (#5722)"
+          },
           "no_winner_why": {
             "type": "string",
             "nullable": true,
@@ -51468,6 +51485,23 @@
             "title": "Lines Found",
             "description": "a line finder: the checked lines it found"
           },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "lines",
+              "region",
+              "page"
+            ],
+            "nullable": true,
+            "title": "Granularity",
+            "description": "how a vision model was asked (#5722): a line, a region or the whole page a request; one row for each way it was asked. None: a reader that reads a line at a time by nature"
+          },
+          "lines_per_request": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines Per Request",
+            "description": "its card's limit on lines in one request"
+          },
           "lines_checked": {
             "type": "integer",
             "nullable": true,
@@ -51514,6 +51548,14 @@
             "title": "Step",
             "description": "which step's models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7)",
             "default": "read-a-line"
+          },
+          "named": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Named",
+            "description": "card ids of readers the person named: each is asked a line, a region and a page at a time (#5722), whatever its score; the two best also are"
           }
         },
         "additionalProperties": false,
@@ -51542,6 +51584,17 @@
             "nullable": true,
             "title": "Folder Id",
             "description": "the folder, when the scope is a folder"
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "lines",
+              "region",
+              "page"
+            ],
+            "nullable": true,
+            "title": "Granularity",
+            "description": "a vision model measured at several granularities is used at this one (#5722); none: its best row's"
           }
         },
         "additionalProperties": false,
@@ -62951,6 +63004,24 @@
             "title": "Provider",
             "description": "vision: the provider: this Mac's models (`omlx`), Apple Vision (`apple`, model `apple-vision`), or a cloud provider set up in Settings \u203a AI, which reads only when the request allows pages to leave this Mac (`remote_allowed`, #5660 item 7).",
             "default": "omlx"
+          },
+          "granularity": {
+            "type": "string",
+            "enum": [
+              "lines",
+              "region",
+              "page"
+            ],
+            "title": "Granularity",
+            "description": "vision: how it is asked (#5722): one line a request, one region (a paragraph) a request, or the whole page in one request. Kraken and Apple Vision read a line at a time by nature and ignore it.",
+            "default": "lines"
+          },
+          "lines_per_request": {
+            "type": "integer",
+            "minimum": 1.0,
+            "nullable": true,
+            "title": "Lines Per Request",
+            "description": "vision: the most lines one request carries (the card's `lines_per_request`): a region longer than it is split on line boundaries. None: no limit stated."
           }
         },
         "type": "object",
@@ -63002,6 +63073,22 @@
             "title": "Remote Allowed",
             "description": "A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words.",
             "default": false
+          },
+          "granularities_for_best": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Granularities For Best",
+            "description": "How many of the best vision candidates (by their score at their own granularity) are asked again at the other granularities (#5722). 0: every candidate runs once.",
+            "default": 0
+          },
+          "named": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Named",
+            "description": "Vision models the person named: asked at every granularity whatever their score (#5722)."
           }
         },
         "type": "object",

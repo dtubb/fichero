@@ -87,13 +87,17 @@ def _points(attr: str | None) -> list[tuple[float, float]]:
 
 
 def page_lines(page_xml: str) -> list[dict[str, Any]]:
-    """Each TextLine of a PAGE file, in file (reading) order: its id, outline, baseline and text."""
+    """Each TextLine of a PAGE file, in file (reading) order: its id, outline, baseline, text and region."""
     from fichero_server.formats.pagexml import PAGE_NS_2019
     from fichero_server.security.xml_security import parse_xml_string
 
     ns = f"{{{PAGE_NS_2019}}}"
+    root = parse_xml_string(page_xml)
+    # The innermost TextRegion a line sits in (the standard library's tree has no parent link).
+    region_of = {id(line): region.get("id") or "" for region in root.iter(f"{ns}TextRegion")
+                 for line in region.findall(f"{ns}TextLine")}
     found = []
-    for line in parse_xml_string(page_xml).iter(f"{ns}TextLine"):
+    for line in root.iter(f"{ns}TextLine"):
         coords, base = line.find(f"{ns}Coords"), line.find(f"{ns}Baseline")
         # The line's FIRST own TextEquiv: the export writes the counting reading first and the others
         # after it as alternatives. Joining every Unicode read a corrected line as the correction plus the
@@ -103,7 +107,8 @@ def page_lines(page_xml: str) -> list[dict[str, Any]]:
         found.append({"id": line.get("id") or "",
                       "polygon": _points(coords.get("points") if coords is not None else None),
                       "baseline": _points(base.get("points") if base is not None else None),
-                      "text": "".join(u.text or "" for u in texts).strip()})
+                      "text": "".join(u.text or "" for u in texts).strip(),
+                      "region": region_of.get(id(line), "")})
     return found
 
 

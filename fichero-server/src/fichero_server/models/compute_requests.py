@@ -120,6 +120,12 @@ class EvaluationCandidate(BaseModel):
     provider: str = Field("omlx", description="vision: the provider: this Mac's models (`omlx`), Apple Vision "
                           "(`apple`, model `apple-vision`), or a cloud provider set up in Settings › AI, which reads "
                           "only when the request allows pages to leave this Mac (`remote_allowed`, #5660 item 7).")
+    granularity: Literal["lines", "region", "page"] = Field("lines", description=(
+        "vision: how it is asked (#5722): one line a request, one region (a paragraph) a request, or the whole page "
+        "in one request. Kraken and Apple Vision read a line at a time by nature and ignore it."))
+    lines_per_request: int | None = Field(None, ge=1, description=(
+        "vision: the most lines one request carries (the card's `lines_per_request`): a region longer than it is "
+        "split on line boundaries. None: no limit stated."))
 
 
 class EvaluationRunRequest(BaseModel):
@@ -139,3 +145,8 @@ class EvaluationRunRequest(BaseModel):
     remote_allowed: bool = Field(False, description="A cloud reader may read the sample's lines: the project lets "
                                  "pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). "
                                  "False: a candidate on a cloud provider is refused, in words.")
+    granularities_for_best: int = Field(0, ge=0, le=4, description=(
+        "How many of the best vision candidates (by their score at their own granularity) are asked again at the "
+        "other granularities (#5722). 0: every candidate runs once."))
+    named: list[str] = Field(default_factory=list, description=(
+        "Vision models the person named: asked at every granularity whatever their score (#5722)."))

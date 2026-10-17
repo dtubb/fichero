@@ -345,54 +345,91 @@ def read_with_kraken(photo: str, model: str, lines: list[dict[str, Any]]) -> tup
     return reads, None
 
 
-async def ask_vision(candidate: EvaluationCandidate, image: str, prompt: str) -> str:
-    """One line picture to a vision model on this Mac. The seam tests replace."""
+async def ask_vision(candidate: EvaluationCandidate, images: list[str], prompt: str) -> str:
+    """One request to a vision model: the pictures of the lines it is asked about. The seam tests replace."""
     from fichero_server.llm import LLMConfig, vision
 
-    return await vision(images=[image], prompt=prompt,
+    return await vision(images=images, prompt=prompt,
                         config=LLMConfig(provider=candidate.provider, model=candidate.model))
+
+
+def requests_for(lines: list[dict[str, Any]], granularity: str, lines_per_request: int | None = None
+                 ) -> list[list[dict[str, Any]]]:
+    """The requests a page's lines are asked in (#5722): one line each, one region each (consecutive lines of the
+    same `region`; a page without regions is one region) or all in one. A request never holds more than
+    `lines_per_request` lines: a longer one is split on line boundaries, in order."""
+    if granularity == "lines":
+        groups = [[ln] for ln in lines]
+    elif granularity == "region":
+        groups = []
+        for ln in lines:
+            if groups and groups[-1][0].get("region", "") == ln.get("region", ""):
+                groups[-1].append(ln)
+            else:
+                groups.append([ln])
+    elif granularity == "page":
+        groups = [list(lines)]
+    else:
+        raise ValueError(f"no granularity {granularity!r}: one of lines, region, page")
+    cap = lines_per_request or max(len(lines), 1)
+    return [g[i:i + cap] for g in groups for i in range(0, len(g), cap)]
+
+
+def granularities_for(reader: str | None, provider: str, lines_per_request: int | None) -> tuple[str, ...]:
+    """The granularities worth measuring for a reader. Kraken and Apple Vision read a line at a time by nature:
+    none. A card that states `lines_per_request` says the model cannot take a page, so `page` would only be
+    `region` again: not tried."""
+    if reader != "vision" or provider == "apple":
+        return ()
+    return ("lines", "region") if lines_per_request else ("lines", "region", "page")
+
+
+def granularities_to_try(candidate: EvaluationCandidate) -> tuple[str, ...]:
+    return granularities_for(candidate.reader, candidate.provider, candidate.lines_per_request)
 
 
 def read_with_vision(photo: str, candidate: EvaluationCandidate, lines: list[dict[str, Any]],
                      language: str | None) -> tuple[list[str], str | None]:
-    """(the lines' readings, why the model gave nothing when it answered nothing or nothing readable)."""
+    """(the lines' readings, why the model gave nothing when it answered nothing or nothing readable).
+
+    The lines are asked in the candidate's requests (`requests_for`). An answer that does not match its request
+    (not one reading per line) reads as nothing for those lines: it is not re-asked another way, because how the
+    model answers asked this way is the measure."""
     from PIL import Image
 
     from fichero_server.llm.line_reader import _crop_data_uri, parse_answer, prompt_for
 
-    prompt = prompt_for(1, language)
+    apple = candidate.provider == "apple"
+    groups = ([[ln] for ln in lines] if apple else
+              requests_for(lines, candidate.granularity, candidate.lines_per_request))
     with Image.open(photo) as page:
-        crops = [_crop_data_uri(page, ln["polygon"]) for ln in lines]
+        crops = [[_crop_data_uri(page, ln["polygon"]) for ln in group] for group in groups]
 
     answers: list[str] = []
+    parsed_all: list[list[str | None] | None] = []
 
-    async def all_lines() -> list[str]:
-        out = []
-        for crop in crops:  # one line a call, one at a time: the local lane holds one model
-            raw = await ask_vision(candidate, crop, prompt)
+    async def all_requests() -> list[str]:
+        out: list[str] = []
+        for group, pictures in zip(groups, crops):  # one request at a time: the local lane holds one model
+            raw = await ask_vision(candidate, pictures, prompt_for(len(group), language))
             answers.append(raw or "")
-            parsed = parse_answer(raw, 1)
-            out.append((parsed[0] if parsed else None) or "")
+            if apple:
+                # Apple Vision recognises the text in each line's picture: its answer IS the reading, not a JSON array.
+                out.append(" ".join((raw or "").split()))
+                continue
+            parsed = parse_answer(raw, len(group))
+            parsed_all.append(parsed)
+            out.extend((parsed[i] if parsed else None) or "" for i in range(len(group)))
         return out
 
-    if candidate.provider == "apple":
-        # Apple Vision recognises the text in each line's picture: its answer IS the reading, not a JSON array.
-        async def recognised() -> list[str]:
-            out = []
-            for crop in crops:
-                raw = await ask_vision(candidate, crop, prompt)
-                answers.append(raw or "")
-                out.append(" ".join((raw or "").split()))
-            return out
-
-        reads = asyncio.run(recognised())
+    reads = asyncio.run(all_requests())
+    if apple:
         if answers and not any(a.strip() for a in answers):
             return reads, "Apple Vision recognised no text in any line"
         return reads, None
-    reads = asyncio.run(all_lines())
     if answers and not any(a.strip() for a in answers):
         return reads, "the model gave an empty answer for every line"
-    if answers and all(parse_answer(a, 1) is None for a in answers):
+    if parsed_all and all(p is None for p in parsed_all):
         return reads, "the model's answers were not the readings it was asked for"
     return reads, None
 
@@ -578,6 +615,22 @@ def _keep_measured(db: Any, job_id: str, key: str, per_page: list[dict[str, Any]
     jobs.save_detail(db, job_id, json.dumps(detail))
 
 
+def _trial_candidates(models: list[dict[str, Any]], tried: list[EvaluationCandidate],
+                      request: EvaluationRunRequest) -> list[EvaluationCandidate]:
+    """The candidates asked again at their other granularities (#5722): the `granularities_for_best` best vision
+    models by their score at their own granularity, and every one the person named. The rest ran once."""
+    from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
+
+    by_key = {(c.model, c.reader): c for c in tried}
+    measured = sorted((m for m in models if m["measured"] and m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None
+                       and granularities_to_try(by_key[(m["model"], m["reader"])])),
+                      key=lambda m: m["scores"][DEFAULT_POLICY_NAME]["cer"])
+    best = list(dict.fromkeys(m["model"] for m in measured))[:request.granularities_for_best]
+    take = {*best, *request.named}
+    return [c.model_copy(update={"granularity": g}) for c in tried if c.model in take
+            for g in granularities_to_try(c) if g != c.granularity]
+
+
 def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[str, Any],
              *, progress: Any = None) -> dict[str, Any]:
     from fichero_server.workflows.transcription_accuracy import CER_DEFINITION, DEFAULT_POLICY_NAME
@@ -587,8 +640,12 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
     trust = {t: sum(p["trust"] == t for p in pages) for t in sorted({p["trust"] for p in pages})}
     models = []
     so_far = _measured_so_far(db, job_id)
-    for i, c in enumerate(candidates, 1):
-        key = f"{c.model}|{c.reader}"
+    queue, i, trial_done = list(candidates), 0, False
+    while i < len(queue):
+        c = queue[i]
+        i += 1
+        asked = c.granularity if granularities_to_try(c) else None
+        key = f"{c.model}|{c.reader}" + (f"|{asked}" if asked else "")
         per_page = list((so_far.get(key) or {}).get("per_page") or [])
         seconds = float((so_far.get(key) or {}).get("seconds") or 0.0)
         done = {p["document_id"] for p in per_page}
@@ -598,7 +655,8 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
             if _cancelled(db, job_id):
                 return {"stopped": True, "models": models}
             if progress:
-                progress(f"Reading {page['name']} with {c.model} (model {i} of {len(candidates)})")
+                progress(f"Reading {page['name']} with {c.model} (model {i} of {len(queue)})"
+                         + (f", asked by {asked}" if asked else ""))
             reference = [ln["text"] for ln in page["lines"]]
             began = time.monotonic()
             try:
@@ -614,9 +672,13 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
                                         "scores": score_page(reference, reads),
                                         "words": word_errors(reference, reads)}, why))
             _keep_measured(db, job_id, key, per_page, seconds)
-        models.append({"model": c.model, "reader": c.reader,
+        models.append({"model": c.model, "reader": c.reader, "granularity": asked,
+                       "lines_per_request": c.lines_per_request,
                        "role": "trained" if trained_card(c) is not None else "out of the box",
                        **judged(per_page, len(pages)), "speed": speed(seconds, len(pages))})
+        if i == len(queue) and not trial_done:
+            trial_done = True
+            queue += _trial_candidates(models, queue, request)
     measured_at = datetime.now(timezone.utc).isoformat()
     for m in models:
         record_on_card(m["model"], m["reader"], {
@@ -624,12 +686,15 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
             "definition": CER_DEFINITION, "pages": [p["document_id"] for p in pages], "role": m["role"],
             "scores": m["scores"], "per_page": m["per_page"], "speed": m["speed"], "measured": m["measured"],
             "pages_read": m["pages_read"], "pages_total": m["pages_total"], "why": m["why"],
-            "compared_with": [o["model"] for o in models if o is not m]})
+            "granularity": m["granularity"], "lines_per_request": m["lines_per_request"],
+            "compared_with": list(dict.fromkeys(o["model"] for o in models if o["model"] != m["model"]))})
     ranked = sorted((m for m in models if m["measured"] and m["scores"][DEFAULT_POLICY_NAME]["cer"] is not None),
                     key=lambda m: m["scores"][DEFAULT_POLICY_NAME]["cer"])
-    no_best = no_winner_why([m["model"] for m in ranked])
+    # One model asked three ways is still one candidate: a winner needs two models.
+    no_best = no_winner_why(list(dict.fromkeys(m["model"] for m in ranked)))
     return {"stopped": False, "measured_at": measured_at, "definition": CER_DEFINITION, "trust": trust,
             "ranked_by": DEFAULT_POLICY_NAME, "best": None if no_best else ranked[0]["model"],
+            "best_granularity": None if no_best else ranked[0]["granularity"],
             "no_best_why": no_best, "models": models}
 
 
