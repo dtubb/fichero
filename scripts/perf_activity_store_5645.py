@@ -138,6 +138,8 @@ def measure(name, fn, counter: Counter, repeats: int) -> dict:
 
 
 def main() -> None:
+    import fichero_server.api.main  # noqa: F401  (the app's own import order; importing db first is circular)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=10000)
     parser.add_argument("--repeats", type=int, default=20)
