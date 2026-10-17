@@ -167,11 +167,18 @@ class SshShell:
         else:
             from fichero_server.remote_read.ssh_prompts import AskpassServer
 
-            server = AskpassServer(prompts, timeout=timeout)
+            mark = len(prompts.log)
+            # the prompt gives up a little before the whole attempt does, so its reason can be told
+            server = AskpassServer(prompts, timeout=timeout - min(10.0, timeout * 0.5))
             try:
                 done = self._ssh("true", batch=False, timeout=timeout, env={**os.environ, **server.env()})
+            except subprocess.TimeoutExpired as exc:
+                raise SlurmError(f"the sign-in to {self.cluster.name} timed out after {timeout:g} s") from exc
             finally:
                 server.close()
+            if done.returncode and any(reason == "expired" for _id, reason in prompts.log[mark:]):
+                raise SlurmError(f"the sign-in to {self.cluster.name} expired before the prompt was answered: "
+                                 "sign in again and answer within the time")
         if done.returncode:
             raise SlurmError(f"could not connect to {self.cluster.name}: {done.stderr.decode(errors='replace').strip()[:300]}")
 

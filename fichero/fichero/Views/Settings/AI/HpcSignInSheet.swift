@@ -53,3 +53,10 @@ struct HpcSignInSheet: View {
         Task { await service.answer(prompt, with: text) }
     }
 }
+
+#Preview("Waiting for the second factor") {
+    let service = AppState().hpcSignInService
+    service.showForPreview(
+        prompts: [.init(id: "1", text: "Duo passcode or option (1-3): ")], phase: .signingIn)
+    return HpcSignInSheet(clusterId: "rorqual", clusterName: "Rorqual", service: service)
+}

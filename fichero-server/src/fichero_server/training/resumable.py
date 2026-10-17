@@ -13,9 +13,14 @@ _WRAPPER = r"""#!/usr/bin/env bash
 # usage: resumable.sh -- <trainer command...>
 ckpt="${FICHERO_CKPT:-out/last.ckpt}"
 shift
-echo "part $(( ${SLURM_RESTART_COUNT:-0} + 1 ))"
+restarts="${SLURM_RESTART_COUNT:-0}"
+max="${FICHERO_MAX_RESTARTS:-5}"
+# `--requeue` also re-queues after a crash; a count stops a broken trainer looping, and says so
+if [ "$restarts" -gt "$max" ]; then echo "gave up after $restarts restarts (more than $max)"; exit 1; fi
+echo "part $(( restarts + 1 ))"
 args=("$@")
 if [ -f "$ckpt" ]; then args+=(--resume "$ckpt"); fi
+before=$(cksum < "$ckpt" 2>/dev/null)
 warned=0
 on_warning() { warned=1; kill -USR1 "$child" 2>/dev/null; }
 trap on_warning USR1
@@ -23,7 +28,15 @@ trap on_warning USR1
 child=$!
 wait "$child"; status=$?
 while kill -0 "$child" 2>/dev/null; do wait "$child"; status=$?; done
-if [ "$warned" = 1 ]; then scontrol requeue "$SLURM_JOB_ID"; exit 0; fi
+if [ "$warned" = 1 ]; then
+  if [ "$restarts" -ge "$max" ]; then echo "gave up: the part limit ($max restarts) is reached, not re-queuing"; exit 1; fi
+  # re-queue only if the trainer stopped cleanly AND left a new checkpoint; else fail where it can be seen
+  after=$(cksum < "$ckpt" 2>/dev/null)
+  if [ "$status" -ne 0 ] || [ -z "$after" ] || [ "$after" = "$before" ]; then
+    echo "not re-queuing: the trainer stopped with status $status and no new checkpoint"; exit 1
+  fi
+  scontrol requeue "$SLURM_JOB_ID"; exit 0
+fi
 exit "$status"
 """
 
