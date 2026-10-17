@@ -500,6 +500,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/askpass.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/cluster_check.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/package.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/runner.py

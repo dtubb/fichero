@@ -158,3 +158,16 @@ class TestSignInAndKey:
         cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
         r = client.post(f"/api/hpc/clusters/{cid}/sign-in")
         assert r.status_code == 409 and "key" in r.json()["detail"].lower()
+
+    def test_check_runs_the_steps_live_and_says_so(self, client, monkeypatch):
+        from fichero_server.api.routes.ai import hpc
+
+        class Shell:
+            def run(self, argv):
+                return (1, "", "no scheduler") if argv[0] == "sinfo" else (0, "ok\n", "")
+
+        monkeypatch.setattr(hpc, "_shell_for", lambda cfg, cluster_id: Shell())
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        body = client.post(f"/api/hpc/clusters/{cid}/check").json()
+        assert body["ok"] is False
+        assert {s["name"]: s["state"] for s in body["steps"]}["gpus"] == "failed"
