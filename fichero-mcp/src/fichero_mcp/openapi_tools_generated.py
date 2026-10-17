@@ -2263,6 +2263,7 @@ def fichero_documents_update(
     doc_type: Annotated[Optional[str], Field(description='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.')] = None,
     exclude_from_processing: Annotated[Optional[bool], Field(description='Leave it out of runs.')] = None,
     exclude_from_search: Annotated[Optional[bool], Field(description='Leave it out of search.')] = None,
+    expected_updated_at: Annotated[Optional[str], Field(description="The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348).")] = None,
     file_type: Annotated[Optional[str], Field(description='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.')] = None,
     is_flagged: Annotated[Optional[bool], Field(description='Flag or unflag it.')] = None,
     is_read: Annotated[Optional[bool], Field(description='Mark it read or unread.')] = None,
@@ -2283,7 +2284,7 @@ def fichero_documents_update(
     z_index: Annotated[Optional[int], Field(description='Its stacking order on the canvas.')] = None,
 ) -> Any:
     'Update Document\n\nUpdate an existing document.\n\nRoute: PUT /api/documents/{doc_id} (toolset `documents`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/documents/{doc_id}", json=_rt.body({"attributes": attributes, "doc_type": doc_type, "exclude_from_processing": exclude_from_processing, "exclude_from_search": exclude_from_search, "file_type": file_type, "is_flagged": is_flagged, "is_read": is_read, "is_starred": is_starred, "metadata": metadata, "name": name, "node_kind": node_kind, "page_content": page_content, "parent_id": parent_id, "path": path, "position_x": position_x, "position_y": position_y, "position_z": position_z, "prototype_key": prototype_key, "rotation_z": rotation_z, "scale": scale, "status": status, "z_index": z_index}))
+    return _rt.call("PUT", f"/api/documents/{doc_id}", json=_rt.body({"attributes": attributes, "doc_type": doc_type, "exclude_from_processing": exclude_from_processing, "exclude_from_search": exclude_from_search, "expected_updated_at": expected_updated_at, "file_type": file_type, "is_flagged": is_flagged, "is_read": is_read, "is_starred": is_starred, "metadata": metadata, "name": name, "node_kind": node_kind, "page_content": page_content, "parent_id": parent_id, "path": path, "position_x": position_x, "position_y": position_y, "position_z": position_z, "prototype_key": prototype_key, "rotation_z": rotation_z, "scale": scale, "status": status, "z_index": z_index}))
 
 
 def fichero_documents_get_ancestors(
