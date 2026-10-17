@@ -46,6 +46,36 @@ WAYS: dict[str, list[dict[str, Any]]] = {
 _TAUGHT = frozenset({"training.start_here", "training.start", "training.start_vision_lora"})
 
 
+#: A Mac with at least this much memory trains a Kraken reader itself by default (`source.onboard.auto.train-offer-comes`).
+#: Stated, not measured: a measured figure replaces it (QUESTION-TO-MANAGER, #5440).
+TRAIN_HERE_MIN_RAM_GB = 16
+TRAINING_MODES = ("here", "huggingface", "offered")
+
+
+def training_setting(answered: str | None, *, mac_memory_gb: float, hf_configured: bool) -> dict[str, str]:
+    """How training happens in this project, from setup's answer (`answers.training`) or, with none, from the machine
+    (#5440, ruled 2026-10-17): here when this Mac has the memory, else Hugging Face when a token is set up, else offered
+    on the Start plan. A choice that cannot be met falls back to `offered` and says why. Never an alert."""
+    enough = mac_memory_gb >= TRAIN_HERE_MIN_RAM_GB
+    if answered not in TRAINING_MODES:
+        mode = "here" if enough else "huggingface" if hf_configured else "offered"
+        return {"mode": mode, "why": {
+            "here": "this Mac has the memory to train a reader itself",
+            "huggingface": "this Mac is short of memory to train here, and Hugging Face is set up",
+            "offered": "this Mac is short of memory to train here and Hugging Face is not set up"}[mode]}
+    if answered == "here" and not enough:
+        return {"mode": "offered", "why": "this Mac has not enough memory to train a reader here"}
+    if answered == "huggingface" and not hf_configured:
+        return {"mode": "offered", "why": "no Hugging Face token is set up (Settings, AI providers, Hugging Face)"}
+    return {"mode": answered, "why": "your choice in setup"}
+
+
+def _does(mode: str) -> str:
+    return {"here": "Training runs by itself on this Mac once the corrected lines reach the threshold.",
+            "huggingface": "Training runs by itself on Hugging Face Jobs once the corrected lines reach the threshold.",
+            "offered": "Training is offered here when the corrected lines reach the threshold; you start it."}[mode]
+
+
 def _params(action: str, job: str, counts: dict[str, Any]) -> dict[str, Any] | None:
     """What the app posts with `action`, as-is (#5660 item 9): the engine fills it, never the app. None when the
     engine cannot yet (no teacher: no reader has read this project's lines)."""
@@ -128,11 +158,13 @@ def _roots(db: Any) -> list[str]:
     return sorted(d.id for d in db.query(Document, parent_id=None) if not d.deleted_at)
 
 
-def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool) -> list[dict[str, Any]]:
+def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool,
+                 setting: dict[str, str] | None = None) -> list[dict[str, Any]]:
     """One offer per recipe step a model can be trained for, in the recipe's order."""
     from fichero_server.recipes.assemble import TRAIN_OFFERED_FROM_LINES
     from fichero_server.recipes.bakeoff import readiness
 
+    setting = setting or {"mode": "offered", "why": "no setting given"}
     steps = (recipe or {}).get("steps") or []
     # The recipe's train step sets the line threshold for the step it trains (its `settings.base`).
     at_least = {(s.get("settings") or {}).get("base"): (s.get("offered_when") or {}).get("corrected_lines_at_least")
@@ -152,5 +184,6 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
         else:
             ready = readiness(counts["pages"], counts["unmarked"],
                               min_lines=at_least.get(job) or at_least.get(step.get("id")) or TRAIN_OFFERED_FROM_LINES)
-        offers.append({"step": step.get("id", job), "job": job, "title": TITLE, "ways": ways, "readiness": ready})
+        offers.append({"step": step.get("id", job), "job": job, "title": TITLE, "ways": ways, "readiness": ready,
+                       "setting": setting, "does": _does(setting["mode"])})
     return offers

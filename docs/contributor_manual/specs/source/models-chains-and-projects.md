@@ -1194,7 +1194,7 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.volumes-in-batches` — **[OK]** (#5540; built as `source.recipe.batch-at-archive-scale` below, one batch per folder with every step finished on it before the next, progress per folder; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) a run over several volumes goes one
   volume at a time, with every stage finished on that volume before the next volume starts. Progress is
   shown per volume.
-- `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440; reworded 2026-10-17, ruled) training runs by itself per an
+- `source.onboard.auto.train-offer-comes` — **[PARTIAL]** (#5440; reworded 2026-10-17, ruled; *built (engine): `train_offers.training_setting` and the setting on every Start-plan offer (`setting`, `does`); pinned by `fichero-server/tests/unit/recipes/test_training_setting_5440.py`. Not built: the onboarding screen that sets `answers.training`, and training actually starting by itself once the threshold is reached*) training runs by itself per an
   onboarding setting, not a prompt: in the project's setup the person chooses how training happens (`answers.training`:
   `here`, `huggingface` or `offered`). With no choice the default depends on the machine: a Mac with enough memory to train
   a Kraken reader trains **here**, automatically; otherwise **huggingface** when a Hugging Face token is set up; else the
