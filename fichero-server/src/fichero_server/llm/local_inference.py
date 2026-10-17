@@ -186,6 +186,13 @@ def _need_parts(model: Any, context_tokens: int) -> tuple[int, int]:
     return weights, int(per_token) * max(0, int(context_tokens))
 
 
+def local_memory_gb(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS) -> float:
+    """The ONE memory number for a local model, in GB (`ai.where.one-memory-number`, #5537): what the load gate
+    needs (weights, the KV cache for `context_tokens`, the overhead; the machine's override applies). The cards,
+    setup's rule and Start's peak read this, not a number of their own."""
+    return round(fit_estimate(model, context_tokens, physical_memory=0).need_bytes / 1024**3, 2)
+
+
 def fit_estimate(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS, physical_memory: int | None = None,
                  *, catalog: Any = None) -> FitEstimate:
     """Weights + the KV cache for `context_tokens` + overhead, against this Mac's memory (#5641): "fits" within
