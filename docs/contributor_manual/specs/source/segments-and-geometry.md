@@ -991,7 +991,7 @@ Storage
   mark, support and claim whose rectangle matches a converted box exactly, with the segment id
   it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
   2026-09-20: there is nowhere lawful to write the id until `source.point.anchor-names-its-segment`.)
-- `source.store.edit-converts-its-page-first` — **[GAP]** (#4924) reading a page never converts it; editing a page
+- `source.store.edit-converts-its-page-first` — **[PARTIAL]** (#4924; reading converts nothing, the edit is one audited action with name-based ids, undo keeps the records: `fichero-server/tests/unit/api/test_store_edit_converts_its_page_first_to_spec.py`; owed: ids equal to the whole-project conversion's, once that is built) reading a page never converts it; editing a page
   that is not yet converted converts it as part of that edit, one audited action, with the
   same ids the whole-project conversion would give it; undo takes back the edit and keeps the
   records. (Replaces `source.store.ids-on-first-edit`: by the ruling of 2026-09-20 this is no
