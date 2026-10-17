@@ -7896,7 +7896,7 @@ class Database(DatabaseEmbeddingMixin):
     #: `TestTheExemptionListIsCompleteAndJudged`, so a seventh column cannot hide here.
     JUDGED_NARROW_INT_COLUMNS = frozenset({
         "references.year", "canvas_layout.z_index", "segments.version", "segmentversions.version",
-        "readingorderentrys.version", "segmentforwardings.sequence",
+        "readingorderentrys.version", "segmentforwardings.sequence", "workflowrunloglines.seq",
     })
 
     def _widen_int_columns(self, model, sql_table: str, table: str, execute) -> None:
