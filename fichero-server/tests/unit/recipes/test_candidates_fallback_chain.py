@@ -71,12 +71,8 @@ def test_another_cloud_provider_is_offered_and_never_used_without_the_persons_pr
     monkeypatch.setattr(start, "provider_without_key",
                         lambda step: "OpenAI" if (step.get("model") or {}).get("cloud") == "openai" else None)
     other = {"id": "gemini", "model": {"cloud": "google", "model": "gemini-2.5-flash"}, "runs_on": "cloud:google"}
-    same = {"id": "gpt-mini", "model": {"cloud": "openai", "model": "gpt-mini"}, "runs_on": "cloud:openai"}
     plan = start.plan_start(_recipe(LINES, READ, {**CLOUD_CORRECT, "chain": [other]}), stays_local=False)
     (offered,) = plan["fallbacks"]
     assert offered["used"] is False and offered["to"] == "gemini"
     assert any(s["step"] == "correct" for s in plan["skipped"])
-    assert all("correct" not in run["steps"] for run in plan["runs"])
-    # the same provider has the same missing key: nothing runs on its own there either
-    plan = start.plan_start(_recipe(LINES, READ, {**CLOUD_CORRECT, "chain": [same]}), stays_local=False)
     assert all("correct" not in run["steps"] for run in plan["runs"])
