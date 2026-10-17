@@ -992,11 +992,19 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
 
     rows, total = [], 0.0
     for w in workflows:
-        cloud = str(w["runs_on"]).startswith("cloud")
-        cost = (estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
-                              provider=w["provider_override"] or "") if cloud else 0.0)
+        runs_on = str(w["runs_on"])
+        # Only this Mac is free by its own word; a cloud call is priced by the model's listed rate; any
+        # other place (a cluster, a person's other machine) is unpriced, never $0 (#5590).
+        if runs_on.startswith("cloud"):
+            cost = estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
+                                 provider=w["provider_override"] or "")
+        elif runs_on in ("this-mac", ""):
+            cost = 0.0
+        else:
+            cost = None
+        basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
-                     "pages": pages, "cost_usd": cost, "memory": _local_memory(w)})
+                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w)})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
 
