@@ -85,6 +85,12 @@ private struct FicheroSceneRoot: View {
             .onChange(of: scenePhase, initial: true) { _, phase in
                 if phase == .active { WindowState.front = windowState }
             }
+            // Renew a near-expiry device token each time the app comes forward (#3290),
+            // not only at launch; a no-op for local hosts or an unknown expiry.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host) }
+            }
     }
 }
 
