@@ -43,7 +43,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
-from fichero_server.recipes.assemble import APPLE_LINES_PIN, Answers, Card, Choice, _chosen, _rank_key, _refusal
+from fichero_server.recipes.assemble import APPLE_LINES_PIN, Answers, Card, Choice, _chosen, _rank_key, _refusal, in_period
 from fichero_server.recipes.cards import seed_cards
 
 #: The recipe step this slice compares: the reader, the step with the most choice.
@@ -138,9 +138,11 @@ def _name_of(card_id: str) -> str:
 
 
 def _period_refusal(card: Card, a: Answers) -> str | None:
-    """Why a reader made for another period is named but not scored (#5715), or None."""
-    refused = _refusal(STEP, replace(card, jobs=frozenset({STEP})), a, a.material)
-    return refused[1] if refused and refused[0] == "no-reader-for-period" else None
+    """Why a reader made for another period is named but not scored (#5715), or None. The rules only rank it lower
+    (`candidates-filtered-then-ranked`); the bake-off does not spend a trial on a hand it says it was not made for."""
+    if a.material != "handwriting" or in_period(card, a) is not False:
+        return None
+    return f"it was made for pages of {card.period[0]}–{card.period[1]}, not the project's period"
 
 
 def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int,
