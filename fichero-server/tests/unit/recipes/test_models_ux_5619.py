@@ -101,16 +101,14 @@ def test_an_embedder_is_never_a_card_for_statements(client, mac, ollama):
 
 
 def test_an_ollama_on_another_machine_is_free_but_its_pages_leave(client, mac, app_db):
-    """"… one on another machine of the person's own is free but its pages leave this Mac, so it is chosen only
-    where the project lets pages leave." Kept here: the step says why it has no model (the cloud question);
-    pages may leave: the step runs there, free, and says it leaves this Mac."""
+    """"… one on another machine of the person's own is free but its pages leave this Mac": it is offered as a
+    candidate, but it is not installed here, so the rules keep the free parser (`source.job.find-statements.
+    candidates`, #5637) whether or not pages may leave."""
     _ollama(app_db, "http://studio.example.net:11434")
-    kept = _step(_assemble(client, purposes=["statements"], cloud_allowed=False), "find-statements")
-    assert kept["problem"]["kind"] == "cloud-not-allowed" and kept["problem"]["fix"] == "allow-cloud"
-
-    leaves = _step(_assemble(client, purposes=["statements"], cloud_allowed=True), "find-statements")
-    assert leaves["model"] == {"cloud": "ollama", "model": "llama3.2:latest"}
-    assert leaves["runs_on"] == "cloud:ollama" and leaves["uses_cloud"] is True
+    for allowed in (False, True):
+        step = _step(_assemble(client, purposes=["statements"], cloud_allowed=allowed), "find-statements")
+        assert step["model"].get("spacy") and step["runs_on"] == "this-mac" and step["uses_cloud"] is False
+        assert step.get("problem") is None
     candidate = next(i for i in _candidates(client, "find-statements") if i["pin"].get("model") == "llama3.2:latest")
     assert candidate["runs_where"] == "own_machine" and candidate["download"] is None
 
@@ -133,12 +131,12 @@ def test_an_mlx_model_in_the_store_finds_the_statements(client, mac):
     assert any("already on this Mac" in why for why in step["reasons"])
 
 
-def test_with_no_text_model_here_the_step_says_so_with_the_finder_as_its_fix(client, mac):
-    """With nothing installed the step still says, in words, that no model is here, and its fix is the finder
-    (choose-model), never a dead end."""
+def test_with_no_text_model_here_the_free_parser_runs_and_the_finder_is_offered(client, mac):
+    """With nothing installed the step runs the free parser (#5637) and says a text model can be chosen instead,
+    through the finder (Choose a model…), never a dead end."""
     step = _step(_assemble(client, purposes=["statements"]), "find-statements")
-    assert step["problem"]["kind"] == "no-model-for-job"
-    assert step["problem"]["fix"] == "choose-model"
+    assert step["model"].get("spacy") and step.get("problem") is None
+    assert any("Choose a model" in why for why in step["reasons"])
 
 
 # --- source.find.choose-a-model-opens-the-finder ------------------------------------------------------------------
