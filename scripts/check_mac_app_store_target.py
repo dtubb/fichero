@@ -117,7 +117,8 @@ def check() -> list[str]:
             fail("'Remove Sparkle (App Store)' must run AFTER the phases that embed frameworks and the engine")
 
     # Sparkle is weak-linked so the App Store binary launches once the framework is removed, and the updater code
-    # is gated on the App Store flag, not on canImport(Sparkle) (true wherever the package resolves).
+    # is gated at RUNTIME on the framework being present (NSClassFromString), not on canImport(Sparkle) (true wherever the
+    # package resolves) and not on the App Store flag (check_mas_flag_containment.py allows it in one other file only).
     sparkle_files = [
         o for o in objects.values()
         if o.get("isa") == "PBXBuildFile" and objects.get(o.get("productRef"), {}).get("productName") == "Sparkle"
@@ -128,9 +129,9 @@ def check() -> list[str]:
     if updater.is_file():
         utext = updater.read_text()
         if "canImport(Sparkle)" in utext:
-            fail("SparkleUpdater.swift gates on canImport(Sparkle); gate on !FICHERO_APP_STORE instead")
-        if "!FICHERO_APP_STORE" not in utext:
-            fail("SparkleUpdater.swift must be gated on !FICHERO_APP_STORE")
+            fail("SparkleUpdater.swift gates on canImport(Sparkle); gate on the runtime NSClassFromString check instead")
+        if "NSClassFromString(\"SPUStandardUpdaterController\")" not in utext:
+            fail("SparkleUpdater.swift must gate on the runtime NSClassFromString(\"SPUStandardUpdaterController\") check")
 
     all_cfgs = configs(objects, dmg)
     if MAS_CONFIG not in all_cfgs:
