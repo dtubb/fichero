@@ -1,8 +1,11 @@
 #if os(macOS)
 import AppKit
 
+#if !FICHERO_APP_STORE
 import Sparkle
+#endif
 
+#if !FICHERO_APP_STORE
 /// Opts dev builds into the `dev` Sparkle channel (one feed, two channels —
 /// Daniel's 2026-08-25 ruling). Beta/release builds see only channel-less
 /// items (Fichero.dmg); dev builds also see `<sparkle:channel>dev</sparkle:channel>`
@@ -13,36 +16,27 @@ private final class SparkleChannelDelegate: NSObject, SPUUpdaterDelegate {
     init(channels: Set<String>) { self.channels = channels }
     func allowedChannels(for updater: SPUUpdater) -> Set<String> { channels }
 }
+#endif
 
 @MainActor
 final class SparkleUpdater {
     static let shared = SparkleUpdater()
 
-    // Sparkle is weak-linked and the App Store configuration deletes the
-    // framework from its bundle (#5730), so "is Sparkle here" is a RUNTIME
-    // question — the class is absent exactly when the framework is. Nothing
-    // below touches a Sparkle symbol unless this is true.
-    private static let hasSparkle = NSClassFromString("SPUStandardUpdaterController") != nil
-
-    private let updaterController: SPUStandardUpdaterController?
-    private let channelDelegate: SparkleChannelDelegate?
+    #if !FICHERO_APP_STORE
+    private let updaterController: SPUStandardUpdaterController
+    private let channelDelegate: SparkleChannelDelegate
+    #endif
 
     private init() {
-        guard Self.hasSparkle else {
-            channelDelegate = nil
-            updaterController = nil
-            return
-        }
-        let delegate = SparkleChannelDelegate(
+        #if !FICHERO_APP_STORE
+        channelDelegate = SparkleChannelDelegate(
             channels: FeatureManager.shared.activeBuildTier == .dev ? ["dev"] : []
         )
-        channelDelegate = delegate
-        let controller = SPUStandardUpdaterController(
+        updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: delegate,
+            updaterDelegate: channelDelegate,
             userDriverDelegate: nil
         )
-        updaterController = controller
         // Automatic download-and-install defaults ON (Daniel, 2026-09-04):
         // an archive tool's updates carry fixes to the data path, and waiting
         // for a manual check is how a known bug stays on a machine for weeks.
@@ -52,39 +46,60 @@ final class SparkleUpdater {
         // opt-out in Settings then sticks forever.
         let defaults = UserDefaults.standard
         if defaults.object(forKey: "SUAutomaticallyUpdate") == nil {
-            controller.updater.automaticallyDownloadsUpdates = true
+            updaterController.updater.automaticallyDownloadsUpdates = true
         }
         if defaults.object(forKey: "SUEnableAutomaticChecks") == nil {
-            controller.updater.automaticallyChecksForUpdates = true
+            updaterController.updater.automaticallyChecksForUpdates = true
         }
+        #endif
     }
 
     /// Settings seam (General ▸ Software Update). Straight passthroughs to
     /// Sparkle's own persisted preferences — no shadow copy to drift.
     var automaticallyChecksForUpdates: Bool {
-        get { updaterController?.updater.automaticallyChecksForUpdates ?? false }
-        set { updaterController?.updater.automaticallyChecksForUpdates = newValue }
+        get {
+            #if !FICHERO_APP_STORE
+            return updaterController.updater.automaticallyChecksForUpdates
+            #else
+            return false
+            #endif
+        }
+        set {
+            #if !FICHERO_APP_STORE
+            updaterController.updater.automaticallyChecksForUpdates = newValue
+            #endif
+        }
     }
 
     var automaticallyDownloadsUpdates: Bool {
-        get { updaterController?.updater.automaticallyDownloadsUpdates ?? false }
-        set { updaterController?.updater.automaticallyDownloadsUpdates = newValue }
+        get {
+            #if !FICHERO_APP_STORE
+            return updaterController.updater.automaticallyDownloadsUpdates
+            #else
+            return false
+            #endif
+        }
+        set {
+            #if !FICHERO_APP_STORE
+            updaterController.updater.automaticallyDownloadsUpdates = newValue
+            #endif
+        }
     }
 
     /// True when this build carries Sparkle at all (DMG channel; MAS and dev
     /// Xcode runs do not) — Settings hides the section rather than showing
     /// dead toggles.
     var isAvailable: Bool {
-        guard updaterController != nil else { return false }
+        #if !FICHERO_APP_STORE
         return (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)
             .map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
+        #else
+        return false
+        #endif
     }
 
     func checkForUpdates() {
-        guard let updaterController else {
-            showMissingFrameworkAlert()
-            return
-        }
+        #if !FICHERO_APP_STORE
         guard let feedURLString = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String else {
             showMissingConfigurationAlert()
             return
@@ -106,6 +121,9 @@ final class SparkleUpdater {
         }
 
         updaterController.checkForUpdates(nil)
+        #else
+        showMissingFrameworkAlert()
+        #endif
     }
 
     private var requiresSignedUpdates: Bool {
