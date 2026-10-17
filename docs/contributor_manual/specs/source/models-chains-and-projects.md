@@ -2429,8 +2429,10 @@ Jobs and chains
   by themselves): `paleo_regesto`, `paleo_translate_english`, the translate set, `extract_geo`, `extract_table`,
   `extract_events_timeline`, `describe_visual`, `clean_up_text`, `ner_per_page_local`, the `convert_to_*` set.
 - `source.recipe.nothing-assumes-spaces-direction-or-an-alphabet` — **[GAP]** (#5728) the review, the profiles, the
-  granularity and the A/B's scoring hold for Spanish colonial, German Kurrent, Aramaic (Hebrew square script and Syriac,
-  right to left) and Chinese (vertical columns, no spaces, variant and abbreviated characters). A profile carries its
+  granularity and the A/B's scoring hold for ANY language and script, with none named in code; the test matrix is Spanish
+  colonial, German Kurrent, Aramaic (Hebrew square script and Syriac, right to left) and Chinese (vertical columns, no
+  spaces, variant and abbreviated characters), chosen to differ from one another in spaces, direction and alphabet, so
+  that passing all four is evidence for the rest and a fifth script is a data file, never a code change. A profile carries its
   own letter or character audit (Latin: u/v, i/j, long-s; Kurrent: minim runs, ſ/s; Hebrew and Aramaic: ד/ר, ב/כ,
   final forms; Chinese: variant forms, popular abbreviations, absent punctuation); no lens assumes word spaces, a left to
   right order or an alphabet. A region is a region whatever its direction, and a line is a segment: its direction,

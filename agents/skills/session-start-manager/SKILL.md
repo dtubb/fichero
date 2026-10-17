@@ -33,13 +33,12 @@ Manager-only session start. This lane coordinates; it does not implement product
    two skills — use them, don't improvise:
    - **`/choose-next`** — reads ROADMAP + GH milestones, returns the next batch
      (1 big issue OR 3–10 small same-milestone issues) from the highest-incomplete tier.
-   - **`/dispatch-worker`** — spawns that batch the right way: **external worktree
-     only** (`~/code/fichero-worktrees/`, never `.claude/worktrees/`), codex for
-     backend / `claude -p` for frontend, cheap model default (Sonnet / codex-mini),
-     Opus/codex-5.5 only for keystones, then build/test-verify before cherry-pick.
+   - **a subagent** (`AGENTS.md`, "Worker Orchestration") — one worker at a time, on the model the maintainer names
+     (sonnet by default; opus for keystones), in a worktree made by hand from the branch's HEAD sha when it must not
+     touch the integration checkout, never `.claude/worktrees/`; review its diff and test-verify before merging.
    Also see `docs/VERIFY.md` (what verify checks) — its failures auto-file to the
    right milestone, which `/choose-next` then picks up.
-3. Check active tmux lanes if work is in flight.
+3. Check the run's log under `agent-work/status/` if work is in flight.
 4. Decide:
    - what is blocked
    - what is ready for review

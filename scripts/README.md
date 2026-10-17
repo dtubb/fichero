@@ -15,11 +15,8 @@ shell, Python, or Ruby helpers; they are not part of the Python engine package.
 
 ## Worktrees and issue flow
 
-- `spawn-worker.sh` creates a milestone worker in a worktree under
-  `$FICHERO_WORKTREES` and starts its tmux session.
 - `choose_next.py`, `dispatch_advisor.py`, and `file_issue.sh` support issue
   selection, sizing, and routing.
-- `notify_manager.sh` sends a worker completion or blocker to the manager inbox.
 - `tests_to_issues.py` turns recorded test failures into tracked issues.
 
 ## Builds and releases

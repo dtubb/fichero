@@ -18,10 +18,9 @@ cadence:
 
 ## React to worker signals (don't poll)
 
-- Workers call `scripts/notify_manager.sh` after each commit → appends to
-  `~/.fichero-manager-inbox`. Arm a **Monitor** on that file so a completion wakes
-  you immediately. Drain + clear the inbox each time you act.
-- `--blocked` lines are design walls (e.g. a `needs-design` keystone) — surface to
+- Workers comment each commit on its issue and add a line to the run's log under `agent-work/status/`; read the log and
+  the issue comments, and check for `agent-work/STOP` between workers.
+- A blocked issue is a design wall (e.g. a `needs-design` keystone) — surface to
   Daniel or route to a frontier/design pass.
 
 ## Gate + merge (the manager owns the one build + full suite)

@@ -36,7 +36,7 @@ right order. Do not implement — just select and hand off.
    - escalate to **Opus / codex 5.5** only for keystones (new stores, action layer,
      high-blast-radius).
 
-5. **Output** (for the manager to hand to `/dispatch-worker`):
+5. **Output** (for the manager to hand to a subagent):
    - tier + milestone, the issue numbers, big-vs-batch, model, a one-line objective.
 
 ## Notes

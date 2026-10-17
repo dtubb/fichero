@@ -156,26 +156,16 @@ Fichero is built by AI coding agents, **one layer deep** (spec:
   tricky design, or deep review. One layer — a worker does NOT spawn its own managers.
   Route DOWN for writing, escalate UP only for reasoning.
 
-Two dispatch modes — pick by lifetime, not habit:
+One dispatch mode (2026-10-16: the tmux worker launcher and its manager inbox were
+removed; nothing had used them since early September):
 
-- **Subagents (the `Agent` tool) — the DEFAULT** for a bounded task that reports back within
-  the turn (context-isolated, no plumbing). Most delegation is this. `subagent_type:
-  "general-purpose"` with `model: "sonnet"` (or `"opus"`), or `"fork"` to hand off your own
-  context.
-- **tmux worktree lanes — ONLY for long, cross-turn work** (a whole milestone that must
-  survive across turns). Then, and only then:
-
-  **`scripts/spawn-worker.sh` is the canonical launcher for a tmux lane — use it, never hand-roll.**
-
-  ```bash
-  scripts/spawn-worker.sh <opus|sonnet> "<Milestone Title>" [session-name]
-  ```
-
-  It fetches, creates the worktree off **`origin/main`** (never stale local `main` —
-  hand-rolling `git worktree add … main` starts a worker on stale code), opens a
-  detached tmux session, activates the venv, and feeds the worker prompt scoped to
-  that milestone. Worktrees land under `$FICHERO_WORKTREES` (default: a
-  `fichero-worktrees/` beside your checkout); it prints the `tmux attach` command.
+- **Subagents (the `subagent` / `Agent` tool)** for any bounded task that reports back within the turn
+  (context-isolated, no plumbing), on the model the maintainer names (sonnet by default). One worker at a time
+  in a worktree, unless their files are disjoint. A long piece of work is a chain of subagent calls from the
+  interactive session, logged to a file under `agent-work/status/` and stoppable by a `agent-work/STOP` file.
+- A worktree for work that must not touch the integration checkout is made by hand under
+  `~/code/fichero-worktrees/<name>`, **from the branch's HEAD sha** (`git worktree add <path> <sha>`), never
+  from stale local `main` or `origin/main`, which would miss unpushed commits.
 - The manager **reviews** each worker's output (ponytail lens plus `/code-review`),
   **build-gates** it, runs `verify_all`, then **merges via PR**, closes the issues,
   and **re-dispatches** the next batch. It checks in on workers about every 15 minutes.
@@ -270,17 +260,13 @@ the target paths don't overlap another live lane. When a collision slips through
 worker that *wrote* the code reconciles it; the manager does not blind-`--theirs` a
 test whose semantics it can't verify.
 
-### Workers run a self-continuing LOOP, and signal the manager
+### Workers drain their issues one at a time
 
-A worker is dispatched a **whole milestone**, not one issue. It **drains the
-milestone in a loop**: pick next ready issue → smallest correct slice + a test →
-commit-only (`Closes #n`, authored as itself) → **`bash scripts/notify_manager.sh
-"done #n (<sha>); next #m"`** → repeat. It never stops-and-waits between issues;
-the manager gates asynchronously. Blocked on a design wall →
-`notify_manager.sh --blocked "why"` and move on.
-
-`notify_manager.sh` appends to `~/.fichero-manager-inbox`; the manager arms a
-**Monitor** on that file so a completion wakes it immediately (no timer polling).
+A worker is given one issue, or an ordered list of them. For each: smallest correct slice + a test
+(red, then green) → commit-only (`Fixes #n`, authored as itself) → the next. It never stops-and-waits
+between issues; the manager reviews each diff and gates. A design wall is recorded on the issue and the
+worker moves on to the next. Completion is the commit and a comment on the issue, and a line in the run's
+log under `agent-work/status/`; there is no inbox.
 
 **Every worker uses jcodemunch + ponytail.** Navigate code via the jcodemunch MCP
 (`search_symbols`/`get_file_outline`/`get_symbol_source`/`find_references`/
@@ -290,9 +276,7 @@ code, no speculative abstractions, delete over add, one runnable test per
 non-trivial change, `ponytail:` comments for deliberate simplifications.
 
 **Reusable prompts:** `agents/prompts/worker-loop.md` (the standing worker
-contract, with `{{LANE}}`/`{{MILESTONE}}` placeholders) and
-`agents/prompts/manager-loop.md` (the manager cadence). Dispatch by pasting the
-filled worker-loop template.
+contract) and `agents/prompts/manager-loop.md` (the manager cadence).
 
 ---
 
