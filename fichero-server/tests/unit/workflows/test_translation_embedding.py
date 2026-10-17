@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from fichero_server.models import Artifact, Document, DocType, FileType, Status
 from fichero_server.workflows.tools.llm_base import LLMToolConfig
+from tests._real_state_guard import skip_without_embedding_model
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +69,7 @@ class TestTranslationToolConfigs:
 
 
 class TestEmbedArtifactContent:
+    @skip_without_embedding_model
     def test_embed_artifact_content_creates_scoped_vectors(self, db):
         """embed_artifact_content creates passage-level vectors with embedding_scope='translation'."""
         doc = Document(
@@ -109,6 +111,7 @@ class TestEmbedArtifactContent:
         # Must not raise — value depends on whether the table exists yet.
         assert result in (True, False)
 
+    @skip_without_embedding_model
     def test_embed_and_delete_roundtrip(self, db):
         """After embedding and deleting, vectors are gone."""
         doc = Document(
@@ -167,6 +170,7 @@ class TestArtifactTranslateAction:
 
 
 class TestTranslationArtifactDeletion:
+    @skip_without_embedding_model
     def test_delete_translation_artifact_removes_vectors(self, db):
         """_delete_artifact_impl removes embedding vectors for translation artifacts."""
         from fichero_server.api.routes.document.artifacts import _delete_artifact_impl

@@ -35,6 +35,8 @@ import sys
 import threading
 from pathlib import Path
 
+import pytest
+
 #: The real home, read before any test could change HOME.
 REAL_HOME = os.path.realpath(pwd.getpwuid(os.getuid()).pw_dir)
 _SUPPORT = os.path.join(REAL_HOME, "Library", "Application Support")
@@ -185,3 +187,22 @@ def share_real_embedding_cache(test_models_dir: Path) -> Path | None:
     if not link.exists() and not link.is_symlink():
         link.symlink_to(real, target_is_directory=True)
     return link
+
+
+def embedding_model_cached(cache: Path | None = None, model: str | None = None) -> bool:
+    """Whether the embedding model the tests ask for (``FICHERO_EMBED_MODEL``) is in the test base's
+    embedding cache -- the one the real one is linked to. HF_HUB_OFFLINE is set, so an uncached model
+    cannot load and every test that embeds fails on a clean Mac (#5528)."""
+    cache = cache or Path(os.environ["FICHERO_BASE_PATH"]) / "models" / "embeddings"
+    short = (model or os.environ["FICHERO_EMBED_MODEL"]).rsplit("/", 1)[-1].lower()
+    return any(short in d.name.lower() and (d / "snapshots").is_dir() and any((d / "snapshots").iterdir())
+               for d in cache.iterdir()) if cache.is_dir() else False
+
+
+def skip_without_embedding_model(test):
+    """Decorate a test that embeds for real: skipped, naming why, on a Mac without the model (an optional
+    download). Decided when the test module is imported, after the conftest has linked the cache."""
+    return pytest.mark.skipif(
+        not embedding_model_cached(),
+        reason="the embedding model is not downloaded on this Mac (HF_HUB_OFFLINE: tests never fetch one, #5528)",
+    )(test)

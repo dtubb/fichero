@@ -16,6 +16,9 @@ from fichero_server.llm.local_inference import (
 from fichero_server.llm.mlx_model_store import MLXModelStore, MANAGED_MLX_MODELS
 
 
+pytestmark = pytest.mark.usefixtures("plenty_of_memory")
+
+
 def _write_snapshot(root: Path, repo_id: str, revision: str, *, size: int = 4) -> Path:
     """A COMPLETE snapshot: config plus weights.
 

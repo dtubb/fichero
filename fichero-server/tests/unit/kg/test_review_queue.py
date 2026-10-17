@@ -16,6 +16,7 @@ from fichero_server.models.knowledge import (
     PendingMatchState,
 )
 from fichero_server.workflows.tools._entity_writer import upsert_entity
+from tests._real_state_guard import skip_without_embedding_model
 
 
 def _ent(db, name: str, etype=EntityType.event) -> KnowledgeEntity:
@@ -26,6 +27,7 @@ def _ent(db, name: str, etype=EntityType.event) -> KnowledgeEntity:
 
 
 class TestPendingMatchQueueing:
+    @skip_without_embedding_model
     def test_upsert_creates_pending_match_in_review_band(self, db):
         """Two entities with descriptions that embed in the 0.75-0.92
         cosine band should land as an EntityMatchCandidate, not as a

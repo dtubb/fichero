@@ -26,6 +26,9 @@ from fichero_server.llm.local_inference import (
 )
 
 
+pytestmark = pytest.mark.usefixtures("plenty_of_memory")
+
+
 class FakeProcess:
     def __init__(self) -> None:
         self.pid: int | None = None

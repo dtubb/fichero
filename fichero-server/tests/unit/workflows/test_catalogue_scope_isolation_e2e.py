@@ -41,6 +41,7 @@ from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.workflows.builder import build_graph
 from fichero_server.workflows.run_scope import resolve_run_scope
 from fichero_server.workflows.runtime import build_initial_state
+from tests._real_state_guard import skip_without_embedding_model
 
 
 @pytest.fixture(autouse=True)
@@ -102,6 +103,7 @@ class TestTheRunProducesItsOwnOutput:
     """Preconditions. If these fail the isolation assertions below are
     vacuous — a run that did nothing touches nothing."""
 
+    @skip_without_embedding_model
     def test_the_selected_folder_carries_the_catalogue_artifact(
         self, two_folder_library, monkeypatch
     ):
@@ -119,6 +121,7 @@ class TestTheRunProducesItsOwnOutput:
             "folder-level output has nowhere to live (#4397/#4414)"
         )
 
+    @skip_without_embedding_model
     def test_entities_and_claims_land_for_the_selected_folder(
         self, two_folder_library, monkeypatch
     ):
@@ -134,6 +137,7 @@ class TestTheRunProducesItsOwnOutput:
 class TestNothingOutsideTheSelectionIsTouched:
     """The #4396 property, asserted directly for the first time."""
 
+    @skip_without_embedding_model
     def test_the_unselected_folder_gets_no_entities_or_claims(
         self, two_folder_library, monkeypatch
     ):
@@ -154,6 +158,7 @@ class TestNothingOutsideTheSelectionIsTouched:
             "against Caja 4 (#4396)"
         )
 
+    @skip_without_embedding_model
     def test_the_unselected_folder_gets_no_artifacts(
         self, two_folder_library, monkeypatch
     ):
@@ -170,6 +175,7 @@ class TestNothingOutsideTheSelectionIsTouched:
             f"{sorted({a.artifact_type for a in stray})}"
         )
 
+    @skip_without_embedding_model
     def test_the_unselected_folder_keeps_its_page_content(
         self, two_folder_library, monkeypatch
     ):
