@@ -58,16 +58,16 @@ exportable = not done. Every behavior below names which spine segment it lands o
   (`image-crop` via existing `_segment_image`; `text` from its transcription).
 - `segment.read.transcriptions` [MISSING] (#4764) — a segment's transcriptions, each carrying
   language/script/edition/version, newest-version resolvable.
-- `segment.rep.versioned` — a new crop / new embedding is a NEW version; prior versions
+- `segment.rep.versioned` — **[GAP]** (#4890) a new crop / new embedding is a NEW version; prior versions
   are never overwritten (provenance/version slot at finest grain).
-- `segment.rep.honest-absence` — a representation that hasn't been produced is reported as
+- `segment.rep.honest-absence` — **[GAP]** (#4890) a representation that hasn't been produced is reported as
   absent, never faked (no empty vector, no placeholder crop). (Ties: prefer-raise.)
 
 ### B. Front end — the inspector
 - `segment.inspector.shows-representations` [MISSING] (#4765) — selecting a segment in the
   inspector shows its representations (the crop image, the text, which vectors exist) and
   its transcriptions (with language/script/edition badges).
-- `segment.inspector.source-anchor` — the crop and text resolve to the same on-page
+- `segment.inspector.source-anchor` — **[GAP]** (#4890) the crop and text resolve to the same on-page
   anchor as everything else (reuse the F5 `ClaimSourceRequest` invariant seam).
 - `segment.provenance.derived-from-split-page` — **[GAP]** (#1647) when a scanned page is
   split into two logical pages (a left/right facing-page split), each resulting page's
@@ -75,7 +75,7 @@ exportable = not done. Every behavior below names which spine segment it lands o
   half — so a segment's anchor/provenance chain survives a page-split the same way it
   survives any other derived representation. Includes map-region support (a segment whose
   source is a map, not running text, still anchors to a region of the original scan).
-- `segment.inspector.version-visible` — when a representation has multiple versions, the
+- `segment.inspector.version-visible` — **[GAP]** (#4890) when a representation has multiple versions, the
   inspector shows which version is current and that older ones exist.
 - `segment.overlay.recognized-text-regions` — **[GAP]** (#4418, redirected from the legacy
   "Preview - Image Editing" milestone while folding `preview-image-editing.md`'s pass 2) the
@@ -201,18 +201,18 @@ exportable = not done. Every behavior below names which spine segment it lands o
   representations (`image+text`, or `vector`, or `text`→for-export). An AI can be *given*
   "these segments with their images" in one call.
 - `segment.cli.get` [MISSING] (#4767) — the same over the CLI (never curl/DuckDB direct).
-- `segment.access.consumer-chooses` — the consumer names which representations it wants;
+- `segment.access.consumer-chooses` — **[GAP]** (#4890) the consumer names which representations it wants;
   the server produces/returns only those (an index wants vectors, an agent wants
   image+text, an exporter wants text).
 
 ### D. Tests (the pinning layer — this is what makes it real)
-- `segment.test.rep-roundtrip` — produce → store → read back a representation; version
+- `segment.test.rep-roundtrip` — **[GAP]** (#4890) produce → store → read back a representation; version
   bump retains the prior; absent kind reads as absent.
-- `segment.test.transcription-language` — two transcriptions on one segment with different
+- `segment.test.transcription-language` — **[GAP]** (#4890) two transcriptions on one segment with different
   language/script both resolve; the segment default doesn't clobber a transcription's own.
 - `segment.test.cross-surface` (HARD-GATE) — the same segment yields the same anchor +
   same text from backend, MCP, and CLI (the invariant the constitution requires).
-- `segment.test.resource-safety` — vector/crop production is bounded and does not peg the
+- `segment.test.resource-safety` — **[GAP]** (#4890) vector/crop production is bounded and does not peg the
   machine (Article 4 resource-safety).
 
 ### E. Export

@@ -45,7 +45,7 @@ shipped app breaks on config no test covered. And because the harness forces
   `ALL_FEATURES=1`: at minimum a **release**-gate run (what users get) plus the
   all-features dev run. A feature that works dev-on but is broken/hidden at release is a
   bug the current setup can't see.
-- `testenv.gate-availability` — for each tier, the capability-availability tests assert the
+- `testenv.gate-availability` — **[GAP]** (#5283) for each tier, the capability-availability tests assert the
   surfaces that tier SHOULD expose are reachable, and the ones it shouldn't are absent.
 
 ### C. Model / data locations
