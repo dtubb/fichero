@@ -5184,6 +5184,42 @@
         "response_model": "HpcDryRunSubmitResponse"
       },
       {
+        "method": "DELETE",
+        "path": "/hpc/clusters/{cluster_id}/key",
+        "operation_id": "delete_cluster_key_api_hpc_clusters__cluster_id__key_delete",
+        "summary": "Delete Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcKeyState"
+      },
+      {
+        "method": "PUT",
+        "path": "/hpc/clusters/{cluster_id}/key",
+        "operation_id": "put_cluster_key_api_hpc_clusters__cluster_id__key_put",
+        "summary": "Put Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": "HpcKeyPush",
+        "response_model": "HpcKeyState"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/sign-in",
+        "operation_id": "sign_in_api_hpc_clusters__cluster_id__sign_in_post",
+        "summary": "Sign In",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcKeyState"
+      },
+      {
         "method": "POST",
         "path": "/hpc/clusters/{cluster_id}/test",
         "operation_id": "test_cluster_api_hpc_clusters__cluster_id__test_post",
@@ -5194,6 +5230,28 @@
         "query_params": [],
         "request_model": null,
         "response_model": "HpcTestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/hpc/prompts",
+        "operation_id": "list_prompts_api_hpc_prompts_get",
+        "summary": "List Prompts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPromptList"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/prompts/{prompt_id}",
+        "operation_id": "answer_prompt_api_hpc_prompts__prompt_id__post",
+        "summary": "Answer Prompt",
+        "path_params": [
+          "prompt_id"
+        ],
+        "query_params": [],
+        "request_model": "HpcPromptAnswer",
+        "response_model": "HpcPromptList"
       }
     ],
     "iiif": [

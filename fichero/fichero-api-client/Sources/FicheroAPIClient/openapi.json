@@ -27734,6 +27734,216 @@
         }
       }
     },
+    "/api/hpc/clusters/{cluster_id}/key": {
+      "put": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Put Cluster Key",
+        "description": "The app pushes the cluster's private key into the engine's own folder; it is never read back.",
+        "operationId": "put_cluster_key_api_hpc_clusters__cluster_id__key_put",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HpcKeyPush"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcKeyState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Delete Cluster Key",
+        "operationId": "delete_cluster_key_api_hpc_clusters__cluster_id__key_delete",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcKeyState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/prompts": {
+      "get": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "List Prompts",
+        "description": "What a cluster login is waiting on (a second factor, a passphrase), for the app to show.",
+        "operationId": "list_prompts_api_hpc_prompts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcPromptList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/prompts/{prompt_id}": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Answer Prompt",
+        "operationId": "answer_prompt_api_hpc_prompts__prompt_id__post",
+        "parameters": [
+          {
+            "name": "prompt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prompt Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HpcPromptAnswer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcPromptList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}/sign-in": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Sign In",
+        "description": "Open the one connection to the cluster. ssh's prompts come out of `GET /prompts` for the app to answer;\nthe call returns when the connection is open or the attempt ended (typed reason).",
+        "operationId": "sign_in_api_hpc_clusters__cluster_id__sign_in_post",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcKeyState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registries/epistemic-statuses": {
       "get": {
         "tags": [
@@ -65906,10 +66116,12 @@
           },
           "host_alias": {
             "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
             "title": "Host Alias"
           },
           "username": {
             "type": "string",
+            "pattern": "^[A-Za-z0-9_][A-Za-z0-9._-]*$",
             "title": "Username"
           },
           "remote_base_dir": {
@@ -65919,7 +66131,7 @@
           "partition": {
             "type": "string",
             "title": "Partition",
-            "default": "default"
+            "default": ""
           },
           "account": {
             "type": "string",
@@ -66095,6 +66307,89 @@
           "sbatch_script"
         ],
         "title": "HpcDryRunSubmitResponse"
+      },
+      "HpcKeyPush": {
+        "properties": {
+          "private_key": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Private Key",
+            "description": "The key the app holds in its Keychain."
+          }
+        },
+        "type": "object",
+        "required": [
+          "private_key"
+        ],
+        "title": "HpcKeyPush"
+      },
+      "HpcKeyState": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "has_key": {
+            "type": "boolean",
+            "title": "Has Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "has_key"
+        ],
+        "title": "HpcKeyState"
+      },
+      "HpcPrompt": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt",
+            "description": "The far side's own prompt text, as ssh asked it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "prompt"
+        ],
+        "title": "HpcPrompt"
+      },
+      "HpcPromptAnswer": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "description": "Passed to ssh and kept nowhere."
+          }
+        },
+        "type": "object",
+        "required": [
+          "answer"
+        ],
+        "title": "HpcPromptAnswer"
+      },
+      "HpcPromptList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HpcPrompt"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "HpcPromptList"
       },
       "HpcTestResponse": {
         "properties": {
@@ -79588,10 +79883,16 @@
             "description": "Pixels on the longer side each image is read at.",
             "default": 2000
           },
+          "target": {
+            "type": "string",
+            "title": "Target",
+            "description": "Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute).",
+            "default": "huggingface-jobs"
+          },
           "flavor": {
             "type": "string",
             "title": "Flavor",
-            "description": "Hugging Face hardware for each shard.",
+            "description": "Hugging Face hardware for each shard (ignored on a cluster).",
             "default": "t4-small"
           },
           "timeout": {
@@ -91546,6 +91847,19 @@
             "type": "object",
             "title": "Readiness",
             "description": "whether the project has enough corrected material: counts, how many more lines and pages, and the sentence that says so (the bake-off's one count, at the train step's threshold)"
+          },
+          "setting": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Setting",
+            "description": "how training happens in this project (the onboarding setting `answers.training`, or the machine's default): `mode` here, huggingface or offered, and `why`"
+          },
+          "does": {
+            "type": "string",
+            "title": "Does",
+            "description": "what the setting does once the corrected lines reach the threshold, in a sentence"
           }
         },
         "type": "object",
@@ -91554,7 +91868,9 @@
           "job",
           "title",
           "ways",
-          "readiness"
+          "readiness",
+          "setting",
+          "does"
         ],
         "title": "TrainOffer",
         "description": "'Train a model of your own for this step' for one trainable step, offered later, never run at Start."
