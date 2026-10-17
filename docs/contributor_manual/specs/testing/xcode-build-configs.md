@@ -60,6 +60,14 @@ Cross-cutting invariants (all configs):
   (an ungated 27 API fails to compile there); no source-scan test.
 - `platform.needs-27-said-plainly` — **[GAP]** (#5730) where no 26 path exists the UI says "needs macOS 27"
   rather than failing or hiding the control. Test: none yet (no 27-only feature exists).
+- `config.mas-is-a-configuration` — **[GAP]** (#5730, #3982; ruled 2026-10-17) the Mac App Store build is an
+  `App Store` build configuration of the one `Fichero` target, not a second target (one embed phase). That
+  configuration is sandboxed, uses `FicheroAppStore.entitlements`, defines `FICHERO_APP_STORE`, embeds the engine
+  in `Contents/Helpers`, and is the one the `Fichero (App Store)` scheme archives; no other configuration defines
+  `FICHERO_APP_STORE`. Guard: `scripts/check_mac_app_store_target.py`. Test:
+  `fichero-server/tests/unit/scripts/test_check_mac_app_store_target.py`. Today the project has no such
+  configuration (only Debug, Release, Dev Embedded, Alpha Embedded, Beta Embedded), so the guard fails on the real
+  project until the maintainer adds it in Xcode.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
   Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
   `::test_mainactor_dropped_from_ficherotests_only_is_caught`.
