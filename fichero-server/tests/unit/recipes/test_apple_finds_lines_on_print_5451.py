@@ -65,3 +65,20 @@ def test_apple_lines_only_keeps_the_line_boxes_and_no_text():
 
     assert kept.text == ""
     assert [(b.level, b.text, b.bbox) for b in kept.boxes] == [(OCRGeometryLevel.LINE, "", [0.1, 0.1, 0.5, 0.05])]
+
+
+def test_lines_with_no_text_still_become_segments():
+    """source.recipe.apple-finds-lines-on-print: the lines land as segments (one per line box) with no reading, the way
+    Kraken's text-free geometry does."""
+    from fichero_server.models.segments import segments_from_result
+
+    line = OCRGeometryBox(text="WtrtNI-", bbox=[0.1, 0.1, 0.5, 0.05], level=OCRGeometryLevel.LINE)
+    word = OCRGeometryBox(text="WtrtNI-", bbox=[0.1, 0.1, 0.2, 0.05], level=OCRGeometryLevel.WORD)
+    found = lines_only(OCRGeometryResult(text="WtrtNI-", provider="apple_vision", boxes=[line, word]))
+
+    _pass, segments = segments_from_result(document_id="d", artifact_id="a", result=found, provider="apple_vision",
+                                           model="VNRecognizeTextRequest", run_id=None, created_at=None,
+                                           artifact_type="regions")
+
+    assert len(segments) == 1
+    assert not (getattr(segments[0], "text", None) or "").strip(), segments[0]
