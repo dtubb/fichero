@@ -268,13 +268,17 @@ def _reader_is_apple_vision(vision_mode: str, llm_config: LLMConfig) -> bool:
 def _pages_with_lines(documents: list, files: list, library_path: str) -> list[str | None]:
     """Per file, the id of its page when that page already has lines (a working pass), else None."""
     from fichero_server.db import db_manager
+    from fichero_server.db.manager import LibraryNotFoundError
     from fichero_server.llm.working_lines import working_lines
 
     ids = [d.get("id") if isinstance(d, dict) else None for d in (documents or [])[: len(files)]]
     ids += [None] * (len(files) - len(ids))
     if not library_path or not any(ids):
         return [None] * len(files)
-    db = db_manager.get_database(library_path)
+    try:
+        db = db_manager.get_database(library_path)
+    except LibraryNotFoundError:  # no library on disk, so no page has lines: read page-level
+        return [None] * len(files)
     return [i if i and working_lines(db, i) is not None else None for i in ids]
 
 
