@@ -5173,6 +5173,18 @@
       },
       {
         "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/check",
+        "operation_id": "check_cluster_live_api_hpc_clusters__cluster_id__check_post",
+        "summary": "Check Cluster Live",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcCheckResponse"
+      },
+      {
+        "method": "POST",
         "path": "/hpc/clusters/{cluster_id}/dry-run-submit",
         "operation_id": "dry_run_submit_api_hpc_clusters__cluster_id__dry_run_submit_post",
         "summary": "Dry Run Submit",
