@@ -277,13 +277,12 @@ very engine spawn those tests exist to exercise.
   while the top-level health probe stayed green (fixed 670772e77). No behavior in this spec
   claims the readiness handshake validates more than "the process is up and answering" — stated
   here so a future reader doesn't assume health-green implies route-correct.
-- `engine.readable-py-import-is-a-startup-single-point-of-failure` — **[GAP, architectural fact]** (#4875)
-  (→ #4875, filed this pass) the engine imports `knowledge/readable.py` transitively through the
-  render routes wired into `api/main.py` at load time — a broken import anywhere in that
-  module's own dependency chain stops the ENTIRE engine from starting, not just the
-  KG-readable-representation feature. Whether this deserves import isolation (lazy-import per
-  route group) or is an acceptable cost of a monolithic FastAPI app is an open question for
-  whoever owns this spec's approval, not decided here.
+- `engine.readable-py-import-is-a-startup-single-point-of-failure` — **[OK]** (#4875) a broken
+  `knowledge/readable.py` import costs only the readable-paragraph route: the engine starts, and
+  `GET /api/kg/render/entities/{id}/readable` answers 503 naming the module. Ruled 2026-10-17:
+  isolate that one module, lazily, inside its route; the rest of the monolith keeps eager imports
+  (a broken module elsewhere should still fail loudly at start). Pinned:
+  `fichero-server/tests/unit/api/test_engine_starts_without_readable_4875.py`.
 - `engine.provider-keys-pushed-every-connect` — **[PARTIAL, cross-referenced, not restated]**
   (→ #4534; see `ai/ai-settings.md` (section K, provider keys) for the pinning, not duplicated here) `finishSuccessfulConnect`
   pushes app-owned provider keys to the engine on every successful connect
