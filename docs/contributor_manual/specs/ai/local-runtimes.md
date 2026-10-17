@@ -272,7 +272,9 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.kraken.bundled-in-process` — **[OK]** (#4959) Kraken 7.1.1 ships in the engine at build
   time and runs in-process behind one locked seam (`[tool.fichero.kraken_bundle]` in
   `fichero-server/pyproject.toml`; commit 42a95db93). Specs that still say "subprocess" or
-  "installed on request" are listed under Requests.
+  "installed on request" are listed under Requests. *Test:*
+  `fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py` (reads the
+  `kraken_bundle` table from `pyproject.toml`).
 - `runtime.apple.speech-or-none` — **[BROKEN]** (#5367) Apple Speech is either bundled
   (`pyobjc-framework-Speech`, with the authorisation request and the on-device-only flag) or removed
   from the catalogue and the factory defaults. Today it is the factory audio default
