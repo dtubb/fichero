@@ -128,6 +128,15 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
                 Spacer(minLength: PaneHeadMetrics.capsuleSpacing)
                 controlsCapsule
             }
+            // The same list as the + (`panes.chrome.one-pane-menu`): right-click anywhere on the head row.
+            .contextMenu {
+                PaneMenuEntries(
+                    splitActions: canSplit ? splitAxisActions : nil,
+                    isPinned: isPinned,
+                    closeTitle: showsClose ? (isInSplit ? "Close This Split" : "Close Pane") : nil,
+                    onClose: showsClose ? { closePane() } : nil
+                )
+            }
             if showsTools {
                 // A second ROW below the header (Daniel, 2026-08-30: the
                 // markup bar comes in under the head, never replacing it —
@@ -162,6 +171,20 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             : PaneHeadMetrics.barHeight
     }
 
+    /// Close ONE thing at a time (CD 2026-09-16: "split, then close one, it closes both"). An ACTIVE in-slot
+    /// split collapses by one FIRST, even on the applied path, because `paneCloseAction` (remove the whole
+    /// leaf) would otherwise drop both split halves at once. Only a pane that is NOT split removes its leaf;
+    /// else the legacy whole-pane hide. Shared by the head's X and the pane menu's Close entry.
+    private func closePane() {
+        if let actions = splitAxisActions, isInSplit {
+            actions.onCollapseSplit()
+        } else if let paneCloseAction {
+            paneCloseAction.run()
+        } else {
+            onClose?()
+        }
+    }
+
     /// True while this pane sits inside an active split — X then collapses
     /// THAT split (one at a time), never the whole pane kind (Daniel,
     /// 2026-08-23: "left X should close that split, not all of that type").
@@ -174,18 +197,7 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
             HStack(spacing: 6) {
                 if showsClose {
                     Button {
-                        // Close ONE thing at a time (CD 2026-09-16: "split, then close one, it closes
-                        // both"). An ACTIVE in-slot split collapses by one FIRST — even on the applied
-                        // path — because `paneCloseAction` (remove the whole leaf) would otherwise drop
-                        // both split halves at once. Only a pane that is NOT split removes its leaf;
-                        // else the legacy whole-pane hide.
-                        if let actions = splitAxisActions, isInSplit {
-                            actions.onCollapseSplit()
-                        } else if let paneCloseAction {
-                            paneCloseAction.run()
-                        } else {
-                            onClose?()
-                        }
+                        closePane()
                     } label: {
                         Image(systemName: "xmark")
                             .font(.caption.weight(.semibold))
@@ -473,7 +485,12 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
     @ViewBuilder
     private var chromeControls: some View {
         pinToggle
-        PaneChromeMenu(splitActions: canSplit ? splitAxisActions : nil)
+        PaneChromeMenu(
+            splitActions: canSplit ? splitAxisActions : nil,
+            isPinned: isPinned,
+            closeTitle: showsClose ? (isInSplit ? "Close This Split" : "Close Pane") : nil,
+            onClose: showsClose ? { closePane() } : nil
+        )
         if Tools.self != EmptyView.self {
             Divider().frame(height: PaneHeadMetrics.dividerHeight)
             Button {
