@@ -1,14 +1,5 @@
 {
   "untagged": [
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.scale.bulk-correctness",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.scale.progress-cancel",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.claim.create.source-optional-flagged",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.crud.cross-surface",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.crud.validation",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.filter.pushdown",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.provenance.author-mark",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.provenance.hand-edit-recorded",
-    "docs/contributor_manual/specs/kg/kg-tables.md::kg.tables.provenance.modification-chain",
     "docs/contributor_manual/specs/source/build-notes-identity-and-storage.md::segment.create_many",
     "docs/contributor_manual/specs/source/build-notes-identity-and-storage.md::source.edit.stale-is-refused",
     "docs/contributor_manual/specs/source/build-notes-identity-and-storage.md::source.pass.named-authored",
