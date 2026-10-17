@@ -297,7 +297,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   subprocess (one ControlMaster connection, no new dependency; asyncssh ruled out), never from `~/.ssh`:
   the key is the one the app pushes into the engine's own state folder (`hpc-keys/<cluster>/id_ed25519`, mode
   0600, under `FICHERO_BASE_PATH`), passed with `-i` and `IdentitiesOnly`. That folder is inside the app's
-  container, so it works in the sandbox. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
+  container, so it works in the sandbox. The open connection's socket lives in `hpc-ssh` beside it (mode 0700, refused if a symlink or owned by another user); when that path is too long for a unix socket (about 100 bytes) it is a per-user `/tmp/fichero-ssh-<uid>` with the same checks, and a pre-created folder is refused, never used. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
   argv builder `remote_jobs.build_ssh_command`, which is also what "show me what will run" displays. Not yet:
   a check against the SSH fixture in the sandboxed build. *Test:* `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py`.
 - `compute.connect.second-factor-passes-through` — **[PARTIAL]** (#5238; ruled 2026-10-17) when the far side asks for a
