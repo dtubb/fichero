@@ -83,7 +83,17 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   first, adopts the invite's library and lists the host's libraries from `/api/authz/libraries`;
   the library path header names the path ON THE HOST. One host at a time for the whole app (#2573).
 - `sharing.pairing-over-uds` — **[PARTIAL]** (#4224) pairing builds its own HTTPS client; an app
-  that runs its engine over the Unix socket (Dev Local) cannot use it.
+  that runs its engine over the Unix socket (Dev Local) cannot use it. *Engine half (built, pinned by
+  `fichero-server/tests/unit/security/test_pairing_over_uds_4224.py`):* the engine mints a pairing code, lists the
+  paired devices and revokes one over its own Unix socket, with no HTTPS listener and no SPKI pin; the same
+  routes still refuse a plain-HTTP remote caller. *App half (not built, #4224):* the pairing service uses the app's one
+  configured client, never `FicheroClient(baseURL:)` of its own.
+- `sharing.pairing-adopts-only-served-libraries` — **[PARTIAL]** (#3273) a paired device adopts a library only from what
+  the paired engine serves: after pairing, `GET /api/authz/libraries` with the device's token lists the host's
+  libraries (and only those), a library path the engine does not serve is not in that list and a request naming it
+  is refused. *Engine half (built, pinned by `fichero-server/tests/unit/security/test_pairing_adopts_served_libraries_3273.py`).*
+  *App half (not built, #3273):* the QR or deep link's `library_path` is never persisted verbatim; the client adopts
+  the one in the engine's list and says so when the link names another.
 
 ### C. Working on it from both
 
