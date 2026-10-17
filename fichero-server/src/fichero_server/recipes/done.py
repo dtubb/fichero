@@ -179,6 +179,18 @@ def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
                                   for r in db.query(ContentRepresentation, document_id=doc_id))
 
 
+def unread_on(db: Any, doc_id: str) -> int:
+    """The page's found lines that have no reading (#5758)."""
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    lines = [x.id for x in db.query(Segment, document_id=doc_id) if x.kind == "line" and x.deleted_at is None]
+    if not lines:
+        return 0
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id}
+    return sum(1 for i in lines if i not in read)
+
+
 def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
     """A transcription the model saved (a read that came back empty saves none)."""
     from fichero_server.models import Artifact
@@ -252,7 +264,8 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     if job == "find-lines":
         return _has_lines(db, doc_id, None)
     if job == "read-a-line":
-        return _has_line_readings(db, doc_id, card.get("model_override"))
+        # Lines found are not lines read (#5758): a page with any line left without a reading is read again.
+        return _has_line_readings(db, doc_id, card.get("model_override")) and not unread_on(db, doc_id)
     if job == "read-a-page":
         return _has_page_reading(db, doc_id, card.get("model_override"))
     if job == "prepare-the-image":
