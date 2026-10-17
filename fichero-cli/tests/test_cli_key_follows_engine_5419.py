@@ -55,3 +55,22 @@ def test_a_refused_key_is_not_sent_again(monkeypatch, tmp_path):
         except Exception:
             pass
     assert sorted(seen) == ["Bearer a", "Bearer b"]
+
+
+def test_a_403_keeps_the_key(monkeypatch, tmp_path):
+    """403 is the right key without the permission, not another engine's key: it is never dropped."""
+    _two_key_files(monkeypatch, tmp_path, plain="a", container="b")
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("Authorization", ""))
+        return httpx.Response(403, json={"detail": "no permission"})
+
+    with FicheroClient(base_url="https://127.0.0.1:8765", transport=httpx.MockTransport(handler)) as c:
+        for _ in range(2):
+            try:
+                c.request("GET", "/x")
+            except Exception:
+                pass
+        assert c.token == "b"  # the newest file's key, still held
+    assert set(seen) == {"Bearer b"}

@@ -596,7 +596,7 @@ class FicheroClient:
         except httpx.HTTPError as exc:
             raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
-        if response.status_code in {401, 403} and self._refresh_auth_context(refused=True):
+        if response.status_code in {401, 403} and self._refresh_auth_context(refused=response.status_code == 401):
             try:
                 response = self._client.request(
                     method,
@@ -648,7 +648,7 @@ class FicheroClient:
             raise _connect_error(self.base_url, exc) from exc
         except httpx.HTTPError as exc:
             raise FicheroError(f"GET {path} failed: {exc}") from exc
-        if response.status_code in {401, 403} and self._refresh_auth_context(refused=True):
+        if response.status_code in {401, 403} and self._refresh_auth_context(refused=response.status_code == 401):
             response = self._client.request("GET", path, params=_clean(params), headers=self._headers())
         if response.status_code >= 400:
             raise FicheroError(
