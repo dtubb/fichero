@@ -412,6 +412,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/image_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/page_split.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/quartz_warm.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_math.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/rendition_order.py
@@ -503,6 +504,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/package.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/slurm.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/slurm_target.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/bin/.gitignore
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/__init__.py

@@ -261,3 +261,66 @@ def test_a_reading_run_waits_on_the_remote_lane(db):
     read_job.register_job_kinds()
     kind = jobs.KINDS[read_job.KIND]
     assert kind.lane == "remote" and kind.model is None
+
+
+class FakeClusterShell:
+    """A login node: files `put` land under a temp folder, `sbatch` numbers jobs, `sacct` says they are
+    done, and `get` of a shard's tar runs the real runner (with a fake reader) on the package that was sent."""
+
+    def __init__(self, root):
+        self.root, self.sbatched = root, []
+
+    def _at(self, remote):
+        return self.root / remote.lstrip("/")
+
+    def run(self, argv):
+        if argv[0] == "sbatch":
+            self.sbatched.append(argv[-1])
+            return 0, f"{100 + len(self.sbatched)};c\n", ""
+        if argv[0] == "sacct":
+            rows = [f"{100 + n}_{p.split('read-')[1].split('.')[0]}|COMPLETED" for n, p in enumerate(self.sbatched, 1)]
+            return 0, "\n".join(rows) + "\n", ""
+        if argv[0] == "mkdir":
+            for d in argv[2:]:
+                self._at(d).mkdir(parents=True, exist_ok=True)
+        return 0, "", ""
+
+    def put(self, local, remote):
+        self._at(remote).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(local, self._at(remote))
+
+    def put_text(self, text, remote):
+        self._at(remote).parent.mkdir(parents=True, exist_ok=True)
+        self._at(remote).write_text(text)
+
+    def get(self, remote, local):
+        import tarfile
+
+        workdir = self._at(remote).parent.parent
+        shard = int(remote.rsplit("shard-", 1)[1].split(".")[0])
+        runner.run_shard(workdir, shard, workdir / "out", reader=fake_reader, get=fake_iiif)
+        with tarfile.open(local, "w") as tar:
+            tar.add(workdir / "out" / f"shard-{shard:05d}", arcname=".")
+
+
+def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
+    """WHY (`compute.hpc.slurm-target`, `source.recipe.placement-by-scale`): `target` names a cluster and the
+    read-at-scale loop sends, submits a single-task sbatch per shard, polls Slurm and lands every page, with
+    nothing Hugging Face about it."""
+    from fichero_server.remote_read.slurm_target import SlurmReadTarget
+    from fichero_server.workflows.remote_jobs import HpcClusterConfig
+
+    cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                               remote_base_dir="/project/def-lab/u", account="def-lab")
+    shell = FakeClusterShell(tmp_path / "login")
+    target = SlurmReadTarget(cluster, shell)
+    request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
+                                 pages_may_leave=True, target="r")
+    started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [started["job_id"]])[0]
+    assert json.loads(jobs.read_job(db, started["job_id"])["detail"])["yes"]["to"] == "r"
+    assert started["price_per_hour_usd"] is None  # an allocation is not bought by the hour
+    counts = read_job.run(db, subject, target=target, sleep=lambda s: None)
+    assert counts == {"pending": 0, "submitted": 0, "landed": 4, "failed": 0}
+    assert len(shell.sbatched) == 4
+    assert read_job.status(db, started["job_id"])["landing"]["landed"] == 7

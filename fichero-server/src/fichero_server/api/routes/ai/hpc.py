@@ -29,7 +29,7 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from fichero_server.db.app import AppDatabase
 from fichero_server.api.routes.ai.providers import get_app_database
@@ -100,10 +100,11 @@ class HpcClusterCreate(BaseModel):
     """Configure (create or update) an HPC cluster connection."""
 
     name: str
-    host_alias: str
-    username: str
+    #: Both reach ssh as a bare argument: never start with "-" (an option), no spaces or "@".
+    host_alias: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    username: str = Field(pattern=r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
     remote_base_dir: str
-    partition: str = "default"
+    partition: str = ""
     account: Optional[str] = None
     ssh_port: int = 22
     #: Omit to create; pass an existing id to update that cluster in place.
