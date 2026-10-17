@@ -331,14 +331,13 @@ def test_the_guard_does_not_ask_for_a_second_target():
 
 @pytest.mark.build_config
 def test_a_project_without_an_app_store_configuration_is_caught(tmp_path):
-    pbx = _mod.PROJ.read_text(encoding="utf-8")
+    pbx = _mod.PROJ.read_text(encoding="utf-8").replace('name = "App Store";', 'name = "Gone";')
     problems = _run_against(tmp_path, pbx)
     assert any("no 'App Store' build configuration" in p for p in problems)
 
 
 @pytest.mark.build_config
 def test_the_real_project_has_an_app_store_configuration():
-    # [GAP] #5730: red until the maintainer adds the configuration in Xcode.
     assert not any("no 'App Store' build configuration" in p for p in _mod.check())
 
 
