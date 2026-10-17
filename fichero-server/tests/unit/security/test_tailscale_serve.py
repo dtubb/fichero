@@ -139,3 +139,18 @@ def test_detected_tailnet_url_is_the_hosts_ts_net_name_when_tailscale_is_running
         raise subprocess.CalledProcessError(1, args)
 
     assert ts.detected_tailnet_url("tailscale", run=broken) == ""
+
+
+def test_a_uds_only_engine_never_forwards_to_a_port_it_does_not_bind(cli) -> None:
+    """#5752: an engine on a socket without FICHERO_TCP_TLS_ALSO=1 binds no TCP port, so a forward
+    to it gives every guest a 502. With the flag the TCP listener exists and the forward is made."""
+    import logging
+
+    log = logging.getLogger("test")
+    sharing = {
+        "FICHERO_PUBLIC_BASE_URL": "https://m.tail.ts.net:8765",
+        "FICHERO_TLS_CERTFILE": "/c.pem",
+        "FICHERO_UDS_PATH": "/tmp/f.sock",
+    }
+    assert ts.start_for_engine(sharing, log=log) is None
+    assert ts.start_for_engine({**sharing, "FICHERO_TCP_TLS_ALSO": "1"}, log=log) == ("tailscale", 8765)
