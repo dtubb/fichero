@@ -12257,6 +12257,34 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("set-multiuser")
+    def pair_set_multiuser_put(
+        ctx: typer.Context,
+        enabled: bool = typer.Option(..., '--enabled/--no-enabled', help='Enabled.'),
+    ) -> None:
+        """Set Multiuser (PUT /api/pair/multiuser)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/multiuser"
+            params = None
+            payload = _build_json_payload({
+                "enabled": enabled,
+            }, {
+                "enabled": {'type': 'boolean', 'title': 'Enabled', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("sharing-state")
+    def pair_sharing_state_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Sharing State (GET /api/pair/sharing)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/sharing"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("detected-tailnet")
     def pair_detected_tailnet_get(
         ctx: typer.Context,
