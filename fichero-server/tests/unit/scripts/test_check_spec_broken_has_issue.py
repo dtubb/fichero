@@ -140,3 +140,16 @@ def test_non_grandfathered_debt_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(_mod, "SPECS_DIR", specs_dir)
     monkeypatch.setattr(_mod, "GRANDFATHERED_FILES", set())
     assert _mod.main() == 1
+
+
+def test_a_citation_of_an_issue_that_does_not_exist_is_not_a_citation_5729():
+    assert _mod.cites_existing_issue("**[GAP]** (#99999999)", 5800) is False
+    assert _mod.cites_existing_issue("**[GAP]** (#4712)", 5800) is True
+
+
+def test_without_gh_the_numbers_are_taken_as_written_5729():
+    assert _mod.cites_existing_issue("**[GAP]** (#99999999)", None) is True
+
+
+def test_the_self_test_catches_the_defect_5729():
+    assert _mod._self_test() == 0
