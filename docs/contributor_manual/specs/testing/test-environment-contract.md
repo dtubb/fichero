@@ -97,3 +97,6 @@ n/a (infrastructure spec).
 
 ## Future (ideas, not scheduled)
 - (#4425) Design principle: what must not be forgotten lives in the gate, advice lives in skills.
+
+## Triaged from the overnight plan (2026-10-17)
+- `testenv.shard-peak-footprint-measured` — **[PARTIAL]** (#4916) the engine suite runs as shards (afc029f8a) but the peak footprint of each shard is not measured, and the gate ceiling stays 6144 MB until it is. The figure in the gate comes from a recorded run per shard, never a stated number. Test: `fichero-server/tests/unit/scripts/test_cross_language_gate.py` (to extend: a shard report carries its peak MB).

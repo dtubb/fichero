@@ -288,3 +288,7 @@ read change; types, files and identifiers keep their names.
 - (#4169) Double-click opens per the new-tab/new-window setting; Command-double-click inverts it, for every object everywhere.
 - (#4260) Audit sidebar, list, keyboard and menu behaviour against NetNewsWire as a reference implementation.
 - (#3703) Entity drag to associate/merge/export: engine export landed (PR #3722) and entity rows are draggable, but drop-to-merge/associate is app-wide drag and drop vision
+
+## Triaged from the August restart handoff (2026-10-17)
+- `create.drop.folder-or-image-imports-like-the-menu` — **[GAP]** (#4520) a folder or an image dropped on the sidebar (Inbox or the library icon) imports exactly as the menu import does and does not pop back. Test: a new ExternalFileDropLoaderTests.swift in `fichero/Tests/Unit/` (to write).
+- `read.import-updates-one-row-once` — **[GAP]** (#4522) importing one file updates one row, once: not a whole-sidebar redraw, and not twice (a direct reload plus a change-stream reload). Test: a new SidebarImportRefreshTests.swift in `fichero/Tests/Unit/` (to write).
