@@ -503,9 +503,9 @@ Design content carried into this spec; files kept, listed here per program instr
   exists today" above; folded in as historical provenance, not re-described as a plan.
 
 ## Future (ideas, not scheduled)
-- (#2081) Library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster
-- (#2291) In-app agent operating Projects/Milestones/Tasks from chat; agent-surface vision, not current work.
-- (#2314) Three chat modes (Simple/RAG/Agent) with an on-device router; chat-surface nice-to-have.
+- `research.future.library-node-model` — **[GAP]** (#2081) library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster.
+- `research.future.agent-operates-projects` — **[GAP]** (#2291) in-app agent operating Projects/Milestones/Tasks from chat; agent-surface vision, not current work.
+- `research.future.three-chat-modes` — **[GAP]** (#2314) three chat modes (Simple/RAG/Agent) with an on-device router; chat-surface nice-to-have.
 
 ## Triaged from the backlog (2026-10-04)
 - `research.uitest.click-around-plan-save` — **[GAP]** (#4727) an XCUITest opens a chat, takes the Plan invitation, Save as Workspace, and sees the Plan tab list tasks (research.planpromotestoworkspace).
