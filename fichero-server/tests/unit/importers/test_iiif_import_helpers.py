@@ -40,7 +40,9 @@ BASE = Path("/base")
 
 
 def test_json_type():
-    assert _json_type({"type": "sc:Canvas"}) == "sc:Canvas"
+    assert _json_type({"type": "sc:Canvas"}) == "Canvas"  # iiif.import.json-type-strips-compact-prefixes
+    assert _json_type({"@type": "oa:Annotation"}) == "Annotation"
+    assert _json_type({"@type": "dctypes:Image"}) == "Image"
     assert _json_type({"@type": ["http://iiif.io/Manifest"]}) == "Manifest"  # slash-stripped
     assert _json_type({}) is None
 

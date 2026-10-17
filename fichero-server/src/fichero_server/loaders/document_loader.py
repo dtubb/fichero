@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fichero_server.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
 from fichero_server.loaders.base import MediaContent, MediaLoader
+from fichero_server.loaders.transcript_loader import TRANSCRIPT_SUFFIXES, parse_transcript, transcript_text
 # RTF → text conversion lives in `rtf_text` so callers that only need the
 # converter do not import Kreuzberg/pdfium with it (#4666). Re-exported here
 # because importers, the views route, and the loader tests already name it.
@@ -104,15 +105,25 @@ class DocumentLoader(MediaLoader):
         except UnicodeDecodeError:
             text = raw.decode("cp1252")
 
+        metadata = {
+            "original_format": path.suffix.lstrip("."),
+            "filename": path.name,
+            "size_bytes": path.stat().st_size,
+        }
+        if path.suffix.lower() in TRANSCRIPT_SUFFIXES:
+            # Timecoded transcript (#975): clean dialog is the text, the cues an artifact.
+            segments = parse_transcript(text, path.suffix.lower())
+            if segments:
+                text = transcript_text(segments)
+                metadata["_kreuzberg_artifacts"] = [
+                    {"artifact_type": "transcript", "content": text, "data": {"segments": segments}}
+                ]
+
         return MediaContent(
             source=str(path),
             text=text,
             images=[],
-            metadata={
-                "original_format": path.suffix.lstrip("."),
-                "filename": path.name,
-                "size_bytes": path.stat().st_size,
-            },
+            metadata=metadata,
             mime_type=self._get_mime_type(path.suffix.lower()),
             needs_vlm=False,  # Plain text doesn't need VLM
         )
