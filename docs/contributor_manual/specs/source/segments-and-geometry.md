@@ -650,7 +650,7 @@ Structure
   what the response's `pass_id` and the `page_content` cache then mean, which #5090 sketches and
   nobody has ruled on. Silent shortening of a transcription is the worst failure this programme has,
   because nothing looks wrong; this makes it loud without guessing the ruling.
-- `source.segment.furniture` — **[GAP]** (#4927) page furniture is marked, and a reading can leave it out.
+- `source.segment.furniture` — **[OK]** (#4927; pinned by `fichero-server/tests/unit/api/test_segment_furniture_to_spec.py`, marked through `segment.update`, left out of the derived text, undoable) page furniture is marked, and a reading can leave it out.
 - `source.segment.table-cells` — **[PARTIAL]** (#4928) a table's cells are segments with row, column, spans and
   header kind. **Cells are segments on import since 2026-09-27**, found by a real file: a
   Transkribus parish register's 172 `TableCell`s were being skipped, which re-parented every line
