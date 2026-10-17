@@ -3668,7 +3668,7 @@ Trying another option
   steps, with one or two alternatives (a model, a combination or a prompt), at any time after setup.
 - `source.try.every-job` — **[GAP]** (#4950) it works for every registered job, reading and beyond:
   layout, entities, statements, authority links, dates and search vectors.
-- `source.try.never-over-existing` — **[GAP]** (#4950) each alternative shows its cost and time,
+- `source.try.never-over-existing` — **[PARTIAL]** (#4950; *built for the readers' and the line finders' bake-off: it runs as a job and changes nothing that exists, the pages, segments, readings, passes and text are the same after it, pinned by `fichero-server/tests/unit/recipes/test_bakeoff_never_over_existing_4950.py`. Not built: the alternatives of the other jobs, and landing a try as new passes or readings beside the current ones*) each alternative shows its cost and time,
   runs as a job in Activity, and lands as new passes, readings, mentions or claims (a vector
   alternative as an index beside the current one); nothing existing changes.
 - `source.try.compared-as-declared` — **[GAP]** (#4950) results open side by side in panes and are
