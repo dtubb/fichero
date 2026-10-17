@@ -51,10 +51,14 @@ def _ensure_safe_image(image: Image.Image, source: str | Path) -> Image.Image:
 
 
 def open_image_checked(path: Path) -> Image.Image:
+    # Our own check below names the pixel count; PIL's warning (same limit) would not.
     with warnings.catch_warnings():
-        warnings.simplefilter("error", Image.DecompressionBombWarning)
-        with Image.open(path) as img:
-            return _ensure_safe_image(img, path).copy()
+        warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+        try:
+            with Image.open(path) as img:
+                return _ensure_safe_image(img, path).copy()
+        except Image.DecompressionBombError as exc:  # PIL's hard error at twice the limit
+            raise UnsafeImageError(f"Image too large for ingest: {path} ({exc})") from exc
 
 
 class ImageLoader(MediaLoader):

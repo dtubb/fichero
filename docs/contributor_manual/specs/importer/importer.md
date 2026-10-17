@@ -299,6 +299,11 @@ is case-insensitive. Every count and list below is filtered by milestone NUMBER
   `importers/`/`workflows/tools/` this pass. Stated as a generalizable defect class, not
   assumed to be Marshall-specific plumbing — not independently reproduced against a second
   corpus this pass.
+  Checked 2026-10-17 on a scratch copy of the Marshall Diaries library (read-only): none of its 4,309
+  transcription artifacts carries an English block followed by a Spanish block (26 mix English with
+  Spanish loanwords and names only), and no KG claim is Spanish (2,813 `en`, 388 unset). The reported
+  duplication is not present in this library, so there is nothing to red-test; it stays a GAP until a
+  library that shows it is available.
 
 **Verify-close — evidence posted, left OPEN, not closed here:**
 
@@ -477,8 +482,9 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 ## Triaged from the backlog (2026-10-04)
 - `importer.remote-folder-upload` — **[GAP]** (#4579) a remote client can import a folder through one upload endpoint with a shared task id, batching and dedup pre-scan, not N single-file uploads.
 - `importer.no-agpl-pdf-dependency` — **[GAP]** (#4609) PyMuPDF is removed; the page-splitting fallback uses pypdfium2 (fitz is still imported in importers/ingest.py, workflows/tools/split_images.py and others).
-- `importer.repair-redrop-no-reembed` — **[GAP]** (#4617) a repair-only re-drop embeds only new text and lance replaces rather than appends (a 1.4 MB re-drop grew vectors by ~1 GB).
-- `importer.timecoded-transcript-ingest` — **[GAP]** (#975) .srt/.vtt/.sbv and structured transcript JSON ingest as timecoded segments (start, end, speaker, text) in a transcript artifact with clean dialog as page_content, not flat text with timestamp noise.
+- `importer.language-detection-says-not-reliable` — **[PARTIAL]** (#5572) `multilingual.detect_language` is one function, the character-range heuristic (no cld3 import): a Latin-script or empty text answers language `und` with is_reliable False, never `en`; scripts it can tell (Japanese, Korean, Chinese, Arabic, Cyrillic, Hebrew, Thai, Devanagari) keep their code; a real detector comes later as a model card the recipe offers (ruled 2026-10-17); still owed: `llm/lang_detect.detect_language` and `knowledge/spacy_ner.detect_language` are separate detectors that remain, to fold into the same one; pinned by fichero-server/tests/unit/llm/test_language_detection_not_reliable_5572.py.
+- `importer.repair-redrop-no-reembed` — **[PARTIAL]** (#4617) a repair-only re-drop embeds only new or changed text: an entity or claim whose stored vector row has the same text and model is skipped; pinned by fichero-server/tests/unit/db/test_embed_skips_unchanged_4617.py. Still owed, its own later issue: lance compaction (a re-embed that does happen appends a version rather than replacing).
+- `importer.timecoded-transcript-ingest` — **[PARTIAL]** (#975) .srt/.vtt/.sbv ingest as timecoded segments { start_ms, end_ms, speaker?, text } in an artifact of type transcript on the document, with clean dialog (no timestamps, cue numbers or markup) as page_content; whisper/pyannote-style segment JSON parses by the same parse_transcript; plain .txt transcripts stay flat text; pinned by fichero-server/tests/unit/loaders/test_transcript_loader.py. Still owed: routing of .json files to it, the Inspector timecoded panel with click-to-seek, and attaching to a same-basename audio/video parent.
 - `importer.folder-jsonl-corpus-manifest` — **[GAP]** (#1632) a folder holding one `fichero.jsonl` (one line per image/doc with transcript, entities, claims, metadata, images referenced not copied) imports idempotently and resumably through the same importer as the v1 manifest (manifest_import.py handles the JSON manifest only).
 - `importer.merge-portable-library-output` — **[GAP]** (#1651) the output of a portable workflow run elsewhere (a library.duckdb or an IIIF+W3C directory) merges into a target library idempotently through the engine's save paths, upserting by canonical ids (no DuckDB merge path found in the code).
 - `importer.capture-queue-camera-intake` — **[GAP]** (#2353) iPhone/iPad capture queues photos locally to a cached library/folder destination, survives relaunch, and uploads when the paired Mac is reachable and signed in, with no per-photo cataloguing UI.
@@ -490,8 +496,8 @@ from this pass shipped and closed at 177fc6cd3). Everything else stays on #188.
 - `import.dock-drop-folder-reliable` — **[GAP]** (#4182) dropping a folder on the Dock icon imports it cleanly and the sidebar updates live.
 - `import.content-pane-drop-scoped` — **[GAP]** (#4458) the external-file drop target attaches to the content column only, not the whole NavigationSplitView including the sidebar.
 - `importer.alto-multi-page-reads-every-page` — (#5310) a multi-page ALTO file imported on its own brings in every `<Page>` through an `alto.read_pages` used by import_file_as_pages, each page's lines under its own page, as TEI already does; pinned by fichero-server/tests/unit/importers/test_alto_multi_page_reads_every_page.py.
-- `importer.move-import-leaves-file-at-destination` — **[BROKEN]** (#5313) after a MOVE import the file is at its destination and gone from the source, pinned by test_ingest_file_mode_link_copy_move_apply, which fails today with FileNotFoundError.
-- `importer.image-ingest-limit-200-megapixels` — **[PARTIAL]** (#5183, #5515) the ingest decompression-bomb limit is 200 MP (loaders/image_loader.py, with PIL's own guard moved to match; pinned by fichero-server/tests/unit/loaders/test_ingest_limit_200mp.py); still owed: images above about 64 MP shown through tiles or downsampled previews so memory stays bounded. (Ruled 2026-09-28.)
+- `importer.move-import-leaves-file-at-destination` — (#5313) after a MOVE import the file is at its destination and gone from the source, pinned by fichero-server/tests/unit/security/test_library_membership_and_ingest_mode_api.py::test_ingest_file_mode_link_copy_move_apply.
+- `importer.image-ingest-limit-200-megapixels` — **[PARTIAL]** (#5183, #5515) the ingest decompression-bomb limit is 200 MP (loaders/image_loader.py, with PIL's own guard moved to match; a refusal names the pixel count, and the 74.8 MP Reichsanzeiger page from #5183 ingests; pinned by fichero-server/tests/unit/loaders/test_ingest_limit_200mp.py); still owed: images above about 64 MP shown through tiles or downsampled previews so memory stays bounded. (Ruled 2026-09-28.)
 - `importer.copy-mode-drop-pairs-layout-with-image` — **[GAP]** (#5220) a COPY-mode drop of loose files pairs a layout file with its image like link and move do (case-blind pairing landed in ad8b7c4bc, e6db06f05, 964470d1b).
 - `importer.derivative-source-found-for-resumed-documents` — **[BROKEN]** (#5408) resuming derivatives finds each pending document's source (SM_NPQ_C01_* on the Sergio library fail with 'source not found') or says why.
 

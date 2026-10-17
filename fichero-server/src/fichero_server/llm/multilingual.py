@@ -1,7 +1,7 @@
 """Multilingual baseline for claims, entities, and cross-language retrieval.
 
 Provides:
-- Language detection (using cld3/ICU)
+- Language detection (character-range heuristic)
 - Transliteration-aware alias linking
 - Language-specific text normalization
 - Cross-language search support
@@ -37,15 +37,6 @@ SUPPORTED_LANGUAGES = {
     "fi": "Finnish",
 }
 
-# Try to import cld3 for language detection, fallback to heuristic
-try:
-    import cld3
-
-    CLD3_AVAILABLE = True
-except ImportError:
-    CLD3_AVAILABLE = False
-
-
 @dataclass
 class LanguageDetectionResult:
     """Result of language detection."""
@@ -56,42 +47,13 @@ class LanguageDetectionResult:
 
 
 def detect_language(text: str) -> LanguageDetectionResult:
-    """Detect language of text.
+    """Detect language of text by character range (the one detector, #5572).
 
-    Uses cld3 if available, otherwise falls back to heuristic detection
-    for common languages.
-
-    Args:
-        text: Text to analyze
-
-    Returns:
-        LanguageDetectionResult with ISO 639-1 code and confidence
+    Scripts it can tell keep their code; Latin script and empty text answer
+    ``und`` (undetermined) with ``is_reliable`` False, never a guessed ``en``.
     """
     if not text or not text.strip():
-        return LanguageDetectionResult("en", 0.0, False)
-
-    # Try cld3 first if available
-    if CLD3_AVAILABLE:
-        try:
-            result = cld3.get_language(text)
-            if result:
-                lang = result.language[:2]  # cld3 returns longer codes sometimes
-                # Validate it's in our supported list
-                if lang in SUPPORTED_LANGUAGES:
-                    return LanguageDetectionResult(
-                        language=lang,
-                        confidence=result.probability,
-                        is_reliable=result.probability > 0.7,
-                    )
-        except Exception:
-            pass  # Fall through to heuristic
-
-    # Fallback heuristic detection
-    return _heuristic_language_detection(text)
-
-
-def _heuristic_language_detection(text: str) -> LanguageDetectionResult:
-    """Simple heuristic language detection based on character patterns."""
+        return LanguageDetectionResult("und", 0.0, False)
     text = text.strip()
 
     # Japanese (Hiragana, Katakana, CJK)
@@ -127,9 +89,8 @@ def _heuristic_language_detection(text: str) -> LanguageDetectionResult:
     if re.search(r"[\u0900-\u097F]", text):
         return LanguageDetectionResult("hi", 0.9, True)
 
-    # Default to English for Latin script
-    # Could be more sophisticated with n-gram analysis
-    return LanguageDetectionResult("en", 0.6, False)
+    # Latin script cannot be told apart by character range: not reliable, not "en".
+    return LanguageDetectionResult("und", 0.0, False)
 
 
 def normalize_text(text: str, language: str) -> str:
@@ -154,8 +115,8 @@ def normalize_text(text: str, language: str) -> str:
     text = unicodedata.normalize("NFKC", text)
 
     # Language-specific handling
-    if language in ("en", "es", "fr", "de", "it", "pt", "nl", "sv", "da", "no", "fi"):
-        # Latin scripts: lowercase
+    if language in ("en", "es", "fr", "de", "it", "pt", "nl", "sv", "da", "no", "fi", "und"):
+        # Latin scripts (and undetermined, which is mostly Latin): lowercase
         text = text.lower()
 
     elif language == "tr":
