@@ -601,7 +601,7 @@ Giving a tool a piece of a page (#5026)
   of the ink's look), and the picture tools. **Still PARTIAL:** a page with no segments is given
   its page text, else its newest transcription, as one block with no boxes -- there is no pass to
   follow there.
-- `source.tool.results-name-their-segments` — **[GAP]** (#5026) a tool's result names the segment
+- `source.tool.results-name-their-segments` — **[PARTIAL]** (#5026; Extract Table in rows-as-JSON style asks for `row_segments` and keeps only ids that are segments of the page: `fichero-server/tests/unit/workflows/test_tool_results_name_their_segments_to_spec.py`; owed: the other tools and styles, a cell's own lines rather than a row's, and the table becoming cell segments) a tool's result names the segment
   ids it was read from (a table cell names its lines), so the output is anchored instead of
   free text that must be matched back; this is what `Tables and forms` means by a table becoming
   cell segments, and it changes what a tool RETURNS.
