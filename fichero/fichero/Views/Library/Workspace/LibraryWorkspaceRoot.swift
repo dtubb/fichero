@@ -58,8 +58,7 @@ struct LibraryWorkspaceRoot: View {
     let executionObserver: WorkflowExecutionObserver
 
     var body: some View {
-        AdaptiveAppleShellHost {
-            DocumentTabView(
+        DocumentTabView(
                 libraryId: library.id,
                 document: Binding(
                     get: { library.document },
@@ -95,7 +94,6 @@ struct LibraryWorkspaceRoot: View {
                 // The engine's bundled fonts, for text the system cannot draw (MUFI, #5210): once per app.
                 await BundledFonts.shared.load(from: library.ficheroClient)
             }
-        }
         .environment(library.documentStore)
         #if canImport(UIKit) && !os(macOS)
         .toolbar {
