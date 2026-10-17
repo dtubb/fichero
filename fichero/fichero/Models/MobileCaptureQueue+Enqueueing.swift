@@ -13,7 +13,7 @@ extension MobileCaptureQueueStore {
         let id = UUID().uuidString
         let resolvedFileName = fileName ?? "\(id).\(fileExtension)"
         let imageURL = assetsDirectoryURL.appendingPathComponent(resolvedFileName)
-        try imageData.write(to: imageURL, options: .atomic)
+        try imageData.write(to: imageURL, options: Self.writeOptions)
 
         let now = Date()
         let item = MobileCaptureQueueItem(

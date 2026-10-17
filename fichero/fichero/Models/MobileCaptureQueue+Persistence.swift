@@ -31,7 +31,7 @@ extension MobileCaptureQueueStore {
         do {
             try prepareStorage()
             let data = try JSONEncoder().encode(items)
-            try data.write(to: manifestURL, options: .atomic)
+            try data.write(to: manifestURL, options: Self.writeOptions)
         } catch {
             Self.logger.error("Failed to persist capture queue: \(error.localizedDescription)")
         }

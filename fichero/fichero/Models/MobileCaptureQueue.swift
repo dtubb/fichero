@@ -235,6 +235,16 @@ final class MobileCaptureQueueStore {
     static let interruptedUploadError =
         "This upload was interrupted before it completed. Tap Retry to upload it again."
 
+    /// Outbox blobs and the manifest are file-protected on iOS (#3290): readable after the first unlock,
+    /// so a background upload still runs, but not from a locked, freshly booted phone.
+    static var writeOptions: Data.WritingOptions {
+        #if os(iOS)
+        [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        #else
+        .atomic
+        #endif
+    }
+
     var items: [MobileCaptureQueueItem] = []
 
     let storageDirectory: URL
