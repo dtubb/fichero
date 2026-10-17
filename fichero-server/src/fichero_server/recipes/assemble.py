@@ -590,6 +590,10 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     if job == "find-lines" and material in APPLE_LINES_MATERIALS:
         # Print and typescript: Apple finds the lines and keeps no text; a hand is Kraken's (#5451, ruled 2026-10-17).
         pool = [c for c in pool if c.pin == APPLE_LINES_PIN] or pool
+    if job == "find-statements":
+        # A text model installed here is taken over the parser's free triples; with none, the parser runs and a model
+        # is offered (`source.job.find-statements.candidates`, #5637, ruled 2026-10-17).
+        pool = [c for c in pool if "spacy" not in c.pin and c.installed] or pool
     if job == "make-a-vector":
         # The embedder: the one this engine's search embeds with, where its card covers all the project's
         # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.
@@ -611,6 +615,8 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
             reasons.append(f"CER {acc * 100:.1f}% {where}")
         if best.cer_measured_here is None:
             reasons.append("unmeasured on your pages until a bake-off measures it")
+    if job == "find-statements" and "spacy" in best.pin:
+        reasons.append("a text model can be chosen instead (Choose a model…): it reads the sentences itself")
     if best.offered_because:
         reasons.append(best.offered_because)
     if best.installed:
