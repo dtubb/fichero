@@ -11,6 +11,9 @@
 - Stop on: a worker hitting the Anthropic weekly limit (resets 2026-10-17 06:00 America/Moncton), a test that needs behaviour the spec does not state (record the question, skip), a gate/memory kill.
 - Multilingual: it must hold for ANY language and script; nothing may assume spaces, left-to-right or an alphabet, and no language is named in code (#5728). Spanish colonial, German Kurrent, Aramaic (RTL), Chinese (vertical) are the test matrix, chosen to differ; a new script is a data file.
 
+## Reporting
+Stop and report to the maintainer after every 10 issues (or when the list ends or a stop rule fires): what is done, what to test, what failed, what you assumed. Then wait.
+
 ## Order
 0. #5727 reproduce the A/B (Compare) failure on a scratch project (~/Fichero Dev Test), record the symptom on the issue, failing test, fix.
 1. #5714 + #5715 reader rules: period-less readers offered not chosen; Apple Vision card (period 1900-2100, handwriting for Latin only); a stated period that misses the project's is refused and named.
