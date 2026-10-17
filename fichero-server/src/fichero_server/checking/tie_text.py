@@ -338,7 +338,10 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
                 continue
             made = registry.invoke(db, "representation.create", {
                 "document_id": doc.id, "segment_id": row.id, "kind": request.kind, "content": scored["text"],
-                "derived_from_artifact_id": reading.id}, ctx).result
+                "derived_from_artifact_id": reading.id,
+                # How well the page text matched this line (`source.align.confidence-per-line`, #5217), so the person sees
+                # which lines to check; the line's certainty as a reading, for everything that reads machine_confidence.
+                "machine_confidence": scored["score"]}, ctx).result
             if scored["tied"]:
                 counts["tied"] += 1
                 continue
