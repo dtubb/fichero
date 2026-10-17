@@ -207,7 +207,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### Checking
 
-- `compute.connect.check-really-checks` — **[BROKEN]** (#5238; today's `test` route returns `ok=True` without connecting, `api/routes/ai/hpc.py:279`) "Check" reaches the target and reports what answered.
+- `compute.connect.check-really-checks` — **[PARTIAL]** (#5238, #5454; `POST /api/hpc/clusters/{id}/check` now runs the steps live over the open connection (hostname, `diskusage_report`, `module avail apptainer`, `sinfo`, `sshare`), each passed, failed with its reason, or not tried; the old `POST .../test` is still the dry run that returns a command and says so, `api/routes/ai/hpc.py`, and is not yet removed). Test: `fichero-server/tests/unit/remote_read/test_cluster_check.py`. "Check" reaches the target and reports what answered.
   `ok` is true only if every step for that kind (the table above) succeeded just now. The
   answer lists each step with *passed*, *failed: reason* or *not tried*. It never returns a
   command it "would" run as if that were a result. *Existing data:* the present dishonest
@@ -293,16 +293,22 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   person's target (key in the Keychain), bound by the project (`source.recipe.runs-on-binds-to-a-target`).
   A recipe that carries a host, an account, a key or a token is refused when it is checked, naming
   the field. *Test:* a recipe with an `ssh_key` or `user` field fails the recipe check.
-- `compute.connect.ssh-in-process` — **[GAP]** (#5238) the server connects over SSH itself and does not run the
-  system's `ssh`, so it works inside the app's sandbox. *Existing data:*
-  `remote_jobs.build_ssh_command` and the three `*_command` builders stay as the **description**
-  of what is run (they are what "show me what will run" displays) but are no longer the way it
-  is run. *Test:* in the sandboxed build, a check against the SSH fixture passes.
-- `compute.connect.second-factor-passes-through` — **[GAP]** (#5238) when the far side asks for a second factor,
-  Fichero shows the far side's own prompt text and waits for the person; it stores no factor;
-  a refusal or a time-out ends the attempt with that reason. *Test:* the SSH fixture configured
-  with a keyboard-interactive second step: the prompt text reaches the caller; a wrong answer
-  yields a typed failure.
+- `compute.connect.ssh-in-process` — **[PARTIAL]** (#5238; ruled 2026-10-17) the engine runs the system's `ssh` as a
+  subprocess (one ControlMaster connection, no new dependency; asyncssh ruled out), never from `~/.ssh`:
+  the key is the one the app pushes into the engine's own state folder (`hpc-keys/<cluster>/id_ed25519`, mode
+  0600, under `FICHERO_BASE_PATH`), passed with `-i` and `IdentitiesOnly`. That folder is inside the app's
+  container, so it works in the sandbox. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
+  argv builder `remote_jobs.build_ssh_command`, which is also what "show me what will run" displays. Not yet:
+  a check against the SSH fixture in the sandboxed build. *Test:* `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py`.
+- `compute.connect.second-factor-passes-through` — **[PARTIAL]** (#5238; ruled 2026-10-17) when the far side asks for a
+  second factor (or a key passphrase), `ssh` runs Fichero's `SSH_ASKPASS` helper, which hands ssh's own prompt text to
+  the engine over a private socket; the engine holds it as a pending prompt the app lists and answers
+  (`GET /api/hpc/prompts`, `POST /api/hpc/prompts/{id}`); the answer goes back to ssh and is stored nowhere. A
+  refusal, a time-out or a wrong answer ends the attempt with a typed failure naming the reason. The master is opened
+  without `BatchMode` (which would forbid asking); every later command reuses it. *Test:*
+  `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py` (a fake ssh with a keyboard-interactive step:
+  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). Not yet: the app's
+  sheet that shows the prompt (Swift).
   For a push factor (Duo), the app says to approve on the phone. The app says which credential is
   being asked for, because a wrong key passphrase falls back to the account password (seen on
   Rorqual, 2026-10-04).

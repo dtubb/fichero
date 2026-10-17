@@ -1038,7 +1038,23 @@ class AppDatabase:
                 ],
             )
             self.conn.commit()
+        if is_owner:
+            self.grant_owner_on_known_libraries(user.id)
         return user
+
+    def grant_owner_on_known_libraries(self, user_id: str) -> None:
+        """An owner account owns every library this Mac has roles for (#5755). Idempotent; never
+        lowers an existing role."""
+        with self._lock:
+            paths = [r[0] for r in self.conn.execute("SELECT DISTINCT library_path FROM library_roles").fetchall()]
+        for path in paths:
+            if self.get_library_role(user_id, path) is None:
+                self.set_library_role(user_id=user_id, library_path=path, role="owner")
+
+    def owner_user_ids(self) -> list[str]:
+        """Ids of the active owner accounts."""
+        with self._lock:
+            return [r[0] for r in self.conn.execute("SELECT id FROM users WHERE is_owner AND active").fetchall()]
 
     def _row_to_user(self, row) -> AccountUser:
         return AccountUser(
@@ -1118,6 +1134,8 @@ class AppDatabase:
     def set_is_owner(self, user_id: str, is_owner: bool) -> AccountUser | None:
         """Update one user's app-wide owner status."""
         self._update_user_fk_safe("is_owner = ?", [is_owner], user_id)
+        if is_owner:
+            self.grant_owner_on_known_libraries(user_id)
         return self.get_user(user_id)
 
     def delete_user(self, user_id: str) -> bool:

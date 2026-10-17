@@ -3503,14 +3503,14 @@ Setup
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
   one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
   fine-tuning are still offered as options, never defaults.
-- `source.recipe.candidates-fallback-chain` — **[GAP]** (#4950, #5582; ruled 2026-10-17) the candidates for a step are ranked best-measured first
+- `source.recipe.candidates-fallback-chain` — **[PARTIAL]** (#4950, #5582; ruled 2026-10-17) *Built 2026-10-17 (engine): `assemble._choose` ranks all candidates that pass the hard constraints, best accuracy band first (a cloud one only when pages may leave), and the step carries the rest as `chain`; `start.plan_start` runs the next chain entry that can run when the step's key is missing and records it in `fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: the noise band per project (only the one-point band ties), measured-on-the-person's-pages candidates in the chain beyond `cer_measured_here`, 'not enough memory' / 'repository gone' fallbacks, and the app showing `fallbacks`.* the candidates for a step are ranked best-measured first
   (accuracy in one-point bands, measured on the person's pages, else published, else coverage); cheaper, then local, only break ties inside the
   noise band (`source.train.noise-band-per-project`). Cloud candidates stay shown greyed with "needs permission" until the person has said in setup
   that pages may leave this Mac (`source.onboard.pages-may-leave`). When the best candidate cannot run (no key, not enough memory, the repository
-  gone), the next one in the chain runs, and the plan says which and why; a missing key never substitutes silently
+  gone), the next one in the chain runs if it is another local model or the same cloud provider, and the plan says which and why; one that sends pages somewhere new (another provider, or off the Mac for a local step) is offered and never used without the person's press; a missing key never substitutes silently
   (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
   cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
-- `source.recipe.placement-by-scale` — **[GAP]** (#4950; ruled 2026-10-17) where the chosen reader runs depends on the project's scale: about 100 or
+- `source.recipe.placement-by-scale` — **[PARTIAL]** (#4950, #5589; ruled 2026-10-17; the rule is `recipes/placement.py` `place_step`, tested in `fichero-server/tests/unit/recipes/test_placement.py`; not yet wired into the Start plan or the run) where the chosen reader runs depends on the project's scale: about 100 or
   about 1,000 pages run on this Mac; about 100,000 pages belong on ACENet or Hugging Face. Below a page threshold set in the plan the reader runs
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
@@ -3613,8 +3613,8 @@ The recipe and its format
 - `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
   and an unbound step waits with "No cluster is set up".
-- `source.recipe.alternatives-in-order` — **[GAP]** (#4950) when this Mac cannot run a step's pin,
-  the first listed alternative that can is used, and the choice is recorded and shown.
+- `source.recipe.alternatives-in-order` — **[PARTIAL]** (#4950) when this Mac cannot run a step's pin,
+  the first listed alternative that can is used, and the choice is recorded and shown. *Built 2026-10-17 for a missing key: the step's `chain`, first entry that can run, `plan.fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: a model this Mac cannot serve (memory) still goes through `elsewhere`, offered and never used without the person's press (`ai.where.fallback-free-and-asked`): the two rules need the maintainer to say which wins.*
 - `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
@@ -3774,7 +3774,7 @@ Running and failure
 - `source.recipe.download-failure-waits` — **[GAP]** (#4950, #5352) a failed model download is shown
   in Activity with its reason, retried three times, then the steps that need the model wait with
   "Model download failed" and offer Retry or the next candidate; other steps run.
-- `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no other model for it; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
+- `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no model that sends pages somewhere new for it: a LOCAL model, or one of the same provider, from the step's `chain` runs on its own and is named in `plan.fallbacks` (`used` true, `source.recipe.candidates-fallback-chain`); another cloud provider is offered there (`used` false) and never used without the person's press; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.
 - `source.recipe.take-without-missing-step` — **[PARTIAL]** (#4949; record shape ruled 2026-10-17; *built: `recipe.take_without_missing_steps`, `offered_back`, `override_kind`; pinned by `fichero-server/tests/unit/recipes/test_take_without_missing_step_4949.py`. Not built: the route and the app screen that take a shared recipe through it and show the offer*) a recipe naming a job this

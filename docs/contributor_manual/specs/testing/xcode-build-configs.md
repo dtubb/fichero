@@ -61,20 +61,23 @@ Cross-cutting invariants (all configs):
   (an ungated 27 API fails to compile there); no source-scan test.
 - `platform.needs-27-said-plainly` — **[GAP]** (#5730) where no 26 path exists the UI says "needs macOS 27"
   rather than failing or hiding the control. Test: none yet (no 27-only feature exists).
-- `config.mas-is-a-configuration` — **[GAP]** (#5730, #3982; ruled 2026-10-17) the Mac App Store build is an
+- `config.mas-is-a-configuration` — **[PARTIAL]** (#5730, #3982; ruled 2026-10-17) the Mac App Store build is an
   `App Store` build configuration of the one `Fichero` target, not a second target (one embed phase). That
   configuration is sandboxed, uses `FicheroAppStore.entitlements`, defines `FICHERO_APP_STORE`, embeds the engine
   in `Contents/Helpers`, and is the one the `Fichero (App Store)` scheme archives; no other configuration defines
   `FICHERO_APP_STORE`. Guard: `scripts/check_mac_app_store_target.py`. Test:
-  `fichero-server/tests/unit/scripts/test_check_mac_app_store_target.py`. Today the project has no such
-  configuration (only Debug, Release, Dev Embedded, Alpha Embedded, Beta Embedded), so the guard fails on the real
-  project until the maintainer adds it in Xcode.
+  `fichero-server/tests/unit/scripts/test_check_mac_app_store_target.py`. Built 2026-10-17 by text edit: the
+  `App Store` configuration (project and target, Release-derived, deployment macOS 26.0 / iOS 27.0), the App Store
+  section of the one `Embed Fichero Server` phase (selected by `CONFIGURATION`), the strip and validate phases, and
+  the scheme's archive action. The guard passes; no Mac build or archive has run yet (tester, one at a time).
 - `config.mas-has-no-sparkle` — **[PARTIAL]** (#5730; App Review 2.4.5(vii)) Sparkle.framework is not inside the App
   Store build. With one target Sparkle is linked everywhere, so a `Remove Sparkle (App Store)` build phase deletes
   the framework for the `App Store` configuration only (after the frameworks and the engine are embedded), on top
   of the Info.plist key strip. The `Remove Sparkle (App Store)` phase is in the pbxproj (a no-op unless the
-  configuration is `App Store`); still owed: the `App Store` configuration itself, which must also weak-link
-  Sparkle so the binary launches without it. Guard: `check_mac_app_store_target.py`. Test:
+  configuration is `App Store`). The binary weak-links Sparkle (the build file carries `ATTRIBUTES = (Weak, )`), so it
+  launches with the framework removed, and `SparkleUpdater.swift` is gated on `!FICHERO_APP_STORE`, never
+  `canImport(Sparkle)` (which is true wherever the package resolves). Still owed: the `App Store` configuration
+  itself. Guard: `check_mac_app_store_target.py`. Test:
   `test_check_mac_app_store_target.py::test_sparkle_is_removed_from_the_app_store_build`.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
   Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
