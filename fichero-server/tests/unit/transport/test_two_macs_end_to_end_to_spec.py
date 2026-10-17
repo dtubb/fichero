@@ -57,6 +57,7 @@ def two_macs(test_package, app_db, monkeypatch):
         yield {
             "a": client("http://testserver", ("testclient", 5000)),
             "b": client("https://paired.example", ("198.51.100.20", 5000)),
+            "tailnet_b": client("https://studio.tail1234.ts.net", ("100.64.0.9", 5000)),
         }
     finally:
         overrides.clear()

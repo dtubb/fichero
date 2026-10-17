@@ -375,6 +375,9 @@ def _require_secure_pairing_transport(request: Request) -> None:
         return
     if request.url.scheme != "https":
         raise HTTPException(status_code=400, detail="remote pairing requires https")
+    # A .ts.net host is served with Tailscale's publicly trusted certificate: system trust, no pin (#5753).
+    if (request.url.hostname or "").lower().endswith(".ts.net"):
+        return
     try:
         validate_spki_pin(os.environ.get("FICHERO_TLS_SPKI_HASH", ""))
     except ValueError as exc:
@@ -437,7 +440,8 @@ def create_pairing_code(
         code=code,
         expires_at=expires_at,
         tailnet_url=tailnet_url or None,
-        spki_pin=(os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
+        # No pin for a tailnet address: pin only for .local (#5753).
+        spki_pin=None if tailnet_url else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
     )
 
 
