@@ -586,6 +586,7 @@ def build_ssh_command(
         "ssh",
         "-p",
         str(cluster.ssh_port),
+        "--",  # destination can never be read as an ssh option
         f"{cluster.username}@{cluster.host_alias}",
         joined,
     ]
