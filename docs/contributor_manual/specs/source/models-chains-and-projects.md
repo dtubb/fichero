@@ -4419,7 +4419,25 @@ comparison of line-by-line against whole-page reading by vision-language models;
 Hugging Face revisions in the example exist (they are illustrative).
 
 ## Triaged from the backlog (2026-10-04)
-- `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).
+- `source.segments.align-page-text-to-lines` **[GAP]** (#5217; split into the `source.align.*` entries below, to the "properly" bar): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).
+
+### Align Text to Lines, to the "properly" bar (#5217, #5486; ruled 2026-10-17)
+The tool is `tie-text-to-lines` (`checking/tie_text.py`, `source.job.tie-text-to-lines`); these entries are the bar it is built to. If one cannot be met,
+drafts stay drafts and #5217 records why.
+- `source.align.new-reading-never-overwrites` — **[OK]** (#5217; tested in `fichero-server/tests/unit/check/test_tie_text_to_lines.py`
+  (`test_the_readings_are_the_machines_never_a_persons`, `test_the_tie_writes_onto_the_pages_lines_and_never_makes_a_second_pass`) and
+  `test_which_reading_counts_after_the_tie.py`) the alignment lands as a NEW reading on each line (`representation.create`, derived from the
+  page reading), never overwrites a reading, and never replaces a person's or a confirmed one as the counting reading.
+- `source.align.confidence-per-line` — **[GAP]** (#5217) each aligned line carries how well the page text matched it (the score against the
+  rough read of the line, 0 to 1), kept on the reading it made and served with the line, so the person sees which lines to check; today the score
+  is only in the job's result and in the reason of a rejected line.
+- `source.align.known-misalignments-fixture` — **[GAP]** (#5217) the aligner is pinned over a real two-page fixture with known misalignments: a
+  line the reader dropped, two lines it merged, two it reordered; each case says what lands on which line and which lines are doubtful.
+- `source.align.below-threshold-stays-a-draft` — **[GAP]** (#5217) a page whose alignment is too poor (the share of doubtful lines above a limit)
+  gets no readings at all: it stays a draft, flagged as "text on the page, not aligned to lines", never half-aligned; its lines keep their own reads.
+- `source.align.person-moves-text-between-lines` — **[GAP]** (#5217) for a line whose text landed on the wrong line a person can move the line's
+  first or last words to the neighbouring line, split a line or merge two (the segment split and merge actions exist and undo), each a new reading by
+  the person, every step undoable. *Test:* moving words from line 2 to line 3 gives each a new person reading and one undo restores both.
 
 ## Behaviour ids for issues this spec described without one (R0, 2026-10-17)
 Each is described in the paragraph named; the id lets a test cite it.
