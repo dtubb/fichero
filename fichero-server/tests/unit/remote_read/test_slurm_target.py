@@ -84,3 +84,43 @@ def test_ssh_shell_runs_through_the_system_ssh_with_one_reused_connection_and_re
     assert args[-1] == "tail -n 5 'a b'"
     shell.put_text("hello", "/r/x")
     assert (tmp_path / "fakessh.stdin").read_text() == "hello"
+
+
+def test_ssh_shell_puts_double_dash_before_the_destination_and_streams_files(tmp_path):
+    """WHY (security): a host starting with "-" must never be read by ssh as an option; first contact
+    accepts a new host key without a prompt; files stream through stdin/stdout, not memory."""
+    import stat
+
+    from fichero_server.remote_read.slurm_target import SshShell
+
+    key = tmp_path / "id"
+    key.write_text("k")
+    fake = tmp_path / "fakessh"
+    fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$0.args"\ncat > "$0.stdin"\necho out\n')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    shell = SshShell(RORQUAL, key, tmp_path, ssh=str(fake))
+    shell.run(["true"])
+    args = (tmp_path / "fakessh.args").read_text().splitlines()
+    assert args[-3:] == ["--", "u@rorqual", "true"]
+    assert "BatchMode=yes" in args and "StrictHostKeyChecking=accept-new" in args
+    src = tmp_path / "src.bin"
+    src.write_bytes(b"payload")
+    shell.put(src, "/r/x")
+    assert (tmp_path / "fakessh.stdin").read_bytes() == b"payload"
+    dst = tmp_path / "dst.bin"
+    shell.get("/r/x", dst)
+    assert dst.read_bytes() == b"out\n"
+
+
+@pytest.mark.parametrize("field,bad", [("host_alias", "-oProxyCommand=touch x"), ("host_alias", "a b"),
+                                       ("username", "-oProxyCommand=x"), ("username", "u@h"), ("username", "")])
+def test_cluster_create_refuses_option_shaped_host_or_username(field, bad):
+    """WHY (security): a value reaching ssh as an argument must not be an option; FastAPI turns this into a 422."""
+    from pydantic import ValidationError
+
+    from fichero_server.api.routes.ai.hpc import HpcClusterCreate
+
+    ok = dict(name="n", host_alias="rorqual.alliancecan.ca", username="u-1.x_y", remote_base_dir="/r")
+    HpcClusterCreate(**ok)
+    with pytest.raises(ValidationError):
+        HpcClusterCreate(**{**ok, field: bad})
