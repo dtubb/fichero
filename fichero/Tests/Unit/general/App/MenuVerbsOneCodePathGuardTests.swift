@@ -26,9 +26,10 @@ struct MenuVerbsOneCodePathGuardTests {
         return files
     }
 
-    /// The files that contain `pattern`, outside the store that defines the call.
+    /// The files that contain `pattern`, outside the store that defines the call (the store's split-out
+    /// extension files, `Models/ActivityStore+…swift`, count as the store).
     private static func callers(of pattern: String, definedIn store: String) throws -> Set<String> {
-        Set(try appFiles().filter { $0.path != store && $0.text.contains(pattern) }.map(\.path))
+        Set(try appFiles().filter { !$0.path.hasPrefix(store.replacingOccurrences(of: ".swift", with: "")) && $0.text.contains(pattern) }.map(\.path))
     }
 
     @Test("only the shared Activity target asks the store to stop a job or read pages again")
