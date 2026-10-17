@@ -54,7 +54,7 @@ class TestConfigureCluster:
 
     def test_missing_field_rejected(self, client):
         r = client.post("/api/hpc/clusters", json=_cluster_body(username="  "))
-        assert r.status_code == 400
+        assert r.status_code == 422  # strict username pattern (security)
 
     def test_delete(self, client):
         cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
