@@ -319,4 +319,4 @@ All four answered 2026-10-04 by taking each recommendation; see Rulings. Kept fo
    is designed before `iiif.import.by-reference` is built, not during it.
 
 ## Triaged from the backlog (2026-10-04)
-- `iiif.import.json-type-strips-compact-prefixes` — **[GAP]** (#5405) iiif_import._json_type strips `sc:`, `oa:` and `dctypes:` prefixes so a v2 canvas reads as Canvas, and the test that pins `sc:Canvas` is updated.
+- `iiif.import.json-type-strips-compact-prefixes` — (#5405) iiif_import._json_type strips `sc:`, `oa:` and `dctypes:` prefixes so a v2 canvas reads as Canvas; pinned by fichero-server/tests/unit/importers/test_iiif_import_helpers.py::test_json_type.
