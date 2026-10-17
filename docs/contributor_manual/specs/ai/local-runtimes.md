@@ -372,14 +372,16 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   one heavy model at a time when memory is busy, #5622). Above it the step refuses in words, naming the
   estimate and the ceiling. **Built 2026-10-12, provisional:** the ceiling is physical memory less 2 GB for
   macOS and Fichero (`MLX_MAC_RESERVE_BYTES`: 6 GB on an 8 GB Mac, today's 75% there; 14 GB on 16 GB, where 75%
-  was 12), and "won't fit" is exactly what the load refuses. *Not measured: the swap point on an 8 GB and a
+  was 12), and "won't fit" is exactly what the load refuses. *Test:* `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py::test_the_load_refuses_exactly_what_the_estimate_calls_wont_fit`. *Not measured: the swap point on an 8 GB and a
   16 GB Mac, which replaces the 2 GB.*
 - `runtime.mlx.offer-a-way-to-fit` — **[PARTIAL]** (#5641) a model that won't fit is offered a way to fit:
   a smaller quantized build of the same model (from the model finder), a quantized KV cache, or a
   shorter context. MLX cannot split a model between GPU and CPU as Ollama does; a smaller build is the
   Mac's equivalent. **Built 2026-10-12:** the largest smaller build of the same model (its name without its
   build: `-4bit`, `-8bit`, `-bf16` …) in the catalogue and the finder's list that fits is named (`fit.smaller`);
-  with none, the longest context that would fit, when it is at least 2,048 tokens. *Not built: a quantized KV
+  with none, the longest context that would fit, when it is at least 2,048 tokens. *Test:*
+  `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py` (`test_a_model_that_wont_fit_is_offered_a_smaller_build_of_the_same_model`,
+  `test_with_no_smaller_build_a_shorter_context_is_offered_when_it_would_fit`). *Not built: a quantized KV
   cache as the way.*
 - `runtime.mlx.kv-cache-settings` — **[PARTIAL]** (#5641) the bundled MLX server's KV-cache settings
   are chosen per load: the batch is the client's pages at once (`MLX_VLM_MAX_NUM_SEQS` equals
