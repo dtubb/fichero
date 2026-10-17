@@ -361,6 +361,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/kraken_runtime.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/lang_detect.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/language_coverage.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/language_policy.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/line_cut.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/line_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_inference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_catalog.py
