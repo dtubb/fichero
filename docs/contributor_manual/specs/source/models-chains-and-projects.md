@@ -2255,7 +2255,7 @@ Model cards
 
 Moved from `ai/local-runtimes.md` on 2026-10-04 (the card has one home). Each refines a card behaviour above under the same issue: `card-id` is `one-card`'s identity, `jobs-replace-capabilities` is `jobs-typed`'s rule, `licence-filled` is `licence-class` for Fichero's own catalogue.
 
-- `source.model.card-id` — **[GAP]** (#4948) every card has one id `<runtime>:<source>@<version>`
+- `source.model.card-id` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_seed_cards.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4948) every card has one id `<runtime>:<source>@<version>`
   as section 1 sets out; recipes, role defaults, runtime configurations, the making record and
   jobs store it; no surface stores a bare model name. Today there are five schemes (MLX repo+SHA,
   Whisper repo+revision, Kraken DOI, an embedding "space contract", bare cloud strings) and a
@@ -2462,7 +2462,7 @@ Jobs and chains
   WER appears only where the script separates words; Chinese is scored by character. *Test:* the matrix of the four,
   each with a stub reviewer, never sent another's wording, and a right-to-left and a vertical page both returned in
   their segments' reading order.
-- `source.job.review-asks-one-answer-line-per-segment-id` — **[BROKEN]** (#5719) the paleographer review, shown the
+- `source.job.review-asks-one-answer-line-per-segment-id` — **[OK]** (#5719; the review prompts ask for the ids and the answer is tied by id, pinned by `fichero-server/tests/unit/workflows/test_review_corrects_the_lines_5654.py`) the paleographer review, shown the
   page's lines as `<segment id> | box | maker | text`, is told to answer one line per shown line as `<segment id> |
   <corrected text>`, in the same order, never merging, splitting, dropping or adding a line; the prompt it is sent
   says so. WHY (2026-10-16, page 39_Hoja_549_Recto.JPG, project 17402): the default prompt said only "output only the
@@ -2670,7 +2670,7 @@ How a result was made
   reading against reading and scored against ground truth.
 
 Projects
-- `source.project.has-settings` — **[GAP]** (#4951) a project (today's library) has settings of its
+- `source.project.has-settings` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/api/test_project_setup_is_saved.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4951) a project (today's library) has settings of its
   own (purpose, recipe, defaults, rules, synced folders); one never set up behaves exactly as before.
 - `source.project.setup-saves-what-is-sent` — **[OK]** (#5584; built: the `project.save_setup` action keeps a
   part its params leave unset; tested in `fichero-server/tests/unit/recipes/test_setup_through_mcp_edges.py`) saving a project's setup
@@ -3230,7 +3230,7 @@ Setup
 - `source.onboard.stages.explanation-always-shown` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStageRow`. every stage in the chooser shows
   its explanation whether or not it is ticked. *Test:* pure Swift, an unticked stage's row carries its
   sentence.
-- `source.onboard.stages.normalise-and-translate` — **[GAP]** (#5668) Normalise and Translate are two
+- `source.onboard.stages.normalise-and-translate` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/SetupStagesTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5668) Normalise and Translate are two
   stages: Normalise offers as written, abbreviations expanded, normalised spelling and modernised;
   Translate's target is any language, found by the language search. *Test:* pytest, the two stages and
   their questions; pure Swift, Translate's target field is the language search.
@@ -3298,7 +3298,7 @@ Setup
   shown; a step that a later step needs cannot be taken out, and Ready says which step needs it. *Test:*
   transcribe + search with `make-a-vector` taken out assembles transcription only and lists it as removed;
   taking out Find lines keeps it with `needed_by` Read each line; Start's plan has no vector step.
-- `source.onboard.teaches-the-method` — **[GAP]** (#4951, #5471, #5481) **Engine built 2026-10-04:** each
+- `source.onboard.teaches-the-method` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py` and `fichero/Tests/Unit/general/Models/TopicStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4951, #5471, #5481) **Engine built 2026-10-04:** each
   topic of section 7a has a title, one sentence, a paragraph and the example to show, served by
   `GET /api/topics` and `GET /api/topics/{id}` from `fichero-server/src/fichero_server/recipes/seed/topics.yaml`;
   pinned by `fichero-server/tests/unit/recipes/test_topic_registry.py`. **App built 2026-10-05:**
@@ -3568,7 +3568,7 @@ The recipe and its format
   purposes it suits.
 - `source.recipe.makes-a-workflow` — **[PARTIAL]** (#4950) **Built 2026-10-03 (engine):** `plan_start` maps each step to a shipped workflow by name with the step's model (`recipes/start.py`, four jobs so far), refusing by name a step it cannot map; a pinned Kraken reader reaches Transcribe (Kraken) as the run's `kraken` override (`workflows/validation.py`), and a reader outside the catalogue this Mac can fetch is refused; Start validates with `check_recipe`, and the assemble answer is a whole recipe (schema, version, suits); the runs are not started yet; pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`, `fichero-server/tests/unit/workflows/test_kraken_reader_is_a_run_override.py`, `fichero-server/tests/unit/api/test_start_is_the_first_yes.py`. applying a recipe's steps makes and runs
   workflows; nothing runs except workflows.
-- `source.recipe.holds-no-second-copy` — **[GAP]** (#4950) a recipe refers to workflows in the
+- `source.recipe.holds-no-second-copy` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4950) a recipe refers to workflows in the
   store by name and may carry its own, but never a copy of one the store holds; the locked default
   workflows stay in the store and shipped recipes refer to them (ruled 2026-10-01).
 - `source.recipe.stored-in-project` — **[GAP]** (#4950) a project's recipe (followed version,
@@ -3579,7 +3579,7 @@ The recipe and its format
   runs, so a step uses only what an earlier step or the source gives.
 - `source.recipe.per-region-kind` — **[GAP]** (#4949) a step can send each kind of region to a
   different model (main text, marginal gloss, table, drawing).
-- `source.recipe.names-models-and-where` — **[GAP]** (#4950) a recipe names the model for each step,
+- `source.recipe.names-models-and-where` — **[PARTIAL]** (built in part, pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py` and `test_yolo_pin_is_a_known_form.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #4950) a recipe names the model for each step,
   pinned (Hugging Face repository and revision, Zenodo DOI, package and version, Kraken built-in
   and version, or a cloud provider's model id with the date measured) or a role default, and where
   it runs: `this-mac`, `cloud`, `cluster` or `gpu-service`.
@@ -3900,7 +3900,7 @@ Finding models
   waiting or running is reused. With no project open the online search is not run and the source says why.
   *Test:* the cold call returns before the Hub answers, with the job id; Activity lists the job; once it is
   done the next call lists what it found.
-- `source.find.app-finder-three-hosts` — **[GAP]** (#5611) the app's model finder is one view
+- `source.find.app-finder-three-hosts` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611) the app's model finder is one view
   (`ModelFinderView`) over one store per project (`ModelFinderStore`, on the project's own client, so every
   call names the project), shown in three places (ruled 2026-10-08): the project's Inspector (a Find a
   Reader disclosure under its readers), Set Up… › Ready (a Find a Reader… button beside a reading step's
@@ -3909,13 +3909,13 @@ Finding models
   since the scripts and languages are the project's answers). The finder never works out a candidate,
   a rank or a fit: it shows `GET /api/recipes/candidates` in the engine's order, and a change to the
   list replaces it as the engine answered it.
-- `source.find.app-card-says` — **[GAP]** (#5611) each candidate is a card: its name, the engine's
+- `source.find.app-card-says` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611) each candidate is a card: its name, the engine's
   reason it is offered (`offered_because`), its size in the engine's words (`size`: "1.2 GB" or "size
   not stated", never 0), where it came from in words (ships with Fichero, installed on this Mac, Kraken's
   repository, Hugging Face), what is measured on the project (`measured`), its licence when not open, and,
   when the rules refuse it, the rules' reason (`refused`) in place of an action. Each source's line
   (`sources[].detail`) is said once above the cards.
-- `source.find.app-card-actions` — **[GAP]** (#5611, #5612) a card's actions are only those an existing
+- `source.find.app-card-actions` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift` and `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611, #5612) a card's actions are only those an existing
   route serves: **Download** for any candidate that names a `download`, through the one download route
   (`POST /api/local-models/download/{runtime}/{model}`, the runtime and model its `download` names; the
   card then says Downloading… and Activity shows the job); **Use for This Step** in Set Up… on any
@@ -3936,7 +3936,7 @@ Finding models
   Pinned by `fichero-server/tests/unit/recipes/test_model_finder_card_actions_5612.py`. *Residue:* a
   Kraken reader has no download action (the run fetches it); the tag stays [GAP] until the app half is
   seen working.
-- `source.find.app-searching-line` — **[GAP]** (#5611) after Search Online the finder says
+- `source.find.app-searching-line` — **[PARTIAL]** (built in part, pinned by `fichero/Tests/Unit/general/Models/ModelFinderStoreTests.swift`; what is still unbuilt is not yet written down here, R0 2026-10-17; #5611) after Search Online the finder says
   "Searching online…" with the job's reason, observed through the project's `ActivityStore` (the one
   poller of `GET /api/activity/jobs`) by the job's id (`search_job.id`, or the `find-models` kind's
   waiting row), never by a poller of its own; when the job leaves the list (done), the finder reads the
