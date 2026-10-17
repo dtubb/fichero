@@ -349,7 +349,7 @@ async def wait_for_memory_to_load(
         try:
             check(spec)
             return
-        except MemoryShortError:
+        except MemoryShortError as exc:
             freed = release()
             if freed:
                 logger.info("Released %s to load %s", ", ".join(freed), spec.display_name)
