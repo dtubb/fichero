@@ -1321,6 +1321,36 @@ class DatabaseEmbeddingMixin:
             ]
         )
 
+    def _stored_text_and_model(self, table_name: str, ids: list[str]) -> dict[str, tuple[str, str]]:
+        """Stored (text, model id) per id, for the ids that already have a vector.
+
+        Any failure answers {}: with nothing known, everything is embedded again.
+        """
+        try:
+            if table_name not in self._lance_tables():
+                return {}
+            quoted = ", ".join("'" + str(i).replace("'", "''") + "'" for i in ids)
+            rows = (
+                self.lance.open_table(table_name)
+                .search().where(f"id IN ({quoted})").limit(len(ids)).to_list()
+            )
+            return {
+                str(r["id"]): (r.get("text") or "", r.get(EMBEDDING_MODEL_ID_FIELD) or "")
+                for r in rows
+            }
+        except Exception:
+            return {}
+
+    def _drop_unchanged(self, table_name: str, batch: list, texts: list[str]) -> tuple[list, list[str]]:
+        """Keep only items whose text or model differs from the stored vector row (#4617)."""
+        stored = self._stored_text_and_model(table_name, [item.id for item in batch])
+        model_id = self._vector_model_metadata().get(EMBEDDING_MODEL_ID_FIELD, "")
+        keep = [
+            n for n, (item, text) in enumerate(zip(batch, texts))
+            if stored.get(item.id) != (text, model_id)
+        ]
+        return [batch[n] for n in keep], [texts[n] for n in keep]
+
     def embed_entities(self, entities, *, batch_size: int = 256) -> int:
         """Write entity embeddings into the canonical LanceDB table.
 
@@ -1335,6 +1365,9 @@ class DatabaseEmbeddingMixin:
         for batch_start in range(0, len(entities), batch_size):
             batch = entities[batch_start : batch_start + batch_size]
             texts = [self.entity_embedding_text(entity) for entity in batch]
+            batch, texts = self._drop_unchanged(KG_ENTITY_EMBEDDINGS_TABLE, batch, texts)
+            if not batch:
+                continue
             vectors = self._embed_texts(texts)
             records = [
                 {
@@ -1367,6 +1400,9 @@ class DatabaseEmbeddingMixin:
         for batch_start in range(0, len(claims), batch_size):
             batch = claims[batch_start : batch_start + batch_size]
             texts = [self.claim_embedding_text(claim) for claim in batch]
+            batch, texts = self._drop_unchanged(KG_CLAIM_EMBEDDINGS_TABLE, batch, texts)
+            if not batch:
+                continue
             vectors = self._embed_texts(texts)
             records = [
                 {
