@@ -2564,7 +2564,7 @@ Jobs and chains
   beside them (the person chooses it; nothing is downloaded or sent off the Mac by itself); where a text model is
   installed here, the rules take it over the parser. *Test:* with no text model the recipe's statements step is the
   parser's and the step offers a model; with one installed it is that model.
-- `source.model.page-text-is-constructed-from-the-segments` — **[GAP]** (#5486, #5467; ruled 2026-10-17) a page's text is
+- `source.model.page-text-is-constructed-from-the-segments` — **[PARTIAL]** (#5486, #5467; ruled 2026-10-17; *built for the correcting step: `transcribe_review` no longer writes the page text (`update_page_content` off), so an untied review leaves the chosen reading's text; pinned by `fichero-server/tests/unit/workflows/test_page_text_is_constructed_from_segments_5486.py`. Not built: the other producers that still write a page-level text (LLM Transcribe, DOCX, Markdown, legacy transcriptions) tying onto lines, `source-model.md`'s table*) a page's text is
   the CHOSEN reading, constructed from its segments (the lines of the working pass, in reading order) by the engine
   (`actions/page_text_cache.py`), never a separate blob a step writes and a later round overwrites. A step that
   reads or corrects a page writes readings onto the page's lines; it does not write the page's text. Where a
