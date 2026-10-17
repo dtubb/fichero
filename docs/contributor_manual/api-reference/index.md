@@ -151,7 +151,7 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 
 Between machines a transfer is always a copy. The sending engine pushes; the far engine lands.
 
-`GET /api/machines` · `POST /api/machines/pair`
+`GET /api/machines` · `POST /api/machines/pair` · `DELETE /api/machines/{machine_id}` (forget a machine: removes this Mac's saved token, owner only)
 
 - The other Fichero engines this one is paired with, and pairing with one: `address`
   (its tailnet name, `name.tailnet.ts.net`) and the `code` its Fichero shows. This
