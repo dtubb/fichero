@@ -56,6 +56,23 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, capture_output=True, check=True, text=True, timeout=20)
 
 
+def detected_tailnet_url(cli: str | None = None, *, run=None) -> str:
+    """The https address of this Mac on the tailnet (``https://<host>.<tailnet>.ts.net``), or "" when
+    Tailscale is missing, stopped or not logged in. For the share sheet to offer instead of a typed
+    address (#5318). Never raises."""
+    cli = cli or tailscale_cli()
+    if cli is None:
+        return ""
+    try:
+        status = json.loads((run or _run)([cli, "status", "--json"]).stdout or "{}")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ""
+    if status.get("BackendState") != "Running":
+        return ""
+    name = str((status.get("Self") or {}).get("DNSName") or "").rstrip(".").lower()
+    return f"https://{name}" if name.endswith(".ts.net") else ""
+
+
 def serve_status(cli: str) -> dict:
     return json.loads(_run([cli, "serve", "status", "--json"]).stdout or "{}")
 
