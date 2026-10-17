@@ -2305,6 +2305,72 @@
         }
       }
     },
+    "/api/pair/sharing": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Sharing State",
+        "description": "Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751).",
+        "operationId": "sharing_state_api_pair_sharing_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/multiuser": {
+      "put": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Set Multiuser",
+        "description": "Set the persisted Multi-user switch (the Settings switch and the CLI/MCP share this route, #5751).",
+        "operationId": "set_multiuser_api_pair_multiuser_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultiuserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/tailnet": {
       "get": {
         "tags": [
@@ -75107,6 +75173,19 @@
         ],
         "title": "MovedGroup"
       },
+      "MultiuserRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "MultiuserRequest"
+      },
       "MutationListResponse": {
         "properties": {
           "items": {
@@ -87984,6 +88063,34 @@
         ],
         "title": "ShareResponse",
         "description": "Result of a share: the granted access + a link the recipient can open."
+      },
+      "SharingStateResponse": {
+        "properties": {
+          "multiuser_enabled": {
+            "type": "boolean",
+            "title": "Multiuser Enabled"
+          },
+          "tailnet_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Url"
+          },
+          "tailnet_serve_command": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Serve Command"
+          },
+          "paired_device_count": {
+            "type": "integer",
+            "title": "Paired Device Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiuser_enabled",
+          "paired_device_count"
+        ],
+        "title": "SharingStateResponse"
       },
       "SignInstance": {
         "properties": {

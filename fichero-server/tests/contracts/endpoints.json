@@ -8487,6 +8487,26 @@
         "response_model": "PairResponse"
       },
       {
+        "method": "PUT",
+        "path": "/pair/multiuser",
+        "operation_id": "set_multiuser_api_pair_multiuser_put",
+        "summary": "Set Multiuser",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "MultiuserRequest",
+        "response_model": "SharingStateResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/sharing",
+        "operation_id": "sharing_state_api_pair_sharing_get",
+        "summary": "Sharing State",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SharingStateResponse"
+      },
+      {
         "method": "GET",
         "path": "/pair/tailnet",
         "operation_id": "detected_tailnet_api_pair_tailnet_get",
