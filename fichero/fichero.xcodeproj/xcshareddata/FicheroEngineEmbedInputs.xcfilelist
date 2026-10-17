@@ -16,6 +16,9 @@ $(SRCROOT)/../fichero-mcp/src/fichero_mcp/research_tools.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/server.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/simple.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/ui_control.py
+<<<<<<< HEAD
+=======
+>>>>>>> cb732e67c
 $(SRCROOT)/../fichero-server/src/fichero_server/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/__main__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/_pdfium_probe.py
@@ -412,6 +415,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/media/image_flatten.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/image_ops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/ocr_geometry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/page_split.py
+$(SRCROOT)/../fichero-server/src/fichero_server/media/quartz_warm.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_crops.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/region_math.py
 $(SRCROOT)/../fichero-server/src/fichero_server/media/rendition_order.py

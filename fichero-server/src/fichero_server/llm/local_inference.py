@@ -349,7 +349,8 @@ async def wait_for_memory_to_load(
         try:
             check(spec)
             return
-        except MemoryShortError:
+        except MemoryShortError as short:
+            reason = str(short)
             freed = release()
             if freed:
                 logger.info("Released %s to load %s", ", ".join(freed), spec.display_name)
@@ -357,8 +358,7 @@ async def wait_for_memory_to_load(
                     check(spec)
                     return
                 except MemoryShortError as again:
-                    exc = again
-            reason = str(exc)
+                    reason = str(again)
         if time.monotonic() >= deadline:
             raise LocalModelMemoryUnavailableError(
                 f"{reason}. Waited {limit / 60:.0f} minutes for memory; close other apps, then run "

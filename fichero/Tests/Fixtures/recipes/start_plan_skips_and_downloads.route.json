@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-1326/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-2393/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -194,7 +194,12 @@
      "more_pages": 2,
      "unmarked_import_pages": 0,
      "sentence": "Needs 2,000 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 2,000 more lines, on at least 2 more pages."
-    }
+    },
+    "setting": {
+     "mode": "here",
+     "why": "this Mac has the memory to train a reader itself"
+    },
+    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold."
    },
    {
     "step": "names",
@@ -213,7 +218,12 @@
     "readiness": {
      "ready": false,
      "sentence": null
-    }
+    },
+    "setting": {
+     "mode": "here",
+     "why": "this Mac has the memory to train a reader itself"
+    },
+    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold."
    }
   ],
   "refusals": [],
@@ -253,6 +263,7 @@
    "sentence": "Start downloads the spaCy pipeline es_core_news_sm (16 MB)."
   },
   "elsewhere": [],
+  "fallbacks": [],
   "estimate": {
    "pages": 2,
    "counted": "2 photographs = 2 pages; the project holds 16 documents: these, and 14 folders",
@@ -266,6 +277,7 @@
      "where": "this-mac",
      "pages": 2,
      "cost_usd": 0.0,
+     "basis": "free on this Mac",
      "memory": null
     },
     {
@@ -276,6 +288,7 @@
      "where": "this-mac",
      "pages": 2,
      "cost_usd": 0.0,
+     "basis": "free on this Mac",
      "memory": null
     }
    ],
