@@ -137,7 +137,9 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
 - `ui-testing.crossplatform-plan` [PARTIAL] (#4771) — one `.xctestplan` runs the same identifier-driven flows
   on macOS **and** an iOS sim **and** an iPad sim, so the iOS 1 MB-stack crash class is caught (sims
   auto-consent — no Aqua-session gate). Per-platform plans + canary smoke exist for all three; the
-  substantive flow (`InspectorFlowsUITests`) only runs on macOS today.
+  substantive flow (`InspectorFlowsUITests`) only runs on macOS today. iPhone and iPad now also launch
+  the app and check it is still foreground after 5 s (`IOSLaunchSmokeTests`, `IPadLaunchSmokeTests`,
+  written, not run), the launch-crash guard #4173 asks for.
 - `ui-testing.identifier-contract` [PARTIAL] (#4772) — every control a UI test drives has a stable,
   data-ID-anchored `.accessibilityIdentifier` matching this spec (never label/coordinate).
 - `ui-testing.xcuitest-thin` [PARTIAL] (#4773) — the full-app XCUITest set is capped (~a dozen flows) and
