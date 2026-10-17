@@ -10,6 +10,18 @@ struct ImageZoomActions: Equatable {
     let zoomToFit: () -> Void
     let canZoomIn: Bool
     let canZoomOut: Bool
+    /// The focused pane's own magnifier and loupe (#5015): the menu acts on THIS pane, not a shared flag.
+    /// `nil` where the surface has none (the reader).
+    var magnifier: Switches?
+    var loupe: Switches?
+
+    /// One on/off switch with its lock, as the focused pane holds it.
+    struct Switches {
+        let isOn: Bool
+        let isLocked: Bool
+        let toggle: () -> Void
+        let toggleLock: () -> Void
+    }
 
     /// Same rationale as `SidebarActions.==` below: the closures capture the
     /// same parent state, so only the flags distinguish instances. Without
@@ -18,6 +30,8 @@ struct ImageZoomActions: Equatable {
     /// (×31 in the 2026-08-19 live log).
     static func == (lhs: ImageZoomActions, rhs: ImageZoomActions) -> Bool {
         lhs.canZoomIn == rhs.canZoomIn && lhs.canZoomOut == rhs.canZoomOut
+            && lhs.magnifier?.isOn == rhs.magnifier?.isOn && lhs.magnifier?.isLocked == rhs.magnifier?.isLocked
+            && lhs.loupe?.isOn == rhs.loupe?.isOn && lhs.loupe?.isLocked == rhs.loupe?.isLocked
     }
 }
 
