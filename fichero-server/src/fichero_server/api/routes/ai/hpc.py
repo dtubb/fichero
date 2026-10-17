@@ -409,8 +409,13 @@ async def answer_prompt(
 ) -> HpcPromptList:
     from fichero_server.remote_read.ssh_prompts import prompt_broker
 
-    if not prompt_broker().answer(prompt_id, body.answer):
-        raise HTTPException(status_code=404, detail="no such prompt (answered, refused or timed out)")
+    broker = prompt_broker()
+    if not broker.answer(prompt_id, body.answer):
+        if broker.ended(prompt_id) == "expired":
+            raise HTTPException(status_code=410, detail="That prompt expired before it was answered: sign in again.")
+        if broker.ended(prompt_id) == "refused":
+            raise HTTPException(status_code=410, detail="That prompt was refused: sign in again.")
+        raise HTTPException(status_code=404, detail="no such prompt (already answered)")
     return await list_prompts(None)
 
 

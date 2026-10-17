@@ -31,3 +31,15 @@ def test_the_base_image_and_uv_are_pinned():
     text = DOCKERFILE.read_text()
     assert re.search(r"^FROM python:3\.12-slim@sha256:[0-9a-f]{64}$", text, re.M)
     assert re.search(r"pip install --no-cache-dir uv==\d+\.\d+\.\d+", text)
+
+
+def test_the_gpu_worker_adds_a_pinned_vllm_on_the_slim_worker_and_is_built_on_demand():
+    """WHY (`compute.image.full-and-worker`): vLLM + CUDA PyTorch ride on the same slim image (one recipe), pinned,
+    and the heavy build runs only when asked (workflow_dispatch), never on every push."""
+    gpu = DOCKERFILE.with_name("worker-gpu.Dockerfile").read_text()
+    assert re.search(r"^FROM \$\{BASE\}", gpu, re.M) and re.search(r"^ARG BASE=", gpu, re.M)
+    assert re.search(r"uv pip install --system vllm==\d+\.\d+\.\d+", gpu)
+    assert "mlx" not in gpu.lower().replace("no mlx", "")
+    assert re.search(r"^USER fichero", gpu, re.M)
+    text = WORKFLOW.read_text()
+    assert "worker-gpu.Dockerfile" in text and "workflow_dispatch" in text
