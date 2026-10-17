@@ -377,6 +377,7 @@
 				A1624FF62F2EE5710019C019 /* CopyFiles */,
 				CC0011223344556677889902 /* SwiftLint */,
 				CC0011223344556677889903 /* Embed Fichero Server */,
+				SBX00062F27F36000EC9EE1 /* Remove Sparkle (App Store) */,
 			);
 			buildRules = (
 			);
@@ -792,6 +793,25 @@
 				"touch \"$STAMP\"",
 				"",
 			);
+		};
+		SBX00062F27F36000EC9EE1 /* Remove Sparkle (App Store) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Remove Sparkle (App Store)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# App Review 2.4.5(vii): Sparkle must not ship inside the App Store build (#5730).\n# One target links Sparkle everywhere, so the App Store configuration deletes the framework from its bundle,\n# after the frameworks and the engine are embedded and before Xcode signs the app. A no-op for every other\n# configuration. The App Store configuration must also weak-link Sparkle so the binary still launches.\nif [ \"${CONFIGURATION}\" != \"App Store\" ]; then\n  exit 0\nfi\nAPP_DST=\"$(cd \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" && pwd -P)\"\nrm -rf \"${APP_DST}/Contents/Frameworks/Sparkle.framework\"\nif [ -e \"${APP_DST}/Contents/Frameworks/Sparkle.framework\" ]; then\n  echo \"error: Sparkle.framework is still in the App Store bundle\" >&2\n  exit 1\nfi\necho \"Sparkle.framework removed from the App Store bundle\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
