@@ -272,7 +272,9 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.kraken.bundled-in-process` — **[OK]** (#4959) Kraken 7.1.1 ships in the engine at build
   time and runs in-process behind one locked seam (`[tool.fichero.kraken_bundle]` in
   `fichero-server/pyproject.toml`; commit 42a95db93). Specs that still say "subprocess" or
-  "installed on request" are listed under Requests.
+  "installed on request" are listed under Requests. *Test:*
+  `fichero-server/tests/unit/packaging/test_engine_starts_without_unbundled_packages.py` (reads the
+  `kraken_bundle` table from `pyproject.toml`).
 - `runtime.apple.speech-or-none` — **[BROKEN]** (#5367) Apple Speech is either bundled
   (`pyobjc-framework-Speech`, with the authorisation request and the on-device-only flag) or removed
   from the catalogue and the factory defaults. Today it is the factory audio default
@@ -302,7 +304,8 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   finder and the reader stay resident between pages (`llm/kraken_runtime.py:649` `_resident`), and
   the local-model lane runs one reader's pages together (`activity.lane.load-once`, which owns the
   rule; corrected 2026-10-04, this line said nothing was resident). Still a gap: batching pages into
-  one call, and several Kraken workers (`activity.run.kraken-workers`).
+  one call, and several Kraken workers (`activity.run.kraken-workers`). *Test:*
+  `fichero-server/tests/unit/llm/test_kraken_runtime.py::test_a_kraken_model_loads_once_and_is_replaced_not_stacked`.
 - `runtime.kraken.post-processing-uses-the-cores` — **[GAP]** (#5370, #5358) Kraken's line
   post-processing (about 10 s of a 17–20 s page, on one core) is spread over the performance cores
   or overlapped with the next page's segmentation; measured before and after on the fixture pages.
@@ -370,21 +373,23 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   one heavy model at a time when memory is busy, #5622). Above it the step refuses in words, naming the
   estimate and the ceiling. **Built 2026-10-12, provisional:** the ceiling is physical memory less 2 GB for
   macOS and Fichero (`MLX_MAC_RESERVE_BYTES`: 6 GB on an 8 GB Mac, today's 75% there; 14 GB on 16 GB, where 75%
-  was 12), and "won't fit" is exactly what the load refuses. *Not measured: the swap point on an 8 GB and a
+  was 12), and "won't fit" is exactly what the load refuses. *Test:* `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py::test_the_load_refuses_exactly_what_the_estimate_calls_wont_fit`. *Not measured: the swap point on an 8 GB and a
   16 GB Mac, which replaces the 2 GB.*
 - `runtime.mlx.offer-a-way-to-fit` — **[PARTIAL]** (#5641) a model that won't fit is offered a way to fit:
   a smaller quantized build of the same model (from the model finder), a quantized KV cache, or a
   shorter context. MLX cannot split a model between GPU and CPU as Ollama does; a smaller build is the
   Mac's equivalent. **Built 2026-10-12:** the largest smaller build of the same model (its name without its
   build: `-4bit`, `-8bit`, `-bf16` …) in the catalogue and the finder's list that fits is named (`fit.smaller`);
-  with none, the longest context that would fit, when it is at least 2,048 tokens. *Not built: a quantized KV
+  with none, the longest context that would fit, when it is at least 2,048 tokens. *Test:*
+  `fichero-server/tests/unit/llm/test_mlx_fit_estimate_5641.py` (`test_a_model_that_wont_fit_is_offered_a_smaller_build_of_the_same_model`,
+  `test_with_no_smaller_build_a_shorter_context_is_offered_when_it_would_fit`). *Not built: a quantized KV
   cache as the way.*
 - `runtime.mlx.kv-cache-settings` — **[PARTIAL]** (#5641) the bundled MLX server's KV-cache settings
   are chosen per load: the batch is the client's pages at once (`MLX_VLM_MAX_NUM_SEQS` equals
   `local_reads_at_once`, `llm/local_inference.reads_at_once_for`, built 2026-10-10). *Not built:* a
   quantized cache (`kv_bits`) and a cap (`max_kv_size`) when they let a model fit, adopted only after the
   fixture pages show no rise in character error rate; prompt (prefix) caching for a step's fixed
-  instruction.
+  instruction. *Test:* `fichero-server/tests/unit/llm/test_mlx_ships_inside_the_engine.py::test_the_server_reads_as_many_pages_at_once_as_it_is_sent`.
 - `runtime.memory-gates-compose` — **[GAP]** (#4987, #5358) one memory check, fed by the cards'
   resident sizes, replaces the per-runtime guards (Kraken's 2.5 GB free, MLX's estimate); it knows
   what is already resident (Kraken, the embedder, an MLX model) before admitting another.
