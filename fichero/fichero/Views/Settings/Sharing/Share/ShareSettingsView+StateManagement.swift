@@ -29,6 +29,19 @@ extension ShareSettingsView {
         )
     }
 
+    /// One action, like Sharing: the engine reads the flag at startup, so flipping it
+    /// restarts our own engine (#3776). A no-op if the engine already reflects it.
+    var multiuserBinding: Binding<Bool> {
+        Binding(
+            get: { multiuserEnabled },
+            set: { newValue in
+                multiuserEnabled = newValue
+                guard newValue != backendMultiuser else { return }
+                Task { await applySharing() }
+            }
+        )
+    }
+
     func applySharing() async {
         isApplyingChange = true
         shareError = nil

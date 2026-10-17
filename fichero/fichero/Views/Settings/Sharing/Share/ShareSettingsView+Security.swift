@@ -8,14 +8,6 @@ extension ShareSettingsView {
     @ViewBuilder
     var securitySection: some View {
         Section("Security") {
-            // The authoritative multi-user toggle lives in Engine settings
-            // (owns fichero.multiuser.enabled, restart-applied). Show it here
-            // read-only so the sharing surface reflects the current mode.
-            LabeledContent("Multi-user mode") {
-                Text(backendMultiuser ? "Enabled" : "Disabled")
-                    .foregroundStyle(backendMultiuser ? .primary : .secondary)
-            }
-
             LabeledContent("Backend authz") {
                 Text(backendAuthzStatus)
                     .foregroundStyle(backendAuthzStatus == "Enabled" ? .primary : .secondary)
