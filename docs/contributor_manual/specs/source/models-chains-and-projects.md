@@ -2413,7 +2413,7 @@ Jobs and chains
   on `source.job.review-asks-one-answer-line-per-segment-id`, which asks for the ids; today the preset's prompts say
   only "same line breaks" and think in text, not segments. *Test:* a stub that marks one line unreadable leaves it
   unchanged and flagged; a person's line is returned unchanged by the stub and untouched in the project.
-- `source.job.review-uses-the-projects-names-and-places` — **[GAP]** (#5725) the review is given the project's
+- `source.job.review-uses-the-projects-names-and-places` — **[PARTIAL]** (#5725) done: every review step is given the project's verified names, places and organisations (`recipes/known_names.py`; rejected, merged, unreviewed entities and concepts are left out, the most corroborated 300 are listed and the rest counted) with every other name each carries, whatever prompt the node has (`test_a_reading_of_a_confirmed_names_variant_comes_back_in_the_confirmed_spelling_5725`, `test_only_what_a_person_confirmed_is_listed_with_every_other_name_it_carries_5725`, `test_a_graph_larger_than_the_limit_says_how_many_are_left_out_5725`). Owed: the gazetteer's places beyond graph entities; the reference search over the graph and the corrected pages; names the review confirms going back to the graph; the disagreement view. The review is given the project's
   confirmed names and places (its knowledge-graph entities and gazetteer, the Find Names result) as a word list, so a
   name is spelled one way throughout; its reference search covers that graph and the project's corrected pages, not
   only other completed documents (hybrid search, limit 5, today); names it confirms go back to the graph; and a place
