@@ -279,6 +279,8 @@ class Choice:
     reasons: list[str] = field(default_factory=list)
     gap: str | None = None
     problem: dict[str, Any] | None = None
+    #: The other candidates that fit, in rank order: what runs when `card` cannot (`candidates-fallback-chain`).
+    chain: list[Card] = field(default_factory=list)
 
 
 #: The hard constraints, in the order they are tried; a refused card names the first it fails. The
@@ -578,9 +580,9 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         why = "; ".join(said(reason, ids) for reason, ids in sorted(by_reason.items())) or "no card names this job"
         gap = f"no model fits this step ({why})"
         return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
-    # Cheapest and local first: start with the best LOCAL candidate; a remote one only when no
-    # local one passes (the A/B, not the rules, decides any move to a costlier option).
-    pool = [c for c in kept if c.local] or kept
+    # Best first (`source.recipe.candidates-fallback-chain`, ruled 2026-10-17): a cloud candidate is already out
+    # unless pages may leave; local and cheaper only break ties inside the accuracy band (`_rank_key`).
+    pool = kept
     if job in READING_JOBS and material == "handwriting" and a.period:
         # A reader that states no period is offered and measured, never the rules' choice, for handwriting of a
         # stated period (#5714): nothing says it reads that hand, and its failure would show only as a poor score.
@@ -600,7 +602,8 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         # The embedder: the one this engine's search embeds with, where its card covers all the project's
         # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.
         pool = sorted(pool, key=lambda c: (other_space(c, a), c.size_gb, c.id))[:1]
-    best = sorted(pool, key=lambda c: _rank_key(c, material, a))[0]
+    ranked = sorted(pool, key=lambda c: _rank_key(c, material, a))
+    best, chain = ranked[0], ranked[1:]
     reasons = [f"its card names this job; covers {', '.join(sorted(a.scripts))}"]
     if made_for_script(best, a):
         reasons.append(f"made for {', '.join(sorted(a.scripts))}")
@@ -629,7 +632,7 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     reasons.append("runs on this Mac, free" if best.local else f"runs on {best.runs_on}")
     if best.trainable:
         reasons.append("trainable on your corrections")
-    return Choice(job, best, reasons=reasons)
+    return Choice(job, best, reasons=reasons, chain=chain)
 
 
 def _chosen(choice: Choice) -> dict[str, Any]:
@@ -645,6 +648,7 @@ def _chosen(choice: Choice) -> dict[str, Any]:
             "memory_gb": card.memory_gb, "cer_measured_here": card.cer_measured_here,
             "cer_published": card.cer_published, "trainable": card.trainable, "source": card.source,
         },
+        "chain": [{"id": c.id, "model": dict(c.pin), "runs_on": c.runs_on} for c in choice.chain],
     }
 
 
