@@ -65,7 +65,7 @@ def test_iiif_pages_are_fetched_on_the_login_node_and_the_shard_reads_them_offli
     """WHY (compute nodes have no internet): a package of IIIF pages is prefetched into itself on the
     login node; a shard then reads without a single request."""
     run = describe_slurm_read(ACENET, _package(3, iiif=True))
-    assert run.prefetch[:4] == ["ssh", "-p", "22", "historian@siku"] and "--prefetch" in run.prefetch[-1]
+    assert run.prefetch[:5] == ["ssh", "-p", "22", "--", "historian@siku"] and "--prefetch" in run.prefetch[-1]
 
     package = tmp_path / "pkg"
     (package / "_fichero").mkdir(parents=True)
