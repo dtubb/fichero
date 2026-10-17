@@ -166,7 +166,9 @@ def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
     config_defaults={
         "vision_mode": "llm",
         "language": "auto",
-        "update_page_content": True,
+        # The page's text is constructed from the lines the review writes readings onto, never a blob of its own
+        # (`source.model.page-text-is-constructed-from-the-segments`, #5486).
+        "update_page_content": False,
         "save_to_db": True,
     },
     default_prompt=_DEFAULT_REVIEW_PROMPT,
@@ -217,7 +219,7 @@ async def transcribe_review(
         prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
     input_metadata = inputs.get("metadata")
 
-    update_page_content = inputs.get("update_page_content", True)
+    update_page_content = inputs.get("update_page_content", False)
     prompt, profile_said = inputs.get("prompt"), None
     if not prompt and inputs.get("lens"):
         prompt, profile_said = _project_prompt(inputs["lens"], state.get("library_path", ""))
