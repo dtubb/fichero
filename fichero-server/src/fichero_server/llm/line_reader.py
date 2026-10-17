@@ -18,7 +18,7 @@ import json
 import logging
 import re
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageStat
 
 from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read, finish_reason_of, is_truncation
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
@@ -47,17 +47,26 @@ PROMPT = (
 
 
 def crop_line(page: Image.Image, polygon_px: list) -> Image.Image:
-    """The line's polygon bounds, padded by a third of its height, at most 1,600 px wide: the
-    picture the teacher reads. A student is trained on exactly this cut (`training.line_pairs`),
-    so it learns the teacher's task and is asked it the same way."""
+    """The line's polygon bounds, padded by a third of its height, at most 1,600 px wide, with everything
+    outside the polygon (a sixth of its height beyond it, for ascenders) painted the crop's paper colour,
+    so no neighbouring line shows (#5445): the picture the teacher reads. A student is trained on exactly
+    this cut (`training.line_pairs`), so it learns the teacher's task and is asked it the same way."""
     xs = [p[0] for p in polygon_px]
     ys = [p[1] for p in polygon_px]
-    pad = (max(ys) - min(ys)) / 3
-    crop = page.crop((max(0, min(xs) - pad), max(0, min(ys) - pad),
-                      min(page.width, max(xs) + pad), min(page.height, max(ys) + pad)))
+    height = max(ys) - min(ys)
+    pad = height / 3
+    box = tuple(round(v) for v in (max(0, min(xs) - pad), max(0, min(ys) - pad),
+                                   min(page.width, max(xs) + pad), min(page.height, max(ys) + pad)))
+    crop = page.crop(box).convert("RGB")
+    mask = Image.new("L", crop.size, 0)
+    shape = [(x - box[0], y - box[1]) for x, y in polygon_px]
+    draw = ImageDraw.Draw(mask)
+    draw.polygon(shape, fill=255)
+    draw.line(shape + shape[:1], fill=255, width=max(1, round(pad)), joint="curve")
+    crop = Image.composite(crop, Image.new("RGB", crop.size, tuple(ImageStat.Stat(crop).median)), mask)
     if crop.width > _MAX_CROP_WIDTH:
         crop = crop.resize((_MAX_CROP_WIDTH, round(crop.height * _MAX_CROP_WIDTH / crop.width)))
-    return crop.convert("RGB")
+    return crop
 
 
 def prompt_for(n: int, language: str | None = None) -> str:
