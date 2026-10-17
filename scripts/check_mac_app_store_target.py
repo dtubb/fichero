@@ -276,10 +276,20 @@ def check() -> list[str]:
     #    two-key entitlements, and never --deep (which re-signs nested code with the
     #    PARENT's entitlements and silently breaks the inherit rule).
     embed = phase_named(objects, mas, "Embed Fichero Server")
+    # One shared phase (#3982): the App Store section sits between these markers; its assertions read only that
+    # section, because the other half of the phase legitimately embeds in Contents/Resources.
+    def mas_section(phase: dict) -> str:
+        full = shell_of(phase)
+        start = full.find("# --- App Store configuration")
+        end = full.find("# --- end App Store configuration ---")
+        return full[start:end] if 0 <= start < end else ""
+
+    if embed is not None and not mas_section(embed):
+        fail("the Embed Fichero Server phase has no marked '# --- App Store configuration' section for the App Store build")
     if embed is None:
         fail(f"{MAS_TARGET} has no 'Embed Fichero Server' phase — the archive would ship without an engine")
     else:
-        body = shell_of(embed)
+        body = mas_section(embed)
         if "Contents/Helpers/Fichero Server.app" not in body:
             fail("the MAS engine must be embedded in Contents/Helpers — Resources is not a designated code location")
         if "Contents/Resources/Fichero Server.app" in body:
@@ -376,7 +386,7 @@ def check() -> list[str]:
     # find is indistinguishable from a clean bundle, and an archive full of .dSYMs
     # shipped with a green build.
     if embed is not None:
-        body = shell_of(embed)
+        body = mas_section(embed)
         if 'APP_DST="${TARGET_BUILD_DIR}/${WRAPPER_NAME}"' not in body:
             fail(
                 "the MAS embed phase must resolve the app bundle via TARGET_BUILD_DIR/WRAPPER_NAME. "
