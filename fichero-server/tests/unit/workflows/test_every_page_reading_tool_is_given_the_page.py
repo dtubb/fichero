@@ -95,7 +95,7 @@ def _run(tool, db, test_package, monkeypatch, doc_id: str, **extra) -> str:
               "save_to_db": False, "skip_if_artifact_exists": False, **extra}
     result = asyncio.run(tool(inputs, {"library_path": str(test_package)}, LLMConfig(provider="mock", model="mock")))
     assert not result.get("error"), result
-    [prompt] = prompts
+    prompt = prompts[0]  # the page call; an answer that does not tie is then re-asked line by line (#5720)
     return prompt
 
 

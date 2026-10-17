@@ -195,7 +195,7 @@ async def test_a_review_that_cannot_be_matched_stays_an_artifact_and_says_so(pag
     (review,) = page["db"].query(Artifact, document_id=page["doc"].id, artifact_type="transcription_review")
     assert "y lo firmo" in review.content
     said = result["results"][0]["lines"]
-    assert said.startswith("not tied to lines")
+    assert "gave no reading" in said and "readings are unchanged" in said  # #5720: asked again, then the step fails
     assert any(note.endswith(said) for note in result["notes"])
 
 

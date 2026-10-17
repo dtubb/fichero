@@ -226,22 +226,26 @@ async def transcribe_review(
     if library_path and result.get("artifacts"):
         import asyncio
 
-        await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"))
+        unresolved = await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"))
+        if unresolved:
+            await _re_ask_pages(result, unresolved, library_path, state.get("task_id"), llm_config)
     return result
 
 
-def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None) -> None:
+def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None) -> list[str]:
     """The review's corrections become the page's text (#5654, `source.job.correct-onto-lines`): each
     saved review is put onto its page's lines as readings (`working_lines.correct_lines`), and what was
     done is said per page in the step's notes and its per-file result (`lines`). A review that cannot be
-    matched to the lines stays the page's `transcription_review` artifact, and says "not tied to lines"."""
+    matched to the lines stays the page's `transcription_review` artifact, and says "not tied to lines".
+    Returns the artifacts whose answer left lines out, for `_re_ask_pages` (#5720)."""
     from fichero_server.db import db_manager
-    from fichero_server.llm.working_lines import correct_lines
+    from fichero_server.llm.working_lines import NOT_TIED, correct_lines
     from fichero_server.models import Artifact, Document
 
     db = db_manager.get_database(library_path)
     by_artifact = {r.get("artifact_id"): r for r in result.get("results") or [] if isinstance(r, dict)}
     notes = result.setdefault("notes", [])
+    unresolved: list[str] = []
     for artifact_id in result.get("artifacts") or []:
         artifact = db.get(Artifact, artifact_id) if artifact_id else None
         if artifact is None or artifact.artifact_type != "transcription_review":
@@ -252,3 +256,61 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None) -
         notes.append(f"{getattr(page, 'name', None) or artifact.document_id}: {said}")
         if artifact_id in by_artifact:
             by_artifact[artifact_id]["lines"] = said
+        if said.startswith(NOT_TIED) and "the review gave" in said:
+            unresolved.append(artifact_id)
+    return unresolved
+
+
+async def _re_ask_pages(result: dict[str, Any], artifact_ids: list[str], library_path: str, run_id: str | None,
+                        llm_config) -> None:
+    """A page whose answer left lines out has those lines asked again, cut from the page, and the whole page
+    tied by id (`source.job.correct-re-asks-per-line-when-it-does-not-tie`, #5720). A line still without an
+    answer fails THAT page's step, naming the model and the lines; nothing is written for the page."""
+    import asyncio
+
+    from PIL import Image
+
+    from fichero_server.api.routes.document.segment_readings import counting_texts
+    from fichero_server.db import db_manager
+    from fichero_server.llm.re_ask_lines import re_ask
+    from fichero_server.llm.working_lines import correct_lines, in_pixels, working_lines
+    from fichero_server.models import Artifact, Document
+
+    db = db_manager.get_database(library_path)
+    by_artifact = {r.get("artifact_id"): r for r in result.get("results") or [] if isinstance(r, dict)}
+    notes = result.setdefault("notes", [])
+    for artifact_id in artifact_ids:
+        artifact = db.get(Artifact, artifact_id)
+        page = db.get(Document, artifact.document_id)
+        name = getattr(page, "name", None) or artifact.document_id
+        rows = working_lines(db, artifact.document_id)
+        row_results = by_artifact.get(artifact_id)
+        if rows is None or row_results is None:
+            continue
+        texts = counting_texts(db, rows.lines)
+        answered: dict[str, str] = {}
+        for line in (artifact.content or "").splitlines():
+            head, _bar, rest = line.partition("|")
+            if _bar and head.strip() in {r.id for r in rows.lines}:
+                answered[head.strip()] = rest.strip()
+        left = [r for r in rows.lines if r.id not in answered]
+        with Image.open(page.path) as img:
+            width, height = img.size
+        asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
+                 for r in left]
+        got, missing = await re_ask(page.path, asked, artifact.content or "", llm_config)
+        if missing:
+            model = f"{llm_config.provider}/{llm_config.model}"
+            why = (f"{model} gave no reading for {len(missing)} of the page's {len(rows.lines)} lines "
+                   f"({', '.join(missing)}) when asked again line by line; the page's readings are unchanged")
+            row_results["error"] = f"review of {name} failed: {why}"
+            row_results["lines"] = why
+            notes.append(f"{name}: {why}")
+            continue
+        answered.update(got)
+        text = "\n".join(f"{r.id} | {answered[r.id]}" for r in rows.lines)
+        _made, said = await asyncio.to_thread(
+            correct_lines, db, document_id=artifact.document_id, text=text, artifact_id=artifact.id,
+            run_id=run_id, library_path=library_path)
+        notes.append(f"{name}: {said}")
+        row_results["lines"] = said
