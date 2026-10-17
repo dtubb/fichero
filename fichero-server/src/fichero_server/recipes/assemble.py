@@ -305,9 +305,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
     if (material == "handwriting" and card.handwriting_scripts is not None
             and not (a.scripts <= card.handwriting_scripts)):
         return "no-reader-for-material", "it reads this script printed, never handwritten"
-    if job in READING_JOBS and material == "handwriting" and in_period(card, a) is False:
-        return "no-reader-for-period", (f"it was made for pages of {card.period[0]}–{card.period[1]}, "
-                                        "not the project's period")
+    # A period is never a refusal: another period, or none stated, only lowers the rank (`_period_rank`, ruled 2026-10-17).
     if not card.open_licence:
         return "licence-not-accepted", _licence_words(card.licence)
     if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
@@ -583,14 +581,6 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     # Best first (`source.recipe.candidates-fallback-chain`, ruled 2026-10-17): a cloud candidate is already out
     # unless pages may leave; local and cheaper only break ties inside the accuracy band (`_rank_key`).
     pool = kept
-    if job in READING_JOBS and material == "handwriting" and a.period:
-        # A reader that states no period is offered and measured, never the rules' choice, for handwriting of a
-        # stated period (#5714): nothing says it reads that hand, and its failure would show only as a poor score.
-        stated = [c for c in pool if c.period is not None] or [c for c in kept if c.period is not None]
-        if not stated:
-            gap = "no reader states that it reads pages of this period; the bake-off measures the ones that state none"
-            return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
-        pool = stated
     if job == "find-lines" and material in APPLE_LINES_MATERIALS:
         # Print and typescript: Apple finds the lines and keeps no text; a hand is Kraken's (#5451, ruled 2026-10-17).
         pool = [c for c in pool if c.pin == APPLE_LINES_PIN] or pool
