@@ -1040,7 +1040,7 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
   title and pin) is removed. Prerequisite for `panes.chrome.head-and-footer-not-shared` (#4880),
   since less chrome leaves one component to tune.
-- `panes.chrome.breadcrumb-only-when-pinned` — **[GAP]** (#5437) the breadcrumb shows only on a
+- `panes.chrome.breadcrumb-only-when-pinned` — **[OK]** (#5437, macOS; iOS keeps the crumb, it has no toolbar path; pinned by `BreadcrumbOnlyWhenPinnedShapeTests`) the breadcrumb shows only on a
   pinned pane; on an unpinned pane it repeats the window toolbar and is hidden.
 - `panes.chrome.breadcrumb-opens-like-the-sidebar` — **[PARTIAL]** (#5633; implemented with unit
   tests, not yet built or seen in the app) clicking a folder (or library) crumb in any pane head

@@ -109,11 +109,22 @@ struct PaneHead<Selector: View, Controls: View, Tools: View>: View {
         return paneCloseAction != nil || onClose != nil
     }
 
+    /// `panes.chrome.breadcrumb-only-when-pinned` (#5437): on macOS the window toolbar already shows the
+    /// path, so an unpinned pane's crumb repeats it and is hidden; a pinned pane keeps it, where it says
+    /// what the pane is held on. iOS has no window toolbar path, so the crumb stays.
+    private var showsBreadcrumb: Bool {
+        #if os(macOS)
+        return isPinned?.wrappedValue ?? false
+        #else
+        return true
+        #endif
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: PaneHeadMetrics.rowSpacing) {
             HStack(spacing: PaneHeadMetrics.capsuleSpacing) {
                 identityCapsule
-                breadcrumbCapsule
+                if showsBreadcrumb { breadcrumbCapsule }
                 Spacer(minLength: PaneHeadMetrics.capsuleSpacing)
                 controlsCapsule
             }
