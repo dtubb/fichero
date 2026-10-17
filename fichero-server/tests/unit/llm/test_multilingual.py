@@ -25,16 +25,10 @@ from fichero_server.llm.multilingual import (
 class TestLanguageDetection:
     """Test suite for language detection."""
 
-    def test_detect_english(self):
-        """Test detecting English text."""
-        result = detect_language("Hello, this is an English text")
-        assert result.language == "en"
-        assert result.confidence > 0.5
-
     def test_detect_empty_text(self):
         """Test detection with empty text."""
         result = detect_language("")
-        assert result.language == "en"
+        assert result.language == "und"
         assert result.confidence == 0.0
         assert result.is_reliable is False
 

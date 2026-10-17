@@ -188,6 +188,8 @@ async def language_identification(
     by_lang_conf: dict[str, list[float]] = defaultdict(list)
     for chunk in chunks:
         result = detect_language(chunk)
+        if result.language == "und":  # not reliable is no signal (#5572)
+            continue
         by_lang_conf[result.language].append(float(result.confidence))
 
     # No signal is not English. This used to do `by_lang_conf["en"].append(0.0)`
