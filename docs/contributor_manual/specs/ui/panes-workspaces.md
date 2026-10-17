@@ -1477,7 +1477,7 @@ workspaces store a `PaneList`, the window is *always* a `PaneList`, the Bool-vis
 > "We might want 3 columns, one long below — or even four columns and 2 below. And remember: one
 > system, not multiple systems."
 
-- `workspaces.pane-list-is-the-split-model` — **[RATIFIED]** the window is ALWAYS a `PaneList`, and
+- `workspaces.pane-list-is-the-split-model` — **[GAP]** (#4705) **[RATIFIED]** the window is ALWAYS a `PaneList`, and
   ALL splits — including the rich compositions the CD wants (3 columns over one wide pane; 4 columns
   over 2) — are expressed by `PaneList`'s NESTED splits, e.g. `3-cols-over-1-wide` =
   `split(.vertical, [ split(.horizontal, [a, b, c]), d ])`; `4-over-2` =
