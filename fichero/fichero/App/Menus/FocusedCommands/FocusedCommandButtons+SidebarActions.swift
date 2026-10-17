@@ -35,20 +35,24 @@ struct FocusedImportFilesButton: View {
 
     var body: some View {
         Menu("Import") {
+            #if os(macOS)  // a phone imports by copy only: no link, no move (#3282)
             Button("Link Files...") {
                 importAction?(.link)
             }
             .keyboardShortcut("i", modifiers: [.command])
 
+            #endif
             Button("Copy Files...") {
                 importAction?(.copy)
             }
             .keyboardShortcut("i", modifiers: [.command, .option])
 
+            #if os(macOS)
             Button("Move Files...") {
                 importAction?(.move)
             }
             .keyboardShortcut("i", modifiers: [.command, .shift])
+            #endif
         }
         .disabled(importAction == nil)
     }
