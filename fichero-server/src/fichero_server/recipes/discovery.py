@@ -515,6 +515,8 @@ def candidate_availability(card: Card) -> tuple[str, str]:
     Mac, it can be downloaded (and how big), it runs elsewhere, or Fichero cannot run it yet."""
     if not card.runs_here:
         return "not_here", f"Fichero cannot run it yet ({card.cannot_run_because or 'not in this build'})"
+    if card.runs_on == REMOTE_RUNS_ON:
+        return "elsewhere", f"Runs on remote compute ({REMOTE_WHERE})"
     if not card.local:
         where = card.runs_on.split(":", 1)[-1] if card.runs_on.startswith("cloud:") else "a machine of yours"
         return "elsewhere", f"Runs at {where}"
@@ -831,6 +833,60 @@ def _not_runnable_card(model: dict[str, Any], what: str, wanted: frozenset[str])
                    cannot_run_because=f"{kind}, and this build runs MLX builds only")
 
 
+#: Where a model too big for this Mac runs: the Hugging Face Jobs the engine already sends reading to
+#: (`remote_read/`, `compute/remote-compute.md`).
+REMOTE_RUNS_ON = "cloud:huggingface-jobs"
+REMOTE_WHERE = "Hugging Face Jobs"
+
+
+def remote_compute(*, price: bool = True) -> dict[str, Any]:
+    """The person's remote compute, as the finder offers it (#5717): whether Hugging Face Jobs is set up (a token in
+    Settings), the hardware a read would use and its listed price an hour. `price` asks the service for it (the
+    network: only behind a search the person asked for); without it, or when the service cannot be reached, the
+    price is None and said unknown, never invented. Not set up: `available` False and `why` says what to add."""
+    from fichero_server.training import hf_jobs
+
+    out = {"available": False, "where": REMOTE_WHERE, "flavor": hf_jobs.DEFAULT_FLAVOR, "price_per_hour_usd": None,
+           "why": ""}
+    try:
+        target = hf_jobs.HfJobsTarget()
+    except (hf_jobs.NoHuggingFaceToken, RuntimeError) as exc:
+        return {**out, "why": str(exc)}
+    out["available"] = True
+    if price:
+        try:
+            out["price_per_hour_usd"] = target.price_per_hour(out["flavor"])
+        except Exception as exc:  # noqa: BLE001 -- unreachable or unlisted: the price is unknown, the model still offered
+            logger.info("the price of %s on Hugging Face Jobs could not be read: %s", out["flavor"], exc)
+    return out
+
+
+def _remote_vlm(model: dict[str, Any]) -> bool:
+    """A vision-language model in standard Hugging Face form (safetensors, transformers) that no MLX build covers:
+    the kind the remote reader runs (`remote_read.job.VLM_DEPENDENCIES`)."""
+    return (model.get("pipeline_tag") == "image-text-to-text" and "safetensors" in (model.get("tags") or [])
+            and not _runs_on_mlx(model) and not _gguf_only(model))
+
+
+def _remote_card(model: dict[str, Any], what: str, remote: dict[str, Any], wanted: frozenset[str]) -> Card:
+    """A reader that needs a bigger machine than this Mac, offered for the person's remote compute: where it would
+    run, the hardware's price an hour and its size (two bytes a weight, from the listing's count), the pages leaving
+    this Mac said. Never the rules' choice. With no remote compute set up it says why it is unavailable."""
+    from dataclasses import replace
+
+    weights = int(((model.get("safetensors") or {}).get("total")) or 0)
+    price = remote["price_per_hour_usd"]
+    how = (f"runs on remote compute ({remote['where']}, {remote['flavor']}, "
+           + (f"about ${price:.2f} an hour" if price is not None else "price not listed")
+           + "); the pages leave this Mac"
+           + (f"; about {weights * 2 / 1e9:.0f} GB of weights" if weights else "; size not stated"))
+    card = _hf_card(model, what, how, wanted)
+    return replace(card, id=card.id.replace("mlx:hf/", "remote:hf/"), runs_on=REMOTE_RUNS_ON, trainable=False,
+                   offered_only=True, size_gb=round(weights * 2 / 1e9, 1) if weights else 0.0,
+                   runs_here=bool(remote["available"]),
+                   cannot_run_because="" if remote["available"] else remote["why"])
+
+
 def _catalogue_repo(repo: str) -> bool:
     """Whether Fichero's MLX catalogue fetches and runs this repository as it is (#5665: a checkpoint mlx-vlm
     loads directly)."""
@@ -865,6 +921,7 @@ async def search_hugging_face(languages: frozenset[str],
     found: dict[str, Card] = {}
     left_out: set[str] = set()
     originals: list[tuple[dict[str, Any], str]] = []
+    vlms: dict[str, tuple[dict[str, Any], str]] = {}  # reader VLMs no MLX build covers: offered for remote compute
     queries, asked = len(HF_READER_TASKS) * len(filters) * 2, 0
     for task in HF_READER_TASKS:
         for tags in filters:
@@ -885,6 +942,8 @@ async def search_hugging_face(languages: frozenset[str],
                     elif (not mlx and what is not None and not _runs_on_mlx(m) and not _gguf_only(m)
                           and "safetensors" in (m.get("tags") or [])):
                         originals.append((m, what))
+                        if _remote_vlm(m):
+                            vlms[str(m.get("modelId") or m.get("id"))] = (m, what)
     downloads: dict[str, int] = {}
     not_runnable: dict[str, Card] = {}
 
@@ -895,6 +954,8 @@ async def search_hugging_face(languages: frozenset[str],
         downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
         if what is None or repo in found:
             return
+        if _remote_vlm(m) and not _catalogue_repo(repo):
+            vlms[repo] = (m, what)
         if _runs_on_mlx(m) and not _gguf_only(m):
             found.setdefault(repo, _hf_card(m, what, "an MLX build on Hugging Face that runs on this Mac", languages))
         elif _catalogue_repo(repo):
@@ -949,6 +1010,14 @@ async def search_hugging_face(languages: frozenset[str],
                     languages, _hub_tags(original)))
                 break
     converted = {str(c.offered_because).split("the MLX conversion of ", 1)[-1].split(" ", 1)[0] for c in found.values()}
+    if any(repo not in converted and repo not in found for repo in vlms):
+        remote = remote_compute()  # one look at the account and its price for the whole search
+        for repo, (m, what) in vlms.items():
+            if repo in converted or repo in found:
+                continue
+            not_runnable.pop(repo, None)
+            downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
+            found[f"remote:{repo}"] = _remote_card(m, what, remote, languages)
     for repo, card in not_runnable.items():
         if repo not in converted and repo not in found:
             found.setdefault(f"not-runnable:{repo}", card)
@@ -1010,7 +1079,7 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
                        "material": sorted(card.material), "licence": card.licence, "note": card.note,
                        "offered_because": card.offered_because, "size_gb": card.size_gb,
                        "runs_here": card.runs_here, "cannot_run_because": card.cannot_run_because,
-                       "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now}
+                       "runs_on": card.runs_on, "found_for": sorted({*before.get("found_for", []), *languages}), "found_at": now}
     left = dict(data.get("left_out") or {})
     left[_languages_key(languages)] = left_out
     folder = _store_root()
@@ -1023,6 +1092,8 @@ def keep_hub(cards: list[Card], languages: frozenset[str], left_out: int = 0) ->
 def _hub_key(card: Card) -> str:
     """Where a kept Hub reader is filed: its repository, or `not-runnable:<repo>` for one this build cannot run, so
     the MLX conversion of a model and the model itself are both kept."""
+    if card.runs_on == REMOTE_RUNS_ON:
+        return f"remote:{card.pin['hf']}"
     return str(card.pin["hf"]) if card.runs_here else f"not-runnable:{card.pin['hf']}"
 
 
@@ -1030,21 +1101,25 @@ def hub_cards(languages: frozenset[str] | None, skip_repos: set[str] = frozenset
               runnable_only: bool = True) -> list[Card]:
     """The kept Hub readers found for any of these languages (every one kept, for None: a card looked up by its
     id), as cards the rules rank, except those whose repository another card already pins (a shipped card, or
-    the installed copy once downloaded)."""
+    the installed copy once downloaded). A model that runs on remote compute (#5717) is offered to the person only:
+    never in the rules' view (`runnable_only`), and it has no download."""
     out = []
     for key, row in sorted(cached_hub().items()):
         repo = str(row.get("repo") or key)
         runs_here = bool(row.get("runs_here", True))
+        runs_on = str(row.get("runs_on") or "this-mac")
+        remote = runs_on != "this-mac"
         if repo in skip_repos or (languages is not None and not languages & set(row.get("found_for") or ())):
             continue
-        if runnable_only and not runs_here:
+        if runnable_only and (not runs_here or remote):
             continue
         out.append(Card(
-            id=f"{'mlx' if runs_here else 'hf'}:hf/{repo}@main", pin={"hf": repo, "revision": "main"},
+            id=f"{'remote' if remote else 'mlx' if runs_here else 'hf'}:hf/{repo}@main",
+            pin={"hf": repo, "revision": "main"}, runs_on=runs_on, offered_only=remote,
             jobs=READER_JOBS, runs_here=runs_here, cannot_run_because=str(row.get("cannot_run_because") or ""),
             scripts=frozenset(row["scripts"]) if row.get("scripts") else None,
             languages=_tags(row.get("languages")), material=frozenset(row.get("material") or ()),
-            open_licence=_is_open(str(row.get("licence") or "")), trainable=True,
+            open_licence=_is_open(str(row.get("licence") or "")), trainable=not remote,
             size_gb=float(row.get("size_gb") or 0), licence=str(row.get("licence") or ""),
             note=str(row.get("note") or repo.rsplit("/", 1)[-1]), source="hugging-face",
             offered_because=str(row.get("offered_because") or "found on Hugging Face"),
@@ -1276,6 +1351,16 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
         sources.append({"source": "remote-endpoints", "state": "read", "count": len(here),
                         "detail": (f"{len(here)} at your remote endpoints" if here
                                    else "No remote endpoint with a vision model is set up")})
+        # The remote compute models too big for this Mac would run on, and the sources not searched, said (#5717).
+        compute = remote_compute(price=False)
+        sources.append({"source": "remote-compute", "state": "read", "count": sum(c.runs_on == REMOTE_RUNS_ON
+                                                                                for c in hf_cards),
+                        "detail": (f"Remote compute: {compute['where']}" if compute["available"]
+                                   else "Remote compute: not set up (needs a token)")})
+        sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
+                     "detail": "Transkribus models: not searched"},
+                    {"source": "htr-united", "state": "not-searched", "count": 0,
+                     "detail": "HTR-United: not searched"}]
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
 
 

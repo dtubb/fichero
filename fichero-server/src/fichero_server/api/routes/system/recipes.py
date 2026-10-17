@@ -820,7 +820,8 @@ async def check(request: CheckRequest) -> CheckResponse:
 # Finding models beyond the shipped cards (#5519): the candidates the rules see, and where they came from.
 # =============================================================================
 
-CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face", "remote", "remote-endpoints"]
+CardSource = Literal["shipped", "installed", "kraken-repository", "hugging-face", "remote", "remote-endpoints",
+                     "remote-compute", "transkribus", "htr-united"]
 
 
 class CandidateSource(BaseModel):
