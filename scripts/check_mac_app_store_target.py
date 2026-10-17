@@ -449,6 +449,18 @@ def check() -> list[str]:
         if "Sparkle" in text:
             fail(f"{SCHEME.name} references Sparkle")
 
+    # 5b. Every shared scheme must reference a target that exists, by its real id and name
+    #     (a stale "Fichero (App Store)" blueprint made Archive impossible), and the App Store
+    #     scheme must build the app for archiving.
+    by_id = {k: v.get("name") for k, v in objects.items() if v.get("isa") == "PBXNativeTarget"}
+    for scheme in sorted(SCHEME.parent.glob("*.xcscheme")):
+        stext = scheme.read_text()
+        for ident, name in re.findall(r'BlueprintIdentifier = "([^"]+)"\s+BuildableName = "[^"]*"\s+BlueprintName = "([^"]*)"', stext):
+            if by_id.get(ident) != name:
+                fail(f"{scheme.name} references target {name!r} ({ident}), which is not in the project")
+    if SCHEME.is_file() and not re.search(r'buildForArchiving = "YES"', SCHEME.read_text()):
+        fail(f"{SCHEME.name} has no BuildActionEntry with buildForArchiving = YES")
+
     # 6. Sparkle's Info.plist keys must not reach the App Store bundle. The plist is
     #    shared with the DMG target, so a build phase strips them; if that phase goes,
     #    the binary silently starts advertising an update feed again.
