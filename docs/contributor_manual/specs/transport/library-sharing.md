@@ -69,7 +69,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
   enforced, checks health, and stores the token in the Keychain with its expiry, the pin, the host
   and the library path (`RemoteClientPairingFlow.swift`). Never run between two Macs (#5049).
-- `sharing.library-confirmed` — **[OK]** (#3273; pinned by `fichero/Tests/Unit/general/Transport/RemoteClientPairingLibraryConfirmTests.swift`, `RemoteClientPairingFlow.confirmLibraryAccess`) before opening, the Mac asks the host whether it may open the invite's library. Swift tests run only on the M4 (#4511); issue stays open with needs-your-test.
+- `sharing.library-confirmed` — **[PARTIAL]** (#3273; pinned by `fichero/Tests/Unit/general/Transport/RemoteClientPairingLibraryConfirmTests.swift`, `RemoteClientPairingFlow.confirmLibraryAccess`) before opening, the Mac asks the host whether it may open the invite's library. Swift tests run only on the M4 (#4511); issue stays open with needs-your-test.
 - `sharing.opens-the-library` — **[PARTIAL]** (→ #5049, read, not run) the second Mac switches its active host to the
   first, adopts the invite's library and lists the host's libraries from `/api/authz/libraries`;
   the library path header names the path ON THE HOST. One host at a time for the whole app (#2573).
