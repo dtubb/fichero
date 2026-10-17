@@ -2448,7 +2448,7 @@ Jobs and chains
   stayed a page text tied to no line (its pass has no segments, its geometry "not supported"). *Test:* a model that
   answers by id only when the prompt asks for it ties its corrections to the lines; one asked nothing answers a
   paragraph and the step says "not tied to lines".
-- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[GAP]** (#5720, #5722) hybrid, decided 2026-10-16: a
+- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[PARTIAL]** (#5722; re-ask and page failure done, #5720, test_review_re_asks_lines_5720.py; the per-model batch limit is still eight for every model) hybrid, decided 2026-10-16: a
   correction is first asked of the whole page (one call, the image and every line with its id and box, the answer
   `id | text` per line, #5719); the lines it leaves out or cannot match are then re-asked in batches of up to eight,
   each line cut from the page and sent with its current text, the page's own text beside it for context, the model
