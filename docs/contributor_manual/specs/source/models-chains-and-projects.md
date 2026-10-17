@@ -2454,7 +2454,7 @@ Jobs and chains
   pairs (the code is in `training/`; no workflow seen, to be confirmed). Workflows with no recipe job today (not gaps
   by themselves): `paleo_regesto`, `paleo_translate_english`, the translate set, `extract_geo`, `extract_table`,
   `extract_events_timeline`, `describe_visual`, `clean_up_text`, `ner_per_page_local`, the `convert_to_*` set.
-- `source.job.find-the-script` — **[OK]** (#5726; R1 2026-10-17; tested in `fichero-server/tests/unit/recipes/test_find_the_script_job_5726.py`, written during the gate3 pause: a smoke run of the same checks passed, the pytest file is not yet run) a recipe can name a step that finds a page's script and hand
+- `source.job.find-the-script` — **[OK]** (#5726; R1 2026-10-17; tested in `fichero-server/tests/unit/recipes/test_find_the_script_job_5726.py`, 3 pass, run alone 2026-10-17 after the gate3 pause) a recipe can name a step that finds a page's script and hand
   (the classify step on its own, the shipped workflow Classify Script), so a project whose script is not known classifies it
   without running Transcribe (Auto-Detect). It takes the page image and gives the script; it is a vision-model step, run with
   the step's own model like Correct (a cloud, MLX or Apple model); it is in no purpose's default steps, so no recipe changes
