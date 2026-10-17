@@ -56,8 +56,8 @@ Cross-cutting invariants (all configs):
 - `platform.supports-tahoe-and-golden-gate` — **[GAP]** (#5730) the app builds, launches and works on macOS 26
   and 27, iOS 26 and 27. Test: `fichero-server/tests/unit/scripts/test_platform_floor_to_spec.py`.
 - `platform.27-only-api-gated` — **[GAP]** (#5730) every 27-only API (Foundation Models image input and OCR tool,
-  Core AI, 27 adapters) sits behind an availability check, with a 26 path where one exists. Test:
-  `fichero/Tests/Unit/PlatformAvailabilityTests.swift`.
+  Core AI, 27 adapters) sits behind an availability check, with a 26 path where one exists. Checked by a Mac + iOS build at floor 26
+  (an ungated 27 API fails to compile there); no source-scan test.
 - `platform.needs-27-said-plainly` — **[GAP]** (#5730) where no 26 path exists the UI says "needs macOS 27"
   rather than failing or hiding the control. Test: `fichero/Tests/Unit/PlatformAvailabilityTests.swift`.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
