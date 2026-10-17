@@ -5704,9 +5704,11 @@ def fichero_pairing_pair_device(
     *,
     code: Annotated[str, Field(description='Code.')],
     device_name: Annotated[str, Field(description='Device Name.')],
+    password: Annotated[Optional[str], Field(description='Password.')] = None,
+    username: Annotated[Optional[str], Field(description='Username.')] = None,
 ) -> Any:
     'Pair Device\n\nExchange a valid one-time pairing code for a device token.\n\nRoute: POST /api/pair (toolset `pairing`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name}))
+    return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name, "password": password, "username": username}))
 
 
 def fichero_pairing_create_code(

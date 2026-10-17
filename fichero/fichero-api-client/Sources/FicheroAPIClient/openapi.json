@@ -76377,6 +76377,16 @@
             "type": "string",
             "minLength": 1,
             "title": "Device Name"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "nullable": true,
+            "title": "Password"
           }
         },
         "type": "object",
