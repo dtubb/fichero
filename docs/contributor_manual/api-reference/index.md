@@ -348,6 +348,43 @@ exposes them.
 - Response: `200` with `PairResponse`. The enrollment secret is not itself a
   device credential, so the returned token remains independently revocable.
 
+### This Mac's tailnet address
+
+`GET /api/pair/tailnet`
+
+- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the
+  share sheet to offer (#5318). Behind pairing auth.
+- Response: `200` with `TailnetOfferResponse`.
+
+### Cluster connection (ACENet)
+
+`POST /api/hpc/clusters/{cluster_id}/check`
+
+- Purpose: the live check on the login node: hostname, storage, Apptainer,
+  GPUs and fair share (`compute.connect.check-really-checks`).
+- Response: `200` with `HpcCheckResponse`.
+
+`PUT /api/hpc/clusters/{cluster_id}/key` and
+`DELETE /api/hpc/clusters/{cluster_id}/key`
+
+- Purpose: the app pushes the cluster's private key into the engine's own
+  folder, or removes it; the key is never read back.
+- Request body (PUT): `HpcKeyPush`.
+- Response: `200` with `HpcKeyState`.
+
+`POST /api/hpc/clusters/{cluster_id}/sign-in`
+
+- Purpose: open the one connection to the cluster; ssh's prompts come out of
+  `GET /api/hpc/prompts` for the app to answer.
+- Response: `200` with `HpcKeyState`.
+
+`GET /api/hpc/prompts` and `POST /api/hpc/prompts/{prompt_id}`
+
+- Purpose: what a cluster login is waiting on (a second factor, a
+  passphrase), and the person's answer to one. Owner only.
+- Request body (POST): `HpcPromptAnswer`.
+- Response: `200` with `HpcPromptList`.
+
 ### Agent workspace membership
 
 `PATCH /api/chat/workspaces/{workspace_id}/members`
