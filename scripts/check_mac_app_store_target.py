@@ -95,6 +95,27 @@ def check() -> list[str]:
         return list(failures)
 
     mas = dmg = found[DMG_TARGET]
+
+    # App Review 2.4.5(vii): Sparkle must NOT ship inside the App Store bundle. With one target Sparkle is
+    # linked for every configuration, so a phase must delete Sparkle.framework from the App Store build
+    # (a stripped Info.plist alone still ships the updater). The phase runs after the frameworks are embedded.
+    remove = phase_named(objects, dmg, "Remove Sparkle (App Store)")
+    if remove is None:
+        fail(
+            "the Fichero target has no 'Remove Sparkle (App Store)' build phase: Sparkle.framework would ship "
+            "inside the App Store build (App Review 2.4.5(vii)); a stripped Info.plist is not enough"
+        )
+    else:
+        rbody = shell_of(remove)
+        if "Sparkle.framework" not in rbody or "rm -rf" not in rbody:
+            fail("the 'Remove Sparkle (App Store)' phase must rm -rf Sparkle.framework from the bundle")
+        if MAS_CONFIG not in rbody and "FICHERO_APP_STORE" not in rbody:
+            fail(f"the 'Remove Sparkle (App Store)' phase must act only for the {MAS_CONFIG!r} configuration, never the DMG build")
+        names = [objects[p].get("name") or objects[p].get("isa") for p in dmg["buildPhases"]]
+        framework_phases = [i for i, n in enumerate(names) if n in ("PBXCopyFilesBuildPhase", "Embed Fichero Server")]
+        if framework_phases and names.index("Remove Sparkle (App Store)") < max(framework_phases):
+            fail("'Remove Sparkle (App Store)' must run AFTER the phases that embed frameworks and the engine")
+
     all_cfgs = configs(objects, dmg)
     if MAS_CONFIG not in all_cfgs:
         fail(f"target {DMG_TARGET!r} has no {MAS_CONFIG!r} build configuration (the App Store build is a configuration, not a second target)")

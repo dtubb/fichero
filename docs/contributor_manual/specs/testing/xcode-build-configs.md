@@ -69,6 +69,11 @@ Cross-cutting invariants (all configs):
   `fichero-server/tests/unit/scripts/test_check_mac_app_store_target.py`. Today the project has no such
   configuration (only Debug, Release, Dev Embedded, Alpha Embedded, Beta Embedded), so the guard fails on the real
   project until the maintainer adds it in Xcode.
+- `config.mas-has-no-sparkle` — **[GAP]** (#5730; App Review 2.4.5(vii)) Sparkle.framework is not inside the App
+  Store build. With one target Sparkle is linked everywhere, so a `Remove Sparkle (App Store)` build phase deletes
+  the framework for the `App Store` configuration only (after the frameworks and the engine are embedded), on top
+  of the Info.plist key strip. Guard: `check_mac_app_store_target.py`. Test:
+  `test_check_mac_app_store_target.py::test_sparkle_is_removed_from_the_app_store_build`.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
   Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
   `::test_mainactor_dropped_from_ficherotests_only_is_caught`.
