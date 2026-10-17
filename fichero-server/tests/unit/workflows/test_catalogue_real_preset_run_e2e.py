@@ -48,6 +48,7 @@ from fichero_server.workflows.default_workflows import _load_preset_files
 from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
 import fichero_server.workflows.tools  # noqa: F401
+from tests._real_state_guard import skip_without_embedding_model
 
 
 def _catalogue_workflow() -> Workflow:
@@ -222,6 +223,7 @@ class TestTheShippedPresetsOwnNodesRun:
     harness that swaps out over half the shipped preset proves nothing about
     the shipped preset."""
 
+    @skip_without_embedding_model
     def test_the_chain_lands_its_durable_output_on_the_folder(
         self, two_folder_library, monkeypatch
     ):

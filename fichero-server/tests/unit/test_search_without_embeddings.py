@@ -7,6 +7,7 @@ FIRE-PROOF: this test failed (0 hits everywhere) before the fallback."""
 
 from fichero_server.db import EMBEDDINGS_TABLE
 from fichero_server.models import Document, DocType
+from tests._real_state_guard import skip_without_embedding_model
 
 
 def _make_corpus(db):
@@ -114,6 +115,7 @@ class TestPartiallyEmbeddedLibrary:
         assert db.embed(embedded_match).embedded is True
         return never_embedded, embedded_match
 
+    @skip_without_embedding_model
     def test_never_embedded_sibling_is_dropped_by_an_embedded_match_hybrid(self, db):
         never_embedded, embedded_match = self._make_corpus(db)
         results, _total, _stats = db.search(
@@ -126,6 +128,7 @@ class TestPartiallyEmbeddedLibrary:
             "must be found even though a sibling is embedded (#4236)"
         )
 
+    @skip_without_embedding_model
     def test_never_embedded_sibling_is_dropped_by_an_embedded_match_fulltext(self, db):
         never_embedded, embedded_match = self._make_corpus(db)
         results, _total, _stats = db.search(
@@ -135,6 +138,7 @@ class TestPartiallyEmbeddedLibrary:
         assert embedded_match.id in doc_ids
         assert never_embedded.id in doc_ids
 
+    @skip_without_embedding_model
     def test_folder_scope_does_not_change_the_outcome(self, db):
         """Control: this is NOT a folder-scoping bug. The same drop happens
         with or without a folder filter -- folder_id's own recursive walk
@@ -187,6 +191,7 @@ class TestPartiallyEmbeddedLibrary:
         )
         assert [r.document_id for r in results] == [never_embedded.id]
 
+    @skip_without_embedding_model
     def test_an_embedded_but_non_matching_document_does_not_trigger_the_bug(self, db):
         """Control: the trigger is a MATCHING embedded passage, not mere
         embedding presence in the library. An embedded document whose
@@ -217,6 +222,7 @@ class TestPartiallyEmbeddedLibrary:
         )
         assert [r.document_id for r in results] == [never_embedded.id]
 
+    @skip_without_embedding_model
     def test_no_duplicate_when_a_document_is_both_indexed_and_a_fallback_candidate(
         self, db
     ):
@@ -246,6 +252,7 @@ class TestEmbeddedDocIdsCache:
     duplicate, or wrongly skipped and lost.
     """
 
+    @skip_without_embedding_model
     def test_cache_refreshes_after_an_embed(self, db):
         # Q exists and is embedded first, purely to make EMBEDDINGS_TABLE
         # exist so the cache path (as opposed to the "no table" early-out)
@@ -287,6 +294,7 @@ class TestEmbeddedDocIdsCache:
         )
         assert p.id in [r.document_id for r in results]
 
+    @skip_without_embedding_model
     def test_cache_refreshes_after_an_embedding_delete(self, db):
         p = Document(
             name="deed.txt", path="/tmp/deed.txt", doc_type=DocType.file,
@@ -327,6 +335,7 @@ class TestFtsFindsRowsEmbeddedAfterAnEarlierFtsQuery:
     proven directly below, not just argued from the docstring.
     """
 
+    @skip_without_embedding_model
     def test_a_document_embedded_after_an_earlier_fts_query_is_still_found(self, db):
         first = Document(
             name="first.txt", path="/tmp/first.txt", doc_type=DocType.file,

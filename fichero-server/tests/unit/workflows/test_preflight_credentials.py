@@ -194,6 +194,7 @@ def test_keyless_fresh_install_passes_preflight_for_every_default_workflow(
         "AI Convert to Markdown",
         "AI Redraw as SVG",
         "English Secretary Hand (16th–17th C.)",
+        "Classify Script",  # #5726: the script is told from the picture by a vision model
         "Extract Table",
         "Group Same Documents",
         "Latin Paleography",

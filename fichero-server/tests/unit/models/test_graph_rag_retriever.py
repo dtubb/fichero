@@ -1,6 +1,7 @@
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import Document
 from fichero_server.retrieval.graph_rag import GraphAwareRetriever, RetrievalPayload
+from tests._real_state_guard import skip_without_embedding_model
 
 
 class TestRetrievalPayload:
@@ -393,6 +394,7 @@ class TestGraphAwareRetriever:
         assert "kg-claim:claim-c2" not in claim_ids
         assert payload.kg_claims_used == 2
 
+    @skip_without_embedding_model
     def test_injected_claims_are_ranked_by_query_relevance(self, db):
         """2026-08-11: the max_kg_claims cut used to be (seed-first, UUID) —
         which claims reached the prompt was arbitrary while the stored claim

@@ -8,6 +8,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaim,
     KnowledgeEntity,
 )
+from tests._real_state_guard import skip_without_embedding_model
 
 
 class TestRebuildKg:
@@ -21,6 +22,7 @@ class TestRebuildKg:
             "triples_written": 0,
         }
 
+    @skip_without_embedding_model
     def test_indexes_existing_entities_into_lancedb(self, db):
         ent = KnowledgeEntity(
             canonical_name="Test Person",
@@ -69,6 +71,7 @@ class TestRebuildKg:
         assert "Davidson" in text
         assert "signed" in text  # predicate URI carries the slugified verb
 
+    @skip_without_embedding_model
     def test_idempotent_rerun(self, db):
         ent = KnowledgeEntity(
             canonical_name="Eugenio Córdoba",

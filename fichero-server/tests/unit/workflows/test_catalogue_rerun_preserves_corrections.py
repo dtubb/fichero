@@ -37,6 +37,7 @@ from fichero_server.models import Artifact
 from fichero_server.workflows.selection import SelectionKind, WorkflowSelection
 
 import fichero_server.workflows.tools  # noqa: F401
+from tests._real_state_guard import skip_without_embedding_model
 
 
 CORRECTION = "Firmado por Ocampo, no por Ospina. — corregido a mano"
@@ -77,6 +78,7 @@ def _correct_artifact(library_path: Path, artifact_id: str) -> None:
     )
 
 
+@skip_without_embedding_model
 def test_a_rerun_does_not_delete_a_corrected_catalogue_artifact(
     two_folder_library, monkeypatch  # noqa: F811
 ):
@@ -139,6 +141,7 @@ def test_a_rerun_does_not_overwrite_corrected_container_page_content(
     )
 
 
+@skip_without_embedding_model
 def test_the_reruns_version_is_recorded_beside_her_correction(
     two_folder_library, monkeypatch  # noqa: F811
 ):
@@ -171,6 +174,7 @@ def test_the_reruns_version_is_recorded_beside_her_correction(
     assert original_machine_text is not None
 
 
+@skip_without_embedding_model
 def test_a_workflow_actors_edit_is_not_mistaken_for_a_correction(
     two_folder_library, monkeypatch  # noqa: F811
 ):
@@ -256,6 +260,7 @@ def test_uncorrected_stage1_artifacts_still_do_not_accumulate(
     assert not duplicated, f"stage-1 output accumulated across re-runs: {duplicated}"
 
 
+@skip_without_embedding_model
 def test_uncorrected_catalogue_artifacts_still_do_not_accumulate(
     two_folder_library, monkeypatch  # noqa: F811
 ):

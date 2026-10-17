@@ -26,6 +26,7 @@ from fichero_server.models.knowledge import ClaimType, EntityType
 from fichero_server.db import SearchAnchor, SearchExcerpt, SearchResult
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import AccountUser, DocType, Document, FileType, KGGraphListResponse, SavedSearch
+from tests._real_state_guard import skip_without_embedding_model
 
 
 # ---------------------------------------------------------------------------
@@ -645,6 +646,7 @@ class TestEnhancedSearch:
         assert query_in_calls[0][0] == "parent_id"
         assert set(query_in_calls[0][1]) == {parent_a.id, parent_b.id}
 
+    @skip_without_embedding_model
     def test_default_search_includes_content_entities_and_claims(self, client, db, monkeypatch):
         doc, entity, claim = _seed_semantic_search_scope_library(db)
         monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
@@ -670,6 +672,7 @@ class TestEnhancedSearch:
         assert [item["id"] for item in body["entity_hits"]] == [entity.id]
         assert [item["id"] for item in body["claim_hits"]] == [claim.id]
 
+    @skip_without_embedding_model
     def test_entities_scope_query_returns_only_entity_hits(self, client, db, monkeypatch):
         _, entity, _ = _seed_semantic_search_scope_library(db)
         monkeypatch.setattr(
@@ -689,6 +692,7 @@ class TestEnhancedSearch:
         assert [item["id"] for item in body["entity_hits"]] == [entity.id]
         assert body["claim_hits"] == []
 
+    @skip_without_embedding_model
     def test_include_subsets_gate_each_search_surface(self, client, db, monkeypatch):
         doc, entity, claim = _seed_semantic_search_scope_library(db)
         monkeypatch.setattr(type(db), "search", lambda self, **kwargs: _mock_content_search(doc))
@@ -1464,6 +1468,7 @@ class TestGraphLeg:
         )
         return doc
 
+    @skip_without_embedding_model
     def test_graph_hit_carries_provenance(self, client, db):
         doc = self._seed_graph(db)
 
@@ -1489,6 +1494,7 @@ class TestGraphLeg:
             assert hit["metadata"]["entity_name"] == "Asprilla"
             assert hit["kg_entity_ids"] == ["ent-asprilla"]
 
+    @skip_without_embedding_model
     def test_graph_leg_respects_the_limit(self, client, db):
         self._seed_graph(db)
         r = client.post(
