@@ -194,13 +194,6 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
             "supports_pdf_input": True,
             "description": "Chandra OCR model for high-accuracy document and handwriting extraction.",
         },
-        {
-            "model_id": "nanonets/Nanonets-OCR-s",
-            "is_recommended": True,
-            "supports_vision": True,
-            "supports_pdf_input": True,
-            "description": "Nanonets OCR-S model for OCR and layout-aware document transcription.",
-        },
     ],
     "omlx": [
         {
@@ -208,12 +201,6 @@ RECOMMENDED_MODELS: dict[str, list[dict]] = {
             "is_recommended": True,
             "supports_vision": True,
             "description": "Local MLX vision model for OCR and document understanding.",
-        },
-        {
-            "model_id": "Nanonets-OCR",
-            "is_recommended": True,
-            "supports_vision": True,
-            "description": "Local OCR-focused MLX model.",
         },
         {
             "model_id": "Chandra-OCR",
