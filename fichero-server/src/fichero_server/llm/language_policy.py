@@ -504,6 +504,21 @@ def script_of_text(text: str | None) -> str | None:
     return max(counts, key=lambda code: counts[code]) if counts else None
 
 
+@lru_cache(maxsize=1)
+def _scripts_without_word_spaces() -> frozenset[str]:
+    from pathlib import Path
+
+    file = Path(__file__).parents[1] / "recipes" / "seed" / "scripts-without-word-spaces.txt"
+    return frozenset(line.strip() for line in file.read_text(encoding="utf-8").splitlines()
+                     if line.strip() and not line.startswith("#"))
+
+
+def text_separates_words(text: str | None) -> bool:
+    """Whether the text's own letters (`script_of_text`) are of a script that divides its words with spaces. True
+    when no script is found: a page of digits keeps the whitespace words it has (`source.recipe.nothing-assumes-spaces-direction-or-an-alphabet`)."""
+    return script_of_text(text) not in _scripts_without_word_spaces()
+
+
 def resolve_script(
     *,
     requested: str | None = None,

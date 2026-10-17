@@ -1,0 +1,17 @@
+#
+# ISO 15924 codes of scripts whose text is not divided into words by spaces (#5728), so a word error rate over
+# whitespace tokens means nothing for them and they are scored by character. One code a line; # starts a comment.
+# A script not listed is taken to separate its words. Add a script here, not in code.
+#
+Hani
+Hans
+Hant
+Hanb
+Hira
+Kana
+Jpan
+Thai
+Laoo
+Khmr
+Mymr
+Tibt

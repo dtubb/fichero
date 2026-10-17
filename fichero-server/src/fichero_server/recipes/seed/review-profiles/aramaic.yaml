@@ -18,7 +18,7 @@ lenses:
   orthography:
     title: orthography and consistency
     text: |
-      - Read each line from right to left and keep that order. Letter-shape audit: letters of near-identical shape in this script, and the end-of-word forms. Where the draft's spelling implies a stroke the image does not show, correct it.
+      - Read each line from right to left and keep that order. Letter-shape audit: letters of near-identical shape in this script and the end-of-word forms (Hebrew square script: ד/ר, ב/כ, ו/ז/ן, the final ך ם ן ף ץ; Syriac: the dot that tells ܕ from ܪ, ܘ/ܝ, the joined forms). Where the draft's spelling implies a stroke the image does not show, correct it.
       - Write vowel signs and diacritics only where the page has them; never add them.
   names-and-dates:
     title: names, dates and the final check
