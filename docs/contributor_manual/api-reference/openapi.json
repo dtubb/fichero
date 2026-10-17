@@ -14336,6 +14336,16 @@
               "default": "",
               "title": "Scripts"
             }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Period"
+            }
           }
         ],
         "responses": {
@@ -14345,6 +14355,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DerivedFacts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/font": {
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Choose Font",
+        "description": "Remember a pane's font choice for a script in this library's setup answers (`answers.fonts`),\nor clear it. Transcription text is then drawn in it (`layers.text.font-from-script-and-period`).",
+        "operationId": "choose_font_api_recipes_font_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFacts"
                 }
               }
             }
@@ -65108,6 +65160,26 @@
         ],
         "title": "FolderViewsResponse",
         "description": "Available folder/workspace lenses for the selected document folder."
+      },
+      "FontChoice": {
+        "properties": {
+          "script": {
+            "type": "string",
+            "title": "Script",
+            "description": "ISO 15924 code of the script the font draws"
+          },
+          "font": {
+            "type": "string",
+            "nullable": true,
+            "title": "Font",
+            "description": "a bundled family; null returns to the derived font"
+          }
+        },
+        "type": "object",
+        "required": [
+          "script"
+        ],
+        "title": "FontChoice"
       },
       "FormatInfo": {
         "properties": {
