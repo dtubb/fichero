@@ -268,6 +268,10 @@ def ensure_owner_role(user: Any, library: str | Path | None) -> bool:
         library_path=library_path,
         role=ROLE_OWNER,
     )
+    # An owner account owns every library on this Mac (#5755), not only the one that opened it.
+    for owner_id in app_db.owner_user_ids():
+        if app_db.get_library_role(owner_id, library_path) is None:
+            app_db.set_library_role(user_id=owner_id, library_path=library_path, role=ROLE_OWNER)
     return True
 
 
