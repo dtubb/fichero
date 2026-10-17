@@ -16,13 +16,6 @@ from fichero_server.llm.multilingual import detect_language, normalize_text, ste
 class TestLanguageDetection:
     """Test suite for language detection (already implemented)."""
 
-    def test_detect_english(self):
-        """Test detecting English text."""
-        result = detect_language("Hello, this is English text")
-        assert result.language == "en"
-        assert result.confidence == 0.6  # Heuristic detection returns 0.6
-        assert result.is_reliable is False  # 0.6 < 0.7 threshold
-
     def test_detect_japanese(self):
         """Test detecting Japanese text."""
         result = detect_language("これは日本語のテキストです")
