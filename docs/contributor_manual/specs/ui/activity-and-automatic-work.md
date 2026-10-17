@@ -1597,7 +1597,7 @@ which merges live executions with each library's history and collects a library'
   and historical runs, sorts and dedupes; the view only renders `runs` and `runLoadFailures`. Pinned
   by fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift (testRebuildRunsPatchesEachFreshRowIntoRuns,
   testLoadMoreRunsAppendsWithoutDisturbingExistingRows); the live-over-historical dedupe has no test of its own yet.
-- `activity.load-failures-are-honest` — (#3231) a library's failure to load its history
+- `activity.load-failures-are-honest` — **[OK]** (#3231) a library's failure to load its history
   is collected into `runLoadFailures` and shown as a warning row naming the library, never dropped;
   pinned by fichero/Tests/Unit/general/Models/ActivityStoreRunsTests.swift
   (testActivityWindowHonestState_aFailedLoadNamesItsCauseAndClearsOnTheNextSuccess,
