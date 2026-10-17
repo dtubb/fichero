@@ -395,6 +395,7 @@ def _server_text_cards() -> list[Card]:
                 jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
                 runs_on="this-mac" if here else f"cloud:{ptype}", open_licence=True,
                 licence="", note=f"{model.name or model.model_id} on {row.name}", source="installed",
+                installed=here,  # on this Mac it is installed here, so the rules take it over the parser (#5637)
                 offered_because=f"a model you run with {row.name}, {where}, free",
             ))
     return out

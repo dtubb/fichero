@@ -102,7 +102,9 @@ class ReadAtScaleRequest(BaseModel):
     language: str | None = None
     shard_size: int = Field(50, ge=1, le=10000)
     longest: int = Field(2000, ge=256, le=10000, description="Pixels on the longer side each image is read at.")
-    flavor: str = Field("t4-small", description="Hugging Face hardware for each shard.")
+    target: str = Field("huggingface-jobs", description="Where the shards run: `huggingface-jobs`, or the id of a "
+                        "Slurm cluster set up in Settings (Compute).")
+    flavor: str = Field("t4-small", description="Hugging Face hardware for each shard (ignored on a cluster).")
     timeout: str = Field("2h", description="Each shard's time limit; always sent.")
     max_in_flight: int = Field(10, ge=1, le=500, description="Shards running at once.")
     pass_name: str | None = None
