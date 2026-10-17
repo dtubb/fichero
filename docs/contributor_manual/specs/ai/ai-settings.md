@@ -662,8 +662,10 @@ the rest belong to `ai-settings.md` or maintainer triage (folded there, not rest
   touch a key value — `set_provider_api_key_impl`'s route-level logging
   (`api/routes/ai/provider_keys.py:114,120`, logs only the provider name) and
   `keychain.py`'s `set_api_key`/`delete_api_key` debug/warning lines (`keychain.py:266-299`,
-  also provider-name-only) — were read and confirmed to never log the key value either, but
-  neither has a dedicated test guarding it, hence PARTIAL rather than a blanket OK. A second
+  also provider-name-only) — were read and confirmed to never log the key value either. The
+  keychain half now has its own sentinel test (`test_keychain_logs_never_leak_to_spec.py`:
+  set and delete, success and failure); the route-level half has none yet, hence PARTIAL
+  rather than a blanket OK. A second
   pin lands with the Test Connection probe work: `test_routes_provider_keys.py::test_connection_test_key_never_appears_in_response_or_logs`
   (a sentinel key never appears in the response body, its JSON serialization, or the log
   capture, across a real probe path).
