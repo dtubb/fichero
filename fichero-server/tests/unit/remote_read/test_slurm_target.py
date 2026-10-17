@@ -61,3 +61,26 @@ def test_a_refused_command_is_named_not_swallowed():
     target = SlurmTarget(RORQUAL, FakeShell({"sbatch": (1, "", "Invalid account")}))
     with pytest.raises(SlurmError, match="Invalid account"):
         target.submit("job-1", script="x")
+
+
+def test_ssh_shell_runs_through_the_system_ssh_with_one_reused_connection_and_refuses_without_a_key(tmp_path):
+    """WHY (`compute.connect.one-connection-reused`, no new dependency): the system ssh gets the key, a
+    ControlPath and the quoted command; a missing key is refused by name."""
+    import stat
+
+    from fichero_server.remote_read.slurm_target import NoKey, SshShell
+
+    with pytest.raises(NoKey, match="no key"):
+        SshShell(RORQUAL, tmp_path / "none", tmp_path)
+    key = tmp_path / "id"
+    key.write_text("k")
+    fake = tmp_path / "fakessh"
+    fake.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$0.args"\ncat > "$0.stdin"\necho out\n')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    shell = SshShell(RORQUAL, key, tmp_path, ssh=str(fake))
+    assert shell.run(["tail", "-n", "5", "a b"]) == (0, "out\n", "")
+    args = (tmp_path / "fakessh.args").read_text().splitlines()
+    assert "ControlMaster=auto" in args and "IdentitiesOnly=yes" in args and args[-2] == "u@rorqual"
+    assert args[-1] == "tail -n 5 'a b'"
+    shell.put_text("hello", "/r/x")
+    assert (tmp_path / "fakessh.stdin").read_text() == "hello"

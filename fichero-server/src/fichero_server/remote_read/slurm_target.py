@@ -11,6 +11,8 @@ One difference from Hugging Face: a read is ONE Slurm array (`sbatch --array`), 
 """
 from __future__ import annotations
 
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Protocol
 
@@ -129,3 +131,54 @@ class SlurmTarget:
 
     def price_per_hour(self, flavor: str) -> float | None:
         return None  # a cluster allocation is not bought by the hour (outside the spend cap)
+
+
+class NoKey(RuntimeError):
+    """No private key to connect with: refused by name, never a password prompt or another key."""
+
+
+class SshShell:
+    """The login connection, by the system `ssh` binary (stdlib, no dependency): one ControlMaster
+    connection is reused by every call (`compute.connect.one-connection-reused`), so a second factor is
+    asked once, when the master is opened, and never again for the session.
+
+    ponytail: the master is opened by `open_master()`, which needs the person's second factor answered where
+    ssh asks (a terminal or SSH_ASKPASS); passing the prompt through the app is the upgrade, not built.
+    """
+
+    def __init__(self, cluster: HpcClusterConfig, key: Path, control_dir: Path, *, ssh: str = "ssh") -> None:
+        if not Path(key).is_file():
+            raise NoKey(f"no key at {key}: make one in Settings (Compute) and add its public half in CCDB")
+        self.cluster, self.ssh = cluster, ssh
+        self._opts = ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "ControlMaster=auto", "-o", "ControlPersist=4h",
+                      "-o", f"ControlPath={control_dir}/%C", "-p", str(cluster.ssh_port)]
+        self._dest = f"{cluster.username}@{cluster.host_alias}"
+
+    def _ssh(self, remote: str, **kw) -> "subprocess.CompletedProcess":
+        return subprocess.run([self.ssh, *self._opts, self._dest, remote], capture_output=True, **kw)
+
+    def open_master(self) -> None:
+        done = self._ssh("true", timeout=300)
+        if done.returncode:
+            raise SlurmError(f"could not connect to {self.cluster.name}: {done.stderr.decode(errors='replace').strip()[:300]}")
+
+    def run(self, argv: list[str]) -> tuple[int, str, str]:
+        done = self._ssh(" ".join(shlex.quote(a) for a in argv))
+        return done.returncode, done.stdout.decode(errors="replace"), done.stderr.decode(errors="replace")
+
+    def put_text(self, text: str, remote: str) -> None:
+        self._put(text.encode(), remote)
+
+    def put(self, local: Path, remote: str) -> None:
+        self._put(local.read_bytes(), remote)  # ponytail: whole file in memory; stream when shards exceed RAM
+
+    def _put(self, data: bytes, remote: str) -> None:
+        done = self._ssh(f"cat > {shlex.quote(remote)}", input=data)
+        if done.returncode:
+            raise SlurmError(f"could not write {remote}: {done.stderr.decode(errors='replace').strip()[:300]}")
+
+    def get(self, remote: str, local: Path) -> None:
+        done = self._ssh(f"cat {shlex.quote(remote)}")
+        if done.returncode:
+            raise SlurmError(f"could not read {remote}: {done.stderr.decode(errors='replace').strip()[:300]}")
+        local.write_bytes(done.stdout)
