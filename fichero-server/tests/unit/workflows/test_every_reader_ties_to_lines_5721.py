@@ -131,3 +131,65 @@ async def test_a_page_with_no_lines_read_by_a_model_says_its_text_is_tied_to_no_
     result = await _read(bare_page, monkeypatch, provider=MODEL[0], model=MODEL[1], vision_mode="llm",
                          force_ocr=True, answer=lambda n, call: "todo el texto de la pagina")
     assert any("tied to no line" in note and "sin_lineas.png" in note for note in result.get("notes", []))
+
+
+async def _second_page_with_lines(pg, tmp_path):
+    """A black page, its lines found and read by Kraken like the first, in the same library."""
+    from PIL import Image
+
+    from fichero_server.llm import LLMConfig
+    from fichero_server.models import DocType, Document, FileType
+    from fichero_server.workflows.tools.sources import files_tool
+    from fichero_server.workflows.tools.transcribe import transcribe
+
+    path = tmp_path / "testamento_p2.png"
+    Image.new("RGB", (400, 300), "black").save(path)
+    doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path))
+    pg["db"].save(doc)
+    src = await files_tool(inputs={}, state={"selected_doc_ids": [pg["doc"].id, doc.id], "library_path": pg["library"]},
+                           llm_config=LLMConfig(provider="", model=""))
+    for extra in ({}, {"kraken_model": "kraken-mccatmus"}):
+        done = await transcribe(
+            inputs={"files": src["files"], "documents": src["documents"], "vision_mode": "kraken",
+                    "regions_first": False, **extra},
+            state={"library_path": pg["library"], "task_id": None}, llm_config=LLMConfig(provider="", model=""))
+        assert not done.get("error"), done.get("error")
+    return doc, src
+
+
+@pytest.mark.asyncio
+async def test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_of_several_pages_5721(  # noqa: F811
+        page, monkeypatch, tmp_path):
+    """Two pages, both with lines: the model answers line by line on the white page and in prose on the black one.
+    The black page is read whole (its text kept, for the tie); the white page keeps its lines' readings."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.models import Artifact
+    from fichero_server.workflows.tools.transcribe import transcribe
+
+    black, src = await _second_page_with_lines(page, tmp_path)
+
+    async def vision(images, prompt, config, **kw):
+        if prompt == "PAGE":
+            return "texto de la pagina negra"
+        first = images[0] if isinstance(images[0], str) else ""
+        data = base64.b64decode(first.split(",", 1)[-1])
+        dark = Image.open(io.BytesIO(data)).convert("RGB").getpixel((0, 0))[0] < 128
+        return "prosa sin json" if dark else json.dumps(["blanca uno", "blanca dos", "blanca tres"][: len(images)])
+
+    monkeypatch.setattr(llm, "vision", vision)
+    result = await transcribe(
+        inputs={"files": src["files"], "documents": src["documents"], "regions_first": False,
+                "vision_mode": "llm", "force_ocr": True, "prompt": "PAGE"},
+        state={"library_path": page["library"], "task_id": "run-multi"},
+        llm_config=LLMConfig(provider=MODEL[0], model=MODEL[1]))
+    assert not result.get("error"), result.get("error")
+    assert _tied(page, ["blanca uno", "blanca dos", "blanca tres"]) == [["blanca uno"], ["blanca dos"], ["blanca tres"]]
+    by_file = {r["file"].rsplit("/", 1)[-1]: r["text"] for r in result["results"]}
+    assert by_file["testamento_p2.png"] == "texto de la pagina negra"
+    assert [a for a in page["db"].query(Artifact, document_id=black.id) if a.artifact_type == "transcription"]

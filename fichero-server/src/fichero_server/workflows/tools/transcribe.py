@@ -467,11 +467,21 @@ async def transcribe(
         postprocess_text=sanitize_transcription,
     )
     result = await process_vision(**read)
-    if onto_lines and not any((r.get("text") or "").strip() for r in result.get("results") or []):
-        # The lines came back with no reading (the model did not answer line by line): the page's text is kept, as
-        # before, rather than lost; the tie job then ties it to the lines.
-        onto_lines = False
-        result = await process_vision(**{**read, "vision_mode": page_vision_mode, "lines_read_by": page_lines_read_by})
+    if onto_lines:
+        # A page whose lines came back with no reading (the model did not answer line by line) keeps its page text, as
+        # before, rather than losing it; the tie job then ties it to the lines. Only those files are read again.
+        empty = {r.get("file") for r in result.get("results") or [] if not (r.get("text") or "").strip()}
+        again = [i for i, f in enumerate(files) if f in empty]
+        if again:
+            redo = await process_vision(**{**read, "files": [files[i] for i in again],
+                                           "documents": [documents[i] for i in again if i < len(documents or [])],
+                                           "vision_mode": page_vision_mode, "lines_read_by": page_lines_read_by})
+            by_file = {r.get("file"): r for r in redo.get("results") or []}
+            result["results"] = [by_file.get(r.get("file"), r) for r in result.get("results") or []]
+            result["artifacts"] = [*result.get("artifacts", []), *redo.get("artifacts", [])]
+            result["error"] = result.get("error") or redo.get("error")
+            if len(again) == len(files):
+                result = redo
     notes = result.setdefault("notes", [])
     if onto_lines:
         notes.append(f"read each of the page's lines ({'Apple Vision' if lines_read_by == 'apple' else 'the model'} on "
