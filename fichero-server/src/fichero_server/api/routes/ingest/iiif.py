@@ -786,7 +786,7 @@ async def get_document_image(
 # Import from IIIF into a bound folder, as a job; refresh it (#5671, `iiif.folder.source`).
 # --------------------------------------------------------------------------------------------------
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry  # noqa: E402
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for  # noqa: E402
 from fichero_server.api.auth import action_context  # noqa: E402
 from fichero_server.api.main import get_library_database_for_write  # noqa: E402
 
@@ -812,7 +812,7 @@ class IIIFImportStarted(BaseModel):
 def _action_import(db: Database, params: IIIFImportRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     from fichero_server.importers.iiif_source import start
 
-    job_id = start(db, params.url, folder_id=params.folder_id, started_by=ctx.actor or "owner",
+    job_id = start(db, params.url, folder_id=params.folder_id, started_by=started_by_for(ctx),
                    max_manifests=params.max_manifests)
     return {"job_id": job_id, "url": params.url}, ChangeSpec(domains=["document"], target_ids=[job_id],
                                                               after={"job_id": job_id, "url": params.url})

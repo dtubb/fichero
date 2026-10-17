@@ -83,6 +83,13 @@ class ActionContext:
     via_mcp: bool = False
 
 
+def started_by_for(ctx: "ActionContext") -> str:
+    """Who a run says started it: the person, plus the paired device when it came from another Mac (#5732)."""
+    person = ctx.actor or "owner"
+    name = (ctx.device or {}).get("name")
+    return f"{person} on {name}" if name else person
+
+
 @dataclass
 class ActionResult:
     """What ``invoke`` returns to a caller (route / chat tool / test)."""
