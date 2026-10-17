@@ -54,7 +54,7 @@ class TestConfigureCluster:
 
     def test_missing_field_rejected(self, client):
         r = client.post("/api/hpc/clusters", json=_cluster_body(username="  "))
-        assert r.status_code == 400
+        assert r.status_code == 422  # strict username pattern (security)
 
     def test_delete(self, client):
         cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
@@ -124,3 +124,59 @@ class TestDryRunSubmit:
             },
         )
         assert r.status_code == 404
+
+
+class TestSignInAndKey:
+    """`compute.connect.second-factor-passes-through`, `compute.secret.fichero-makes-the-key`: the app pushes the
+    cluster's key, lists the prompts ssh is waiting on, and answers them."""
+
+    def test_the_key_is_pushed_and_removed_and_never_read_back(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        r = client.put(f"/api/hpc/clusters/{cid}/key", json={"private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\nk\n"})
+        assert r.status_code == 200 and r.json() == {"cluster_id": cid, "has_key": True}
+        assert "private_key" not in client.get(f"/api/hpc/clusters/{cid}").text
+        assert client.delete(f"/api/hpc/clusters/{cid}/key").json()["has_key"] is False
+
+    def test_a_prompt_ssh_waits_on_is_listed_then_answered(self, client):
+        from fichero_server.remote_read.ssh_prompts import prompt_broker
+        import threading
+
+        out = {}
+        t = threading.Thread(target=lambda: out.update(a=prompt_broker().ask("Duo passcode: ", timeout=10)))
+        t.start()
+        while not (items := client.get("/api/hpc/prompts").json()["items"]):
+            threading.Event().wait(0.01)
+        assert items[0]["prompt"] == "Duo passcode: "
+        assert client.post(f"/api/hpc/prompts/{items[0]['id']}", json={"answer": "123456"}).status_code == 200
+        t.join(5)
+        assert out["a"] == "123456" and client.get("/api/hpc/prompts").json()["items"] == []
+        assert client.post("/api/hpc/prompts/999", json={"answer": "x"}).status_code == 404
+
+    def test_sign_in_without_a_key_is_refused_by_name(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        r = client.post(f"/api/hpc/clusters/{cid}/sign-in")
+        assert r.status_code == 409 and "key" in r.json()["detail"].lower()
+
+    def test_check_runs_the_steps_live_and_says_so(self, client, monkeypatch):
+        from fichero_server.api.routes.ai import hpc
+
+        class Shell:
+            def run(self, argv):
+                return (1, "", "no scheduler") if argv[0] == "sinfo" else (0, "ok\n", "")
+
+        monkeypatch.setattr(hpc, "_shell_for", lambda cfg, cluster_id: Shell())
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        body = client.post(f"/api/hpc/clusters/{cid}/check").json()
+        assert body["ok"] is False
+        assert {s["name"]: s["state"] for s in body["steps"]}["gpus"] == "failed"
+
+    def test_listing_the_prompts_is_owner_only_like_answering(self):
+        from fichero_server.api.routes.ai import hpc
+
+        def deps(path, method):
+            route = next(r for r in hpc.router.routes if r.path.endswith(path) and method in r.methods)
+            return {d.call for d in route.dependant.dependencies}
+
+        assert hpc._require_owner_or_bootstrap in deps("/prompts", "GET")

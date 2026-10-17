@@ -126,6 +126,9 @@ def main(argv: list[str] | None = None) -> None:
     # port, no TLS, no network listener. TLS stays mandatory on the TCP path.
     uds_path = (os.environ.get("FICHERO_UDS_PATH") or "").strip()
     if uds_path:
+        if os.environ.pop("FICHERO_TCP_TLS_ALSO", None) == "1":
+            # This dev script binds the socket only; the TCP+TLS listener is `python -m fichero_server`.
+            logger.warning("start_backend.py binds the socket only: FICHERO_TCP_TLS_ALSO ignored (#5752)")
         from fichero_server.api.uds_transport import app as uds_app
 
         # CRITICAL: unlink a stale socket from a prior crash before bind.

@@ -129,7 +129,6 @@ llm/local_inference.py::ManagedLocalInferenceProcess._environment 1
 llm/local_models.py::model_display_name 1
 llm/mlx_in_process.py::InProcessLocalInferenceProcess.stop 1
 llm/mlx_model_store.py::MLXModelStore.cancel 1
-llm/multilingual.py::detect_language 1
 loaders/document_loader.py::DocumentLoader._load_with_kreuzberg 1
 loaders/iiif_loader.py::IIIFLoader.load 1
 loaders/kreuzberg_cache.py::_strip_quarantine 1
@@ -205,7 +204,6 @@ workflows/types.py::ToolDef.get_prompt 1
 workflows/validation.py::validate_workflow_llm_preflight.visit 1
 workflows/validation.py::workflow_input_kinds.visit 1
 workflows/validation.py::workflow_override_target_tools.descend 1
-workflows/validation.py::workflow_requires_vision.visit 1
 workflows/workflow_store.py::WorkflowStore.import_all 1
 sync_folder.py::_watch.Changed.on_any_event 1
 
