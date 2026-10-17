@@ -721,7 +721,8 @@ def _json_type(obj: dict[str, Any]) -> str | None:
         value = value[0] if value else None
     if not value:
         return None
-    return str(value).rsplit("/", 1)[-1]
+    # Presentation 2 compact prefixes (sc:, oa:, dctypes:) read as the bare type.
+    return str(value).rsplit("/", 1)[-1].rsplit(":", 1)[-1]
 
 
 def _json_id(obj: dict[str, Any] | None) -> str | None:
@@ -934,12 +935,6 @@ __all__ = [
 # --------------------------------------------------------------------------------------------------
 
 
-def _kind(obj: dict[str, Any]) -> str | None:
-    """A resource's type in one vocabulary: Presentation 3 says "Manifest", 2 says "sc:Manifest"."""
-    value = _json_type(obj)
-    return value.rsplit(":", 1)[-1] if value else None
-
-
 def _service_object(body: dict[str, Any]) -> dict[str, Any] | None:
     """The painting body's Image API service exactly as the archive published it (its id, type and
     profile), so an export can point at it without guessing (`iiif.export.points-at-original`)."""
@@ -954,7 +949,7 @@ def _service_id(body: dict[str, Any]) -> str | None:
     """The Image API service of a painting body (Presentation 3 `service`, 2 `service` or `@id`)."""
     services = body.get("service")
     for service in services if isinstance(services, list) else [services]:
-        if isinstance(service, dict) and (_kind(service) or "").lower().startswith(("imageservice", "image")):
+        if isinstance(service, dict) and (_json_type(service) or "").lower().startswith(("imageservice", "image")):
             return _json_id(service)
         if isinstance(service, dict) and _json_id(service):
             return _json_id(service)
@@ -1044,7 +1039,7 @@ def parse_iiif_url(url: str, *, fetcher: Any | None = None, max_manifests: int |
         return json.loads(fetcher.fetch(ref).decode("utf-8"))
 
     root = load(url)
-    if _kind(root) == "Manifest":
+    if _json_type(root) == "Manifest":
         collection = {"id": url, "type": "Collection", "label": root.get("label"), "items": [root]}
     else:
         collection = root
@@ -1065,14 +1060,14 @@ def parse_iiif_url(url: str, *, fetcher: Any | None = None, max_manifests: int |
         ref_id = _json_id(ref) if isinstance(ref, dict) else str(ref)
         if not ref_id or ref_id in seen:
             continue
-        kind = _kind(ref) if isinstance(ref, dict) else None
+        kind = _json_type(ref) if isinstance(ref, dict) else None
         try:
             doc = ref if isinstance(ref, dict) and (ref.get("items") or ref.get("sequences")) else load(ref_id)
         except Exception as exc:  # noqa: BLE001 -- one unreachable manifest is listed, not fatal
             warnings.append(f"could not fetch {ref_id}: {exc}")
             seen.add(ref_id)
             continue
-        kind = _kind(doc) or kind
+        kind = _json_type(doc) or kind
         if kind == "Collection":
             queue += list(doc.get("items") or doc.get("manifests") or []) + list(doc.get("collections") or [])
             continue
