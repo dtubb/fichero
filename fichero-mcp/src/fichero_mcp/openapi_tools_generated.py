@@ -6134,11 +6134,13 @@ def fichero_providers_test_connection(
 def fichero_reading_at_scale_start(
     *,
     card: Annotated[str, Field(description='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.')],
+    expected_pages_per_second: Annotated[Optional[float], Field(description="A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.")] = None,
     flavor: Annotated[Optional[str], Field(description='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".')] = None,
     language: Annotated[Optional[str], Field(description='Language.')] = None,
     longest: Annotated[Optional[int], Field(description='Pixels on the longer side each image is read at. Default: 2000.')] = None,
     max_in_flight: Annotated[Optional[int], Field(description='Shards running at once. Default: 10.')] = None,
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages (or their IIIF addresses) to go to Hugging Face. Default: false.")] = None,
+    parent_job_id: Annotated[Optional[str], Field(description='The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`).')] = None,
     pass_name: Annotated[Optional[str], Field(description='Pass Name.')] = None,
     reader: Annotated[Optional[str], Field(description='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages to read: images here, or pages imported by reference over IIIF.')],
@@ -6147,7 +6149,7 @@ def fichero_reading_at_scale_start(
     timeout: Annotated[Optional[str], Field(description='Each shard\'s time limit; always sent. Default: "2h".')] = None,
 ) -> Any:
     "Read pages on Hugging Face Jobs, many shards as one job\n\nQueue a `read-at-scale` job: the pages in scope (images here, or IIIF canvases by reference) are\npacked with the reader and Fichero's runner, sent to a private bucket of the person's Hugging Face\naccount, read in shards (at most `max_in_flight` at once), and each shard's PAGE files land as new\npasses as it finishes. Refused, with nothing queued, without `pages_may_leave` (403), without a\nHugging Face token (412), or with a reader that cannot run off this Mac (422).\n\nRoute: POST /api/reading-at-scale (toolset `reading-at-scale`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "target": target, "timeout": timeout}))
+    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "expected_pages_per_second": expected_pages_per_second, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "parent_job_id": parent_job_id, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "target": target, "timeout": timeout}))
 
 
 def fichero_reading_at_scale_job_status(
@@ -6164,6 +6166,14 @@ def fichero_reading_at_scale_cancel_job(
 ) -> Any:
     'Stop a reading run (cancels its running shards on Hugging Face)\n\nRoute: POST /api/reading-at-scale/jobs/{job_id}/cancel (toolset `reading-at-scale`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/reading-at-scale/jobs/{job_id}/cancel")
+
+
+def fichero_reading_at_scale_catch_up_job(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Look at the far side now (after the Mac slept); a dropped run carries on\n\nRoute: POST /api/reading-at-scale/jobs/{job_id}/catch-up (toolset `reading-at-scale`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/reading-at-scale/jobs/{job_id}/catch-up")
 
 
 def fichero_reading_at_scale_resend_failed_shards(
@@ -9527,6 +9537,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_at_scale_start", "reading-at-scale", "POST", "/api/reading-at-scale", fichero_reading_at_scale_start),
     GeneratedTool("fichero_reading_at_scale_job_status", "reading-at-scale", "GET", "/api/reading-at-scale/jobs/{job_id}", fichero_reading_at_scale_job_status),
     GeneratedTool("fichero_reading_at_scale_cancel_job", "reading-at-scale", "POST", "/api/reading-at-scale/jobs/{job_id}/cancel", fichero_reading_at_scale_cancel_job),
+    GeneratedTool("fichero_reading_at_scale_catch_up_job", "reading-at-scale", "POST", "/api/reading-at-scale/jobs/{job_id}/catch-up", fichero_reading_at_scale_catch_up_job),
     GeneratedTool("fichero_reading_at_scale_resend_failed_shards", "reading-at-scale", "POST", "/api/reading-at-scale/jobs/{job_id}/resend-failed", fichero_reading_at_scale_resend_failed_shards),
     GeneratedTool("fichero_reading_orders_create", "reading-orders", "POST", "/api/reading-orders", fichero_reading_orders_create),
     GeneratedTool("fichero_reading_orders_list_document", "reading-orders", "GET", "/api/reading-orders/document/{document_id}", fichero_reading_orders_list_document),
