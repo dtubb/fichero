@@ -27,13 +27,19 @@ import socket
 import re
 import ssl
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 from urllib.parse import urlparse
 
 from collections.abc import Iterator
 
 import httpx
+
+if TYPE_CHECKING:
+    from fichero_server.api.routes.document.segments import (
+        SegmentDetailResponse,
+        SegmentReferenceResponse,
+    )
 
 from fichero_server.api.routes.system.activity import ActivityResponse
 from fichero_server.api.routes.document.artifacts import ArtifactResponse

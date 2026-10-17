@@ -2396,7 +2396,6 @@ async def _apple_vision_dispatch(
         apple_vision_ocr,
         validate_vision_language,
     )
-    import asyncio
     import base64
     import tempfile
     import os
