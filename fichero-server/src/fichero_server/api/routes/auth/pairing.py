@@ -98,6 +98,27 @@ class TailnetOfferResponse(BaseModel):
     tailnet_url: str | None = None
 
 
+class SharingStateResponse(BaseModel):
+    multiuser_enabled: bool
+    tailnet_url: str | None = None
+    paired_device_count: int
+
+
+class MultiuserRequest(BaseModel):
+    enabled: bool
+
+
+def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+    from fichero_server.security.multiuser import multiuser_enabled
+
+    return SharingStateResponse(
+        multiuser_enabled=multiuser_enabled(),
+        tailnet_url=tailscale_serve.detected_tailnet_url() or None,
+        paired_device_count=sum(1 for d in app_db.list_devices() if not getattr(d, "revoked_at", None)),
+    )
+
+
 class PairRequest(BaseModel):
     code: str = Field(min_length=1)
     device_name: str = Field(min_length=1)
@@ -411,6 +432,34 @@ def _record_device_audit(
     )
     get_app_db().save_action_audit(audit)
     return audit
+
+
+def _owner_only(request: Request, app_db: AppDatabase) -> None:
+    if not _pairing_user(request, app_db).is_owner:
+        raise HTTPException(status_code=403, detail="only the owner can change Sharing settings")
+
+
+@router.get("/sharing", response_model=SharingStateResponse)
+def sharing_state(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> SharingStateResponse:
+    """Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751)."""
+    _owner_only(request, app_db)
+    return _sharing_state(app_db)
+
+
+@router.put("/multiuser", response_model=SharingStateResponse)
+def set_multiuser(
+    request: Request,
+    body: MultiuserRequest,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> SharingStateResponse:
+    """Set the persisted Multi-user switch (the Settings switch and the CLI/MCP share this route, #5751)."""
+    from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY
+
+    _owner_only(request, app_db)
+    if (os.environ.get("FICHERO_MULTIUSER") or "").strip():
+        raise HTTPException(status_code=409, detail="Multi-user is set by FICHERO_MULTIUSER; unset it to change it here")
+    app_db.set_setting(MULTIUSER_SETTING_KEY, "true" if body.enabled else "false")
+    return _sharing_state(app_db)
 
 
 def _shares_at_ts_net() -> bool:
