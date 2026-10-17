@@ -30,3 +30,10 @@ def test_the_tag_guard_self_test_fails_when_the_guard_is_blind(monkeypatch):
         assert guard._self_test() == 1
     finally:
         sys.path.remove(str(REPO / "scripts"))
+
+
+def test_the_spec_test_linkage_guard_proves_it_can_fail_and_pass():
+    """#5729: `check_specs_have_tests --self-test` runs the guard over scratch trees: an approved spec no test cites and a
+    test citing a missing spec both fail, a cited approved spec passes."""
+    done = _run("check_specs_have_tests.py", "--self-test")
+    assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
