@@ -18,7 +18,8 @@ from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import StreamingResponse
 
 from fichero_server.api.library_header import require_library_path
-from fichero_server.api.change_stream import _change_hub, format_change_sse, sse_shutdown_event
+from fichero_server.api.auth import _is_loopback_request
+from fichero_server.api.change_stream import ChangeEvent, _change_hub, format_change_sse, sse_shutdown_event
 from fichero_server.api.main import assert_library_read_authorized
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,13 @@ async def stream_library_changes(
 
     async def event_generator() -> AsyncGenerator[str, None]:
         shutdown_event = sse_shutdown_event()
+        # A guest (anything not loopback) is told once that the host stopped, before the stream ends
+        # (sharing.off-closes-the-guest, #5731); the host's own windows just end.
+        guest = not _is_loopback_request(request)
+
+        def stopped_frame() -> str:
+            return format_change_sse(ChangeEvent(type="sharing.stopped"))
+
         # Open the stream immediately so the client knows it connected.
         yield ": connected\n\n"
         try:
@@ -61,6 +69,8 @@ async def stream_library_changes(
                 yield format_change_sse(replay_event)
             while True:
                 if shutdown_event.is_set():
+                    if guest:
+                        yield stopped_frame()
                     break
                 if await request.is_disconnected():
                     logger.info(
@@ -94,6 +104,8 @@ async def stream_library_changes(
                         task.cancel()
                     await asyncio.gather(*pending, return_exceptions=True)
                     if shutdown_task in done:
+                        if guest:
+                            yield stopped_frame()
                         break
                     event = queue_task.result()
                     yield format_change_sse(event)
