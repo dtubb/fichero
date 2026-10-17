@@ -52749,7 +52749,10 @@
               "kraken-repository",
               "hugging-face",
               "remote",
-              "remote-endpoints"
+              "remote-endpoints",
+              "remote-compute",
+              "transkribus",
+              "htr-united"
             ],
             "title": "Source"
           },
@@ -73270,7 +73273,10 @@
               "kraken-repository",
               "hugging-face",
               "remote",
-              "remote-endpoints"
+              "remote-endpoints",
+              "remote-compute",
+              "transkribus",
+              "htr-united"
             ],
             "title": "Source"
           },

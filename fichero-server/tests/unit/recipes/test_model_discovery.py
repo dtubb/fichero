@@ -233,8 +233,12 @@ def test_the_hub_search_offers_only_builds_this_mac_runs_each_saying_why(client,
     assert "MLX conversion of sbintuitions/sarashina2.2-ocr" in sarashina["offered_because"]
     # Found readers join the rules since they download like a catalogue model (#5593,
     # `source.find.found-reader-downloads`): each is ranked, or refused with its reason.
-    assert all(c["offered_because"] and c["in_recipe_rules"] is True for c in found.values())
+    # (A reader that would run on remote compute is offered to the person only, #5717: `test_find_remote_models_5717`.)
+    assert all(c["offered_because"] and c["in_recipe_rules"] is True for i, c in found.items()
+               if not i.startswith("remote:"))
     assert all((c["rule_rank"] is None) == (c["refused"] is not None) for c in found.values())
+    assert all(c["in_recipe_rules"] is False and c["rule_rank"] is None and "token" in c["availability_words"]
+               for i, c in found.items() if i.startswith("remote:"))  # no account here: unavailable, with why
     # Readers only (#5594): the vision chat models (LFM2.5-VL, Mistral Small, the 'Heretic'/'abliterated' builds)
     # are left out and counted, never listed.
     assert not any("LFM2.5-VL" in i or "Mistral" in i or "eretic" in i or "ncensored" in i for i in found)
