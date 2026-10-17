@@ -40,3 +40,9 @@ Stop and report to the maintainer after every 10 issues (or when the list ends o
 - The two best candidates and any the person named get the full set of granularities; the rest run once at their default. Cost shown first.
 - Apple Vision's language correction is OFF for the bake-off's reading; confirm with one on/off measurement on a corrected page and note it on #5715.
 - Tokens are available tonight (no stop at the 06:00 reset); workers are Sonnet (anthropic/claude-sonnet-5-5).
+
+## Night 2 extension (2026-10-16 23:00): the next 30 issues, in order (engine-side, no Swift, none needs the maintainer)
+A (rest of plan): 5724 rest, 5723, 5725, 5728, 5721, 5722, 5718, 5717, 5726, 5727 (only if reproducible)
+B (data and recipe quality): 5447 (null answer stored as "null"), 5451 (recipe: Apple Vision text never a reader on handwriting), 5694 (names on gibberish warn), 5500 (Kraken second reading shifted), 5517 (imported segments keep direction/script; language code not name), 5516 (recipe rules period/material over averaged error), 5502 (Markdown per document), 5452 (split spread carries lines), 5521 (spaCy names step), 5637 (spaCy SVO tier), 5542 (feast days), 5572 (language detection), 5486 (corrections as readings), 5445 (kraken line crops)
+C (hygiene/tests): 5630, 5674 (query ratchet), 5607 (DuckDB write conflict in fixtures), 5648 (correction prompt size), 5528 (tests depend on the machine), 4916
+Gate: each worker commits; checkpoint every 3 issues; push after combined suite green (bydir-ee1d480d6 covers up to ee1d480d6 only; push that first, later commits get their own run before the DMG).
