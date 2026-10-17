@@ -13,7 +13,7 @@ let package = Package(
     name: "FicheroAPIClient",
     platforms: [
         .macOS("26.0"),
-        .iOS("26.0")
+        .iOS("27.0")
     ],
     products: [
         .library(
