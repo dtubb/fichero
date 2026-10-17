@@ -307,8 +307,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   refusal, a time-out or a wrong answer ends the attempt with a typed failure naming the reason. The master is opened
   without `BatchMode` (which would forbid asking); every later command reuses it. *Test:*
   `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py` (a fake ssh with a keyboard-interactive step:
-  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). Not yet: the app's
-  sheet that shows the prompt (Swift).
+  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). The app's sheet is written (`HpcSignInService`, `HpcSignInSheet`, parse-checked, NOT built or run); nothing presents it yet because the Add-a-cluster row is not built.
   For a push factor (Duo), the app says to approve on the phone. The app says which credential is
   being asked for, because a wrong key passphrase falls back to the account password (seen on
   Rorqual, 2026-10-04).
