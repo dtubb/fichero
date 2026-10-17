@@ -3510,7 +3510,7 @@ Setup
   gone), the next one in the chain runs, and the plan says which and why; a missing key never substitutes silently
   (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
   cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
-- `source.recipe.placement-by-scale` — **[GAP]** (#4950; ruled 2026-10-17) where the chosen reader runs depends on the project's scale: about 100 or
+- `source.recipe.placement-by-scale` — **[PARTIAL]** (#4950, #5589; ruled 2026-10-17; the rule is `recipes/placement.py` `place_step`, tested in `fichero-server/tests/unit/recipes/test_placement.py`; not yet wired into the Start plan or the run) where the chosen reader runs depends on the project's scale: about 100 or
   about 1,000 pages run on this Mac; about 100,000 pages belong on ACENet or Hugging Face. Below a page threshold set in the plan the reader runs
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
