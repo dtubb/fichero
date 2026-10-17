@@ -17,6 +17,12 @@ extension ShareSettingsView {
                 LabeledContent("Project Role") {
                     ProgressView().controlSize(.small)
                 }
+            } else if let authzSnapshot, !authzSnapshot.multiuserEnabled {
+                // Multi-user off is a normal state, not a fault (#3335).
+                LabeledContent("Project Role") {
+                    Text("Not enforcing per-library access")
+                        .foregroundStyle(.secondary)
+                }
             } else if let authzSnapshot {
                 LabeledContent("Project Role") {
                     Text(authzSnapshot.currentUserRole?.capitalized ?? "No role")
