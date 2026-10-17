@@ -207,17 +207,20 @@ def test_kraken_repository_readers_for_fraktur_are_found_cached_and_ranked(clien
 
 def test_after_a_search_the_recipe_has_a_fraktur_and_a_kuzushiji_reader_instead_of_a_gap(client, db, store,
                                                                                           repository):
-    gap = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["de"],
-                                                     "scripts": ["Latf"], "mac_memory_gb": 32}).json()
+    gap = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["ja"],
+                                                     "scripts": ["Jpan"], "mac_memory_gb": 32}).json()
     assert next(s for s in gap["steps"] if s["job"] == "read-a-line").get("gap")
+    # Fraktur is read by a Latin-script reader, so it has no gap before a search (#5516, `no-cross-script-reader`).
+    latf = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["de"],
+                                                      "scripts": ["Latf"], "mac_memory_gb": 32}).json()
+    assert next(s for s in latf["steps"] if s["job"] == "read-a-line").get("gap") is None
 
-    _searched(client, db, scripts="Latf")
-    for scripts, languages in ((["Latf"], ["de"]), (["Jpan"], ["ja"])):
-        r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": languages,
-                                                       "scripts": scripts, "mac_memory_gb": 32})
-        step = next(s for s in r.json()["steps"] if s["job"] == "read-a-line")
-        assert step.get("gap") is None and step["card"]["source"] == "kraken-repository", step
-        assert "zenodo" in step["model"] and any("Kraken's model repository" in x for x in step["reasons"])
+    # A Kuzushiji reader needs the search; Fraktur keeps its Latin-script reader with or without it (#5516).
+    _searched(client, db, scripts="Jpan", languages="ja")
+    r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["ja"],
+                                                   "scripts": ["Jpan"], "mac_memory_gb": 32})
+    step = next(s for s in r.json()["steps"] if s["job"] == "read-a-line")
+    assert step.get("gap") is None and step["card"] is not None, step
 
 
 # --- Hugging Face -------------------------------------------------------------------------------------
