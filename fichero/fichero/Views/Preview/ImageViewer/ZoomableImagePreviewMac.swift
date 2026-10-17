@@ -95,8 +95,9 @@ struct ZoomableImagePreview: View {
     }
 
     // These settings persist across image changes using AppStorage
-    @AppStorage("imagePreview.magnifierEnabled") var magnifierEnabled = false
-    @AppStorage("imagePreview.loupeEnabled") var loupeEnabled = false
+    // The magnifier and loupe switches belong to THIS pane only (#5015): two Previews used to share one flag.
+    @PaneOnlyStorage("imagePreview.magnifierEnabled") var magnifierEnabled = false
+    @PaneOnlyStorage("imagePreview.loupeEnabled") var loupeEnabled = false
     @AppStorage("imagePreview.loupeMagnification") var loupeMagnification: Double = 3.0
     @AppStorage("imagePreview.loupeSize") var loupeSize: Double = 150.0
     @AppStorage("imagePreview.panelMagnification") var panelMagnification: Double = 4.0
@@ -105,8 +106,8 @@ struct ZoomableImagePreview: View {
     /// (`magnifier.strip-placement-is-the-persons`); no shared value, so a new pane starts on Automatic.
     @AppStorage(MagnifierStrip.placementMapKey) var magnifierStripPlacements = "{}"
     @Environment(\.paneLeafId) var paneLeafId
-    @AppStorage("imagePreview.magnifierLocked") var magnifierLocked = false
-    @AppStorage("imagePreview.loupeLocked") var loupeLocked = false
+    @PaneOnlyStorage("imagePreview.magnifierLocked") var magnifierLocked = false
+    @PaneOnlyStorage("imagePreview.loupeLocked") var loupeLocked = false
 
     @Environment(StorageService.self) var storageService
     @Environment(AnnotationStore.self) var annotationStore: AnnotationStore
@@ -296,7 +297,15 @@ struct ZoomableImagePreview: View {
                     actualSize: actualSize,
                     zoomToFit: fitToWindow,
                     canZoomIn: scale < maxScale,
-                    canZoomOut: scale > minScale
+                    canZoomOut: scale > minScale,
+                    magnifier: ImageZoomActions.Switches(
+                        isOn: magnifierEnabled, isLocked: magnifierLocked,
+                        toggle: { magnifierEnabled.toggle() }, toggleLock: { magnifierLocked.toggle() }
+                    ),
+                    loupe: ImageZoomActions.Switches(
+                        isOn: loupeEnabled, isLocked: loupeLocked,
+                        toggle: { loupeEnabled.toggle() }, toggleLock: { loupeLocked.toggle() }
+                    )
                 ))
                 // ⌘A over the preview (Daniel, 2026-08-31): the armed tool decides
                 // — text tool selects every WORD, select tool every displayed box.

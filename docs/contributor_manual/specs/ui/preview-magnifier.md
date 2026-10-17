@@ -22,6 +22,9 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 
 ## Behaviors
 
+- `magnifier.per-pane-switches` **[OK]** (#5015) — the magnifier, the loupe and their locks are each Preview pane's own
+  (`@PaneOnlyStorage`), so closing the magnifier in one of two Previews leaves the other alone. The Zoom menu acts on
+  the FOCUSED pane through `ImageZoomActions.magnifier` / `.loupe`, not a shared flag. Pinned by `PreviewMagnifierPerPaneShapeTests`.
 - `magnifier.parks-where-left` **[PARTIAL]** (#1461) (implemented, unpinned; #4806) — the loupe stays where you put it and does not ride the
   cursor; ⌥-click parks it at the click. (Daniel, 2026-09-01: "it should live where you leave it".)
   `TrackingImageView.swift`.
