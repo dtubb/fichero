@@ -823,10 +823,10 @@ needs them.
 ## Accessibility identifiers
 
 - `compute.run.where` — **[GAP]** (#5240) the target chooser where a workflow is run; `compute.run.where.<id>`
-- `compute.jobs.list`, `compute.job.row.<id>`, `compute.job.<id>.state`
+- `compute.jobs.list` — **[GAP]** (#5240) `compute.job.row.<id>`, `compute.job.<id>.state`
 - `compute.job.<id>.cancel`, `.resend-failed`, `.show-output`, `.undo`
-- `compute.tune.start`, `compute.tune.recipe`, `compute.tune.base-model`
-- `compute.publish.start`, `compute.publish.visibility.<private|gated|public>`
+- `compute.tune.start` — **[GAP]** (#5240) `compute.tune.recipe`, `compute.tune.base-model`
+- `compute.publish.start` — **[GAP]** (#5240) `compute.publish.visibility.<private|gated|public>`
 
 ## Test matrix
 

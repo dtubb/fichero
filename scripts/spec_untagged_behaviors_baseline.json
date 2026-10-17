@@ -1,9 +1,5 @@
 {
   "untagged": [
-    "docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md::compute.jobs.list",
-    "docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md::compute.publish.start",
-    "docs/contributor_manual/specs/compute/jobs-and-fine-tuning.md::compute.tune.start",
-    "docs/contributor_manual/specs/kg/kg-enrichment.md::kg.enrich.provenance",
     "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.empty.load-error",
     "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.rekey.clear-focus-clears-pane",
     "docs/contributor_manual/specs/kg/kg-entity-inspector.md::kg.entity.rekey.on-focus-change",
