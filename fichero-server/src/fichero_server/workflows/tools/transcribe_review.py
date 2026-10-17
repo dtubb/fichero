@@ -105,7 +105,7 @@ ANSWER_BY_ID = (
     "The prior transcription is a list of lines, each as `<segment id> | box | maker | confidence | text` "
     "(confidence is how sure the machine was). Answer with exactly one "
     "line per listed line, in the same order, as `<segment id> | <certain, uncertain or unreadable> | <corrected "
-    "text>`: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
+    "text>`, optionally followed by ` | <short note>` saying why you changed or doubt a line: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
     "never merge, split, drop or add a line."
 )
 #: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
@@ -117,6 +117,18 @@ def shows_segment_lines(prior_text: Any) -> bool:
     """Whether the context given to the model lists a page's lines by segment id."""
     shown = prior_text if isinstance(prior_text, list) else [prior_text or ""]
     return any(_SHOWN_LINE.search(str(text)) for text in shown)
+
+
+def line_notes(answer: str) -> dict[str, str]:
+    """The short note the review gave after a line, by segment id: `<id> | <flag> | <text> | <note>` (#5724)."""
+    from fichero_server.llm.working_lines import LINE_FLAGS
+
+    notes = {}
+    for line in answer.splitlines():
+        parts = [part.strip() for part in line.split("|")]
+        if len(parts) >= 4 and _SHOWN_LINE.match(line.strip()[:35]) and parts[1].lower() in LINE_FLAGS and parts[3]:
+            notes[parts[0]] = " | ".join(parts[3:])
+    return notes
 
 
 def build_transcribe_review_prompt(config: dict) -> str:
@@ -296,8 +308,11 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, l
         artifact = db.get(Artifact, artifact_id) if artifact_id else None
         if artifact is None or artifact.artifact_type != "transcription_review":
             continue  # a review of a segment is already a reading of it (`segment.<type>`)
-        if lens:  # the corrections name this artifact, so it is where the lens that made them is recorded
-            artifact.data = {**(artifact.data or {}), "lens": lens}
+        # the corrections name this artifact, so it is where the lens that made them and each line's note are kept
+        notes_by_line = line_notes(artifact.content or "")
+        if lens or notes_by_line:
+            artifact.data = {**(artifact.data or {}), **({"lens": lens} if lens else {}),
+                             **({"line_notes": notes_by_line} if notes_by_line else {})}
             db.save(artifact)
         _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
                                     artifact_id=artifact.id, run_id=run_id, library_path=library_path)

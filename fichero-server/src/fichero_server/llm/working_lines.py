@@ -145,6 +145,8 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
 
 #: What a correcting step's per-page result says when its text cannot be put onto the page's lines.
 NOT_TIED = "not tied to lines"
+#: The flag a review gives each line (`source.job.review-is-segment-native`).
+LINE_FLAGS = ("certain", "uncertain", "unreadable")
 
 
 def correct_lines(
@@ -187,10 +189,12 @@ def correct_lines(
     for line in answer:
         parts = [part.strip() for part in line.split("|")]
         if len(parts) >= 2 and parts[0] in ids:
-            by_id[parts[0]] = parts[-1]
-            if len(parts) >= 3 and parts[1].lower() == "unreadable":
+            flag = parts[1].lower() if len(parts) >= 3 else ""
+            # `id | flag | text | note`: a flagged line's text is its third column, never the note after it (#5724)
+            by_id[parts[0]] = parts[2] if flag in LINE_FLAGS else parts[-1]
+            if flag == "unreadable":
                 unreadable.add(parts[0])
-            elif len(parts) >= 3 and parts[1].lower() == "uncertain":
+            elif flag == "uncertain":
                 uncertain.add(parts[0])
     if answer and len(by_id) == len(answer):
         corrected = dict(by_id)
