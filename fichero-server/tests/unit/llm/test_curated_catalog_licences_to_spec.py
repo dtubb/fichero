@@ -6,6 +6,7 @@ dropped from the catalogue; every catalogue entry declares its licence; weights 
 
 from __future__ import annotations
 
+from fichero_server.llm.local_model_facts import LocalInferenceCapabilities, check_local_model_hardware
 from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
 
 
@@ -24,3 +25,26 @@ def test_chandra_is_kept_with_its_openrail_licence_and_a_memory_floor():
     spec = MANAGED_MLX_MODELS["Chandra-OCR"]
     assert spec.licence == "OpenRAIL-M (modified)"
     assert spec.min_memory_bytes == 16 * 1024**3
+
+
+def _mac(memory_gb: int) -> LocalInferenceCapabilities:
+    return LocalInferenceCapabilities(
+        system="Darwin", machine="arm64", is_apple_silicon=True,
+        physical_memory_bytes=memory_gb * 1024**3,
+    )
+
+
+def test_chandra_is_not_offered_on_an_8_gb_mac_and_says_why():
+    """Machine-dependent: offered only where the memory floor is met; below it the reason is shown (#5519)."""
+    spec = MANAGED_MLX_MODELS["Chandra-OCR"]
+    supported, reason = check_local_model_hardware(
+        display_name=spec.display_name, min_memory_bytes=spec.min_memory_bytes, capabilities=_mac(8))
+    assert supported is False
+    assert "16 GB unified memory" in reason and "8 GB" in reason
+
+
+def test_chandra_is_offered_on_a_16_gb_mac():
+    spec = MANAGED_MLX_MODELS["Chandra-OCR"]
+    supported, reason = check_local_model_hardware(
+        display_name=spec.display_name, min_memory_bytes=spec.min_memory_bytes, capabilities=_mac(16))
+    assert supported is True and reason is None
