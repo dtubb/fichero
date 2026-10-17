@@ -27,6 +27,10 @@ class _FakeRequest:
         # so it takes the early-return path — these tests exercise the SSE
         # framing/delivery, not authorization (covered in test_authz_*).
         self.state = SimpleNamespace(bootstrap_auth=True, user=None)
+        # loopback host window: the route tells guests (non-loopback) when sharing stops (#5731)
+        self.scope: dict = {}
+        self.client = SimpleNamespace(host="127.0.0.1")
+        self.headers: dict = {}
 
     async def is_disconnected(self) -> bool:
         return self.disconnected
