@@ -59,7 +59,7 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   an entity switches the inspector to the Entities tab and selects that entity's row
   in the list. (`DocumentInspector.swift:98-102`, `syncSelectionToFocusedEntity`)
   Pinned: `EntityInspectorPinningTests` (`focusRoutesToEntitiesTab`).
-- `kg.entity.select.never-another-entity` — the entity pane shows the focused entity,
+- `kg.entity.select.never-another-entity` — **[PARTIAL]** (#4802) (pinned by `EntityInspectorPinningTests`; test not run on this worker, M4 run pending) the entity pane shows the focused entity,
   or the empty state — never the previous entity's statements under a new header
   (the #965 class). Pinned by re-keying (section D): `EntityInspectorPinningTests`
   (`entityArmRekeysAndClearsOnFocusChange`).
@@ -87,7 +87,7 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   live renderer that already gets the subject right — `kg-readable-representation.md`'s
   `kg.read.render-uses-claim-subject` names it as the proof that the biography renderer's
   literal "they" (a different renderer, same screen) is fixable with the same pattern.
-- `kg.entity.statements.row-shows-source-label` — each row names where it was said:
+- `kg.entity.statements.row-shows-source-label` — **[GAP]** (#4802) each row names where it was said:
   the source document's display name and page label when known; "Source <id>…" only
   when the document cannot be resolved; never an empty badge.
 - `kg.entity.statements.sorted-newest-first` — [PARTIAL] (implemented, unpinned;
@@ -100,7 +100,7 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   (`digestObservesChangeToken` — the digest re-loads on a token bump;
   `storeExposesChangeToken`); the token movement itself is pinned by
   `ClaimChangeDeliveryTests`.
-- `kg.entity.statements.loading-state` — while claims load, a progress indicator
+- `kg.entity.statements.loading-state` — **[GAP]** (#4802) while claims load, a progress indicator
   shows and no stale list from a previous entity is visible.
 - `kg.entity.statements.list-uses-full-height` — **[BROKEN]** (#4888) seen live 2026-09-19: an entity with 51 claims shows a list far too short for that
   count, in a hand-built layout distinct from the Entities/Claims tables (screenshots 9.25.12
@@ -163,7 +163,7 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   rows). Pinned: `EntityDigestStatementsStateTests`
   (`Tests/Unit/general/Views/Inspector/EntityDigestStatementsStateTests.swift` — pure
   `EntityDigestContent.statementsState(...)`).
-- `kg.entity.empty.load-error` — a failed load shows the error inline with a way to
+- `kg.entity.empty.load-error` — **[GAP]** (#4802) a failed load shows the error inline with a way to
   retry; it does not fall back to a stale list.
 - `kg.entity.load-failure-names-its-reason` — **[PARTIAL]** (implemented and tested,
   f47f4b60d; #4850 still open pending close) when the ENTITY itself fails to load (distinct from `kg.entity.empty.load-error` above, which is about the
@@ -209,12 +209,12 @@ Surfaces: `DocumentInspector` (+`Sections`), `DocumentInspectorEntitiesTab`
   `KGFocusStateTests.testHandOffToNewWindowIsConsumedByTheReceivingWindowOnly`,
   `KGFocusStateTests.testHandOffIsClearedAfterConsumingSoAThirdWindowGetsNothing`,
   `KGFocusStateTests.testConsumePendingHandoffIsANoOpWhenNothingIsPending`.
-- `kg.entity.rekey.on-focus-change` — the statements view is keyed on
+- `kg.entity.rekey.on-focus-change` — **[PARTIAL]** (#4802) (pinned by `EntityInspectorPinningTests`; test not run on this worker, M4 run pending) the statements view is keyed on
   `focusedEntityId` (`.task(id:)`), so changing focus re-fetches and the list
   belongs to the new entity; the old list is dropped, not appended. Pinned:
   `EntityInspectorPinningTests.entityArmRekeysAndClearsOnFocusChange` +
   `.digestStatementsRekeyOnEntity`.
-- `kg.entity.rekey.clear-focus-clears-pane` — when focus clears (`KGFocusState.clear`,
+- `kg.entity.rekey.clear-focus-clears-pane` — **[GAP]** (#4802) when focus clears (`KGFocusState.clear`,
   selection emptied) the entity pane goes away and the inspector returns to its
   document (or the ordinary empty state).
 
