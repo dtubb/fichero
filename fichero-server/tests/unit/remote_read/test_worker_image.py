@@ -24,3 +24,10 @@ def test_ci_builds_amd64_checks_the_imports_and_publishes_for_apptainer_pull():
     assert "linux/amd64" in text and "worker.Dockerfile" in text
     assert "import kraken" in text, "the import check"
     assert "ghcr.io" in text and "push:" in text
+
+
+def test_the_base_image_and_uv_are_pinned():
+    """WHY: the same Dockerfile must build the same image next month (a moved tag or a new uv is a silent change)."""
+    text = DOCKERFILE.read_text()
+    assert re.search(r"^FROM python:3\.12-slim@sha256:[0-9a-f]{64}$", text, re.M)
+    assert re.search(r"pip install --no-cache-dir uv==\d+\.\d+\.\d+", text)

@@ -7442,7 +7442,7 @@ def register_generated_openapi_commands(
         cluster_id: Optional[str] = typer.Option(None, '--cluster-id', help='Cluster Id.'),
         host_alias: str = typer.Option(..., '--host-alias', help='Host Alias.'),
         name: str = typer.Option(..., '--name', help='Name.'),
-        partition: Optional[str] = typer.Option(None, '--partition', help='Partition. Default: "default".'),
+        partition: Optional[str] = typer.Option(None, '--partition', help='Partition. Default: "".'),
         remote_base_dir: str = typer.Option(..., '--remote-base-dir', help='Remote Base Dir.'),
         ssh_port: Optional[int] = typer.Option(None, '--ssh-port', help='Ssh Port. Default: 22.'),
         username: str = typer.Option(..., '--username', help='Username.'),
@@ -7463,12 +7463,12 @@ def register_generated_openapi_commands(
             }, {
                 "account": {'type': 'string', 'nullable': True, 'title': 'Account', 'x-cli-required': False},
                 "cluster_id": {'type': 'string', 'nullable': True, 'title': 'Cluster Id', 'x-cli-required': False},
-                "host_alias": {'type': 'string', 'title': 'Host Alias', 'x-cli-required': True},
+                "host_alias": {'type': 'string', 'pattern': '^[A-Za-z0-9][A-Za-z0-9._-]*$', 'title': 'Host Alias', 'x-cli-required': True},
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "partition": {'type': 'string', 'title': 'Partition', 'default': 'default', 'x-cli-required': False},
+                "partition": {'type': 'string', 'title': 'Partition', 'default': '', 'x-cli-required': False},
                 "remote_base_dir": {'type': 'string', 'title': 'Remote Base Dir', 'x-cli-required': True},
                 "ssh_port": {'type': 'integer', 'title': 'Ssh Port', 'default': 22, 'x-cli-required': False},
-                "username": {'type': 'string', 'title': 'Username', 'x-cli-required': True},
+                "username": {'type': 'string', 'pattern': '^[A-Za-z0-9_][A-Za-z0-9._-]*$', 'title': 'Username', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -7498,6 +7498,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/hpc/clusters/{cluster_id}"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("check-cluster-live")
+    def hpc_check_cluster_live_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Check Cluster Live (POST /api/hpc/clusters/{cluster_id}/check)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/check"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("dry-run-submit")
@@ -7533,6 +7545,51 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("delete-cluster-key")
+    def hpc_delete_cluster_key_delete(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Cluster Key (DELETE /api/hpc/clusters/{cluster_id}/key)."""
+        if not yes:
+            typer.confirm("Delete hpc?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-cluster-key")
+    def hpc_put_cluster_key_put(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+        private_key: str = typer.Option(..., '--private-key', help='The key the app holds in its Keychain.'),
+    ) -> None:
+        """Put Cluster Key (PUT /api/hpc/clusters/{cluster_id}/key)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key"
+            params = None
+            payload = _build_json_payload({
+                "private_key": private_key,
+            }, {
+                "private_key": {'type': 'string', 'maxLength': 20000, 'minLength': 1, 'title': 'Private Key', 'description': 'The key the app holds in its Keychain.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("sign-in")
+    def hpc_sign_in_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Sign In (POST /api/hpc/clusters/{cluster_id}/sign-in)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/sign-in"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("test-cluster")
     def hpc_test_cluster_post(
         ctx: typer.Context,
@@ -7543,6 +7600,35 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/hpc/clusters/{cluster_id}/test"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-prompts")
+    def hpc_list_prompts_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Prompts (GET /api/hpc/prompts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hpc/prompts"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("answer-prompt")
+    def hpc_answer_prompt_post(
+        ctx: typer.Context,
+        prompt_id: str = typer.Argument(..., help='Prompt Id'),
+        answer: str = typer.Option(..., '--answer', help='Passed to ssh and kept nowhere.'),
+    ) -> None:
+        """Answer Prompt (POST /api/hpc/prompts/{prompt_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/prompts/{prompt_id}"
+            params = None
+            payload = _build_json_payload({
+                "answer": answer,
+            }, {
+                "answer": {'type': 'string', 'title': 'Answer', 'description': 'Passed to ssh and kept nowhere.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('iiif')
@@ -12850,7 +12936,7 @@ def register_generated_openapi_commands(
     def reading_at_scale_start_post(
         ctx: typer.Context,
         card: str = typer.Option(..., '--card', help='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.'),
-        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard. Default: "t4-small".'),
+        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".'),
         language: Optional[str] = typer.Option(None, '--language', help='Language.'),
         longest: Optional[int] = typer.Option(None, '--longest', help='Pixels on the longer side each image is read at. Default: 2000.'),
         max_in_flight: Optional[int] = typer.Option(None, '--max-in-flight', help='Shards running at once. Default: 10.'),
@@ -12859,6 +12945,7 @@ def register_generated_openapi_commands(
         reader: Optional[str] = typer.Option(None, '--reader', help='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".'),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages to read: images here, or pages imported by reference over IIIF. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         shard_size: Optional[int] = typer.Option(None, '--shard-size', help='Shard Size. Default: 50.'),
+        target: Optional[str] = typer.Option(None, '--target', help='Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute). Default: "huggingface-jobs".'),
         timeout: Optional[str] = typer.Option(None, '--timeout', help='Each shard\'s time limit; always sent. Default: "2h".'),
     ) -> None:
         """Read pages on Hugging Face Jobs, many shards as one job (POST /api/reading-at-scale)."""
@@ -12876,10 +12963,11 @@ def register_generated_openapi_commands(
                 "reader": reader,
                 "scope_ids": scope_ids,
                 "shard_size": shard_size,
+                "target": target,
                 "timeout": timeout,
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': 'The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.', 'x-cli-required': True},
-                "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard.', 'default': 't4-small', 'x-cli-required': False},
+                "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard (ignored on a cluster).', 'default': 't4-small', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
                 "longest": {'type': 'integer', 'maximum': 10000.0, 'minimum': 256.0, 'title': 'Longest', 'description': 'Pixels on the longer side each image is read at.', 'default': 2000, 'x-cli-required': False},
                 "max_in_flight": {'type': 'integer', 'maximum': 500.0, 'minimum': 1.0, 'title': 'Max In Flight', 'description': 'Shards running at once.', 'default': 10, 'x-cli-required': False},
@@ -12888,6 +12976,7 @@ def register_generated_openapi_commands(
                 "reader": {'type': 'string', 'title': 'Reader', 'description': '`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).', 'default': 'kraken', 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages to read: images here, or pages imported by reference over IIIF.', 'x-cli-required': True},
                 "shard_size": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Shard Size', 'default': 50, 'x-cli-required': False},
+                "target": {'type': 'string', 'title': 'Target', 'description': 'Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute).', 'default': 'huggingface-jobs', 'x-cli-required': False},
                 "timeout": {'type': 'string', 'title': 'Timeout', 'description': "Each shard's time limit; always sent.", 'default': '2h', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
