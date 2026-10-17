@@ -63,9 +63,11 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 
 ### B. Connecting from the second Mac
 
-- `sharing.mac-finds-host` — **[GAP]** (→ #5734) a Mac cannot browse for hosts (Bonjour browsing is iOS
-  only) and has no camera flow; the section says "Scan the QR code" but the only way in is pasting
-  the link (`MacRemoteClientPairingSection.swift`).
+- `sharing.mac-finds-host` — **[PARTIAL]** (→ #5734; decided by the manager 2026-10-17) the guest Mac pastes the
+  invite link (or scans its QR); the invite carries the host, the pin and the library, so there is no host
+  picker and **no open lookup** (anyone on the network could probe libraries). The drawer shows the host the
+  pasted invite points at, read-only, so the person sees where they connect; the pairing code catches a wrong
+  host (`MacRemoteClientPairingSection.swift`; Swift, not built or run). Not built: the camera/QR scan on a Mac.
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
   enforced, checks health, and stores the token in the Keychain with its expiry, the pin, the host
   and the library path (`RemoteClientPairingFlow.swift`). Never run between two Macs (#5049).
@@ -104,7 +106,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 
 ## Acceptance: two Macs, two people, end to end (ruled 2026-10-17)
 
-- `sharing.two-macs-end-to-end` — **[GAP]** (→ #5049) The maintainer ruled that sharing a library between Macs must work in the next
+- `sharing.two-macs-end-to-end` — **[PARTIAL]** (→ #5049) The maintainer ruled that sharing a library between Macs must work in the next
   release and Multi-user is on. In plain words: on Mac A the owner turns **Sharing** on (Settings › Sharing) and the pairing card
   appears. Mac B, on the same network or the tailnet, finds A (or is given the link) and pairs with the one-time code over
   Bonjour and pinned TLS, then opens A's library. A has an owner account; a second person has an account and signs in on B; each
@@ -112,7 +114,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   while it runs and when it ends. B's edits land on A within seconds, and A's Command-Z (one stack per window) still takes back only
   A's steps. When A turns Sharing off, B says "A stopped sharing this library", closes the shared windows and returns to its own
   projects, with no error screens. Nothing here asks the user for a port, certificate or token. Drilled by the tester with
-  `docs/contributor_manual/testing/sharing-two-mac-checklist.md`; its parts are the behaviours below. Test: (not yet written: test_two_macs_end_to_end_to_spec.py) (in-process: two clients, two accounts, one engine); the real run is the checklist on the M4.
+  `docs/contributor_manual/testing/sharing-two-mac-checklist.md`; its parts are the behaviours below. Test (in-process half: pair, open, stale-edit 409, revoke; not the stream, not two accounts): `fichero-server/tests/unit/transport/test_two_macs_end_to_end_to_spec.py`; the real run is the checklist on the M4.
 - `sharing.two-toggles-wording` — **[GAP]** (→ #5049) Settings › Sharing has exactly two switches. *Sharing*: "Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients." *Multi-user*: "Give other people their own accounts on this Mac's libraries." Nothing else is asked. Today the Sharing switch reads On/Off with that caption; the Multi-user switch lives in Engine settings (`EngineSettingsView.swift`) and must MOVE, not be duplicated, to sit beside Sharing in Settings › Sharing (ruled 2026-10-17; #3284). Red test written, not run (needs the pure `SharingToggles` type from #3284, so the test target will not compile until then): `fichero/Tests/Unit/general/Sharing/SharingTogglesTests.swift` (the two labels and captions, and that no third switch exists).
 - `sharing.names-on-edits` — **[PARTIAL]** (→ #5735; engine half pinned by `fichero-server/tests/unit/transport/test_two_accounts_names_on_edits_to_spec.py`, passing: owner on the host and a second person on a paired device each get their own name and device on the audit row; the change-stream `actor` field is still a category, not a person, and the app windows are unrun) with two accounts, an edit made by the second person on B is recorded as that person on device B, and the owner's on A as the owner on A (needs `sharing.device-chooses-person`, `sharing.who-did-it`). Test: `fichero-server/tests/unit/transport/test_two_accounts_names_on_edits_to_spec.py`.
 - `sharing.remote-run-in-host-activity` — **[PARTIAL]** (→ #5732) a read run started from B is a row in A's Activity (`/api/activity/stream`), started by B's person, on device B, live to its end. Built: every run starter takes `started_by` from `started_by_for(ctx)`, "person on device name" for a paired device (ruled 2026-10-17), pinned by `fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py` (3 passed). *Not proven: the row appearing live on A's stream while the run goes, and ending (two-Mac checklist).*
@@ -138,14 +140,18 @@ On the Air (host) and the MBP (client), apps launched by path, one xcodebuild at
 Each failure: an issue, fixed one at a time, its behaviour above re-tagged.
 
 ## Triaged from the backlog (2026-10-04)
-- `sharing.accounts-and-users-settings` — **[GAP]** (#2083) Settings has an Accounts & Users screen to log in, add/remove users and assign owner/editor/viewer.
+- `sharing.accounts-and-users-settings` — **[PARTIAL]** (#2083; read, not run: `UsersSettingsView.swift`, `UsersContent+*.swift`, `InviteAccountSection.swift` already give invites, add member, role picker, remove, disable/enable; login and a real run are unchecked) Settings has an Accounts & Users screen to log in, add/remove users and assign owner/editor/viewer.
 - `sharing.ios-device-token-hygiene` — **[GAP]** (#3290) an iOS device build never resolves the bootstrap token, renews its device token on foreground, and shows a re-pair prompt on expiry or revocation; outbox blobs are file-protected.
 - `sharing.owner-shared-libraries-view` — **[GAP]** (#2054) Settings shows the owner every library, which are shared with whom and in what role, and whether each is open.
 - `sharing.multiuser-mode-single-source` — **[GAP]** (#3284) the Multi-user toggle persists to the engine and the app, spawn env and engine agree, so a hosted engine never runs with authz off while accounts exist.
-- `sharing.acl-status-when-multiuser-off` — **[GAP]** (#3335) with Multi-user off the Library ACL row reads "not enforcing per-library access" instead of a red Server error (ShareSettingsView+Security.swift shows authzError in red).
+- `sharing.acl-status-when-multiuser-off` — **[PARTIAL]** (#3335; engine pinned by `fichero-server/tests/unit/transport/test_acl_status_multiuser_off_to_spec.py`; app wording parse-checked only, not built) with Multi-user off the Library ACL row reads "not enforcing per-library access" instead of a red Server error (ShareSettingsView+Security.swift shows authzError in red).
 - `sharing.ios-discovers-host` — **[GAP]** (#3371) an iOS/iPad client browses Bonjour, lists verified reachable Mac engine candidates and shows stale ones as failed, without persisting trust.
 - `sharing.actor-not-from-the-body` — **[OK]** (#3285; pinned by `fichero-server/tests/unit/security/test_invoke_actor_cannot_be_forged.py`, 3 passed) `POST /api/actions/invoke` never takes the author from the request: a body `actor` or `origin_window` is refused, and the audit row's actor comes from the signed-in session.
 - `sharing.stale-note-edit-is-refused-and-offered-a-choice` — **[PARTIAL]** (#5348) a note or document edit made against an old version is refused 409 and the app offers keep-mine, take-theirs or compare. Engine built for both: `PATCH /api/notes/{id}` and `PUT /api/documents/{id}` take `expected_updated_at` (pinned by `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py::test_two_macs_editing_one_note_the_second_stale_edit_is_refused` and `fichero-server/tests/unit/transport/test_stale_document_edit_to_spec.py`). *Not built: the Swift editor sending the version and the three-way choice.*
+- `sharing.note-deleted-elsewhere-stays-deleted` — **[PARTIAL]** (→ #5348; owner ruling 2026-10-17) a shared library is shared
+  editing: a note deleted on another Mac is deleted here too. When a refused (stale) save finds the note gone, the
+  app says so in one sentence and offers nothing: no keep-mine resurrection, no clipboard copy, no dialog.
+  (`NotesInspectorPane.saveNote`, `NoteStaleResolution.deletedElsewhere`; Swift, parse-checked only.)
 - `sharing.ios.unpaired-phone-opens-on-connect` **[BROKEN]** (#5396): an iPhone that has never paired opens on a welcome screen with Connect to a Mac (Bonjour list, QR or address), then the project list, never an empty 'Nothing Selected' view or a server-down error. Its screens are laid out for a phone: one navigation bar, a sidebar that survives landscape, no offline chat pane and no internal α/β/δ markers.
 
 ## Future (ideas, not scheduled)
