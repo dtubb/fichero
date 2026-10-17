@@ -44,3 +44,12 @@ def test_a_pane_choice_is_stored_per_library_and_wins(client):
 def test_a_font_that_is_not_bundled_is_refused(client):
     r = client.put("/api/recipes/font", json={"script": "Latn", "font": "Comic Sans"})
     assert r.status_code == 422 and "Comic Sans" in r.text
+
+
+def test_choosing_a_font_is_audited_and_one_undo_restores_it(client):
+    """One audited action layer: the choice goes through project.save_setup, so it has an audit row and an undo."""
+    assert client.put("/api/recipes/font", json={"script": "Latn", "font": "Noto Sans Coptic"}).status_code == 200
+    audit = client.get("/api/actions/audit").json()["items"][0]
+    assert audit["action_name"] == "project.save_setup"
+    assert client.post(f"/api/actions/audit/{audit['id']}/undo").status_code == 200
+    assert _font(client, period="12th century")["font"] == "Junicode"

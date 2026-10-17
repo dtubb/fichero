@@ -702,9 +702,14 @@ class FontChoice(BaseModel):
 
 
 @router.put("/font", response_model=ScriptFacts)
-async def choose_font(body: FontChoice, db: Database = Depends(get_library_database_for_write)) -> ScriptFacts:
+async def choose_font(
+    body: FontChoice,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ScriptFacts:
     """Remember a pane's font choice for a script in this library's setup answers (`answers.fonts`),
-    or clear it. Transcription text is then drawn in it (`layers.text.font-from-script-and-period`)."""
+    or clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it
+    (`layers.text.font-from-script-and-period`)."""
     from fichero_server.recipes import derived
 
     problem = derived.font_choice_problem(body.font)
@@ -712,9 +717,7 @@ async def choose_font(body: FontChoice, db: Database = Depends(get_library_datab
         raise HTTPException(status_code=422, detail=problem)
     if derived.unknown_scripts([body.script]):
         raise HTTPException(status_code=422, detail=f"not an ISO 15924 script code: {body.script}")
-    library = _library(db)
-    setup = read_project_setup(library)
-    answers = dict(setup.get("answers") or {})
+    answers = dict(read_project_setup(_library(db)).get("answers") or {})
     fonts = dict(answers.get("fonts") or {})
     if body.font:
         fonts[body.script] = body.font
@@ -724,7 +727,10 @@ async def choose_font(body: FontChoice, db: Database = Depends(get_library_datab
         answers["fonts"] = fonts
     else:
         answers.pop("fonts", None)
-    write_project_setup(library, answers, setup.get("recipe"))
+    try:
+        registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return ScriptFacts(**derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script)))
 
 
