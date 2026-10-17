@@ -523,10 +523,17 @@ async def resume_workflow(
             },
         )
 
+        # The run keeps the provider and model its person chose when it started
+        # (`activity.run.resume-keeps-model`, #5373), as read-again does.
+        started = await activity_tracker.store.get_workflow_run(thread_id)
+        snapshot = started.workflow_snapshot if started and isinstance(started.workflow_snapshot, dict) else {}
+        started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
         exec_request = ExecuteWorkflowRequest(
             workflow_id=workflow_id,
             inputs=(request.inputs if request and request.inputs else {}),
             thread_id=thread_id,
+            provider_override=started_with.get("provider_override"),
+            model_override=started_with.get("model_override"),
         )
 
         def _resume_workflow_thread() -> None:
