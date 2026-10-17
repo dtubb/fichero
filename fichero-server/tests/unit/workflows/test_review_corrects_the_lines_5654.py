@@ -88,7 +88,7 @@ def _readings(page, row):
     return readings_of_segment(page["db"], row.id)
 
 
-async def _review(page, monkeypatch, answer: str):
+async def _review(page, monkeypatch, answer: str, **extra):
     import fichero_server.llm as llm
     from fichero_server.llm import LLMConfig
     from fichero_server.workflows.tools.transcribe_review import transcribe_review
@@ -102,10 +102,11 @@ async def _review(page, monkeypatch, answer: str):
     monkeypatch.setattr(llm, "vision", reviewer)
     result = await transcribe_review(
         inputs={"files": page["src"]["files"], "documents": page["src"]["documents"],
-                "skip_if_artifact_exists": False},
+                "skip_if_artifact_exists": False, **extra},
         state={"library_path": page["library"], "task_id": "run-review-1"},
         llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
     assert not result.get("error"), result.get("error")
+    result["prompt"] = seen["prompt"]
     return result
 
 
@@ -314,3 +315,57 @@ async def test_a_line_the_review_flags_unreadable_is_left_as_read_and_says_so_57
         f"{third.id} | certain | y lo firmó"]))
     assert _counting(page) == ["el dicho escriuano", "vezino de la cibdad", "y lo firmó"]
     assert "1 line(s) flagged unreadable" in result["results"][0]["lines"]
+
+
+def _set_confidence(page, row, value):
+    from fichero_server.models import ContentRepresentation
+
+    reading = _readings(page, row)[0]
+    stored = page["db"].get(ContentRepresentation, reading.id)
+    stored.machine_confidence = value
+    page["db"].save(stored)
+
+
+@pytest.mark.asyncio
+async def test_the_review_is_shown_each_lines_confidence_5724(page, monkeypatch):
+    """`source.job.review-is-segment-native`: the review is given the lines as `id | box | maker | confidence |
+    text`, so it knows which line the machine was unsure of.
+    WHY: without the machine's confidence the review cannot spend its attention where the reading is weak."""
+    first, second, third = _lines(page)
+    _set_confidence(page, second, 0.41)
+    result = await _review(page, monkeypatch, "\n".join(
+        f"{r.id} | certain | {t}" for r, t in zip((first, second, third), KRAKEN_READS)))
+    shown = {line.split(" | ")[0]: line.split(" | ") for line in result["prompt"].splitlines()
+             if line[:32] in {first.id, second.id, third.id} and " | " in line and "|" in line[32:40]}
+    assert shown[second.id][3] == "0.41" and shown[second.id][4] == KRAKEN_READS[1]
+    assert shown[first.id][3] == "-"  # none stated: said so, not guessed
+
+
+@pytest.mark.asyncio
+async def test_an_uncertain_line_keeps_the_machines_confidence_5724(page, monkeypatch):
+    """A line the review flags uncertain, and changes, is not made more sure than the machine was: its new reading
+    carries the confidence of the reading it corrects; a line flagged certain is not given one.
+    WHY: a correction the model is unsure of must not read as a checked line (#5694)."""
+    first, second, third = _lines(page)
+    _set_confidence(page, second, 0.41)
+    await _review(page, monkeypatch, "\n".join([
+        f"{first.id} | certain | el dicho escriuano",
+        f"{second.id} | uncertain | vezino de la ciudad",
+        f"{third.id} | certain | y lo firmó"]))
+    by_text = {r.content: r for row in _lines(page) for r in _readings(page, row)}
+    assert by_text["vezino de la ciudad"].machine_confidence == 0.41
+    assert by_text["el dicho escriuano"].machine_confidence is None
+
+
+@pytest.mark.asyncio
+async def test_a_corrected_line_records_the_lens_that_changed_it_5724(page, monkeypatch):
+    """The step is run through a lens (a name the recipe gives it); the reading it writes names the review
+    artifact it came from, and that artifact records the lens.
+    WHY: an apparatus must say which look at the page made a change, so a lens is judged by what it changed."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    first, second, third = _lines(page)
+    await _review(page, monkeypatch, f"{second.id} | certain | vezino de la ciudad", lens="orthography")
+    (new,) = [r for r in _readings(page, second) if r.content == "vezino de la ciudad"]
+    artifact = page["db"].get(Artifact, page["db"].get(ContentRepresentation, new.id).derived_from_artifact_id)
+    assert artifact.data["lens"] == "orthography"

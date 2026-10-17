@@ -183,12 +183,15 @@ def correct_lines(
     ids = {segment_id for segment_id, _, _ in shown}
     by_id: dict[str, str] = {}
     unreadable: set[str] = set()
+    uncertain: set[str] = set()
     for line in answer:
         parts = [part.strip() for part in line.split("|")]
         if len(parts) >= 2 and parts[0] in ids:
             by_id[parts[0]] = parts[-1]
             if len(parts) >= 3 and parts[1].lower() == "unreadable":
                 unreadable.add(parts[0])
+            elif len(parts) >= 3 and parts[1].lower() == "uncertain":
+                uncertain.add(parts[0])
     if answer and len(by_id) == len(answer):
         corrected = dict(by_id)
     elif len(answer) == len(shown):
@@ -206,7 +209,9 @@ def correct_lines(
         if getattr(kind, "value", kind) == "human":
             people += 1
             continue
-        readings.append((segment_id, new))
+        # an uncertain correction is no surer than the reading it corrects (#5694)
+        sure = getattr(counting.get(representation_id), "machine_confidence", None) if segment_id in uncertain else None
+        readings.append((segment_id, new, sure))
         derived_from[segment_id] = representation_id
     made = write_readings(db, document_id=document_id, readings=readings, artifact_id=artifact_id,
                           run_id=run_id, level=level, library_path=library_path, derived_from=derived_from)
