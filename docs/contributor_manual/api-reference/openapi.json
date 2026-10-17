@@ -2305,6 +2305,29 @@
         }
       }
     },
+    "/api/pair/tailnet": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Detected Tailnet",
+        "description": "This Mac's `.ts.net` address when Tailscale is running, for the share sheet to offer (#5318).",
+        "operationId": "detected_tailnet_api_pair_tailnet_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TailnetOfferResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pair/code": {
       "post": {
         "tags": [
@@ -89837,6 +89860,15 @@
             "title": "Elsewhere",
             "description": "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, never used without the person's press (ai.where.fallback-free-and-asked)"
           },
+          "fallbacks": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Fallbacks",
+            "description": "steps that run the next candidate in their chain because the first cannot (a missing key), each saying which and why (`used` true), or offered and not used (`used` false) when it would send pages to another provider: never a silent substitute (`source.recipe.candidates-fallback-chain`)"
+          },
           "estimate": {
             "$ref": "#/components/schemas/StartEstimate"
           },
@@ -90772,6 +90804,17 @@
         ],
         "title": "TableCellPlace",
         "description": "A table cell's place (#5168, `source.segment.table-cells`): 1 for a span not stated."
+      },
+      "TailnetOfferResponse": {
+        "properties": {
+          "tailnet_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Url"
+          }
+        },
+        "type": "object",
+        "title": "TailnetOfferResponse"
       },
       "TakenOutStep": {
         "properties": {

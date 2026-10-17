@@ -179,8 +179,8 @@ final class NoteStore: ObservableDomainStore {
     /// change on a `.all(kind:...)` browse) — `belongs` decides whether the
     /// row stays, updates in place, or drops out of the current list.
     @discardableResult
-    func update(noteId: String, body: String) async throws -> NoteItem {
-        let updated = try await noteService.update(noteId: noteId, body: body)
+    func update(noteId: String, body: String, expectedUpdatedAt: Date? = nil) async throws -> NoteItem {
+        let updated = try await noteService.update(noteId: noteId, body: body, expectedUpdatedAt: expectedUpdatedAt)
         if let idx = notes.firstIndex(where: { $0.id == noteId }) {
             if Self.belongs(updated, to: scope) {
                 notes[idx] = updated

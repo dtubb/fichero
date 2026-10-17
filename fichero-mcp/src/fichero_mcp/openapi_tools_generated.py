@@ -5794,6 +5794,12 @@ def fichero_pairing_enroll_device(
     return _rt.call("POST", "/api/pair/enroll", json=_rt.body({"device_name": device_name, "enrollment_secret": enrollment_secret}))
 
 
+def fichero_pairing_detected_tailnet(
+) -> Any:
+    "Detected Tailnet\n\nThis Mac's `.ts.net` address when Tailscale is running, for the share sheet to offer (#5318).\n\nRoute: GET /api/pair/tailnet (toolset `pairing`; reads)."
+    return _rt.call("GET", "/api/pair/tailnet")
+
+
 def fichero_orchestration_list_policy_rules(
     *,
     active_only: Annotated[Optional[bool], Field(description='Only return active rules')] = None,
@@ -9480,6 +9486,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
     GeneratedTool("fichero_pairing_revoke_device", "pairing", "POST", "/api/pair/devices/{device_id}/revoke", fichero_pairing_revoke_device),
     GeneratedTool("fichero_pairing_enroll_device", "pairing", "POST", "/api/pair/enroll", fichero_pairing_enroll_device),
+    GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),
     GeneratedTool("fichero_orchestration_list_policy_rules", "orchestration", "GET", "/api/policies/orchestration", fichero_orchestration_list_policy_rules),
     GeneratedTool("fichero_orchestration_create_policy_rule", "orchestration", "POST", "/api/policies/orchestration", fichero_orchestration_create_policy_rule),
     GeneratedTool("fichero_orchestration_evaluate_policy", "orchestration", "POST", "/api/policies/orchestration/evaluate", fichero_orchestration_evaluate_policy),

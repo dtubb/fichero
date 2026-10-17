@@ -30,11 +30,16 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
 from _scan_files import scan_rglob
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SWIFT_ROOT = REPO_ROOT / "fichero" / "fichero"
-ALLOWLIST = {"Services/EmbeddedBackendService+Ports.swift"}
+ALLOWLIST = {
+    "Services/EmbeddedBackendService+Ports.swift",
+    # App Review 2.4.5(vii): Sparkle code and strings must be absent from the MAS binary.
+    "App/SparkleUpdater.swift",
+}
 # Anchored to line start (whitespace only before the directive): a compiler
 # directive must begin its line, while a PROSE mention — SandboxEnvironment's
 # doc comment quotes "`#if FICHERO_APP_STORE`" mid-line — must not trip the
