@@ -2421,7 +2421,7 @@ Jobs and chains
   across scripts and spellings (Popayán, Popaian; 北京, Beijing), and the review is given every variant of an entity it
   may meet. *Test:* a stub reviewer given "Popayán"
   in the list and a reading "Popaian" returns the list's spelling for that line.
-- `source.recipe.workflow-gaps` — **[GAP]** (#5726) surveyed 2026-10-16 against 60 default workflows: a page read by
+- `source.recipe.workflow-gaps` — **[PARTIAL]** (#5726) done: `classify_script` is a shipped workflow of its own, Classify Script (a files source and the classify step, nothing else), so a person or a recipe can classify a page's script without running Transcribe (Auto-Detect) (`tests/unit/workflows/test_classify_script_workflow_5726.py`, `test_classify_script_is_a_workflow_of_its_own_5726`). Owed: the other three, and a recipe job for the classify step. Surveyed 2026-10-16 against 60 default workflows: a page read by
   a model that answers by segment id (`transcribe_htr` and `transcribe_cloud` are page text; `read_lines_kraken_vision`
   is per line); a review for each language the read presets cover; `classify_script`, which exists only inside
   `transcribe_auto_detect`, as a step the recipe can use; and a workflow that exports tied lines as PAGE XML training

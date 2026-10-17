@@ -1645,6 +1645,7 @@ _KEYLESS_EXPECTED_REFUSALS = {
     "AI Convert to HTML",
     "AI Convert to Markdown",
     "AI Redraw as SVG",
+    "Classify Script",
     "English Secretary Hand (16th–17th C.)",
     "Extract Table",
     "Group Same Documents",
