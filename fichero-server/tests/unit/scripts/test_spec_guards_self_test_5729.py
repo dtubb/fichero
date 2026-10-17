@@ -49,3 +49,9 @@ def test_the_manual_ref_guard_proves_it_can_fail_and_pass():
     """#5729: `check_spec_manual_refs --self-test`: an APPROVED spec with no Manual line fails, `Manual: TBD` fails, a real path passes."""
     done = _run("check_spec_manual_refs.py", "--self-test")
     assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
+
+
+def test_the_capability_scrape_guard_proves_it_can_fail_and_pass():
+    """#5729: `check_capability_scrapes --self-test`: a new AppSource scrape and a drifted baseline entry are both reported, a clean tree is not."""
+    done = _run("check_capability_scrapes.py", "--self-test")
+    assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
