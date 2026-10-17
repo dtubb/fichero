@@ -27,11 +27,6 @@ from fichero_server.db.embeddings import (
     SUPPORTED_EMBEDDING_SPACES,
 )
 from fichero_server.db.paths import model_store_root
-from fichero_server.llm.local_model_facts import (  # noqa: F401  (the hardware gate lives here for llm/, #4080)
-    LocalModelHardwareError,
-    check_local_model_hardware,
-    get_local_inference_capabilities,
-)
 from fichero_server.llm.whisper_runtime import (
     WHISPER_MLX_MODELS,
     audio_runtime_status,
