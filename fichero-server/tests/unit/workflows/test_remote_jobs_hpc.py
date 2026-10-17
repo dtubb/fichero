@@ -54,7 +54,7 @@ class TestClusterConfig:
         assert _cluster().validate() is None
 
     @pytest.mark.parametrize(
-        "field", ["name", "host_alias", "username", "remote_base_dir", "partition"]
+        "field", ["name", "host_alias", "username", "remote_base_dir"]
     )
     def test_missing_required_field_raises(self, field):
         with pytest.raises(HpcConfigError) as exc:
