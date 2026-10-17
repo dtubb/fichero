@@ -27,6 +27,8 @@ struct ActivityMonitorWindow: View {
     /// The outcome of the last Delete, Clear Failed, Pause or Stop: said
     /// plainly rather than silently (#4960).
     @State private var notice: String?
+    /// The "Clear Finished…" confirmation (#5016).
+    @State private var confirmingClearFinished = false
     @AppStorage("activity.groupByProject") private var groupByProject = false
 
     /// EVERY open library, global included (Daniel #19: "show ALL libraries").
@@ -94,6 +96,18 @@ struct ActivityMonitorWindow: View {
                     .help("Clear every failed run and job from the list")
                     .accessibilityIdentifier("activity.toolbar.clearFailed")
             }
+            ToolbarItem {
+                // Every run that has ended, whatever the way (#5016): the one way to empty the list.
+                Button("Clear Finished…", role: .destructive) { confirmingClearFinished = true }
+                    .disabled(!libraries.contains { $0.activityStore.runs.contains { $0.status != .running && $0.status != .paused } })
+                    .help("Remove every finished run from the list; running ones stay")
+                    .accessibilityIdentifier("activity.toolbar.clearFinished")
+            }
+        }
+        .confirmationDialog("Remove every finished run?", isPresented: $confirmingClearFinished) {
+            Button("Clear Finished", role: .destructive) { Task { await clearFinished() } }
+        } message: {
+            Text("Completed, failed and stopped runs leave the list. Runs still going are kept.")
         }
         .safeAreaInset(edge: .bottom) { footer }
         // The window owns the run-list load (Daniel, 2026-08-28).
@@ -321,6 +335,17 @@ struct ActivityMonitorWindow: View {
             outcome += await library.activityStore.clearFailed()
         }
         notice = outcome.notice
+    }
+
+    /// "Clear Finished" (#5016): the same soft delete as Delete, for every ended run in every project.
+    private func clearFinished() async {
+        var skipped = 0
+        for library in libraries {
+            let outcome = await library.activityStore.deleteRuns(statuses: ["completed", "failed", "cancelled"])
+            skipped += outcome.skippedIds.count
+        }
+        selectedIDs.removeAll()
+        notice = skipped > 0 ? "\(skipped) run\(skipped == 1 ? "" : "s") could not be cleared." : nil
     }
 
     /// The store the Start / Stop button reads: the first project's that polls

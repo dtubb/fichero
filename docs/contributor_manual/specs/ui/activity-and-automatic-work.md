@@ -628,6 +628,11 @@ workflow by hand: a hand run is a job like any other.
   under it has no price, and nothing when no model was called, never "$0"
   (`ActivityTableTests` `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`).
   Not yet seen in the app.
+- `activity.window.clear-finished` — **[PARTIAL]** (#5016) *Clear Finished…* in the window's toolbar,
+  after one confirmation, soft-deletes every ended run (completed, failed, stopped) in every open
+  project, the same delete as Delete (`deleteRuns(statuses:)`); runs still going stay. ⌘A then Delete
+  already works on the table (`.onDeleteCommand`). Pinned by `ActivityClearFinishedShapeTests`. Not
+  yet seen in the app. Left: the first row drawn under the title bar (needs a screen).
 - `activity.window.clear-failed` — **[PARTIAL]** (#5634, ruled 2026-10-09) *Clear Failed* in the
   window's toolbar clears every failed row the window shows, in every open project and this Mac's
   own: failed workflow runs (`workflow_run.delete` with a status filter, soft-deleted as before) and
