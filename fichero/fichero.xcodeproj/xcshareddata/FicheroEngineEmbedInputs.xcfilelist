@@ -360,6 +360,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/line_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_inference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_catalog.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_choice.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_facts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_models.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_in_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_model_store.py
@@ -391,6 +392,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/kreuzberg_artifacts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/kreuzberg_cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/pdf_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/rtf_text.py
+$(SRCROOT)/../fichero-server/src/fichero_server/loaders/transcript_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/unified.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
