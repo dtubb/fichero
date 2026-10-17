@@ -61,9 +61,12 @@ Paraphrased. These narrow the 2026-08-24 target; where they differ, these win.
   Hugging Face, clusters and endpoints as one list with an honest status each, and adds a
   cluster through the guided flow. *Test:* the targets route returns all four kinds with a
   status that is the check's result, never assumed.
-- `settings.downloads-are-jobs` — **[GAP]** (#5415) a download or install started here is a job
-  in the Mac's group of the jobs table, pausable and cancellable there. *Test:* starting a model
-  download through the route creates a `download-model` job row with no library.
+- `settings.downloads-are-jobs` — **[PARTIAL]** (#5415) a download or install started here is a job
+  in the Mac's group of the jobs table, pausable and cancellable there. Built: the route queues a
+  `download-model` job row (`llm/local_models.py:983`), one per model, and Activity lists it. *Test:*
+  `fichero-server/tests/unit/llm/test_one_download_path_5620.py::test_an_mlx_download_is_an_activity_job_too`.
+  *Not pinned:* the row's place in the Mac's group, pause and cancel on the row, and "no library"
+  (the jobs table has no library column, so the claim holds but no test asserts it).
 
 ## Why this spec exists
 
