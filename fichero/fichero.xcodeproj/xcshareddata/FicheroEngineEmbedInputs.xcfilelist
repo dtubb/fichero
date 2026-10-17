@@ -32,6 +32,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/auth.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/change_stream.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/client_presence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/contract_identity_generated.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/errors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/feature_tiers_generated.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/library_header.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/main.py
@@ -254,6 +255,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/batch.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/cancellation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/chaining.py
+$(SRCROOT)/../fichero-server/src/fichero_server/execution/ghg.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
@@ -360,6 +362,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/llm/line_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_inference.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_catalog.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_choice.py
+$(SRCROOT)/../fichero-server/src/fichero_server/llm/local_model_facts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/local_models.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_in_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/llm/mlx_model_store.py
@@ -391,6 +394,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/loaders/kreuzberg_artifacts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/kreuzberg_cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/pdf_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/rtf_text.py
+$(SRCROOT)/../fichero-server/src/fichero_server/loaders/transcript_loader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/unified.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xlsx_reader.py
 $(SRCROOT)/../fichero-server/src/fichero_server/loaders/xmp_loader.py
@@ -518,6 +522,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/conv
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/convert_to_svg.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/describe_visual.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/detect_regions.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/detect_regions_apple_lines.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/detect_regions_kraken.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/detect_regions_vlm.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/diary_entries.json
