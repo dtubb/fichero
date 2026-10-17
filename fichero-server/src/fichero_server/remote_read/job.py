@@ -92,6 +92,17 @@ def resolve_step(request: ReadAtScaleRequest, *, bucket: str | None) -> dict[str
             "lines_per_call": 1, "language": request.language}
 
 
+def cluster_target(cluster_id: str) -> Callable[[], Any]:
+    """The target for a Slurm cluster. ponytail: the Keychain key and the MFA prompt passed through the app
+    (#5238) are not built, so a cluster is refused by name here; tests and the live run inject the target."""
+    from fichero_server.remote_read.slurm_target import NoKey
+
+    def refuse() -> Any:
+        raise NoKey(f"cluster {cluster_id}: the app's key and sign-in step are not built yet (#5238)")
+
+    return refuse
+
+
 def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
           target_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
     from fichero_server.training.hf_jobs import HfJobsTarget
@@ -101,13 +112,15 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
-    target = (target_factory or HfJobsTarget)()  # no token: refused here, by name
+    target = (target_factory or (HfJobsTarget if request.target == TARGET else cluster_target(request.target)))()
+    # no token (or key): refused here, by name
     step = resolve_step(request, bucket=getattr(target, "bucket", None))
     detail = {"request": request.model_dump(), "step": step, "flavor": request.flavor,
               "price_per_hour_usd": target.price_per_hour(request.flavor),
-              "yes": {"by": started_by, "at": _now(), "to": TARGET}, "phase": "waiting"}
+              "yes": {"by": started_by, "at": _now(), "to": request.target}, "phase": "waiting"}
     job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
-                                 reason="Waiting to send to Hugging Face", started_by=started_by)
+                                 reason="Waiting to send to Hugging Face" if request.target == TARGET else "Waiting to send to the cluster",
+                                 started_by=started_by)
     return {"job_id": job_id, "flavor": request.flavor, "price_per_hour_usd": detail["price_per_hour_usd"]}
 
 
@@ -167,7 +180,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     request = ReadAtScaleRequest(**detail["request"])
     if target is None:
         try:
-            target = HfJobsTarget()
+            target = HfJobsTarget() if request.target == TARGET else cluster_target(request.target)()
         except Exception as exc:
             _out_of_reach_if_running_there(db, job_id, detail, exc)
             raise

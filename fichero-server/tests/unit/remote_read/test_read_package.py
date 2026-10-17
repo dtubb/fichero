@@ -152,3 +152,32 @@ def test_the_runner_cuts_and_parses_as_the_line_reader_does():
     assert runner.crop_line(page, polygon).tobytes() == line_reader.crop_line(page, polygon).tobytes()
     for raw in ('["Yten"]', '```json\n["a", null]\n```', "not json", '["a","b"]'):
         assert runner.parse_answer(raw, 1) == line_reader.parse_answer(raw, 1)
+
+
+def test_local_pages_travel_downscaled_in_one_tar_per_shard_and_are_read_from_it(db, tmp_path, archive, monkeypatch):
+    """WHY (`compute.hpc.shards-not-files`, `compute.hpc.stage-as-shards`): a full-size scan is never copied
+    into the package; a shard's pages are ONE tar the task unpacks to its node's own disk, and nothing of
+    the pages stays there after; packing the same package twice gives the same bytes."""
+    from fichero_server.remote_read.package import pack_shards
+
+    folder, step = archive
+    big = tmp_path / "photos" / "p1.jpg"
+    Image.new("RGB", (5000, 3000), (10, 20, 30)).save(big)
+    build_read_package(db, job_id="job-1", scope_ids=[folder.id], step=step, out_dir=tmp_path / "pkg", shard_size=5,
+                       longest=2000)
+    job = json.loads((tmp_path / "pkg" / "job.json").read_text())
+    with Image.open(tmp_path / "pkg" / job["sources"][0]["image"]) as scaled:
+        assert max(scaled.size) == 2000 and scaled.size == (2000, 1200)
+    (archive_name,) = pack_shards(tmp_path / "pkg")
+    first = (tmp_path / "pkg" / archive_name).read_bytes()
+    pack_shards(tmp_path / "pkg")
+    assert (tmp_path / "pkg" / archive_name).read_bytes() == first
+    for source in job["sources"][:3]:
+        (tmp_path / "pkg" / source["image"]).unlink()  # only the tar holds the pages now
+    node = tmp_path / "node"
+    node.mkdir()
+    monkeypatch.setenv("SLURM_TMPDIR", str(node))
+    outcome = runner.run_shard(tmp_path / "pkg", 0, tmp_path / "out", reader=_fake_reader,
+                               get=lambda url, timeout: (200, {}, _jpeg((100, 100))))
+    assert [o["ok"] for s, o in outcome["sources"].items() if o.get("size") == [2000, 1200]] == [True]
+    assert list(node.iterdir()) == []
