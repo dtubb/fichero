@@ -128,6 +128,8 @@ struct ZoomableImagePreview: View {
     /// Optional for the same reason; without it the page arrows hide and
     /// sibling stepping stays swipe-only.
     @Environment(DocumentStore.self) var documentStore: DocumentStore?
+    /// The library's transcription family, for the inline words (#5438).
+    @Environment(TranscriptionFontStore.self) var transcriptionFont: TranscriptionFontStore?
     /// Optional: geometry reloads when a run finishes (2026-08-25 — a fresh
     /// Detect Regions run wrote 52 good boxes and the overlay kept showing
     /// the stale ones until the document was switched). This is the

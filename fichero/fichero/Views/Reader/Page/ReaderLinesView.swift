@@ -78,6 +78,7 @@ struct ReaderLineRow: View {
     @Environment(SegmentService.self) private var segmentService: SegmentService?
     @Environment(ActionStore.self) private var actionStore: ActionStore?
     @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
+    @Environment(TranscriptionFontStore.self) private var transcriptionFont: TranscriptionFontStore?
     @State private var editor: ReaderLineEditor
     @State private var correcting: Segment?
 
@@ -184,7 +185,7 @@ struct ReaderLineRow: View {
 
     private func horizontalField(rightToLeft: Bool) -> some View {
         TextField("Reading", text: $editor.draft, axis: .vertical)
-            .font(BundledFonts.shared.font(size: metrics.fontSize, family: BundledFonts.shared.transcriptionFamily))
+            .font(BundledFonts.shared.font(size: metrics.fontSize, family: transcriptionFont?.family))
             .multilineTextAlignment(rightToLeft ? .trailing : .leading)
             .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
             .textFieldStyle(.plain)

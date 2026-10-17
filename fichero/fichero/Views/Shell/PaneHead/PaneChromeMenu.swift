@@ -15,6 +15,18 @@ import SwiftUI
 ///
 /// Renders from what the pane actually has: split actions arrive via the head's environment, the pin
 /// and close from the head itself; with none, nothing renders.
+private struct OffersTranscriptionFontKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Whether this pane draws transcription text, so its menu offers the Font choice (#5438).
+    var offersTranscriptionFont: Bool {
+        get { self[OffersTranscriptionFontKey.self] }
+        set { self[OffersTranscriptionFontKey.self] = newValue }
+    }
+}
+
 struct PaneChromeMenu: View {
     var splitActions: SplitAxisActions?
     var isPinned: Binding<Bool>?
@@ -45,6 +57,8 @@ struct PaneMenuEntries: View {
     var isPinned: Binding<Bool>?
     var closeTitle: String?
     var onClose: (() -> Void)?
+    @Environment(\.offersTranscriptionFont) private var offersFont
+    @Environment(TranscriptionFontStore.self) private var fontStore: TranscriptionFontStore?
 
     var body: some View {
         if let actions = splitActions {
@@ -80,6 +94,19 @@ struct PaneMenuEntries: View {
             } label: {
                 Label(isPinned.wrappedValue ? "Unpin Pane" : "Pin Pane",
                       systemImage: isPinned.wrappedValue ? "pin.slash" : "pin")
+            }
+        }
+        if offersFont, let fontStore {
+            Divider()
+            Menu("Font") {
+                Button("Automatic") { Task { await fontStore.choose(nil) } }
+                ForEach(BundledFonts.shared.familyNames, id: \.self) { name in
+                    Button {
+                        Task { await fontStore.choose(name) }
+                    } label: {
+                        if fontStore.family == name { Label(name, systemImage: "checkmark") } else { Text(name) }
+                    }
+                }
             }
         }
         if let onClose, let closeTitle {
