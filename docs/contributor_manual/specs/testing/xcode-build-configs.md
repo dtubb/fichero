@@ -98,7 +98,7 @@ None outstanding.
 ## Triaged from the backlog (2026-10-04)
 - `config.shipping-configuration-is-tested` — **[GAP]** (#4226) a check exercises the configuration users get (DMG/App Store: UDS, sandbox, bookmarks), and the Swift gate and scripts/check_*.py guards are run together so neither can go red unseen.
 - `build.swiftlint-phase-reruns-on-change` — **[GAP]** (#5096) the SwiftLint build phase declares file inputs that change when a source changes, so a fixed lint error stops being reported.
-- `build.ios-target-compiles-without-macos-only-types` — **[BROKEN]** (#5322) the iOS target compiles: EmbeddedBackendService.backendProcess (Process) and two other macOS-only pieces are guarded `#if os(macOS)`; fix 4d4d768ec is not yet on integration.
+- `build.ios-target-compiles-without-macos-only-types` — **[PARTIAL]** (#5322) the iOS target compiles: EmbeddedBackendService.backendProcess (Process) is guarded `#if os(macOS)` in the property and both uses on this branch (read, 2026-10-17); a generic iOS Simulator build has not run, so it stays PARTIAL until one is green. Test: `fichero/Tests/Unit/general/Services/IOSTargetMacOnlyTypesGuardrailTests.swift`.
 
 ## Triaged from the older signing plans (2026-10-17)
 The signing-ladder and engine-entitlements plans are retired into these entries. Ruling 2026-10-17 wins over those plans: the Mac App Store build is a CONFIGURATION and scheme of the one Fichero target sharing one embed phase (#3982), not a separate target, so the ladder's "App Store target untouched" no longer applies.
