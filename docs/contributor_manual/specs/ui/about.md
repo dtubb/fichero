@@ -154,13 +154,13 @@ arm64e bug; the harness is structured so an `ImageRenderer` snapshot works indep
 ## Accessibility identifiers
 
 Stable a11y ids now on the views (added in this pass), for the click-around leg to drive:
-- `about.menu.open` — the App-menu "About Fichero" button that opens the window.
+- `about.menu.open` — **[GAP]** (#2557) the App-menu "About Fichero" button that opens the window.
 - `about.appName` / `about.version` / `about.serverVersion` — the identity + version text.
-- `about.link.github` — "Fichero on GitHub" link.
-- `about.link.license` — "AGPL-3.0 License" link.
-- `about.button.acknowledgements` — opens the Acknowledgements sheet.
+- `about.link.github` — **[GAP]** (#2557) "Fichero on GitHub" link.
+- `about.link.license` — **[GAP]** (#2557) "AGPL-3.0 License" link.
+- `about.button.acknowledgements` — **[GAP]** (#2557) opens the Acknowledgements sheet.
 - `about.ack.<versionKey>` — one per credited project (key is the unique lowercased dist name).
-- `about.acknowledgements.done` — the sheet's Done button.
+- `about.acknowledgements.done` — **[GAP]** (#2557) the sheet's Done button.
 
 ## UX completeness
 

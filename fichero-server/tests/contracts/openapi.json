@@ -17701,6 +17701,54 @@
         }
       }
     },
+    "/api/machines/{machine_id}": {
+      "delete": {
+        "tags": [
+          "machines"
+        ],
+        "summary": "Forget a paired machine: remove its saved token on this Mac",
+        "description": "Owner only. Removes this Mac's saved token; the device stays listed on the far Mac until it revokes it.",
+        "operationId": "forget_machine_api_machines__machine_id__delete",
+        "parameters": [
+          {
+            "name": "machine_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{32}$",
+              "title": "Machine Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Forget Machine Api Machines  Machine Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/machines/pair": {
       "post": {
         "tags": [
@@ -50283,6 +50331,12 @@
             "title": "Faded Pages",
             "description": "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"
           },
+          "photographs": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Photographs",
+            "description": "the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)"
+          },
           "job_answers": {
             "additionalProperties": true,
             "type": "object",
@@ -58972,6 +59026,11 @@
           "revoked": {
             "type": "boolean",
             "title": "Revoked"
+          },
+          "paired_by_device_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Paired By Device Id"
           }
         },
         "type": "object",
@@ -60599,6 +60658,13 @@
             "nullable": true,
             "title": "Z Index",
             "description": "Its stacking order on the canvas."
+          },
+          "expected_updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "title": "Expected Updated At",
+            "description": "The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348)."
           }
         },
         "additionalProperties": false,
@@ -67973,6 +68039,14 @@
             "type": "array",
             "title": "Unpriced Models",
             "description": "models under it the price list does not know"
+          },
+          "places": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Places",
+            "description": "where the model calls under this one ran, and how many went to each place: this_mac, own_machine, provider (`ai.where.row-names-the-place`, #5582)"
           },
           "account": {
             "$ref": "#/components/schemas/RunAccount",
@@ -76317,6 +76391,16 @@
             "type": "string",
             "minLength": 1,
             "title": "Device Name"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "nullable": true,
+            "title": "Password"
           }
         },
         "type": "object",
@@ -76764,6 +76848,11 @@
           "drawn": {
             "type": "boolean",
             "title": "Drawn",
+            "default": false
+          },
+          "shapeless": {
+            "type": "boolean",
+            "title": "Shapeless",
             "default": false
           },
           "rank": {
@@ -86871,6 +86960,18 @@
             "title": "Is Furniture",
             "description": "True marks the segment as page furniture (running heads, folio numbers)."
           },
+          "mark_state": {
+            "type": "string",
+            "enum": [
+              "ticked",
+              "crossed",
+              "struck",
+              "none"
+            ],
+            "nullable": true,
+            "title": "Mark State",
+            "description": "The segment's one mark: ticked, crossed, struck or none."
+          },
           "language": {
             "type": "string",
             "nullable": true,
@@ -86954,6 +87055,11 @@
             "type": "boolean",
             "title": "Is Furniture",
             "default": false
+          },
+          "mark_state": {
+            "type": "string",
+            "title": "Mark State",
+            "default": "none"
           },
           "language": {
             "type": "string",
@@ -89137,6 +89243,12 @@
             "nullable": true,
             "title": "Cost Usd",
             "description": "0 on this Mac; null when the model has no price"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis",
+            "description": "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other place, or a model with no price): never a $0 for what is not known (#5590)",
+            "default": "unpriced"
           },
           "memory": {
             "type": "string",

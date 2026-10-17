@@ -43,6 +43,10 @@ struct ToolInfo: Codable, Identifiable {
     /// "elementwise" | "reducing" | "batch". Mirrored for model sync (#4604
     /// gate 2026-08-19); optional so older engines decode.
     let parallelism: String?
+    /// What the tool writes and where it attaches (Python ToolDef.writes /
+    /// anchors_at, #5596). Mirrored for model sync; optional so older engines decode.
+    let writes: [String]
+    let anchorsAt: String?
 
     var id: String { name }
 
@@ -62,6 +66,8 @@ struct ToolInfo: Codable, Identifiable {
         case sortOrder = "sort_order"
         case requiresGenerativeModel = "requires_generative_model"
         case parallelism
+        case writes
+        case anchorsAt = "anchors_at"
     }
 
     init(from decoder: Decoder) throws {
@@ -88,6 +94,8 @@ struct ToolInfo: Codable, Identifiable {
         requiresGenerativeModel = try container.decodeIfPresent(
             Bool.self, forKey: .requiresGenerativeModel) ?? false
         parallelism = try container.decodeIfPresent(String.self, forKey: .parallelism)
+        writes = try container.decodeIfPresent([String].self, forKey: .writes) ?? []
+        anchorsAt = try container.decodeIfPresent(String.self, forKey: .anchorsAt)
     }
 
     /// Memberwise initializer for creating ToolInfo from code
@@ -111,7 +119,9 @@ struct ToolInfo: Codable, Identifiable {
         sortOrder: Int,
         tested: Bool = false,
         requiresGenerativeModel: Bool = false,
-        parallelism: String? = nil
+        parallelism: String? = nil,
+        writes: [String] = [],
+        anchorsAt: String? = nil
     ) {
         self.name = name
         self.displayName = displayName
@@ -133,6 +143,8 @@ struct ToolInfo: Codable, Identifiable {
         self.sortOrder = sortOrder
         self.tested = tested
         self.parallelism = parallelism
+        self.writes = writes
+        self.anchorsAt = anchorsAt
     }
 }
 

@@ -1013,7 +1013,7 @@ Reuse existing pane-head and inspector-tab identifiers where they already exist
   readable-paragraph Reader rendition, `kg/kg-readable-representation.md` Migration step 6):
   → #4838 needs to know WHICH entity/claim is focused to draw its paragraph, the same payload
   #4804 already identified as missing — #4804 should land first, or as the same delivery.
-- `library.pane` — confirms the Library leaf's identity is stable across selections
+- `library.pane` — **[GAP]** (#4838) confirms the Library leaf's identity is stable across selections
 - `pane.kindSwitcher` — the per-pane-head kind selector (`m2p.pane-head-parity`)
 - `inspector.surface.<kind>` — which inspector surface is mounted, for the agreement test
 

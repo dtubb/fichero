@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import sys
 import shutil
 import subprocess
 from _scan_files import scan_rglob
@@ -114,5 +115,39 @@ def main() -> int:
     return 0
 
 
+def _self_test() -> int:
+    """Run `main()` over scratch trees: an APPROVED spec with no `Milestone:` header must fail, one that declares it
+    must pass (rule 0: a guard must know when it is blind). GitHub is not asked."""
+    import contextlib
+    import io
+    import os
+    import tempfile
+
+    global _live_milestones
+    real, _live_milestones = _live_milestones, lambda: None
+
+    def verdict(header: str) -> int:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = pathlib.Path(scratch)
+            (root / SPECS_DIR).mkdir(parents=True)
+            (root / SPECS_DIR / "scratch-surface.md").write_text(f"# Scratch\n\nStatus: APPROVED\n{header}\n",
+                                                                 encoding="utf-8")
+            here = pathlib.Path.cwd()
+            os.chdir(root)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return main()
+            finally:
+                os.chdir(here)
+
+    try:
+        missing, declared = verdict(""), verdict("Milestone: scratch-surface")
+    finally:
+        _live_milestones = real
+    ok = (missing, declared) == (1, 0)
+    print("self-test " + ("ok" if ok else f"FAILED: expected (missing, declared) = (1, 0), got ({missing}, {declared})"))
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_self_test() if "--self-test" in sys.argv else main())

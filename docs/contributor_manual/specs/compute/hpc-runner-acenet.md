@@ -6,7 +6,7 @@
 >
 > Design-led (Testing Constitution). **Status: DRAFT — first pass 2026-10-09 from a design session with
 > the maintainer; critiqued 2026-10-10 (the Critique section below, folded into the design and behaviours).** A slice of the compute
-> set: read `remote-compute.md` and `linux-server-image.md` first. Every behaviour is **[GAP]** (#5642).
+> set: read `remote-compute.md` and `linux-server-image.md` first. Behaviours are **[GAP]** (#5642) unless tagged otherwise; **[BROKEN]** where today's code contradicts the line.
 > Claims about our code are **VERIFIED** (with a path) or **INFERRED**; claims about the Alliance are
 > **CITED** (Sources below) or **TO CONFIRM** with ACENET.
 > Shareable summary and the questions for ACENET: https://claude.ai/artifact/KYaVjiLFk4r3WKUAtiUrne
@@ -54,8 +54,7 @@ with provenance.
 1. **Set up once.** Add the cluster (host, user, project folder, allocation account). Fichero makes its
    own key; the public half goes into CCDB; the private half stays in the Keychain. Test Connection checks
    the folder, Apptainer, the GPU driver version, and that the image is there. The image is never built
-   on the cluster: CI builds the Apptainer image and publishes it to a registry (an OCI/ORAS artifact); the
-   cluster pulls it once, on a data-transfer node or inside a job, never on a login node.
+   on the cluster: CI builds the Apptainer image and publishes it to a registry (an OCI/ORAS artifact); it is pulled once onto `/project` from a data-transfer node (or uploaded from the Mac), never on a login node and never inside a job (compute nodes are offline).
 2. **Plan.** On a step or a recipe, Where: ACENET. Before anything leaves, the plan in words: pages, model,
    GPUs, GPU hours, time estimate, that pages leave the Mac (asked once per project, as egress already is).
 3. **Stage.** Pages as tar shards and the model weights go to `/project` by Globus Transfer through the
@@ -71,9 +70,14 @@ with provenance.
    site profile's, TO CONFIRM.
 5. **Watch.** `sacct -j <id> --parsable2` at the interval `compute.job.poll-is-gentle` sets, while the app is open;
    each batch writes `done/<n>.json` or `failed/<n>.json`. One Activity row: queued, running N of M, done.
-6. **Bring back.** Finished batches' results (Parquet shards: text, lines, names, dates, page references,
-   optionally embeddings) are downloaded as they land and folded in exactly once, with provenance (job,
+6. **Bring back.** Finished batches' results (one PAGE XML per page in each batch's tar, plus `_outcome.json`; the format `format.import` lands today; see the result-format decision below) are downloaded as they land and folded in exactly once, with provenance (job,
    node, model, image digest). Failed batches can be resent alone. The run folder is cleaned up.
+
+### The target: SlurmTarget behind the read-at-scale loop
+
+The read-at-scale loop (`remote_read/job.py`: package, shards, submit, poll, fetch, land, resend, cancel) already talks to its target through one small interface (`send/submit/statuses/status/fetch_part/cancel/last_lines/price_per_hour`, `training/hf_jobs.py`). A `SlurmTarget` implements that interface. The cluster gets no second runner (`compute.job.one-runner`). Bulk moves by Globus; small sets by the SSH carrier.
+
+**Result format (A0 default, 2026-10-17; for the manager to ratify):** one PAGE XML per page, one tar per batch, plus `_outcome.json`, landed by `format.import` as a new pass. `transfer-and-results.md` still describes `records.jsonl` for clusters; that is open until reconciled.
 
 ### Who talks to the cluster
 
@@ -147,7 +151,7 @@ request; site profiles as data. What changed, each folded in above:
 2. **No IIIF fetching on a login node**, at any size (today's `remote_read/slurm.py` does): the Mac, a lab
    server or a data-transfer node fetches.
 3. **Weights staged by Globus or a data-transfer node**, never through a login node.
-4. **File-count quotas** on `/project`: shards and Parquet results, never one file per page.
+4. **File-count quotas** on `/project`: shards and per-batch tars, never one file per page.
 5. **Batches sized to the walltime classes** that are scheduled soonest; the classes live in the profile.
 6. **vLLM offline batch inference**, not a server (as `jobs-and-fine-tuning.md` already says).
 7. **MFA without automation access means attended runs.**
@@ -162,13 +166,15 @@ vLLM offline inference, `resume_from_checkpoint` with `--requeue` for training, 
 - `compute.hpc.key-once` — **[GAP]** (#5642) Fichero makes the key; the person pastes the public half into CCDB once; the private half is in the Keychain; no `~/.ssh` access.
 - `compute.hpc.test-connection` — **[GAP]** (#5642) checks the folder, Apptainer, the allocation and the GPU driver against the image's CUDA, and stages the image.
 - `compute.hpc.plan-before-send` — **[GAP]** (#5642) pages, model, GPUs, GPU hours and that pages leave the Mac, shown and agreed before anything is sent.
-- `compute.hpc.stage-as-shards` — **[GAP]** (#5642) pages travel as tar shards; tasks unpack to `$SLURM_TMPDIR`; nothing stays in `/scratch`.
+- `compute.hpc.stage-as-shards` — **[PARTIAL]** (#5457) local pages travel downscaled (longer side `fetch.longest`) as one tar per shard (`pack_shards`); the runner unpacks its tar to `$SLURM_TMPDIR` and removes it after. Not yet: the upload itself (Globus/SFTP), per-batch result tars. Test: `fichero-server/tests/unit/remote_read/test_read_package.py`.
+- `compute.hpc.sbatch-fits-the-site` — **[OK]** (#5457) the script names the allocation, a typed GPU (`--gres=gpu:h100:1`), `--signal=B:USR1@120` and `--requeue`, sets `HF_HUB_OFFLINE=1` (compute nodes are offline), and names a partition only when the person gave one. Test: `fichero-server/tests/unit/remote_read/test_read_on_slurm.py`.
+- `compute.hpc.slurm-target` — **[PARTIAL]** (#5457) `SlurmTarget` (`remote_read/slurm_target.py`) has the surface `HfJobsTarget` has (send, submit, statuses, status, fetch_part, last_lines, cancel) over a `Shell` seam, tested against a fake login shell. `SshShell` drives the system `ssh` with one ControlMaster connection (no new dependency; asyncssh ruled out, 2026-10-17) and refuses without a key. Not yet: the second factor passed through the app (it is answered where ssh asks), the Keychain key, and `read-at-scale` choosing it as its `target`. Test: `fichero-server/tests/unit/remote_read/test_slurm_target.py`.
 - `compute.hpc.submit-array` — **[GAP]** (#5642) one Slurm job per recipe step, each a throttled array with the allocation and the walltime signal; large models read by vLLM offline batch inference inside the task, no server.
-- `compute.hpc.nothing-heavy-on-a-login-node` — **[GAP]** (#5642) no image build, page fetch or weight copy runs on a login node; the image comes from CI by pull, pages and weights by Globus or a data-transfer node.
+- `compute.hpc.nothing-heavy-on-a-login-node` — **[BROKEN]** (#5642; `remote_read/slurm.py:63-69` prefetches IIIF pages on the login node) no image build, page fetch or weight copy runs on a login node; the image comes from CI by pull, pages and weights by Globus or a data-transfer node.
 - `compute.hpc.batches-fit-the-walltime` — **[GAP]** (#5642) a batch is sized from measured pages per second to finish inside the site profile's shorter walltime class.
-- `compute.hpc.shards-not-files` — **[GAP]** (#5642) pages travel and results return as shards (tar in, Parquet out), never one file per page on `/project`.
-- `compute.hpc.status-from-sacct` — **[GAP]** (#5642) status from `sacct` and batch markers, every few minutes; one Activity row; picked up again on reopen.
-- `compute.hpc.failure-states-in-words` — **[GAP]** (#5642) TIMEOUT resumes; OUT_OF_MEMORY resizes; NODE_FAIL and PREEMPTED requeue; FAILED shows the log; a batch failing twice is set aside.
+- `compute.hpc.shards-not-files` — **[PARTIAL]** (#5457) the package no longer copies a full-size file per image: pages are downscaled and packed as a tar per shard (`remote_read/package.py`). Results still return as one PAGE XML per page, not a per-batch tar. Test: `fichero-server/tests/unit/remote_read/test_read_package.py`.
+- `compute.hpc.status-from-sacct` — **[PARTIAL]** (#5457) one `sacct` call covers every task of the array and is read into the job row's words (`remote_read/slurm_target.py`). Not yet: the poll every few minutes, one Activity row, picked up on reopen. Test: `fichero-server/tests/unit/remote_read/test_slurm_target.py`.
+- `compute.hpc.failure-states-in-words` — **[PARTIAL]** (#5457) TIMEOUT, OUT_OF_MEMORY, NODE_FAIL, PREEMPTED, FAILED and CANCELLED are said in words from `sacct`. Not yet: TIMEOUT resumes, OUT_OF_MEMORY resizes, NODE_FAIL/PREEMPTED requeue, a batch failing twice is set aside. Test: `fichero-server/tests/unit/remote_read/test_slurm_target.py`.
 - `compute.hpc.resume-long-training` — **[GAP]** (#5642) a fine-tune checkpoints at the warning signal and continues in a dependent job.
 - `compute.hpc.results-exactly-once` — **[GAP]** (#5642) results fold in once, with job, node, model and image digest, even if downloaded twice or resubmitted.
 - `compute.hpc.mfa-modes` — **[GAP]** (#5642) one MFA push per session before automation-node access, and the run is attended (watching stops when the session lapses, said in words); none after.
@@ -176,6 +182,7 @@ vLLM offline inference, `resume_from_checkpoint` with `--requeue` for training, 
 - `compute.hpc.rehearsed-before-a-cluster` — **[GAP]** (#5642) the runner passes Slurm-in-Docker in CI (logic), a paid GPU (the work) and a rented Slurm+Apptainer machine (the whole flow) before a real cluster.
 - `compute.hpc.site-profiles` — **[GAP]** (#5642) a cluster profile holds the site's scheduler, container runtime, unattended-access mode, transfer, allocation, GPU types, walltime and compute-node internet; nothing is ACENET-only.
 - `compute.hpc.iiif-at-scale` — **[GAP]** (#5642) a million-page IIIF run fetches politely at reader size off the login nodes, keeps references, and starts with a measured pilot.
+- `compute.hpc.slurm-target-behind-read-at-scale` — **[GAP]** (#5457, #5238) a `SlurmTarget` implements the read-at-scale target interface; the loop's package, shard, submit, poll, fetch, land and resend steps run unchanged against it. *Test:* the read-at-scale loop against Slurm-in-Docker lands its pages as a pass.
 
 ## Test matrix
 

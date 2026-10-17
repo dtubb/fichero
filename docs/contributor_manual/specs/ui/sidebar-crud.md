@@ -223,6 +223,9 @@ Tests that pin the two delete behaviors:
 Everything above the Delete section is the larger design, pinned in later waves —
 NOT this PR.
 
+## Sharing rows (ruled 2026-10-17)
+Shared libraries appear in PROJECTS, not in a section of their own; the three behaviours live in `transport/library-sharing.md`: `sharing.sidebar.guest-row`, `sharing.sidebar.host-mark`, `sharing.sidebar.off-greys-row` (all [GAP] until built).
+
 ## Triaged from the backlog (2026-10-04)
 - `sidebar.drag-identity-edges` — **[GAP]** (#4530) a foreign plain-text drag is not blamed as internal, a user folder named fichero-drag-* is not swallowed, and canonicalLibraryKey matching is case-insensitive.
 - `sidebar.drop-on-content-pane-silent` — **[GAP]** (#4551) releasing an in-app library drag on the content pane is a silent no-op, never a modal Import Error (message still in ContentView+ActionsImport.swift).

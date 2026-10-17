@@ -241,6 +241,7 @@ class DocumentUpdate(BaseModel):
     rotation_z: Optional[float] = Field(default=None, description='Its rotation on the canvas, in degrees.')
     scale: Optional[float] = Field(default=None, description='Its scale on the canvas.')
     z_index: Optional[int] = Field(default=None, description='Its stacking order on the canvas.')
+    expected_updated_at: Optional[datetime] = Field(default=None, description="The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348).")
 
 
 class DocumentExclusionScope(str, Enum):
@@ -2850,6 +2851,18 @@ def update_document_impl(
     # the only fields that mutate are ones the client explicitly set to a
     # non-null value. (#774 + audit on 2026-05-03.)
     update_data = update.model_dump(exclude_unset=True, exclude_none=True)
+    expected = update_data.pop("expected_updated_at", None)
+    if expected is not None and ensure_utc(expected) != ensure_utc(doc.updated_at):
+        raise HTTPException(status_code=409, detail={
+            "reason": "stale",
+            "message": ("this was changed since you opened it; nothing was written. "
+                        "Keep yours (save again against the current version), take theirs, or compare."),
+            "document_id": doc.id,
+            "expected_updated_at": ensure_utc(expected).isoformat(),
+            "updated_at": ensure_utc(doc.updated_at).isoformat(),
+            "current_page_content": doc.page_content,
+            "current_name": doc.name,
+        })
     if "path" in update_data:
         try:
             validate_stored_document_path(
@@ -3359,7 +3372,7 @@ def restore_documents_impl(
 #   * document.batch_exclude   -> document.restore (before snapshots)
 #   * document.delete          -> document.restore (doc + artifact snapshots)
 
-from fichero_server.actions.registry import action, ActionContext, ChangeSpec  # noqa: E402
+from fichero_server.actions.registry import action  # noqa: E402
 
 
 class DocumentUpdateActionParams(BaseModel):

@@ -61,9 +61,12 @@ Paraphrased. These narrow the 2026-08-24 target; where they differ, these win.
   Hugging Face, clusters and endpoints as one list with an honest status each, and adds a
   cluster through the guided flow. *Test:* the targets route returns all four kinds with a
   status that is the check's result, never assumed.
-- `settings.downloads-are-jobs` — **[GAP]** (#5415) a download or install started here is a job
-  in the Mac's group of the jobs table, pausable and cancellable there. *Test:* starting a model
-  download through the route creates a `download-model` job row with no library.
+- `settings.downloads-are-jobs` — **[PARTIAL]** (#5415) a download or install started here is a job
+  in the Mac's group of the jobs table, pausable and cancellable there. Built: the route queues a
+  `download-model` job row (`llm/local_models.py:983`), one per model, and Activity lists it. *Test:*
+  `fichero-server/tests/unit/llm/test_one_download_path_5620.py::test_an_mlx_download_is_an_activity_job_too`.
+  *Not pinned:* the row's place in the Mac's group, pause and cancel on the row, and "no library"
+  (the jobs table has no library column, so the claim holds but no test asserts it).
 
 ## Why this spec exists
 
@@ -662,8 +665,10 @@ the rest belong to `ai-settings.md` or maintainer triage (folded there, not rest
   touch a key value — `set_provider_api_key_impl`'s route-level logging
   (`api/routes/ai/provider_keys.py:114,120`, logs only the provider name) and
   `keychain.py`'s `set_api_key`/`delete_api_key` debug/warning lines (`keychain.py:266-299`,
-  also provider-name-only) — were read and confirmed to never log the key value either, but
-  neither has a dedicated test guarding it, hence PARTIAL rather than a blanket OK. A second
+  also provider-name-only) — were read and confirmed to never log the key value either. The
+  keychain half now has its own sentinel test (`test_keychain_logs_never_leak_to_spec.py`:
+  set and delete, success and failure); the route-level half has none yet, hence PARTIAL
+  rather than a blanket OK. A second
   pin lands with the Test Connection probe work: `test_routes_provider_keys.py::test_connection_test_key_never_appears_in_response_or_logs`
   (a sentinel key never appears in the response body, its JSON serialization, or the log
   capture, across a real probe path).
@@ -982,7 +987,22 @@ Watch-outs:
 Settings reuses the row; land subtractively. Ready for CD review, not yet code.
 
 ## Triaged from the backlog (2026-10-04)
-- `models.curated-catalog-clean-licences` — **[GAP]** (#4611) Chandra-OCR and Nanonets-OCR are removed from MANAGED_MLX_MODELS (both still present at mlx_model_store.py:111,125).
+- `models.curated-catalog-clean-licences` — **[PARTIAL]** (#4611) ruling 2026-10-17: licence decides what
+  ships. A model Fichero cannot include by licence is dropped from what ships; a downloadable one is
+  offered as an in-app download; a machine-dependent one (Chandra-OCR) is offered only on a Mac with
+  enough memory; each model shows why it is or is not offered (#5519). Weights are never bundled.
+  Every catalogue entry declares its licence (`ManagedModelSpec.licence`, read from the Hub card on
+  2026-10-17). Dropped: Nanonets-OCR (no declared licence; base Qwen2.5-VL-3B-Instruct is
+  qwen-research; its card: "Not for release in any case"). Kept: Chandra-OCR (openrail, modified).
+  *Built and pinned:* the memory gate. On a Mac under 16 GB Chandra-OCR is listed with
+  `supported: false` and its reason ("needs 16 GB unified memory; this Mac has 8 GB"), and a download
+  is refused with that reason (`mlx_model_store.py`; `test_mlx_model_store.py`, the start refusal and
+  `test_catalog_marks_unsupported_when_memory_floor_is_missed`). The listing shows it greyed with its
+  reason, not hidden: that is the "shows why" half of the ruling.
+  *Test:* `fichero-server/tests/unit/llm/test_curated_catalog_licences_to_spec.py` (licences, and the
+  Chandra gate at 8 GB and 16 GB).
+  *Owed:* Qwen2.5-VL-3B's base is also qwen-research (research use only); the ruling would drop it,
+  but it is the default corrector, so it is held for a ruling.
 - `settings.local-only-mode` — **[GAP]** (#2063) a global local-only switch in Settings and a visible indicator; the engine already refuses cloud calls under FICHERO_LOCAL_ONLY (llm/__init__.py:1166 enforce_local_only_provider) but no app toggle or indicator exists.
 - `ai.onboarding-leaves-a-working-setup` — **[GAP]** (#5118) onboarding ends with a model that will run: RAM headroom is checked and HuggingFace discovery fills fields rather than chatting.
 - `settings.models.provider-status-says-what-is-true` — **[GAP]** (#4964) a provider row's dot is green only when a run would work now, and otherwise says not installed, installing with progress, install failed with the reason (Kraken today shows green while uninstallable).

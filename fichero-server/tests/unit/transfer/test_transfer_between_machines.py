@@ -66,6 +66,7 @@ def far(client, monkeypatch):
     monkeypatch.setattr(machines, "_put", lambda account, secret: keychain.__setitem__(account, secret) or True)
     monkeypatch.setattr(machines, "_get", keychain.get)
     monkeypatch.setattr(machines, "_accounts", lambda: list(keychain))
+    monkeypatch.setattr(machines, "_delete", lambda account: keychain.pop(account, None) is not None)
     engine = FarEngine(client)
     monkeypatch.setattr(machines, "client", lambda url, token=None: engine)
     return engine

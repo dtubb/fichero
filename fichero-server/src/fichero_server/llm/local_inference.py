@@ -13,11 +13,8 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from contextvars import ContextVar
-from functools import lru_cache
 import logging
 import os
-import platform
-import subprocess
 import time
 from datetime import UTC, datetime
 from enum import Enum
@@ -186,6 +183,13 @@ def _need_parts(model: Any, context_tokens: int) -> tuple[int, int]:
     return weights, int(per_token) * max(0, int(context_tokens))
 
 
+def local_memory_gb(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS) -> float:
+    """The ONE memory number for a local model, in GB (`ai.where.one-memory-number`, #5537): what the load gate
+    needs (weights, the KV cache for `context_tokens`, the overhead; the machine's override applies). The cards,
+    setup's rule and Start's peak read this, not a number of their own."""
+    return round(fit_estimate(model, context_tokens, physical_memory=0).need_bytes / 1024**3, 2)
+
+
 def fit_estimate(model: Any, context_tokens: int = DEFAULT_CONTEXT_TOKENS, physical_memory: int | None = None,
                  *, catalog: Any = None) -> FitEstimate:
     """Weights + the KV cache for `context_tokens` + overhead, against this Mac's memory (#5641): "fits" within
@@ -345,7 +349,8 @@ async def wait_for_memory_to_load(
         try:
             check(spec)
             return
-        except MemoryShortError as exc:
+        except MemoryShortError as short:
+            reason = str(short)
             freed = release()
             if freed:
                 logger.info("Released %s to load %s", ", ".join(freed), spec.display_name)
@@ -353,8 +358,7 @@ async def wait_for_memory_to_load(
                     check(spec)
                     return
                 except MemoryShortError as again:
-                    exc = again
-            reason = str(exc)
+                    reason = str(again)
         if time.monotonic() >= deadline:
             raise LocalModelMemoryUnavailableError(
                 f"{reason}. Waited {limit / 60:.0f} minutes for memory; close other apps, then run "
