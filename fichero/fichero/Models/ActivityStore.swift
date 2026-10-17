@@ -83,7 +83,7 @@ final class ActivityStore: ChangeEventConsumer {
     }
 
     /// The library this store belongs to, named in a jobs-poll footer line (#5469).
-    @ObservationIgnored private weak var library: LibraryManager.LibraryReference?
+    @ObservationIgnored weak var library: LibraryManager.LibraryReference?
     var isRebuildingRuns = false
     /// True when the last `GET /workflow-execution/runs` page was full —
     /// probably a next page to page in. `false` on a short page, or before load.
