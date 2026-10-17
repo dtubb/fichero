@@ -12,7 +12,12 @@ final class ActivityClearFinishedShapeTests: XCTestCase {
 
     func testItDeletesEndedStatusesOnlyNeverRunningOnes() throws {
         let window = try AppSource.code("Views/Activity/Window/ActivityMonitorWindow.swift")
-        XCTAssertTrue(window.contains("deleteRuns(statuses: [\"completed\", \"failed\", \"cancelled\"])"))
+        XCTAssertTrue(window.contains("deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)"))
+        XCTAssertTrue(window.contains("ActivityRunStatus.finished.contains($0.status)"))
         XCTAssertFalse(window.contains("statuses: [\"running\""))
+    }
+
+    func testTheEnginesNamesAreTheEndedStatuses() {
+        XCTAssertEqual(Set(ActivityRunStatus.finishedEngineNames), ["completed", "failed", "cancelled"])
     }
 }

@@ -99,7 +99,7 @@ struct ActivityMonitorWindow: View {
             ToolbarItem {
                 // Every run that has ended, whatever the way (#5016): the one way to empty the list.
                 Button("Clear Finished…", role: .destructive) { confirmingClearFinished = true }
-                    .disabled(!libraries.contains { $0.activityStore.runs.contains { $0.status != .running && $0.status != .paused } })
+                    .disabled(!libraries.contains { $0.activityStore.runs.contains { ActivityRunStatus.finished.contains($0.status) } })
                     .help("Remove every finished run from the list; running ones stay")
                     .accessibilityIdentifier("activity.toolbar.clearFinished")
             }
@@ -341,7 +341,7 @@ struct ActivityMonitorWindow: View {
     private func clearFinished() async {
         var skipped = 0
         for library in libraries {
-            let outcome = await library.activityStore.deleteRuns(statuses: ["completed", "failed", "cancelled"])
+            let outcome = await library.activityStore.deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)
             skipped += outcome.skippedIds.count
         }
         selectedIDs.removeAll()
