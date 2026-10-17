@@ -58,3 +58,15 @@ def test_the_start_plan_carries_the_setting_from_the_projects_answers(client, db
 
     read = next(o for o in body["train_offers"] if o["job"] == "read-a-line")
     assert read["setting"]["mode"] == "offered", read
+
+
+def test_a_project_that_keeps_its_pages_here_never_trains_on_huggingface():
+    """source.onboard.auto.train-offer-comes: a project that keeps its pages on this Mac is never defaulted to, nor allowed,
+    the Hugging Face setting: the ways that leave this Mac are refused (`train_offers._ways`), so the setting must not
+    promise one."""
+    default = training_setting(None, mac_memory_gb=SMALL, hf_configured=True, stays_local=True)
+    assert default["mode"] == "offered" and "pages on this Mac" in default["why"], default
+    chosen = training_setting("huggingface", mac_memory_gb=BIG, hf_configured=True, stays_local=True)
+    assert chosen["mode"] == "offered" and "pages on this Mac" in chosen["why"], chosen
+    assert training_setting("here", mac_memory_gb=BIG, hf_configured=True, stays_local=True)["mode"] == "here"
+    assert training_setting(None, mac_memory_gb=SMALL, hf_configured=True, stays_local=False)["mode"] == "huggingface"

@@ -52,19 +52,26 @@ TRAIN_HERE_MIN_RAM_GB = 16
 TRAINING_MODES = ("here", "huggingface", "offered")
 
 
-def training_setting(answered: str | None, *, mac_memory_gb: float, hf_configured: bool) -> dict[str, str]:
+def training_setting(answered: str | None, *, mac_memory_gb: float, hf_configured: bool,
+                     stays_local: bool = False) -> dict[str, str]:
     """How training happens in this project, from setup's answer (`answers.training`) or, with none, from the machine
     (#5440, ruled 2026-10-17): here when this Mac has the memory, else Hugging Face when a token is set up, else offered
-    on the Start plan. A choice that cannot be met falls back to `offered` and says why. Never an alert."""
+    on the Start plan. A choice that cannot be met falls back to `offered` and says why. A project that keeps its pages on
+    this Mac never has Hugging Face (the way that leaves it is refused, `_ways`). Never an alert."""
     enough = mac_memory_gb >= TRAIN_HERE_MIN_RAM_GB
+    hf_configured = hf_configured and not stays_local
+    off_mac = "this project keeps its pages on this Mac, and Hugging Face would take them off it"
     if answered not in TRAINING_MODES:
         mode = "here" if enough else "huggingface" if hf_configured else "offered"
         return {"mode": mode, "why": {
             "here": "this Mac has the memory to train a reader itself",
             "huggingface": "this Mac is short of memory to train here, and Hugging Face is set up",
-            "offered": "this Mac is short of memory to train here and Hugging Face is not set up"}[mode]}
+            "offered": ("this Mac is short of memory to train here, and " + (off_mac if stays_local else
+                                                                              "Hugging Face is not set up"))}[mode]}
     if answered == "here" and not enough:
         return {"mode": "offered", "why": "this Mac has not enough memory to train a reader here"}
+    if answered == "huggingface" and stays_local:
+        return {"mode": "offered", "why": off_mac}
     if answered == "huggingface" and not hf_configured:
         return {"mode": "offered", "why": "no Hugging Face token is set up (Settings, AI providers, Hugging Face)"}
     return {"mode": answered, "why": "your choice in setup"}
