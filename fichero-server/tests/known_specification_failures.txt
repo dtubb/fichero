@@ -36,11 +36,10 @@ tests/unit/seams/test_state_channel_seam.py::test_every_key_read_from_graph_stat
 # channel #3748/#3749 were closed against and that does not exist, so they cannot
 # pass until the maintainer rules on configuration-vs-target (#5121).
 # Ruled 2026-10-17 (#5730): MAS is an `App Store` CONFIGURATION of the one target. The tests below stay red
-# until that configuration, its Sparkle-removal phase and the embed phase's MAS inputs exist in the pbxproj.
+# until that configuration and the embed phase's MAS inputs exist in the pbxproj.
 tests/unit/scripts/test_check_mac_app_store_target.py::test_guardrail_passes_on_current_repo
 tests/unit/scripts/test_check_mac_app_store_target.py::test_embed_phases_are_dependency_aware_not_always_out_of_date
 tests/unit/scripts/test_check_mac_app_store_target.py::test_the_real_project_has_an_app_store_configuration
-tests/unit/scripts/test_check_mac_app_store_target.py::test_sparkle_is_removed_from_the_app_store_build
 tests/unit/scripts/test_every_guard_passes_on_the_real_tree.py::test_every_guard_passes_on_the_real_tree[check_mac_app_store_target.py]
 
 # ---- #5113 (1) ----
