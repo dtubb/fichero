@@ -122,6 +122,12 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.off-closes-the-guest` — **[GAP]** (→ #5731) turning Sharing off on A ends B's change stream with a typed "sharing stopped" event before the listener closes; B shows one sentence, closes the shared windows and returns to its own projects; no reconnect loop. Test: `fichero-server/tests/unit/transport/test_sharing_off_to_spec.py` (engine); the window behaviour on the checklist.
 - `sharing.stale-edit-both-ways` — **[PARTIAL]** (→ #5348) engine half built; the app must send the version (see `sharing.stale-note-edit-is-refused-and-offered-a-choice`): B's edit on a note A changed is refused 409, never silently lost. Engine pinned by `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py::test_two_macs_editing_one_note_the_second_stale_edit_is_refused` (no xfail remains); the Swift editor half needs its own test, to be written with #5348.
 
+### E. Sharing in the sidebar (ruled 2026-10-17; cross-cited from `ui/sidebar-crud.md`)
+
+- `sharing.sidebar.guest-row` — **[GAP]** (→ issue to be filed by the bugs lane) on the guest Mac a shared library is a project row under PROJECTS in the same style as local projects, with a small "shared" mark, named as on the host; the host's name is shown in the Inspector. No separate section. Test to be written with the feature: `fichero/Tests/Unit/general/Sharing/SharedProjectRowTests.swift`.
+- `sharing.sidebar.host-mark` — **[GAP]** (→ issue to be filed by the bugs lane) on the host Mac the shared project's row carries a small shared mark while Sharing is on; the Inspector lists the connected people and devices, each with Revoke and Forget machine (`transfer.machine.forget-machine`). Nothing else changes in the sidebar. Test to be written with the feature: `fichero/Tests/Unit/general/Sharing/HostSharedMarkTests.swift`.
+- `sharing.sidebar.off-greys-row` — **[GAP]** (→ issue to be filed by the bugs lane; engine event is `sharing.off-closes-the-guest`, #5731) when Sharing goes off on the host the guest's row stays, greyed, with one sentence, "Not available: sharing is off on <host>"; its windows close with that sentence; Forget removes the row. Test to be written with the feature: `fichero/Tests/Unit/general/Sharing/SharingOffGreysRowTests.swift`.
+
 ## The two-machine test (next)
 
 On the Air (host) and the MBP (client), apps launched by path, one xcodebuild at a time on each:
