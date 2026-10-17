@@ -1333,10 +1333,11 @@ and node, not by job); a retry action for failed pages.
   with the plan's why); an import after Start runs exactly the steps it names
   (`fichero-server/tests/unit/recipes/test_what_runs_by_itself_5362.py`). Still a gap: the app's setup
   and Activity do not show it.
-- `activity.auto.reembed-on-change` — **[PARTIAL]** (#5360) a reading or segment change
+- `activity.auto.reembed-on-change` — **[OK]** (#5360) a reading or segment change
   re-derives the page text and re-embeds it. Built: the re-embed is a queued job written in the
   change's own transaction (`activity.correction-reembed-visible`, `actions/page_text_cache.py:366-376`).
-  Still a gap: a direct text edit (`PATCH` of `page_content`) re-embeds inline on the request.
+  A direct text edit (`PUT` of `page_content`) queues the same job instead of embedding on the request
+  (`fichero-server/tests/unit/jobs/test_text_edit_reembed_is_a_job_5360.py`).
 - `activity.auto.reextract-on-change` — **[PARTIAL]** (#5361) after a person
   corrects a page's text, its entities and claims are remade from the corrected text. Built
   (2026-10-03): where the library reads names automatically, a correction takes back the page's
