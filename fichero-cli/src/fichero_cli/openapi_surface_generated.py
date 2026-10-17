@@ -4934,6 +4934,7 @@ def register_generated_openapi_commands(
         doc_type: Optional[str] = typer.Option(None, '--doc-type', help='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.'),
         exclude_from_processing: Optional[bool] = typer.Option(None, '--exclude-from-processing/--no-exclude-from-processing', help='Leave it out of runs.'),
         exclude_from_search: Optional[bool] = typer.Option(None, '--exclude-from-search/--no-exclude-from-search', help='Leave it out of search.'),
+        expected_updated_at: Optional[str] = typer.Option(None, '--expected-updated-at', help="The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348)."),
         file_type: Optional[str] = typer.Option(None, '--file-type', help='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.'),
         is_flagged: Optional[bool] = typer.Option(None, '--is-flagged/--no-is-flagged', help='Flag or unflag it.'),
         is_read: Optional[bool] = typer.Option(None, '--is-read/--no-is-read', help='Mark it read or unread.'),
@@ -4962,6 +4963,7 @@ def register_generated_openapi_commands(
                 "doc_type": doc_type,
                 "exclude_from_processing": exclude_from_processing,
                 "exclude_from_search": exclude_from_search,
+                "expected_updated_at": expected_updated_at,
                 "file_type": file_type,
                 "is_flagged": is_flagged,
                 "is_read": is_read,
@@ -4985,6 +4987,7 @@ def register_generated_openapi_commands(
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'description': 'Leave it out of runs.', 'x-cli-required': False},
                 "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'description': 'Leave it out of search.', 'x-cli-required': False},
+                "expected_updated_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Expected Updated At', 'description': "The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348).", 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
                 "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'description': 'Flag or unflag it.', 'x-cli-required': False},
                 "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'description': 'Mark it read or unread.', 'x-cli-required': False},
@@ -10762,6 +10765,22 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("forget-a-paired-remove-its-saved-token-on-this-mac", hidden=True)
+    @target_app.command("forget")
+    def machines_forget_delete(
+        ctx: typer.Context,
+        machine_id: str = typer.Argument(..., help='Machine Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Forget a paired machine: remove its saved token on this Mac (DELETE /api/machines/{machine_id})."""
+        if not yes:
+            typer.confirm("Delete machines?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/machines/{machine_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('mcp')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp endpoints.', no_args_is_help=True)
@@ -12066,6 +12085,8 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         code: str = typer.Option(..., '--code', help='Code.'),
         device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        password: Optional[str] = typer.Option(None, '--password', help='Password.'),
+        username: Optional[str] = typer.Option(None, '--username', help='Username.'),
     ) -> None:
         """Pair Device (POST /api/pair)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12074,9 +12095,13 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "code": code,
                 "device_name": device_name,
+                "password": password,
+                "username": username,
             }, {
                 "code": {'type': 'string', 'minLength': 1, 'title': 'Code', 'x-cli-required': True},
                 "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "password": {'type': 'string', 'nullable': True, 'title': 'Password', 'x-cli-required': False},
+                "username": {'type': 'string', 'nullable': True, 'title': 'Username', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -13055,6 +13080,7 @@ def register_generated_openapi_commands(
         materials: Optional[list[str]] = typer.Option(None, '--materials', help="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         pages: Optional[int] = typer.Option(None, '--pages', help='roughly how many pages. Default: 0.'),
         period: Optional[str] = typer.Option(None, '--period', help="when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)"),
+        photographs: Optional[bool] = typer.Option(None, '--photographs/--no-photographs', help='the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)'),
         place: Optional[str] = typer.Option(None, '--place', help='where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)'),
         purpose: Optional[str] = typer.Option(None, '--purpose', help='a single purpose, as before 2026-10-05: read as a list of one.'),
         purposes: Optional[list[str]] = typer.Option(None, '--purposes', help="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers) A list: repeat the flag, or give the values comma-separated, or as JSON."),
@@ -13080,6 +13106,7 @@ def register_generated_openapi_commands(
                 "materials": materials,
                 "pages": pages,
                 "period": period,
+                "photographs": photographs,
                 "place": place,
                 "purpose": purpose,
                 "purposes": purposes,
@@ -13100,6 +13127,7 @@ def register_generated_openapi_commands(
                 "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting", 'x-cli-required': False},
                 "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
                 "period": {'type': 'string', 'nullable': True, 'title': 'Period', 'description': "when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)", 'x-cli-required': False},
+                "photographs": {'type': 'boolean', 'nullable': True, 'title': 'Photographs', 'description': 'the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)', 'x-cli-required': False},
                 "place": {'type': 'string', 'nullable': True, 'title': 'Place', 'description': 'where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)', 'x-cli-required': False},
                 "purpose": {'type': 'string', 'nullable': True, 'title': 'Purpose', 'description': 'a single purpose, as before 2026-10-05: read as a list of one', 'x-cli-required': False},
                 "purposes": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Purposes', 'description': "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)", 'x-cli-required': False},
@@ -15819,6 +15847,7 @@ def register_generated_openapi_commands(
         kind: Optional[str] = typer.Option(None, '--kind', help="The segment's new kind."),
         kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it.'),
         language: Optional[str] = typer.Option(None, '--language', help="The segment's language, a BCP 47 tag."),
+        mark_state: Optional[str] = typer.Option(None, '--mark-state', help="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none."),
         parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment this one now sits inside.'),
         script: Optional[str] = typer.Option(None, '--script', help="The segment's script, an ISO 15924 code."),
         segment_id_2: str = typer.Option(..., '--segment-id', help='The segment to change.'),
@@ -15836,6 +15865,7 @@ def register_generated_openapi_commands(
                 "kind": kind,
                 "kind_raw": kind_raw,
                 "language": language,
+                "mark_state": mark_state,
                 "parent_segment_id": parent_segment_id,
                 "script": script,
                 "segment_id": segment_id,
@@ -15848,6 +15878,7 @@ def register_generated_openapi_commands(
                 "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'description': "The segment's new kind.", 'x-cli-required': False},
                 "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it.', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The segment's language, a BCP 47 tag.", 'x-cli-required': False},
+                "mark_state": {'type': 'string', 'enum': ['ticked', 'crossed', 'struck', 'none'], 'nullable': True, 'title': 'Mark State', 'description': "The segment's one mark: ticked, crossed, struck or none.", 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment this one now sits inside.', 'x-cli-required': False},
                 "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'description': "The segment's script, an ISO 15924 code.", 'x-cli-required': False},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to change.', 'x-cli-required': True},

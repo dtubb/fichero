@@ -193,7 +193,7 @@ PROVIDERS: dict[ProviderType, ProviderInfo] = {
     ProviderType.omlx: ProviderInfo(
         type=ProviderType.omlx,
         name="MLX (Local)",
-        description="Local OpenAI-compatible MLX server for Qwen3-VL, Nanonets-OCR, and Chandra-OCR",
+        description="Local OpenAI-compatible MLX server for Qwen3-VL and Chandra-OCR",
         api_key_env=None,
         api_key_url=None,
         is_local=True,

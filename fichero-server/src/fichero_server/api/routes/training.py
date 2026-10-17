@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.main import (
     get_library_database,
     get_library_database_for_write,
@@ -110,7 +110,7 @@ class CancelTrainingParams(BaseModel):
 @action("training.start", TrainKrakenRequest, domains=["job"], undoable=False)
 def _action_start(db: Database, params: TrainKrakenRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     _every_page_readable(db, params.scope_ids, ctx)
-    started = _training_job().start(db, params, started_by=ctx.actor or "owner")
+    started = _training_job().start(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _training_job().KIND},
                                emit_type="job.created")
@@ -119,7 +119,7 @@ def _action_start(db: Database, params: TrainKrakenRequest, ctx: ActionContext) 
 @action("training.start_vision_lora", TrainVisionLoraRequest, domains=["job"], undoable=False)
 def _action_start_vision_lora(db: Database, params: TrainVisionLoraRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     _every_page_readable(db, params.scope_ids, ctx)
-    started = _training_job().start(db, params, started_by=ctx.actor or "owner")
+    started = _training_job().start(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _training_job().KIND, "card": "vision-lora"},
                                emit_type="job.created")
@@ -130,7 +130,7 @@ def _action_start_here(db: Database, params: TrainKrakenHereRequest, ctx: Action
     from fichero_server.training import local as local_training  # the engine starts without it (#3950)
 
     _every_page_readable(db, params.scope_ids, ctx)
-    started = local_training.start(db, params, started_by=ctx.actor or "owner")
+    started = local_training.start(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": local_training.KIND},
                                emit_type="job.created")
@@ -144,7 +144,7 @@ def _action_start_regions_here(db: Database, params: TrainRegionsHereRequest, ct
     from fichero_server.training import yolo_local
 
     _every_page_readable(db, params.scope_ids, ctx)
-    started = yolo_local.start(db, params, started_by=ctx.actor or "owner")
+    started = yolo_local.start(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": yolo_local.KIND},
                                emit_type="job.created")
@@ -447,7 +447,7 @@ class ReasonsJobParams(BaseModel):
 @action("training.gather_reasons", GatherReasonsRequest, domains=["job"], undoable=False)
 def _action_gather_reasons(db: Database, params: GatherReasonsRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     _every_page_readable(db, params.scope_ids, ctx)
-    started = _reasons_job().start(db, params, started_by=ctx.actor or "owner")
+    started = _reasons_job().start(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _reasons_job().KIND}, emit_type="job.created")
 
@@ -499,7 +499,7 @@ async def cancel_reasons_job(
 
 @action("training.measure_reasons_ab", ReasonsABRequest, domains=["job"], undoable=False)
 def _action_measure_ab(db: Database, params: ReasonsABRequest, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    started = _reasons_job().start_ab(db, params, started_by=ctx.actor or "owner")
+    started = _reasons_job().start_ab(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": _reasons_job().KIND_AB}, emit_type="job.created")
 

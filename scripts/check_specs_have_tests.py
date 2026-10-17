@@ -193,5 +193,42 @@ def main() -> int:
     return 0
 
 
+def _self_test() -> int:
+    """Run `main()` over three scratch trees and fail unless each gives the verdict it should: an approved spec no test
+    cites fails, an approved spec a test cites passes, and a test citing a spec path that does not exist fails
+    (rule 0: a guard must know when it is blind). The constants are relative to the working directory, so a scratch
+    directory is a whole tree."""
+    import contextlib
+    import io
+    import os
+    import tempfile
+
+    def verdict(spec_status: str, test_cites: str | None) -> int:
+        with tempfile.TemporaryDirectory() as scratch:
+            root = pathlib.Path(scratch)
+            (root / SPECS_DIR).mkdir(parents=True)
+            (root / SPECS_DIR / "scratch-surface.md").write_text(
+                f"# Scratch\n\nStatus: {spec_status}\n\n## Test matrix\n- one leg\n", encoding="utf-8")
+            (root / "fichero-server/tests").mkdir(parents=True)
+            if test_cites:
+                (root / "fichero-server/tests/test_scratch.py").write_text(
+                    f'"""Spec: {test_cites}"""\n\ndef test_it():\n    pass\n', encoding="utf-8")
+            here = pathlib.Path.cwd()
+            os.chdir(root)
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    return main()
+            finally:
+                os.chdir(here)
+
+    untested = verdict("APPROVED", None)
+    tested = verdict("APPROVED", "docs/contributor_manual/specs/scratch-surface.md")
+    orphan = verdict("DRAFT", "docs/contributor_manual/specs/no-such-spec.md")
+    ok = (untested, tested, orphan) == (1, 0, 1)
+    print("self-test " + ("ok" if ok else f"FAILED: expected (untested, tested, orphan) = (1, 0, 1), got "
+                                          f"({untested}, {tested}, {orphan})"))
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_self_test() if "--self-test" in sys.argv else main())

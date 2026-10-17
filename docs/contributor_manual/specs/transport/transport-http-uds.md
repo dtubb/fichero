@@ -69,7 +69,7 @@ remote host can't redirect a hermetic test).
   an unrelated, already-closed ClaimStore-write-path survey (caught by `spec_pipeline.py`'s rule
   b). #4511 is still OPEN, so this remains blocked until it lands.
 
-- `transport.lan-listener-only-when-checked` — **[GAP]** (→ #5736) the app dials its own engine over the Unix socket always. A network listener exists only while Sharing is on AND "This network" is checked: bound to the host's `.local` address, never `0.0.0.0`, TLS and a pairing token required. A `.ts.net` host is dialled over HTTPS with the system certificate (Tailscale terminates TLS); a `.local` host keeps its SPKI pin. Detail in `library-sharing.md` (`sharing.share-on-choice`, `sharing.tailscale-serve`). Test: `fichero-server/tests/unit/security/test_share_on_listeners_to_spec.py`.
+- `transport.lan-listener-only-when-checked` — **[GAP]** (→ #5736) the app dials its own engine over the Unix socket always. A network listener exists only while Sharing is on AND "This network" is checked: bound to the host's `.local` address, never `0.0.0.0`, TLS and a pairing token required. A `.ts.net` host is dialled over HTTPS with the system certificate (Tailscale terminates TLS); a `.local` host keeps its SPKI pin. Detail in `library-sharing.md` (`sharing.share-on-choice`, `sharing.tailscale-serve`). Test: (not yet written: test_share_on_listeners_to_spec.py).
 
 ## Test matrix
 

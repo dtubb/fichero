@@ -476,7 +476,7 @@ All [GAP]: designed, not built.
   the workflow's model cards. *Test:* a workflow needing an MLX-only model offers only this Mac,
   and says why the others are absent. The time, cost and greenhouse gas shown beside each
   target are owned by `activity.run.where-and-estimate`; this line is the chooser.
-- `compute.job.one-runner` — **[GAP]** (#5240) a `workflow` job runs the same workflow code, with the same step
+- `compute.job.one-runner` — **[BROKEN]** (#5240; `remote_read/runner.py` is a second runner, its crop and parsing mirrored from `llm/line_reader.py`) a `workflow` job runs the same workflow code, with the same step
   semantics, as a run on the Mac. No separate runner exists. The rule for runs on the Mac (every way a run starts goes through the
   runner) is owned by `activity.run.one-way-to-run`; this line adds only that the image runs the
   same runner. *Existing data:* the default
@@ -823,10 +823,10 @@ needs them.
 ## Accessibility identifiers
 
 - `compute.run.where` — **[GAP]** (#5240) the target chooser where a workflow is run; `compute.run.where.<id>`
-- `compute.jobs.list`, `compute.job.row.<id>`, `compute.job.<id>.state`
+- `compute.jobs.list` — **[GAP]** (#5240) `compute.job.row.<id>`, `compute.job.<id>.state`
 - `compute.job.<id>.cancel`, `.resend-failed`, `.show-output`, `.undo`
-- `compute.tune.start`, `compute.tune.recipe`, `compute.tune.base-model`
-- `compute.publish.start`, `compute.publish.visibility.<private|gated|public>`
+- `compute.tune.start` — **[GAP]** (#5240) `compute.tune.recipe`, `compute.tune.base-model`
+- `compute.publish.start` — **[GAP]** (#5240) `compute.publish.visibility.<private|gated|public>`
 
 ## Test matrix
 

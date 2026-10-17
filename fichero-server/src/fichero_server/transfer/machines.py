@@ -51,6 +51,12 @@ def _get(account: str) -> str | None:
     return get_api_key(account)
 
 
+def _delete(account: str) -> bool:
+    from fichero_server.security.keychain import delete_api_key
+
+    return delete_api_key(account)
+
+
 def _accounts() -> list[str]:
     from fichero_server.security.keychain import list_providers
 
@@ -75,6 +81,13 @@ def machine(machine_id: str) -> Machine:
     if not raw:
         raise LookupError(f"No paired machine {machine_id}: pair it first (its Fichero shows a pairing code).")
     return Machine(**json.loads(raw))
+
+
+def forget(machine_id: str) -> None:
+    """Drop the saved token for a paired machine. The far Mac still lists the device until it revokes it there."""
+    machine(machine_id)  # LookupError if not paired
+    if not _delete(_PREFIX + machine_id):
+        raise RuntimeError("The Keychain would not remove the saved pairing.")
 
 
 def address_url(address: str) -> str:

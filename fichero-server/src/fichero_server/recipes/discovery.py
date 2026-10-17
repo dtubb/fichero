@@ -228,6 +228,7 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
     person's Ollama and LM Studio rows (no embedder). Where it runs is by its address (`llm.places`): a server on
     this Mac runs on this Mac, free; one on another machine of the person's own is free, but its pages leave this
     Mac (`cloud:<type>`), so the rules choose it only where the project lets pages leave."""
+    from fichero_server.llm.local_inference import local_memory_gb
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
 
     out: dict[str, Card] = {}
@@ -252,7 +253,7 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
             open_licence=open_licence, licence=licence,
             size_gb=round(spec.download_size_bytes / 1e9, 3),
-            memory_gb=round(spec.min_memory_bytes / 1024**3, 2),  # text alone: no page image to hold
+            memory_gb=local_memory_gb(spec),  # the load gate's number (#5537)
             note=spec.display_name, source="installed", installed=True,
             offered_because=f"installed on this Mac: {spec.display_name}, in your model store; it reads text",
         )
@@ -275,6 +276,7 @@ def other_text_cards() -> list[Card]:
     Foundation Models; not available where this build or this Mac lacks it), the catalogue's MLX text models still
     to download, and the cloud models of the person's provider rows (Claude, when none is configured, as a card that
     says to add it in Settings › AI)."""
+    from fichero_server.llm.local_inference import local_memory_gb
     from fichero_server.llm.local_model_choice import apple_intelligence_in_this_build
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
 
@@ -298,7 +300,7 @@ def other_text_cards() -> list[Card]:
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
             licence="", size_gb=round(spec.download_size_bytes / 1e9, 3),
-            memory_gb=round(spec.min_memory_bytes / 1024**3, 2), note=spec.display_name, source="shipped", offered_only=True,
+            memory_gb=local_memory_gb(spec), note=spec.display_name, source="shipped", offered_only=True,
             installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
         ))
     out += _cloud_text_cards()
@@ -393,6 +395,7 @@ def _server_text_cards() -> list[Card]:
                 jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
                 runs_on="this-mac" if here else f"cloud:{ptype}", open_licence=True,
                 licence="", note=f"{model.name or model.model_id} on {row.name}", source="installed",
+                installed=here,  # on this Mac it is installed here, so the rules take it over the parser (#5637)
                 offered_because=f"a model you run with {row.name}, {where}, free",
             ))
     return out
@@ -1191,8 +1194,9 @@ def _step_row(m: dict[str, Any], job: str, task: str) -> dict[str, Any]:
     return {"repo": repo, "job": job, "pipeline_tag": m.get("pipeline_tag") or task, "runs_here": runs,
             "licence": next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), ""),
             "languages": sorted(_hub_tags(m) or ()) or None, "downloads": int(m.get("downloads") or 0),
-            "cannot_run_because": "" if runs else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task,
-                                                                      "Fichero cannot run it yet")}
+            "cannot_run_because": "" if runs else (
+                "a GGUF build: this build runs MLX builds only" if _gguf_only(m)
+                else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task, "Fichero cannot run it yet"))}
 
 
 async def search_hugging_face_for_step(job: str, languages: frozenset[str],
@@ -1208,8 +1212,10 @@ async def search_hugging_face_for_step(job: str, languages: frozenset[str],
     for n, (task, tags) in enumerate(asks, 1):
         progress(f"Searching Hugging Face ({n} of {len(asks)})")
         for m in await _fetch_hf_models(task=task, tags=tags, limit=HF_LIMIT):
-            if m.get("pipeline_tag") not in (None, task) or _gguf_only(m):
+            if m.get("pipeline_tag") not in (None, task):
                 continue
+            # A GGUF-only repository is listed, not runnable and saying why: nothing is dropped silently
+            # (`ai.where.never-dropped-silently`, #5519).
             row = _step_row(m, job, task)
             rows.setdefault(row["repo"], row)
     return sorted(rows.values(), key=lambda r: (not r["runs_here"], -r["downloads"], r["repo"]))

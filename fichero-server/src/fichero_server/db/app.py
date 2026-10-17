@@ -346,6 +346,11 @@ class AppDatabase:
             # and out of the recovery WAL. See app-db migration incident 2026-06-12.
             self.conn.execute("CHECKPOINT")
 
+        # Revoke cascades (#5351): which paired device minted the code that paired this one.
+        if "paired_by_device_id" not in _device_cols:
+            self.conn.execute("ALTER TABLE devices ADD COLUMN paired_by_device_id VARCHAR")
+            self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
         _invite_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
         }
@@ -1844,13 +1849,38 @@ class AppDatabase:
             self.conn.commit()
         return None
 
-    def revoke_device(self, device_id: str) -> Device | None:
-        """Mark one paired device as revoked."""
+    def set_device_paired_by(self, device_id: str, paired_by_device_id: str | None) -> None:
+        """Record which paired device minted the code that paired `device_id` (#5351)."""
         with self._lock:
             self.conn.execute(
-                "UPDATE devices SET revoked = TRUE WHERE id = ?",
-                [device_id],
+                "UPDATE devices SET paired_by_device_id = ? WHERE id = ?", [paired_by_device_id, device_id]
             )
+            self.conn.commit()
+
+    def device_paired_by(self) -> dict[str, str]:
+        """device id -> the paired device that paired it (devices paired by the host are absent)."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, paired_by_device_id FROM devices WHERE paired_by_device_id IS NOT NULL"
+            ).fetchall()
+        return {row[0]: row[1] for row in rows}
+
+    def devices_paired_through(self, device_id: str) -> list[str]:
+        """Every device `device_id` paired, and theirs, down the chain (not `device_id` itself)."""
+        parents = self.device_paired_by()
+        found: list[str] = []
+        frontier = [device_id]
+        while frontier:
+            frontier = [d for d, by in parents.items() if by in frontier and d not in found and d != device_id]
+            found.extend(frontier)
+        return found
+
+    def revoke_device(self, device_id: str) -> Device | None:
+        """Mark one paired device as revoked, and every device it paired (#5351)."""
+        ids = [device_id, *self.devices_paired_through(device_id)]
+        with self._lock:
+            for one in ids:
+                self.conn.execute("UPDATE devices SET revoked = TRUE WHERE id = ?", [one])
             self.conn.commit()
         return self.get_device(device_id)
 

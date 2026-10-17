@@ -23,6 +23,7 @@ from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 WORKFLOW_FOR_JOB = {
     "split-pages": "split_pages",
     "find-lines": "detect_regions_kraken",
+    "find-the-script": "classify_script",
     "read-a-line": "transcribe_kraken",
     "read-a-page": "transcribe_htr",
     "transcribe-speech": "transcribe_audio",
@@ -54,7 +55,7 @@ READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
 #: Apple Vision as a line finder only, for print and typescript: its lines, none of its text (#5451).
 APPLE_LINES_WORKFLOW = "detect_regions_apple_lines"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
-_OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements",
+_OVERRIDE_JOBS = frozenset({"read-a-page", "find-the-script", "correct", "find-names-tag-words", "find-statements",
                             "translate-transliterate-normalise"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`), the page text tied to
 #: its lines (a check run of kind `tie-text-to-lines`, #5444: free, on this Mac, with a Kraken reader) and the
@@ -1020,11 +1021,19 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
 
     rows, total = [], 0.0
     for w in workflows:
-        cloud = str(w["runs_on"]).startswith("cloud")
-        cost = (estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
-                              provider=w["provider_override"] or "") if cloud else 0.0)
+        runs_on = str(w["runs_on"])
+        # Only this Mac is free by its own word; a cloud call is priced by the model's listed rate; any
+        # other place (a cluster, a person's other machine) is unpriced, never $0 (#5590).
+        if runs_on.startswith("cloud"):
+            cost = estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
+                                 provider=w["provider_override"] or "")
+        elif runs_on in ("this-mac", ""):
+            cost = 0.0
+        else:
+            cost = None
+        basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
-                     "pages": pages, "cost_usd": cost, "memory": _local_memory(w)})
+                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w)})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
 

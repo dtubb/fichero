@@ -36,11 +36,13 @@ class ManagedModelSpec:
     #: "verified" when someone has run this model in Fichero and seen output;
     #: "untested" when it is here on its reputation only. Never inferred.
     tested_status: str = "untested"
+    #: The licence the model may ship under, from its Hub card (#4611). "not checked" = unknown: a catalogue
+    #: entry must not stay that way.
+    licence: str = "not checked"
     #: Files to leave on the Hub. A snapshot download takes EVERY file in the
     #: repo, and mlx's loader then globs every ``*.safetensors`` it finds, so a
     #: repo that ships two overlapping weight sets costs double the disk and
-    #: hands the loader a mixture. Empty for a clean repo; see Nanonets below
-    #: for the one that is not.
+    #: hands the loader a mixture. Empty for a clean repo (Nanonets-OCR, which had two sets, was dropped 2026-10-17).
     ignore_patterns: tuple[str, ...] = ()
     #: Unified memory this Mac needs for the model to READ A PAGE (its vision path), when that is
     #: more than `min_memory_bytes`, the floor for loading it. None: the load floor is enough, or
@@ -101,6 +103,7 @@ class ManagedModelDownloadJob:
 MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
     # --- Vision / OCR -------------------------------------------------------
     "Qwen2.5-VL-3B": ManagedModelSpec(
+        licence="qwen-research (base Qwen/Qwen2.5-VL-3B-Instruct; the 4-bit repo declares none)",
         kv_bytes_per_token=36864,
         model_id="Qwen2.5-VL-3B",
         repo_id="mlx-community/Qwen2.5-VL-3B-Instruct-4bit",
@@ -114,6 +117,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         tested_status="verified",
     ),
     "mlx-community/Qwen3-VL-8B": ManagedModelSpec(
+        licence="Apache-2.0",
         kv_bytes_per_token=147456,
         model_id="mlx-community/Qwen3-VL-8B",
         repo_id="mlx-community/Qwen3-VL-8B-Instruct-4bit",
@@ -138,6 +142,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         page_memory_bytes=24 * 1024**3,
     ),
     "Qwen2.5-VL-7B": ManagedModelSpec(
+        licence="Apache-2.0",
         kv_bytes_per_token=57344,
         model_id="Qwen2.5-VL-7B",
         # The reader and corrector the recipe rules pin (`recipes/seed/cards.yaml`), so a recipe step
@@ -153,6 +158,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         note="The recipe rules' default corrector and page reader. Not yet run inside Fichero -- untested here.",
     ),
     "Chandra-OCR": ManagedModelSpec(
+        licence="OpenRAIL-M (modified)",
         model_id="Chandra-OCR",
         # mlx-community's own 4-bit conversion, not a one-off personal 8-bit
         # repo (#4560): same model, 5.8 GB instead of 8.2 GB, and it comes from
@@ -166,43 +172,13 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         capabilities=("text", "vision"),
         note="Purpose-built document OCR (layout, tables, handwriting) rather than a general VLM. Not yet run inside Fichero -- untested here.",
     ),
-    "Nanonets-OCR": ManagedModelSpec(
-        kv_bytes_per_token=36864,
-        model_id="Nanonets-OCR",
-        repo_id="mlx-community/Nanonets-OCR-s-4bit",
-        revision="b02d1c6c18c7c31ad0ea0bf139f80b9bcf756218",
-        display_name="Nanonets OCR-s",
-        # This repo ships TWO complete weight sets: a sharded pair (5.6 GB,
-        # the one `model.safetensors.index.json` points at) and a single
-        # `model.safetensors` (3.1 GB). A plain snapshot takes both -- 8.7 GB
-        # of disk -- and mlx's loader globs every *.safetensors in the folder,
-        # so it would then load a MIXTURE of the two.
-        #
-        # The single file is the set this repo's own config describes. Read
-        # from the Hub without downloading either (safetensors header range
-        # requests, 2026-09-03): config.json declares
-        # `quantization: {bits: 4, group_size: 64}`; the single file carries
-        # 253 `.scales`/`.biases` tensors over U32-packed weights and is
-        # 3.07 GB, which is the size of the known-good 4-bit conversion of
-        # this same 3B architecture (Qwen2.5-VL-3B-Instruct-4bit is 3.09 GB).
-        # The sharded set is quantized too but 5.6 GB -- a coarser precision
-        # than the config claims. So the shards and their index stay on the
-        # Hub, and the download is 3.1 GB of the weights config.json is
-        # actually written for. If it turns out not to load, the fix is to
-        # invert this list, not to fetch 8.7 GB.
-        ignore_patterns=("model-*-of-*.safetensors", "model.safetensors.index.json"),
-        download_size_bytes=3_120_000_000,
-        min_memory_bytes=8 * 1024**3,
-        memory_class="needs 8 GB unified memory",
-        capabilities=("text", "vision"),
-        note="Purpose-built OCR that emits structured markdown (tables, checkboxes, LaTeX). Untested here.",
-    ),
     # A 0.8B Qwen 3.5 vision model fine-tuned to read medieval Latin hands the CATMuS way (#5665, the
     # maintainer's ask 2026-10-11). No MLX build is published: the Hugging Face checkpoint itself (bf16
     # safetensors, `qwen3_5`, one 1.7 GB file) is what is fetched, and mlx-vlm (0.6.17, bundled) loads that
     # architecture from it, converting the weights' names as it loads. If it turns out not to load, the fix is
     # `mlx_vlm.convert` once (`training/mlx_landing.convert_for_mlx`), not another model.
     "comma-qwen-3.5-0.8b": ManagedModelSpec(
+        licence="Apache-2.0",
         model_id="comma-qwen-3.5-0.8b",
         repo_id="wjbmattingly/comma-qwen-3.5-0.8b-full-33k",
         revision="320c52dda3ba17c3a06aa1dc76ad44a36bf8a5ae",
@@ -216,6 +192,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
     ),
     # --- Text ---------------------------------------------------------------
     "Qwen3-4B-Instruct": ManagedModelSpec(
+        licence="Apache-2.0",
         kv_bytes_per_token=147456,
         model_id="Qwen3-4B-Instruct",
         repo_id="mlx-community/Qwen3-4B-Instruct-2507-4bit",
@@ -228,6 +205,7 @@ MANAGED_MLX_MODELS: dict[str, ManagedModelSpec] = {
         note="General text work on-device -- summarise, extract, rewrite -- without sending a document anywhere. Untested here.",
     ),
     "Llama-3.2-3B-Instruct": ManagedModelSpec(
+        licence="Llama 3.2 Community License",
         kv_bytes_per_token=114688,
         model_id="Llama-3.2-3B-Instruct",
         repo_id="mlx-community/Llama-3.2-3B-Instruct-4bit",
@@ -841,7 +819,7 @@ class MLXModelStore:
         os.environ.update(self.env())
         self._note_progress(job, spec)
         ignore = list(spec.ignore_patterns) or None
-        from fichero_server.llm import model_downloads
+        from fichero_server.llm import failed_fetches, model_downloads
 
         stopped = self._job_stops.setdefault(job.job_id, threading.Event())
 
@@ -869,10 +847,13 @@ class MLXModelStore:
             return
         except Exception as exc:  # noqa: BLE001 -- the job says why in words; the log keeps the exception
             logger.warning("download of %s failed: %r", spec.model_id, exc)
+            # Not a dropped connection (that is tried again above): the repository is gone or refuses. The check reads it.
+            failed_fetches.record(self.root, spec.repo_id, str(exc)[:300] or type(exc).__name__)
             job.state = "failed"
             job.error = f"The download of {spec.display_name} could not be done; the engine's log says why."
             job.message = "Download failed"
             return
+        failed_fetches.clear(self.root, spec.repo_id)
         job.current = job.total
         job.state = "completed"
         job.message = "Download complete"

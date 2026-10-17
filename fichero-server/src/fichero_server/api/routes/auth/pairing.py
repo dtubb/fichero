@@ -67,6 +67,7 @@ class _PairingCode:
     user_id: str
     expires_at: datetime
     used: bool = False
+    paired_by_device_id: str | None = None  # the paired device that minted it (#5351)
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -96,6 +97,10 @@ class PairCodeResponse(BaseModel):
 class PairRequest(BaseModel):
     code: str = Field(min_length=1)
     device_name: str = Field(min_length=1)
+    # Multi-user on: the device chooses and authenticates a person; it is bound to them, not to
+    # whoever minted the code (sharing.device-chooses-person, #2403).
+    username: str | None = None
+    password: str | None = None
 
 
 class EnrollmentRequest(BaseModel):
@@ -117,6 +122,7 @@ class DeviceResponse(BaseModel):
     last_seen: datetime
     expires_at: datetime
     revoked: bool
+    paired_by_device_id: str | None = None
 
 
 class DeviceListResponse(BaseModel):
@@ -145,8 +151,9 @@ def _multiuser_disabled() -> None:
         raise HTTPException(status_code=404, detail="multi-user auth is disabled")
 
 
-def _to_public_device(device: Device) -> DeviceResponse:
+def _to_public_device(device: Device, paired_by: str | None = None) -> DeviceResponse:
     return DeviceResponse(
+        paired_by_device_id=paired_by,
         id=device.id,
         name=device.name,
         user_id=device.user_id,
@@ -415,6 +422,7 @@ def create_pairing_code(
         code=code,
         user_id=user.id,
         expires_at=expires_at,
+        paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
@@ -456,8 +464,20 @@ def pair_device(
             raise HTTPException(status_code=422, detail="device_name is required")
 
         user_id = record.user_id
+        chosen = None
+        if body.username is not None:
+            if not _use_multiuser_auth():
+                raise HTTPException(status_code=422, detail="choosing a person needs Multi-user on")
+            chosen = app_db.get_user_by_username(body.username.strip())
+            if chosen is None or not accounts.verify_password(
+                body.password or "", chosen.password_hash if chosen else accounts.hash_password("x")
+            ):
+                raise HTTPException(status_code=401, detail="invalid username or password")
+            if not chosen.active:
+                raise HTTPException(status_code=403, detail="user is disabled")
+            user_id = chosen.id
         if _use_multiuser_auth():
-            user = app_db.get_user(record.user_id)
+            user = chosen or app_db.get_user(record.user_id)
             if user is None or not user.active:
                 record.used = True
                 _PAIRING_CODES.pop(code, None)
@@ -470,6 +490,8 @@ def pair_device(
             user_id=user_id,
             token_hash=accounts.hash_token(raw_token),
         )
+        if record.paired_by_device_id:
+            app_db.set_device_paired_by(device.id, record.paired_by_device_id)
         record.used = True
         _PAIRING_CODES.pop(code, None)
         return _to_pair_response(device, raw_token)
@@ -532,7 +554,8 @@ def list_devices(
     devices = app_db.list_devices()
     if not user.is_owner:
         devices = [device for device in devices if device.user_id == user.id]
-    items = [_to_public_device(device) for device in devices]
+    paired_by = app_db.device_paired_by()
+    items = [_to_public_device(device, paired_by.get(device.id)) for device in devices]
     return DeviceListResponse(items=items, count=len(items))
 
 
