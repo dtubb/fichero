@@ -1184,7 +1184,7 @@ plan's peak memory across steps. Ready shows none of it.
   run status (`entries`) says how many pages it split, how many had no text, and how many entries it
   made, kept, changed and removed. The entries are not pages: they are not counted as the project's
   material, and no later card reads them.
-- `source.onboard.auto.volumes-in-batches` — **[GAP]** (#5540) a run over several volumes goes one
+- `source.onboard.auto.volumes-in-batches` — **[OK]** (#5540; built as `source.recipe.batch-at-archive-scale` below, one batch per folder with every step finished on it before the next, progress per folder; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) a run over several volumes goes one
   volume at a time, with every stage finished on that volume before the next volume starts. Progress is
   shown per volume.
 - `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
@@ -2421,7 +2421,7 @@ Jobs and chains
   across scripts and spellings (Popayán, Popaian; 北京, Beijing), and the review is given every variant of an entity it
   may meet. *Test:* a stub reviewer given "Popayán"
   in the list and a reading "Popaian" returns the list's spelling for that line.
-- `source.job.names-step-fails-on-nothing-read` — **[OK]** (#5521) a names run that processes no page does not complete:
+- `source.job.names-step-fails-on-nothing-read` — **[OK]** (#5521; ruled 2026-10-17: fail visibly, and a batch carries on and reports the count of pages left out, `summary.documents_left_out`) a names run that processes no page does not complete:
   the step fails, saying why: with no page selected the files source refuses ("would process nothing"), and when none of the N
   selected pages has a reading the step's error says so, naming the first few with the reason each is left out. A run that reads at least one page and leaves others out still completes and names
   them (`left_out`, #5691). WHY: a spaCy names workflow and the "NER per-page (local)" workflow both ended "completed"
@@ -2457,7 +2457,7 @@ Jobs and chains
   stayed a page text tied to no line (its pass has no segments, its geometry "not supported"). *Test:* a model that
   answers by id only when the prompt asks for it ties its corrections to the lines; one asked nothing answers a
   paragraph and the step says "not tied to lines".
-- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[PARTIAL]** (#5722; re-ask and page failure done, #5720, test_review_re_asks_lines_5720.py; the per-model batch limit is still eight for every model) hybrid, decided 2026-10-16: a
+- `source.job.correct-re-asks-per-line-when-it-does-not-tie` — **[OK]** (#5722, #5720; tested in `fichero-server/tests/unit/workflows/test_review_re_asks_lines_5720.py`, including the card's `lines_per_request` as the batch limit, `transcribe_review.py`, eight when a card states none) hybrid, decided 2026-10-16: a
   correction is first asked of the whole page (one call, the image and every line with its id and box, the answer
   `id | text` per line, #5719); the lines it leaves out or cannot match are then re-asked in batches of up to eight,
   each line cut from the page and sent with its current text, the page's own text beside it for context, the model
@@ -2541,18 +2541,43 @@ Jobs and chains
   page-level transcriptions and `page_content`, stay on the spread only (so "read a page" still reads a half);
   a line measured on a rendition's frame refuses the split loudly rather than being placed by a guess; the
   app showing the flag.
-- `source.recipe.apple-finds-lines-on-handwriting` — **[GAP]** (#5451; ruled 2026-10-04) when a page's
-  hand is not print (decided from the derived script and hand, `source.onboard.*`), a recipe runs Apple
-  Vision for its line finding only: its text is not kept as a reading. Apple's OCR of handwriting is
-  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`), and every Mosquera page carries such a pass
-  today.
+- `source.recipe.apple-finds-lines-on-print` — **[OK]** (#5451; ruled 2026-10-17, replacing the 2026-10-04
+  wording; tested in `fichero-server/tests/unit/recipes/test_apple_finds_lines_on_print_5451.py`: the card `apple:vision/find-lines@os`, the rule in `assemble._choose`, the planner's `detect_regions_apple_lines` workflow, `ocr_geometry.lines_only`; when a Kraken reader follows, it still finds its own lines) for print and typescript a recipe's Find lines step runs Apple Vision for its line finding only:
+  Apple finds the lines and keeps no text (the Detect Segments tool's `keep_text` off: the page's line boxes
+  carry no reading, no word boxes), so the text of a print page comes from the reader the recipe names. A
+  handwriting page goes to Kraken (the card states print and typescript only). Apple's OCR of handwriting is
+  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
+- `source.recipe.line-finders-are-a-candidate-list` — **[PARTIAL]** (#5451; ruled 2026-10-17; *built: `bakeoff.line_finders()` lists a finder for every card naming `find-lines`, one with no workflow is listed not scored, and the planner skips a pin it cannot run by name; pinned by `fichero-server/tests/unit/recipes/test_line_finders_candidate_list_5451.py`. Not built: a cloud or MLX line finder that runs, and the online search for line finders*) the Find lines route for
+  a kind of page (print, typescript, a hand) is a LIST of candidate line finders, never a constant: for print the
+  list starts with Apple lines-only (`source.recipe.apple-finds-lines-on-print`); for a hand it holds Kraken's
+  line finder, a cloud model and an MLX model, and the bake-off compares them on the person's pages
+  (`source.try.bakeoff-is-the-same-tool`, the line finders' comparison) so the person decides with the result in
+  front of them. The recipe also looks online (Hugging Face, Zenodo) for line finders it does not yet know, as it
+  does for readers (`source.find.wide-every-time`). The candidates come from the cards that name the Find lines
+  job, so adding a card adds a candidate; the planner maps a chosen candidate's pin to its shipped workflow
+  from a table, and a pin with no workflow is skipped saying so ("cannot run here"), never run as Kraken.
+  *Test:* every card naming `find-lines` is a bake-off candidate; a pin with no workflow is skipped by name.
+- `source.job.find-statements.candidates` — **[PARTIAL]** (#5637; ruled 2026-10-17; *built: the free-parser default and the installed-model preference in `assemble._choose`, the parser cards in `discovery.known_cards`; pinned by `fichero-server/tests/unit/recipes/test_find_statements_candidates_5637.py`. Not built: Apple Intelligence as a statements candidate that runs, and the bake-off comparing the candidates, cost first*) Find statements is not parser-or-nothing:
+  its candidates are the spaCy parser's triples, Apple Intelligence, and text models such as Claude or Qwen, compared
+  by the same bake-off pattern as reading, with the cost shown first. The default: where no text model is installed
+  on this Mac, the free local candidates (the parser, Apple Intelligence) run at Start, and a text model is offered
+  beside them (the person chooses it; nothing is downloaded or sent off the Mac by itself); where a text model is
+  installed here, the rules take it over the parser. *Test:* with no text model the recipe's statements step is the
+  parser's and the step offers a model; with one installed it is that model.
+- `source.model.page-text-is-constructed-from-the-segments` — **[PARTIAL]** (#5486, #5467; ruled 2026-10-17; *built for the correcting step: `transcribe_review` no longer writes the page text (`update_page_content` off), so an untied review leaves the chosen reading's text; pinned by `fichero-server/tests/unit/workflows/test_page_text_is_constructed_from_segments_5486.py`. Not built: the other producers that still write a page-level text (LLM Transcribe, DOCX, Markdown, legacy transcriptions) tying onto lines, `source-model.md`'s table*) a page's text is
+  the CHOSEN reading, constructed from its segments (the lines of the working pass, in reading order) by the engine
+  (`actions/page_text_cache.py`), never a separate blob a step writes and a later round overwrites. A step that
+  reads or corrects a page writes readings onto the page's lines; it does not write the page's text. Where a
+  correction cannot be tied to the lines the step fails for that page (`source.job.correct-re-asks-per-line-when-it-does-not-tie`)
+  and the page's text stays what the chosen reading was. *Test:* the correcting step does not write the page text
+  by default; with the corrected readings on the lines, the page's text is the lines' text.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
 - `source.job.find-statements.parser-tier` — **[PARTIAL]** (#5637) a free tier for Find statements: the bundled
   spaCy pipelines (`es_core_news_sm`, `en_core_web_sm`) are offered for the step (`spacy:svo/<pipeline>`, the
-  person's to choose; never ranked by the rules over a text model they have, nor chosen by themselves where none
-  is, #5619), and with one chosen the step reads
+  person's to choose; never ranked by the rules over a text model they have; where none is installed the rules
+  take the parser, #5637 ruled 2026-10-17, `source.job.find-statements.candidates`), and with one chosen the step reads
   the dependency parse's subject-verb-object triples (`knowledge/spacy_svo.py`) on this Mac, at no cost, instead of
   asking a language model. Each triple is a **proposal, never a fact**: it passes the same gates a model's
   statement does (the shared `svo_quality` rules, a subject that is one of the page's names, the grammar check),
@@ -3643,7 +3668,7 @@ Trying another option
   steps, with one or two alternatives (a model, a combination or a prompt), at any time after setup.
 - `source.try.every-job` — **[GAP]** (#4950) it works for every registered job, reading and beyond:
   layout, entities, statements, authority links, dates and search vectors.
-- `source.try.never-over-existing` — **[GAP]** (#4950) each alternative shows its cost and time,
+- `source.try.never-over-existing` — **[PARTIAL]** (#4950; *built for the readers' and the line finders' bake-off: it runs as a job and changes nothing that exists, the pages, segments, readings, passes and text are the same after it, pinned by `fichero-server/tests/unit/recipes/test_bakeoff_never_over_existing_4950.py`. Not built: the alternatives of the other jobs, and landing a try as new passes or readings beside the current ones*) each alternative shows its cost and time,
   runs as a job in Activity, and lands as new passes, readings, mentions or claims (a vector
   alternative as an index beside the current one); nothing existing changes.
 - `source.try.compared-as-declared` — **[GAP]** (#4950) results open side by side in panes and are
@@ -3651,9 +3676,9 @@ Trying another option
   readings by text diff with error rates against corrected text; entities, statements, links and
   dates by precision and recall against confirmed ones, else side-by-side lists; vectors by the
   top results for the person's queries; each with cost, speed and carbon estimate.
-- `source.try.use-this-scope` — **[GAP]** (#4950) Use This makes the winner the step's (or the
+- `source.try.use-this-scope` — **[PARTIAL]** (#4950; tested in `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`, `bakeoff.use_this`; the winner of a combination of steps is not built) Use This makes the winner the step's (or the
   combination's) choice for the project or for one folder, stored as an override on the recipe.
-- `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
+- `source.try.kept-and-rerunnable` — **[PARTIAL]** (#4950; *built for the bake-off: the record is kept in `recipe/bakeoffs/<id>.yaml`, readable after Activity clears the job, listed, and run again on the same pages; pinned by `fichero-server/tests/unit/recipes/test_bakeoff_readers.py::test_the_comparison_is_kept_and_readable_later`. Not built: the other jobs' comparisons, and re-running with the saved selection and options in one action*) a comparison is kept with its selection and
   options and can be run again later.
 - `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951, #5660) **Changed 2026-10-11 (ruled: search
   wide, the bake-off decides):** the readers taking part are at most two of each kind (`bakeoff.PER_KIND`) from
@@ -3712,12 +3737,16 @@ Running and failure
 - `source.recipe.download-failure-waits` — **[GAP]** (#4950, #5352) a failed model download is shown
   in Activity with its reason, retried three times, then the steps that need the model wait with
   "Model download failed" and offer Retry or the next candidate; other steps run.
-- `source.recipe.missing-key-never-substitutes` — **[GAP]** (#5364) a cloud step whose provider has
+- `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no other model for it; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.
-- `source.recipe.take-without-missing-step` — **[GAP]** (#4949) a recipe naming a job this Fichero
-  lacks can be taken without that step; the removal is recorded as an override "job not available"
-  and offered back after Fichero is updated.
+- `source.recipe.take-without-missing-step` — **[PARTIAL]** (#4949; record shape ruled 2026-10-17; *built: `recipe.take_without_missing_steps`, `offered_back`, `override_kind`; pinned by `fichero-server/tests/unit/recipes/test_take_without_missing_step_4949.py`. Not built: the route and the app screen that take a shared recipe through it and show the offer*) a recipe naming a job this
+  Fichero lacks can be taken without that step. The removal is recorded in the recipe's `overrides` as
+  `{step, kind: "removed-step", reason: "job not available", job, scope: "project"}`; an override that states no `kind`
+  is a `card` override (a chosen reader, as before), so every record kept so far reads unchanged. After Fichero is
+  updated, a removed step whose job now exists is offered back, never put back by itself. *Test:* the taken recipe
+  passes the check and holds the record; the original is unchanged; the step is offered back once its job exists, and
+  not before.
 - `source.recipe.pinned-model-gone` — **[GAP]** (#5364) a pinned model that can no longer be fetched
   is reported by the check, naming the step, and the rule's next candidate is offered.
 

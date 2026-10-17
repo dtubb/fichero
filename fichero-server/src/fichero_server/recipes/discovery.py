@@ -1270,7 +1270,13 @@ def known_cards(a: Answers | None = None, *, include_not_built: bool = False) ->
     cached = cached_repository()
     languages = a.languages if a is not None else frozenset()
     installed = installed_cards(seed)
-    return [*mark_installed(seed), *installed, *local_text_cards(seed),
+    from dataclasses import replace
+
+    # The parser's free triples are a candidate the rules may take where no text model is installed (#5637).
+    here = [*mark_installed(seed), *installed, *local_text_cards(seed)]
+    taken = {c.id for c in here}
+    parser = [replace(c, offered_only=False) for c in _parser_statement_cards() if c.id not in taken]
+    return [*here, *parser,
             *(repository_cards(cached["records"], seed, languages) if cached else []),
             *mark_installed(hub_cards(a.languages if a is not None else None,
                                       _pinned_repos([*seed, *installed])))]
