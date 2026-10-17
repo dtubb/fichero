@@ -2557,7 +2557,7 @@ Jobs and chains
   job, so adding a card adds a candidate; the planner maps a chosen candidate's pin to its shipped workflow
   from a table, and a pin with no workflow is skipped saying so ("cannot run here"), never run as Kraken.
   *Test:* every card naming `find-lines` is a bake-off candidate; a pin with no workflow is skipped by name.
-- `source.job.find-statements.candidates` — **[GAP]** (#5637; ruled 2026-10-17) Find statements is not parser-or-nothing:
+- `source.job.find-statements.candidates` — **[PARTIAL]** (#5637; ruled 2026-10-17; *built: the free-parser default and the installed-model preference in `assemble._choose`, the parser cards in `discovery.known_cards`; pinned by `fichero-server/tests/unit/recipes/test_find_statements_candidates_5637.py`. Not built: Apple Intelligence as a statements candidate that runs, and the bake-off comparing the candidates, cost first*) Find statements is not parser-or-nothing:
   its candidates are the spaCy parser's triples, Apple Intelligence, and text models such as Claude or Qwen, compared
   by the same bake-off pattern as reading, with the cost shown first. The default: where no text model is installed
   on this Mac, the free local candidates (the parser, Apple Intelligence) run at Start, and a text model is offered
@@ -2569,8 +2569,8 @@ Jobs and chains
   each naming the stretch of text it came from, is a job a recipe can name.
 - `source.job.find-statements.parser-tier` — **[PARTIAL]** (#5637) a free tier for Find statements: the bundled
   spaCy pipelines (`es_core_news_sm`, `en_core_web_sm`) are offered for the step (`spacy:svo/<pipeline>`, the
-  person's to choose; never ranked by the rules over a text model they have, nor chosen by themselves where none
-  is, #5619), and with one chosen the step reads
+  person's to choose; never ranked by the rules over a text model they have; where none is installed the rules
+  take the parser, #5637 ruled 2026-10-17, `source.job.find-statements.candidates`), and with one chosen the step reads
   the dependency parse's subject-verb-object triples (`knowledge/spacy_svo.py`) on this Mac, at no cost, instead of
   asking a language model. Each triple is a **proposal, never a fact**: it passes the same gates a model's
   statement does (the shared `svo_quality` rules, a subject that is one of the page's names, the grammar check),
