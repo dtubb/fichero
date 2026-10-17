@@ -3651,7 +3651,7 @@ Trying another option
   readings by text diff with error rates against corrected text; entities, statements, links and
   dates by precision and recall against confirmed ones, else side-by-side lists; vectors by the
   top results for the person's queries; each with cost, speed and carbon estimate.
-- `source.try.use-this-scope` — **[GAP]** (#4950) Use This makes the winner the step's (or the
+- `source.try.use-this-scope` — **[OK]** (#4950; tested in `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`, `bakeoff.use_this`; the winner of a combination of steps is not built) Use This makes the winner the step's (or the
   combination's) choice for the project or for one folder, stored as an override on the recipe.
 - `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
   options and can be run again later.
