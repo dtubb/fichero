@@ -2547,7 +2547,7 @@ Jobs and chains
   carry no reading, no word boxes), so the text of a print page comes from the reader the recipe names. A
   handwriting page goes to Kraken (the card states print and typescript only). Apple's OCR of handwriting is
   noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
-- `source.recipe.line-finders-are-a-candidate-list` — **[GAP]** (#5451; ruled 2026-10-17) the Find lines route for
+- `source.recipe.line-finders-are-a-candidate-list` — **[PARTIAL]** (#5451; ruled 2026-10-17; *built: `bakeoff.line_finders()` lists a finder for every card naming `find-lines`, one with no workflow is listed not scored, and the planner skips a pin it cannot run by name; pinned by `fichero-server/tests/unit/recipes/test_line_finders_candidate_list_5451.py`. Not built: a cloud or MLX line finder that runs, and the online search for line finders*) the Find lines route for
   a kind of page (print, typescript, a hand) is a LIST of candidate line finders, never a constant: for print the
   list starts with Apple lines-only (`source.recipe.apple-finds-lines-on-print`); for a hand it holds Kraken's
   line finder, a cloud model and an MLX model, and the bake-off compares them on the person's pages

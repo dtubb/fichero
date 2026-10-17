@@ -43,7 +43,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
-from fichero_server.recipes.assemble import Answers, Card, Choice, _chosen, _rank_key, _refusal
+from fichero_server.recipes.assemble import APPLE_LINES_PIN, Answers, Card, Choice, _chosen, _rank_key, _refusal
+from fichero_server.recipes.cards import seed_cards
 
 #: The recipe step this slice compares: the reader, the step with the most choice.
 STEP = "read-a-line"
@@ -553,9 +554,9 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
     if not row.get("measured") or (row["cer"] is None and not lines):
         raise BakeoffRefused(f"{name} was not measured in this bake-off ({row['why']}), so it cannot be chosen "
                              "from it")
-    if lines and "kraken" not in card.pin:
-        raise BakeoffRefused(f"{name} was compared, but the line step runs Kraken's line finder only so far: it "
-                             "cannot be chosen for the step yet")
+    if lines and "kraken" not in card.pin and card.pin != APPLE_LINES_PIN:
+        raise BakeoffRefused(f"{name} was compared, but the line step runs Kraken's line finder and Apple Vision's "
+                             "lines only so far: it cannot be chosen for the step yet")
     if scope == "folder" and not folder_id:
         raise BakeoffRefused("name the folder to use it for")
     out = copy.deepcopy(recipe)
@@ -628,11 +629,22 @@ LINE_TALL = 2.5
 LINE_FINDERS: tuple[dict[str, Any], ...] = (
     {"finder": "kraken-blla", "name": "Kraken's line finder", "card": "kraken:builtin/blla@bundled",
      "pin": {"kraken": "blla", "kraken_version": "bundled"}},
-    {"finder": "apple-vision", "name": "Apple Vision's text lines", "card": "apple:vision/recognize-text@os",
-     "pin": {"builtin": "apple-vision"}},
+    {"finder": "apple-vision", "name": "Apple Vision's text lines", "card": "apple:vision/find-lines@os",
+     "pin": APPLE_LINES_PIN},
     {"finder": "yolo", "name": "The YOLO layout model", "card": "yolo:hf/hantian/yolo-doclaynet@main",
      "pin": {"yolo": "yolo-doclaynet-11n"}, "not_available": "not available yet: it finds regions, not lines"},
 )
+
+
+def line_finders() -> list[dict[str, Any]]:
+    """The candidate line finders (`source.recipe.line-finders-are-a-candidate-list`, #5451): the engine's own, and a
+    finder for every other card that names the Find lines job, so adding a card adds a candidate. One with no way to
+    run as a line finder yet is listed as not scored, saying so, never run as another."""
+    known = {f["card"] for f in LINE_FINDERS}
+    more = [{"finder": c.id, "name": reader_name(c), "card": c.id, "pin": c.pin,
+             "not_available": "not available yet: no workflow runs it as a line finder"}
+            for c in seed_cards() if "find-lines" in c.jobs and c.id not in known]
+    return [*LINE_FINDERS, *more]
 
 
 def _finder_unavailable(finder: dict[str, Any]) -> str | None:
@@ -707,7 +719,7 @@ def start_lines(db: Any, library: Path, *, page_ids: list[str] | None, now: str,
     ready = readiness(pages, unmarked_import_pages(db))
     if not ready["ready"]:
         raise BakeoffRefused(ready["sentence"])
-    finders = [{**f, "not_scored": _finder_unavailable(f)} for f in LINE_FINDERS]
+    finders = [{**f, "not_scored": _finder_unavailable(f)} for f in line_finders()]
     if not any(f["not_scored"] is None for f in finders):
         why = " ".join(f"{f['name']}: {f['not_scored']}." for f in finders)
         raise BakeoffRefused(f"No line finder can be compared on this Mac yet. {why}")
