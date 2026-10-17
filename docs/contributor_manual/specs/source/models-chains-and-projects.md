@@ -3613,8 +3613,8 @@ The recipe and its format
 - `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
   and an unbound step waits with "No cluster is set up".
-- `source.recipe.alternatives-in-order` — **[GAP]** (#4950) when this Mac cannot run a step's pin,
-  the first listed alternative that can is used, and the choice is recorded and shown.
+- `source.recipe.alternatives-in-order` — **[PARTIAL]** (#4950) when this Mac cannot run a step's pin,
+  the first listed alternative that can is used, and the choice is recorded and shown. *Built 2026-10-17 for a missing key: the step's `chain`, first entry that can run, `plan.fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: a model this Mac cannot serve (memory) still goes through `elsewhere`, offered and never used without the person's press (`ai.where.fallback-free-and-asked`): the two rules need the maintainer to say which wins.*
 - `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
