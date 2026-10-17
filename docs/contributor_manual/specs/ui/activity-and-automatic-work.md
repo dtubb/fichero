@@ -1360,7 +1360,8 @@ and node, not by job); a retry action for failed pages.
   until they are remade.
 - `activity.derived.coalesced` — **[PARTIAL]** (#5360) many corrections to one page
   make one recompute job after a short quiet period. Built: one waiting job per kind and page
-  (`fichero-server/tests/unit/jobs/test_job_queue.py`). Still a gap: the quiet period.
+  (`fichero-server/tests/unit/jobs/test_job_queue.py`); the page's re-embed waits QUIET_SECONDS and each correction pushes it later
+  (`fichero-server/tests/unit/jobs/test_reembed_waits_for_a_quiet_period_5360.py`). Still a gap: the names re-read job does not wait yet.
 - `activity.derived.person-work-kept` — **[PARTIAL]** (#5361) a recompute withdraws
   only untouched machine rows; a row a person curated is kept and flagged with old and new excerpt.
   Built: the purge removes only draft rows nobody checked, linked or annotated (and keeps an entity
