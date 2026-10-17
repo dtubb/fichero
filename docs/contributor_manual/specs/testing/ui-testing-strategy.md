@@ -299,7 +299,7 @@ community: pointfreeco/swift-snapshot-testing, EmergeTools/SnapshotPreviews.
 - `uitest.drop-loader-chokepoint-guardrail` — **[GAP]** (#4543) scripts/check_drop_loader_chokepoint.py forbids NSItemProvider load calls outside ExternalFileDropLoader and SidebarDropProviderReader, with a firing fixture (script does not exist).
 - `ui-testing.restored-state-launch` — **[GAP]** (#4761) a UI test relaunches with saved window state and the app is still running with library.content.ready after 40 s.
 - `uitest.platform-lanes-mac-ipad-iphone` — **[GAP]** (#4173) real XCUITest suites for Mac, iPad and iPhone with a launch smoke test per platform and per-surface flows, run in a GUI session.
-- `uitest.ipad-cli-mcp-legs` — **[GAP]** (#4250) fichero-ipad.xctestplan runs the real unit target plus a simulator smoke leg (gate ios), and a CLI and MCP pytest leg round-trips list/import/search/export on a seeded library.
+- `uitest.ipad-cli-mcp-legs` — **[PARTIAL]** (#4250) fichero-ipad.xctestplan now selects the whole FicheroIPadTests target (not empty); still owed: the simulator smoke leg in gate ios and the CLI and MCP pytest leg. It runs the real unit target plus a simulator smoke leg (gate ios), and a CLI and MCP pytest leg round-trips list/import/search/export on a seeded library.
 
 ## Future (ideas, not scheduled)
 - (#4174) Measured pathway to 100% coverage: xccov and coverage.py in the gates, ratchet rule, deterministic seams for LangChain.

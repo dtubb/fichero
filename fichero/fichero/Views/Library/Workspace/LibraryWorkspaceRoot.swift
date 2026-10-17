@@ -7,6 +7,12 @@ import VisionKit
 #endif
 
 enum LibraryWorkspaceSelection {
+    /// The app-wide current library applies only to a scene that has not chosen its own: once a
+    /// scene's `WindowState` points at a library, another window switching project must not move it.
+    static func appDefaultLibraryId(windowLibraryId: UUID, currentLibraryId: UUID?) -> UUID? {
+        windowLibraryId == LibraryManager.globalLibraryId ? currentLibraryId : nil
+    }
+
     @MainActor
     static func activeLibrary(
         currentLibraryId: UUID?,
