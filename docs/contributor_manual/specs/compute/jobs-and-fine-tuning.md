@@ -476,7 +476,7 @@ All [GAP]: designed, not built.
   the workflow's model cards. *Test:* a workflow needing an MLX-only model offers only this Mac,
   and says why the others are absent. The time, cost and greenhouse gas shown beside each
   target are owned by `activity.run.where-and-estimate`; this line is the chooser.
-- `compute.job.one-runner` — **[GAP]** (#5240) a `workflow` job runs the same workflow code, with the same step
+- `compute.job.one-runner` — **[BROKEN]** (#5240; `remote_read/runner.py` is a second runner, its crop and parsing mirrored from `llm/line_reader.py`) a `workflow` job runs the same workflow code, with the same step
   semantics, as a run on the Mac. No separate runner exists. The rule for runs on the Mac (every way a run starts goes through the
   runner) is owned by `activity.run.one-way-to-run`; this line adds only that the image runs the
   same runner. *Existing data:* the default
