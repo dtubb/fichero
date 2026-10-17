@@ -989,7 +989,7 @@ Storage
   and `fichero-server/tests/unit/api/test_live_geometry_projection.py`. "One order" is load-bearing and is
   not the same order as the derived text's — see the three orderings named in
   `segment_readings.py::_segment_order_key`; a fourth would break exactly this behaviour.
-- `source.store.conversion-reports-exact-matches` — **[GAP]** (#4924) the converting action lists each reading,
+- `source.store.conversion-reports-exact-matches` — **[OK]** (#4924; pinned by `fichero-server/tests/unit/api/test_segment_conversion_action.py::TestSliceSixRepointsNothing::test_all_four_anchored_kinds_are_found_and_reported`, with `test_no_record_is_written_to_at_all` and `test_a_record_that_only_nearly_matches_is_not_reported` in the same class) the converting action lists each reading,
   mark, support and claim whose rectangle matches a converted box exactly, with the segment id
   it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
   2026-09-20: there is nowhere lawful to write the id until `source.point.anchor-names-its-segment`.)
