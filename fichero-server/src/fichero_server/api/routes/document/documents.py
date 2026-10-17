@@ -2920,10 +2920,6 @@ def update_document_impl(
         from fichero_server.actions.page_text_cache import queue_reembed
 
         queue_reembed(db, [doc_id])
-        # Names and claims follow the edited text too, as a queued job of their own (#5361).
-        from fichero_server.actions.page_text_cache import queue_reread_names
-
-        queue_reread_names(db, [doc_id])
 
     return doc, before, list(update_data.keys())
 
