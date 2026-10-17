@@ -399,12 +399,14 @@ async def transcribe(
     library_path = state.get("library_path", "")
     lines_read_by = inputs.get("lines_read_by") or "kraken"
     onto_lines = False
+    page_vision_mode = page_lines_read_by = None
     page_level = vision_mode != "kraken" and save_to_db and files and not on_segments
     if page_level:
         have_lines = await asyncio.to_thread(_pages_with_lines, documents, files, library_path)
         has_text = any(isinstance(d, dict) and (d.get("page_content") or "").strip() for d in documents or [])
         if all(have_lines) and (force_ocr or not has_text):
             onto_lines = True
+            page_vision_mode, page_lines_read_by = vision_mode, lines_read_by
             lines_read_by = "apple" if _reader_is_apple_vision(vision_mode, llm_config) else "model"
             vision_mode = "kraken"
 
@@ -419,7 +421,7 @@ async def transcribe(
         )
 
     # Process with shared logic - pass all inherited config
-    result = await process_vision(
+    read = dict(
         files=files,
         documents=documents,
         prompt=prompt,
@@ -464,6 +466,12 @@ async def transcribe(
         # reasoning:" in an artifact typed `transcription`.
         postprocess_text=sanitize_transcription,
     )
+    result = await process_vision(**read)
+    if onto_lines and not any((r.get("text") or "").strip() for r in result.get("results") or []):
+        # The lines came back with no reading (the model did not answer line by line): the page's text is kept, as
+        # before, rather than lost; the tie job then ties it to the lines.
+        onto_lines = False
+        result = await process_vision(**{**read, "vision_mode": page_vision_mode, "lines_read_by": page_lines_read_by})
     notes = result.setdefault("notes", [])
     if onto_lines:
         notes.append(f"read each of the page's lines ({'Apple Vision' if lines_read_by == 'apple' else 'the model'} on "
