@@ -193,3 +193,5 @@ async def test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_o
     by_file = {r["file"].rsplit("/", 1)[-1]: r["text"] for r in result["results"]}
     assert by_file["testamento_p2.png"] == "texto de la pagina negra"
     assert [a for a in page["db"].query(Artifact, document_id=black.id) if a.artifact_type == "transcription"]
+    notes = result.get("notes", [])
+    assert any("testamento_p2.png" in n and "did not read line by line" in n for n in notes), notes
