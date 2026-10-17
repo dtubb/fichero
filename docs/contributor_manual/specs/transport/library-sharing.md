@@ -65,10 +65,9 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 
 - `sharing.mac-finds-host` — **[PARTIAL]** (→ #5734; decided by the manager 2026-10-17) the guest Mac pastes the
   invite link (or scans its QR); the invite carries the host, the pin and the library, so there is no host
-  picker and **no open lookup** (anyone on the network could probe libraries). An optional typed host name is a
-  check only: the invite is refused if it points at a different host than the one typed, and the host reached
-  must match the invite (`HostChoices.typedNameMatches`, `MacRemoteClientPairingSection.swift`; Swift, not
-  built or run). Not built: the camera/QR scan on a Mac.
+  picker and **no open lookup** (anyone on the network could probe libraries). The drawer shows the host the
+  pasted invite points at, read-only, so the person sees where they connect; the pairing code catches a wrong
+  host (`MacRemoteClientPairingSection.swift`; Swift, not built or run). Not built: the camera/QR scan on a Mac.
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
   enforced, checks health, and stores the token in the Keychain with its expiry, the pin, the host
   and the library path (`RemoteClientPairingFlow.swift`). Never run between two Macs (#5049).
