@@ -33,6 +33,9 @@ SHARD_SIZE = 50
 #: Pixels on the longer side a reader is given; an archive's image is scaled on its server to this.
 FETCH_LONGEST = 2000
 RUNNER = Path(__file__).with_name("runner.py")
+#: Copied into the package's `_fichero/` folder; the runner imports the line cut from beside itself.
+SHIPPED_HELPERS = (RUNNER, Path(__file__).parent.parent / "media" / "iiif_fetch.py",
+                   Path(__file__).parent.parent / "llm" / "line_cut.py")
 
 
 class NotSendable(ValueError):
@@ -55,6 +58,7 @@ class ReadStep:
     prompt: str | None = None
     lines_per_call: int = 1
     language: str | None = None
+    engine: str | None = None  # vlm: `vllm` reads a page's lines in one batched call (offline, no server)
 
     def describe(self) -> dict[str, Any]:
         out = {"reader": self.reader, "card": self.card, "lines_per_call": self.lines_per_call}
@@ -62,6 +66,8 @@ class ReadStep:
             out["model_file"] = f"models/{Path(self.model_file or '').name}"
         else:
             out.update({"model": self.model, "prompt": self.prompt, "language": self.language})
+            if self.engine:
+                out["engine"] = self.engine
         return out
 
 
@@ -193,7 +199,7 @@ def build_read_package(db: Any, *, job_id: str, scope_ids: list[str], step: Read
         objects[model_rel] = SyncObject(rel=model_rel, sha256=_sha256(out / model_rel),
                                         size=(out / model_rel).stat().st_size)
     (out / "_fichero").mkdir()
-    for helper in (RUNNER, Path(__file__).parent.parent / "media" / "iiif_fetch.py"):
+    for helper in SHIPPED_HELPERS:
         shutil.copy2(helper, out / "_fichero" / helper.name)
     shards = [list(range(i, min(i + shard_size, len(sources)))) for i in range(0, len(sources), shard_size)]
     job = {"format": FORMAT, "job_id": job_id, "step": step.describe(), "fetch": {"longest": longest},

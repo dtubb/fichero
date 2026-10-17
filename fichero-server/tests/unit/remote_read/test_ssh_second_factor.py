@@ -135,3 +135,25 @@ def test_the_askpass_wrapper_quotes_its_paths(tmp_path, monkeypatch):
         assert "'/opt/my python/bin/python'" in open(wrapper).read()
     finally:
         server.close()
+
+
+def test_an_answer_that_comes_too_late_is_told_it_expired_not_unknown():
+    """WHY (review 49): the person typed the code after the prompt timed out; saying nothing, or "unknown", hides why."""
+    broker = PromptBroker()
+    with pytest.raises(SecondFactorRefused):
+        broker.ask("Duo passcode: ", timeout=0.05)
+    assert broker.answer("1", "123456") is False
+    assert broker.ended("1") == "expired" and broker.ended("999") is None
+    thread = threading.Thread(target=lambda: pytest.raises(SecondFactorRefused, broker.ask, "x", timeout=5), daemon=True)
+    thread.start()
+    while not (pending := broker.pending()):
+        threading.Event().wait(0.01)
+    broker.refuse(pending[0]["id"])
+    thread.join(5)
+    assert broker.ended(pending[0]["id"]) == "refused"
+
+
+def test_a_sign_in_that_timed_out_on_the_prompt_says_expired(tmp_path):
+    broker = PromptBroker()  # nobody answers
+    with pytest.raises(SlurmError, match="expired"):
+        _shell(tmp_path).open_master(prompts=broker, timeout=3)
