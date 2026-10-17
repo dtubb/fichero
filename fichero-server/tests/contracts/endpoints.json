@@ -8485,6 +8485,16 @@
         "query_params": [],
         "request_model": "EnrollmentRequest",
         "response_model": "PairResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/tailnet",
+        "operation_id": "detected_tailnet_api_pair_tailnet_get",
+        "summary": "Detected Tailnet",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TailnetOfferResponse"
       }
     ],
     "policies": [
