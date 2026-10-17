@@ -49,7 +49,7 @@ def _catalog() -> Iterable[Any]:
 def runs_here(spec: Any, capability: str = "text", *, capabilities: Any = None) -> tuple[bool, str | None]:
     """Whether this Mac can run `spec` for `capability` ("vision" reads a page, "text" does not),
     and if not, why in words: the model's own memory requirement against this Mac's memory."""
-    from fichero_server.llm.local_inference import check_local_model_hardware, get_local_inference_capabilities
+    from fichero_server.llm.local_model_facts import check_local_model_hardware, get_local_inference_capabilities
 
     current = capabilities or get_local_inference_capabilities()
     ok, why = check_local_model_hardware(

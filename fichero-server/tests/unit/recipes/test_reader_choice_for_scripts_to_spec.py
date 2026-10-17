@@ -62,7 +62,7 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(root))
     monkeypatch.delenv("FICHERO_KRAKEN_DATA_DIR", raising=False)
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "0")
-    monkeypatch.setattr("fichero_server.llm.local_inference.get_local_inference_capabilities",
+    monkeypatch.setattr("fichero_server.llm.local_model_facts.get_local_inference_capabilities",
                         lambda: LocalInferenceCapabilities(system="Darwin", machine="arm64", is_apple_silicon=True,
                                                            physical_memory_bytes=16 * 1024**3,
                                                            macos_version="26.0"))
