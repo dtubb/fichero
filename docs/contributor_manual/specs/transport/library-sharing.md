@@ -71,7 +71,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 
 ### B. Connecting from the second Mac
 
-- `sharing.mac-finds-host` — **[GAP]** (→ #5049; its own issue once the test confirms it) a Mac cannot browse for hosts (Bonjour browsing is iOS
+- `sharing.mac-finds-host` — **[GAP]** (→ #5734) a Mac cannot browse for hosts (Bonjour browsing is iOS
   only) and has no camera flow; the section says "Scan the QR code" but the only way in is pasting
   the link (`MacRemoteClientPairingSection.swift`).
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
@@ -82,8 +82,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.opens-the-library` — **[PARTIAL]** (→ #5049, read, not run) the second Mac switches its active host to the
   first, adopts the invite's library and lists the host's libraries from `/api/authz/libraries`;
   the library path header names the path ON THE HOST. One host at a time for the whole app (#2573).
-- `sharing.pairing-over-uds` — **[PARTIAL]** (#4224) pairing builds its own HTTPS client; an app
-  that runs its engine over the Unix socket (Dev Local) cannot use it.
+- `sharing.pairing-over-uds` — **[PARTIAL]** (#4224) pairing now dials with the app's resolved transport (`PairingTypes.swift`, fixed in 734d16f56, read, not run); unproven in a Release build whose engine is on the socket, where the issue says sharing never worked. Test: `fichero/Tests/Unit/**/PairingTransportTests.swift` and the checklist step 1.
 
 ### C. Working on it from both
 
@@ -117,6 +116,24 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   sees every library as owner.
 - `sharing.device-chooses-person` — **[GAP]** (#2403) a remote device must choose and authenticate a
   person; there is no ambient owner.
+
+## Acceptance: two Macs, two people, end to end (ruled 2026-10-17)
+
+- `sharing.two-macs-end-to-end` — **[GAP]** (→ #5049) The maintainer ruled that sharing a library between Macs must work in the next
+  release and Multi-user is on. In plain words: on Mac A the owner turns **Sharing** on (Settings › Sharing) and the pairing card
+  appears. Mac B, on the same network or the tailnet, finds A (or is given the link) and pairs with the one-time code over
+  Bonjour and pinned TLS, then opens A's library. A has an owner account; a second person has an account and signs in on B; each
+  edit in the shared library shows its author's own name and device, on either Mac. A read run started on B shows in A's Activity
+  while it runs and when it ends. B's edits land on A within seconds, and A's Command-Z (one stack per window) still takes back only
+  A's steps. When A turns Sharing off, B says "A stopped sharing this library", closes the shared windows and returns to its own
+  projects, with no error screens. Nothing here asks the user for a port, certificate or token. Drilled by the tester with
+  `docs/contributor_manual/testing/sharing-two-mac-checklist.md`; its parts are the behaviours below. Test: `fichero-server/tests/unit/transport/test_two_macs_end_to_end_to_spec.py` (in-process: two clients, two accounts, one engine); the real run is the checklist on the M4.
+- `sharing.two-toggles-wording` — **[GAP]** (→ #5049) Settings › Sharing has exactly two switches. *Sharing*: "Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients." *Multi-user*: "Give other people their own accounts on this Mac's libraries." Nothing else is asked. Today the Sharing switch reads On/Off with that caption; the Multi-user switch lives in Engine settings and only the Users screen explains it. Test to be written: `fichero/Tests/Unit/general/Sharing/SharingTogglesTests.swift` (the two labels and captions, and that no third switch exists).
+- `sharing.names-on-edits` — **[GAP]** (→ #5735) with two accounts, an edit made by the second person on B is recorded as that person on device B, and the owner's on A as the owner on A (needs `sharing.device-chooses-person`, `sharing.who-did-it`). Test: `fichero-server/tests/unit/transport/test_two_accounts_names_on_edits_to_spec.py`.
+- `sharing.remote-run-in-host-activity` — **[GAP]** (→ #5732) a read run started from B is a row in A's Activity (`/api/activity/stream`), started by B's person, on device B, live to its end. Test: `fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py`.
+- `sharing.undo-after-remote-edit` — **[GAP]** (→ #5733) A's undo reverses only A's own steps; if B changed the same thing since, it is refused in a sentence naming who and when (`undo-everywhere.md`, #5658). Test: `fichero-server/tests/unit/transport/test_undo_after_remote_edit_to_spec.py`.
+- `sharing.off-closes-the-guest` — **[GAP]** (→ #5731) turning Sharing off on A ends B's change stream with a typed "sharing stopped" event before the listener closes; B shows one sentence, closes the shared windows and returns to its own projects; no reconnect loop. Test: `fichero-server/tests/unit/transport/test_sharing_off_to_spec.py` (engine); the window behaviour on the checklist.
+- `sharing.stale-edit-both-ways` — **[PARTIAL]** (→ #5348) engine half built; the app must send the version (see `sharing.stale-note-edit-is-refused-and-offered-a-choice`): B's edit on a note A changed is refused 409, never silently lost. Test: `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py` (xfail strict until the app sends the version).
 
 ## The two-machine test (next)
 
