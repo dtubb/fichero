@@ -49,10 +49,10 @@ Cross-cutting invariants (all configs):
   `::test_debug_sandbox_flip_is_caught`.
 - `config.arm64-only` [OK] — every project config excludes `x86_64`. Pinned:
   `test_check_xcode_config_invariants.py::test_missing_excluded_archs_is_caught`.
-- `config.deployment-floor-26` — **[GAP]** (#5730) `MACOSX_DEPLOYMENT_TARGET` and `IPHONEOS_DEPLOYMENT_TARGET`
-  floor is 26. Today the project, `fichero-api-client/Package.swift` and the guard all still say 27.
-  Pinned: `test_check_xcode_config_invariants.py::test_wrong_deployment_floor_is_caught` (to assert 26); also
-  covers the API client's platforms: `test_platform_floor_to_spec.py`.
+- `config.deployment-floor-26` [OK] — `MACOSX_DEPLOYMENT_TARGET` and `IPHONEOS_DEPLOYMENT_TARGET` are 26.x in the
+  project, and `fichero-api-client/Package.swift` says 26.0 (#5730). Pinned:
+  `test_platform_floor_to_spec.py::test_real_project_floor_is_26`, `::test_a_target_left_at_27_is_caught`,
+  `::test_an_ios_target_below_26_is_caught`.
 - `platform.supports-tahoe-and-golden-gate` — **[GAP]** (#5730) the app builds, launches and works on macOS 26
   and 27, iOS 26 and 27. Test: `fichero-server/tests/unit/scripts/test_platform_floor_to_spec.py`.
 - `platform.27-only-api-gated` — **[GAP]** (#5730) every 27-only API (Foundation Models image input and OCR tool,
