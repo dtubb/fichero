@@ -7529,6 +7529,18 @@
         "query_params": [],
         "request_model": "PairMachineRequest",
         "response_model": "MachineOut"
+      },
+      {
+        "method": "DELETE",
+        "path": "/machines/{machine_id}",
+        "operation_id": "forget_machine_api_machines__machine_id__delete",
+        "summary": "Forget a paired machine: remove its saved token on this Mac",
+        "path_params": [
+          "machine_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "mcp": [

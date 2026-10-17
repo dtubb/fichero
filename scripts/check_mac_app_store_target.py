@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Guard the Mac App Store channel's invariants (#3748/#3749).
+"""Guard the Mac App Store channel's invariants (#3748/#3749, #5730).
+
+The App Store build is a CONFIGURATION named "App Store" of the one Fichero target, not a
+second target (one embed phase, #3982). Everything below is asserted on that configuration,
+its scheme, the sandbox setting and the entitlements.
 
 Every rule below is one an App Store upload is REJECTED for, and every one is a
 single careless edit away — open the project in Xcode, tick the wrong box, and the
@@ -28,7 +32,8 @@ SCHEME = REPO / "fichero/fichero.xcodeproj/xcshareddata/xcschemes/Fichero (App S
 ENGINE_ENTITLEMENTS = REPO / "fichero/fichero/FicheroEngineAppStore.entitlements"
 ENGINE_EMBED_INPUTS = REPO / "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist"
 
-MAS_TARGET = "Fichero (App Store)"
+MAS_CONFIG = "App Store"
+MAS_TARGET = "Fichero"  # the one target; the App Store build is its MAS_CONFIG configuration
 DMG_TARGET = "Fichero"
 ENGINE_EMBED_OUTPUT_PATH = "$(FICHERO_ENGINE_EMBED_OUTPUT_PATH)"
 ENGINE_EMBED_NOOP_PATH = "$(DERIVED_FILE_DIR)/FicheroEngineEmbed.noop"
@@ -54,7 +59,7 @@ def targets(objects: dict) -> dict[str, dict]:
     return {
         t["name"]: t
         for t in objects.values()
-        if t.get("isa") == "PBXNativeTarget" and t.get("name") in (MAS_TARGET, DMG_TARGET)
+        if t.get("isa") == "PBXNativeTarget" and t.get("name") == DMG_TARGET
     }
 
 
@@ -80,24 +85,49 @@ def shell_of(phase: dict) -> str:
     return "\n".join(script) if isinstance(script, list) else script
 
 
-def main() -> int:
+def check() -> list[str]:
+    failures.clear()
     objects = load_project()
     found = targets(objects)
 
-    for name in (MAS_TARGET, DMG_TARGET):
-        if name not in found:
-            fail(f"target {name!r} is missing from project.pbxproj")
-    if failures:
-        return report()
+    if DMG_TARGET not in found:
+        fail(f"target {DMG_TARGET!r} is missing from project.pbxproj")
+        return list(failures)
 
-    mas, dmg = found[MAS_TARGET], found[DMG_TARGET]
+    mas = dmg = found[DMG_TARGET]
+
+    # App Review 2.4.5(vii): Sparkle must NOT ship inside the App Store bundle. With one target Sparkle is
+    # linked for every configuration, so a phase must delete Sparkle.framework from the App Store build
+    # (a stripped Info.plist alone still ships the updater). The phase runs after the frameworks are embedded.
+    remove = phase_named(objects, dmg, "Remove Sparkle (App Store)")
+    if remove is None:
+        fail(
+            "the Fichero target has no 'Remove Sparkle (App Store)' build phase: Sparkle.framework would ship "
+            "inside the App Store build (App Review 2.4.5(vii)); a stripped Info.plist is not enough"
+        )
+    else:
+        rbody = shell_of(remove)
+        if "Sparkle.framework" not in rbody or "rm -rf" not in rbody:
+            fail("the 'Remove Sparkle (App Store)' phase must rm -rf Sparkle.framework from the bundle")
+        if MAS_CONFIG not in rbody and "FICHERO_APP_STORE" not in rbody:
+            fail(f"the 'Remove Sparkle (App Store)' phase must act only for the {MAS_CONFIG!r} configuration, never the DMG build")
+        names = [objects[p].get("name") or objects[p].get("isa") for p in dmg["buildPhases"]]
+        framework_phases = [i for i, n in enumerate(names) if n in ("PBXCopyFilesBuildPhase", "Embed Fichero Server")]
+        if framework_phases and names.index("Remove Sparkle (App Store)") < max(framework_phases):
+            fail("'Remove Sparkle (App Store)' must run AFTER the phases that embed frameworks and the engine")
+
+    all_cfgs = configs(objects, dmg)
+    if MAS_CONFIG not in all_cfgs:
+        fail(f"target {DMG_TARGET!r} has no {MAS_CONFIG!r} build configuration (the App Store build is a configuration, not a second target)")
+        return list(failures)
+    mas_cfgs = {MAS_CONFIG: all_cfgs[MAS_CONFIG]}
 
     # Both macOS channels copy the Briefcase bundle during their Xcode build.
     # Xcode must refresh that Briefcase input first: the embed phase is a plain
     # copy, and `briefcase build` does not re-copy Python source unless the
     # update step has run. Without this preflight, a direct Xcode build can ship
     # the newest Swift app with an hours-old engine bundle (#3956).
-    for target in (mas, dmg):
+    for target in (dmg,):
         embed_phase = phase_named(objects, target, "Embed Fichero Server")
         if embed_phase is None:
             fail(f"{target['name']} has no 'Embed Fichero Server' phase")
@@ -132,11 +162,8 @@ def main() -> int:
             fail(f"{target['name']} Embed Fichero Server must use {input_list!r} as an inputFileListPath")
         if "$(SRCROOT)/../fichero-server/build/fichero_server/macos/app/Fichero Server.app" not in input_paths:
             fail(f"{target['name']} Embed Fichero Server must list the staged Briefcase app as an inputPath")
-        expected_macos_output = (
-            "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app"
-            if target["name"] == MAS_TARGET
-            else "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app"
-        )
+        mas_output = "$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/Helpers/Fichero Server.app"
+        dmg_output = "$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/Fichero Server.app"
         if output_paths != {ENGINE_EMBED_OUTPUT_PATH}:
             fail(
                 f"{target['name']} Embed Fichero Server must use {ENGINE_EMBED_OUTPUT_PATH!r} as its only "
@@ -148,39 +175,23 @@ def main() -> int:
                     f"{target['name']}/{cfg_name} must use {ENGINE_EMBED_NOOP_PATH!r} as the default "
                     "engine embed output path"
                 )
+            expected_macos_output = mas_output if cfg_name == MAS_CONFIG else dmg_output
             if settings.get("FICHERO_ENGINE_EMBED_OUTPUT_PATH[sdk=macosx*]") != expected_macos_output:
                 fail(
                     f"{target['name']}/{cfg_name} must resolve FICHERO_ENGINE_EMBED_OUTPUT_PATH for macOS "
                     f"to {expected_macos_output!r}"
                 )
-        if target["name"] == MAS_TARGET and "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" not in input_paths:
+        if "$(SRCROOT)/fichero/FicheroEngineAppStore.entitlements" not in input_paths:
             fail("the MAS Embed Fichero Server phase must list FicheroEngineAppStore.entitlements as an input")
 
-    # 1. Sparkle: absent from MAS at the LINK level, present in the DMG.
-    # A #if does not help — a linked framework still ships, and the reviewer sees it.
-    if any(p == "Sparkle" for p in spm_products(objects, mas)):
-        fail(f"{MAS_TARGET} links Sparkle. The App Store prohibits third-party self-updaters (2.4.5(vii)).")
+    # 1. One target, so Sparkle is linked for every configuration; the App Store configuration
+    #    keeps it out of the shipped bundle by stripping its Info.plist keys (check 6 below).
     if not any(p == "Sparkle" for p in spm_products(objects, dmg)):
         fail(f"{DMG_TARGET} no longer links Sparkle — the DMG channel needs it. Do not converge the channels.")
-
-    # 2. Both app targets compile the SAME sources. A file added to one and not the
-    #    other fails to compile in the channel nobody builds by default.
-    def source_count(t: dict) -> int:
-        for p in t["buildPhases"]:
-            if objects[p].get("isa") == "PBXSourcesBuildPhase":
-                return len(objects[p]["files"])
-        return -1
-
-    if source_count(mas) != source_count(dmg):
-        fail(
-            f"source lists diverge: {MAS_TARGET} has {source_count(mas)}, {DMG_TARGET} has {source_count(dmg)}. "
-            "Add app sources with scripts/add-swift-file.rb, which registers BOTH."
-        )
 
     # 3. Entitlements. MAS uses the sandboxed set; the engine's set is EXACTLY two keys —
     #    com.apple.security.inherit is incompatible with any other App Sandbox key and
     #    the system aborts the child if one is present.
-    mas_cfgs = configs(objects, mas)
     for cfg_name, settings in mas_cfgs.items():
         ent = settings.get("CODE_SIGN_ENTITLEMENTS", "")
         if "FicheroAppStore.entitlements" not in ent:
@@ -190,7 +201,12 @@ def main() -> int:
         if "FICHERO_APP_STORE" not in settings.get("SWIFT_ACTIVE_COMPILATION_CONDITIONS", ""):
             fail(f"{MAS_TARGET}/{cfg_name} is missing the FICHERO_APP_STORE compilation condition")
 
-    for cfg_name, settings in configs(objects, dmg).items():
+        if settings.get("ENABLE_APP_SANDBOX") != "YES":
+            fail(f"{MAS_TARGET}/{cfg_name} must set ENABLE_APP_SANDBOX=YES")
+
+    for cfg_name, settings in all_cfgs.items():
+        if cfg_name == MAS_CONFIG:
+            continue
         if "FICHERO_APP_STORE" in settings.get("SWIFT_ACTIVE_COMPILATION_CONDITIONS", ""):
             fail(f"{DMG_TARGET}/{cfg_name} defines FICHERO_APP_STORE — that condition is the MAS channel's alone")
 
@@ -396,6 +412,8 @@ def main() -> int:
             fail(f"{SCHEME.name} has no ArchiveAction buildConfiguration")
         else:
             archive_cfg = match.group(1)
+            if archive_cfg != MAS_CONFIG:
+                fail(f"{SCHEME.name} must archive the {MAS_CONFIG!r} configuration, not {archive_cfg!r}")
             embeds = mas_cfgs.get(archive_cfg, {}).get("FICHERO_EMBED_ENGINE")
             if embeds != "YES":
                 fail(
@@ -420,6 +438,11 @@ def main() -> int:
             if key not in body:
                 fail(f"the Sparkle-strip phase does not remove {key}")
 
+    return list(failures)
+
+
+def main() -> int:
+    check()
     return report()
 
 

@@ -33,7 +33,7 @@ you import. Treat the app as an experiment: useful to be sure, but also unfinish
    
    **Install** TestFlight from Apple and request access to the latest release of the Mac, iPhone, and iPad app.
    
-- **Requirements:** macOS, iOS, or iPadOS 27 or later, and an Apple Silicon device.
+- **Requirements:** macOS 26 or later, or iOS or iPadOS 27 or later, and an Apple Silicon device.
 
 ## How it is Built?
 
