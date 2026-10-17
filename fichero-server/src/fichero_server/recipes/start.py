@@ -332,6 +332,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if (keyless := provider_without_key(step)) is not None:
             # waits; no other model is used in its place unless the person chooses one (`source.recipe.missing-key-never-substitutes`)
+            # Not a `_FIX_BUTTONS` token: the app has no Add Key button yet (`RecipeSetupStore` maps allow-cloud and
+            # choose-model only), so `skip` folds this into the why and `fix` is None. When the app grows the button,
+            # add "add-key" to `_FIX_BUTTONS` and pass it here.
             skip(sid, f"{label}: Needs a key for {keyless}", "Add Key… in Settings")
             continue
         if step.get("when"):
