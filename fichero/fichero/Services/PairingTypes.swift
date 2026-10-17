@@ -141,6 +141,17 @@ final class PairingService {
         }
     }
 
+    /// This Mac's `.ts.net` address when Tailscale is running, else nil (#5318).
+    func detectedTailnetURL() async throws -> String? {
+        let response = try await client.api.detectedTailnetApiPairTailnetGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.tailnetUrl
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
     /// Which client surfaces (app, CLI, MCP) have talked to the engine this
     /// session — the Sharing pane's "Connected Clients" list (2026-08-27).
     func connectedClients() async throws -> [ConnectedClientRecord] {
