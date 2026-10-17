@@ -3562,6 +3562,22 @@ def fichero_hpc_put_cluster_key(
     return _rt.call("PUT", f"/api/hpc/clusters/{cluster_id}/key", json=_rt.body({"private_key": private_key}))
 
 
+def fichero_hpc_make_cluster_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    "Make Cluster Key\n\nFichero makes the cluster's key pair (`compute.secret.fichero-makes-the-key`): the private half stays in the\nengine's folder, the public half is returned to be added in CCDB. 409 if a key is already made.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/key/make (toolset `hpc`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/key/make")
+
+
+def fichero_hpc_get_cluster_public_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Get Cluster Public Key\n\nThe public half again, to copy into CCDB; never the private one.\n\nRoute: GET /api/hpc/clusters/{cluster_id}/key/public (toolset `hpc`; reads).'
+    return _rt.call("GET", f"/api/hpc/clusters/{cluster_id}/key/public")
+
+
 def fichero_hpc_sign_in(
     *,
     cluster_id: Annotated[str, Field(description='Cluster Id')],
@@ -9257,6 +9273,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_hpc_dry_run_submit", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/dry-run-submit", fichero_hpc_dry_run_submit),
     GeneratedTool("fichero_hpc_delete_cluster_key", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_delete_cluster_key),
     GeneratedTool("fichero_hpc_put_cluster_key", "hpc", "PUT", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_put_cluster_key),
+    GeneratedTool("fichero_hpc_make_cluster_key", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/key/make", fichero_hpc_make_cluster_key),
+    GeneratedTool("fichero_hpc_get_cluster_public_key", "hpc", "GET", "/api/hpc/clusters/{cluster_id}/key/public", fichero_hpc_get_cluster_public_key),
     GeneratedTool("fichero_hpc_sign_in", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/sign-in", fichero_hpc_sign_in),
     GeneratedTool("fichero_hpc_test_cluster", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/test", fichero_hpc_test_cluster),
     GeneratedTool("fichero_hpc_list_prompts", "hpc", "GET", "/api/hpc/prompts", fichero_hpc_list_prompts),

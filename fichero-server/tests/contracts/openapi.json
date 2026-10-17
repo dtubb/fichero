@@ -27916,6 +27916,92 @@
         }
       }
     },
+    "/api/hpc/clusters/{cluster_id}/key/make": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Make Cluster Key",
+        "description": "Fichero makes the cluster's key pair (`compute.secret.fichero-makes-the-key`): the private half stays in the\nengine's folder, the public half is returned to be added in CCDB. 409 if a key is already made.",
+        "operationId": "make_cluster_key_api_hpc_clusters__cluster_id__key_make_post",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcPublicKey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}/key/public": {
+      "get": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Get Cluster Public Key",
+        "description": "The public half again, to copy into CCDB; never the private one.",
+        "operationId": "get_cluster_public_key_api_hpc_clusters__cluster_id__key_public_get",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcPublicKey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hpc/prompts": {
       "get": {
         "tags": [
@@ -66577,6 +66663,25 @@
           "items"
         ],
         "title": "HpcPromptList"
+      },
+      "HpcPublicKey": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "public_key": {
+            "type": "string",
+            "title": "Public Key",
+            "description": "To add to the person's own cluster account (CCDB on the Alliance)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "public_key"
+        ],
+        "title": "HpcPublicKey"
       },
       "HpcTestResponse": {
         "properties": {

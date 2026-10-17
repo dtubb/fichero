@@ -5221,6 +5221,30 @@
       },
       {
         "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/key/make",
+        "operation_id": "make_cluster_key_api_hpc_clusters__cluster_id__key_make_post",
+        "summary": "Make Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPublicKey"
+      },
+      {
+        "method": "GET",
+        "path": "/hpc/clusters/{cluster_id}/key/public",
+        "operation_id": "get_cluster_public_key_api_hpc_clusters__cluster_id__key_public_get",
+        "summary": "Get Cluster Public Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPublicKey"
+      },
+      {
+        "method": "POST",
         "path": "/hpc/clusters/{cluster_id}/sign-in",
         "operation_id": "sign_in_api_hpc_clusters__cluster_id__sign_in_post",
         "summary": "Sign In",
