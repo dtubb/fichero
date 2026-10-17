@@ -59,7 +59,7 @@ Cross-cutting invariants (all configs):
   Core AI, 27 adapters) sits behind an availability check, with a 26 path where one exists. Checked by a Mac + iOS build at floor 26
   (an ungated 27 API fails to compile there); no source-scan test.
 - `platform.needs-27-said-plainly` — **[GAP]** (#5730) where no 26 path exists the UI says "needs macOS 27"
-  rather than failing or hiding the control. Test: `fichero/Tests/Unit/PlatformAvailabilityTests.swift`.
+  rather than failing or hiding the control. Test: none yet (no 27-only feature exists).
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
   Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
   `::test_mainactor_dropped_from_ficherotests_only_is_caught`.
