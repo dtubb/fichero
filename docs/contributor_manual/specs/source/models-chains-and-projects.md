@@ -4431,9 +4431,9 @@ drafts stay drafts and #5217 records why.
 - `source.align.confidence-per-line` — **[GAP]** (#5217) each aligned line carries how well the page text matched it (the score against the
   rough read of the line, 0 to 1), kept on the reading it made and served with the line, so the person sees which lines to check; today the score
   is only in the job's result and in the reason of a rejected line.
-- `source.align.known-misalignments-fixture` — **[GAP]** (#5217) the aligner is pinned over a real two-page fixture with known misalignments: a
+- `source.align.known-misalignments-fixture` — **[OK]** (#5217; tested in `fichero-server/tests/unit/check/test_align_text_to_lines_5217.py`: a clean control, a dropped line, two lines merged, two reordered; 5 pass) the aligner is pinned over a real two-page fixture with known misalignments: a
   line the reader dropped, two lines it merged, two it reordered; each case says what lands on which line and which lines are doubtful.
-- `source.align.below-threshold-stays-a-draft` — **[GAP]** (#5217) a page whose alignment is too poor (the share of doubtful lines above a limit)
+- `source.align.below-threshold-stays-a-draft` — **[OK]** (#5217; `tie_text.page_is_draft`, `DRAFT_ABOVE` 0.5 stated not measured, the job counts `drafts` and flags the page; pinned by `test_align_text_to_lines_5217.py` and the unchanged `test_tie_text_to_lines.py`, 11 pass) a page whose alignment is too poor (the share of doubtful lines above a limit)
   gets no readings at all: it stays a draft, flagged as "text on the page, not aligned to lines", never half-aligned; its lines keep their own reads.
 - `source.align.person-moves-text-between-lines` — **[GAP]** (#5217) for a line whose text landed on the wrong line a person can move the line's
   first or last words to the neighbouring line, split a line or merge two (the segment split and merge actions exist and undo), each a new reading by

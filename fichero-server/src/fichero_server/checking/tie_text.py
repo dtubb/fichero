@@ -52,9 +52,13 @@ KIND = "tie-text-to-lines"
 #: (`line_check.LOW`), awaiting the maintainer's ruling.
 THRESHOLD = 0.30
 DOUBTFUL = "doubtful: page text and line disagree"
+#: A page whose share of lines that did not tie is above this stays a draft (`source.align.below-threshold-stays-a-draft`, #5217):
+#: stated, not measured (QUESTION-TO-MANAGER); the share counts a line the reader left empty as one that did not tie.
+DRAFT_ABOVE = 0.5
+DRAFT = "draft: the page text is not aligned to the lines (too few lines match their text)"
 #: How far, beyond their difference in length, the page text and the lines' reads may drift apart.
 BAND = 200
-COUNTS = ("tied", "doubtful", "untied", "pages_tied", "already_tied", "no_page_reading", "no_lines", "lines_found")
+COUNTS = ("tied", "doubtful", "untied", "pages_tied", "already_tied", "no_page_reading", "no_lines", "lines_found", "drafts")
 
 
 def _fold(ch: str) -> str:
@@ -155,6 +159,11 @@ def tie_lines(page_text: str, reads: list[str]) -> list[dict[str, Any]]:
         out.append({"text": stretch, "score": score, "tied": bool(stretch) and score >= THRESHOLD,
                     "rough_read": read})
     return out
+
+
+def page_is_draft(scored: list[dict[str, Any]]) -> bool:
+    """Whether too few of a page's lines tied for the alignment to be written: the page then stays a draft, never half-aligned."""
+    return bool(scored) and sum(1 for s in scored if not s["tied"]) / len(scored) > DRAFT_ABOVE
 
 
 def start(db: Any, request: CheckRunRequest, *, started_by: str) -> dict[str, str]:
@@ -317,7 +326,13 @@ def _tie(db: Any, job_id: str, request: CheckRunRequest, started_by: str) -> dic
             width, height = float(image.width), float(image.height)
         lines = [in_pixels(row, width, height) for row in found.lines]
         reads = kraken_runtime.read_given_lines(photo, model_path, lines)
-        for row, scored in zip(found.lines, tie_lines(reading.content, reads)):
+        aligned = tie_lines(reading.content, reads)
+        if page_is_draft(aligned):
+            counts["drafts"] += 1
+            flagged.append({"document_id": doc.id, "flag": DRAFT,
+                            "score": round(sum(s["score"] for s in aligned) / len(aligned), 3)})
+            continue
+        for row, scored in zip(found.lines, aligned):
             if not scored["text"]:
                 counts["untied"] += 1
                 continue
