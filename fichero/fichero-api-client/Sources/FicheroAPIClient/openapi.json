@@ -8115,6 +8115,72 @@
         }
       }
     },
+    "/api/reading-at-scale/jobs/{job_id}/catch-up": {
+      "post": {
+        "tags": [
+          "reading-at-scale"
+        ],
+        "summary": "Look at the far side now (after the Mac slept); a dropped run carries on",
+        "operationId": "catch_up_reading_job_api_reading_at_scale_jobs__job_id__catch_up_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Catch Up Reading Job Api Reading At Scale Jobs  Job Id  Catch Up Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sync-folders/duplicates": {
       "get": {
         "tags": [
@@ -51212,6 +51278,10 @@
             "format": "date-time",
             "nullable": true,
             "title": "Failed At"
+          },
+          "remote": {
+            "$ref": "#/components/schemas/RemoteRunRow",
+            "nullable": true
           }
         },
         "type": "object",
@@ -80036,6 +80106,20 @@
             "title": "Pages May Leave",
             "description": "The person's yes for these pages (or their IIIF addresses) to go to Hugging Face.",
             "default": false
+          },
+          "parent_job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Job Id",
+            "description": "The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`)."
+          },
+          "expected_pages_per_second": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "nullable": true,
+            "title": "Expected Pages Per Second",
+            "description": "A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.",
+            "minimum": 0.0
           }
         },
         "type": "object",
@@ -80195,6 +80279,52 @@
             "type": "object",
             "nullable": true,
             "title": "Step"
+          },
+          "target": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target"
+          },
+          "far_state": {
+            "type": "string",
+            "nullable": true,
+            "title": "Far State"
+          },
+          "shards_done": {
+            "type": "integer",
+            "title": "Shards Done",
+            "default": 0
+          },
+          "shards_total": {
+            "type": "integer",
+            "title": "Shards Total",
+            "default": 0
+          },
+          "pages_landed": {
+            "type": "integer",
+            "title": "Pages Landed",
+            "default": 0
+          },
+          "shards": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Shards",
+            "default": []
+          },
+          "estimate": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Estimate"
+          },
+          "actual": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Actual"
           }
         },
         "type": "object",
@@ -82392,6 +82522,41 @@
         ],
         "title": "RemoteBackendHealth",
         "description": "Health diagnostics for the remote-backend client path."
+      },
+      "RemoteRunRow": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target"
+          },
+          "far_state": {
+            "type": "string",
+            "title": "Far State"
+          },
+          "shards": {
+            "type": "string",
+            "title": "Shards"
+          },
+          "pages_landed": {
+            "type": "integer",
+            "title": "Pages Landed",
+            "default": 0
+          },
+          "offers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Offers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "far_state",
+          "shards"
+        ],
+        "title": "RemoteRunRow"
       },
       "RemoveBackgroundOperationRequest": {
         "properties": {
