@@ -28,9 +28,9 @@ def test_a_reader_made_for_the_period_ranks_first(client, mac):
     sixteenth = _candidates(client, period="16th century")
     assert sixteenth[MCCATMUS]["rule_rank"] == 1, sorted((v["rule_rank"] or 99, k) for k, v in sixteenth.items())
     twelfth = _candidates(client, period="12th century")
-    # #5714: a reader whose stated period misses the project's is refused, so it has no rule rank at all.
+    # Ruled 2026-10-17: another period only lowers the rank, so McCATMuS keeps one, below the medieval reader.
     assert twelfth[CATMUS_MEDIEVAL]["rule_rank"] is not None
-    assert twelfth[MCCATMUS]["rule_rank"] is None
+    assert twelfth[MCCATMUS]["rule_rank"] > twelfth[CATMUS_MEDIEVAL]["rule_rank"]
 
 
 def test_the_recipe_reads_the_saved_period(client, mac):

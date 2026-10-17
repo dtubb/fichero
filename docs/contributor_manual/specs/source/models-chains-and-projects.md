@@ -4054,8 +4054,9 @@ Finding models
   4th, behind two medieval readers. Tested in `fichero-server/tests/unit/recipes/test_period_ranks_readers_5683.py`.
 - `source.recipe.unstated-period-is-offered-not-chosen` — **[OK]** (test in `fichero-server/tests/unit/recipes/test_unstated_period_5714_5715.py`, filed as #5714) for a project that states a period and
   whose material is handwriting, a reader whose card states no period is offered to the person and measured by
-  the bake-off, and is never the rules' choice; the rules choose a reader whose stated period covers the project's
-  (McCATMuS, 1500-2100, for a 16th-century hand) or say there is none. The rule names no date and no script, so it
+  the bake-off, and ranks below one whose stated period covers the project's (McCATMuS, 1500-2100, for a 16th-century
+  hand); **changed 2026-10-17 (ruled, #4950): rank only, never a refusal; with nothing better it is still the choice, and the
+  measured pages replace the guess**. The rule names no date and no script, so it
   holds for a Chinese or an Arabic project as for a Spanish one. WHY (2026-10-13, the maintainer's onboarding
   walk): the rules took Apple Vision for reading pages because it states handwriting, costs nothing and needs no
   download, though nothing states it reads a 16th-century hand; its failure would have shown only as a poor score.
@@ -4067,8 +4068,7 @@ Finding models
   2026-10-13, is silent; the maintainer's own use reads 20th- and 21st-century hands, so the 1900-2100 period is stated
   from use, not measured, and is replaced by a measurement on the person's pages as soon as the bake-off has one).
   A card whose stated period does
-  not overlap the project's is refused for that project (`no-reader-for-period`, "it is made for 1900-2100, and this
-  project's pages are of the 16th century"), and the bake-off names it once with that reason, as it names a reader that
+  not overlap the project's ranks last for that project (`_period_rank` 2; ruled 2026-10-17, no longer refused), and the bake-off names it once with that reason, as it names a reader that
   cannot run here, never silently dropped and never scored for a project it was not made for. `_period_rank` ranks
   and `_refusal` does not today, so the card alone would still enter the bake-off. *Test:* the same project's
   bake-off lists Apple Vision as not taking part, with that reason; a 20th-century project still lists and scores it.
