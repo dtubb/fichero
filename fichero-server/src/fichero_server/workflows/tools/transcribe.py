@@ -481,7 +481,9 @@ async def transcribe(
             result["artifacts"] = [*result.get("artifacts", []), *redo.get("artifacts", [])]
             result["error"] = result.get("error") or redo.get("error")
             if len(again) == len(files):
-                result = redo
+                result, onto_lines = redo, False
+            result.setdefault("notes", []).extend(
+                f"{Path(files[i]).name}: the model did not read line by line; read the page whole" for i in again)
     notes = result.setdefault("notes", [])
     if onto_lines:
         notes.append(f"read each of the page's lines ({'Apple Vision' if lines_read_by == 'apple' else 'the model'} on "
