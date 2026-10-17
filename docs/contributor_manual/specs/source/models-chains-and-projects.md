@@ -3573,6 +3573,7 @@ The recipe and its format
   **(2026-10-11)** A YOLO layout model is pinned by its catalogue name (`{yolo: yolo-doclaynet-11n}`), the form
   the shipped card writes, and the recipe check knows it; a pin the check does not know is said in words, never
   as a list of its keys (`recipes/recipe.PIN_FORMS`; `fichero-server/tests/unit/recipes/test_yolo_pin_is_a_known_form.py`).
+- `source.recipe.placement-by-scale` — **[GAP]** (#4950, #5589) each step declares where it can run (Mac / GPU cluster / CPU cluster / cloud); the plan places a step by scale (local below a page threshold set in the plan, remote above) and by GPU saturation. A step reaches a `cluster` target only through its bound target (`source.recipe.runs-on-binds-to-a-target`). Supersedes `source.recipe.cheapest-local-first` (cheapest only within the noise band). *Test:* a 1,000-page step places local; a 100,000-page step places on the bound `cluster` target; a recipe with no bound cluster never places there.
 - `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
   and an unbound step waits with "No cluster is set up".
