@@ -4397,3 +4397,36 @@ Hugging Face revisions in the example exist (they are illustrative).
 
 ## Triaged from the backlog (2026-10-04)
 - `source.segments.align-page-text-to-lines` **[GAP]** (#5217): when a page's text belongs to the page and not to its lines, the Segments list says so ('text on the page, not aligned to lines') and offers one Align Text to Lines tool, as a dialog or a tool option, whose result is a pass the person confirms. Run by hand, it runs by itself only where the match is known to be perfect, such as a reliable import (ruled 2026-10-01). In a recipe the tie is automatic above a match threshold, with doubtful lines flagged for review and kept out of the training set until checked (ruled 2026-10-04, #5444; see `source.job.tie-text-to-lines` and Rulings).
+
+## Behaviour ids for issues this spec described without one (R0, 2026-10-17)
+Each is described in the paragraph named; the id lets a test cite it.
+- `source.read.kraken-confidence-kept` — **[OK]** (#5707; tested in `fichero-server/tests/unit/recipes/test_kraken_readings_5707.py`) a
+  Kraken reader reading lines a page already has keeps each line's certainty on its reading, and a reading the same result already
+  wrote on a line is not written a second time (described under `source.onboard.auto.blank-pages-not-read`'s neighbours: "Not on
+  unreadable text").
+- `source.recipe.step-counts-its-pages` — **[OK]** (#5706; tested in `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py`)
+  a step whose output may leave no trace on a page (Find Names on a page naming no one, Prepare on a clear page) keeps on the run the pages
+  it ran on, and the plan counts them done, so a page is not "to do" after every run.
+- `source.sort.written-recto-is-read` — **[OK]** (#5705; tested in `fichero-server/tests/unit/recipes/test_one_blank_rule_5705.py`) the pages a
+  run leaves out are the pages Find the Documents calls blank, by one rule; a written page is never sorted blank and left out of every later run.
+- `source.job.names-warn-on-unreadable` — **[OK]** (#5694; tested in `fichero-server/tests/unit/recipes/test_names_on_unreadable_text_5694.py`)
+  Find Names is not run on a page whose reading is too uncertain, and the step says which pages and why.
+- `source.extract.entry-text-from-its-lines` — **[PARTIAL]** (#5601; *built in part, pinned by `fichero-server/tests/unit/workflows/test_entries_over_lines_5601.py`;
+  the entries are child nodes, not yet units over their lines*) a diary entry is the set of lines it covers; its text is read from them, not copied.
+- `source.train.spacy-names-fine-tune` — **[GAP]** (#5536) a spaCy names model is fine-tuned on a project's confirmed names, on this Mac or on
+  Hugging Face; today the train offer for Find Names says "not available yet: Fichero has no spaCy trainer".
+- `source.train.regions-yolo` — **[PARTIAL]** (#5525; *built in part, pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`;
+  the table detectors are not built*) a YOLO layout model is trained on the person's corrected regions, on this Mac.
+- `source.lines.teacher-check-honest-end` — **[GAP]** (#5524) a teacher-line check that lands its verdicts ends "completed" with correct status counts,
+  and never "failed" with a memory message that contradicts the verdicts that landed; a passing line gets a verdict.
+- `source.lines.correct-this-line-verb` — **[PARTIAL]** (#5499; *built in part, pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`
+  and `test_import_ground_truth.py`*) correcting a line is one verb, not three ids and six flags, and a person's corrections count as the
+  bake-off's ground truth.
+- `source.try.compare-in-setup-works` — **[GAP]** (#5727) the Compare step in Set Up (the bake-off) works on a scratch project with enough
+  corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
+- `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
+  period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
+- `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
+  model's lines, and the readiness count matches what it trains on.
+- `source.train.noise-band-per-project` — **[GAP]** (#5692) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
+  measured), stored and served, so a comparison says when a difference is noise.
