@@ -1242,6 +1242,9 @@ class StartEstimateRun(BaseModel):
     where: str
     pages: int
     cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
+    basis: str = Field(default="unpriced", description=(
+        "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other "
+        "place, or a model with no price): never a $0 for what is not known (#5590)"))
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
         "and the peak that comes to (#5537); null for any other run"))
