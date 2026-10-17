@@ -38,3 +38,8 @@ def test_the_inspector_status_has_shards_and_estimate_and_catch_up_is_an_action(
     assert r.status_code == 200 and r.json()["state"] == "running"
     assert json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])["catch_up"] is True
     assert client.post("/api/reading-at-scale/jobs/nope/catch-up").status_code == 404
+
+
+def test_catching_up_a_finished_run_is_refused_with_409(client, db):
+    job_id = _run(db, state="completed")
+    assert client.post(f"/api/reading-at-scale/jobs/{job_id}/catch-up").status_code == 409

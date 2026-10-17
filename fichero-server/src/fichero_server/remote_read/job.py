@@ -29,6 +29,8 @@ from fichero_server.models.compute_requests import ReadAtScaleRequest  # noqa: F
 KIND = "read-at-scale"
 TARGET = "huggingface-jobs"
 POLL_SECONDS = 60.0
+#: The jobs a remote run may hang under: a recipe run, a workflow run or a step of one (`activity.jobs-are-a-tree`).
+STEP_KINDS = ("run-a-recipe", "workflow", "workflow-step", "batch", "recipe")
 #: A vision-model reader needs these where the Job runs (the runner's own header has Kraken).
 VLM_DEPENDENCIES = ["torch>=2.5", "transformers>=4.57,<5", "accelerate>=1.3"]
 
@@ -116,6 +118,10 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
+    if request.parent_job_id:
+        parent = jobs.read_job(db, request.parent_job_id)
+        if parent is None or parent["kind"] not in STEP_KINDS:
+            raise ValueError(f"parent_job_id {request.parent_job_id!r} is not a step job of this library")
     target = (target_factory or (HfJobsTarget if request.target == TARGET else cluster_target(request.target)))()
     # no token (or key): refused here, by name
     step = resolve_step(request, bucket=getattr(target, "bucket", None))
@@ -355,6 +361,10 @@ def catch_up(db: Any, job_id: str) -> str:
         detail["catch_up"] = True
         _save(db, job_id, detail)
         return state
+    out = any(sh.get("state") == "submitted" for sh in (detail.get("shards") or {}).values())
+    if not (state == "paused" or (state == "failed" and out)):
+        # a finished run is never brought back: resending it would be billed again
+        raise ValueError(f"nothing to catch up with: the run is {state} and has no shard still out")
     jobs.requeue(db, job_id, reason="Catching up with the far side")
     return "waiting"
 

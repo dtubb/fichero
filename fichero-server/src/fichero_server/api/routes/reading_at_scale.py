@@ -174,3 +174,5 @@ async def catch_up_reading_job(
         return registry.invoke(db, "reading.catch_up", {"job_id": job_id}, ctx).result
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

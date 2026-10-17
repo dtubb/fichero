@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Add a cluster, step by step (`compute.secret.ccdb-guided`, #5238, #5454): the cluster's details, Fichero makes the
@@ -62,10 +61,7 @@ struct AddClusterSheet: View {
                 + "A new key can take a few minutes to reach the clusters.").font(.callout)
             Text(publicKey).font(.caption.monospaced()).textSelection(.enabled).lineLimit(3)
             HStack {
-                Button("Copy") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(publicKey, forType: .string)
-                }
+                Button("Copy") { PlatformPasteboard.writeString(publicKey) }
                 Link("Open the account page", destination: URL(string: "https://ccdb.alliancecan.ca/ssh_authorized_keys")!)
             }
             Text("2. Then sign in. You will be asked for your second factor; approve the push on your phone.")
