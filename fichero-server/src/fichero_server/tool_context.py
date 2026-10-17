@@ -49,8 +49,10 @@ def _maker(reading: Any) -> str:
     return "machine" if (getattr(reading, "producer_tool", None) or getattr(reading, "producer_model", None)) else "unrecorded"
 
 
-def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None) -> ToolContext:
-    """The compact lines for `segment_ids` on one page (None: the whole page)."""
+def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None, *,
+                 confidence: bool = False) -> ToolContext:
+    """The compact lines for `segment_ids` on one page (None: the whole page). With `confidence`, each line
+    also states the machine's certainty about its reading (`-` when none was stated), after the maker."""
     from fichero_server.api.routes.document.segment_readings import document_text
     from fichero_server.models import ContentRepresentation, Segment
 
@@ -80,7 +82,10 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
         row = shapes.get(span.segment_id)
         box = " ".join(f"{v:.3f}" for v in (row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h)) if row else "- - - -"
         text = derived.text[span.start:span.end].replace("\n", " ")
-        lines.append(f"{span.segment_id} | {box} | {_maker(readings.get(span.representation_id))} | {text}")
+        reading = readings.get(span.representation_id)
+        sure = getattr(reading, "machine_confidence", None)
+        shown = f" | {'-' if sure is None else f'{sure:.2f}'}" if confidence else ""
+        lines.append(f"{span.segment_id} | {box} | {_maker(reading)}{shown} | {text}")
         ids.append(span.segment_id)
     if not lines and wanted is None:
         block, came_from = _text_without_segments(db, document_id)
@@ -118,7 +123,7 @@ def _text_without_segments(db: Any, document_id: str) -> tuple[str, str]:
     return "", ""
 
 
-def as_prompt_context(context: ToolContext) -> str:
+def as_prompt_context(context: ToolContext, *, confidence: bool = False) -> str:
     """The context as the model reads it: what it is, then the lines."""
     if context.plain:
         return f"The page's existing text ({context.statement}):\n{context.text}"
@@ -126,13 +131,14 @@ def as_prompt_context(context: ToolContext) -> str:
         return f"This page has {context.statement}."
     return (
         "The page's existing reading, one line per segment: id | x y w h (fractions of the page) | "
-        f"who made it | text. A person's line outranks a machine's. ({context.statement}.)\n"
+        f"who made it | {'how sure the machine was (0 to 1, - if not stated) | ' if confidence else ''}text. "
+        f"A person's line outranks a machine's. ({context.statement}.)\n"
         + context.text
     )
 
 
 def with_page_context(
-    context: str | list | None, documents: list, files: list, library_path: str
+    context: str | list | None, documents: list, files: list, library_path: str, *, confidence: bool = False
 ) -> str | list | None:
     """A vision tool's per-file context: what is WIRED IN wins (a draft from the step before is the
     thing to work on); a file with nothing wired gets its page's lines. files[i] pairs with
@@ -154,7 +160,7 @@ def with_page_context(
         if wired or not doc_id:
             out.append(wired or None)
             continue
-        built = tool_context(db, str(doc_id))
+        built = tool_context(db, str(doc_id), confidence=confidence)
         log.info("page context for %s: %s", doc_id, built.statement)   # says what it sends
-        out.append(as_prompt_context(built))
+        out.append(as_prompt_context(built, confidence=confidence))
     return out

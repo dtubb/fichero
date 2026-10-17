@@ -114,7 +114,8 @@ def _tools():
 def test_the_tool_sends_the_pages_lines(name, db, test_package, monkeypatch):
     doc_id = _import(db, SYRIAC)
     prompt = _run(_tools()[name], db, test_package, monkeypatch, doc_id)
-    for row in tool_context(db, doc_id).text.splitlines():
+    # the review's lines also say how sure the machine was (`source.job.review-is-segment-native`, #5724)
+    for row in tool_context(db, doc_id, confidence=name == "transcribe_review").text.splitlines():
         assert row in prompt, (name, row)
 
 

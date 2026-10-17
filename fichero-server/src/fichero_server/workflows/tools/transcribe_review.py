@@ -49,6 +49,11 @@ REVIEW_CONFIG = {
         "description": "Language hint for the reviewer (es / en / auto)",
         "x-group": "primary",
     },
+    "lens": {
+        "type": "string",
+        "description": "The lens this review looks through (a recipe's name for it); recorded with the corrections",
+        "x-group": "advanced",
+    },
     "skip_if_artifact_exists": {
         "type": "boolean",
         "default": True,
@@ -97,7 +102,8 @@ follows."""
 #: lines are shown as `<segment id> | x y w h | maker | text`, and a correction is only tied back to its line when the
 #: answer names it (`source.job.review-asks-one-answer-line-per-segment-id`).
 ANSWER_BY_ID = (
-    "The prior transcription is a list of lines, each as `<segment id> | box | maker | text`. Answer with exactly one "
+    "The prior transcription is a list of lines, each as `<segment id> | box | maker | confidence | text` "
+    "(confidence is how sure the machine was). Answer with exactly one "
     "line per listed line, in the same order, as `<segment id> | <certain, uncertain or unreadable> | <corrected "
     "text>`: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
     "never merge, split, drop or add a line."
@@ -188,7 +194,7 @@ async def transcribe_review(
         # newest transcription -- what `_existing_transcription_context` sent, and the lines too.
         from fichero_server.tool_context import with_page_context
 
-        prior_text = with_page_context(None, documents, files, state.get("library_path", ""))
+        prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", True)
@@ -227,13 +233,14 @@ async def transcribe_review(
     if library_path and result.get("artifacts"):
         import asyncio
 
-        unresolved = await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"))
+        unresolved = await asyncio.to_thread(_onto_lines, result, library_path, state.get("task_id"),
+                                             inputs.get("lens"))
         if unresolved:
             await _re_ask_pages(result, unresolved, library_path, state.get("task_id"), llm_config)
     return result
 
 
-def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None) -> list[str]:
+def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, lens: str | None = None) -> list[str]:
     """The review's corrections become the page's text (#5654, `source.job.correct-onto-lines`): each
     saved review is put onto its page's lines as readings (`working_lines.correct_lines`), and what was
     done is said per page in the step's notes and its per-file result (`lines`). A review that cannot be
@@ -251,6 +258,9 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None) -
         artifact = db.get(Artifact, artifact_id) if artifact_id else None
         if artifact is None or artifact.artifact_type != "transcription_review":
             continue  # a review of a segment is already a reading of it (`segment.<type>`)
+        if lens:  # the corrections name this artifact, so it is where the lens that made them is recorded
+            artifact.data = {**(artifact.data or {}), "lens": lens}
+            db.save(artifact)
         _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
                                     artifact_id=artifact.id, run_id=run_id, library_path=library_path)
         page = db.get(Document, artifact.document_id)
