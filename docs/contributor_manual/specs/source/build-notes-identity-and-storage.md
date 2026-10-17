@@ -139,9 +139,9 @@ added in this slice (there is no segment store yet).
 
 ## Slice 3 — `Segment` and `Pass` records (#4921)
 
-**Pins:** `source.store.record-per-segment`, `source.store.bounded-reads`,
-`source.pass.named-authored`, `source.pass.never-overwrites`, `source.segment.one-primitive`,
-`source.segment.open-kinds`, `source.segment.lasting-id`, `source.segment.box-is-derived`,
+**Pins:** `source.store.record-per-segment` **[OK]**, `source.store.bounded-reads` **[OK]**,
+`source.pass.named-authored` **[OK]**, `source.pass.never-overwrites`, `source.segment.one-primitive` **[OK]**,
+`source.segment.open-kinds`, `source.segment.lasting-id` **[OK]**, `source.segment.box-is-derived` **[OK]**,
 `source.segment.rerun-is-new-pass`.
 
 **The two tables arrive when a library opens, not when someone first looks.** Both models are
@@ -176,7 +176,7 @@ a timeout. When a nested level of a transaction fails, the whole transaction is 
 rollback-only, so a caller that catches the error cannot commit half a batch.
 
 **Bulk writes are one audited action like any other.** `Database.transaction()` is re-entrant;
-`save_many` must join it (not issue its own `BEGIN`), so that `segment.create_many` is
+`save_many` must join it (not issue its own `BEGIN`), so that `segment.create_many` **[OK]** is
 registered `atomic=True` and its rows and its audit row commit together or not at all.
 
 **How tables come to be.** A pydantic model saved through `Database.save()` gets its table on
@@ -289,18 +289,18 @@ the segment's (409, `SegmentPassMismatch`); a `parent_segment_id` in another pas
 whose `document_id` is not the segment's.
 
 **Tests, by behaviour.**
-- `source.segment.lasting-id`: create; read back; the id is engine-made; a client-supplied id
+- `source.segment.lasting-id` **[OK]**: create; read back; the id is engine-made; a client-supplied id
   is refused.
-- `source.segment.box-is-derived`: the four box columns equal the anchor's bounds for a rect
+- `source.segment.box-is-derived` **[OK]**: the four box columns equal the anchor's bounds for a rect
   and for a polygon; supplying them is refused.
-- `source.segment.one-primitive` / `.open-kinds`: a region, a line, a word and a picture are
+- `source.segment.one-primitive` **[OK]** / `.open-kinds`: a region, a line, a word and a picture are
   all `Segment`s; an unknown `kind` string round-trips; `kind_raw` is kept.
-- `source.pass.named-authored` / `.never-overwrites` / `source.segment.rerun-is-new-pass`: two
+- `source.pass.named-authored` **[OK]** / `.never-overwrites` / `source.segment.rerun-is-new-pass`: two
   passes over one document keep separate segments; creating the second changes no row of the
   first (row count, `updated_at`).
-- `source.store.record-per-segment`: "the lines of this document in this pass" and "the
+- `source.store.record-per-segment` **[OK]**: "the lines of this document in this pass" and "the
   children of this region" are single filtered queries.
-- `source.store.bounded-reads`: **the bound is the route's answer as a client receives it.**
+- `source.store.bounded-reads` **[OK]**: **the bound is the route's answer as a client receives it.**
   With 200,000 segments in one source, spread as a real source is (500 page documents of 400;
   made with `save_many` in a temporary library; marked `slow`), `GET
   /api/segments/document/{doc_id}?kind=` for one page returns in under 200 ms. Separately, a
@@ -308,7 +308,7 @@ whose `document_id` is not the segment's.
   **reported, not asserted**. Timing the SQL alone does not pin this behaviour. A read with
   no `document_id` is refused. (A lean read path, raw rows to the read shape with no
   intermediate model, is **slice 3b**, needed before the editor's trial, not now.)
-- `segment.create_many` is atomic: force the audit write to fail and assert no segment row
+- `segment.create_many` **[OK]** is atomic: force the audit write to fail and assert no segment row
   remains.
 - No audit row written by these actions contains a `content` or `text` key.
 - Old-library test above, twice.
@@ -317,8 +317,8 @@ whose `document_id` is not the segment's.
 
 ## Slice 4 — matches, forwarding notes, a citable reference (#4922)
 
-**Pins:** `source.segment.match-record`, `source.segment.forwarding-notes`,
-`source.segment.carry-across-a-match`, `source.segment.citable`.
+**Pins:** `source.segment.match-record` **[OK]**, `source.segment.forwarding-notes` **[OK]**,
+`source.segment.carry-across-a-match` **[OK]**, `source.segment.citable` **[OK]**.
 
 **Models** (`models/segments.py`).
 
@@ -408,24 +408,24 @@ as a machine (`MatchNeedsAPerson`); carrying across a match that is not accepted
 id.
 
 **Tests, by behaviour.**
-- `source.segment.match-record`: propose as a tool, accept as a person; a tool's accept is
+- `source.segment.match-record` **[OK]**: propose as a tool, accept as a person; a tool's accept is
   refused; both segments keep their own ids; nothing in either row changed.
-- `source.segment.forwarding-notes`: merge A into B, split B into C and D, delete C: resolving
+- `source.segment.forwarding-notes` **[OK]**: merge A into B, split B into C and D, delete C: resolving
   A returns D alive and says C was deleted, by whom and when, in **one call**; a hand-made chain
   of 65 raises `SegmentForwardingTooDeep`; merge A into B then B into A is refused; after undo
   of a merge the old forwarding row is still there beside a `restored` row.
-- `source.segment.carry-across-a-match`: a one-to-one carry copies a reading and an annotation,
+- `source.segment.carry-across-a-match` **[OK]**: a one-to-one carry copies a reading and an annotation,
   leaves the originals, names the match on each copy; `segment.uncarry` removes exactly the
   copies; a one-to-two match carries no reading and says so.
-- `source.segment.citable`: the reference resolves through `/api/locations/resolve`; after a
+- `source.segment.citable` **[OK]**: the reference resolves through `/api/locations/resolve`; after a
   merge the same reference resolves to the kept segment with the trail; after a delete it says
   deleted; the same answers come back over MCP and the generated command.
 - Audit payloads of every action above contain no free text longer than `note` and `reason`.
 
 ## Slice 5 — versions for each segment, and refusing a stale edit (#4923)
 
-**Pins:** `source.segment.versioned-alone`, `source.segment.delete-is-undoable`,
-`source.edit.stale-is-refused`.
+**Pins:** `source.segment.versioned-alone` **[OK]**, `source.segment.delete-is-undoable` **[OK]**,
+`source.edit.stale-is-refused` **[OK]**.
 
 **Model.** `SegmentVersion` (table `segmentversions`), append-only: `id`; `segment_id`;
 `version: int`; `document_id`; `pass_id`; `parent_segment_id`; `kind`; `kind_raw`; `anchor`
@@ -503,14 +503,14 @@ it.
 edits is refused one by one; there is no merge. (Foundation, morning question 15.)
 
 **Tests, by behaviour.**
-- `source.segment.versioned-alone`: three updates to one segment leave three versions of it and
+- `source.segment.versioned-alone` **[OK]**: three updates to one segment leave three versions of it and
   change no other segment's row or version; `restore_version` to the first makes a fourth
   equal to the first.
-- `source.segment.delete-is-undoable`: delete, then undo through the generic undo route
+- `source.segment.delete-is-undoable` **[OK]**: delete, then undo through the generic undo route
   (`api/routes/system/actions_registry.py`): the segment is live, its id unchanged, and an
   annotation anchored to it still resolves; the forwarding trail shows `deleted` then
   `restored`.
-- `source.edit.stale-is-refused`: two updates made against version 1; the second is refused
+- `source.edit.stale-is-refused` **[OK]**: two updates made against version 1; the second is refused
   with `changed` naming the field the first one changed; the row equals the first update.
 - Undo restores from `SegmentVersion`: a test that blanks the audit row's `before` and still
   restores proves the payload is not the source of truth.
