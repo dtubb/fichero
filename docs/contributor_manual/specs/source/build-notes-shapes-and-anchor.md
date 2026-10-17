@@ -113,7 +113,7 @@ second cropper.
   (`RegionCropUnavailable`, reused).
 - Making pictures is throttled background work when done in bulk (a training export), and
   bounded when done on request.
-- `economy_htr.crop_line_strips` (padded rectangles, per Apple Vision line box) is the existing
+- `economy_htr.crop_line_strips` **[GAP]** (#5045) (padded rectangles, per Apple Vision line box) is the existing
   line cropper. It is **replaced by this function** where it is called — but **not in this
   slice**. Corrected 2026-09-26 (#5045): `crop_line_strips` runs INSIDE the HTR tool on Apple
   Vision line boxes, *before any segment row exists*, while `segment_picture` needs a `Segment`,
