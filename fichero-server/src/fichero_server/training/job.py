@@ -27,7 +27,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from pydantic import Field
 
 from fichero_server.execution import jobs
 from fichero_server.training.model_nodes import project_of
