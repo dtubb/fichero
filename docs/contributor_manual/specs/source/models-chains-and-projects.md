@@ -1028,6 +1028,14 @@ plan's peak memory across steps. Ready shows none of it.
   the jobs poll follows it as above (one path: `adoptProjectRun`). Pinned by
   `fichero/Tests/Unit/general/Models/ProjectRunStripTests.swift`. *Not built:* waiting on a download
   (a run never waits for one; Start is refused until it is here).
+- `source.read.line-with-no-writing-is-read` — **[PARTIAL]** (#5758) a line a reader looked at and found no writing
+  on (a ruled or blank line, the margin's edge) is recorded as that: it counts as read, has no reading, is left out
+  of the page's text, and is never read again by a later Start unless the person asks. A line the reader did not
+  answer for (a failed call, a refused or flagged reading) stays unread and is read again. The run summary counts
+  the unread lines and never counts a page with one as read (`N lines have no reading`). *Built:* the line reader
+  and the Kraken reader name the lines they looked at without finding writing; they are marked on the segment
+  (`read_no_writing`); the page is done when none of its lines is unread (`recipes.done.lines_state`). *Left:* a
+  "no writing" line is not yet drawn as such in the Reader. *Test:* `tests/unit/recipes/test_unread_lines_not_read_5758.py`.
 - `source.onboard.auto.results-summary` — **[PARTIAL]** (#5577) when a run ends, the project says what
   it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages
   failed (with Read Again) and steps skipped (with their fixes). Each figure opens what it counts.
