@@ -2,7 +2,7 @@
 (`source.job.correct-re-asks-per-line-when-it-does-not-tie`, #5720).
 
 The page was asked whole, by segment id (#5719). The lines it left out are cut from the page and asked in
-batches of `BATCH`, each with its current text and the page's answer beside it for context; a batch that does
+batches of the model's `lines_per_request` (8 when its card states none), each with its current text and the page's answer beside it for context; a batch that does
 not come back as one answer per line is asked line by line (as `line_reader`), never guessed. A line that still
 has no answer fails the page's step, naming the model and the lines: nothing is written."""
 
@@ -15,13 +15,10 @@ from PIL import Image
 
 from fichero_server.llm.line_reader import (
     CONCURRENT_CALLS,
-    LINES_PER_CALL,
     _crop_data_uri,
     line_call_config,
     parse_answer,
 )
-
-BATCH = LINES_PER_CALL
 
 PROMPT = (
     "Each of the {n} images is one line cut from a photographed page. Under each is the text it was "
@@ -36,7 +33,7 @@ def _prompt(texts: list[str], page_answer: str) -> str:
     return PROMPT.format(n=len(texts), given=given, page=" ".join((page_answer or "").split())[:1500])
 
 
-async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str, config) -> tuple[dict[str, str], list[str]]:
+async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str, config, batch: int = 8) -> tuple[dict[str, str], list[str]]:
     """`lines`: {'id', 'text', 'polygon'} (pixels) for the lines to ask again. Returns ({id: text} for every
     line answered, [ids still unanswered])."""
     from fichero_server import llm
@@ -52,14 +49,14 @@ async def re_ask(image_path: str, lines: list[dict[str, Any]], page_answer: str,
                                    config=line_call_config(config, len(group)))
         return parse_answer(raw, len(group))
 
-    async def batch(group: list[dict[str, Any]]) -> list[str | None]:
+    async def one_batch(group: list[dict[str, Any]]) -> list[str | None]:
         answer = await ask(group)
         if answer is None and len(group) > 1:
             singles = await asyncio.gather(*(ask([g]) for g in group))
             answer = [s[0] if s else None for s in singles]
         return answer or [None] * len(group)
 
-    groups = [lines[i:i + BATCH] for i in range(0, len(lines), BATCH)]
-    answers = [a for group in await asyncio.gather(*(batch(g) for g in groups)) for a in group]
+    groups = [lines[i:i + batch] for i in range(0, len(lines), batch)]
+    answers = [a for group in await asyncio.gather(*(one_batch(g) for g in groups)) for a in group]
     got = {line["id"]: text for line, text in zip(lines, answers) if text}
     return got, [line["id"] for line in lines if line["id"] not in got]

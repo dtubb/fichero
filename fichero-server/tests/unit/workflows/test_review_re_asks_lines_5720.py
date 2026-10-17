@@ -65,3 +65,30 @@ async def test_a_line_still_without_an_answer_fails_that_pages_step_and_writes_n
     assert f"{REVIEWER[0]}/{REVIEWER[1]}" in one["error"]
     assert {row.id: [r.id for r in _readings(page, row)] for row in _lines(page)} == before
     assert _counting(page) == KRAKEN_READS
+
+
+async def test_a_request_never_exceeds_the_model_cards_lines_per_request_5722(page, monkeypatch):  # noqa: F811
+    from fichero_server import llm
+    from fichero_server.llm.re_ask_lines import re_ask
+    from fichero_server.recipes.cards import lines_per_request_for
+
+    assert lines_per_request_for("mlx-community/Qwen2.5-VL-3B-Instruct-4bit") == 4
+    assert lines_per_request_for("mlx-community/Qwen2.5-VL-7B-Instruct-4bit") is None
+
+    sizes = []
+
+    async def vision(images, prompt, config, **kw):
+        sizes.append(len(images))
+        return json.dumps(["x"] * len(images))
+
+    monkeypatch.setattr(llm, "vision", vision)
+    document = page["src"]["files"][0]
+    lines = [{"id": str(i), "text": "t", "polygon": [[0, 0], [10, 0], [10, 10], [0, 10]]} for i in range(5)]
+    got, missing = await re_ask(document, lines, "page", REVIEWER_CONFIG(), batch=2)
+    assert sorted(sizes) == [1, 2, 2] and not missing and len(got) == 5
+
+
+def REVIEWER_CONFIG():
+    from fichero_server.llm import LLMConfig
+
+    return LLMConfig(provider=REVIEWER[0], model=REVIEWER[1])

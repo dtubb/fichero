@@ -163,4 +163,5 @@ cards:
     size_gb: 2.3
     memory_gb: 3.5
     trainable: true
+    lines_per_request: 4     # a 3B model loses its place over more lines at once (stated, #5722)
     note: Qwen2.5-VL 3B, 4-bit; its licence is research-only, so it needs a deliberate choice.

@@ -2458,7 +2458,7 @@ Jobs and chains
   loses nothing. For a model that does not localise text as for one that does, a cloud model as a local one. *Test:*
   with a stub that answers a paragraph to the page and arrays to the batches, every line is tied; with one that
   answers nothing usable, the step fails for that page and the Kraken readings are unchanged.
-- `source.try.asking-granularity-is-measured` — **[GAP]** (#5722) how a model is asked is an option the A/B measures,
+- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); STILL OWED: the bake-off trying page / region / lines and the recipe recording the winner's granularity.* how a model is asked is an option the A/B measures,
   not a constant: the whole page, a region (a paragraph, the unit Kraken's regions give) at a time, or a few lines at a
   time, always with segment ids and always answered by id. A card states `lines_per_request`, the most lines the model is asked to read at once (decided 2026-10-16: a field
   on the card, never found by trying: a large cloud model, the whole page; a 2B local model, a few lines), and a request
