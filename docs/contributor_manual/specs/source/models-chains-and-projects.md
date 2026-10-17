@@ -96,7 +96,11 @@ ruled 2026-10-04:
 - `recipe.distil.every-step-has-an-mcp-tool` — **[PARTIAL]** (#5455, #5454, #5441, #5446) every step
   in the table has an MCP tool that drives it, named in its row, so an agent drives Fichero as a
   person does through the screens and never drives Kraken, ketos or the engine's insides directly.
-  Built: the tools named in the table. Missing: those marked missing.
+  Built: the tools named in the table, and (R0 2026-10-17, read in `fichero-mcp/src/fichero_mcp/openapi_tools_generated.py`) the
+  recipe setup tools (`fichero_recipes_get_project_setup`, `_save_project_setup`), `routes_for_volume`, `start_project`,
+  `get_start_plan`, `choose_samples` and `use_candidate_for_step`, so the table's MCP column for steps 1, 2, 5 and 10 is
+  stale where it says missing. The true residue: a Hugging Face Hub publish (step 14), a clean-set export as a step (step 7),
+  and evaluate and choose as steps of their own (steps 9 and 10).
 
 ## Intent
 
