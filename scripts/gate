@@ -10,7 +10,9 @@
 #   gate unit [--area X|--filter P]  Swift unit tests: build phase THEN
 #                                    test-without-building (never stacked)
 #   gate engine [--area X|paths...]  backend pytest (default: unit + integration
-#                                    + contracts; NEVER tests/perf — see gate perf)
+#                                    + contracts, the unit tests as shards of
+#                                    GATE_ENGINE_SHARD_FILES files each, #4916;
+#                                    NEVER tests/perf — see gate perf)
 #   gate part <area>                 ONE area, verified the way the release
 #                                    gate verifies everything: lint + build +
 #                                    tests + the perf ratchet (#4439)
@@ -56,6 +58,8 @@
 #
 # Test/dev seams (used by --self-test; harmless otherwise):
 #   GATE_DRYRUN=1              print heavy commands instead of exec'ing them
+#   GATE_ENGINE_SHARD_FILES=n  test files per engine unit shard (default 80, #4916)
+#   GATE_ENGINE_UNIT_DIR=d     where the engine unit shards look for tests (self-test seam)
 #   GATE_LOCK_FILE=path        alternate lock file
 #   GATE_WATCH_INTERVAL=s      watchdog sample interval (default 5)
 #   GATE_FAKE_PRESSURE=f       read pressure level from file f (or literal int)
@@ -366,7 +370,7 @@ run_gated() {
     # above the test-phase ceiling even at -jobs 4 (first real run: killed at
     # 4176MB mid-compile). Callers set GATE_FOOTPRINT_OVERRIDE_MB per phase;
     # the strict default still guards every test phase.
-    # 6144 (was 4096): the unsharded engine unit run crosses 4096 at ~7% (4104MB, 2026-10-14); sharding is #4916.
+    # 6144 (was 4096): the unsharded engine unit run crosses 4096 at ~7% (4104MB, 2026-10-14); the unit tests now run as shards (#4916); the ceiling is not lowered until a sharded run's peak is measured.
     local ceiling="${GATE_FOOTPRINT_OVERRIDE_MB:-${GATE_FOOTPRINT_MB:-6144}}" fp
     fp="$(tree_max_footprint_mb "$pid")"
     case "$fp" in ''|*[!0-9]*) fp=0 ;; esac
@@ -738,6 +742,21 @@ cmd_unit() {
   return "$rc"
 }
 
+# The engine unit tests as shards, one per line, each a space-separated list of at
+# most GATE_ENGINE_SHARD_FILES test files (#4916). Files come from `find`, sorted, so a
+# directory's files sit together and a new test file is in a shard without anyone listing
+# it. Finding no file at all means this is not the repo root: BLIND, never an empty run
+# that passes.
+engine_unit_shards() {
+  local per="${GATE_ENGINE_SHARD_FILES:-80}" f n=0 batch="" found=0
+  while IFS= read -r f; do
+    found=$((found + 1)); n=$((n + 1)); batch="$batch$f "
+    if [[ $n -ge $per ]]; then echo "${batch% }"; batch=""; n=0; fi
+  done < <(find "${GATE_ENGINE_UNIT_DIR:-fichero-server/tests/unit}" -name 'test_*.py' -not -path '*/_archived/*' 2>/dev/null | LC_ALL=C sort)
+  [[ -z "$batch" ]] || echo "${batch% }"
+  [[ $found -gt 0 ]] || { echo "gate: BLIND — no engine unit test file under fichero-server/tests/unit " >&2; return 2; }
+}
+
 cmd_engine() {
   # The ratchet is AUTOMATIC on the gate (#4445): every test is timed and
   # held to its best. Laptops stay silent unless someone opts in — a run
@@ -762,9 +781,26 @@ cmd_engine() {
     # Everyday leg: unit + integration + contracts. tests/perf is EXCLUDED by
     # construction (explicit paths, not the tree root) — the two scale tests
     # alone are ~50 min and belong to `gate perf` (#4271).
-    args=(fichero-server/tests/unit/ --ignore=fichero-server/tests/unit/_archived
-          fichero-server/tests/integration/
-          fichero-server/tests/contracts/)
+    # One pytest process grows past the footprint ceiling in the first third of
+    # the unit tree (#4916), so the unit tests run as shards, each a fresh
+    # process under the unchanged ceiling; integration and contracts are one
+    # shard each. Every shard runs even after one fails, so one red does not
+    # hide the rest; the leg's result is the first failing shard's.
+    local shards=() shard n=0 total rc=0 first_rc=0 first_verdict=""
+    local listing; listing="$(engine_unit_shards)" || return $?
+    while IFS= read -r shard; do shards+=("$shard"); done <<<"$listing"
+    shards+=("fichero-server/tests/integration/" "fichero-server/tests/contracts/")
+    total=${#shards[@]}
+    for shard in "${shards[@]}"; do
+      n=$((n + 1))
+      # shellcheck disable=SC2086  # a shard is a space-separated list of paths
+      run_gated "engine-pytest $n/$total" "${GATE_TIMEOUT_ENGINE:-2700}" \
+        env PYTHONPATH=fichero-server/src "$py" -m pytest -rf $shard
+      rc=$?
+      if [[ $rc -ne 0 && $first_rc -eq 0 ]]; then first_rc=$rc; first_verdict="$GATE_LAST_VERDICT"; fi
+    done
+    GATE_LAST_VERDICT="${first_verdict:-$GATE_LAST_VERDICT}"
+    return "$first_rc"
   fi
   run_gated "engine-pytest" "${GATE_TIMEOUT_ENGINE:-2700}" \
     env PYTHONPATH=fichero-server/src "$py" -m pytest -rf "${args[@]}"
@@ -1029,6 +1065,31 @@ cmd_self_test() {
   [[ "$out" != *"tests/perf"* && "$out" == *"fichero-server/tests/unit/"* \
      && "$out" == *"fichero-server/tests/integration/"* ]]
   check "engine leg = unit+integration+contracts, NO tests/perf (dry-run)" $?
+  # 2b1. Engine shards (#4916): the unit tests run as several fresh processes, and between
+  #      them cover every test file exactly once. The expected set is `find`'s own list, not
+  #      the shards', so a shard builder that drops or repeats a file fails here; at one file
+  #      per shard it must make one shard per file.
+  local want got shards_out
+  want="$(find fichero-server/tests/unit -name 'test_*.py' -not -path '*/_archived/*' | LC_ALL=C sort)"
+  shards_out="$(GATE_DRYRUN=1 "$0" engine 2>&1)"
+  got="$(grep '^gate DRYRUN \[engine-pytest ' <<<"$shards_out" | grep -o 'fichero-server/tests/unit/[^ ]*\.py' | LC_ALL=C sort)"
+  [[ -n "$want" && "$got" == "$want" && "$(grep -c '^gate DRYRUN \[engine-pytest ' <<<"$shards_out")" -gt 2 ]]
+  check "engine leg shards the unit tests: every file once, in several processes (#4916)" $?
+  [[ "$(GATE_ENGINE_SHARD_FILES=1 GATE_DRYRUN=1 "$0" engine 2>&1 | grep -c '^gate DRYRUN \[engine-pytest ')" -eq $(( $(wc -l <<<"$want") + 2 )) ]]
+  check "engine shards: GATE_ENGINE_SHARD_FILES=1 makes one shard per file, plus integration and contracts" $?
+  out="$(GATE_ENGINE_UNIT_DIR="$tmp" GATE_DRYRUN=1 "$0" engine 2>&1)"; rc=$?
+  [[ $rc -ne 0 && "$out" == *"BLIND"* ]]
+  check "engine shards: no unit test file found is BLIND (nonzero), never an empty pass" $?
+
+  # A red shard makes the leg red, and the shards after it still run (a stand-in python fails the 2nd call).
+  mkdir -p "$tmp/shardtests"; touch "$tmp/shardtests/test_a.py" "$tmp/shardtests/test_b.py"
+  printf '#!/bin/bash\necho x >> "%s/calls"\n[ "$(wc -l < "%s/calls")" -eq 2 ] && exit 3\nexit 0\n' "$tmp" "$tmp" >"$tmp/fakepy"
+  chmod +x "$tmp/fakepy"; rm -f "$tmp/calls"
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/shard.lock" PYTHON_BIN="$tmp/fakepy" GATE_ENGINE_UNIT_DIR="$tmp/shardtests" \
+    GATE_ENGINE_SHARD_FILES=1 "$0" engine >/dev/null 2>&1; rc=$?
+  [[ $rc -eq 3 && "$(wc -l <"$tmp/calls")" -eq 4 ]]
+  check "engine shards: a red shard fails the leg and the later shards still run (#4916)" $?
+
   out="$(GATE_DRYRUN=1 "$0" perf 2>&1)"
   [[ "$out" == *"[perf-pytest]"* && "$out" == *"fichero-server/tests/perf/"* ]]
   check "perf leg runs tests/perf as its own bounded invocation (dry-run)" $?
