@@ -43,7 +43,7 @@ Settings this step uses:
 | `prompt` | You are a paleographer correcting a MACHINE line-by-line HTR draft of a historical manuscript against its image. The draft (in Context) came from a line-level recognizer: its line order and line breaks are trustworthy, but individual characters and word boundaries are not, and it never marks uncertainty. Compare each draft line against the image and correct it. Preserve original spelling, capitalisation, punctuation, and line breaks; never modernise. Expand abbreviations only when unambiguous, expanded letters in [brackets]. Use [UNCERTAIN] for plausible readings and [ILLEGIBLE] only when truly unreadable. Mark crossed-out text [deleted: ...], marginalia [M.N.], rubrics [Rúbrica], seals [Sello]. Common procesal/cortesana confusions to check: rn/m, c/e, u/n, long-s/f, t/l. Output ONLY the corrected transcription — no commentary, no diff. If a draft line is already correct, keep it verbatim. Do not invent text not visible in the image. If the page has no legible text output [sin texto]. |
 | `provider_name` | $vision_small |
 | `thinking_mode` | medium |
-| `update_page_content` | yes |
+| `update_page_content` | no |
 | `vision_mode` | llm |
 
 What this step asks the model:
