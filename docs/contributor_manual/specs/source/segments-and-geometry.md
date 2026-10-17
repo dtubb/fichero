@@ -687,9 +687,11 @@ pipeline tracks what it promises (#4928). It had one tagged behaviour and seven 
   segments joined by a typed link. The vocabulary already carries it — `labels` and `answers` are
   both built-in link types (slice 10) — and links between two segments are recorded and read both
   ways. What is missing is anything that recognises a form or proposes the link.
-- `source.segment.mark-with-state` — **[GAP]** (#4928) ticks, crosses and cancellation marks are `mark`
-  segments with a state. `mark` is in the open list of kinds; there is no state on a segment to
-  say whether a box is ticked, crossed or struck through.
+- `source.segment.mark-with-state` — **[OK]** (#4928; pinned by `tests/unit/api/test_segment_mark_state_to_spec.py::test_source_segment_mark_with_state__a_segment_starts_unmarked_takes_one_mark_and_undo_clears_it`) ticks, crosses and cancellation marks are `mark`
+  segments with a state. Ruled 2026-10-17: a segment carries **one** mark, `mark_state`, one of
+  `ticked`, `crossed`, `struck` or `none` (the default). It is set only through `segment.update`
+  (so it is versioned, audited and undone like any other field), it is additive (a segment with no
+  mark reads exactly as before), and it is exported wherever the target format has a place for it.
 - `source.segment.node-has-its-region` — **[GAP]** (#4927) a node made from part of a page (a diary entry, a
   letter, a register entry) is a segment of that page with a shape, never structured data
   with no tie to its ink.
@@ -697,7 +699,7 @@ pipeline tracks what it promises (#4928). It had one tagged behaviour and seven 
   its structured attributes; each attribute can point at the words it came from.
 - `source.segment.table-as-data` — **[GAP]** (#4928) a table segment can be read out as rows and columns of data
   in which every cell still points at its segment.
-- `source.segment.marks-have-state` — **[GAP]** (#4928) a tick, cross or cancellation is a segment with a state.
+- `source.segment.marks-have-state` — **[OK]** (#4928; pinned by `tests/unit/api/test_segment_mark_state_to_spec.py::test_source_segment_marks_have_state__a_value_outside_the_four_is_refused`) a tick, cross or cancellation is a segment with a state. Same field and rules as `source.segment.mark-with-state`; a value outside the four is refused.
 
 Passes, orders, links
 - `source.pass.named-authored` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestPassesNamedAuthoredNeverOverwrite::test_two_passes_keep_separate_segments_second_touches_no_row_of_first`) segments live in named passes, each with an author; passes
