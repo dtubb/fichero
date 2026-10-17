@@ -31,20 +31,12 @@ The repository uses a manager-with-workers workflow.
 - **People** direct the work and review the result by using the app,
   then filing bug reports and feature requests.
 
-Use `scripts/spawn-worker.sh` to create a worker. It fetches `origin`, creates a
-worktree under `$FICHERO_WORKTREES` (by default a sibling `fichero-worktrees/`),
-opens a detached tmux session, activates the shared virtual environment, and
-starts the selected agent. The script branches from `origin/main` by default;
-in practice, lane worktrees are usually branched off `integration`. Run
-`scripts/spawn-worker.sh --help` for the supported agent commands (which
-agents and models do the work is an implementation detail that changes over
-time).
-
-Workers report progress and blockers to the manager with
-`scripts/notify_manager.sh`. Workers commit directly to their lane branch
-and never push it. The manager runs the merge gate (build, test suites,
-and every `scripts/check_*.py` guardrail) and merges the lane into
-`integration`; `integration` merges to `main` at release time.
+A worker is a subagent run from the interactive session (see AGENTS.md, "Worker Orchestration"). A lane that must not
+touch the integration checkout gets a worktree made by hand under `$FICHERO_WORKTREES` (by default a sibling
+`fichero-worktrees/`), from the branch's HEAD sha. Workers commit directly to their lane branch and never push it;
+progress is the commit, a comment on the issue and a line in the run's log. The manager runs the merge gate (build, test suites,
+and every `scripts/check_*.py` guardrail) and merges the lane into `integration`; `integration` merges to `main` at
+release time.
 
 ## More detail
 

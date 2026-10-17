@@ -9,7 +9,7 @@
 - Between workers check for the file agent-work/STOP: if it exists, stop and write the log.
 - Log every step to agent-work/status/night-2026-10-16.md (issue, worker, commit, tests, what failed). A failed or blocked issue is logged and skipped, not forced.
 - Stop on: a worker hitting the Anthropic weekly limit (resets 2026-10-17 06:00 America/Moncton), a test that needs behaviour the spec does not state (record the question, skip), a gate/memory kill.
-- Multilingual: nothing may assume spaces, left-to-right or an alphabet (#5728). Spanish colonial, German Kurrent, Aramaic (RTL), Chinese (vertical).
+- Multilingual: it must hold for ANY language and script; nothing may assume spaces, left-to-right or an alphabet, and no language is named in code (#5728). Spanish colonial, German Kurrent, Aramaic (RTL), Chinese (vertical) are the test matrix, chosen to differ; a new script is a data file.
 
 ## Order
 0. #5727 reproduce the A/B (Compare) failure on a scratch project (~/Fichero Dev Test), record the symptom on the issue, failing test, fix.

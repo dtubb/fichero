@@ -129,9 +129,7 @@ Commit-only. Author as yourself (`Claude (Opus 4.8)`, `Codex`, …), committer s
 the human, credit Daniel with `Directed-By:`. Never push — the manager gates and
 merges. Notify after each commit:
 
-```bash
-bash scripts/notify_manager.sh "done <what> (<sha>)"
-```
+Comment on the issue: "done <what> (<sha>)".
 
 Report per commit: SHA, what changed, what you verified it against, and anything
 you found wrong in the *code* that you did not fix.

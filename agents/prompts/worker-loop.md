@@ -35,12 +35,12 @@ override you lint the *other* tree and get a green run that means nothing.
    blocks until it returns — never background it with a Monitor and pause;
    if your turn ends before you see the result, you commit nothing and the
    manager sees a stalled lane.
-5. **Signal the manager:** `bash scripts/notify_manager.sh "done #n (<sha>); next #m"`
+5. **Signal the manager:** comment the commit on the issue and add a line to the run's log.
 6. **REPEAT from step 2.** Only stop when the milestone has no ready issue — then
-   `notify_manager.sh "milestone {{MILESTONE}} drained"` and idle. Never wait for
+   log "drained" and idle. Never wait for
    the manager between issues; it gates/merges your commits asynchronously.
 7. Blocked (design decision, ambiguity, cross-lane need)?
-   `bash scripts/notify_manager.sh --blocked "why"` and move to the next issue.
+   comment why on the issue, log it, and move to the next issue.
 
 ## Code navigation — jcodemunch, not grep-dumps
 
@@ -67,7 +67,7 @@ Stay strictly in **{{LANE}}**'s files:
 - `sharing`/features → authz + sharing routes/membership
 
 Two workers editing one file = an unmergeable collision. If your issue needs a
-file another lane owns, `notify_manager.sh --blocked` instead of reaching across.
+file another lane owns, comment it blocked on the issue instead of reaching across.
 
 ## Test bar (non-negotiable)
 

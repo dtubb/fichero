@@ -100,9 +100,7 @@ files coverage debt — non-blocking, tracked, not a merge gate.
 
 Commit-only. Author as yourself; `Directed-By: Daniel Tubb`. Notify per commit:
 
-```bash
-bash scripts/notify_manager.sh "done <what> (<sha>); manager please run: <pytest cmd>"
-```
+Comment on the issue: "done <what> (<sha>); manager please run: <pytest cmd>".
 
 Report: SHA, what you tested, the exact command the manager should run, and every
 product bug you found but did not fix.

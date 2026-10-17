@@ -11,7 +11,6 @@ operational tooling, not product code or user documentation.
   *Manager lane* (coordinates; writes no product code):
   - `session-start-manager` — control-lane session start.
   - `choose-next` — pick the next batch from the roadmap priority spine.
-  - `dispatch-worker` — spin up a worker in its own worktree/tmux window.
   - `gardener-agent` — deterministic verify + guardrail + roadmap triage.
   - `fichero-test` — run the `verify_all` gate at the right tier and file failures.
   - `fichero-release` — build, notarize, and ship (wraps `scripts/release-all.sh`).
@@ -29,7 +28,7 @@ operational tooling, not product code or user documentation.
 
   Both file through `scripts/file_issue.sh`, never raw `gh issue create`.
 
-- **`prompts/`** — paste-into-tmux templates, not skills: `worker-loop.md` (the
+- **`prompts/`** — paste-in templates, not skills: `worker-loop.md` (the
   standing contract for a worker draining a whole milestone) and `manager-loop.md`
   (the manager's cadence). They stay here rather than under `skills/` because
   `../AGENTS.md` dispatches by pasting them, and a skill is something an agent

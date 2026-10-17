@@ -32,9 +32,9 @@ always is; only *which branch/worktree* differs.
 
 ## The process (add work → keep updated → land)
 
-1. **Branch off `origin/main`, never stale local `main`.** `scripts/spawn-worker.sh` fetches first
-   and creates the worktree off `origin/main` — hand-rolling `git worktree add … main` branches off
-   whatever local `main` happens to be (stale-code hazard).
+1. **Branch off the right commit, never stale local `main`.** A lane that must see unpushed integration
+   commits is made from that branch's HEAD sha (`git worktree add <path> <sha>`); a fresh lane fetches `origin`
+   first. `git worktree add … main` branches off whatever local `main` happens to be (stale-code hazard).
 2. **Work in the lane worktree.** Commit, never `git stash` (a stash doesn't survive a worktree
    teardown and is invisible outside its shell — park interrupted work as a WIP commit).
 3. **Integrate.** When 2+ lanes must land together, merge them into the `integration` branch and
@@ -67,9 +67,9 @@ code path — nothing in the repo tree can prove or disprove them.
   not a code path that could regress independently of git itself. Challenged: a script
   COULD run `git rev-parse --git-common-dir` from every worktree and assert they agree, but
   that's checking git's own invariant, not this repo's discipline — stays CONVENTION.
-- `git.branch-off-origin-main` [OK] — lanes branch off fetched `origin/main` via
-  `spawn-worker.sh`. Pinned:
-  `test_git_worktree_workflow.py::test_spawn_worker_fetches_origin_before_creating_the_worktree`.
+- `git.branch-off-origin-main` — **[CONVENTION]** lanes branch off a fetched `origin/main`, or off the integration
+  branch's HEAD sha when they need its unpushed commits. The launcher script that pinned this was removed
+  (2026-10-16); the rule is now a manager decision, not a code path.
 - `git.integration-gate` — **[CONVENTION]** multi-lane work gates on `integration` before
   `main`. A manager decision about WHEN to gate, not a code path — `verify_all.sh` runs the
   same way regardless of which branch invokes it. Challenged: no code path decides "2+
