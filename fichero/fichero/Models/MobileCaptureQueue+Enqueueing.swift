@@ -6,7 +6,9 @@ extension MobileCaptureQueueStore {
         _ imageData: Data,
         catalog: MobileCaptureCatalogFields = .init(),
         fileName: String? = nil,
-        fileExtension: String = "jpg"
+        fileExtension: String = "jpg",
+        targetLibraryId: String? = nil,
+        targetHost: String? = nil
     ) throws -> MobileCaptureQueueItem {
         try prepareStorage()
 
@@ -27,7 +29,10 @@ extension MobileCaptureQueueStore {
             lastError: nil,
             requiresExplicitRetry: false,
             retryCount: 0,
-            lastAttemptAt: nil
+            lastAttemptAt: nil,
+            targetLibraryId: targetLibraryId,
+            // The host in force at capture time, so a later host switch cannot redirect it (#3281).
+            targetHost: targetHost ?? EngineConfig.host.absoluteString
         )
         items.insert(item, at: 0)
         persistQueue()

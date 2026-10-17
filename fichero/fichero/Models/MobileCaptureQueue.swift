@@ -75,6 +75,10 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
     var requiresExplicitRetry: Bool
     var retryCount: Int
     var lastAttemptAt: Date?
+    /// Where this capture was meant to go (#3281): never the ambient global host.
+    /// nil only for items queued before this field existed.
+    var targetLibraryId: String?
+    var targetHost: String?
 
     init(
         id: String,
@@ -87,7 +91,9 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         lastError: String?,
         requiresExplicitRetry: Bool = false,
         retryCount: Int,
-        lastAttemptAt: Date?
+        lastAttemptAt: Date?,
+        targetLibraryId: String? = nil,
+        targetHost: String? = nil
     ) {
         self.id = id
         self.imageFileName = imageFileName
@@ -100,6 +106,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         self.requiresExplicitRetry = requiresExplicitRetry
         self.retryCount = retryCount
         self.lastAttemptAt = lastAttemptAt
+        self.targetLibraryId = targetLibraryId
+        self.targetHost = targetHost
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -114,6 +122,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         case requiresExplicitRetry
         case retryCount
         case lastAttemptAt
+        case targetLibraryId
+        case targetHost
     }
 
     init(from decoder: Decoder) throws {
@@ -129,6 +139,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         requiresExplicitRetry = try container.decodeIfPresent(Bool.self, forKey: .requiresExplicitRetry) ?? false
         retryCount = try container.decode(Int.self, forKey: .retryCount)
         lastAttemptAt = try container.decodeIfPresent(Date.self, forKey: .lastAttemptAt)
+        targetLibraryId = try container.decodeIfPresent(String.self, forKey: .targetLibraryId)
+        targetHost = try container.decodeIfPresent(String.self, forKey: .targetHost)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -144,6 +156,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         try container.encode(requiresExplicitRetry, forKey: .requiresExplicitRetry)
         try container.encode(retryCount, forKey: .retryCount)
         try container.encodeIfPresent(lastAttemptAt, forKey: .lastAttemptAt)
+        try container.encodeIfPresent(targetLibraryId, forKey: .targetLibraryId)
+        try container.encodeIfPresent(targetHost, forKey: .targetHost)
     }
 }
 
