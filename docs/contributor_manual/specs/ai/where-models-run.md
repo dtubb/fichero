@@ -379,9 +379,11 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.estimate-names-the-place` — **[BROKEN]** (#5590) Start's estimate states each
   step's place and its cost basis; today every place that is not `cloud:` is priced at $0
   (`recipes/start.py:286-289`), a cluster step included.
-- `ai.where.remote-audio-priced` — **[BROKEN]** (#5591) a transcription sent to a provider
-  records its usage like any other call; today `audio_transcription` records none
-  (`llm/__init__.py:2792-2833`), so its cost is unknown.
+- `ai.where.remote-audio-priced` — **[PARTIAL]** (#5591) a transcription sent to a provider
+  records its usage like any other call: `audio_transcription` records the call with no tokens, so the
+  run account lists it and its cost reads unknown, never free; pinned by
+  `fichero-server/tests/unit/llm/test_remote_audio_priced_5591.py`. Still a gap: pricing it by the
+  minute needs the clip's duration and the provider's per-minute rate.
 - `ai.where.account-on-the-offer` — **[GAP]** (#5582, #5369) each offer shows the account it needs
   and its state, read through the same key lookup a call uses.
 
