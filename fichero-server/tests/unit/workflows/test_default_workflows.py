@@ -362,9 +362,9 @@ class TestLoadPresetFiles:
         assert "transcribe" not in review_tools, (
             "the review preset must operate on the EXISTING transcription"
         )
-        # Three staged passes, final one writes content.
+        # Three staged passes; none writes the page text (#5486): the review only proposes.
         review_nodes = {n["id"]: n for n in review["nodes"]}
-        assert review_nodes["r3"]["config"]["update_page_content"] is True
+        assert review_nodes["r3"]["config"]["update_page_content"] is False
         assert review_nodes["r1"]["config"]["update_page_content"] is False
 
     def test_transcribe_presets_query_reference_corpus_on_pass_two(self):
