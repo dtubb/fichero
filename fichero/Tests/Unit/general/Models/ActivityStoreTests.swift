@@ -94,7 +94,7 @@ struct ActivityStoreTests {
         #expect(store.refreshToken == before)
 
         // And structurally: the event path schedules, it does not assign.
-        let url = try AppSource.root().appendingPathComponent("Models/ActivityStore.swift")
+        let url = try AppSource.root().appendingPathComponent("Models/ActivityStore+RunList.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         let body = source
             .components(separatedBy: "func applyActivityEvent(")[1]
@@ -215,7 +215,7 @@ struct ActivityStoreTests {
     /// object that is no longer built.
     @Test("local folded change is detected cheaply; ChangeEvent built only with a router")
     func foldedChangeIsCheapDroppedOnLocal() throws {
-        let url = try AppSource.root().appendingPathComponent("Models/ActivityStore.swift")
+        let url = try AppSource.root().appendingPathComponent("Models/ActivityStore+RunList.swift")
         let source = try String(contentsOf: url, encoding: .utf8)
         let body = source
             .components(separatedBy: "func applyActivityEvent(")[1]
