@@ -60,6 +60,13 @@ final class BundledFonts {
         Self.font(size: size, cascade: cascade)
     }
 
+    /// Text in a CHOSEN family (`layers.text.font-from-script-and-period`, #5438): the family's own face is the
+    /// base, so even Latin the system draws comes out in it, and the cascade still covers what it lacks. A
+    /// family that is not loaded (an older engine, nothing fetched) falls back to the system font.
+    func font(size: CGFloat, family: String?) -> Font {
+        Self.font(size: size, cascade: cascade, family: family)
+    }
+
     /// A font file's first face (a variable font's default instance).
     nonisolated static func descriptors(in data: Data) -> [CTFontDescriptor] {
         let all = CTFontManagerCreateFontDescriptorsFromData(data as CFData) as? [CTFontDescriptor] ?? []
@@ -69,6 +76,16 @@ final class BundledFonts {
     nonisolated static func font(_ style: Font.TextStyle, cascade: [CTFontDescriptor]) -> Font {
         guard !cascade.isEmpty else { return .system(style) }
         return Font(ctFont(base: systemDescriptor(style), size: 0, cascade: cascade))
+    }
+
+    /// The loaded face whose family is `family`, or nil.
+    nonisolated static func face(family: String, in cascade: [CTFontDescriptor]) -> CTFontDescriptor? {
+        cascade.first { CTFontDescriptorCopyAttribute($0, kCTFontFamilyNameAttribute) as? String == family }
+    }
+
+    nonisolated static func font(size: CGFloat, cascade: [CTFontDescriptor], family: String?) -> Font {
+        guard let family, let face = face(family: family, in: cascade) else { return font(size: size, cascade: cascade) }
+        return Font(ctFont(base: face, size: size, cascade: cascade))
     }
 
     nonisolated static func font(size: CGFloat, cascade: [CTFontDescriptor]) -> Font {
