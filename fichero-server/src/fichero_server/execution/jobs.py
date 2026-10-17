@@ -1534,7 +1534,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
         " AND cleared_at IS NULL ORDER BY finished_at DESC LIMIT ?)"
         ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
-        "created_at",
+        "CASE WHEN state = 'failed' THEN -epoch_ms(created_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
     )
     out: list[dict[str, Any]] = []
