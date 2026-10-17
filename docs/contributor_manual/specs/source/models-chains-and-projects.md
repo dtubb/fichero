@@ -3935,7 +3935,7 @@ Finding models
   (`source.try.bakeoff-is-the-same-tool`), and one whose licence is not yet accepted is named, not scored. WHY
   (2026-10-11, the MCP onboarding walk): a project saved as 16th century, Popayán, ranked McCATMuS (installed)
   4th, behind two medieval readers. Tested in `fichero-server/tests/unit/recipes/test_period_ranks_readers_5683.py`.
-- `source.recipe.unstated-period-is-offered-not-chosen` — **[GAP]** (#5714) for a project that states a period and
+- `source.recipe.unstated-period-is-offered-not-chosen` — **[OK]** (test in `fichero-server/tests/unit/recipes/test_unstated_period_5714_5715.py`, filed as #5714) for a project that states a period and
   whose material is handwriting, a reader whose card states no period is offered to the person and measured by
   the bake-off, and is never the rules' choice; the rules choose a reader whose stated period covers the project's
   (McCATMuS, 1500-2100, for a 16th-century hand) or say there is none. The rule names no date and no script, so it
@@ -3945,7 +3945,7 @@ Finding models
   Alone this does not stop the next unmeasured generic reader (a Qwen vision card) taking its place; the same rule
   covers it. *Test:* a 16th-century Spanish handwriting project, with an installed Apple Vision and an uninstalled
   vision model that state no period, is given the period-matched reader, or a named gap, never either of them.
-- `source.recipe.apple-vision-is-for-modern-writing` — **[GAP]** (#5715) Apple Vision's card states `period: [1900, 2100]`
+- `source.recipe.apple-vision-is-for-modern-writing` — **[OK]** (test in `fichero-server/tests/unit/recipes/test_unstated_period_5714_5715.py`, filed as #5715; the on/off language-correction measurement is still owed) Apple Vision's card states `period: [1900, 2100]`
   (Apple publishes no handwriting or period claim for `VNRecognizeTextRequest`: the Vision documentation, read on
   2026-10-13, is silent; the maintainer's own use reads 20th- and 21st-century hands, so the 1900-2100 period is stated
   from use, not measured, and is replaced by a measurement on the person's pages as soon as the bake-off has one).

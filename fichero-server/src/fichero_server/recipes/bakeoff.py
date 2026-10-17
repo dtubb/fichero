@@ -136,13 +136,20 @@ def _name_of(card_id: str) -> str:
     return next((reader_name(c) for c in known_cards(include_not_built=True) if c.id == card_id), "")
 
 
+def _period_refusal(card: Card, a: Answers) -> str | None:
+    """Why a reader made for another period is named but not scored (#5715), or None."""
+    refused = _refusal(STEP, replace(card, jobs=frozenset({STEP})), a, a.material)
+    return refused[1] if refused and refused[0] == "no-reader-for-period" else None
+
+
 def _candidate(card: Card, *, rule_rank: int | None, role: str, volume: int,
-               remote_allowed: bool = False, sample_pages: int = 0) -> dict[str, Any]:
+               remote_allowed: bool = False, sample_pages: int = 0, a: Answers | None = None) -> dict[str, Any]:
     reader, model, provider = _reader_of(card)
+    wrong_period = _period_refusal(card, a) if a is not None else None
     return {
         "card": card.id, "name": reader_name(card), "pin": dict(card.pin), "role": role, "rule_rank": rule_rank,
         "reader": reader, "model": model, "provider": provider, "runs_on": card.runs_on, "local": card.local,
-        "not_scored": _not_scored_because(card, reader, model, provider, remote_allowed),
+        "not_scored": wrong_period or _not_scored_because(card, reader, model, provider, remote_allowed),
         "cost_usd": _cost(card, provider, model, volume),
         "run_cost_usd": _cost(card, provider, model, sample_pages),
         "carbon_g_per_page": card.carbon_g_per_page, "trainable": card.trainable, "size_gb": card.size_gb,
@@ -201,7 +208,7 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
     def fits(card: Card) -> bool:
         # Its script and language, whatever job its card names: a page reader reads the lines' pictures too.
         refused = _refusal(STEP, replace(card, jobs=frozenset({STEP})), a, material)
-        return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted")
+        return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted", "no-reader-for-period")
 
     pool = list({c.id: c for c in [*cards, *cloud_readers()]}.values())
     out, named = [], set()
@@ -214,7 +221,7 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
         taking = [c for c in options if c.runs_here][:PER_KIND] or options[:1]
         for card in taking:
             out.append(_candidate(card, rule_rank=None, role="contender", volume=volume, remote_allowed=remote,
-                                  sample_pages=sample_pages))
+                                  sample_pages=sample_pages, a=a))
             named.add(card.id)
     print_like = [m for m in a.materials if m in TESSERACT_MATERIALS]
     if print_like:

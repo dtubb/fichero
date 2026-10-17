@@ -90,5 +90,6 @@ def all_seed_cards() -> tuple[Card, ...]:
             licence=str(row.get("licence") or ""),
             note=str(row.get("note") or ""),
             period=tuple(row["period"]) if row.get("period") else None,
+            handwriting_scripts=_set(row.get("handwriting_scripts")),
         ))
     return tuple(cards)
