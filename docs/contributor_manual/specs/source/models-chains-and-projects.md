@@ -3740,7 +3740,7 @@ Running and failure
 - `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no other model for it; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.
-- `source.recipe.take-without-missing-step` — **[GAP]** (#4949; record shape ruled 2026-10-17) a recipe naming a job this
+- `source.recipe.take-without-missing-step` — **[PARTIAL]** (#4949; record shape ruled 2026-10-17; *built: `recipe.take_without_missing_steps`, `offered_back`, `override_kind`; pinned by `fichero-server/tests/unit/recipes/test_take_without_missing_step_4949.py`. Not built: the route and the app screen that take a shared recipe through it and show the offer*) a recipe naming a job this
   Fichero lacks can be taken without that step. The removal is recorded in the recipe's `overrides` as
   `{step, kind: "removed-step", reason: "job not available", job, scope: "project"}`; an override that states no `kind`
   is a `card` override (a chosen reader, as before), so every record kept so far reads unchanged. After Fichero is
