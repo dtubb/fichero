@@ -386,7 +386,7 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   `local_reads_at_once`, `llm/local_inference.reads_at_once_for`, built 2026-10-10). *Not built:* a
   quantized cache (`kv_bits`) and a cap (`max_kv_size`) when they let a model fit, adopted only after the
   fixture pages show no rise in character error rate; prompt (prefix) caching for a step's fixed
-  instruction.
+  instruction. *Test:* `fichero-server/tests/unit/llm/test_mlx_ships_inside_the_engine.py::test_the_server_reads_as_many_pages_at_once_as_it_is_sent`.
 - `runtime.memory-gates-compose` — **[GAP]** (#4987, #5358) one memory check, fed by the cards'
   resident sizes, replaces the per-runtime guards (Kraken's 2.5 GB free, MLX's estimate); it knows
   what is already resident (Kraken, the embedder, an MLX model) before admitting another.
