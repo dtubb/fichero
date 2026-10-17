@@ -373,7 +373,13 @@ def import_file_as_pages(db: Database, document: Document, path: Path, ctx: Acti
     if spec is None or spec.name not in PAGED_ON_THEIR_OWN:
         return False
     try:
-        pages = read_pages(data) if spec.name == "tei" else [read_page(spec.name, data)]
+        if spec.name == "tei":
+            pages = read_pages(data)
+        elif spec.name == "alto":
+            from fichero_server.formats.alto import read_pages as read_alto_pages
+            pages = read_alto_pages(data)
+        else:
+            pages = [read_page(spec.name, data)]
     except Exception:  # noqa: BLE001 -- an unreadable file stays an ordinary file, as before
         return False
 
