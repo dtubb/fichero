@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fichero_server.loaders import kreuzberg_cache  # noqa: F401 — env-var side effect
 from fichero_server.loaders.base import MediaContent, MediaLoader
+from fichero_server.loaders.transcript_loader import TRANSCRIPT_SUFFIXES, parse_transcript, transcript_text
 # RTF → text conversion lives in `rtf_text` so callers that only need the
 # converter do not import Kreuzberg/pdfium with it (#4666). Re-exported here
 # because importers, the views route, and the loader tests already name it.
@@ -59,8 +60,6 @@ TEXT_FORMATS = {
 }
 
 ALL_DOCUMENT_FORMATS = OFFICE_FORMATS | EBOOK_FORMATS | TEXT_FORMATS
-
-from fichero_server.loaders.transcript_loader import TRANSCRIPT_SUFFIXES, parse_transcript, transcript_text
 
 class DocumentLoader(MediaLoader):
     """
