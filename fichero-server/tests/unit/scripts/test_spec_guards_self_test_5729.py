@@ -43,3 +43,9 @@ def test_the_milestone_guard_proves_it_can_fail_and_pass():
     """#5729: `check_spec_milestones --self-test`: an APPROVED spec with no Milestone header fails, one that declares it passes."""
     done = _run("check_spec_milestones.py", "--self-test")
     assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
+
+
+def test_the_manual_ref_guard_proves_it_can_fail_and_pass():
+    """#5729: `check_spec_manual_refs --self-test`: an APPROVED spec with no Manual line fails, `Manual: TBD` fails, a real path passes."""
+    done = _run("check_spec_manual_refs.py", "--self-test")
+    assert done.returncode == 0 and "self-test ok" in done.stdout, done.stdout + done.stderr
