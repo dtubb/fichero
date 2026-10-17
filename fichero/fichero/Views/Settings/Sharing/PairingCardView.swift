@@ -105,7 +105,10 @@ func devicesRevokedWith(_ id: String, in devices: [PairedDeviceRecord]) -> [Pair
     var out: [PairedDeviceRecord] = []
     var frontier = [id]
     while let next = frontier.popLast() {
-        let kids = devices.filter { d in !d.revoked && d.pairedByDeviceId == next && d.id != id && !out.contains { $0.id == d.id } }
+        let kids = devices.filter { candidate in
+            !candidate.revoked && candidate.pairedByDeviceId == next && candidate.id != id
+                && !out.contains { $0.id == candidate.id }
+        }
         out += kids
         frontier += kids.map(\.id)
     }
