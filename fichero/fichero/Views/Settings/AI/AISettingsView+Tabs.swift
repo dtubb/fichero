@@ -295,6 +295,10 @@ extension AISettingsView {
     @ViewBuilder
     var advancedTab: some View {
         Form {
+            Section("Clusters") {
+                ClustersSettingsSection()
+            }
+
             Section("Generation") {
                 HStack {
                     Text("Temperature")
