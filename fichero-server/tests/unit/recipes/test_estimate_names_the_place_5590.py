@@ -25,3 +25,11 @@ def test_a_cluster_or_other_place_is_unpriced_never_zero_and_makes_the_total_unk
 def test_a_cloud_step_with_an_unknown_model_is_unpriced():
     row = estimate([_workflow("cloud:openai", model="no-such-model-xyz", provider="openai")], 100)["runs"][0]
     assert row["cost_usd"] is None and row["basis"] == "unpriced"
+
+
+def test_the_routes_response_model_keeps_each_runs_basis():
+    """The Start plan route answers through `StartEstimateRun`; a field it lacks is dropped from the response."""
+    from fichero_server.api.routes.system.recipes import StartEstimateRun
+
+    row = estimate([_workflow("cluster:hpc-1")], 100)["runs"][0]
+    assert StartEstimateRun.model_validate(row).model_dump()["basis"] == "unpriced"
