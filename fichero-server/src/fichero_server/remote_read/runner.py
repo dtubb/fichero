@@ -26,6 +26,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -189,6 +190,14 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
     fetcher = PoliteFetcher(get=get or urllib_get, sleep=sleep)
     read = reader or READERS[step["reader"]](package, step, device)
     started = time.time()
+    images = package
+    if (package / f"shards/shard-{shard:05d}.tar").exists():  # staged as a tar: unpack to the node's own disk
+        import tarfile
+        import tempfile
+
+        images = Path(tempfile.mkdtemp(prefix=f"shard-{shard:05d}-", dir=os.environ.get("SLURM_TMPDIR")))
+        with tarfile.open(package / f"shards/shard-{shard:05d}.tar") as tar:
+            tar.extractall(images, filter="data")
     for index in indices:
         source = job["sources"][index]
         target = folder / f"{source['id']}.xml"
@@ -203,7 +212,7 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
                 data = fetcher.fetch(seen)
                 image = Image.open(io.BytesIO(data))
             else:
-                image = Image.open(package / source["image"])
+                image = Image.open(images / source["image"])
             image.load()
             image = image.convert("RGB")
             lines = read(image)
@@ -217,6 +226,8 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
         os.replace(tmp, outcome_path)
     outcome.update({"shard": shard, "done": True, "seconds": round(time.time() - started, 1), "fetch": fetcher.stats})
     outcome_path.write_text(json.dumps(outcome, indent=1), encoding="utf-8")
+    if images != package:
+        shutil.rmtree(images, ignore_errors=True)  # nothing of the pages stays on the node
     return outcome
 
 
