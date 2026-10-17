@@ -27,3 +27,15 @@ def test_a_row_names_the_places_of_the_calls_under_it_and_counts_them(db):
     assert root["places"] == {"provider": 2, "own_machine": 1}
     leaf = root["children"][0]
     assert leaf["places"] == {"provider": 1}
+
+
+def test_the_job_tree_route_returns_the_places(db, client):
+    jobs._ensure(db)
+    step = jobs._insert(db, "workflow-step", "run:step", None, "workflow")
+    _call(db, step, "provider")
+    _call(db, step, "provider")
+
+    r = client.get(f"/api/activity/jobs/{step}")
+
+    assert r.status_code == 200, r.text
+    assert r.json()["places"] == {"provider": 2}
