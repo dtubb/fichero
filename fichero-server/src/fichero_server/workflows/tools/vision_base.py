@@ -5247,7 +5247,14 @@ async def process_vision(
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)
 
-            if not (text or "").strip() and (vision_mode == "apple" or _resolved_provider == "apple"):
+            # Apple as a line FINDER keeps no text on purpose: its lines are the output, so empty text is not "no
+            # text found" (`source.recipe.apple-finds-lines-on-print`).
+            _lines_found_without_text = not keep_text and bool(
+                (page_geometry and page_geometry.boxes)
+                or any(g and g.boxes for g in per_page_geometries or [])
+            )
+            if (not (text or "").strip() and not _lines_found_without_text
+                    and (vision_mode == "apple" or _resolved_provider == "apple")):
                 # Apple's text recognition found no text on the page: that is what it found, not a failed read,
                 # and reading again would find the same nothing (`source.recipe.no-text-found-is-not-a-failure`,
                 # #5668: a run counted blank versos as failed reads and offered to read them again).
@@ -5257,7 +5264,7 @@ async def process_vision(
                 values.append(None)
                 return _outcome()
 
-            if not (text or "").strip() and vision_mode != "kraken":
+            if not (text or "").strip() and vision_mode != "kraken" and not _lines_found_without_text:
                 # Kraken is a SEGMENTER: it reads nothing, so empty text is the
                 # expected result, not a failed transcription — its baseline/
                 # polygon geometry (page_geometry) is what this run produces and
