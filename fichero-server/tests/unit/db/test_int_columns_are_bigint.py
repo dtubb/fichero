@@ -349,6 +349,8 @@ INDEX_BLOCKED_INT_COLUMNS = {
     "segmentversions.version",
     "readingorderentrys.version",
     "segmentforwardings.sequence",
+    # A run-log line counter (#5711): offsets from -1e9, so a run would need two billion lines to leave INT32.
+    "workflowrunloglines.seq",
 }
 
 
@@ -417,7 +419,7 @@ class TestTheExemptionListIsCompleteAndJudged:
         """
         for qualified in INDEX_BLOCKED_INT_COLUMNS:
             column = qualified.split(".", 1)[1]
-            assert column.endswith(("version", "year", "sequence", "index")), (
+            assert column.endswith(("version", "year", "sequence", "index", "seq")), (
                 f"{qualified} is not obviously a bounded counter — judge it explicitly"
             )
             for danger in ("bytes", "size", "micros", "millis", "nanos", "count", "offset"):
