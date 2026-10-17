@@ -7,13 +7,14 @@
 #   docker build --platform linux/amd64 -f docker/worker.Dockerfile -t fichero-worker:dev .
 # On a cluster (as the person, no root):
 #   apptainer pull fichero-worker.sif docker://ghcr.io/<owner>/fichero-worker:<tag>
-FROM python:3.12-slim
+# Pinned: bump the digest and uv deliberately (docker buildx imagetools inspect python:3.12-slim).
+FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
 
 # libgl/glib: pillow + kraken pull these at runtime on slim.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir uv
+    && pip install --no-cache-dir uv==0.13.1
 
 COPY src/fichero_server/remote_read/runner.py /tmp/runner.py
 RUN uv pip install --system -r /tmp/runner.py && rm /tmp/runner.py
