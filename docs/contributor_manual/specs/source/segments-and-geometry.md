@@ -1001,7 +1001,7 @@ Storage
   the source (threshold in the morning file).
 - `source.store.record-per-segment` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestRecordPerSegment::test_lines_of_this_pass_and_children_of_this_region_are_single_filtered_queries`) the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
-- `source.store.never-converted-by-a-migration` — **[GAP]** (#4924) no migration, script, second engine or
+- `source.store.never-converted-by-a-migration` — **[OK]** (#4924; pinned by `fichero-server/tests/unit/models/test_store_never_converted_by_a_migration_to_spec.py`) no migration, script, second engine or
   command-line process ever writes a segment record into an existing project; opening a
   project adds empty tables and columns and nothing else. (Replaces
   `source.store.no-batch-rewrite`, overturned 2026-09-20: a whole project IS converted, but
