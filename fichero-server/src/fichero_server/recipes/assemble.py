@@ -294,7 +294,10 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
     """(code, raw reason) for why `card` cannot do `job` for this project, or None if it may."""
     if job not in card.jobs:
         return "no-model-for-job", "its card does not name this job"
-    if card.scripts is not None and not (a.scripts <= card.scripts):
+    # Fraktur and Gaelic type are Latin: a Latin reader fits them (#5516), the exact one ranking first. Han variants
+    # stay apart (`no-cross-script-reader`: a Japanese card never reads Traditional or Simplified Chinese).
+    if card.scripts is not None and not all(x in card.scripts or (x in _LATIN_VARIANTS and "Latn" in card.scripts)
+                                            for x in a.scripts):
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
@@ -370,6 +373,7 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
 NEAREST = 3
 #: A script's parent: the script a variant of it is filed under (Fraktur and Gaelic are Latin; Simplified and
 #: Traditional Han are Han; the Syriac and Arabic styles their script). ISO 15924 data, not a model's name.
+_LATIN_VARIANTS = frozenset({"Latf", "Latg"})
 _PARENT = {"Latf": "Latn", "Latg": "Latn", "Hans": "Hani", "Hant": "Hani", "Syre": "Syrc", "Syrj": "Syrc",
            "Syrn": "Syrc", "Aran": "Arab", "Cyrs": "Cyrl"}
 #: A script's parts, where ISO 15924 names a whole made of others (Japanese is Han plus the kana).
