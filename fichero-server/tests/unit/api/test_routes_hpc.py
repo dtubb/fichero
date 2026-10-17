@@ -124,3 +124,37 @@ class TestDryRunSubmit:
             },
         )
         assert r.status_code == 404
+
+
+class TestSignInAndKey:
+    """`compute.connect.second-factor-passes-through`, `compute.secret.fichero-makes-the-key`: the app pushes the
+    cluster's key, lists the prompts ssh is waiting on, and answers them."""
+
+    def test_the_key_is_pushed_and_removed_and_never_read_back(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        r = client.put(f"/api/hpc/clusters/{cid}/key", json={"private_key": "-----BEGIN OPENSSH PRIVATE KEY-----\nk\n"})
+        assert r.status_code == 200 and r.json() == {"cluster_id": cid, "has_key": True}
+        assert "private_key" not in client.get(f"/api/hpc/clusters/{cid}").text
+        assert client.delete(f"/api/hpc/clusters/{cid}/key").json()["has_key"] is False
+
+    def test_a_prompt_ssh_waits_on_is_listed_then_answered(self, client):
+        from fichero_server.remote_read.ssh_prompts import prompt_broker
+        import threading
+
+        out = {}
+        t = threading.Thread(target=lambda: out.update(a=prompt_broker().ask("Duo passcode: ", timeout=10)))
+        t.start()
+        while not (items := client.get("/api/hpc/prompts").json()["items"]):
+            threading.Event().wait(0.01)
+        assert items[0]["prompt"] == "Duo passcode: "
+        assert client.post(f"/api/hpc/prompts/{items[0]['id']}", json={"answer": "123456"}).status_code == 200
+        t.join(5)
+        assert out["a"] == "123456" and client.get("/api/hpc/prompts").json()["items"] == []
+        assert client.post("/api/hpc/prompts/999", json={"answer": "x"}).status_code == 404
+
+    def test_sign_in_without_a_key_is_refused_by_name(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        r = client.post(f"/api/hpc/clusters/{cid}/sign-in")
+        assert r.status_code == 409 and "key" in r.json()["detail"].lower()
