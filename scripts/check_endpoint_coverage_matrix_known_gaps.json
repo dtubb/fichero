@@ -306,5 +306,6 @@
   "GET /api/hpc/prompts": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
   "POST /api/hpc/clusters/{cluster_id}/sign-in": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
   "POST /api/hpc/prompts/{prompt_id}": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
-  "PUT /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)"
+  "PUT /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
+  "POST /api/hpc/clusters/{cluster_id}/check": "the app's Add-a-cluster check row (Swift) is not built yet; engine, CLI and MCP first (#5454)"
 }

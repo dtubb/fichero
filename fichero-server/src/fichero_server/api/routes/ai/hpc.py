@@ -437,3 +437,43 @@ async def sign_in(
     except SlurmError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return HpcKeyState(cluster_id=cluster_id, has_key=True)
+
+
+class HpcCheckStep(BaseModel):
+    name: str
+    state: str = Field(description="`passed`, `failed` (with its reason in `answer`) or `not tried`.")
+    answer: str = ""
+
+
+class HpcCheckResponse(BaseModel):
+    cluster_id: str
+    ok: bool = Field(description="True only if every step passed just now.")
+    steps: list[HpcCheckStep]
+
+
+def _shell_for(cfg: HpcClusterConfig, cluster_id: str):
+    """The login shell for a stored cluster, over the connection `sign-in` opened (BatchMode: it never asks)."""
+    from fichero_server.remote_read.slurm_target import NoKey, SshShell
+    from fichero_server.remote_read.ssh_prompts import cluster_key_path, control_dir
+
+    try:
+        return SshShell(cfg, cluster_key_path(cluster_id), control_dir())
+    except NoKey as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/clusters/{cluster_id}/check", response_model=HpcCheckResponse)
+async def check_cluster_live(
+    cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> HpcCheckResponse:
+    """The honest check (`compute.connect.check-really-checks`): hostname, storage, Apptainer, GPUs and fair share,
+    run live on the login node over the open connection. Sign in first; nothing is submitted."""
+    import asyncio
+
+    from fichero_server.remote_read.cluster_check import check_cluster
+
+    cfg = _require_cluster(app_db, cluster_id)
+    result = await asyncio.to_thread(check_cluster, _shell_for(cfg, cluster_id))
+    return HpcCheckResponse(cluster_id=cluster_id, **result)

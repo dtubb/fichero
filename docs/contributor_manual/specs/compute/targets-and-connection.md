@@ -207,7 +207,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### Checking
 
-- `compute.connect.check-really-checks` — **[BROKEN]** (#5238; today's `test` route returns `ok=True` without connecting, `api/routes/ai/hpc.py:279`) "Check" reaches the target and reports what answered.
+- `compute.connect.check-really-checks` — **[PARTIAL]** (#5238, #5454; `POST /api/hpc/clusters/{id}/check` now runs the steps live over the open connection (hostname, `diskusage_report`, `module avail apptainer`, `sinfo`, `sshare`), each passed, failed with its reason, or not tried; the old `POST .../test` is still the dry run that returns a command and says so, `api/routes/ai/hpc.py`, and is not yet removed). Test: `fichero-server/tests/unit/remote_read/test_cluster_check.py`. "Check" reaches the target and reports what answered.
   `ok` is true only if every step for that kind (the table above) succeeded just now. The
   answer lists each step with *passed*, *failed: reason* or *not tried*. It never returns a
   command it "would" run as if that were a result. *Existing data:* the present dishonest
