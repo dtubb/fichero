@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 59 shipped workflows and 128 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 60 shipped workflows and 128 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
@@ -32,6 +32,7 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 ## Transcribe
 
 - [Capture OCR + Transcribe](workflows/capture-ocr-transcribe.md) — Use this when: you want a capture-oriented OCR preset for newly photographed pages or uploaded PDFs. It prepares pages into OCR-ready images, enhances those derived images, then transcribes back onto the original selected documents so page text, artifacts, and provenance stay attached to the source record instead of the temporary derivatives.
+- [Classify Script](workflows/classify-script.md) — Use this when: you want to know what kind of writing a page holds (typescript, modern handwriting, historical handwriting, archaic script) without transcribing it. Asks the run's vision model and saves the answer with its confidence; below the confidence limit it says a person should choose. Transcribe (Auto-Detect) runs this step and then the matching transcription.
 - [English Secretary Hand (16th–17th C.)](workflows/english-secretary-hand-16th17th-c.md) — Use this when: you have English secretary hand — depositions, indentures, wills, parish and court records of the 16th–17th centuries. One careful whole-page pass; run Paleographer Review afterwards to refine.
 - [Latin Paleography](workflows/latin-paleography.md) — Use this when: you have Latin manuscript text — medieval through early-modern (charters, ecclesiastical records, notarial instruments). One careful whole-page pass with abbreviation-system advice; run Paleographer Review afterwards to refine.
 - [Paleografía Española (s. XVIII–XIX)](workflows/paleografia-espanola-s-xviiixix.md) — Use this when: you have 18th–19th century Spanish administrative, notarial, or secretarial hands (humanística, bastarda, letra de oficio). Replaces the Spanish Script v2 presets. One careful whole-page pass; run Paleographer Review afterwards to refine.

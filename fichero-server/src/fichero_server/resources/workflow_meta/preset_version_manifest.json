@@ -35,6 +35,10 @@
   "preset_version": 2,
   "sha256": "dd66860bdbd23548dccdd801d36ccddd4f9d79a3e6ab195831db3dce6d5a27e8"
  },
+ "classify_script.json": {
+  "preset_version": 1,
+  "sha256": "e22352a1ee1cb8de30c6ea513bb2dd708b4e0ae8a973daa68dfff95aadffa109"
+ },
  "clean_up_text.json": {
   "preset_version": 2,
   "sha256": "c65c1661ad355554d70178f2b5977dbc41119c6ca7af1bab088590c8b5e3e20f"

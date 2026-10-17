@@ -509,6 +509,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/cata
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/catalogue_stage_4_merge_dedup.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/catalogue_stage_5_kg_persist.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/catalogue_stage_6_catalogue.json
+$(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/classify_script.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/clean_up_text.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/convert_to_html.json
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/convert_to_markdown.json

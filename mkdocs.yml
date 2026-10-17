@@ -139,6 +139,7 @@ nav:
               - Capture OCR + Transcribe: reference_manual/tool_references/workflows/capture-ocr-transcribe.md
               - Catalogue: reference_manual/tool_references/workflows/catalogue.md
               - Catalogue Description: reference_manual/tool_references/workflows/catalogue-description.md
+              - Classify Script: reference_manual/tool_references/workflows/classify-script.md
               - Clean Up Text: reference_manual/tool_references/workflows/clean-up-text.md
               - Describe (visual): reference_manual/tool_references/workflows/describe-visual.md
               - Detect Segments (Apple Vision): reference_manual/tool_references/workflows/detect-segments-apple-vision.md
