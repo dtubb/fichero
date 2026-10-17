@@ -252,6 +252,8 @@ class Answers:
     #: The project's sample shows faded pages (`recipes/prepare.sample_shows_faded`): a recipe that lines or reads
     #: them prepares them first (#5580).
     faded_pages: bool = False
+    #: The person said the pages are photographs (#5390): split the pages and prepare the images first. Asked, never guessed.
+    photographs: bool = False
     #: The answers under a purpose (`answers.job_answers`): which kinds of names, which gazetteer, how far to
     #: normalise; each reaches the setting of the step it configures (`start.JOB_ANSWER_SETTINGS`, #5478).
     job_answers: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
@@ -763,6 +765,8 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         jobs -= READING_THE_PICTURE
     if a.loose_pages and jobs & READING_JOBS:
         jobs.add(FIND_DOCUMENTS)
+    if a.photographs and jobs & (READING_JOBS | {"find-lines"}):
+        jobs |= {"split-pages", PREPARE}
     if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
         jobs.add(PREPARE)
     left_by_hand = [by_hand(j) for j in sorted(jobs, key=STEP_ORDER.index) if not start_runs(j)]
@@ -809,7 +813,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             continue
         if job == PREPARE:
             # Fichero's own measure and contrast, no model to choose (`recipes/prepare.py`).
-            why = ("the sample pages show faded ink" if a.faded_pages else "you ticked it")
+            why = ("the sample pages show faded ink" if a.faded_pages else "you said the pages are photographs" if a.photographs else "you ticked it")
             steps.append({"id": job, "job": job, **_topic(job), "model": {"builtin": "image-preparer"},
                           "runs_on": "this-mac", "uses_cloud": False,
                           "reasons": [why, "raises the contrast of each faded page on a new copy, on this Mac, free, "

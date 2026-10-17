@@ -1160,6 +1160,13 @@ plan's peak memory across steps. Ready shows none of it.
   and left alone. *Not built:* deskew (a straightened picture is not the page's frame, so the lines found on it
   would not map back until a rendition can carry its transform to the lines); stains, holes and uneven light are
   not measured; the measure is not yet judged by reading (`prep.judged-by-reading`).
+- `source.onboard.photographed-pages-asked` — **[PARTIAL]** (#5390; ruled 2026-10-17; engine half tested in
+  `fichero-server/tests/unit/recipes/test_photographed_pages_step.py`) setup **asks** whether the pages are photographs
+  (a book open on a table, two pages to a picture), and the default is off. Answered yes, a recipe that lines or reads
+  gets `split-pages` and `prepare-the-image` before lines, so the table, ruler and spiral are not read as text; answered
+  no or left unset, the recipe is unchanged. The answer is `photographs` on assemble; nothing guesses it. *Not built:*
+  the question in the app's setup, and the other three faults of #5390 (cloud options listed when allowed, running an
+  assembled recipe from the CLI, plain list values).
 - `source.onboard.auto.organise-is-a-stage` — **[GAP]** (#5550) Find the Documents is a recipe stage
   that runs after names and dates, on any material, images or text. Its proposals (boundaries, kinds as
   prototypes, groups, order) are drawn on the canvas for review. Nothing in the source moves until the

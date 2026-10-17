@@ -144,6 +144,10 @@ class AssembleRequest(BaseModel):
         "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, "
         "keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread "
         "across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"))
+    photographs: Optional[bool] = Field(default=None, description=(
+        "the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, "
+        "and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the "
+        "images (source.onboard.photographed-pages-asked)"))
     job_answers: dict[str, Any] = Field(default_factory=dict, description=(
         "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the "
         "step it configures (source.onboard.auto.job-answers-read)"))
@@ -766,7 +770,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
-        faded_pages=bool(a.get("faded_pages")),
+        faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
         job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
         search_embedder=search_embedder(),
     )
