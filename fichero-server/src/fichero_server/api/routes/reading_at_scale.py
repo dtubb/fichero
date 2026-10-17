@@ -13,7 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
@@ -76,7 +76,7 @@ def _action_start(db: Database, params: ReadAtScaleRequest, ctx: ActionContext) 
 
         authz.assert_can_read_every(ctx.actor, ctx.library_path, [p.id for p in pages_to_read(db, params.scope_ids)],
                                     bootstrap=False)
-    started = _read_job().start(db, params, started_by=ctx.actor or "owner")
+    started = _read_job().start(db, params, started_by=started_by_for(ctx))
     return started, _job_change(started["job_id"], "job.created", kind=_read_job().KIND)
 
 

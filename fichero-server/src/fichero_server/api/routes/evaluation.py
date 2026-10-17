@@ -12,7 +12,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
@@ -45,7 +45,7 @@ def _action_run(db: Database, params: EvaluationRunRequest, ctx: ActionContext) 
     # named. A held-out page this caller may not read refuses the run (fail closed); the owner is unchecked.
     from fichero_server.security import authz
 
-    started = _evaluation().start(db, params, started_by=ctx.actor or "owner",
+    started = _evaluation().start(db, params, started_by=started_by_for(ctx),
                                   check_pages=lambda pages: authz.assert_can_read_every(
                                       ctx.actor, ctx.library_path, pages, bootstrap=ctx.is_bootstrap))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
