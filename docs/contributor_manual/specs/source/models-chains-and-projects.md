@@ -3755,7 +3755,7 @@ Running and failure
   updated, a removed step whose job now exists is offered back, never put back by itself. *Test:* the taken recipe
   passes the check and holds the record; the original is unchanged; the step is offered back once its job exists, and
   not before.
-- `source.recipe.pinned-model-gone` — **[GAP]** (#5364; how it is known, ruled 2026-10-17) a pinned model that can no longer be
+- `source.recipe.pinned-model-gone` — **[PARTIAL]** (#5364; how it is known, ruled 2026-10-17; *built: `llm/failed_fetches.py`, the store's hook in `_run_download_in_process`, `recipe._check_not_gone`; pinned by `fichero-server/tests/unit/recipes/test_pinned_model_gone_5364.py`. Not built: offering the rule's next candidate, and the Kraken and Zenodo readers' fetches recording a failure*) a pinned model that can no longer be
   fetched is reported by the check, naming the step, and the rule's next candidate is offered. It is known from the
   model store's record of the last failed fetch: when a fetch fails for a reason that is not a dropped connection (the
   repository is gone or refuses the request), the store writes the repository and the reason to `failed_fetches.json` in its
