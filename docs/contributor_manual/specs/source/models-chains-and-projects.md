@@ -3341,6 +3341,16 @@ Setup
   third screen keeps up-to-date exports in folders outside the project (section 7b, screen 3).
   *Test:* a kept ALTO-per-page export holds one file per page, and a second write leaves a file it did
   not write alone.
+- `source.onboard.kept-exported.markdown-keeps-lines` — **[OK]** (#5502) a kept Markdown export keeps each
+  line of a page as a line: a reader of the file (CommonMark, pandoc) shows the page's lines one under
+  another, not run together as one paragraph. Built (2026-10-17): `export_service.render_markdown_text`
+  ends every line but the last of a page with two spaces (CommonMark's hard break, invisible in the
+  file). Tested in `fichero-server/tests/unit/jobs/test_kept_markdown_lines_5502.py`.
+- `source.onboard.kept-exported.loose-pages-are-documents` — **[GAP]** (#5502) the operator's run wrote
+  one `Sources.md` for a project whose pages sit loose under one folder, and expected one file per
+  document. By the rule above a page's document is the node it sits in, and a folder of loose pages is
+  one document; whether each loose page (a file of its own) should be its own document is the
+  maintainer's to rule (recorded on the issue). Not built.
 - `source.onboard.set-up-later` — **[PARTIAL]** (#4951) **Built 2026-10-03:** Skip leaves the project unset and saves nothing; `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. "Set up later" makes a project with no settings
   that behaves as today, and Set Up… in its Inspector runs setup at any time.
 - `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample
