@@ -340,7 +340,7 @@ def test_model_delete_route_and_no_second_download_path(client, monkeypatch: pyt
 
 def test_start_refuses_when_subprocesses_are_disabled(client, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "fichero_server.llm.local_inference.get_local_inference_capabilities",
+        "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
         lambda: routes.LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
