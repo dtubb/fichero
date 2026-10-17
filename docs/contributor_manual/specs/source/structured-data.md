@@ -603,3 +603,9 @@ by a person.
 - W3C Web Annotation Data Model — https://www.w3.org/TR/annotation-model/
 - IIIF Presentation API 3.0 — https://iiif.io/api/presentation/3.0/
 - Hugging Face `datasets` documentation — https://huggingface.co/docs/datasets/
+
+## Triaged from the datasets plan (2026-10-17)
+Stages 1, 2, 4 and 6 of the older plan are the `structured.schema`, `.extract`, `.review` and `.export` entries above. Stages 3, 5 and 7 were in no issue; they are here.
+- `structured.view.saved-views-on-folders` — **[GAP]** (#5743, #4575) a folder remembers its view (grid columns, filter, sort, grouping) and the person can save named views and aliases. Test: a new test_dataset_query_views.py in `fichero-server/tests/unit/core/` (to write).
+- `structured.view.timeline-engine-binned` — **[GAP]** (#5743) the timeline renderer is binned by the engine, not the client. Test: a new test_dataset_query_views.py in `fichero-server/tests/unit/core/` (to write).
+- `structured.view.entities-and-side-by-side` — **[GAP]** (#5743) entities render through the same views, and two library views sit side by side. Test: a new DatasetViewTests.swift in `fichero/Tests/Unit/` (to write).
