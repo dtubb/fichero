@@ -225,6 +225,20 @@ def _uses_cloud(step: dict) -> bool:
     return str(step.get("runs_on") or "").startswith("cloud") or pin_leaves_this_mac(step.get("model"))
 
 
+def provider_without_key(step: dict) -> str | None:
+    """The name of the cloud provider a step's pin needs a key for, when none is configured; else None (#5364)."""
+    pin = step.get("model") or {}
+    if "cloud" not in pin:
+        return None
+    from fichero_server.llm import get_api_key
+    from fichero_server.llm.providers import get_provider_info
+
+    info = get_provider_info(str(pin["cloud"]).strip().lower())
+    if info is None or info.is_local or info.is_builtin or not info.api_key_env or get_api_key(info.type.value):
+        return None
+    return info.name
+
+
 def _automatic_skip(step: dict, automatic: dict | None) -> tuple[str, str] | None:
     """(why, fix) when What runs by itself (`answers.automatic`) leaves this step to a run by hand (#5478)."""
     if not isinstance(automatic, dict):
@@ -312,6 +326,10 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if stays_local and _uses_cloud(step):
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
+            continue
+        if (keyless := provider_without_key(step)) is not None:
+            # waits; no other model is used in its place unless the person chooses one (`source.recipe.missing-key-never-substitutes`)
+            skip(sid, f"{label}: Needs a key for {keyless}", "Add Key… in Settings")
             continue
         if step.get("when"):
             skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet",
