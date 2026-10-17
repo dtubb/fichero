@@ -110,6 +110,10 @@ class ReadAtScaleRequest(BaseModel):
     pass_name: str | None = None
     pages_may_leave: bool = Field(False, description="The person's yes for these pages (or their IIIF addresses) to go "
                                   "to Hugging Face.")
+    parent_job_id: str | None = Field(None, description="The recipe step that sends this run: the run shows under it "
+                                      "in Activity (`activity.remote-under-its-step`).")
+    expected_pages_per_second: float | None = Field(None, gt=0, description="A pilot's measured rate: the estimate "
+                                                    "of GPU-hours the Inspector sets beside what it took.")
 
 
 class EvaluationCandidate(BaseModel):
