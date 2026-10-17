@@ -3488,11 +3488,24 @@ Setup
   are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
   coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
   card id.
-- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** local candidates first in `assemble()`; the A/B that moves up is not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. a step's starting choice is the cheapest
-  local candidate that passes the hard constraints (Tesseract, Kraken, or a local open OCR model);
-  a costlier option replaces it only after an A/B on the person's pages shows the cheap one misses
-  the bar and the person confirms; the comparison shows accuracy, cost and environmental cost side
-  by side; distilling and fine-tuning are offered as options, never defaults.
+- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; SUPERSEDED 2026-10-17, the code still follows it until the fallback-chain change lands; replaced by `source.recipe.candidates-fallback-chain` and
+  `source.recipe.placement-by-scale` below, ruled by the maintainer) the bulk reader is the BEST MEASURED candidate, not the cheapest local one.
+  What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
+  one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
+  fine-tuning are still offered as options, never defaults.
+- `source.recipe.candidates-fallback-chain` — **[GAP]** (#4950, #5582; ruled 2026-10-17) the candidates for a step are ranked best-measured first
+  (accuracy in one-point bands, measured on the person's pages, else published, else coverage); cheaper, then local, only break ties inside the
+  noise band (`source.train.noise-band-per-project`). Cloud candidates stay shown greyed with "needs permission" until the person has said in setup
+  that pages may leave this Mac (`source.onboard.pages-may-leave`). When the best candidate cannot run (no key, not enough memory, the repository
+  gone), the next one in the chain runs, and the plan says which and why; a missing key never substitutes silently
+  (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
+  cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
+- `source.recipe.placement-by-scale` — **[GAP]** (#4950; ruled 2026-10-17) where the chosen reader runs depends on the project's scale: about 100 or
+  about 1,000 pages run on this Mac; about 100,000 pages belong on ACENet or Hugging Face. Below a page threshold set in the plan the reader runs
+  locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
+  100,000, and stays here when pages may not leave.
+- `source.onboard.pages-may-leave` — **[GAP]** (#4951; ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
+  answer is yes (`answers.cloud_allowed`), and cloud candidates show greyed with "needs permission" until then.
 - `source.recipe.volume-rule` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** training offered from 5,000 pages in `assemble()`; cost and time limits not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
   from the start; above 100,000 a candidate whose whole-volume cost or time is beyond the limits
@@ -3595,10 +3608,10 @@ The recipe and its format
 - `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
-- `source.recipe.train-never-automatic` — **[GAP]** (#4950, #5336) a train step runs by itself only if the
-  person chose automatic training in setup (offered with a default such as distilling from a large
-  teacher, then fine-tuning a small model); otherwise it is offered when its condition is met and
-  runs only when the person starts it.
+- `source.recipe.train-never-automatic` — **[PARTIAL]** (#4950, #5336, #5440; reworded 2026-10-17; *built: a train step is never among what Start runs and
+  the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`*) training runs by itself only per
+  the onboarding setting (`answers.training`: here, huggingface or offered, defaulting by machine; see `source.onboard.auto.train-offer-comes`); with
+  `offered` it is offered when its condition is met and runs only when the person starts it. Never an alert.
 - `source.recipe.train-offered-per-step` — **[PARTIAL]** (#5660 item 9) for each step a model can be trained
   for, the Start plan offers "Train a model of your own for this step" (`train_offers`), offered later and never
   run at Start: the line reader (fine-tune a Kraken reader, on this Mac or Hugging Face Jobs; distil into an MLX
