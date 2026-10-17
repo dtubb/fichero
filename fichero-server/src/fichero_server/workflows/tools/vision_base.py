@@ -4612,8 +4612,15 @@ async def process_vision(
                     )
                     text = _vision_result.text
                     page_geometry = _apple_geometry_result(_vision_result)
-                    if not keep_text and page_geometry is not None:
-                        page_geometry, text = lines_only(page_geometry), ""
+                if not keep_text:
+                    # Apple as a line FINDER (image, requested PDF page, every PDF page): its boxes, never its text
+                    # (`source.recipe.apple-finds-lines-on-print`).
+                    text = ""
+                    if per_page_texts is not None:
+                        per_page_texts = [""] * len(per_page_texts)
+                    page_geometry = page_geometry and lines_only(page_geometry)
+                    if per_page_geometries is not None:
+                        per_page_geometries = [g and lines_only(g) for g in per_page_geometries]
                 # Apple Vision doesn't use LLM params, parse as text
                 parsed = text
             elif vision_mode == "kraken":
