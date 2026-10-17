@@ -1802,7 +1802,10 @@ def render_markdown_text(title: str, sections: list[tuple[str | None, str]]) -> 
     for heading, text in sections:
         if heading is not None:
             lines.extend([f"## {heading}", ""])
-        lines.extend(_MARKDOWN_BLOCK_MARK.sub(r"\1\\\2", line) for line in text.strip().splitlines())
+        rows = text.strip().splitlines()
+        # Two trailing spaces are CommonMark's hard break: without them a reader runs the lines together.
+        lines.extend(_MARKDOWN_BLOCK_MARK.sub(r"\1\\\2", row) + ("  " if row.strip() and nxt.strip() else "")
+                     for row, nxt in zip(rows, [*rows[1:], ""], strict=True))
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
