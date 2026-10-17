@@ -119,9 +119,15 @@ def parse_answer(raw: str, n: int) -> list[str | None] | None:
     return [a.strip() if isinstance(a, str) and a.strip() else None for a in answer]
 
 
-async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None) -> OCRGeometryResult:
-    """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model."""
-    from fichero_server.llm import vision
+async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
+                     apple: bool = False) -> OCRGeometryResult:
+    """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
+    `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
+    array, and it is not checked for loops, as only a generative model loops)."""
+    from fichero_server.llm import LLMConfig, vision
+
+    if apple:
+        config = LLMConfig(provider="apple", model="apple-vision")
 
     page = Image.open(image_path)
     page.load()
@@ -137,7 +143,10 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         async with gate:
             raw = await vision(images=[crops[i] for i in indices],
                                prompt=prompt_for(len(indices), language),
-                               config=line_call_config(config, len(indices)))
+                               config=line_call_config(config, len(indices)),
+                               **({"language": language, "recognition_only_ok": True} if apple else {}))
+        if apple:
+            return [" ".join((raw or "").split()) or None]
         answer = parse_answer(raw, len(indices))
         if answer is None and len(indices) == 1 and is_truncation(finish_reason_of(raw)):
             return [cut_short_reading(raw)]
@@ -150,7 +159,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             answer = [s[0] if s else None for s in singles]
         return answer or [None]
 
-    per_call = lines_per_call(config)
+    per_call = 1 if apple else lines_per_call(config)
     groups = [list(range(i, min(i + per_call, len(found)))) for i in range(0, len(found), per_call)]
     readings = [r for group in await asyncio.gather(*(batch(g) for g in groups)) for r in group]
 
@@ -162,7 +171,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         texts.append(text)
         # Each line's reading is checked as it lands (#5522): one picture is one line, so a reading
         # that loops or runs far past a line's length is marked on its box.
-        flag = check_read(text, line_count=1, model=config.model)
+        flag = None if apple else check_read(text, line_count=1, model=config.model)
         metadata = box.metadata
         if "parent_box_index" in metadata:
             parent = moved.get(metadata["parent_box_index"])
@@ -175,7 +184,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         boxes.append(box.model_copy(update={
             "text": text, "char_start": cursor, "char_end": cursor + len(text),
             "level": OCRGeometryLevel.LINE, "provider": config.provider, "model": config.model,
-            "source": "kraken-lines+vision", "metadata": metadata,
+            "source": "apple-lines" if apple else "kraken-lines+vision", "metadata": metadata,
         }))
         cursor += len(text) + 1
     read = len(boxes) - len(regions)
@@ -192,5 +201,5 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         }
     return lines.model_copy(update={
         "text": "\n".join(texts), "boxes": boxes, "provider": config.provider, "model": config.model,
-        "source": "kraken-lines+vision", "metadata": page_metadata,
+        "source": "apple-lines" if apple else "kraken-lines+vision", "metadata": page_metadata,
     })

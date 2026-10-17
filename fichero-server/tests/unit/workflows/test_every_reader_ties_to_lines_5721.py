@@ -1,0 +1,133 @@
+"""Once a page has lines, every reader's output ties to a line (`source.read.once-lines-exist-every-reading-ties-to-a-line`, #5721).
+
+Spec: run Apple Vision, then a stub vision model, on a page with three lines: each pass has three readings tied to the
+three segments. Page-level text with no line under it is never the step's result when lines exist, and the step says so
+when it could only produce that.
+WHY (2026-10-16, page 39_Hoja_549_Recto.JPG): Kraken's pass held 44 lines; the Apple Vision pass and the Qwen pass each
+held the whole page as text with 0 segments.
+Driven through the real Transcribe tool on the page Kraken found and read (the harness of the review tests); only the
+vision call is a stub.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from fichero_server.db.manager import db_manager
+from tests.unit.workflows.test_review_corrects_the_lines_5654 import (  # noqa: F401
+    _lines,
+    _readings,
+    page,
+)
+
+MODEL = ("mlx", "mlx-community/Qwen2.5-VL-3B-Instruct-4bit")
+
+
+def _passes(pg):
+    from fichero_server.models.segments import SegmentPass
+
+    return [p for p in pg["db"].query(SegmentPass, document_id=pg["doc"].id) if p.deleted_at is None]
+
+
+async def _read(pg, monkeypatch, *, provider, model, answer, **extra):
+    """Transcribe the page with `provider`; `answer(n_images, call)` is what the stub vision call returns."""
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.transcribe import transcribe
+
+    calls = []
+
+    async def vision(images, prompt, config, **kw):
+        calls.append(len(images))
+        return answer(len(images), len(calls))
+
+    monkeypatch.setattr(llm, "vision", vision)
+    result = await transcribe(
+        inputs={"files": pg["src"]["files"], "documents": pg["src"]["documents"], "regions_first": False,
+                **extra},
+        state={"library_path": pg["library"], "task_id": f"run-{provider}"},
+        llm_config=LLMConfig(provider=provider, model=model))
+    assert not result.get("error"), result.get("error")
+    result["calls"] = calls
+    return result
+
+
+def _tied(pg, words):
+    """Per line: the readings whose text is one of `words`."""
+    return [[r.content for r in _readings(pg, row) if r.content in words] for row in _lines(pg)]
+
+
+@pytest.mark.asyncio
+async def test_apple_vision_on_a_page_with_lines_reads_each_line_and_makes_no_second_pass_5721(page, monkeypatch):  # noqa: F811
+    before = [p.id for p in _passes(page)]
+    words = ["apple uno", "apple dos", "apple tres"]
+    result = await _read(page, monkeypatch, provider="apple", model="apple-vision", force_ocr=True,
+                         answer=lambda n, call: words[call - 1])
+    assert result["calls"] == [1, 1, 1]  # one picture per line, not the page
+    assert _tied(page, words) == [[w] for w in words]
+    assert [p.id for p in _passes(page)] == before
+
+
+@pytest.mark.asyncio
+async def test_a_vision_model_on_a_page_with_lines_is_shown_each_line_and_its_words_land_on_them_5721(page, monkeypatch):  # noqa: F811
+    before = [p.id for p in _passes(page)]
+    words = ["qwen uno", "qwen dos", "qwen tres"]
+    result = await _read(page, monkeypatch, provider=MODEL[0], model=MODEL[1], vision_mode="llm", force_ocr=True,
+                         answer=lambda n, call: json.dumps(words[:n]))
+    assert sum(result["calls"]) == 3 and max(result["calls"]) <= 8
+    assert _tied(page, words) == [[w] for w in words]
+    assert [p.id for p in _passes(page)] == before
+
+
+@pytest.mark.asyncio
+async def test_an_auto_reader_on_a_page_with_lines_ties_to_them_whichever_it_resolves_to_5721(page, monkeypatch):  # noqa: F811
+    words = ["auto uno", "auto dos", "auto tres"]
+    await _read(page, monkeypatch, provider="apple", model="apple-vision", vision_mode="auto", force_ocr=True,
+                answer=lambda n, call: words[call - 1])
+    assert _tied(page, words) == [[w] for w in words]
+
+
+@pytest.mark.asyncio
+async def test_a_reader_never_replaces_the_text_of_a_page_that_has_lines_5721(page, monkeypatch):  # noqa: F811
+    from fichero_server.models import Document
+
+    kept = page["db"].get(Document, page["doc"].id).page_content
+    assert kept
+    await _read(page, monkeypatch, provider="apple", model="apple-vision", force_ocr=True,
+                answer=lambda n, call: f"otro {call}")
+    assert page["db"].get(Document, page["doc"].id).page_content != "otro 1"
+
+
+@pytest.mark.asyncio
+async def test_a_page_that_has_text_and_no_instruction_to_read_again_is_not_read_5721(page, monkeypatch):  # noqa: F811
+    """What a Transcribe did before stays: without `force_ocr` a page that has text is passed through, so the
+    reader is not asked."""
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.sources import files_tool
+
+    fresh = await files_tool(inputs={}, state={"selected_doc_ids": [page["doc"].id], "library_path": page["library"]},
+                             llm_config=LLMConfig(provider="", model=""))  # the page as the sources step now hands it on
+    result = await _read({**page, "src": fresh}, monkeypatch, provider="apple", model="apple-vision",
+                         answer=lambda n, call: "x")
+    assert result["calls"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_page_with_no_lines_read_by_a_model_says_its_text_is_tied_to_no_line_5721(page, monkeypatch, tmp_path):  # noqa: F811
+    from PIL import Image
+
+    from fichero_server.llm import LLMConfig
+    from fichero_server.models import DocType, Document, FileType
+    from fichero_server.workflows.tools.sources import files_tool
+
+    path = tmp_path / "sin_lineas.png"
+    Image.new("RGB", (400, 300), "white").save(path)
+    bare = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path))
+    db_manager.get_database(page["library"]).save(bare)
+    src = await files_tool(inputs={}, state={"selected_doc_ids": [bare.id], "library_path": page["library"]},
+                           llm_config=LLMConfig(provider="", model=""))
+    bare_page = {**page, "doc": bare, "src": src}
+    result = await _read(bare_page, monkeypatch, provider=MODEL[0], model=MODEL[1], vision_mode="llm",
+                         force_ocr=True, answer=lambda n, call: "todo el texto de la pagina")
+    assert any("tied to no line" in note and "sin_lineas.png" in note for note in result.get("notes", []))

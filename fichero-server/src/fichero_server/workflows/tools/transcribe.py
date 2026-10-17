@@ -7,7 +7,9 @@ Inherits from vision_base.py - only defines transcribe-specific config and promp
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 
 from fichero_server.workflows.types import State
@@ -263,6 +265,19 @@ def _reader_is_apple_vision(vision_mode: str, llm_config: LLMConfig) -> bool:
     return vision_mode == "auto" and (getattr(llm_config, "provider", "") or "").lower() == "apple"
 
 
+def _pages_with_lines(documents: list, files: list, library_path: str) -> list[str | None]:
+    """Per file, the id of its page when that page already has lines (a working pass), else None."""
+    from fichero_server.db import db_manager
+    from fichero_server.llm.working_lines import working_lines
+
+    ids = [d.get("id") if isinstance(d, dict) else None for d in (documents or [])[: len(files)]]
+    ids += [None] * (len(files) - len(ids))
+    if not library_path or not any(ids):
+        return [None] * len(files)
+    db = db_manager.get_database(library_path)
+    return [i if i and working_lines(db, i) is not None else None for i in ids]
+
+
 def build_transcribe_prompt(config: dict) -> str:
     """Build prompt from config (exposed to UI)."""
     # `auto` is passed through, not normalised to a locale — the preview then
@@ -371,6 +386,24 @@ async def transcribe(
     # Build prompt
     prompt = inputs.get("prompt") or _build_prompt(language, return_boxes)
 
+    # Once a page has lines, every reader's output ties to them (`source.read.once-lines-exist-every-reading-ties-to-a-line`,
+    # #5721): Apple Vision and a vision model read each line (its own picture) onto the page's working pass, as Kraken
+    # does, instead of holding the whole page as text with no segment. A page that has text and is not asked to be read
+    # again is still passed through, as before. shortcut: all the run's pages or none; a mixed run reads page-level.
+    force_ocr = inputs.get("force_ocr", bool(inputs.get("prompt")) or not update_page_content)
+    save_to_db = inputs.get("save_to_db", True)
+    library_path = state.get("library_path", "")
+    lines_read_by = inputs.get("lines_read_by") or "kraken"
+    onto_lines = False
+    page_level = vision_mode != "kraken" and save_to_db and files and not on_segments
+    if page_level:
+        have_lines = await asyncio.to_thread(_pages_with_lines, documents, files, library_path)
+        has_text = any(isinstance(d, dict) and (d.get("page_content") or "").strip() for d in documents or [])
+        if all(have_lines) and (force_ocr or not has_text):
+            onto_lines = True
+            lines_read_by = "apple" if _reader_is_apple_vision(vision_mode, llm_config) else "model"
+            vision_mode = "kraken"
+
     # Override tool config if user disabled page_content update
     tool_config = TOOL_CONFIG
     if not update_page_content:
@@ -382,7 +415,7 @@ async def transcribe(
         )
 
     # Process with shared logic - pass all inherited config
-    return await process_vision(
+    result = await process_vision(
         files=files,
         documents=documents,
         prompt=prompt,
@@ -395,17 +428,14 @@ async def transcribe(
         # When vision_mode="kraken", read each segmented line with this Kraken
         # recognition model and save the transcript tied to its baselines.
         kraken_recognition_model=inputs.get("kraken_model"),
-        lines_read_by=inputs.get("lines_read_by") or "kraken",
+        lines_read_by=lines_read_by,
         # Apple Vision needs a concrete recognition locale and has no "unknown"
         # — it keeps its historical en-US fallback. That is an OCR hint, not a
         # claim about the document, and unlike the prompt above it does not
         # instruct a model to read Spanish as English.
         language=normalize_vision_language(resolution.language),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
-        force_ocr=inputs.get(
-            "force_ocr",
-            bool(inputs.get("prompt")) or not update_page_content,
-        ),
+        force_ocr=force_ocr,
         # Inherited from BASE_CONFIG
         temperature=inputs.get("temperature"),
         max_tokens=inputs.get("max_tokens"),
@@ -420,7 +450,7 @@ async def transcribe(
         context=context,
         input_metadata=input_metadata,
         thinking_mode=inputs.get("thinking_mode", "off"),
-        save_to_db=inputs.get("save_to_db", True),
+        save_to_db=save_to_db,
         save_to_file_flag=inputs.get("save_to_file", False),
         return_boxes=return_boxes,
         metadata_field=inputs.get("metadata_field"),
@@ -430,3 +460,12 @@ async def transcribe(
         # reasoning:" in an artifact typed `transcription`.
         postprocess_text=sanitize_transcription,
     )
+    notes = result.setdefault("notes", [])
+    if onto_lines:
+        notes.append(f"read each of the page's lines ({'Apple Vision' if lines_read_by == 'apple' else 'the model'} on "
+                     "each line's picture) and tied the words to them, not the page as one text")
+    elif page_level and library_path and not result.get("error"):
+        for file, page_id in zip(files, await asyncio.to_thread(_pages_with_lines, documents, files, library_path)):
+            if page_id is None:
+                notes.append(f"{Path(file).name}: no lines on this page, so its reading is the page's text, tied to no line")
+    return result
