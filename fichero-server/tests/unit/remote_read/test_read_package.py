@@ -149,6 +149,6 @@ def test_the_runner_cuts_and_parses_as_the_line_reader_does():
     same way where it reads at scale; the runner cannot import Fichero there, so these pin the copy."""
     page = Image.new("RGB", (2000, 1200))
     polygon = [[100, 300], [900, 310], [900, 360], [100, 350]]  # under 1,600 px: no resize on either side
-    assert page.crop(runner.crop_box(polygon, page.width, page.height)).size == line_reader.crop_line(page, polygon).size
+    assert runner.crop_line(page, polygon).tobytes() == line_reader.crop_line(page, polygon).tobytes()
     for raw in ('["Yten"]', '```json\n["a", null]\n```', "not json", '["a","b"]'):
         assert runner.parse_answer(raw, 1) == line_reader.parse_answer(raw, 1)

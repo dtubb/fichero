@@ -2498,12 +2498,18 @@ Jobs and chains
   statements, search) read the corrected lines. A correction that cannot be matched to the lines is never
   guessed onto them: it stays the page's review, and the step's result for that page says "not tied to
   lines".
-- `source.lines.read-the-marked-line` — **[BROKEN]** (#5445) a vision model reading Kraken's lines is shown
+- `source.lines.read-the-marked-line` — **[PARTIAL]** (#5445) a vision model reading Kraken's lines is shown
   the target line alone: the crop is cut to the line's own polygon with the outside masked (or the
-  target is marked), never a crop in which a neighbouring line is more complete than the target. Today
-  `llm/line_reader.crop_line` shows about two and a half lines with the target unmarked, and on
-  SM_NPQ_C01_005 lines 4–19 hold the text of the line above; a check of the exported training set
-  flags a quarter of a two-photo trial as shifted.
+  target is marked), never a crop in which a neighbouring line is more complete than the target. Before
+  (2026-10-04) `llm/line_reader.crop_line` showed about two and a half lines with the target unmarked, and
+  on SM_NPQ_C01_005 lines 4–19 held the text of the line above; a check of the exported training set
+  flagged a quarter of a two-photo trial as shifted. Built (2026-10-17): `crop_line` paints everything
+  outside the polygon (widened by a sixth of the line's height, for ascenders) the crop's median paper
+  colour; the runner's copy (`remote_read/runner.crop_line`) does the same, pixel for pixel; the training
+  pairs, the checker's cards and the evaluation all cut through `crop_line`. Tested in
+  `fichero-server/tests/unit/llm/test_read_the_marked_line_5445.py`. Not built: a real run on
+  SM_NPQ_C01_005 to count the lines that still read a neighbour; training sets exported before this
+  hold the old pictures and are built again.
 - `source.lines.reading-checked-against-the-page` — **[PARTIAL]** (#5446) *Built (2026-10-05): `POST /api/check/runs` with `check: line-against-page` (provider `kraken`, a Kraken reader) queues a `check-lines` job on the local model lane; `checking/line_check.py` reads each line of the pass again through `kraken_runtime.read_given_lines`, scores the reading (1 − accent-blind CER) against its own rough read and up to two same-column lines either side, and rejects (`check.verdict`, trust `model`, the scores in its reasons) a reading closer to a neighbour (beaten by 0.15 and itself at least 0.40) or below 0.30; passing lines get no verdict, and a line a person has checked is not checked again; `GET /api/check/runs/{id}` gives the counts and each flagged line with its scores. Built (2026-10-08, #5524): while the check runs or waits for memory, those counts and flags are the pages it has finished so far, and its job's reason says the counts; a stop for memory waits and carries on after its last finished page (never `failed`, no line given a second verdict); a passing line is counted, not given a verdict; the memory reason shows the two amounts it compared so they never read as the same number (`fichero-server/tests/unit/check/test_line_check_memory.py`). Empty and `null` readings are left out by the training set's own rule. Tested in `fichero-server/tests/unit/check/test_line_against_page.py`. Shown in the app (2026-10-05): `FlaggedLineStore` reads the reading verdicts and each run that rejected a line on the page; a line whose reading's newest verdict is still the run's reject carries a flag mark in the Order list (the Segments pane's list), the strip and the grid, with its flag and scores in words on hover ("Teacher text matches the next line better (0.52 vs 0.21)"), the Segments pane's head counts the page's flagged lines, and the Inspector says the flag, the run's counts and offers Confirm Reading (a person's `check.verdict` confirm on the rejected reading, which clears the mark in place); tested in `fichero/Tests/Unit/general/Models/FlaggedLineStoreTests.swift`. Not built: a null or empty line shown as flagged (the training set leaves it out by its own rule, unmarked).* each model reading of a Kraken line
   is scored against that line's own rough Kraken read and its neighbours' (the characters they share);
   a reading that matches a neighbour clearly better than its own line, a null or empty reading, and one

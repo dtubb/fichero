@@ -38,12 +38,26 @@ _MAX_CROP_WIDTH = 1600
 
 # --- pure parts (pinned by tests against Fichero's own reader and line reader) -----------------------
 
-def crop_box(polygon: list, width: int, height: int) -> tuple[float, float, float, float]:
-    """The line's polygon bounds padded by a third of its height: `line_reader.crop_line`'s box."""
+def crop_line(image: Any, polygon: list) -> Any:
+    """`line_reader.crop_line`: the polygon's bounds padded by a third of its height, the outside of the
+    polygon (a sixth of its height beyond it) painted the crop's paper colour (#5445), at most 1,600 px wide."""
+    from PIL import Image, ImageDraw, ImageStat
+
     xs = [p[0] for p in polygon]
     ys = [p[1] for p in polygon]
     pad = (max(ys) - min(ys)) / 3
-    return (max(0, min(xs) - pad), max(0, min(ys) - pad), min(width, max(xs) + pad), min(height, max(ys) + pad))
+    box = tuple(round(v) for v in (max(0, min(xs) - pad), max(0, min(ys) - pad),
+                                   min(image.width, max(xs) + pad), min(image.height, max(ys) + pad)))
+    crop = image.crop(box).convert("RGB")
+    mask = Image.new("L", crop.size, 0)
+    shape = [(x - box[0], y - box[1]) for x, y in polygon]
+    draw = ImageDraw.Draw(mask)
+    draw.polygon(shape, fill=255)
+    draw.line(shape + shape[:1], fill=255, width=max(1, round(pad)), joint="curve")
+    crop = Image.composite(crop, Image.new("RGB", crop.size, tuple(ImageStat.Stat(crop).median)), mask)
+    if crop.width > _MAX_CROP_WIDTH:
+        crop = crop.resize((_MAX_CROP_WIDTH, round(crop.height * _MAX_CROP_WIDTH / crop.width)))
+    return crop
 
 
 def parse_answer(raw: str, n: int) -> list[str | None] | None:
@@ -144,10 +158,7 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
         lines = [line for line in _raw_lines(blla.segment(image, model=segmenter)) if line["polygon"]]
         kept = []
         for line in lines:
-            picture = image.crop(crop_box(line["polygon"], image.width, image.height))
-            if picture.width > _MAX_CROP_WIDTH:
-                picture = picture.resize((_MAX_CROP_WIDTH, round(picture.height * _MAX_CROP_WIDTH / picture.width)))
-            text = ask(picture.convert("RGB"))
+            text = ask(crop_line(image, line["polygon"]))
             if text is not None:  # no writing on this line: dropped, as the line reader does
                 kept.append({**line, "text": text})
         return kept
