@@ -46,3 +46,21 @@ def test_the_shipped_cards_default_the_statements_step_to_the_parser(tmp_path, m
     step = next(s for s in assemble(ANSWERS, known_cards(ANSWERS))["steps"] if s["job"] == "find-statements")
 
     assert step["model"].get("spacy") == "es_core_news_sm" and not step.get("gap"), step
+
+
+def test_no_card_is_listed_twice_by_the_rules_or_the_finder(tmp_path, monkeypatch):
+    """source.job.find-statements.candidates: the parser's cards are the rules' (known_cards) and the finder's offers
+    (discover), each once, so no list shows one twice."""
+    from collections import Counter
+
+    from fichero_server.recipes.discovery import discover, known_cards
+
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "store"))
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+
+    rules = Counter(c.id for c in known_cards(ANSWERS))
+    found, _sources = discover(ANSWERS, online=False, job="find-statements")
+    offered = Counter(c.id for c in found)
+
+    assert [i for i, n in rules.items() if n > 1] == [] and [i for i, n in offered.items() if n > 1] == []
+    assert "spacy:svo/es_core_news_sm@bundled" in rules and "spacy:svo/es_core_news_sm@bundled" in offered
