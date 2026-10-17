@@ -499,10 +499,13 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/table.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/topics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/train_offers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/__init__.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/askpass.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/job.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/package.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/remote_read/slurm.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/slurm_target.py
+$(SRCROOT)/../fichero-server/src/fichero_server/remote_read/ssh_prompts.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/bin/.gitignore
 $(SRCROOT)/../fichero-server/src/fichero_server/resources/default_workflows/__init__.py

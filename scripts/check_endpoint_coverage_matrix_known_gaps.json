@@ -301,5 +301,10 @@
   "POST /api/documents/copy-into-project": "Copy into the Project (#5669): the app runs it as the audited action document.copy_into_project through POST /api/actions/invoke (ICloudPagesStore), so ⌘Z holds it; this matrix counts a route by its operation name",
   "POST /api/documents/relink-originals": "Locate Originals (#5672): the app runs it as the audited action document.relink_originals through POST /api/actions/invoke (OriginalsStore), so ⌘Z holds it; this matrix counts a route by its operation name",
   "GET /api/actions/registry/{name}": "One registered action whole, for an agent (openapi.mcp.answers-fit-an-agent): the MCP tool and the CLI reach it; the app reads the registry list it already has",
-  "PUT /api/recipes/samples": "swapping a sample page in Set Up (#5668): engine, CLI and MCP first; the app reads the samples and its swap is not built yet"
+  "PUT /api/recipes/samples": "swapping a sample page in Set Up (#5668): engine, CLI and MCP first; the app reads the samples and its swap is not built yet",
+  "DELETE /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
+  "GET /api/hpc/prompts": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
+  "POST /api/hpc/clusters/{cluster_id}/sign-in": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
+  "POST /api/hpc/prompts/{prompt_id}": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
+  "PUT /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)"
 }
