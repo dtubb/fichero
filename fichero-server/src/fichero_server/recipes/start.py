@@ -23,6 +23,7 @@ from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 WORKFLOW_FOR_JOB = {
     "split-pages": "split_pages",
     "find-lines": "detect_regions_kraken",
+    "find-the-script": "classify_script",
     "read-a-line": "transcribe_kraken",
     "read-a-page": "transcribe_htr",
     "transcribe-speech": "transcribe_audio",
@@ -54,7 +55,7 @@ READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
 #: Apple Vision as a line finder only, for print and typescript: its lines, none of its text (#5451).
 APPLE_LINES_WORKFLOW = "detect_regions_apple_lines"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
-_OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements",
+_OVERRIDE_JOBS = frozenset({"read-a-page", "find-the-script", "correct", "find-names-tag-words", "find-statements",
                             "translate-transliterate-normalise"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`), the page text tied to
 #: its lines (a check run of kind `tie-text-to-lines`, #5444: free, on this Mac, with a Kraken reader) and the
