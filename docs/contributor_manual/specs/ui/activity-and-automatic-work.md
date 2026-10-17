@@ -723,7 +723,7 @@ workflow by hand: a hand run is a job like any other.
   `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`). Not yet seen in the
   app. Still a gap: greenhouse gas (`activity.ghg.estimate-with-its-basis`), and images run and
   steps run as counted measures of their own.
-- `activity.ghg.estimate-with-its-basis` — **[GAP]** (#5420) each run, step and page carries its
+- `activity.ghg.estimate-with-its-basis` — **[PARTIAL]** (#5420) Built: the arithmetic and the roll-up (`execution/ghg.py`, pinned by `fichero-server/tests/unit/jobs/test_ghg_estimate_with_its_basis_5420.py`): power x time x grid intensity, a missing figure is unknown never 0, a roll-up sums the known parts and takes the weakest basis. Still a gap: nothing reads the Mac's power draw, a target's rated hardware or a grid-intensity table into it, and no job row or window shows it. each run, step and page carries its
   greenhouse gas, rolled up the tree: an estimate from the energy it used times the grid intensity
   where that energy was drawn. Energy on this Mac is its power draw over the job's time; on a remote
   target, the target's stated hardware over the job's time. The figure always says its basis
