@@ -299,6 +299,11 @@ is case-insensitive. Every count and list below is filtered by milestone NUMBER
   `importers/`/`workflows/tools/` this pass. Stated as a generalizable defect class, not
   assumed to be Marshall-specific plumbing — not independently reproduced against a second
   corpus this pass.
+  Checked 2026-10-17 on a scratch copy of the Marshall Diaries library (read-only): none of its 4,309
+  transcription artifacts carries an English block followed by a Spanish block (26 mix English with
+  Spanish loanwords and names only), and no KG claim is Spanish (2,813 `en`, 388 unset). The reported
+  duplication is not present in this library, so there is nothing to red-test; it stays a GAP until a
+  library that shows it is available.
 
 **Verify-close — evidence posted, left OPEN, not closed here:**
 
