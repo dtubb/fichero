@@ -142,6 +142,10 @@ def start_for_engine(env: Mapping[str, str] | None = None, *, log) -> tuple[str,
     # and start_fichero_server.sh's, which never set that flag and so never forwarded (#5320).
     if not tailnet_url(source) or not (source.get("FICHERO_TLS_CERTFILE") or "").strip():
         return None
+    # A socket-only engine binds no TCP port: forwarding to it would hand every guest a 502 (#5752).
+    if (source.get("FICHERO_UDS_PATH") or "").strip() and source.get("FICHERO_TCP_TLS_ALSO") != "1":
+        log.warning("Sharing over Tailscale: this engine listens on a socket only, so nothing is forwarded")
+        return None
     port = int(source.get("FICHERO_TCP_PORT", "8765"))
     cli = tailscale_cli()
     if cli is None:
