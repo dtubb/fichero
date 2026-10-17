@@ -13,7 +13,7 @@
   "routing"
  ],
  "config": {
-  "preset_version": 6
+  "preset_version": 7
  },
  "nodes": [
   {
@@ -115,7 +115,7 @@
    "config": {
     "vision_mode": "llm",
     "language": "auto",
-    "update_page_content": true,
+    "update_page_content": false,
     "thinking_mode": "medium",
     "prompt": "You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading.\n\n**This pass: abbreviations, contractions, and formulary.**\n- Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text.\n- Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written.\n- Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read.\n- Output the COMPLETE corrected transcription (same line breaks), nothing else.\n\nThen apply, in the same pass: orthography and letter-shape audit for the period, and name/date consistency — flag conflicts, never silently choose."
    }
@@ -164,7 +164,7 @@
    "config": {
     "vision_mode": "llm",
     "language": "auto",
-    "update_page_content": true,
+    "update_page_content": false,
     "thinking_mode": "long",
     "prompt": "You are a paleographer reviewing an EXISTING transcription of the manuscript image you are shown. The prior transcription is provided as context. Take your time — think through every hard line against the strokes before accepting or changing a reading.\n\n**This pass: abbreviations, contractions, and formulary.**\n- Verify every expansion. Brackets belong ONLY around letters supplied by expansion (mer[ce]d, v[ecin]o). Remove bracket noise around letters that are visible on the page, and remove any spurious full stops between words — restore continuous text.\n- Expand abbreviations the draft left unexpanded where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written.\n- Identify the document's genre (carta de poder, confesión, probanza, auto, oficio...) and check the draft against its formula skeleton. Where the draft's text breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...] — never insert formula text as if it were read.\n- Output the COMPLETE corrected transcription (same line breaks), nothing else.\n\nThen apply, in the same pass: orthography and letter-shape audit for the period, and name/date consistency — flag conflicts, never silently choose."
    }

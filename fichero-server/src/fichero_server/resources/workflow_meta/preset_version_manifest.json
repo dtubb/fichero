@@ -63,6 +63,10 @@
   "preset_version": 3,
   "sha256": "542525a6012e65984151558947cb2647bceb77d375481558d5551f757bb138c6"
  },
+ "detect_regions_apple_lines.json": {
+  "preset_version": 1,
+  "sha256": "a30e478b47af7d63cebc4d9b38b56b3ea55135cc26a2cbc723a5479766438a11"
+ },
  "detect_regions_kraken.json": {
   "preset_version": 2,
   "sha256": "85ce4129398c263daed583ad3de2763ede92539356439f32f3d0c53e0d4df7bc"
@@ -164,8 +168,8 @@
   "sha256": "0ee565bd85620221df667efae544b494af5f09b0520ee4541aa4b2d928079beb"
  },
  "transcribe_auto_detect.json": {
-  "preset_version": 6,
-  "sha256": "31b591acf658a7b61989b00a19aa76ef5db17fc5bb00f82371dd4abfb5e5a678"
+  "preset_version": 7,
+  "sha256": "bfbc0f62fc8f6aa8c6cc16a5a2df1107006878ce4eb08965c4486d84c6f6ab87"
  },
  "transcribe_cloud.json": {
   "preset_version": 5,
@@ -188,8 +192,8 @@
   "sha256": "8b50b35334c21a7188c240533a3da58f62743d27a5f9fa4aabad0e99ff686bf4"
  },
  "transcribe_paleography_economy.json": {
-  "preset_version": 2,
-  "sha256": "67da3f77aa3a2e431ddbe4158b1b8f364036c4781bce7d21e763d01d19de1ca5"
+  "preset_version": 3,
+  "sha256": "3405548bd45cf93fad9eeac695c90d79e7b5d8efd104d15f758e43312376bb9f"
  },
  "transcribe_paleography_en_secretary.json": {
   "preset_version": 1,
@@ -208,8 +212,8 @@
   "sha256": "15b8d361b04170a63190e2055cde7634db9e0c8d039472fba87d32e8c33cf34e"
  },
  "transcribe_paleography_review.json": {
-  "preset_version": 2,
-  "sha256": "f7055aba42b3aa5e829f1e07895d8ac2b7b2d36c010c18619062767e48412ae1"
+  "preset_version": 3,
+  "sha256": "23a02e61d00b21a9de5fb02fd2bf33d9c83903b5fbbf7d97bcc238a018007c8f"
  },
  "transcribe_review_pipeline.json": {
   "preset_version": 1,

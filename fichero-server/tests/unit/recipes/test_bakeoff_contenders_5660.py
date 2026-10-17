@@ -159,8 +159,10 @@ def test_the_line_finders_are_scored_by_the_checked_lines_they_find(client, db, 
     assert rows["yolo"]["why"] == "not available yet: it finds regions, not lines" and not rows["yolo"]["measured"]
     assert done["winner"] == "kraken:builtin/blla@bundled" and done["rows"][0]["model"] == "kraken-blla"
     use = f"/api/recipes/project/bakeoffs/{started['id']}/use"
-    refused = client.post(use, json={"card": APPLE})
-    assert refused.status_code == 422 and "runs Kraken's line finder only so far" in refused.json()["detail"]
+    # Apple Vision's lines are a finder the planner can run (#5451); a YOLO layout model is not a line finder.
+    assert client.post(use, json={"card": "apple:vision/find-lines@os"}).status_code == 200
+    refused = client.post(use, json={"card": "yolo:hf/hantian/yolo-doclaynet@main"})
+    assert refused.status_code == 422, refused.text
     assert client.post(use, json={"card": "kraken:builtin/blla@bundled"}).status_code == 200
 
 

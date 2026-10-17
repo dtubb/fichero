@@ -140,6 +140,38 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
     return out
 
 
+REMOVED_STEP = "removed-step"
+
+
+def override_kind(override: dict[str, Any]) -> str:
+    """What an override records: a `card` (a chosen reader; every record kept before kinds read as this) or a
+    `removed-step` (`source.recipe.take-without-missing-step`, #4949)."""
+    return str(override.get("kind") or "card")
+
+
+def take_without_missing_steps(recipe: dict[str, Any]) -> dict[str, Any]:
+    """The recipe without the steps whose job this Fichero lacks, each removal recorded as an override of kind
+    `removed-step` ("job not available"); a recipe with none missing comes back as it is. The argument is untouched."""
+    import copy
+
+    missing = [s for s in recipe.get("steps") or [] if get_job(s.get("job", "")) is None]
+    if not missing:
+        return recipe
+    out = copy.deepcopy(recipe)
+    gone = {s.get("id") for s in missing}
+    out["steps"] = [s for s in out["steps"] if s.get("id") not in gone]
+    out["overrides"] = [*(out.get("overrides") or []),
+                        *({"step": s.get("id"), "kind": REMOVED_STEP, "reason": "job not available",
+                           "job": s.get("job"), "scope": "project", "folder_id": None} for s in missing)]
+    return out
+
+
+def offered_back(recipe: dict[str, Any]) -> list[dict[str, Any]]:
+    """The removed steps whose job exists now (after an update): offered back to the person, never put back by itself."""
+    return [o for o in recipe.get("overrides") or []
+            if override_kind(o) == REMOVED_STEP and get_job(str(o.get("job") or "")) is not None]
+
+
 def cloud_steps(recipe: dict[str, Any]) -> list[str]:
     """The ids of steps that send pages off this Mac (shown in the recipe editor; asked about once)."""
     return [s.get("id", "?") for s in recipe.get("steps") or []

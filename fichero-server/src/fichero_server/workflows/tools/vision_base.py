@@ -43,6 +43,7 @@ from fichero_server.media.ocr_geometry import (
     attach_char_spans,
     from_apple_vision_result,
     geometry_unavailable,
+    lines_only,
     parse_vlm_geometry,
 )
 from fichero_server.llm.read_guard import (
@@ -3731,6 +3732,8 @@ async def process_vision(
     save_to_file_flag: bool = False,
     return_boxes: bool = False,
     force_return_boxes: bool = False,
+    #: Apple Vision as a line FINDER: the boxes of its lines, no text (`source.recipe.apple-finds-lines-on-print`).
+    keep_text: bool = True,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     # Applied to the final LLM text BEFORE any save (#4329). Lets a markup
@@ -4609,6 +4612,15 @@ async def process_vision(
                     )
                     text = _vision_result.text
                     page_geometry = _apple_geometry_result(_vision_result)
+                if not keep_text:
+                    # Apple as a line FINDER (image, requested PDF page, every PDF page): its boxes, never its text
+                    # (`source.recipe.apple-finds-lines-on-print`).
+                    text = ""
+                    if per_page_texts is not None:
+                        per_page_texts = [""] * len(per_page_texts)
+                    page_geometry = page_geometry and lines_only(page_geometry)
+                    if per_page_geometries is not None:
+                        per_page_geometries = [g and lines_only(g) for g in per_page_geometries]
                 # Apple Vision doesn't use LLM params, parse as text
                 parsed = text
             elif vision_mode == "kraken":
@@ -5235,7 +5247,14 @@ async def process_vision(
                 if reference_values:
                     parsed = apply_reference_matching(parsed, reference_values)
 
-            if not (text or "").strip() and (vision_mode == "apple" or _resolved_provider == "apple"):
+            # Apple as a line FINDER keeps no text on purpose: its lines are the output, so empty text is not "no
+            # text found" (`source.recipe.apple-finds-lines-on-print`).
+            _lines_found_without_text = not keep_text and bool(
+                (page_geometry and page_geometry.boxes)
+                or any(g and g.boxes for g in per_page_geometries or [])
+            )
+            if (not (text or "").strip() and not _lines_found_without_text
+                    and (vision_mode == "apple" or _resolved_provider == "apple")):
                 # Apple's text recognition found no text on the page: that is what it found, not a failed read,
                 # and reading again would find the same nothing (`source.recipe.no-text-found-is-not-a-failure`,
                 # #5668: a run counted blank versos as failed reads and offered to read them again).
@@ -5245,7 +5264,7 @@ async def process_vision(
                 values.append(None)
                 return _outcome()
 
-            if not (text or "").strip() and vision_mode != "kraken":
+            if not (text or "").strip() and vision_mode != "kraken" and not _lines_found_without_text:
                 # Kraken is a SEGMENTER: it reads nothing, so empty text is the
                 # expected result, not a failed transcription — its baseline/
                 # polygon geometry (page_geometry) is what this run produces and
