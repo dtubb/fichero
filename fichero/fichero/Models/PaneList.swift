@@ -236,6 +236,14 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
         }
     }
 
+    /// The leaf with `id` anywhere under this node, or nil.
+    func leafNode(withID id: UUID) -> PaneNode? {
+        switch self {
+        case let .leaf(leafID, _, _, _): return leafID == id ? self : nil
+        case let .split(_, _, children): return children.lazy.compactMap { $0.leafNode(withID: id) }.first
+        }
+    }
+
     /// The first leaf in reading order (this node itself when it is one).
     var firstLeaf: PaneNode? {
         switch self {
