@@ -548,6 +548,13 @@ def tree(db: "Database", job_id: str) -> dict[str, Any] | None:
         node["tokens"] = totals.total_tokens
         node["cost_usd"] = totals.cost_usd if totals.priced else None
         node["unpriced_models"] = totals.unpriced_models
+        # Where the calls under it ran, and how many went to each place (`ai.where.row-names-the-place`, #5582);
+        # a call recorded before places carries none and is not counted under a guess.
+        places: dict[str, int] = {}
+        for entry in usage:
+            if entry.get("place"):
+                places[entry["place"]] = places.get(entry["place"], 0) + 1
+        node["places"] = places
         return usage
 
     root = nodes[job_id]
