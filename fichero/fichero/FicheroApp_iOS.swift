@@ -1,4 +1,4 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -39,6 +39,21 @@ struct FicheroAppIOS: App {
                 // Launch connects via the SAME entry point as the Retry button
                 // and pairing (#3108): FicheroSharedPlatformRoot owns the single
                 // `reconnectToConfiguredHost()` task.
+        }
+        // The Mac's menus on the iPad menu bar (hardware keyboard, pointer, Stage Manager) and the
+        // iPhone overflow. The same structs as FicheroApp.swift, never a second set. Edit, Format and
+        // the app-menu extras stay Mac-only until their iOS behavior is ruled (undo gestures: #5658).
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
+            CommandGroup(after: .toolbar) {
+                ViewMenuCommands()
+                    .environment(viewSettings)
+            }
+            GoMenuCommands()
+            PageAndProjectMenuCommands()
         }
 
         // Detached document-detail scene, mirroring the macOS registration so
