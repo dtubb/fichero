@@ -178,7 +178,7 @@ vLLM offline inference, `resume_from_checkpoint` with `--requeue` for training, 
 - `compute.hpc.resume-long-training` — **[GAP]** (#5642) a fine-tune checkpoints at the warning signal and continues in a dependent job.
 - `compute.hpc.results-exactly-once` — **[GAP]** (#5642) results fold in once, with job, node, model and image digest, even if downloaded twice or resubmitted.
 - `compute.hpc.mfa-modes` — **[GAP]** (#5642) one MFA push per session before automation-node access, and the run is attended (watching stops when the session lapses, said in words); none after.
-- `compute.hpc.slim-worker-image` — **[GAP]** (#5642) the worker image carries only what jobs need, amd64, built and published by CI, Apptainer-ready.
+- `compute.hpc.slim-worker-image` — **[PARTIAL]** (#5642, #5241) the worker image carries only what jobs need, amd64, built and published by CI, Apptainer-ready. Built: `fichero-server/docker/worker.Dockerfile` (the runner's own PEP 723 dependencies, no MLX, an ordinary user) and `.github/workflows/worker-image.yml` (amd64 build, import check, publish to ghcr.io from main). Not yet: CI has not run it; vLLM/CUDA (A2); the Apptainer pull on a cluster. Test: `fichero-server/tests/unit/remote_read/test_worker_image.py`.
 - `compute.hpc.rehearsed-before-a-cluster` — **[GAP]** (#5642) the runner passes Slurm-in-Docker in CI (logic), a paid GPU (the work) and a rented Slurm+Apptainer machine (the whole flow) before a real cluster.
 - `compute.hpc.site-profiles` — **[GAP]** (#5642) a cluster profile holds the site's scheduler, container runtime, unattended-access mode, transfer, allocation, GPU types, walltime and compute-node internet; nothing is ACENET-only.
 - `compute.hpc.iiif-at-scale` — **[GAP]** (#5642) a million-page IIIF run fetches politely at reader size off the login nodes, keeps references, and starts with a measured pilot.
@@ -190,7 +190,7 @@ vLLM offline inference, `resume_from_checkpoint` with `--requeue` for training, 
 |---|---|---|---|
 | Backend (pytest) | y | plan, sbatch script, sacct parsing, failure states, exactly-once folding | `fichero-server/tests/unit/remote_read/` |
 | Integration (Slurm in Docker, in CI) | y | submit, array, sacct, timeout and requeue against a real Slurm | TBD |
-| Image | y | worker image builds for amd64 in CI, passes the import check, published for `apptainer pull` | TBD |
+| Image | y | worker image builds for amd64 in CI, passes the import check, published for `apptainer pull` | `fichero-server/tests/unit/remote_read/test_worker_image.py` |
 | MCP / CLI | y | plan and submit through the generated tools | `fichero-mcp/tests/` |
 
 ## Open questions (for the critique and for ACENET)
