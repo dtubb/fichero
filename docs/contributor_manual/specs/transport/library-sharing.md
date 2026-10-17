@@ -3,7 +3,7 @@
 > Milestone: Sharing & Pairing — Dead-Simple UX; Engine - Sharing - Accounts, Multi-user & Libraries
 > Manual: TBD — "Working on one library from two Macs".
 >
-> Design-led (Testing Constitution). **Status: DRAFT, 2026-10-01.** Written from the rulings in
+> Design-led (Testing Constitution). **Status: DRAFT, 2026-10-01** (stays DRAFT: most of the acceptance story is [GAP], and the new `*_to_spec.py` tests do not exist yet). Written from the rulings in
 > memory (two toggles; accounts are people; loopback + `tailscale serve`; device pairing; loopback is
 > owner; transport invariants) and a read of the code on integration at 5293d084f. Tags: **[OK]**
 > built and seen working · **[PARTIAL]** built, unproven or incomplete · **[GAP]** not built.
@@ -45,11 +45,8 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   turns Bonjour on, fills a `https://<host>.local:8765` address, restarts the bundled engine with an
   HTTPS listener, and lists paired devices (`ShareSettingsView+StateManagement.swift`). Never seen
   on two machines (#5049).
-- `sharing.listener` — **[PARTIAL]** (→ #5049, read, not run) the engine keeps its loopback listener and adds ONE listener
-  on the Mac's network address for a `.local` host (`FICHERO_LAN_HOST`, `__main__.py`). It never
-  binds `0.0.0.0` (`remote_access_tls._bind_host_for_public_host`), which the older transport
-  ruling allowed; the code's model (loopback + one LAN address) is the stricter one and this spec
-  takes it.
+- `sharing.listener` — **[PARTIAL]** (→ #5736) the Mac's own app always dials its engine over the Unix socket. Sharing off: loopback only, no network listener. The one extra `.local` listener (`FICHERO_LAN_HOST`, `__main__.py`) exists ONLY while Sharing is on AND "This network" is checked (`sharing.share-on-choice`), bound to the host's `.local` address, never `0.0.0.0` (`remote_access_tls._bind_host_for_public_host`), TLS and a pairing token required. Built: the listener; not built: it follows the checkbox (today it follows the `.local` address alone).
+- `sharing.share-on-choice` — **[GAP]** (→ #5736) Sharing has one sub-choice, "Share on:", with two checkboxes: "This network (Bonjour, .local)" and "Tailscale (.ts.net)". Defaults: Tailscale checked when Tailscale is up; This network unchecked (safe at work, one tap at home). At work nothing is advertised on Bonjour; at home phones and iPads reach the Mac on the local network. Test: `fichero-server/tests/unit/security/test_share_on_listeners_to_spec.py`, `fichero/Tests/Unit/general/Sharing/ShareOnChoiceTests.swift`.
 - `sharing.certificate-pinned` — **[PARTIAL]** (→ #5049) a self-signed certificate is made once
   (`--prepare-remote-access`), names the host, 127.0.0.1 and localhost, and the app records its pin
   per host. Fixed by #5041, unproven across machines (#5049).
@@ -59,13 +56,8 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   e.g. Tailscale) it carries no address. Run 2026-10-01 on the MBP: it advertised 127.0.0.1 under
   `UNB-C02F45GAQ05P.local` before `edd6c4938`, and `131.202.228.23` under `macbook-pro-m1.local` after.
   Where mDNS does not cross between machines (the campus network) nobody sees it: that is the network.
-- `sharing.tailscale-serve` — **[PARTIAL]** (→ #2603, #5311; pinned by `tests/unit/security/test_tailscale_serve.py`, `tests/unit/security/test_remote_access_tls.py::test_a_tailscale_address_binds_loopback_and_its_certificate_names_it`)
-  with a `.ts.net` sharing address the engine binds loopback only, its certificate names the
-  tailnet host, and the engine makes `tailscale serve --tcp <port> tcp://127.0.0.1:<port>` at start
-  and removes it at stop -- only the forward it made; a port serving something else is refused.
-  Pairing codes carry the address as `tailnet_url`. Run 2026-10-01, MBP host, Air paired over the
-  tailnet. **Still open:** the sandboxed app running the Tailscale CLI (#5317); the address is still
-  typed under Advanced (#5318).
+- `sharing.tailscale-serve` — **[PARTIAL]** (→ #2603, #5311, #5320; pinned by `tests/unit/security/test_tailscale_serve.py`, `tests/unit/security/test_remote_access_tls.py::test_a_tailscale_address_binds_loopback_and_its_certificate_names_it`)
+  with a `.ts.net` sharing address the engine binds loopback only and makes `tailscale serve --https=<port> https+insecure://127.0.0.1:<port>` at start and removes it at stop (only the forward it made; a port serving something else is refused). Tailscale terminates TLS with its own public certificate, so the client trusts the **system** certificate for `.ts.net` (Tailscale identity plus the pairing token protect it) and keeps the **SPKI pin** only for `.local` hosts (ruled 2026-10-17). Proxied requests carry Tailscale headers and are never loopback (`api/auth.py`). Pairing codes carry the address as `tailnet_url`. **Still open:** an app pairing over the tailnet (#5320, needs the M4); the sandboxed app cannot run the Tailscale CLI, so it shows one command to paste with a copy button (#5317); the address is offered in the share sheet, not typed (#5318).
 - `sharing.invite` — **[PARTIAL]** (→ #5049) the pairing card's QR / link carries the address, a one-time
   code, the pin and ONE library path (the host's current library).
 
@@ -77,8 +69,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.mac-pairs` — **[PARTIAL]** (→ #5049, read, not run) pairing sends the code to `POST /api/pair` with the pin
   enforced, checks health, and stores the token in the Keychain with its expiry, the pin, the host
   and the library path (`RemoteClientPairingFlow.swift`). Never run between two Macs (#5049).
-- `sharing.library-confirmed` — **[GAP]** (#3273) the Mac keeps the invite's library path without
-  asking the host whether it may open it; iOS checks.
+- `sharing.library-confirmed` — **[OK]** (#3273; pinned by `fichero/Tests/Unit/general/Transport/RemoteClientPairingLibraryConfirmTests.swift`, `RemoteClientPairingFlow.confirmLibraryAccess`) before opening, the Mac asks the host whether it may open the invite's library. Swift tests run only on the M4 (#4511); issue stays open with needs-your-test.
 - `sharing.opens-the-library` — **[PARTIAL]** (→ #5049, read, not run) the second Mac switches its active host to the
   first, adopts the invite's library and lists the host's libraries from `/api/authz/libraries`;
   the library path header names the path ON THE HOST. One host at a time for the whole app (#2573).
@@ -92,17 +83,13 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   the stream lost an event when the host's loop stalled past its keepalive, fixed in #5314
   (`test_an_event_queued_while_the_loop_stalls_past_the_keepalive_is_still_sent`). The app's
   windows were not run.
-- `sharing.who-did-it` — **[BROKEN]** (→ #5319) each edit's audit row names both the person AND the
-  device that made it. With Multi-user off both people are the owner, each row naming its device
-  (the host Mac or the paired Mac); the host's own edit is never `system` (ruled 2026-10-04). Run
-  2026-10-01, Multi-user off: the host's own edit was `system`, the paired Mac's `owner`, and no row
-  named the device.
+- `sharing.who-did-it` — **[OK]** (→ #5319; pinned by `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py::test_pin_who_did_it_*` and `fichero-server/tests/integration/test_sharing_who_did_it.py::test_the_host_and_a_paired_mac_are_told_apart_in_the_audit`) each edit's audit row names both the person AND the device that made it. With Multi-user off both people are the owner, each row naming its device; the host's own edit is never `system` (ruled 2026-10-04). Fixed in 6b6115612 (engine, in-process). Not yet seen across two real Macs: #5319 stays open with needs-your-test until the checklist passes.
 - `sharing.revoke` — **[PARTIAL]** (→ #5049) the host lists paired devices and can revoke one; a revoked
   token is refused (pinned in `test_device_pairing_e2e.py`, in-process; run 2026-10-01 across two
   Macs: the paired MBP's next call was 401). The app's device list was not run.
 - `sharing.revoke-cascades` — **[GAP]** (#5351) revoking a paired device also revokes every device
   it paired (and theirs, down the chain); the revoke sheet lists those devices first, before the
-  person confirms. (Ruled 2026-10-04.)
+  person confirms. (Ruled 2026-10-04.) Needs `paired_by_device_id` on pairing codes and on `devices` (an idempotent ALTER migration; ruled 2026-10-17) and a walk in `AppDatabase.revoke_device`. Most useful with Multi-user on, where a paired person can mint codes. Test: `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py` (cascade case).
 
 ### D. Other people (Multi-user on)
 
@@ -128,12 +115,12 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   A's steps. When A turns Sharing off, B says "A stopped sharing this library", closes the shared windows and returns to its own
   projects, with no error screens. Nothing here asks the user for a port, certificate or token. Drilled by the tester with
   `docs/contributor_manual/testing/sharing-two-mac-checklist.md`; its parts are the behaviours below. Test: `fichero-server/tests/unit/transport/test_two_macs_end_to_end_to_spec.py` (in-process: two clients, two accounts, one engine); the real run is the checklist on the M4.
-- `sharing.two-toggles-wording` — **[GAP]** (→ #5049) Settings › Sharing has exactly two switches. *Sharing*: "Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients." *Multi-user*: "Give other people their own accounts on this Mac's libraries." Nothing else is asked. Today the Sharing switch reads On/Off with that caption; the Multi-user switch lives in Engine settings and only the Users screen explains it. Test to be written: `fichero/Tests/Unit/general/Sharing/SharingTogglesTests.swift` (the two labels and captions, and that no third switch exists).
+- `sharing.two-toggles-wording` — **[GAP]** (→ #5049) Settings › Sharing has exactly two switches. *Sharing*: "Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients." *Multi-user*: "Give other people their own accounts on this Mac's libraries." Nothing else is asked. Today the Sharing switch reads On/Off with that caption; the Multi-user switch lives in Engine settings (`EngineSettingsView.swift`) and must MOVE, not be duplicated, to sit beside Sharing in Settings › Sharing (ruled 2026-10-17; #3284). Test to be written: `fichero/Tests/Unit/general/Sharing/SharingTogglesTests.swift` (the two labels and captions, and that no third switch exists).
 - `sharing.names-on-edits` — **[GAP]** (→ #5735) with two accounts, an edit made by the second person on B is recorded as that person on device B, and the owner's on A as the owner on A (needs `sharing.device-chooses-person`, `sharing.who-did-it`). Test: `fichero-server/tests/unit/transport/test_two_accounts_names_on_edits_to_spec.py`.
 - `sharing.remote-run-in-host-activity` — **[GAP]** (→ #5732) a read run started from B is a row in A's Activity (`/api/activity/stream`), started by B's person, on device B, live to its end. Test: `fichero-server/tests/unit/transport/test_remote_run_in_activity_to_spec.py`.
 - `sharing.undo-after-remote-edit` — **[GAP]** (→ #5733) A's undo reverses only A's own steps; if B changed the same thing since, it is refused in a sentence naming who and when (`undo-everywhere.md`, #5658). Test: `fichero-server/tests/unit/transport/test_undo_after_remote_edit_to_spec.py`.
 - `sharing.off-closes-the-guest` — **[GAP]** (→ #5731) turning Sharing off on A ends B's change stream with a typed "sharing stopped" event before the listener closes; B shows one sentence, closes the shared windows and returns to its own projects; no reconnect loop. Test: `fichero-server/tests/unit/transport/test_sharing_off_to_spec.py` (engine); the window behaviour on the checklist.
-- `sharing.stale-edit-both-ways` — **[PARTIAL]** (→ #5348) engine half built; the app must send the version (see `sharing.stale-note-edit-is-refused-and-offered-a-choice`): B's edit on a note A changed is refused 409, never silently lost. Test: `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py` (xfail strict until the app sends the version).
+- `sharing.stale-edit-both-ways` — **[PARTIAL]** (→ #5348) engine half built; the app must send the version (see `sharing.stale-note-edit-is-refused-and-offered-a-choice`): B's edit on a note A changed is refused 409, never silently lost. Engine pinned by `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py::test_two_macs_editing_one_note_the_second_stale_edit_is_refused` (no xfail remains); the Swift editor half needs its own test, to be written with #5348.
 
 ## The two-machine test (next)
 
