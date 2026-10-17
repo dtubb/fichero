@@ -68,10 +68,9 @@ A Python project done properly means the engine's own code, its exact dependenci
 command to run it. That is what the Linux image is: the same engine code as the Mac, the same
 workflow runner, the same records out, with nothing written a second time for the cluster.
 A cluster does not run Docker, so the image is converted once into a single Apptainer file.
-Compute nodes are cut off from the internet, so **nothing is fetched by the job itself**: the
-login node, which has the internet, fetches the Apptainer file and any models beforehand, and
-the Mac sends the pages. If a cluster's login node will not fetch the image, the Mac uploads
-the file instead.
+Compute nodes are cut off from the internet, so **nothing is fetched by the job itself**: a
+data-transfer node (never a login node) places the Apptainer file and any models beforehand, and
+the Mac sends the pages. The Mac uploads the file when no data-transfer node is available.
 
 *A plain Python environment on the cluster, without the image, is possible but is not
 proposed.* Alliance clusters have their own way of installing Python packages (their own
@@ -156,7 +155,7 @@ the in-process SSH connection is the one way it is run. See `jobs-and-fine-tunin
    itself. See `targets-and-connection.md`.
 3. **Compute nodes are cut off.** They accept no connection from outside and, on most Alliance
    clusters, cannot reach the internet (CITED, S2, S5). Everything a job needs (the image, the
-   models, the data) must be put in place beforehand from a login node.
+   models, the data) must be put in place beforehand, from a data-transfer node or the Mac (never a login node).
 4. **The app side.** The Mac app today has no way to hold a second server's address and token,
    or to say that a project lives on another machine (issue #2573, open). Everything where
    the Mac "connects to a server somewhere else" waits on that.
@@ -279,7 +278,7 @@ Everything else in this set is **PROPOSED** until ruled.
 
 | | A machine we control (lab machine, rented GPU) | A Slurm cluster (Alliance, ACENET) | Hugging Face |
 |---|---|---|---|
-| How the image gets there | the target pulls the published image with Docker | a login node pulls it once as an Apptainer file into project space | nothing to install; a job names the image |
+| How the image gets there | the target pulls the published image with Docker | a data-transfer node (or upload from the Mac) places it once as an Apptainer file in project space | nothing to install; a job names the image |
 | What runs | a **server** that stays up, and jobs | **jobs**; and **sessions** (a model served for a few hours) | **jobs**; sessions possible (CITED, not proposed for the first build) |
 | How the Mac reaches it | Tailscale `serve`, or an SSH tunnel | SSH, with the person's second factor on first connection; a tunnel for a session | HTTPS with the person's token |
 | Credential | a paired-device token (the existing pairing) and, for install, an SSH key | an SSH key Fichero keeps; the second factor stays with the person | a fine-grained token |
@@ -796,8 +795,8 @@ notebooks; adopted by the project's recipe as a new card.
 5. **Adopt** (`compute.tune.adopted-by-the-recipe`, `distill.adopt.within-bar`): the A/B against
    the baseline; the winner pinned in the next recipe version.
 6. **ACENET** (#5238, #5239, #5240): the three half-day trials first (in-process SSH from the
-   sandboxed build with a Keychain key and a second factor; SSH to a compute node; fetching an
-   Apptainer image on a login node), then the Slurm target, the SSH carrier and live submit.
+   sandboxed build with a Keychain key and a second factor; SSH to a compute node; placing an
+   Apptainer image on a data-transfer node), then the Slurm target, the SSH carrier and live submit.
 7. **Release** on Hugging Face as part of Fichero, once the notebooks' rights are confirmed
    (the README lists them as unconfirmed).
 8. Then the small Qwen-VL with LoRA, by the same path.
