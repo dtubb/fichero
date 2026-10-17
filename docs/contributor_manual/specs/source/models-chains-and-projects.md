@@ -2557,6 +2557,13 @@ Jobs and chains
   job, so adding a card adds a candidate; the planner maps a chosen candidate's pin to its shipped workflow
   from a table, and a pin with no workflow is skipped saying so ("cannot run here"), never run as Kraken.
   *Test:* every card naming `find-lines` is a bake-off candidate; a pin with no workflow is skipped by name.
+- `source.job.find-statements.candidates` — **[GAP]** (#5637; ruled 2026-10-17) Find statements is not parser-or-nothing:
+  its candidates are the spaCy parser's triples, Apple Intelligence, and text models such as Claude or Qwen, compared
+  by the same bake-off pattern as reading, with the cost shown first. The default: where no text model is installed
+  on this Mac, the free local candidates (the parser, Apple Intelligence) run at Start, and a text model is offered
+  beside them (the person chooses it; nothing is downloaded or sent off the Mac by itself); where a text model is
+  installed here, the rules take it over the parser. *Test:* with no text model the recipe's statements step is the
+  parser's and the step offers a model; with one installed it is that model.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
