@@ -3438,7 +3438,7 @@ def _reader_label(vision_mode: str, config: Any, kraken_model: str | None,
     """What actually read the page, as (provider, model). Kraken names its recognition model (a
     catalog id, or a .mlmodel file's name), or its line finder `blla` when it only found lines;
     stamping the library's default vision model instead made a Kraken pass look like Gemini's (#5387)."""
-    if vision_mode == "apple":
+    if vision_mode == "apple" or (vision_mode == "kraken" and lines_read_by == "apple"):
         return "apple", "apple-vision"
     if vision_mode == "kraken" and lines_read_by == "model" and not kraken_model:
         return config.provider, config.model
@@ -4643,6 +4643,7 @@ async def process_vision(
                             _wl.as_geometry(found, _w, _h, provider=effective_config.provider,
                                             model=effective_config.model),
                             effective_config, language=language,
+                            **({"apple": True} if lines_read_by == "apple" else {}),
                         )
                     from fichero_server.llm import kraken_runtime as _kr
 
@@ -4696,7 +4697,7 @@ async def process_vision(
                     # readings on them. Lines are found only when the page has none.
                     _found_lines = None
                     if (
-                        (kraken_recognition_model or lines_read_by == "model")
+                        (kraken_recognition_model or lines_read_by in ("model", "apple"))
                         and onto_page and save_to_db and library_path and doc_id_for_file
                     ):
                         _found_lines = await asyncio.to_thread(_working_lines_of, doc_id_for_file)
@@ -4731,11 +4732,12 @@ async def process_vision(
                             run_id=task_id,
                             fn=lambda: segment_to_geometry(image_path, rendition_id=None),
                         )
-                        if lines_read_by == "model":
+                        if lines_read_by in ("model", "apple"):
                             from fichero_server.llm.line_reader import read_lines
 
                             result = await read_lines(
-                                image_path, result, effective_config, language=language
+                                image_path, result, effective_config, language=language,
+                                **({"apple": True} if lines_read_by == "apple" else {}),
                             )
                     if page_index is not None:
                         result = result.model_copy(
