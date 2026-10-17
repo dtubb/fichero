@@ -99,17 +99,12 @@ struct LibraryWorkspaceRoot: View {
         .toolbar {
             // Library switcher (#2394) — the registry of libraries the paired Mac
             // has, surfaced first so a phone can open more than the default library.
-            // `.topBarLeading` is unavailable on tvOS, so guard it there.
-            #if !os(tvOS)
             ToolbarItem(placement: .topBarLeading) {
                 IOSLibraryPickerMenu()
             }
-            #endif
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    #if os(tvOS)
-                    Text("Capture is unavailable on Apple TV.")
-                    #elseif os(visionOS)
+                    #if os(visionOS)
                     Button { capturePickerSource = .library } label: {
                         Label("Choose from Photos", systemImage: "photo.on.rectangle")
                     }
@@ -154,7 +149,6 @@ struct LibraryWorkspaceRoot: View {
                 }
             )
         }
-        #if !os(tvOS)
         .sheet(item: $capturePickerSource) { source in
             MobileCaptureImagePicker(
                 sourceType: source.sourceType,
@@ -162,7 +156,6 @@ struct LibraryWorkspaceRoot: View {
                 onCancel: { capturePickerSource = nil }
             )
         }
-        #endif
         #if canImport(VisionKit) && !os(visionOS)
         .fullScreenCover(isPresented: $showingDirectDocumentScanner) {
             MobileDocumentScanner(
