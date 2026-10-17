@@ -22,3 +22,9 @@ def test_a_script_the_heuristic_can_tell_keeps_its_code():
 
 def test_there_is_no_cld3_import():
     assert not hasattr(multilingual, "cld3") and not hasattr(multilingual, "CLD3_AVAILABLE")
+
+
+def test_an_undetermined_query_is_still_lowercased_for_matching():
+    from fichero_server.llm.multilingual import normalize_text
+
+    assert normalize_text("  London  Bridge ", detect_language("London Bridge").language) == "london bridge"

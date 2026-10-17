@@ -115,8 +115,8 @@ def normalize_text(text: str, language: str) -> str:
     text = unicodedata.normalize("NFKC", text)
 
     # Language-specific handling
-    if language in ("en", "es", "fr", "de", "it", "pt", "nl", "sv", "da", "no", "fi"):
-        # Latin scripts: lowercase
+    if language in ("en", "es", "fr", "de", "it", "pt", "nl", "sv", "da", "no", "fi", "und"):
+        # Latin scripts (and undetermined, which is mostly Latin): lowercase
         text = text.lower()
 
     elif language == "tr":
