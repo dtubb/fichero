@@ -168,9 +168,8 @@ struct NotesInspectorPane: View {
                 staleRetryError = "Saving failed: \(error.localizedDescription)"
                 staleSave = pending
             }
-        case .copyBecauseDeleted:
-            PlatformPasteboard.writeString(pending.body)
-            notice = "This note was deleted on the other Mac. Your text is copied to the clipboard."
+        case .deletedElsewhere:
+            notice = "This note was deleted on another Mac."
         case .copyAndTakeTheirs:
             PlatformPasteboard.writeString(pending.body)
         }
