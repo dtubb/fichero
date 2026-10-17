@@ -33,45 +33,15 @@ from pathlib import Path
 from typing import Any, Callable
 from xml.sax.saxutils import escape, quoteattr
 
+try:  # in the engine (tests, a local run)
+    from fichero_server.llm.line_cut import crop_line, parse_answer
+except ImportError:  # shipped alone (a Hugging Face Job): `run_shard` loads `_fichero/line_cut.py` from the package
+    crop_line = parse_answer = None  # type: ignore[assignment]
+
 PAGE_NS = "http://schema.primaresearch.org/PAGE/gts/pagecontent/2019-07-15"
-_MAX_CROP_WIDTH = 1600
 
 
-# --- pure parts (pinned by tests against Fichero's own reader and line reader) -----------------------
-
-def crop_line(image: Any, polygon: list) -> Any:
-    """`line_reader.crop_line`: the polygon's bounds padded by a third of its height, the outside of the
-    polygon (a sixth of its height beyond it) painted the crop's paper colour (#5445), at most 1,600 px wide."""
-    from PIL import Image, ImageDraw, ImageStat
-
-    xs = [p[0] for p in polygon]
-    ys = [p[1] for p in polygon]
-    pad = (max(ys) - min(ys)) / 3
-    box = tuple(round(v) for v in (max(0, min(xs) - pad), max(0, min(ys) - pad),
-                                   min(image.width, max(xs) + pad), min(image.height, max(ys) + pad)))
-    crop = image.crop(box).convert("RGB")
-    mask = Image.new("L", crop.size, 0)
-    shape = [(x - box[0], y - box[1]) for x, y in polygon]
-    draw = ImageDraw.Draw(mask)
-    draw.polygon(shape, fill=255)
-    draw.line(shape + shape[:1], fill=255, width=max(1, round(pad)), joint="curve")
-    crop = Image.composite(crop, Image.new("RGB", crop.size, tuple(ImageStat.Stat(crop).median)), mask)
-    if crop.width > _MAX_CROP_WIDTH:
-        crop = crop.resize((_MAX_CROP_WIDTH, round(crop.height * _MAX_CROP_WIDTH / crop.width)))
-    return crop
-
-
-def parse_answer(raw: str, n: int) -> list[str | None] | None:
-    """The model's JSON array of n readings, or None: `line_reader.parse_answer`."""
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
-    try:
-        answer = json.loads(text)
-    except ValueError:
-        return None
-    if not isinstance(answer, list) or len(answer) != n or not all(a is None or isinstance(a, str) for a in answer):
-        return None
-    return [a.strip() if isinstance(a, str) and a.strip() else None for a in answer]
-
+# --- pure parts: the line cut and the answer parser are the engine's own (`llm/line_cut.py`), shipped beside this file ---
 
 def _points(points: list) -> str:
     return " ".join(f"{round(x)},{round(y)}" for x, y in points)
@@ -221,6 +191,10 @@ def run_shard(package: Path, shard: int, out: Path, *, reader: Callable[[Any], l
 
     sys.path.insert(0, str(package / "_fichero"))
     from iiif_fetch import PoliteFetcher, image_url, urllib_get  # shipped beside this script
+
+    global crop_line, parse_answer
+    if crop_line is None:
+        from line_cut import crop_line, parse_answer  # noqa: F811  (the engine's own, shipped in the package)
 
     job = json.loads((package / "job.json").read_text(encoding="utf-8"))
     indices = job["shards"][shard]
