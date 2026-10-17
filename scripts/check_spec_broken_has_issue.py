@@ -22,6 +22,9 @@ from __future__ import annotations
 
 import pathlib
 import re
+import shutil
+import subprocess
+import sys
 from _scan_files import scan_rglob
 
 SPECS_DIR = pathlib.Path("docs/contributor_manual/specs")
@@ -45,6 +48,42 @@ BEHAVIOR_START_RE = re.compile(r"^(\s*)-\s+`(" + BEHAVIOR_ID_RE + r")`")
 TAG_RE = re.compile(r"\*{0,2}\[(BROKEN|GAP(?:/BROKEN)?|PARTIAL|MISSING)[^\]]*\]\*{0,2}")
 ISSUE_RE = re.compile(r"#\d+")
 CONTINUATION_RE = re.compile(r"^\s+\S")  # indented, non-blank line
+
+
+def _highest_issue() -> int | None:
+    """The newest issue number on GitHub, or None when gh/network is unavailable (soft-skip, stated)."""
+    if shutil.which("gh") is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["gh", "issue", "list", "--state", "all", "--limit", "1", "--json", "number", "--jq", ".[0].number"],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if proc.returncode != 0 or not proc.stdout.strip().isdigit():
+        return None
+    return int(proc.stdout.strip())
+
+
+def cites_existing_issue(block: str, highest: int | None) -> bool:
+    """True when the block cites at least one issue number that can exist (<= `highest`)."""
+    numbers = [int(n[1:]) for n in ISSUE_RE.findall(block)]
+    if highest is None:
+        return bool(numbers)
+    return any(0 < n <= highest for n in numbers)
+
+
+def _self_test() -> int:
+    """Synthesise the defect this guard claims to catch: a citation of an issue that does not exist."""
+    ok = (
+        cites_existing_issue("**[GAP]** (#99999999)", 5000) is False
+        and cites_existing_issue("**[GAP]** (#4712)", 5000) is True
+        and cites_existing_issue("**[GAP]** no issue", 5000) is False
+        and cites_existing_issue("**[GAP]** (#99999999)", None) is True
+    )
+    print("self-test " + ("ok" if ok else "FAILED: the existence check does not catch a nonexistent issue"))
+    return 0 if ok else 1
 
 
 def _is_scaffold(p: pathlib.Path) -> bool:
@@ -110,6 +149,9 @@ def main() -> int:
         print(f"FAIL check_spec_broken_has_issue: no specs found under {SPECS_DIR} (blind, not green)")
         return 2
 
+    highest = _highest_issue()
+    if highest is None:
+        print("note: gh or the network is unavailable; issue numbers were not checked for existence")
     failures: list[str] = []
     grandfathered_debt: list[str] = []
     grandfathered_seen_debt: set[str] = set()
@@ -122,12 +164,12 @@ def main() -> int:
             if not TAG_RE.search(block):
                 continue  # untagged / [OK] — not our concern
             tagged_count += 1
-            if ISSUE_RE.search(block):
+            if cites_existing_issue(block, highest):
                 continue
             entry = (
                 f"{spec.relative_to(SPECS_DIR.parent.parent)}:{start_line}: "
-                f"`{behavior_id}` is tagged broken/gap but cites no issue "
-                f"(`#<digits>` or `→ #<digits>`)."
+                f"`{behavior_id}` is tagged broken/gap but cites no existing issue "
+                f"(`#<digits>` or `→ #<digits>`; newest issue is #{highest})."
             )
             if rel in GRANDFATHERED_FILES:
                 grandfathered_debt.append(entry)
@@ -160,4 +202,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_self_test() if "--self-test" in sys.argv else main())
