@@ -17,6 +17,7 @@ from pathlib import Path
 from fichero_server.db import db_manager
 from fichero_server.models import Document, ImageEditChain, Rendition
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
+from fichero_server.split_carry import carry_readings_over
 from fichero_server.workflows.types import State
 
 logger = logging.getLogger(__name__)
@@ -340,6 +341,7 @@ def persist_workflow_child_regions(
         db, _candidate_document_ids(inputs, state), library_path
     )
 
+    new_children: dict[str, tuple[Document, list[Document]]] = {}
     for result in results:
         source = result.get("source")
         parts = result.get(part_key) or []
@@ -424,7 +426,10 @@ def persist_workflow_child_regions(
                 )
             )
             report["children"].append({"document_id": child.id, "parent_id": parent.id})
+            new_children.setdefault(parent.id, (parent, []))[1].append(child)
 
+    # #5452: what the spread's lines carry (passes, readings) goes to the halves it was cut into.
+    report["carried"] = [carry_readings_over(db, parent, halves) for parent, halves in new_children.values()]
     return report
 
 

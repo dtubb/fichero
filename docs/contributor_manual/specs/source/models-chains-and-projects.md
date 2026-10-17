@@ -2507,14 +2507,25 @@ Jobs and chains
   `remote_read`, which shares the parse); the word inside a longer line is kept. Tested in
   `fichero-server/tests/unit/llm/test_null_is_no_text_5447.py`. Rows already stored as `null` are not
   rewritten; re-reading the page replaces them.
-- `source.split.carries-readings-over` — **[GAP]** (#5452; ruled 2026-10-04 as the rule for whenever a
+- `source.split.carries-readings-over` — **[PARTIAL]** (#5452; ruled 2026-10-04 as the rule for whenever a
   split runs, not a build priority) splitting a spread moves each of its line segments, with every
   pass's readings, to the half its polygon falls in, re-normalised to that half's region; a line that
   crosses the gutter is flagged, never cut. The spread keeps its passes as history, nothing is read
   again or paid for, and the halves count as the pages with their carried passes, so "already done"
   sees the work. Today the split only makes the halves (`persist_workflow_child_regions`): a spread
   split after its lines were read leaves them on the spread, which stops counting, and a recipe run
-  would read every half again with a paid model.
+  would read every half again with a paid model. *Built (2026-10-17):* `split_carry.carry_readings_over`,
+  called by both splits (the route's `split_image_impl` and the workflow's `persist_workflow_child_regions`):
+  a result's boxes not yet rows are converted first; each live pass of the spread gets a copy on each half
+  that holds one of its lines; each line (kind `line`, by the centre of its outline) is copied to its half,
+  box, outline and baseline re-normalised and clamped to the half, with every reading, the readings'
+  revisions, the person's reading and pass choices and the pass's reading orders; a line reaching past its
+  half is flagged `metadata.crosses_gutter`, never cut; the spread keeps all of it. Tested in
+  `fichero-server/tests/unit/api/test_split_carries_readings_5452.py` (`is_done` sees the halves).
+  *Not built:* a real run on a read spread; regions and words above/below the lines, and the spread's
+  page-level transcriptions and `page_content`, stay on the spread only (so "read a page" still reads a half);
+  a line measured on a rendition's frame refuses the split loudly rather than being placed by a guess; the
+  app showing the flag.
 - `source.recipe.apple-finds-lines-on-handwriting` — **[GAP]** (#5451; ruled 2026-10-04) when a page's
   hand is not print (decided from the derived script and hand, `source.onboard.*`), a recipe runs Apple
   Vision for its line finding only: its text is not kept as a reading. Apple's OCR of handwriting is
