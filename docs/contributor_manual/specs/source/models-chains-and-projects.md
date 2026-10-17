@@ -2501,9 +2501,12 @@ Jobs and chains
   below a set score are flagged, with the scores, so a person can look. A flagged line keeps its
   reading as a proposal, is shown as flagged, and is kept out of a training set
   (`compute.tune.set-excludes-flagged-lines`).
-- `source.lines.null-is-no-text` — **[BROKEN]** (#5447) a model's null answer for a line, or the word
-  `null` alone, stores no text: the line has no reading from that model. Today the word is kept as the
-  line's text (SM_NPQ_C01_005, lines 42–43) and reaches the Order tab, exports and training sets.
+- `source.lines.null-is-no-text` — **[OK]** (#5447) a model's null answer for a line, or the word
+  `null` alone (quoted or not, any case), stores no text: the line has no reading from that model. Built
+  (2026-10-17): `llm/line_reader.parse_answer` and `cut_short_reading` read the word as no text (so does
+  `remote_read`, which shares the parse); the word inside a longer line is kept. Tested in
+  `fichero-server/tests/unit/llm/test_null_is_no_text_5447.py`. Rows already stored as `null` are not
+  rewritten; re-reading the page replaces them.
 - `source.split.carries-readings-over` — **[GAP]** (#5452; ruled 2026-10-04 as the rule for whenever a
   split runs, not a build priority) splitting a spread moves each of its line segments, with every
   pass's readings, to the half its polygon falls in, re-normalised to that half's region; a line that

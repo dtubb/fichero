@@ -102,7 +102,12 @@ def cut_short_reading(raw: str) -> str | None:
     """A one-line answer that ran out of room, as the text it got to (the read checker then marks
     it), rather than dropped as a line with no writing."""
     text = re.sub(r'^\s*(?:```(?:json)?\s*)?\[?\s*"?', "", raw or "").strip()
-    return text or None
+    return None if _says_null(text) else text or None
+
+
+def _says_null(text: str) -> bool:
+    """The word null alone is a model's way of saying "no text", never the line's text (#5447)."""
+    return text.strip().strip("\"'").strip().lower() == "null"
 
 
 def parse_answer(raw: str, n: int) -> list[str | None] | None:
@@ -116,7 +121,7 @@ def parse_answer(raw: str, n: int) -> list[str | None] | None:
         return None
     if not all(a is None or isinstance(a, str) for a in answer):
         return None
-    return [a.strip() if isinstance(a, str) and a.strip() else None for a in answer]
+    return [a.strip() if isinstance(a, str) and a.strip() and not _says_null(a) else None for a in answer]
 
 
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
