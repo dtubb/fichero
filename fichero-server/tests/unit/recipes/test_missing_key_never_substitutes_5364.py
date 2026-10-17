@@ -20,6 +20,8 @@ def test_a_cloud_step_with_no_key_waits_and_nothing_takes_its_place(monkeypatch)
 
     skipped = {s["step"]: s for s in plan["skipped"]}
     assert "Needs a key for OpenAI" in skipped["correct"]["why"], plan["skipped"]
+    # The app has no Add Key button yet: the fix is said in the why, and `fix` is no token the app would not know.
+    assert "Add Key" in skipped["correct"]["why"] and skipped["correct"]["fix"] is None, skipped["correct"]
     assert all("correct" not in run["steps"] for run in plan["runs"]), "no model is run in the keyless step's place"
     assert any("read" in run["steps"] for run in plan["runs"]), "the other steps still run"
 
