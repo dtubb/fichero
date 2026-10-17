@@ -327,7 +327,7 @@ class MLXModelStore:
         return env
 
     def list_catalog_entries(self) -> list[Any]:
-        from fichero_server.llm.local_inference import (
+        from fichero_server.llm.local_model_facts import (
             LocalModelCatalogEntry,
             LocalModelSource,
             check_local_model_hardware,
@@ -677,7 +677,7 @@ class MLXModelStore:
         return sorted(m for m in set(found + open_project_mlx_ids()) if self.trained_card(m) is not None)
 
     def require_supported(self, spec: ManagedModelSpec) -> None:
-        from fichero_server.llm.local_inference import LocalModelHardwareError, check_local_model_hardware
+        from fichero_server.llm.local_model_facts import LocalModelHardwareError, check_local_model_hardware
 
         supported, unsupported_reason = check_local_model_hardware(
             display_name=spec.display_name,

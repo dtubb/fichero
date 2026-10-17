@@ -66,7 +66,7 @@ def test_an_mlx_download_is_an_activity_job_too(client, db, held, mac):
 
 def test_a_model_this_mac_cannot_run_or_does_not_know_is_refused_at_once(client, held, mac, monkeypatch):
     """"… a refusal before queueing, such as a model this Mac cannot run, is said at once": in words, never queued."""
-    monkeypatch.setattr("fichero_server.llm.local_inference.check_local_model_hardware",
+    monkeypatch.setattr("fichero_server.llm.local_model_facts.check_local_model_hardware",
                         lambda **kw: (False, "Qwen2.5-VL 3B needs 8 GB of memory; this Mac has 4 GB"))
     r = client.post("/api/local-models/download/mlx/Qwen2.5-VL-3B")
     assert r.status_code == 400 and "this Mac has 4 GB" in r.json()["detail"]
