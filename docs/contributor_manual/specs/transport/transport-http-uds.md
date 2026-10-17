@@ -5,7 +5,7 @@
 
 > Design-led (Testing Constitution). **Status: APPROVED — 2026-09-09.** Rewritten into
 > template format from `agent-work/status/2026-08-04-uds-harness-4437.md` and the code contract
-> in `Services/EngineConfig+Launch.swift`. Tags: [OK] built · [PARTIAL] built/unproven · [MISSING].
+> in `Services/EngineConfig+Launch.swift`. Tags: [OK] built · [PARTIAL] built/unproven · [GAP] not built.
 
 ## Intent (the design)
 
@@ -56,18 +56,20 @@ remote host can't redirect a hermetic test).
   a THIRD gap in the same family — `WKWebView` (the KG web panes) does not participate in
   Fichero's pinned remote transport at all, so remote KG panes are disabled fail-closed rather
   than routed through the same pinned transport every other surface uses.
-- `transport.inmemory-contract` [MISSING] (#4790) — the `.inMemory` transport the app actually uses is
+- `transport.inmemory-contract` [GAP] (#4790) — the `.inMemory` transport the app actually uses is
   **PythonKit in-process**, and it has **no contract test**. `test_in_memory_asgi_round_trip()`
   (:209) exercises an ASGI in-memory app and its own comment admits it does NOT cover the
   Swift/PythonKit in-process claim. This is the gap the creative director flagged: bind a test that
   puts in-memory into the same equivalence sweep (ASGI level, gated) and, separately, a Swift-side
   test for the real PythonKit path.
-- `transport.event-delivery` [MISSING] — a `claim.updated` change-stream event reaches the **Swift**
+- `transport.event-delivery` [GAP] — a `claim.updated` change-stream event reaches the **Swift**
   client over each transport; the engine round-trip proves the engine, not the Swift client's
   stream. **Corrected citation (2026-09-18): the tracking issue is #4511** ("no Swift test executes
   here: the FicheroTests host dials a live engine at launch"), replacing a previous mis-citation to
   an unrelated, already-closed ClaimStore-write-path survey (caught by `spec_pipeline.py`'s rule
   b). #4511 is still OPEN, so this remains blocked until it lands.
+
+- `transport.lan-listener-only-when-checked` — **[GAP]** (→ #5736) the app dials its own engine over the Unix socket always. A network listener exists only while Sharing is on AND "This network" is checked: bound to the host's `.local` address, never `0.0.0.0`, TLS and a pairing token required. A `.ts.net` host is dialled over HTTPS with the system certificate (Tailscale terminates TLS); a `.local` host keeps its SPKI pin. Detail in `library-sharing.md` (`sharing.share-on-choice`, `sharing.tailscale-serve`). Test: `fichero-server/tests/unit/security/test_share_on_listeners_to_spec.py`.
 
 ## Test matrix
 
