@@ -15,11 +15,11 @@ async def _asks(*args, **kwargs):
     return {"answer": interrupt({"kind": "human_review", "question": "Which grouping?"})}
 
 
-def _paused_run(client, db, request, wf_id):
+def _paused_run(client, db, request, wf_id, **overrides):
     from fichero_server.workflows import registry, validation
 
     registry._ensure_tools_loaded()
-    register_tool(name="asks", display_name="Asks", input_ports=[], output_ports=[])(_asks)
+    register_tool(name="asks", display_name="Asks", input_ports=[], output_ports=[], uses_llm=bool(overrides))(_asks)
     request.addfinalizer(lambda: (registry._TOOLS.pop("asks", None), registry._TOOL_DEFS.pop("asks", None)))
     original = validation.validate_workflow_llm_preflight
     validation.validate_workflow_llm_preflight = lambda *a, **k: []
@@ -27,7 +27,7 @@ def _paused_run(client, db, request, wf_id):
     workflow = Workflow(id=wf_id, name="Resume", nodes=[
         {"id": "ask", "tool": "asks", "label": "Ask", "inputs": {}, "config": {}}], edges=[])
     db.save(workflow)
-    thread_id = client.post("/api/workflow-execution/execute", json={"workflow_id": wf_id, "skip_cache": True}).json()["thread_id"]
+    thread_id = client.post("/api/workflow-execution/execute", json={"workflow_id": wf_id, "skip_cache": True, **overrides}).json()["thread_id"]
     assert _wait_for(lambda: _status(client, thread_id) == "paused")
     return thread_id, workflow
 

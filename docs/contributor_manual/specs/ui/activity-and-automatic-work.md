@@ -1456,9 +1456,8 @@ code path.
 - `activity.run.resume-from-snapshot` — **[BROKEN]** (#5373) a run resumes on the graph it started
   with, built from its own snapshot. Today resume rebuilds the graph from the current definition,
   so an edit made while paused changes the graph under the checkpoint.
-- `activity.run.resume-keeps-model` — **[BROKEN]** (#5373) a resumed run uses the model the person
-  chose. Today resume builds a fresh request and drops the provider and model override
-  (`core.py:542-546`).
+- `activity.run.resume-keeps-model` — **[OK]** (#5373) a resumed run uses the provider and model the person chose when it started, read from the run's own snapshot; pinned by
+  `fichero-server/tests/unit/workflows/test_resume_keeps_model_5373.py`.
 - `activity.run.batch-off-the-request` — **[OK]** (#5374) *Built (2026-10-04): a batch runs on a worker
   thread of its own and its event stream follows it, so a client that disconnects stops listening, not
   the batch; each item is a run started by `runner.start_run`, the way every run by hand starts, with its
