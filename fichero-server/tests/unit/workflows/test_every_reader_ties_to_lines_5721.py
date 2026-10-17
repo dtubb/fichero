@@ -183,6 +183,7 @@ async def test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_o
         return "prosa sin json" if dark else json.dumps(["blanca uno", "blanca dos", "blanca tres"][: len(images)])
 
     monkeypatch.setattr(llm, "vision", vision)
+    before = {a.id for a in page["db"].query(Artifact, document_id=black.id)}
     result = await transcribe(
         inputs={"files": src["files"], "documents": src["documents"], "regions_first": False,
                 "vision_mode": "llm", "force_ocr": True, "prompt": "PAGE"},
@@ -192,6 +193,9 @@ async def test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_o
     assert _tied(page, ["blanca uno", "blanca dos", "blanca tres"]) == [["blanca uno"], ["blanca dos"], ["blanca tres"]]
     by_file = {r["file"].rsplit("/", 1)[-1]: r["text"] for r in result["results"]}
     assert by_file["testamento_p2.png"] == "texto de la pagina negra"
-    assert [a for a in page["db"].query(Artifact, document_id=black.id) if a.artifact_type == "transcription"]
+    made = [a for a in page["db"].query(Artifact, document_id=black.id)
+            if a.artifact_type == "transcription" and a.id not in before]
+    assert len(made) == 1, "the failed line pass leaves no empty transcription behind the page-level one"
+    assert (made[0].content or "").strip() == "texto de la pagina negra"
     notes = result.get("notes", [])
     assert any("testamento_p2.png" in n and "did not read line by line" in n for n in notes), notes
