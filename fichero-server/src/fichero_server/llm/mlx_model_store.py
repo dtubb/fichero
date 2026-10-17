@@ -819,7 +819,7 @@ class MLXModelStore:
         os.environ.update(self.env())
         self._note_progress(job, spec)
         ignore = list(spec.ignore_patterns) or None
-        from fichero_server.llm import model_downloads
+        from fichero_server.llm import failed_fetches, model_downloads
 
         stopped = self._job_stops.setdefault(job.job_id, threading.Event())
 
@@ -847,10 +847,13 @@ class MLXModelStore:
             return
         except Exception as exc:  # noqa: BLE001 -- the job says why in words; the log keeps the exception
             logger.warning("download of %s failed: %r", spec.model_id, exc)
+            # Not a dropped connection (that is tried again above): the repository is gone or refuses. The check reads it.
+            failed_fetches.record(self.root, spec.repo_id, str(exc)[:300] or type(exc).__name__)
             job.state = "failed"
             job.error = f"The download of {spec.display_name} could not be done; the engine's log says why."
             job.message = "Download failed"
             return
+        failed_fetches.clear(self.root, spec.repo_id)
         job.current = job.total
         job.state = "completed"
         job.message = "Download complete"

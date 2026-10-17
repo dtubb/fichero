@@ -76,6 +76,19 @@ def _check_model(label: str, model: Any, out: list[str]) -> None:
                    "version, Tesseract data, a built-in, a YOLO layout model, a provider and model, or a role")
 
 
+def _check_not_gone(label: str, model: Any, out: list[str]) -> None:
+    """A pinned Hugging Face model whose last fetch failed because the repository is gone or refuses is said so, from the
+    model store's record: no network (`source.recipe.pinned-model-gone`, #5364)."""
+    repo = model.get("hf") if isinstance(model, dict) else None
+    if not repo:
+        return
+    from fichero_server.llm import failed_fetches
+
+    why = failed_fetches.last(str(repo))
+    if why:
+        out.append(f"{label}: its model {repo} can no longer be fetched ({why}); choose another reader for this step")
+
+
 def _check_prompt(label: str, folder: Path | None, prompt: str, out: list[str]) -> None:
     if folder is None:
         return
@@ -124,6 +137,7 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
             out.append(f"{label}: {problem.get('sentence') or step.get('gap') or 'no model is chosen for it'}")
         elif "model" in step:
             _check_model(label, step["model"], out)
+            _check_not_gone(label, step["model"], out)
         for alt in step.get("alternatives") or []:
             _check_model(f"{label} alternative", alt, out)
         runs_on = step.get("runs_on")
