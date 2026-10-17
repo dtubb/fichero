@@ -146,11 +146,16 @@ def _float(value: str | None) -> float | None:
 
 
 def read(data: bytes) -> SourcePage:
-    """One ALTO file as the model would have stored it.
+    """One ALTO file as the model would have stored it: its first `<Page>` (see `read_pages`).
 
     Coordinates are normalised against the page's own declared size, which makes
     them unit-free; the UNIT is still read, because `image_size` is not.
     """
+    return read_pages(data)[0]
+
+
+def read_pages(data: bytes) -> list[SourcePage]:
+    """Every `<Page>` of an ALTO file, each with only its own lines (#5310; TEI's `read_pages`)."""
     root = parse(data)
 
     unit_el = next((el for el in root.iter() if _tag(el) == "MeasurementUnit"), None)
@@ -158,10 +163,13 @@ def read(data: bytes) -> SourcePage:
     if unit not in UNITS:
         raise UnknownMeasurementUnit(unit)
 
-    page_el = next((el for el in root.iter() if _tag(el) == "Page"), None)
-    if page_el is None:
+    page_els = [el for el in root.iter() if _tag(el) == "Page"]
+    if not page_els:
         raise ValueError("no <Page> element: this is not an ALTO document")
+    return [_read_page(root, page_el, unit) for page_el in page_els]
 
+
+def _read_page(root: Any, page_el: Any, unit: str) -> SourcePage:
     width = _float(page_el.get("WIDTH")) or 0.0
     height = _float(page_el.get("HEIGHT")) or 0.0
 
