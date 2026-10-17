@@ -399,7 +399,13 @@ def read_with_vision(photo: str, candidate: EvaluationCandidate, lines: list[dic
 
 def word_errors(reference: list[str], reads: list[str]) -> dict[str, int]:
     """The page's word errors (#5660 item 7, WER beside CER): the word-level edit distance between the reference
-    lines and the reads, and the reference's word count. Words are split on whitespace, as written."""
+    lines and the reads, and the reference's word count. Words are split on whitespace, as written; a page in a
+    script that does not divide its words by spaces has none to count (0, so `wer_over` leaves it out): it is
+    scored by character alone (`source.recipe.nothing-assumes-spaces-direction-or-an-alphabet`)."""
+    from fichero_server.llm.language_policy import text_separates_words
+
+    if not text_separates_words("\n".join(reference)):
+        return {"distance": 0, "reference_words": 0}
     ref = " ".join(reference).split()
     hyp = " ".join(reads).split()
     previous = list(range(len(hyp) + 1))

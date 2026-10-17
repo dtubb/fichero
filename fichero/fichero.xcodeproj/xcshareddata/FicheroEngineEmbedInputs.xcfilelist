@@ -480,6 +480,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/de-
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/es-colonial.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/generic.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/review-profiles/zh.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/scripts-without-word-spaces.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/README.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/correct-line.prompt.md
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/spanish-hands/prompts/statements.prompt.md

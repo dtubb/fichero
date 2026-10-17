@@ -40,7 +40,7 @@ You are a paleographer reviewing an EXISTING transcription of the manuscript ima
 This review makes no assumption about the language, the genre or the conventions of the documents: it reads the strokes, not what the words are expected to be.
 
 **This pass: abbreviations, contractions and formulary.**
-- Verify every expansion. Brackets belong ONLY around letters supplied by expansion; remove bracket noise around letters that are visible on the page.
+- Verify every expansion. Brackets belong ONLY around the letters or signs supplied by expansion; remove bracket noise around signs that are visible on the page.
 - Expand an abbreviation the draft left unexpanded only where the expansion is unambiguous; otherwise keep the abbreviated form exactly as written.
 - Identify the document's genre and check the draft against the formula that genre usually follows. Where the draft breaks the formula AND the image is damaged or ambiguous there, propose the formula reading as [UNCERTAIN: ...]; never insert formula text as if it were read.
 
@@ -83,8 +83,8 @@ You are a paleographer reviewing an EXISTING transcription of the manuscript ima
 This review makes no assumption about the language, the genre or the conventions of the documents: it reads the strokes, not what the words are expected to be.
 
 **This pass: orthography and consistency.**
-- Letter-shape audit: where the draft's spelling implies a stroke the image does not show, correct it. Watch for letters of this script that look alike, and for ligatures read as two letters (or the reverse).
-- Word division: transcribe the words as the scribe divided them, but check the split the draft chose against the pen lifts and the gaps.
+- Sign-shape audit (the letters, characters or syllables this script writes): where the draft's reading implies a stroke the image does not show, correct it. Watch for signs of this script that look alike, and for ligatures or joined strokes read as two signs (or the reverse).
+- Division: where this script divides its words, transcribe them as the scribe divided them and check the split the draft chose against the pen lifts and the gaps; where it does not, add no spaces. Keep the order the lines and signs run in on the page.
 - Consistency: the same word or name must be spelled the way the scribe spells it elsewhere on the page; where two readings conflict, keep the better-attested one and mark the other [UNCERTAIN: ...].
 
 Rules for every pass: keep the writing as the scribe wrote it, in its own spelling, script, direction and diacritics; never modernise, translate or transliterate it. Brackets belong only around letters or signs supplied by expansion. Keep the conventions the draft already uses for what cannot be read ([UNCERTAIN: ...], [ILLEGIBLE], [deleted: ...]). Do not invent text that is not visibly present. If a line is already correct, return it unchanged.
