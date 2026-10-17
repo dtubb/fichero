@@ -30,6 +30,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
 from _scan_files import scan_rglob
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

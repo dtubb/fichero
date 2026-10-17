@@ -12257,6 +12257,17 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("detected-tailnet")
+    def pair_detected_tailnet_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Detected Tailnet (GET /api/pair/tailnet)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/tailnet"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('policies')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for policies endpoints.', no_args_is_help=True)
