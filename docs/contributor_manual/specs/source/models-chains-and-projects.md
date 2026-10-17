@@ -3507,7 +3507,7 @@ Setup
   (accuracy in one-point bands, measured on the person's pages, else published, else coverage); cheaper, then local, only break ties inside the
   noise band (`source.train.noise-band-per-project`). Cloud candidates stay shown greyed with "needs permission" until the person has said in setup
   that pages may leave this Mac (`source.onboard.pages-may-leave`). When the best candidate cannot run (no key, not enough memory, the repository
-  gone), the next one in the chain runs, and the plan says which and why; a missing key never substitutes silently
+  gone), the next one in the chain runs if it is another local model or the same cloud provider, and the plan says which and why; one that sends pages somewhere new (another provider, or off the Mac for a local step) is offered and never used without the person's press; a missing key never substitutes silently
   (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
   cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
 - `source.recipe.placement-by-scale` — **[GAP]** (#4950; ruled 2026-10-17) where the chosen reader runs depends on the project's scale: about 100 or
@@ -3774,7 +3774,7 @@ Running and failure
 - `source.recipe.download-failure-waits` — **[GAP]** (#4950, #5352) a failed model download is shown
   in Activity with its reason, retried three times, then the steps that need the model wait with
   "Model download failed" and offer Retry or the next candidate; other steps run.
-- `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no other model for it; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
+- `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no model that sends pages somewhere new for it: a LOCAL model, or one of the same provider, from the step's `chain` runs on its own and is named in `plan.fallbacks` (`used` true, `source.recipe.candidates-fallback-chain`); another cloud provider is offered there (`used` false) and never used without the person's press; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.
 - `source.recipe.take-without-missing-step` — **[PARTIAL]** (#4949; record shape ruled 2026-10-17; *built: `recipe.take_without_missing_steps`, `offered_back`, `override_kind`; pinned by `fichero-server/tests/unit/recipes/test_take_without_missing_step_4949.py`. Not built: the route and the app screen that take a shared recipe through it and show the offer*) a recipe naming a job this
