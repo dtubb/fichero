@@ -4128,7 +4128,7 @@ Finding models
   repository record filed as Latin whose own words say Fraktur covers `Latf` (`discovery._row_scripts`,
   #5593); no shipped card claims it, so before a search a Fraktur project names its nearest readers. *Test:*
   `fichero-server/tests/unit/recipes/test_reader_fit_5516.py`.
-- `source.recipe.no-cross-script-reader` — **[OK]** (#5593; built 2026-10-08: `discovery.covered_scripts` widens a card one step from what it states, never chained; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) a reader is never chosen for a script its
+- `source.recipe.no-cross-script-reader` — **[OK]** (#5593; Fraktur and Gaelic type (`Latf`, `Latg`) are Latin: a reader that states Latin and lists the language fits them, one that states the exact variant ranking first, `assemble._refusal`, #5516, pinned by `test_fraktur_gets_a_reader_5516.py`; built 2026-10-08: `discovery.covered_scripts` widens a card one step from what it states, never chained; pinned by `fichero-server/tests/unit/recipes/test_reader_choice_for_scripts_to_spec.py`) a reader is never chosen for a script its
   card does not cover: a Japanese card covers Han, kana and Japanese, never Traditional or Simplified
   Chinese, so Classical Chinese (`Hant`) never gets the Kuzushiji reader silently. Where no reader
   covers the script, the step says so (`source.onboard.nothing-fits-names-nearest`).
