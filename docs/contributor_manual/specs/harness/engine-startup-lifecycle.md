@@ -349,7 +349,7 @@ very engine spawn those tests exist to exercise.
 
 ### E. Typed errors, not silent fallbacks
 
-- `engine.error-detail-reaches-the-caller` — **[BROKEN]** (#5094, #3931) 216 call sites (up from the
+- `engine.error-detail-reaches-the-caller` — **[PARTIAL]** (#5094, #3931) 216 call sites (up from the
   issue's own count of 182, re-measured fresh this pass) discard the engine's error body via
   `case .undocumented(let statusCode, _)` — the underlying taxonomy
   (`AccessError.classify(statusCode:body:)`, `DenialBody.decode`) exists and works; these sites
@@ -357,6 +357,7 @@ very engine spawn those tests exist to exercise.
   in an allowed location") is unreportable at these sites — the user gets a generic failure. The
   issue's own guidance (fix the shared generator/helper seam, not a 216-site hand-sweep) still
   stands.
+  **Engine half, built (#5094):** every operation declares 400, 403, 404 and 409 as the one shared `ErrorDetail` body (`api/errors.py`, applied once at `register_tiered_routes`), so the generated client can decode the sentence a refusal sends. Pinned: `fichero-server/tests/unit/api/test_every_operation_declares_its_refusals_5094.py`. Still open: the Swift half (#3931: the 216 `.undocumented` sites) and ONE regeneration of the client and the checked-in `openapi.json` files, which the lead schedules for all pending changes.
 
 ### F. Distribution and bundle hygiene (P3, not urgent)
 

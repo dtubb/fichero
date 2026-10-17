@@ -40,6 +40,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from fichero_server.api import client_presence
+from fichero_server.api.errors import REFUSAL_RESPONSES
 from fichero_server.api.library_header import optional_library_path, require_library_path
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
@@ -1145,6 +1146,7 @@ app = FastAPI(
     description="Document processing and search API",
     version=_ENGINE_VERSION,
     lifespan=lifespan,
+    responses=REFUSAL_RESPONSES,  # #5094: every refusal is declared as one ErrorDetail
 )
 # #4690 follow-up (2026-09-19): seed these at app-CONSTRUCTION time too, not
 # only inside `lifespan()`. Some ASGI callers (`httpx.ASGITransport` with no
