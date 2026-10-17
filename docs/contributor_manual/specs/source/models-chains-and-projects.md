@@ -3503,7 +3503,7 @@ Setup
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
   one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
   fine-tuning are still offered as options, never defaults.
-- `source.recipe.candidates-fallback-chain` — **[GAP]** (#4950, #5582; ruled 2026-10-17) the candidates for a step are ranked best-measured first
+- `source.recipe.candidates-fallback-chain` — **[PARTIAL]** (#4950, #5582; ruled 2026-10-17) *Built 2026-10-17 (engine): `assemble._choose` ranks all candidates that pass the hard constraints, best accuracy band first (a cloud one only when pages may leave), and the step carries the rest as `chain`; `start.plan_start` runs the next chain entry that can run when the step's key is missing and records it in `fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: the noise band per project (only the one-point band ties), measured-on-the-person's-pages candidates in the chain beyond `cer_measured_here`, 'not enough memory' / 'repository gone' fallbacks, and the app showing `fallbacks`.* the candidates for a step are ranked best-measured first
   (accuracy in one-point bands, measured on the person's pages, else published, else coverage); cheaper, then local, only break ties inside the
   noise band (`source.train.noise-band-per-project`). Cloud candidates stay shown greyed with "needs permission" until the person has said in setup
   that pages may leave this Mac (`source.onboard.pages-may-leave`). When the best candidate cannot run (no key, not enough memory, the repository
