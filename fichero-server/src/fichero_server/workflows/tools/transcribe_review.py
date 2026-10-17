@@ -224,6 +224,12 @@ async def transcribe_review(
     prompt = prompt or _DEFAULT_REVIEW_PROMPT
     if shows_segment_lines(prior_text):
         prompt = f"{prompt}\n\n{ANSWER_BY_ID}"
+    if state.get("library_path"):  # the project's confirmed names go to every review, whatever prompt the node carries
+        from fichero_server.db import db_manager
+        from fichero_server.recipes.known_names import instruction
+
+        if names := instruction(db_manager.get_database(state["library_path"])):
+            prompt = f"{prompt}\n\n{names}"
 
     tool_config = VisionToolConfig(
         artifact_type="transcription_review",
