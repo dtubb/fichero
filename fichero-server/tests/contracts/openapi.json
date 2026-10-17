@@ -27944,6 +27944,49 @@
         }
       }
     },
+    "/api/hpc/clusters/{cluster_id}/check": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Check Cluster Live",
+        "description": "The honest check (`compute.connect.check-really-checks`): hostname, storage, Apptainer, GPUs and fair share,\nrun live on the login node over the open connection. Sign in first; nothing is submitted.",
+        "operationId": "check_cluster_live_api_hpc_clusters__cluster_id__check_post",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcCheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/registries/epistemic-statuses": {
       "get": {
         "tags": [
@@ -66107,6 +66150,57 @@
         },
         "type": "object",
         "title": "HeuristicRequest"
+      },
+      "HpcCheckResponse": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "True only if every step passed just now."
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/HpcCheckStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "ok",
+          "steps"
+        ],
+        "title": "HpcCheckResponse"
+      },
+      "HpcCheckStep": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "description": "`passed`, `failed` (with its reason in `answer`) or `not tried`."
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "state"
+        ],
+        "title": "HpcCheckStep"
       },
       "HpcClusterCreate": {
         "properties": {

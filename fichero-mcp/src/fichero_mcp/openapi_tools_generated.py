@@ -3523,6 +3523,14 @@ def fichero_hpc_get_cluster(
     return _rt.call("GET", f"/api/hpc/clusters/{cluster_id}")
 
 
+def fichero_hpc_check_cluster_live(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Check Cluster Live\n\nThe honest check (`compute.connect.check-really-checks`): hostname, storage, Apptainer, GPUs and fair share,\nrun live on the login node over the open connection. Sign in first; nothing is submitted.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/check (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/check")
+
+
 def fichero_hpc_dry_run_submit(
     *,
     cluster_id: Annotated[str, Field(description='Cluster Id')],
@@ -9229,6 +9237,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_hpc_create_or_update_cluster", "hpc", "POST", "/api/hpc/clusters", fichero_hpc_create_or_update_cluster),
     GeneratedTool("fichero_hpc_delete_cluster", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}", fichero_hpc_delete_cluster),
     GeneratedTool("fichero_hpc_get_cluster", "hpc", "GET", "/api/hpc/clusters/{cluster_id}", fichero_hpc_get_cluster),
+    GeneratedTool("fichero_hpc_check_cluster_live", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/check", fichero_hpc_check_cluster_live),
     GeneratedTool("fichero_hpc_dry_run_submit", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/dry-run-submit", fichero_hpc_dry_run_submit),
     GeneratedTool("fichero_hpc_delete_cluster_key", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_delete_cluster_key),
     GeneratedTool("fichero_hpc_put_cluster_key", "hpc", "PUT", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_put_cluster_key),

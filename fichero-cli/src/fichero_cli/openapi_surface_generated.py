@@ -7500,6 +7500,18 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("check-cluster-live")
+    def hpc_check_cluster_live_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Check Cluster Live (POST /api/hpc/clusters/{cluster_id}/check)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/check"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("dry-run-submit")
     def hpc_dry_run_submit_post(
         ctx: typer.Context,
