@@ -94,6 +94,10 @@ class PairCodeResponse(BaseModel):
     spki_pin: str | None = None
 
 
+class TailnetOfferResponse(BaseModel):
+    tailnet_url: str | None = None
+
+
 class PairRequest(BaseModel):
     code: str = Field(min_length=1)
     device_name: str = Field(min_length=1)
@@ -375,6 +379,9 @@ def _require_secure_pairing_transport(request: Request) -> None:
         return
     if request.url.scheme != "https":
         raise HTTPException(status_code=400, detail="remote pairing requires https")
+    # A .ts.net host is served with Tailscale's publicly trusted certificate: system trust, no pin (#5753).
+    if (request.url.hostname or "").lower().endswith(".ts.net"):
+        return
     try:
         validate_spki_pin(os.environ.get("FICHERO_TLS_SPKI_HASH", ""))
     except ValueError as exc:
@@ -404,6 +411,18 @@ def _record_device_audit(
     )
     get_app_db().save_action_audit(audit)
     return audit
+
+
+@router.get("/tailnet", response_model=TailnetOfferResponse)
+def detected_tailnet(
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> TailnetOfferResponse:
+    """This Mac's `.ts.net` address when Tailscale is running, for the share sheet to offer (#5318)."""
+    _pairing_user(request, app_db)
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+
+    return TailnetOfferResponse(tailnet_url=tailscale_serve.detected_tailnet_url() or None)
 
 
 @router.post("/code", response_model=PairCodeResponse)
@@ -437,7 +456,8 @@ def create_pairing_code(
         code=code,
         expires_at=expires_at,
         tailnet_url=tailnet_url or None,
-        spki_pin=(os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
+        # No pin for a tailnet address: pin only for .local (#5753).
+        spki_pin=None if tailnet_url else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
     )
 
 
