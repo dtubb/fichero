@@ -1,6 +1,1 @@
-[
-  {
-    "path": "/Users/danieltubb/code/fichero-worktrees/.gate-snapshots/snap-testready",
-    "reason": "gate snapshot from 2026-09-05, merged and ~2.8 GB; manager recommends removal; awaiting maintainer decision (raised 2026-09-18, still open 2026-09-27 — and the machine hit DuckDB's 1.5 GB cap tonight, so 2.8 GB reclaimable is no longer purely tidiness, see #5100)"
-  }
-]
+[]
