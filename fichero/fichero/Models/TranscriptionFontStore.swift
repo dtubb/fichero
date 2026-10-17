@@ -1,4 +1,5 @@
 import FicheroAPIClient
+import Foundation
 import Observation
 
 /// The family this library's transcription text is drawn in (`layers.text.font-from-script-and-period`, #5438):
