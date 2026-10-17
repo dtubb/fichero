@@ -270,7 +270,7 @@ the page, (4) a loose artifact, (5) nothing kept.
 | Line finding (Kraken, Apple, VLM boxes) | 1; Kraken's lines nested in its regions (#5487, 2026-10-06), the others flat | no nesting for Apple and VLM boxes | #5489 |
 | Reading lines (Kraken reader, line reader) | 2, readings on the working pass's lines (#5487, 2026-10-06); 1 + 2 only on a page with no lines | none | — |
 | Reading a page (LLM Transcribe) | 4, page text; tied onto the lines by the `tie-text-to-lines` job, queued after every page reading on a page with lines (#5444, #5558, 2026-10-06) | the cluster reader drops Kraken's regions; older tie passes stay | #5558 |
-| Correcting (Paleographer Review) | 4, page-level, overwrites page text | corrections never become readings on lines | #5486 |
+| Correcting (Paleographer Review) | 4, page text, AND readings on the working pass's lines (`source.job.correct-onto-lines`, #5654) | the page text is still overwritten by the last round | #5486 |
 | Checking | 2, verdicts and corrections on segments | none: the model for the rest | — |
 | Names | 3, tied to the document only | spans discarded; no mention on a segment | #5488 |
 | Statements | 3, page text offsets and an optional rect | no segment anchor | #4932 |
@@ -1037,8 +1037,7 @@ The foundation has two of its own. Everything else is in the slices.
   nests them (`parent_segment_id`). The tie (`source.job.tie-text-to-lines`) writes onto the same lines.
   A recipe's read step counts as done on a page whose lines carry its model's readings, and the
   training set finds a teacher's readings on those lines. Pinned by
-  `fichero-server/tests/unit/workflows/test_one_line_pass_read_many.py`. Not built: correcting (#5486)
-  and the other producers in the table; nesting for Apple and VLM boxes (#5489); the cluster reader
+  `fichero-server/tests/unit/workflows/test_one_line_pass_read_many.py`. Not built: the other producers in the table; nesting for Apple and VLM boxes (#5489); the cluster reader
   (`remote_read/runner.py`) still drops Kraken's regions.* Finding lines makes the page's one line pass;
   every reading after it adds readings to those lines and never makes a second line pass, and a model's
   regions stay the parents of the lines found in them.
