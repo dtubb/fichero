@@ -17,6 +17,8 @@ struct NotesInspectorPane: View {
 
     /// A save refused because another Mac edited the note first (#5348): the person picks whose text wins.
     @State private var staleSave: (noteId: String, body: String)?
+    /// Why the last Keep mine did not save; shown in the dialog that comes back with the text still held.
+    @State private var staleRetryError: String?
 
     private var selectedNote: NoteSelectionItem? {
         focused.id.flatMap { id in notes.first { $0.id == id } }
@@ -103,7 +105,7 @@ struct NotesInspectorPane: View {
             Button("Take theirs") { Task { await resolveStale(keepMine: false) } }
             Button("Cancel", role: .cancel) { staleSave = nil }
         } message: {
-            Text("Nothing was saved. Keep your text over theirs, or take theirs and drop yours.")
+            Text(staleRetryError ?? "Nothing was saved. Keep your text over theirs, or take theirs (your text is copied to the clipboard).")
         }
     }
 
@@ -136,13 +138,24 @@ struct NotesInspectorPane: View {
         focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
     }
 
-    /// Keep mine: read the current version, then save my text against it. Take theirs: just read theirs.
+    /// Keep mine: read the current version, then save my text against it. A retry that fails never drops
+    /// the text: stale again or any other error brings the dialog back with it. Take theirs: read theirs,
+    /// after copying the dropped text to the clipboard so it is not lost.
     private func resolveStale(keepMine: Bool) async {
         guard let pending = staleSave else { return }
         staleSave = nil
+        staleRetryError = nil
+        if !keepMine { PlatformPasteboard.writeString(pending.body) }
         await noteStore.reload()
         if keepMine, let current = noteStore.notes.first(where: { $0.id == pending.noteId }) {
-            _ = try? await noteStore.update(noteId: pending.noteId, body: pending.body, expectedUpdatedAt: current.updatedAt)
+            do {
+                _ = try await noteStore.update(noteId: pending.noteId, body: pending.body, expectedUpdatedAt: current.updatedAt)
+            } catch NoteServiceError.stale {
+                staleSave = pending
+            } catch {
+                staleRetryError = "Saving failed: \(error.localizedDescription)"
+                staleSave = pending
+            }
         }
         focused.resolve(in: noteStore.notes.map(NoteSelectionItem.init))
     }
