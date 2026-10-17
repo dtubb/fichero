@@ -156,5 +156,20 @@ def main() -> int:
     return 1
 
 
+def _self_test() -> int:
+    """Plant an untagged behavior beside a tagged one in a scratch spec; the guard must find exactly the untagged one
+    (rule 0: a guard must know when it is blind)."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as scratch:
+        spec = pathlib.Path(scratch) / "scratch.md"
+        spec.write_text("- `self.test.tagged` \u2014 **[GAP]** (#1) has a tag.\n"
+                        "- `self.test.untagged` \u2014 has no state tag at all.\n", encoding="utf-8")
+        found = [identifier for _path, _line, identifier in untagged_behaviors(pathlib.Path(scratch))]
+    ok = found == ["self.test.untagged"]
+    print("self-test " + ("ok" if ok else f"FAILED: expected only self.test.untagged, the guard found {found}"))
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(_self_test() if "--self-test" in sys.argv else main())

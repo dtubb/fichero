@@ -160,7 +160,7 @@ fallback, already on). The rest ship off-by-default, one toggle away.
 - `kg.enrich.per-type` [MISSING] (#4758) — a source is offered for the entity types it serves
   (places → GeoNames/Pleiades/TGN; persons/orgs → VIAF/LoC/GND/ISNI; concepts → Getty AAT;
   periods → PeriodO), so the UI never suggests a nonsensical lookup.
-- `kg.enrich.provenance` — every enriched value is authority-sourced + provenance-tagged
+- `kg.enrich.provenance` — **[GAP]** every enriched value is authority-sourced + provenance-tagged
   with WHICH source (rides #4636), never indistinguishable from hand/AI values; a value can
   carry several `sameAs` ids at once (Wikidata + VIAF + GeoNames).
 - `kg.enrich.geocode-place-entities` — **[GAP]** (#4600) location entities carry no

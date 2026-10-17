@@ -179,6 +179,26 @@ def spacy_pipeline_path(name: str) -> Path | None:
     return folder if (folder / "config.cfg").is_file() else None
 
 
+_SPACY_PIPELINES: dict[str, object] = {}
+
+
+def load_spacy_pipeline(name: str):
+    """The ONE loaded pipeline per spaCy model in this process, shared by NER and SVO
+    (`runtime.spacy.one-pipeline-per-language`, #5370): from the model store by path when downloaded there,
+    else the bundled one by name, with its lemmatizer."""
+    if name not in _SPACY_PIPELINES:
+        import spacy
+
+        stored = spacy_pipeline_path(name)
+        _SPACY_PIPELINES[name] = spacy.load(stored) if stored is not None else spacy.load(name)
+    return _SPACY_PIPELINES[name]
+
+
+def clear_spacy_pipelines() -> None:
+    """Forget the loaded pipelines (a model replaced in the store, or a test)."""
+    _SPACY_PIPELINES.clear()
+
+
 def _dir_bytes(folder: Path) -> int:
     return sum(f.stat().st_size for f in folder.rglob("*") if f.is_file())  # one model folder
 

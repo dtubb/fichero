@@ -115,30 +115,33 @@ def test_a_rerun_does_not_overwrite_corrected_container_page_content(
 ):
     _install_deterministic_workflow_stubs(monkeypatch)
     library_path, db = two_folder_library
+    try:
+        _run(library_path, "catalogue-page-content-first")
 
-    _run(library_path, "catalogue-page-content-first")
+        from fichero_server.actions.registry import ActionContext, registry
 
-    from fichero_server.actions.registry import ActionContext, registry
+        db = db_manager.get_database(library_path)
+        registry.invoke(
+            db,
+            "document.update",
+            {"doc_id": "caja-3", "update": {"page_content": CORRECTION}},
+            ActionContext(actor="ann", library_path=str(library_path)),
+        )
 
-    db = db_manager.get_database(library_path)
-    registry.invoke(
-        db,
-        "document.update",
-        {"doc_id": "caja-3", "update": {"page_content": CORRECTION}},
-        ActionContext(actor="ann", library_path=str(library_path)),
-    )
+        _run(library_path, "catalogue-page-content-second")
 
-    _run(library_path, "catalogue-page-content-second")
+        db = db_manager.get_database(library_path)
+        from fichero_server.models import Document
 
-    db = db_manager.get_database(library_path)
-    from fichero_server.models import Document
-
-    folder = db.get(Document, "caja-3")
-    assert folder.page_content == CORRECTION, (
-        "the re-run overwrote page_content the user had edited. llm_base "
-        "honours metadata['page_content_user_edited_at'] for pages; catalogue "
-        "writes container.page_content directly and never checks it"
-    )
+        folder = db.get(Document, "caja-3")
+        assert folder.page_content == CORRECTION, (
+            "the re-run overwrote page_content the user had edited. llm_base "
+            "honours metadata['page_content_user_edited_at'] for pages; catalogue "
+            "writes container.page_content directly and never checks it"
+        )
+    finally:
+        # The correction queues a re-embed job on the library's lane: close the library so its threads end with the test.
+        db_manager.close_database(library_path)
 
 
 @skip_without_embedding_model

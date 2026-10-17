@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import (
     get_library_database,
@@ -40,7 +40,7 @@ def _action_run(db: Database, params: CheckRunRequest, ctx: ActionContext) -> tu
 
         authz.assert_can_read_every(ctx.actor, ctx.library_path, [d.id for d in _descendants(db, params.scope_ids)],
                                     bootstrap=False)
-    started = check_job.start(db, params, started_by=ctx.actor or "owner")
+    started = check_job.start(db, params, started_by=started_by_for(ctx))
     return started, ChangeSpec(domains=["job"], target_ids=[started["job_id"]],
                                after={"job_id": started["job_id"], "kind": check_job.KIND}, emit_type="job.created")
 

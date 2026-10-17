@@ -391,7 +391,7 @@ class TestProviderAPIRoutes:
         hf_ids = {m["model_id"] for m in hf_data}
         assert "Qwen/Qwen3-VL-8B-Instruct" in hf_ids
         assert "datalab-to/chandra-ocr-2" in hf_ids
-        assert "nanonets/Nanonets-OCR-s" in hf_ids
+        assert "nanonets/Nanonets-OCR-s" not in hf_ids, "dropped on licence grounds (#4611)"
         qwen3 = next(m for m in hf_data if m["model_id"] == "Qwen/Qwen3-VL-8B-Instruct")
         assert qwen3["is_recommended"] is True
         assert qwen3["supports_vision"] is True
@@ -1049,7 +1049,7 @@ class TestCapabilityDerivation:
             _derive_capabilities_from_registry,
         )
 
-        caps = _derive_capabilities_from_registry("omlx", "Nanonets-OCR")
+        caps = _derive_capabilities_from_registry("omlx", "Chandra-OCR")
         assert caps == ["text", "vision"]
 
     def test_vision_chat_model_derives_text_and_vision(self):

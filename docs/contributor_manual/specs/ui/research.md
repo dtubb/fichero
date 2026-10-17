@@ -305,7 +305,7 @@ Inspector content, not as a rival top-level surface.
 - `research.browser-pane-trust-boundary` — **[PARTIAL]** (implemented, unpinned; #4798)
   `ResearchBrowserPane`'s only library crossing is the audited `browser-save` action; no
   library/KG read tool is exposed to the embedded WebView (`ResearchBrowserPane.swift:6-13`).
-- `research.embedded-browser-home-surface` — **ANSWERED (creative-director ruling,
+- `research.embedded-browser-home-surface` — **[GAP]** (#4798) **ANSWERED (creative-director ruling,
   2026-09-18, third round, recorded in `modes-to-panes.md`'s Rulings): the embedded
   browser lives INSIDE the Source/Preview pane, no browser pane kind, no tab strip of its
   own.** This behavior id retires in favor of `modes-to-panes.md`'s three:
@@ -320,7 +320,7 @@ Inspector content, not as a rival top-level surface.
   not decided; pages being scratch is not the same claim as logins being scratch. See
   `modes-to-panes.md`'s `m2p.scratch-browsing-persists-nothing` note and #4810 for the
   options.
-- `research.compare-folds-into-chat` — **SUPERSEDED (creative-director ruling, 2026-09-18):**
+- `research.compare-folds-into-chat` — **[GAP]** (#4798) **SUPERSEDED (creative-director ruling, 2026-09-18):**
   this behavior described chat's Compare tab reusing `ModelComparisonView()` as Comparison's
   home. That design is retired: Comparison is now panes + a diff lens (a "run with A and B"
   action leaves two sibling artifacts shown in two Reader panes), never a chat tab, node, or
@@ -503,9 +503,9 @@ Design content carried into this spec; files kept, listed here per program instr
   exists today" above; folded in as historical provenance, not re-described as a plan.
 
 ## Future (ideas, not scheduled)
-- (#2081) Library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster
-- (#2291) In-app agent operating Projects/Milestones/Tasks from chat; agent-surface vision, not current work.
-- (#2314) Three chat modes (Simple/RAG/Agent) with an on-device router; chat-surface nice-to-have.
+- `research.future.library-node-model` — **[GAP]** (#2081) library node model: prototypes, aliases and entities-as-nodes (Tinderbox-for-archives); canonical for cluster.
+- `research.future.agent-operates-projects` — **[GAP]** (#2291) in-app agent operating Projects/Milestones/Tasks from chat; agent-surface vision, not current work.
+- `research.future.three-chat-modes` — **[GAP]** (#2314) three chat modes (Simple/RAG/Agent) with an on-device router; chat-surface nice-to-have.
 
 ## Triaged from the backlog (2026-10-04)
 - `research.uitest.click-around-plan-save` — **[GAP]** (#4727) an XCUITest opens a chat, takes the Plan invitation, Save as Workspace, and sees the Plan tab list tasks (research.planpromotestoworkspace).

@@ -10,7 +10,7 @@ import copy
 
 from fichero_server.recipes import recipe as recipes
 from fichero_server.recipes.recipe import (
-    check_recipe, offered_back, override_kind, take_without_missing_steps,
+    check_recipe, offered_back, override_kind, put_back, take_without_missing_steps,
 )
 
 LINES = {"id": "lines", "job": "find-lines", "model": {"kraken": "blla", "kraken_version": "bundled"},
@@ -36,7 +36,8 @@ def test_the_recipe_is_taken_without_the_step_and_the_removal_is_recorded():
     assert original == before, "the recipe as shared is untouched"
     assert [s["id"] for s in taken["steps"]] == ["lines"]
     assert taken["overrides"] == [{"step": "hologram", "kind": "removed-step", "reason": "job not available",
-                                   "job": "read-a-hologram", "scope": "project", "folder_id": None}]
+                                   "job": "read-a-hologram", "scope": "project", "folder_id": None,
+                                   "step_def": NEWER, "index": 1}]
     assert check_recipe(taken) == []
 
 
@@ -60,3 +61,28 @@ def test_an_override_with_no_kind_is_a_card_override():
     """source.recipe.take-without-missing-step: "an override that states no `kind` is a `card` override"."""
     assert override_kind({"step": "read", "scope": "project", "card": "kraken:x"}) == "card"
     assert override_kind({"step": "x", "kind": "removed-step"}) == "removed-step"
+
+
+def test_offering_a_step_back_restores_it_exactly(monkeypatch):
+    """source.recipe.take-without-missing-step: the override keeps the step as it was, so putting it back (once its job
+    exists) gives the recipe that was shared, in the same place, with the record gone."""
+    shared = _recipe(LINES, NEWER, {"id": "after", "job": "find-lines", "model": LINES["model"], "runs_on": "this-mac"})
+    taken = take_without_missing_steps(shared)
+
+    real = recipes.get_job
+    monkeypatch.setattr(recipes, "get_job", lambda job: object() if job == "read-a-hologram" else real(job))
+    restored = put_back(taken, "hologram")
+
+    assert restored["steps"] == shared["steps"] and not restored.get("overrides")
+    assert [s["id"] for s in taken["steps"]] == ["lines", "after"], "the recipe it came from is untouched"
+
+
+def test_a_step_that_read_from_the_removed_one_is_caught_by_the_check_not_left_dangling():
+    """source.recipe.take-without-missing-step: a step that needed what only the removed step gave is not left dangling:
+    the taken recipe fails the check naming that step, so it is never started half-fed."""
+    correct = {"id": "correct", "job": "correct", "model": LINES["model"], "runs_on": "this-mac"}
+    taken = take_without_missing_steps(_recipe(LINES, NEWER, correct))
+
+    problems = check_recipe(taken)
+
+    assert problems and any("Correct" in p and "no earlier step gives" in p for p in problems), problems

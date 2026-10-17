@@ -115,6 +115,11 @@ class _FakeActivityStore:
     async def update_workflow_run(self, **kwargs):
         self.update_calls.append(kwargs)
 
+    async def get_workflow_run(self, _thread_id):
+        # Resume reads the started run to keep the model its person chose (`activity.run.resume-keeps-model`, #5373);
+        # this run kept none, so the resume carries no override.
+        return None
+
 
 class _FakeActivityTracker:
     def __init__(self):

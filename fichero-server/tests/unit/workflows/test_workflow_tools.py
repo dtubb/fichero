@@ -2041,22 +2041,31 @@ class TestLanguageIdentificationTool:
     ):
         from fichero_server.workflows.tools.language_identification import language_identification
 
-        text = (
-            "the document was written in the archive and the council records "
-            "show the names and dates for the meeting.\n\n"
-            "el acta del cabildo fue escrita en español y describe los hechos."
-        )
+        # Detection is by script (#5572): Cyrillic and Arabic carry a language,
+        # Latin script is "und" and never guessed.
+        text = "Документ был написан в архиве.\n\nكتبت الوثيقة في الأرشيف وتصف الوقائع."
         result = await language_identification(
-            {"text": text, "save_to_db": False, "chunk_size_chars": 120},
+            {"text": text, "save_to_db": False, "chunk_size_chars": 40},
             mock_state,
             mock_llm_config,
         )
 
         assert "value" in result and result["value"] is not None
         payload = result["value"]
-        assert payload["primary_language"] in {"en", "es"}
+        assert payload["primary_language"] in {"ru", "ar"}
         assert len(payload["languages"]) >= 1
         assert result["text"].startswith("# Language Identification")
+
+    @pytest.mark.asyncio
+    async def test_language_identification_latin_text_is_unknown(self, mock_llm_config, mock_state):
+        from fichero_server.workflows.tools.language_identification import language_identification
+
+        result = await language_identification(
+            {"text": "the council records show the names and dates", "save_to_db": False},
+            mock_state,
+            mock_llm_config,
+        )
+        assert result["value"]["primary_language"] is None
 
 
 # =============================================================================

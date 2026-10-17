@@ -27,7 +27,7 @@ import socket
 import re
 import ssl
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 from urllib.parse import urlparse
 
@@ -82,6 +82,12 @@ from fichero_server.models import (
     SegmentListResponse,
     SegmentVersion,
 )
+
+if TYPE_CHECKING:
+    from fichero_server.api.routes.document.segments import (
+        SegmentDetailResponse,
+        SegmentReferenceResponse,
+    )
 
 # https, not http (#4468): the engine MANDATES TLS on TCP (engine_manager
 # refuses to start without certs), so an http default could never work

@@ -41,7 +41,7 @@ Surfaces: `EntitiesLibraryContent` / `EntitiesTableView`, `ClaimsLibraryContent`
 - `kg.tables.filter.empty-state` [OK] (Pinned: `ClaimsFilterTests`, `EntitiesFilterTests`.) — a filter that matches nothing shows "No matches",
   never a blank table or a spinner. Built: `ClaimsLibraryContent.swift:~192-203`
   (`emptyMessage`); `EntitiesLibraryContent` has the parallel empty state.
-- `kg.tables.filter.pushdown` (later) — for large sets, push the filter to the list
+- `kg.tables.filter.pushdown` (later) — **[GAP]** (#4643) for large sets, push the filter to the list
   endpoint (`q` / `entity_type` / `claim_type` already exist) instead of client-side only.
 
 ### B. Entity CRUD (#4624)
@@ -198,7 +198,7 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   POST /api/claims. Built: `NewClaimSheet.swift` (view), `EntityService+
   ClaimEntityCRUD.swift:~117` (`createClaim`), wired from `ClaimsLibraryContent.swift`
   (`showingCreateSheet`), id `kg.claim.new`.
-- `kg.tables.claim.create.source-optional-flagged` — a hand-authored claim MAY have no
+- `kg.tables.claim.create.source-optional-flagged` — **[GAP]** (#4643) a hand-authored claim MAY have no
   source (a working hypothesis / synthesis), but it is clearly marked "no source" and
   treated as lower-provenance; it is never silently indistinguishable from a sourced claim.
 - `kg.tables.claim.edit` [OK] (Pinned: `ClaimsTableCreateTests`.) — subject/verb/object + fields editable **from the
@@ -296,7 +296,7 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   `importer.nlp-never-overwrites-curated-rows`.
 
 ### D. Cross-cutting (both tables)
-- `kg.tables.crud.cross-surface` (creative-director ruling, 2026-09-08) — every KG CRUD
+- `kg.tables.crud.cross-surface` (creative-director ruling, 2026-09-08) — **[GAP]** (#4643) every KG CRUD
   capability (claim delete, entity create, claim create, edits) must exist across the WHOLE
   spine: **backend → UX (table) → AI (MCP) + CLI → tests → export**, not only the SwiftUI
   table. A capability that works in the table but not via MCP/CLI is NOT done. Each CRUD
@@ -319,7 +319,7 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   `EntityStoreTests.testMergeRemovesAbsorbedRowsAndPatchesTheSurvivorInPlaceWithoutReloading`
   (asserts exactly one inspector GET across the merge). Not asserted: that selection and scroll
   position survive the merge (the fixing commit says it did not address those criteria).
-- `kg.tables.crud.validation` — a create/edit is validated at the boundary (non-empty
+- `kg.tables.crud.validation` — **[GAP]** (#4643) a create/edit is validated at the boundary (non-empty
   canonical name; a claim needs at least a subject or text); an invalid input is refused
   with an inline reason, not silently dropped.
 
@@ -400,15 +400,15 @@ Enrichment's two unreachable views (`WikidataEnrichmentSheet`, `HeuristicReviewS
   2026-10-04.)
 
 ### E. Provenance + versions (creative-director priority — likely its own cross-cutting spec)
-- `kg.tables.provenance.author-mark` — a claim/entity shows who AUTHORED it: hand-authored
+- `kg.tables.provenance.author-mark` — **[GAP]** (#4636) a claim/entity shows who AUTHORED it: hand-authored
   (human) vs AI-extracted, at a glance. (Backend records `created_by`.) The concrete defect in
   today's `created_by` — machine-extracted claims stored and badged as human-authored — is
   tracked as `kg.claim.provenance-kind-is-server-stated` in `hermeneutic-layer.md` (same
   milestone as its two issues), not duplicated here.
-- `kg.tables.provenance.modification-chain` — and who MODIFIED it, in order, each step
+- `kg.tables.provenance.modification-chain` — **[GAP]** (#4636) and who MODIFIED it, in order, each step
   labeled by the actor: an AI extractor (e.g. "apple-vision", "sonnet-5.1") or a human.
   "Apple Vision created it → Sonnet 5.1 changed it → hand-edited by you" is visible.
-- `kg.tables.provenance.hand-edit-recorded` — a manual edit is recorded AS a human edit in
+- `kg.tables.provenance.hand-edit-recorded` — **[GAP]** (#4636) a manual edit is recorded AS a human edit in
   the chain (never attributed to the model whose value it replaced).
 - `kg.tables.provenance.careful-versions` — **[GAP]** (#4644) versions are kept carefully so a
   prior value is recoverable, not just overwritten. (Backend has a `MutationLog` for undo;
@@ -437,13 +437,13 @@ entities/claims), not a small demo table. What's missing:
   curation (`/api/claims/batch/transition`, `/api/entities/batch`, `/api/kg/claims/batch-
   curation`) but **not delete** — add `POST /api/claims/batch-delete` + `/api/entities/
   batch-delete` (one audited, atomic-where-possible action) so 1k–10k is one call.
-- `kg.scale.bulk-correctness` — a bulk op prunes exactly the rows that SUCCEEDED (partial
+- `kg.scale.bulk-correctness` — **[PARTIAL]** (#4643) (pinned by `BulkDeleteTests`; test not run on this worker, M4 run pending) a bulk op prunes exactly the rows that SUCCEEDED (partial
   failure never drifts the UX); interim client fix = bounded-concurrent deletes collecting
   successes (reuse the `BatchService` maxConcurrent task-group pattern) until the endpoint lands.
 - `kg.scale.normalize-names` [MISSING] (#4643) — a bulk "normalize / canonicalize names" op over a
   selection (or the whole library) via a provider/AI: fold "Matheo del Mazo" / "Mateo del
   Mazo" to a canonical form + merge. A batch curation/enrichment action, not per-row.
-- `kg.scale.progress-cancel` — a long bulk op shows progress and is cancellable; bounded so
+- `kg.scale.progress-cancel` — **[GAP]** (#4643) a long bulk op shows progress and is cancellable; bounded so
   it never pegs the machine (Article 4 resource-safety).
 
 ### First-class library view affordances
