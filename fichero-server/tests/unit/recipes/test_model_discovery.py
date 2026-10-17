@@ -181,6 +181,8 @@ def test_an_installed_model_is_run_and_scored_like_a_catalogue_one(client, store
 
 
 def test_kraken_repository_readers_for_fraktur_are_found_cached_and_ranked(client, db, store, repository):
+    """source.find.zenodo-through-htrmopo: Kraken's Zenodo repository is searched through the `htrmopo` library, which reads each
+    record's card (script, language, CER, licence), and its readers are found, cached and ranked."""
     body, items, sources = _searched(client, db, scripts="Latf", languages="sv")
     assert sources["kraken-repository"]["state"] == "searched" and repository == [1]
 
