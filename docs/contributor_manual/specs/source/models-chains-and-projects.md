@@ -2564,6 +2564,13 @@ Jobs and chains
   beside them (the person chooses it; nothing is downloaded or sent off the Mac by itself); where a text model is
   installed here, the rules take it over the parser. *Test:* with no text model the recipe's statements step is the
   parser's and the step offers a model; with one installed it is that model.
+- `source.model.page-text-is-constructed-from-the-segments` — **[GAP]** (#5486, #5467; ruled 2026-10-17) a page's text is
+  the CHOSEN reading, constructed from its segments (the lines of the working pass, in reading order) by the engine
+  (`actions/page_text_cache.py`), never a separate blob a step writes and a later round overwrites. A step that
+  reads or corrects a page writes readings onto the page's lines; it does not write the page's text. Where a
+  correction cannot be tied to the lines the step fails for that page (`source.job.correct-re-asks-per-line-when-it-does-not-tie`)
+  and the page's text stays what the chosen reading was. *Test:* the correcting step does not write the page text
+  by default; with the corrected readings on the lines, the page's text is the lines' text.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
