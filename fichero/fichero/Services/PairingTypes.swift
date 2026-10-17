@@ -94,10 +94,13 @@ struct PairedDeviceRecord: Codable, Identifiable {
     let lastSeen: Date
     let expiresAt: Date
     let revoked: Bool
+    /// The paired device that minted this one; revoking that device revokes this one too (#5351).
+    var pairedByDeviceId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
+        case pairedByDeviceId = "paired_by_device_id"
         case userId = "user_id"
         case createdAt = "created_at"
         case lastSeen = "last_seen"
@@ -171,7 +174,8 @@ final class PairingService {
                     createdAt: device.createdAt,
                     lastSeen: device.lastSeen,
                     expiresAt: device.expiresAt,
-                    revoked: device.revoked
+                    revoked: device.revoked,
+                    pairedByDeviceId: device.pairedByDeviceId
                 )
             }
         case .undocumented(let statusCode, _):

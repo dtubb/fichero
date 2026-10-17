@@ -444,6 +444,20 @@ final class RemoteAccessConfigTests: XCTestCase {
         XCTAssertEqual(visibleDevices.map(\.id), ["active"])
     }
 
+    func testRemovingADeviceNamesTheDevicesItPairedAndTheirs() {
+        func device(_ id: String, by parent: String?, revoked: Bool = false) -> PairedDeviceRecord {
+            PairedDeviceRecord(
+                id: id, name: id, userId: "u", createdAt: Date(timeIntervalSince1970: 0),
+                lastSeen: Date(timeIntervalSince1970: 0), expiresAt: Date(timeIntervalSince1970: 0),
+                revoked: revoked, pairedByDeviceId: parent
+            )
+        }
+        let all = [device("a", by: nil), device("b", by: "a"), device("c", by: "b"),
+                   device("d", by: "a", revoked: true), device("e", by: nil)]
+        XCTAssertEqual(Set(devicesRevokedWith("a", in: all).map(\.id)), ["b", "c"])
+        XCTAssertTrue(devicesRevokedWith("e", in: all).isEmpty)
+    }
+
     func testValidatedRemoteURLAcceptsHTTPSWhenSecureTransportRequired() throws {
         let url = try validatedRemoteURL(
             from: "https://pairing.example.com",
