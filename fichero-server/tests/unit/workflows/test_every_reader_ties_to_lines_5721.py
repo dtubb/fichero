@@ -197,5 +197,6 @@ async def test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_o
             if a.artifact_type == "transcription" and a.id not in before]
     assert len(made) == 1, "the failed line pass leaves no empty transcription behind the page-level one"
     assert (made[0].content or "").strip() == "texto de la pagina negra"
+    assert all(page["db"].get(Artifact, a) is not None for a in result["artifacts"]), "no deleted id is handed on"
     notes = result.get("notes", [])
     assert any("testamento_p2.png" in n and "did not read line by line" in n for n in notes), notes

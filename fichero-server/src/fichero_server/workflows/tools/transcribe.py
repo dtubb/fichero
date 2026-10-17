@@ -282,16 +282,19 @@ def _pages_with_lines(documents: list, files: list, library_path: str) -> list[s
     return [i if i and working_lines(db, i) is not None else None for i in ids]
 
 
-def _drop_empty_readings(library_path: str, results: list[dict]) -> None:
+def _drop_empty_readings(library_path: str, results: list[dict]) -> set[str]:
     """The empty transcription a failed line pass saved for a page, so the page-level read leaves just one."""
     from fichero_server.db import db_manager
     from fichero_server.models import Artifact
 
     db = db_manager.get_database(library_path)
+    dropped = set()
     for r in results:
         stub = db.get(Artifact, r["artifact_id"]) if r.get("artifact_id") and not (r.get("text") or "").strip() else None
         if stub is not None and not (stub.content or "").strip():
             db.delete(stub)
+            dropped.add(stub.id)
+    return dropped
 
 
 def build_transcribe_prompt(config: dict) -> str:
@@ -485,13 +488,13 @@ async def transcribe(
         empty = {r.get("file") for r in result.get("results") or [] if not (r.get("text") or "").strip()}
         again = [i for i, f in enumerate(files) if f in empty]
         if again:
-            await asyncio.to_thread(_drop_empty_readings, library_path, result["results"])
+            dropped = await asyncio.to_thread(_drop_empty_readings, library_path, result["results"])
             redo = await process_vision(**{**read, "files": [files[i] for i in again],
                                            "documents": [documents[i] for i in again if i < len(documents or [])],
                                            "vision_mode": page_vision_mode, "lines_read_by": page_lines_read_by})
             by_file = {r.get("file"): r for r in redo.get("results") or []}
             result["results"] = [by_file.get(r.get("file"), r) for r in result.get("results") or []]
-            result["artifacts"] = [*result.get("artifacts", []), *redo.get("artifacts", [])]
+            result["artifacts"] = [a for a in result.get("artifacts", []) if a not in dropped] + redo.get("artifacts", [])
             result["error"] = result.get("error") or redo.get("error")
             if len(again) == len(files):
                 result, onto_lines = redo, False
