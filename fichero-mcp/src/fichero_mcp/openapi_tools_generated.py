@@ -6194,6 +6194,7 @@ def fichero_recipes_assemble(
     materials: Annotated[Optional[list[Any]], Field(description="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting.")] = None,
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
     period: Annotated[Optional[str], Field(description="when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)")] = None,
+    photographs: Annotated[Optional[bool], Field(description='the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)')] = None,
     place: Annotated[Optional[str], Field(description='where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)')] = None,
     purpose: Annotated[Optional[str], Field(description='a single purpose, as before 2026-10-05: read as a list of one.')] = None,
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
@@ -6201,7 +6202,7 @@ def fichero_recipes_assemble(
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
     "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "hands": hands, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "period": period, "place": place, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "hands": hands, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "period": period, "photographs": photographs, "place": place, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
 
 
 def fichero_recipes_model_candidates(
@@ -7496,12 +7497,13 @@ def fichero_segments_update(
     kind: Annotated[Optional[str], Field(description="The segment's new kind.")] = None,
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it.')] = None,
     language: Annotated[Optional[str], Field(description="The segment's language, a BCP 47 tag.")] = None,
+    mark_state: Annotated[Optional[str], Field(description="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none.")] = None,
     parent_segment_id: Annotated[Optional[str], Field(description='The segment this one now sits inside.')] = None,
     script: Annotated[Optional[str], Field(description="The segment's script, an ISO 15924 code.")] = None,
     segment_id_2: Annotated[str, Field(description='The segment to change.')],
 ) -> Any:
     'Update Segment\n\nRoute: PUT /api/segments/{segment_id} (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
+    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "mark_state": mark_state, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
 
 
 def fichero_segments_correct_line(
