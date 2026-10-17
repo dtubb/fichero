@@ -73,8 +73,10 @@ Cross-cutting invariants (all configs):
   Store build. With one target Sparkle is linked everywhere, so a `Remove Sparkle (App Store)` build phase deletes
   the framework for the `App Store` configuration only (after the frameworks and the engine are embedded), on top
   of the Info.plist key strip. The `Remove Sparkle (App Store)` phase is in the pbxproj (a no-op unless the
-  configuration is `App Store`); still owed: the `App Store` configuration itself, which must also weak-link
-  Sparkle so the binary launches without it. Guard: `check_mac_app_store_target.py`. Test:
+  configuration is `App Store`). The binary weak-links Sparkle (the build file carries `ATTRIBUTES = (Weak, )`), so it
+  launches with the framework removed, and `SparkleUpdater.swift` is gated on `!FICHERO_APP_STORE`, never
+  `canImport(Sparkle)` (which is true wherever the package resolves). Still owed: the `App Store` configuration
+  itself. Guard: `check_mac_app_store_target.py`. Test:
   `test_check_mac_app_store_target.py::test_sparkle_is_removed_from_the_app_store_build`.
 - `config.tests-mainactor-isolation` [OK] — FicheroTests configs set the MainActor default.
   Pinned: `test_check_xcode_config_invariants.py::test_missing_mainactor_isolation_is_caught`,
