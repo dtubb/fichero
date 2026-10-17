@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fichero_server.recipes.assemble import APPLE_LINES_PIN
 from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 
 #: job -> the shipped workflow that carries it out, by its stable key: the file the preset ships in, which a
@@ -50,6 +51,8 @@ _LEVEL_TAIL = (" Use the existing transcription as context where it is given; re
                "Return only the text, line by line.")
 #: Kraken finds the lines and the step's vision model (a cloud or MLX pin) reads each one (the line reader).
 READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
+#: Apple Vision as a line finder only, for print and typescript: its lines, none of its text (#5451).
+APPLE_LINES_WORKFLOW = "detect_regions_apple_lines"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
 _OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements",
                             "translate-transliterate-normalise"})
@@ -432,6 +435,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                           f"{sorted(calendars)} or switch calendars yet",
                      "keep only the Gregorian calendar for this step, or work out the other dates by hand")
                 continue
+        elif job == "find-lines" and pin == APPLE_LINES_PIN:
+            # Print and typescript: Apple finds the lines and keeps no text (`source.recipe.apple-finds-lines-on-print`).
+            entry["workflow"], entry["workflow_id"] = _shipped(APPLE_LINES_WORKFLOW)
         elif job == "find-lines":
             if pin.get("kraken") != "blla":
                 skip(sid, f"{label}: {name} finds lines with Kraken's blla only, not {pin}", "choose-model")
@@ -451,7 +457,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                                     if r.get("material") and r.get("model") and not (stays_local and _uses_cloud(r))
                                     and (run := _reading_run(job, r["model"])) is not None}
             # Kraken finds its own lines before reading them: one run carries both steps.
-            if job == "read-a-line" and runs and runs[-1]["job"] == "find-lines":
+            if (job == "read-a-line" and runs and runs[-1]["job"] == "find-lines"
+                    and runs[-1]["workflow_id"] == _shipped(WORKFLOW_FOR_JOB["find-lines"])[1]):
                 entry["steps"] = runs.pop()["steps"] + entry["steps"]
         if job == "translate-transliterate-normalise":
             # One run per level asked under "Into what" (a list; a project saved with one value reads as one), each

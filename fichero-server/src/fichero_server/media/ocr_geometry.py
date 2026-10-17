@@ -310,6 +310,13 @@ def geometry_status(result: OCRGeometryResult | None) -> OCRGeometryStatus:
     return OCRGeometryStatus.NOT_RUN
 
 
+def lines_only(result: OCRGeometryResult) -> OCRGeometryResult:
+    """The result's line boxes with no text and no word boxes: a finder's geometry, never a reading (#5451)."""
+    boxes = [b.model_copy(update={"text": "", "char_start": None, "char_end": None})
+             for b in result.boxes if b.level == OCRGeometryLevel.LINE]
+    return result.model_copy(update={"text": "", "boxes": boxes})
+
+
 def from_apple_vision_result(
     result: Any,
     *,
