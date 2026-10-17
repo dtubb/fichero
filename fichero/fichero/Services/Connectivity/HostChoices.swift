@@ -28,13 +28,13 @@ enum HostChoices {
     /// "studio", "studio.local" or "studio.local:8443" become https addresses; a full URL is
     /// validated as is. Anything else (blank, loopback, a path) is nil.
     static func typedURL(_ text: String) -> URL? {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, !t.lowercased().hasPrefix("localhost") else { return nil }
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty, !typed.lowercased().hasPrefix("localhost") else { return nil }
         // host[:port] without a dot is a bare name: .local goes on the host, before any port
-        var full = t
-        if !t.contains("://") {
-            let colon = t.firstIndex(of: ":") ?? t.endIndex
-            let host = String(t[..<colon]), port = String(t[colon...])
+        var full = typed
+        if !typed.contains("://") {
+            let colon = typed.firstIndex(of: ":") ?? typed.endIndex
+            let host = String(typed[..<colon]), port = String(typed[colon...])
             full = "https://" + (host.contains(".") ? host : host + ".local") + port
         }
         return try? validatedRemoteURL(from: full, allowLocalhost: false, requireSecureTransportForRemote: true)
