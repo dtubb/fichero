@@ -2547,6 +2547,16 @@ Jobs and chains
   carry no reading, no word boxes), so the text of a print page comes from the reader the recipe names. A
   handwriting page goes to Kraken (the card states print and typescript only). Apple's OCR of handwriting is
   noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
+- `source.recipe.line-finders-are-a-candidate-list` — **[GAP]** (#5451; ruled 2026-10-17) the Find lines route for
+  a kind of page (print, typescript, a hand) is a LIST of candidate line finders, never a constant: for print the
+  list starts with Apple lines-only (`source.recipe.apple-finds-lines-on-print`); for a hand it holds Kraken's
+  line finder, a cloud model and an MLX model, and the bake-off compares them on the person's pages
+  (`source.try.bakeoff-is-the-same-tool`, the line finders' comparison) so the person decides with the result in
+  front of them. The recipe also looks online (Hugging Face, Zenodo) for line finders it does not yet know, as it
+  does for readers (`source.find.wide-every-time`). The candidates come from the cards that name the Find lines
+  job, so adding a card adds a candidate; the planner maps a chosen candidate's pin to its shipped workflow
+  from a table, and a pin with no workflow is skipped saying so ("cannot run here"), never run as Kraken.
+  *Test:* every card naming `find-lines` is a bake-off candidate; a pin with no workflow is skipped by name.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
