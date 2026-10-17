@@ -6000,8 +6000,10 @@ def register_generated_openapi_commands(
         add_out_of_the_box: Optional[bool] = typer.Option(None, '--add-out-of-the-box/--no-add-out-of-the-box', help="Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac. Default: true."),
         candidates: str = typer.Option(..., '--candidates', help='The models to score: the trained one(s) and any others. JSON.'),
         checked: Optional[str] = typer.Option(None, '--checked', help="The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`)."),
+        granularities_for_best: Optional[int] = typer.Option(None, '--granularities-for-best', help='How many of the best vision candidates (by their score at their own granularity) are asked again at the other granularities (#5722). 0: every candidate runs once. Default: 0.'),
         held_out_ids: Optional[list[str]] = typer.Option(None, '--held-out-ids', help="The pages to score on. None given: the pages every trained candidate's card says were held out of its training. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         language: Optional[str] = typer.Option(None, '--language', help="The pages' language, given to a vision model."),
+        named: Optional[list[str]] = typer.Option(None, '--named', help='Vision models the person named: asked at every granularity whatever their score (#5722). A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         remote_allowed: Optional[bool] = typer.Option(None, '--remote-allowed/--no-remote-allowed', help="A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words. Default: false."),
     ) -> None:
         """Score trained and out-of-the-box models on the held-out checked pages, as one job (POST /api/evaluation/runs)."""
@@ -6012,15 +6014,19 @@ def register_generated_openapi_commands(
                 "add_out_of_the_box": add_out_of_the_box,
                 "candidates": candidates,
                 "checked": checked,
+                "granularities_for_best": granularities_for_best,
                 "held_out_ids": held_out_ids,
                 "language": language,
+                "named": named,
                 "remote_allowed": remote_allowed,
             }, {
                 "add_out_of_the_box": {'type': 'boolean', 'title': 'Add Out Of The Box', 'description': "Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac.", 'default': True, 'x-cli-required': False},
                 "candidates": {'items': {'$ref': '#/components/schemas/EvaluationCandidate'}, 'type': 'array', 'minItems': 1, 'title': 'Candidates', 'description': 'The models to score: the trained one(s) and any others.', 'x-cli-required': True},
                 "checked": {'type': 'string', 'nullable': True, 'title': 'Checked', 'description': "The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).", 'x-cli-required': False},
+                "granularities_for_best": {'type': 'integer', 'maximum': 4.0, 'minimum': 0.0, 'title': 'Granularities For Best', 'description': 'How many of the best vision candidates (by their score at their own granularity) are asked again at the other granularities (#5722). 0: every candidate runs once.', 'default': 0, 'x-cli-required': False},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': "The pages to score on. None given: the pages every trained candidate's card says were held out of its training.", 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The pages' language, given to a vision model.", 'x-cli-required': False},
+                "named": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Named', 'description': 'Vision models the person named: asked at every granularity whatever their score (#5722).', 'x-cli-required': False},
                 "remote_allowed": {'type': 'boolean', 'title': 'Remote Allowed', 'description': "A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words.", 'default': False, 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -13265,6 +13271,7 @@ def register_generated_openapi_commands(
     @target_app.command("start-bakeoff")
     def recipes_start_bakeoff_post(
         ctx: typer.Context,
+        named: Optional[list[str]] = typer.Option(None, '--named', help='card ids of readers the person named: each is asked a line, a region and a page at a time (#5722), whatever its score; the two best also are. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         page_ids: Optional[list[str]] = typer.Option(None, '--page-ids', help='the sample pages; none: every page with a pass a person made. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         step: Optional[str] = typer.Option(None, '--step', help='which step\'s models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7) One of: read-a-line, find-lines. Default: "read-a-line".'),
     ) -> None:
@@ -13273,9 +13280,11 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/recipes/project/bakeoffs"
             params = None
             payload = _build_json_payload({
+                "named": named,
                 "page_ids": page_ids,
                 "step": step,
             }, {
+                "named": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Named', 'description': 'card ids of readers the person named: each is asked a line, a region and a page at a time (#5722), whatever its score; the two best also are', 'x-cli-required': False},
                 "page_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Page Ids', 'description': 'the sample pages; none: every page with a pass a person made', 'x-cli-required': False},
                 "step": {'type': 'string', 'enum': ['read-a-line', 'find-lines'], 'title': 'Step', 'description': "which step's models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7)", 'default': 'read-a-line', 'x-cli-required': False},
             }, required=False)
@@ -13300,6 +13309,7 @@ def register_generated_openapi_commands(
         bakeoff_id: str = typer.Argument(..., help='Bakeoff Id'),
         card: str = typer.Option(..., '--card', help="the candidate's card id."),
         folder_id: Optional[str] = typer.Option(None, '--folder-id', help='the folder, when the scope is a folder.'),
+        granularity: Optional[str] = typer.Option(None, '--granularity', help="a vision model measured at several granularities is used at this one (#5722); none: its best row's. One of: lines, region, page."),
         scope: Optional[str] = typer.Option(None, '--scope', help='Where the choice applies: the whole project, or one folder. One of: project, folder. Default: "project".'),
     ) -> None:
         """Use Bakeoff Choice (POST /api/recipes/project/bakeoffs/{bakeoff_id}/use)."""
@@ -13309,10 +13319,12 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "card": card,
                 "folder_id": folder_id,
+                "granularity": granularity,
                 "scope": scope,
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': "the candidate's card id", 'x-cli-required': True},
                 "folder_id": {'type': 'string', 'nullable': True, 'title': 'Folder Id', 'description': 'the folder, when the scope is a folder', 'x-cli-required': False},
+                "granularity": {'type': 'string', 'enum': ['lines', 'region', 'page'], 'nullable': True, 'title': 'Granularity', 'description': "a vision model measured at several granularities is used at this one (#5722); none: its best row's", 'x-cli-required': False},
                 "scope": {'type': 'string', 'enum': ['project', 'folder'], 'title': 'Scope', 'description': 'Where the choice applies: the whole project, or one folder.', 'default': 'project', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)

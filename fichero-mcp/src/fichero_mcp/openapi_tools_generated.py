@@ -2831,12 +2831,14 @@ def fichero_evaluation_start(
     add_out_of_the_box: Annotated[Optional[bool], Field(description="Also score the out-of-the-box readers the registry names for each kind asked (a trained reader's base, the Kraken catalogue, the vision bases' MLX builds) that are on this Mac. Default: true.")] = None,
     candidates: Annotated[list[Any], Field(description='The models to score: the trained one(s) and any others.')],
     checked: Annotated[Optional[str], Field(description="The checked pass: its model id or its name. Its lines are the right readings each candidate is scored against. None: on each page, the newest pass a person made (the bake-off's ground truth, `source.try.bakeoff-is-the-same-tool`).")] = None,
+    granularities_for_best: Annotated[Optional[int], Field(description='How many of the best vision candidates (by their score at their own granularity) are asked again at the other granularities (#5722). 0: every candidate runs once. Default: 0.')] = None,
     held_out_ids: Annotated[Optional[list[Any]], Field(description="The pages to score on. None given: the pages every trained candidate's card says were held out of its training.")] = None,
     language: Annotated[Optional[str], Field(description="The pages' language, given to a vision model.")] = None,
+    named: Annotated[Optional[list[Any]], Field(description='Vision models the person named: asked at every granularity whatever their score (#5722).')] = None,
     remote_allowed: Annotated[Optional[bool], Field(description="A cloud reader may read the sample's lines: the project lets pages leave this Mac (the bake-off sets it from setup's answer, #5660 item 7). False: a candidate on a cloud provider is refused, in words. Default: false.")] = None,
 ) -> Any:
     "Score trained and out-of-the-box models on the held-out checked pages, as one job\n\nQueue an `evaluate-models` job on the local model lane: each candidate (and, unless asked not to, the\nout-of-the-box readers of the same kind on this Mac) reads the checked pass's lines on the held-out\npages, and is scored with Fichero's one CER under every normalisation policy; the scores are appended\nto each model's card. Refused (422) in words when a trained model's card names no held-out page, a\nnamed page is not held out from a trained candidate, no page has a checked reading, a model is not\non this Mac, or the model is remote (not built yet). Through `evaluation.run`.\n\nRoute: POST /api/evaluation/runs (toolset `evaluation`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/evaluation/runs", json=_rt.body({"add_out_of_the_box": add_out_of_the_box, "candidates": candidates, "checked": checked, "held_out_ids": held_out_ids, "language": language, "remote_allowed": remote_allowed}))
+    return _rt.call("POST", "/api/evaluation/runs", json=_rt.body({"add_out_of_the_box": add_out_of_the_box, "candidates": candidates, "checked": checked, "granularities_for_best": granularities_for_best, "held_out_ids": held_out_ids, "language": language, "named": named, "remote_allowed": remote_allowed}))
 
 
 def fichero_evaluation_status(
@@ -6279,11 +6281,12 @@ def fichero_recipes_list_bakeoffs(
 
 def fichero_recipes_start_bakeoff(
     *,
+    named: Annotated[Optional[list[Any]], Field(description='card ids of readers the person named: each is asked a line, a region and a page at a time (#5722), whatever its score; the two best also are.')] = None,
     page_ids: Annotated[Optional[list[Any]], Field(description='the sample pages; none: every page with a pass a person made.')] = None,
     step: Annotated[Optional[str], Field(description='which step\'s models to compare: the readers (each scored by CER and WER against the checked text), or the line finders (each scored by how many checked lines it finds) (#5660 item 7) One of: read-a-line, find-lines. Default: "read-a-line".')] = None,
 ) -> Any:
     "Start Bakeoff\n\nCompare the readers on the project's corrected sample pages: at most two of each kind from what the finder\nfound (Kraken, Apple Vision, an MLX vision model from this Mac or Hugging Face, a cloud reader at the person's\nremote endpoints where pages may leave; ruled 2026-10-11, no fixed ranking: the measured best wins; a kind that\ncannot read here is listed with why; `GET` says who and the cost first), and Tesseract for print when it has the\nlanguage,\neach scored by CER and WER by the evaluation job (`evaluation.run`, audited) on the same pages. With\n`step: find-lines`, the line finders instead, each scored by how many checked lines it finds (a\n`compare-line-finders` job). Refused (422) in words, with nothing run, below 100 corrected lines on two pages\n(saying how many more), for a project not set up, or when no candidate can be scored on this Mac.\n\nRoute: POST /api/recipes/project/bakeoffs (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/recipes/project/bakeoffs", json=_rt.body({"page_ids": page_ids, "step": step}))
+    return _rt.call("POST", "/api/recipes/project/bakeoffs", json=_rt.body({"named": named, "page_ids": page_ids, "step": step}))
 
 
 def fichero_recipes_bakeoff_result(
@@ -6299,10 +6302,11 @@ def fichero_recipes_use_bakeoff_choice(
     bakeoff_id: Annotated[str, Field(description='Bakeoff Id')],
     card: Annotated[str, Field(description="the candidate's card id.")],
     folder_id: Annotated[Optional[str], Field(description='the folder, when the scope is a folder.')] = None,
+    granularity: Annotated[Optional[str], Field(description="a vision model measured at several granularities is used at this one (#5722); none: its best row's. One of: lines, region, page.")] = None,
     scope: Annotated[Optional[str], Field(description='Where the choice applies: the whole project, or one folder. One of: project, folder. Default: "project".')] = None,
 ) -> Any:
     "Use Bakeoff Choice\n\nUse This: make a scored candidate the reading step's reader for the project or one folder, kept as an\noverride on the recipe (for the project, the step's model too), through `project.save_setup` (audited,\nundoable). Refused (422) for a candidate not scored in this bake-off, a folder that is not one, or a\nproject with no recipe.\n\nRoute: POST /api/recipes/project/bakeoffs/{bakeoff_id}/use (toolset `recipes`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", f"/api/recipes/project/bakeoffs/{bakeoff_id}/use", json=_rt.body({"card": card, "folder_id": folder_id, "scope": scope}))
+    return _rt.call("POST", f"/api/recipes/project/bakeoffs/{bakeoff_id}/use", json=_rt.body({"card": card, "folder_id": folder_id, "granularity": granularity, "scope": scope}))
 
 
 def fichero_recipes_change_project_layers(

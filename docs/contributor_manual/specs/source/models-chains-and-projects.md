@@ -2458,7 +2458,7 @@ Jobs and chains
   loses nothing. For a model that does not localise text as for one that does, a cloud model as a local one. *Test:*
   with a stub that answers a paragraph to the page and arrays to the batches, every line is tied; with one that
   answers nothing usable, the step fails for that page and the Kraken readings are unchanged.
-- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); STILL OWED: the bake-off trying page / region / lines and the recipe recording the winner's granularity.* how a model is asked is an option the A/B measures,
+- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); **Built 2026-10-17 (engine):** the bake-off asks its two best vision candidates and any named at lines / region / page (`evaluation.requests_for`, `granularities_for`, `evaluate`'s trial pass; `granularities_for_best`, `named`), one table row per way asked (`granularity` on the row, `winner_granularity`), Use This records it on the override and the step (`use_this(granularity=)`), and `next_run` shows the extra cost first (`granularity_run_cost_usd`); pinned by `test_bakeoff_granularity_5722.py`. STILL OWED: the read step reading with the recipe's granularity at Start (it records, nothing reads it yet); answers tied by segment id rather than by position in an array; the app naming readers to compare (`named`) and showing the granularity column; a real run.* how a model is asked is an option the A/B measures,
   not a constant: the whole page, a region (a paragraph, the unit Kraken's regions give) at a time, or a few lines at a
   time, always with segment ids and always answered by id. A card states `lines_per_request`, the most lines the model is asked to read at once (decided 2026-10-16: a field
   on the card, never found by trying: a large cloud model, the whole page; a 2B local model, a few lines), and a request
@@ -2468,6 +2468,13 @@ Jobs and chains
   model can win at paragraph. The recipe takes the winner's model AND granularity; if none beats the Kraken reading on
   the person's corrected pages, the recipe keeps Kraken's reading and says so. *Test:* a stub whose answers are right
   only per paragraph wins at paragraph and loses at page; the recipe records both.
+  *Sizes (2026-10-16):* **lines** is one line a request; **region** is one region (`TextRegion`, or the whole page
+  where the page has none) a request, split on line boundaries at the card's `lines_per_request`; **page** is the
+  whole page in one request, tried only for a card that states no `lines_per_request` (a card that states one says
+  the model cannot take a page, so `page` would only be `region` again). A model that reads one line at a time
+  by nature (Kraken, Apple Vision) is measured once and has no granularity. The cost of the extra runs is shown with
+  the cost of the first (`next_run`), as an upper bound, before anything runs. Test:
+  `fichero-server/tests/unit/recipes/test_bakeoff_granularity_5722.py`.
 - `source.job.correct-onto-lines` — **[OK]** (#5654) *Built 2026-10-10: the paleographer's review
   (`workflows/tools/transcribe_review.py`, the `correct` job's workflow) is shown the page's lines
   (`tool_context`), and each review it saves is put back onto them (`llm/working_lines.correct_lines`):
