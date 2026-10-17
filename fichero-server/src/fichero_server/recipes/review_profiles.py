@@ -148,11 +148,14 @@ def review_prompt(lens: str, answers: dict[str, Any] | None) -> tuple[str, str]:
     """(the prompt a review node sends through `lens`, the sentence saying which profile it was built from).
     Raises for a lens no profile has."""
     profile, said = choose(answers)
-    if lens not in profile.lenses:
-        raise ValueError(f"there is no review lens {lens!r}; the lenses are {', '.join(lens_ids())}")
-    chosen = profile.lenses[lens]
+    names = [name.strip() for name in lens.split(",") if name.strip()]  # "a,b": one pass through several lenses
+    for name in names or [lens]:
+        if name not in profile.lenses:
+            raise ValueError(f"there is no review lens {name!r}; the lenses are {', '.join(lens_ids())}")
+    chosen = [profile.lenses[name] for name in names]
     shared = frame()
     parts = [_one(shared["intro"]), facts(answers), profile.context,
-             f"**This pass: {chosen['title']}.**\n{chosen['text'].rstrip()}", _one(shared["closing"]),
+             f"**This pass: {'; '.join(c['title'] for c in chosen)}.**\n"
+             + "\n".join(c["text"].rstrip() for c in chosen), _one(shared["closing"]),
              "Output the COMPLETE corrected transcription (same line breaks), nothing else."]
     return "\n\n".join(p for p in parts if p), said
