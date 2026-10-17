@@ -352,6 +352,23 @@ async def list_machines(request: Request) -> list[MachineOut]:
     return [MachineOut(**m.public()) for m in await asyncio.to_thread(machines.machines)]
 
 
+@machines_router.delete("/machines/{machine_id}", summary="Forget a paired machine: remove its saved token on this Mac")
+async def forget_machine(request: Request, machine_id: str = PathParam(pattern=r"^[0-9a-f]{32}$")) -> dict[str, bool]:
+    """Owner only. Removes this Mac's saved token; the device stays listed on the far Mac until it revokes it."""
+    _engine_owner(request)
+    from fichero_server.transfer import (  # lazy: app-import budget (#3950)
+        machines,
+    )
+
+    try:
+        await asyncio.to_thread(machines.forget, machine_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"forgotten": True}
+
+
 @machines_router.post("/machines/pair", response_model=MachineOut, summary="Pair with another Mac's Fichero by its pairing code")
 async def pair_machine(request: Request, body: PairMachineRequest) -> MachineOut:
     """`address`: the other Mac's tailnet name (`name.tailnet.ts.net`); `code`: the pairing code its Fichero

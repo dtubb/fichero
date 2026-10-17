@@ -4934,6 +4934,7 @@ def register_generated_openapi_commands(
         doc_type: Optional[str] = typer.Option(None, '--doc-type', help='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.'),
         exclude_from_processing: Optional[bool] = typer.Option(None, '--exclude-from-processing/--no-exclude-from-processing', help='Leave it out of runs.'),
         exclude_from_search: Optional[bool] = typer.Option(None, '--exclude-from-search/--no-exclude-from-search', help='Leave it out of search.'),
+        expected_updated_at: Optional[str] = typer.Option(None, '--expected-updated-at', help="The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348)."),
         file_type: Optional[str] = typer.Option(None, '--file-type', help='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.'),
         is_flagged: Optional[bool] = typer.Option(None, '--is-flagged/--no-is-flagged', help='Flag or unflag it.'),
         is_read: Optional[bool] = typer.Option(None, '--is-read/--no-is-read', help='Mark it read or unread.'),
@@ -4962,6 +4963,7 @@ def register_generated_openapi_commands(
                 "doc_type": doc_type,
                 "exclude_from_processing": exclude_from_processing,
                 "exclude_from_search": exclude_from_search,
+                "expected_updated_at": expected_updated_at,
                 "file_type": file_type,
                 "is_flagged": is_flagged,
                 "is_read": is_read,
@@ -4985,6 +4987,7 @@ def register_generated_openapi_commands(
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'description': 'Leave it out of runs.', 'x-cli-required': False},
                 "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'description': 'Leave it out of search.', 'x-cli-required': False},
+                "expected_updated_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Expected Updated At', 'description': "The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348).", 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
                 "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'description': 'Flag or unflag it.', 'x-cli-required': False},
                 "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'description': 'Mark it read or unread.', 'x-cli-required': False},
@@ -10760,6 +10763,22 @@ def register_generated_openapi_commands(
                 "code": {'type': 'string', 'title': 'Code', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("forget-a-paired-remove-its-saved-token-on-this-mac", hidden=True)
+    @target_app.command("forget")
+    def machines_forget_delete(
+        ctx: typer.Context,
+        machine_id: str = typer.Argument(..., help='Machine Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Forget a paired machine: remove its saved token on this Mac (DELETE /api/machines/{machine_id})."""
+        if not yes:
+            typer.confirm("Delete machines?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/machines/{machine_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('mcp')
