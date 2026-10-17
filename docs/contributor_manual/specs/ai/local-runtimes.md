@@ -323,10 +323,10 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
 - `runtime.whisper.resident` — **[GAP]** (#5370, #4628) Whisper loads once and transcribes a
   folder's files in one resident process; today each file starts a Python process and loads the
   model (`llm/whisper_runtime.py:319`).
-- `runtime.spacy.one-pipeline-per-language` — **[GAP]** (#5370) one loaded pipeline per language
-  serves NER, SVO and morphology, parsing each page once and batches with `nlp.pipe`; today
-  `knowledge/spacy_ner.py` and `knowledge/spacy_svo.py` each load their own copy and parse each page
-  two to three times.
+- `runtime.spacy.one-pipeline-per-language` — **[PARTIAL]** (#5370) one loaded pipeline per model serves NER and SVO
+  (`llm/local_models.py` `load_spacy_pipeline`, with its lemmatizer, store first then bundled); pinned by
+  `fichero-server/tests/unit/knowledge/test_one_spacy_pipeline_per_model_5370.py`. Still a gap: morphology on the same
+  pipeline, and parsing each page once with `nlp.pipe` rather than two to three times.
 - `runtime.mlx.idle-unload-and-loading-state` — **[GAP]** (#5370, #5358) a resident MLX model is
   released after the lane's idle time, and while it loads the step says "Loading <model>"; today the
   server child stays up with no idle release and a 30–300 s warm-up is a silent wait *(review)*.
