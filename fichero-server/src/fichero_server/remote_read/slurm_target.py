@@ -150,12 +150,16 @@ class SshShell:
         if not Path(key).is_file():
             raise NoKey(f"no key at {key}: make one in Settings (Compute) and add its public half in CCDB")
         self.cluster, self.ssh = cluster, ssh
-        self._opts = ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "ControlMaster=auto", "-o", "ControlPersist=4h",
+        self._opts = ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
+                      "-o", "StrictHostKeyChecking=accept-new", "-o", "ControlMaster=auto", "-o", "ControlPersist=4h",
                       "-o", f"ControlPath={control_dir}/%C", "-p", str(cluster.ssh_port)]
         self._dest = f"{cluster.username}@{cluster.host_alias}"
 
     def _ssh(self, remote: str, **kw) -> "subprocess.CompletedProcess":
-        return subprocess.run([self.ssh, *self._opts, self._dest, remote], capture_output=True, **kw)
+        if "stdout" not in kw:
+            kw.setdefault("capture_output", True)
+        # "--" so a destination can never be read as an ssh option
+        return subprocess.run([self.ssh, *self._opts, "--", self._dest, remote], **kw)
 
     def open_master(self) -> None:
         done = self._ssh("true", timeout=300)
@@ -170,15 +174,16 @@ class SshShell:
         self._put(text.encode(), remote)
 
     def put(self, local: Path, remote: str) -> None:
-        self._put(local.read_bytes(), remote)  # ponytail: whole file in memory; stream when shards exceed RAM
+        with open(local, "rb") as f:
+            self._put(f, remote)
 
-    def _put(self, data: bytes, remote: str) -> None:
-        done = self._ssh(f"cat > {shlex.quote(remote)}", input=data)
+    def _put(self, src, remote: str) -> None:
+        done = self._ssh(f"cat > {shlex.quote(remote)}", **({"input": src} if isinstance(src, bytes) else {"stdin": src}))
         if done.returncode:
             raise SlurmError(f"could not write {remote}: {done.stderr.decode(errors='replace').strip()[:300]}")
 
     def get(self, remote: str, local: Path) -> None:
-        done = self._ssh(f"cat {shlex.quote(remote)}")
+        with open(local, "wb") as f:
+            done = self._ssh(f"cat {shlex.quote(remote)}", stdout=f, stderr=subprocess.PIPE)
         if done.returncode:
             raise SlurmError(f"could not read {remote}: {done.stderr.decode(errors='replace').strip()[:300]}")
-        local.write_bytes(done.stdout)
