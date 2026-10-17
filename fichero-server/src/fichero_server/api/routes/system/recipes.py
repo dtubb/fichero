@@ -295,6 +295,12 @@ class AssembledRecipe(BaseModel):
         "plan starts (source.recipe.text-material-is-not-read)"))
 
 
+def _hf_token_set() -> bool:
+    from fichero_server.llm import get_api_key
+
+    return bool(get_api_key("huggingface"))
+
+
 def _this_machine_memory_gb() -> float:
     try:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
@@ -1445,6 +1451,10 @@ class TrainOffer(BaseModel):
     readiness: dict[str, Any] = Field(description=(
         "whether the project has enough corrected material: counts, how many more lines and pages, and the "
         "sentence that says so (the bake-off's one count, at the train step's threshold)"))
+    setting: dict[str, str] = Field(description=(
+        "how training happens in this project (the onboarding setting `answers.training`, or the machine's default): "
+        "`mode` here, huggingface or offered, and `why`"))
+    does: str = Field(description="what the setting does once the corrected lines reach the threshold, in a sentence")
 
 
 class StartPlan(BaseModel):
@@ -1525,7 +1535,11 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
-    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local)
+    from fichero_server.recipes.train_offers import training_setting
+
+    setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
+                               hf_configured=_hf_token_set(), stays_local=stays_local)
+    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     elif within is None and not pages["pages"]:
