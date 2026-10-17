@@ -289,7 +289,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     skipped: list[dict[str, str | None]] = []
     offered: list[str] = []
     #: Steps that run their next candidate because the first cannot (a missing key), each saying which and why.
-    fallbacks: list[dict[str, str]] = []
+    fallbacks: list[dict[str, Any]] = []
     #: Steps kept in the recipe with no model (`source.onboard.no-model-step-kept`): skipped, never refusing Start.
     needs_a_model: list[dict[str, Any]] = []
 
@@ -338,10 +338,19 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             # (`source.recipe.candidates-fallback-chain`); with none, the step waits and no other model is used
             # (`source.recipe.missing-key-never-substitutes`).
             rest = list(step.get("chain") or [])
-            nxt = next((c for c in rest if not (stays_local and _uses_cloud(c))
-                        and provider_without_key({"model": c.get("model")}) is None), None)
+            mine = (step.get("model") or {}).get("cloud")
+            runnable = [c for c in rest if not (stays_local and _uses_cloud(c))
+                        and provider_without_key({"model": c.get("model")}) is None]
+            # Another local model, or the same provider, runs on its own; a different cloud provider sends pages
+            # somewhere new, so it is offered and never used without the person's press.
+            nxt = next((c for c in runnable if not _uses_cloud(c) or (c.get("model") or {}).get("cloud") == mine), None)
+            offer = next((c for c in runnable if c is not nxt), None) if nxt is None else None
+            if offer is not None:
+                fallbacks.append({"step": sid, "from": keyless, "to": offer["id"], "used": False,
+                                  "why": f"Needs a key for {keyless}: {offer['id']} would send pages to another "
+                                         "provider, so it is offered, not used until you choose it"})
             if nxt is not None:
-                fallbacks.append({"step": sid, "from": keyless, "to": nxt["id"],
+                fallbacks.append({"step": sid, "from": keyless, "to": nxt["id"], "used": True,
                                   "why": f"Needs a key for {keyless}: {nxt['id']} runs instead"})
                 step = {**step, "model": nxt["model"], "runs_on": nxt.get("runs_on", "this-mac"),
                         "chain": rest[rest.index(nxt) + 1:]}

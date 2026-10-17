@@ -62,3 +62,21 @@ def test_a_keyless_step_with_no_candidate_left_is_skipped_as_before(monkeypatch)
     monkeypatch.setattr(start, "provider_without_key", lambda step: "OpenAI" if step.get("id") == "correct" else None)
     plan = start.plan_start(_recipe(LINES, READ, {**CLOUD_CORRECT, "chain": []}), stays_local=False)
     assert plan["fallbacks"] == [] and any(s["step"] == "correct" for s in plan["skipped"])
+
+
+def test_another_cloud_provider_is_offered_and_never_used_without_the_persons_press(monkeypatch):
+    from fichero_server.recipes import start
+    from tests.unit.recipes.test_start_plan import CLOUD_CORRECT, LINES, READ, _recipe
+
+    monkeypatch.setattr(start, "provider_without_key",
+                        lambda step: "OpenAI" if (step.get("model") or {}).get("cloud") == "openai" else None)
+    other = {"id": "gemini", "model": {"cloud": "google", "model": "gemini-2.5-flash"}, "runs_on": "cloud:google"}
+    same = {"id": "gpt-mini", "model": {"cloud": "openai", "model": "gpt-mini"}, "runs_on": "cloud:openai"}
+    plan = start.plan_start(_recipe(LINES, READ, {**CLOUD_CORRECT, "chain": [other]}), stays_local=False)
+    (offered,) = plan["fallbacks"]
+    assert offered["used"] is False and offered["to"] == "gemini"
+    assert any(s["step"] == "correct" for s in plan["skipped"])
+    assert all("correct" not in run["steps"] for run in plan["runs"])
+    # the same provider has the same missing key: nothing runs on its own there either
+    plan = start.plan_start(_recipe(LINES, READ, {**CLOUD_CORRECT, "chain": [same]}), stays_local=False)
+    assert all("correct" not in run["steps"] for run in plan["runs"])
