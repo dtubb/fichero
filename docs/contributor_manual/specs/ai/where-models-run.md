@@ -429,10 +429,12 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.one-cloud-cap` — **[PARTIAL]** (#5358) one cap on calls to a place, inside or outside a
   project; today the lane's 4 and a process semaphore of 12 (`llm/__init__.py:138,1504-1510`).
 - `ai.where.row-names-the-place` — **[PARTIAL]** (#5582) every call row and the run account name the
-  place, and pages sent per place. Built: each node of a job's tree (`jobs.tree`, `GET /api/activity/jobs/{id}`) carries
-  `places`, the places of the calls under it with how many went to each; pinned by
-  `fichero-server/tests/unit/jobs/test_row_names_the_place_5582.py`. Still a gap: the run account's own figure and
-  the app showing it.
+  place, and pages sent per place. Built: each usage entry carries `place` (`_record_usage`, and the job row's
+  `note_usage`; pinned by `fichero-server/tests/unit/llm/test_where_models_run.py`, `usage[0]["place"] == OWN_MACHINE`);
+  and each node of a job's tree (`jobs.tree`, `GET /api/activity/jobs/{id}`, `JobTree.places`) carries `places`, the places
+  of the calls under it with how many went to each (pinned by
+  `fichero-server/tests/unit/jobs/test_row_names_the_place_5582.py`, through the route too). Still a gap: the run
+  account's own figure, and the app showing it.
 - `ai.where.hourly-cost-in-the-account` — **[GAP]** (#5240) a batch place's hours, at its listed
   price, roll into the run's cost in Activity beside token costs; today the roll-up counts tokens
   only (`execution/jobs.py:421-426`).
