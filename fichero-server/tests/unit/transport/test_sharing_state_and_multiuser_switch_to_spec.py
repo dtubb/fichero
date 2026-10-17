@@ -28,16 +28,33 @@ def test_sharing_state_reports_multiuser_tailnet_and_device_count(two_macs, monk
     assert body["paired_device_count"] >= 1
 
 
-def test_the_owner_sets_the_persisted_multiuser_switch(app_db, monkeypatch):
-    from types import SimpleNamespace
-
-    from fichero_server.api.routes.auth import pairing
+def test_the_multiuser_switch_is_an_audited_undoable_action(test_package, app_db, monkeypatch):
+    """Changing who sees every library leaves an audit row and can be undone (#5751)."""
+    from fichero_server.actions import ActionContext, registry
+    from fichero_server.models import ActionAudit
+    from fichero_server.db import db_manager
 
     monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
-    monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True))
-    state = pairing.set_multiuser(SimpleNamespace(), pairing.MultiuserRequest(enabled=True), app_db)
+    library_db = db_manager.get_database(test_package)
+    ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
+    result = registry.invoke(library_db, "sharing.set_multiuser", {"enabled": True}, ctx)
     assert app_db.get_setting("multiuser.enabled") == "true"
-    assert state.multiuser_enabled is True
+    assert result.audit_id
+    audit = library_db.get(ActionAudit, result.audit_id)
+    assert audit.action_name == "sharing.set_multiuser" and audit.actor == "owner"
+    assert registry.get("sharing.set_multiuser").undoable
+
+
+def test_revoked_devices_are_not_counted(two_macs, monkeypatch):  # noqa: F811
+    from fichero_server.api.routes.auth import pairing
+
+    owner = _owner(two_macs["a"])
+    code = two_macs["a"].post("/api/pair/code", headers=owner).json()["code"]
+    paired = two_macs["b"].post("/api/pair", json={"code": code, "device_name": "Mac B"}).json()
+    before = two_macs["a"].get("/api/pair/sharing", headers=owner).json()["paired_device_count"]
+    assert two_macs["a"].post(f"/api/pair/devices/{paired['device_id']}/revoke", headers=owner).status_code == 200
+    after = two_macs["a"].get("/api/pair/sharing", headers=owner).json()["paired_device_count"]
+    assert after == before - 1
 
 
 def test_an_environment_setting_wins_and_says_so(two_macs, monkeypatch):  # noqa: F811

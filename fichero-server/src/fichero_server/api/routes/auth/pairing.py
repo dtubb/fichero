@@ -17,9 +17,12 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 from fichero_server.security import accounts
-from fichero_server.actions import ActionContext, ChangeSpec, action
-from fichero_server.api.auth import _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
+from fichero_server.actions import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionRefused
+from fichero_server.api.auth import action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
 from fichero_server.api.routes.auth.accounts import _current_session_user
+from fichero_server.api.main import get_library_database_for_write
+from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
 from fichero_server.security.remote_access_tls import validate_spki_pin, validate_tailnet_url
@@ -137,7 +140,7 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
         multiuser_enabled=multiuser_enabled(),
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,
         tailnet_serve_command=_tailnet_serve_command(),
-        paired_device_count=sum(1 for d in app_db.list_devices() if not getattr(d, "revoked_at", None)),
+        paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
     )
 
 
@@ -474,15 +477,39 @@ def set_multiuser(
     request: Request,
     body: MultiuserRequest,
     app_db: AppDatabase = Depends(get_app_database),
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
 ) -> SharingStateResponse:
-    """Set the persisted Multi-user switch (the Settings switch and the CLI/MCP share this route, #5751)."""
-    from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY
-
+    """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
+    switch, the CLI and MCP share this route."""
     _owner_only(request, app_db)
-    if (os.environ.get("FICHERO_MULTIUSER") or "").strip():
-        raise HTTPException(status_code=409, detail="Multi-user is set by FICHERO_MULTIUSER; unset it to change it here")
-    app_db.set_setting(MULTIUSER_SETTING_KEY, "true" if body.enabled else "false")
+    try:
+        registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return _sharing_state(app_db)
+
+
+class MultiuserParams(BaseModel):
+    enabled: bool
+
+
+def _multiuser_invert(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    return ("sharing.set_multiuser", {"enabled": before["enabled"]}) if before else None
+
+
+@action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert)
+def _set_multiuser_action(_db, params: MultiuserParams, _ctx: ActionContext):
+    """Who sees every library: audited and undoable. Owner only at the route; the environment wins."""
+    from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY, multiuser_enabled
+
+    if (os.environ.get("FICHERO_MULTIUSER") or "").strip():
+        raise ActionRefused("Multi-user is set by FICHERO_MULTIUSER; unset it to change it here")
+    app_db = get_app_db()
+    before = {"enabled": multiuser_enabled()}
+    app_db.set_setting(MULTIUSER_SETTING_KEY, "true" if params.enabled else "false")
+    after = {"enabled": params.enabled}
+    return after, ChangeSpec(domains=["sharing"], before=before, after=after)
 
 
 def _shares_at_ts_net() -> bool:

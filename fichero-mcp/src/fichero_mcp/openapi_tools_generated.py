@@ -5798,7 +5798,7 @@ def fichero_pairing_set_multiuser(
     *,
     enabled: Annotated[bool, Field(description='Enabled.')],
 ) -> Any:
-    'Set Multiuser\n\nSet the persisted Multi-user switch (the Settings switch and the CLI/MCP share this route, #5751).\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists).'
+    'Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists).'
     return _rt.call("PUT", "/api/pair/multiuser", json=_rt.body({"enabled": enabled}))
 
 
