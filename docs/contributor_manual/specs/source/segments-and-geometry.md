@@ -619,7 +619,7 @@ Structure
   segment with a kind.
 - `source.segment.open-kinds` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestOnePrimitiveOpenKinds::test_region_line_word_picture_all_segments_unknown_kind_roundtrips_kind_raw_kept`) kinds come from a standard list a project can extend; a model's
   own label is kept beside the tidy kind.
-- `source.segment.levels-optional` — **[GAP]** (#4927) any level may be absent; adding word segments under a
+- `source.segment.levels-optional` — **[OK]** (#4927; pinned by `fichero-server/tests/unit/api/test_segment_levels_optional_to_spec.py::test_source_segment_levels_optional__words_added_under_a_line_change_nothing_of_the_line_or_its_region`) any level may be absent; adding word segments under a
   line changes no id, shape or reading of the line or its region.
 - `source.segment.physical-and-logical` — **[GAP]** (#4927) a segment can sit in the physical ladder and in a
   logical unit that crosses pages or documents.
