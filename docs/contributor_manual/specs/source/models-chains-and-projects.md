@@ -1194,9 +1194,15 @@ plan's peak memory across steps. Ready shows none of it.
 - `source.onboard.auto.volumes-in-batches` — **[OK]** (#5540; built as `source.recipe.batch-at-archive-scale` below, one batch per folder with every step finished on it before the next, progress per folder; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) a run over several volumes goes one
   volume at a time, with every stage finished on that volume before the next volume starts. Progress is
   shown per volume.
-- `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
-  train step's `offered_when` threshold, the offer appears by itself, with where, time and cost. Today
-  nothing watches the count and the app never reads `offered`.
+- `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440; reworded 2026-10-17, ruled) training runs by itself per an
+  onboarding setting, not a prompt: in the project's setup the person chooses how training happens (`answers.training`:
+  `here`, `huggingface` or `offered`). With no choice the default depends on the machine: a Mac with enough memory to train
+  a Kraken reader trains **here**, automatically; otherwise **huggingface** when a Hugging Face token is set up; else the
+  offer stays on the Start plan (`offered`). A choice that cannot be met (`huggingface` with no token) falls back to
+  `offered` and says why. No alert and no notification. The Start plan shows what it did and will do: each train offer
+  carries its `setting` (mode and the sentence that says why) and what the setting does once the corrected lines reach the
+  step's threshold. *Test:* the default by machine, an explicit choice winning, an unmeetable choice falling back with its
+  reason, and the setting on the Start plan's offers.
 - `source.onboard.auto.text-needs-no-reading` — **[PARTIAL]** (#5553, as
   `source.recipe.text-material-is-not-read`) material that is already text is a kind of its own. Its
   recipe starts from text (`STARTS_WITH` includes the page's text), its language is detected from the
