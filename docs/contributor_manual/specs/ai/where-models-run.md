@@ -376,9 +376,11 @@ person, never silently (`ai.where.fallback-free-and-asked`).
 - `ai.where.one-pricer-every-place` — **[PARTIAL]** (#5240, #5582) token and hourly prices go
   through one pricer. Built: tokens (`llm/usage.py:227-272`); Hugging Face's hourly price is read
   separately (`training/hf_jobs.py:115-121`); cluster allocation is not counted.
-- `ai.where.estimate-names-the-place` — **[BROKEN]** (#5590) Start's estimate states each
-  step's place and its cost basis; today every place that is not `cloud:` is priced at $0
-  (`recipes/start.py:286-289`), a cluster step included.
+- `ai.where.estimate-names-the-place` — **[PARTIAL]** (#5590) Start's estimate states each
+  step's place and its cost basis (`free on this Mac`, `the model's listed rate`, `unpriced`): only this Mac is $0,
+  a cloud step is priced by the listed rate, any other place (a cluster) is unpriced and makes the total unknown;
+  pinned by `fichero-server/tests/unit/recipes/test_estimate_names_the_place_5590.py`. Still a gap: a cluster's
+  hourly rate is not read into the estimate (`ai.where.hourly-cost-in-the-account`).
 - `ai.where.remote-audio-priced` — **[PARTIAL]** (#5591) a transcription sent to a provider
   records its usage like any other call: `audio_transcription` records the call with no tokens, so the
   run account lists it and its cost reads unknown, never free; pinned by
