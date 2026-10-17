@@ -11,6 +11,7 @@ One difference from Hugging Face: a read is ONE Slurm array (`sbatch --array`), 
 """
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -152,14 +153,25 @@ class SshShell:
         self.cluster, self.ssh = cluster, ssh
         self._key, self._control_dir = Path(key), Path(control_dir)
 
-    def _ssh(self, remote: str, **kw) -> "subprocess.CompletedProcess":
+    def _ssh(self, remote: str, *, batch: bool = True, **kw) -> "subprocess.CompletedProcess":
         if "stdout" not in kw:
             kw.setdefault("capture_output", True)
-        return subprocess.run(
-            build_ssh_command(self.cluster, remote, key=self._key, control_dir=self._control_dir, ssh=self.ssh), **kw)
+        return subprocess.run(build_ssh_command(self.cluster, remote, key=self._key, control_dir=self._control_dir,
+                                                ssh=self.ssh, batch=batch), **kw)
 
-    def open_master(self) -> None:
-        done = self._ssh("true", timeout=300)
+    def open_master(self, *, prompts=None, timeout: float = 300) -> None:
+        """Open the one connection. With `prompts` (a `PromptBroker`) ssh may ask for the second factor: its own
+        prompt text goes to the app through the broker and the answer is not kept."""
+        if prompts is None:
+            done = self._ssh("true", timeout=timeout)
+        else:
+            from fichero_server.remote_read.ssh_prompts import AskpassServer
+
+            server = AskpassServer(prompts, timeout=timeout)
+            try:
+                done = self._ssh("true", batch=False, timeout=timeout, env={**os.environ, **server.env()})
+            finally:
+                server.close()
         if done.returncode:
             raise SlurmError(f"could not connect to {self.cluster.name}: {done.stderr.decode(errors='replace').strip()[:300]}")
 

@@ -578,18 +578,20 @@ def build_ssh_command(
     key: Path | None = None,
     control_dir: Path | None = None,
     ssh: str = "ssh",
+    batch: bool = True,
 ) -> list[str]:
     """The ONE ssh argv builder (the dry-run path and ``SshShell`` both use it).
 
     Uses the user's own ``Host`` alias (plan §4). With ``key`` it adds the unattended-login options
     (key only, no prompts, first contact accepts a new host key); with ``control_dir`` it reuses one
-    ControlMaster connection. ``remote_command`` is an argv (quoted here) or an already-built string.
+    ControlMaster connection. ``batch=False`` drops ``BatchMode`` so ssh may ask (the second factor, via
+    ``SSH_ASKPASS``) while the master is opened. ``remote_command`` is an argv (quoted here) or an already-built string.
     Pure command construction: nothing executes.
     """
     joined = remote_command if isinstance(remote_command, str) else " ".join(shlex.quote(p) for p in remote_command)
     opts: list[str] = []
     if key is not None:
-        opts += ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
+        opts += ["-i", str(key), "-o", "IdentitiesOnly=yes", *(["-o", "BatchMode=yes"] if batch else []),
                  "-o", "StrictHostKeyChecking=accept-new"]
     if control_dir is not None:
         opts += ["-o", "ControlMaster=auto", "-o", "ControlPersist=4h", "-o", f"ControlPath={control_dir}/%C"]
