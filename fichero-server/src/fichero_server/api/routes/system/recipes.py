@@ -2110,7 +2110,9 @@ async def start_bakeoff(
 
 
 @router.get("/project/bakeoffs", response_model=BakeoffList, response_model_by_alias=True)
-async def list_bakeoffs(db: Database = Depends(get_library_database)) -> BakeoffList:
+async def list_bakeoffs(named: list[str] = Query(default_factory=list, description=(
+        "card ids of readers the person wants compared: `next_run` counts them in whatever the cap on readers of "
+        "a kind (#5718)")), db: Database = Depends(get_library_database)) -> BakeoffList:
     """Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),
     and whether the project has enough corrected lines to run one now (`readiness`, counted as a start is)."""
     from fichero_server.recipes.start import count_pages
@@ -2122,7 +2124,7 @@ async def list_bakeoffs(db: Database = Depends(get_library_database)) -> Bakeoff
     if answers:
         a = _answers(answers)
         next_run = BakeoffNextRun(**bakeoff.next_run(db, a, known_cards(a, include_not_built=True),
-                                                    volume=a.pages or count_pages(db)))
+                                                    volume=a.pages or count_pages(db), named=named))
     return BakeoffList(items=[BakeoffResult(**bakeoff.result(db, library, r["id"]))
                               for r in bakeoff.list_records(library)],
                        readiness=BakeoffReadiness(**bakeoff.readiness(pages, bakeoff.unmarked_import_pages(db))),

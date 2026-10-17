@@ -15187,6 +15187,22 @@
         "summary": "List Bakeoffs",
         "description": "Every bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),\nand whether the project has enough corrected lines to run one now (`readiness`, counted as a start is).",
         "operationId": "list_bakeoffs_api_recipes_project_bakeoffs_get",
+        "parameters": [
+          {
+            "name": "named",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "card ids of readers the person wants compared: `next_run` counts them in whatever the cap on readers of a kind (#5718)",
+              "title": "Named"
+            },
+            "description": "card ids of readers the person wants compared: `next_run` counts them in whatever the cap on readers of a kind (#5718)"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -15194,6 +15210,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BakeoffList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }

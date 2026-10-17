@@ -3986,7 +3986,7 @@ Finding models
   the person's remote endpoints) and so are the ones not searched (Transkribus models, HTR-United), never left
   implied. *Test:* a safetensors vision model with no MLX conversion is listed as "runs on remote compute", with its
   size and cost; with no remote compute set up it is listed as unavailable, with why.
-- `source.try.cloud-models-are-compared-for-reading-and-cleanup` — **[GAP]** (#5718) the person's cloud models
+- `source.try.cloud-models-are-compared-for-reading-and-cleanup` — **[PARTIAL]** (#5718) *Built 2026-10-17 (reading half): every cloud reader of the person's provider rows (`discovery.remote_reader_cards`: Claude, Gemini, OpenAI, OpenRouter, any vision model of a row) takes part; two of a kind by the rules' order, and any the person names in addition (`named` on `candidates`, `next_run`, `start`, the start request and `GET /project/bakeoffs?named=`), each priced before anything runs, none scored where pages stay here, none the rules' choice; pinned by `test_bakeoff_cloud_models_5718.py`. NOT built: the clean-up half (a Correct comparison, cloud text cards for `correct`). It waits on two questions recorded on #5718: how a cloud model "lists" a language (a cloud card has `languages: None`, so `REWRITING_JOBS` refuses it for every language), and where the uncleaned reading comes from.* the person's cloud models
   (Claude, Gemini, OpenAI, OpenRouter, whatever their provider rows enable; the spec names none, the rows do) are
   compared by the A/B, for reading (a reader kind of the bake-off today: `remote_reader_cards`) AND for clean-up,
   the Correct step, which has no comparison and no cloud text card today (`TEXT_MODEL_JOBS` lacks it). A clean-up
