@@ -24,7 +24,7 @@ pane (`panes.magnifier.per-pane-open-state`, `panes.zoom.sync-across-panes`).
 
 - `magnifier.per-pane-switches` **[OK]** (#5015) — the magnifier, the loupe and their locks are each Preview pane's own
   (`@PaneOnlyStorage`), so closing the magnifier in one of two Previews leaves the other alone. The Zoom menu acts on
-  the FOCUSED pane through `ImageZoomActions.magnifier` / `.loupe`, not a shared flag. Pinned by `PreviewMagnifierPerPaneShapeTests`. **Persistence**: the on/off is kept in `<key>.byPane` (UserDefaults) under the pane's id, so it survives a launch only for panes whose id is stable (the built-in layouts' panes); a pane made at run time (a split, a restored saved workspace's new ids) opens with it off. Storing it in the workspace (`PaneConfig`) is left: the pane list has no write-back path for per-pane view state yet.
+  the FOCUSED pane through `ImageZoomActions.magnifier` / `.loupe`, not a shared flag. Pinned by `PreviewMagnifierPerPaneShapeTests`. **Persistence**: a pane's on/off is kept under its pane id (saved with the pane list), and the last choice made in any pane is the START value of a pane that has none yet; the pane copies it on first appearance and then keeps its own, so a later change elsewhere never reaches it. Locks are not remembered. Pinned by `PreviewMagnifierPerPaneShapeTests`.
 - `magnifier.parks-where-left` **[PARTIAL]** (#1461) (implemented, unpinned; #4806) — the loupe stays where you put it and does not ride the
   cursor; ⌥-click parks it at the click. (Daniel, 2026-09-01: "it should live where you leave it".)
   `TrackingImageView.swift`.

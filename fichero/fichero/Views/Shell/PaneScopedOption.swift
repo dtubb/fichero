@@ -21,6 +21,10 @@ enum PaneScopedOption {
         value(mapJSON, pane: pane, shared: paneOnly ?? shared)
     }
 
+    static func hasEntry(_ mapJSON: String, pane: UUID) -> Bool {
+        decode(mapJSON, as: Bool.self)?[pane.uuidString] != nil
+    }
+
     static func setting<V: Codable>(_ value: V, in mapJSON: String, pane: UUID?) -> String {
         guard let pane else { return mapJSON }
         var map = decode(mapJSON, as: V.self) ?? [:]
@@ -75,13 +79,18 @@ extension PaneStorage where Value == Bool {
 struct PaneOnlyStorage: DynamicProperty {
     @Environment(\.paneLeafId) private var pane
     private let map: AppStorage<String>
+    /// The last choice made in any pane (#5015, review 52): the START value of a pane with no entry of its own,
+    /// when `remembers`. A pane copies it into its own entry on first appearance (`adoptSeed`), so after that the
+    /// panes are independent again and only a NEW pane starts from it. Unused when not `remembers`.
+    private let last: AppStorage<Bool>
+    private let remembers: Bool
     private let initial: Bool
     @State private var unpaned: Bool?
 
     var wrappedValue: Bool {
         get {
             if pane == nil, let unpaned { return unpaned }
-            return PaneScopedOption.value(map.wrappedValue, pane: pane, shared: false, paneOnly: initial)
+            return PaneScopedOption.value(map.wrappedValue, pane: pane, shared: last.wrappedValue, paneOnly: remembers ? nil : initial)
         }
         nonmutating set {
             if pane != nil {
@@ -89,6 +98,7 @@ struct PaneOnlyStorage: DynamicProperty {
             } else {
                 unpaned = newValue
             }
+            if remembers { last.wrappedValue = newValue }
         }
     }
 
@@ -96,8 +106,17 @@ struct PaneOnlyStorage: DynamicProperty {
         Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
     }
 
-    init(wrappedValue: Bool, _ key: String) {
+    /// Give this pane its own entry holding what it shows now (the seed, for a pane that never chose), so a later
+    /// change in another pane no longer reaches it. A pane with an entry is left alone.
+    func adoptSeed() {
+        guard remembers, let pane, !PaneScopedOption.hasEntry(map.wrappedValue, pane: pane) else { return }
+        map.wrappedValue = PaneScopedOption.setting(wrappedValue, in: map.wrappedValue, pane: pane)
+    }
+
+    init(wrappedValue: Bool, _ key: String, remembers: Bool = false) {
         map = AppStorage(wrappedValue: "{}", key + ".byPane")
+        last = AppStorage(wrappedValue: wrappedValue, key + ".last")
+        self.remembers = remembers
         initial = wrappedValue
     }
 }

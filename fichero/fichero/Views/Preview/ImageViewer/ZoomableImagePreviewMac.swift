@@ -96,8 +96,8 @@ struct ZoomableImagePreview: View {
 
     // These settings persist across image changes using AppStorage
     // The magnifier and loupe switches belong to THIS pane only (#5015): two Previews used to share one flag.
-    @PaneOnlyStorage("imagePreview.magnifierEnabled") var magnifierEnabled = false
-    @PaneOnlyStorage("imagePreview.loupeEnabled") var loupeEnabled = false
+    @PaneOnlyStorage("imagePreview.magnifierEnabled", remembers: true) var magnifierEnabled = false
+    @PaneOnlyStorage("imagePreview.loupeEnabled", remembers: true) var loupeEnabled = false
     @AppStorage("imagePreview.loupeMagnification") var loupeMagnification: Double = 3.0
     @AppStorage("imagePreview.loupeSize") var loupeSize: Double = 150.0
     @AppStorage("imagePreview.panelMagnification") var panelMagnification: Double = 4.0
@@ -421,6 +421,8 @@ struct ZoomableImagePreview: View {
             .onChange(of: renderedImage) { _, newImg in handleRenderedImageChanged(newImg) }
             .onChange(of: scale) { _, newScale in handleScaleChanged(newScale) }
             .onChange(of: documentId) { _, _ in handleDocumentIDChangedForHighRes() }
+            // A pane that never chose starts from the last choice, then keeps its own (#5015).
+            .onAppear { _magnifierEnabled.adoptSeed(); _loupeEnabled.adoptSeed() }
             .onChange(of: magnifierLocked) { wasLocked, isLocked in
                 handleMagnifierLockChanged(wasLocked, isLocked)
             }
