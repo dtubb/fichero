@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import tarfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,44 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _downscaled(path: Path, longest: int, into: Path) -> Path:
+    """A JPEG of the page no larger than `longest` pixels on its longer side (`compute.package.shards-not-files`):
+    the archive's full-size scans never travel, the same scale the reader is given for a IIIF page."""
+    from PIL import Image
+
+    target = into / f"{path.stem}.{_sha256(path)[:12]}.part"
+    with Image.open(path) as image:
+        image = image.convert("RGB")
+        image.thumbnail((longest, longest))
+        image.save(target, format="JPEG", quality=92)
+    return target
+
+
+def shard_archive(shard: int) -> str:
+    return f"shards/shard-{shard:05d}.tar"
+
+
+def pack_shards(package: Path) -> list[str]:
+    """Write each shard's local images as ONE tar beside the package (`compute.hpc.stage-as-shards`), so a
+    cluster receives a few big files, not one per page; a task unpacks its own to `$SLURM_TMPDIR`.
+    Returns the archives' relative names, in shard order."""
+    job = json.loads((package / "job.json").read_text(encoding="utf-8"))
+    (package / "shards").mkdir(exist_ok=True)
+    names = []
+    for number, indices in enumerate(job["shards"]):
+        name = shard_archive(number)
+        with tarfile.open(package / name, "w") as tar:
+            for index in indices:
+                rel = job["sources"][index].get("image")
+                if rel:
+                    info = tar.gettarinfo(package / rel, arcname=rel)
+                    info.mtime, info.uid, info.gid, info.uname, info.gname = 0, 0, 0, "", ""  # same bytes every time
+                    with (package / rel).open("rb") as handle:
+                        tar.addfile(info, handle)
+        names.append(name)
+    return names
+
+
 def pages_to_read(db: Any, scope_ids: list[str]) -> list[Any]:
     """Pages under the named documents and folders, in their stored order: files and pages with an
     image here, or a IIIF service to fetch from."""
@@ -136,10 +175,13 @@ def build_read_package(db: Any, *, job_id: str, scope_ids: list[str], step: Read
         if local is None:
             skipped.append({"id": page.id, "why": "its image is not on this Mac"})
             continue
-        sha = _sha256(local)
-        rel = f"images/{sha}{local.suffix.lower()}"
-        if rel not in objects:
-            shutil.copy2(local, out / rel)
+        scaled = _downscaled(local, longest, out / "images")
+        sha = _sha256(scaled)
+        rel = f"images/{sha}.jpg"
+        if rel in objects:
+            scaled.unlink()
+        else:
+            scaled.rename(out / rel)
             objects[rel] = SyncObject(rel=rel, sha256=sha, size=(out / rel).stat().st_size)
         sources.append({"id": page.id, "image": rel})
     if not sources:
