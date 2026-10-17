@@ -753,6 +753,8 @@ Nothing in the project changes.
   target (it holds work packages, not projects); refused in words. Built by construction: the only target is a
   paired machine (`GET /api/machines`), and an address that is not a tailnet name is refused when pairing.
   *Not pinned for a cluster by name.*
+- `transfer.machine.owners-devices-send` — **[GAP]** (#5661, ruled 2026-10-17) sending to a paired machine is allowed from any device the owner owns (phone and Mac alike, including a phone connected remotely in single-user mode), with the same copy features as the owner's Mac; other roles stay as built (a non-owner cannot pair out or send). Keep-author stands (rows keep their source `created_by`). Test to be written: `fichero-server/tests/unit/transfer/test_owner_device_sends.py` (an owner's paired-device token sends; an editor's does not).
+- `transfer.machine.forget-machine` — **[GAP]** (#5661, ruled 2026-10-17) a paired machine can be forgotten: "Forget machine" removes its saved token from this Mac's Keychain and drops it from `GET /api/machines`, after which a send to it is refused as unpaired. It does not revoke the device on the far Mac (that is that Mac's Sharing list) and says so in one sentence. Test to be written: `fichero-server/tests/unit/transfer/test_forget_machine.py`.
 
 ### Rights
 
