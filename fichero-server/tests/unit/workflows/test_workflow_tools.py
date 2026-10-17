@@ -5,7 +5,7 @@ Tests the source, vision, and LLM tools for workflows.
 """
 
 import pytest
-from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from pathlib import Path
 import base64
 
