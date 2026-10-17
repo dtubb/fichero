@@ -13,3 +13,14 @@ final class ForegroundTokenRenewalShapeTests: XCTestCase {
         XCTAssertTrue(tail.contains("DeviceTokenRenewal.renewIfNeeded"), "the foreground hook no longer renews")
     }
 }
+
+extension ForegroundTokenRenewalShapeTests {
+    /// Review 39: N scenes fire N renews; only one may run per host at a time.
+    func testRenewIsSingleFlightPerHost() throws {
+        let source = try AppSource.code("Services/DeviceTokenRenewal.swift")
+        let fn = try XCTUnwrap(source.range(of: "static func renewIfNeeded"))
+        let head = String(source[fn.upperBound...].prefix(500))
+        XCTAssertTrue(head.contains("renewing.contains(hostString)"), "a second concurrent renew is no longer refused")
+        XCTAssertTrue(head.contains("defer { renewing.remove(hostString) }"), "the in-flight mark is never cleared")
+    }
+}

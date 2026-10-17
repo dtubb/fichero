@@ -18,6 +18,9 @@ import OSLog
 ///
 /// Loopback/bootstrap hosts have no device token and are skipped.
 enum DeviceTokenRenewal {
+    /// Hosts with a renew in flight (MainActor, so no lock).
+    @MainActor private static var renewing: Set<String> = []
+
     /// Renew once the token is this close to expiry (14 days).
     static let renewalWindow: TimeInterval = 14 * 24 * 60 * 60
 
@@ -69,6 +72,11 @@ enum DeviceTokenRenewal {
     @MainActor
     static func renewIfNeeded(host: URL, now: Date = Date()) async {
         let hostString = host.absoluteString
+        // One renew at a time: every iPad scene fires this on foreground, and two
+        // concurrent renews would each swap the Keychain token (the loser's is dead).
+        guard !renewing.contains(hostString) else { return }
+        renewing.insert(hostString)
+        defer { renewing.remove(hostString) }
         guard let expiresAt = storedExpiry(host: hostString) else { return }
         guard shouldRenew(expiresAt: expiresAt, now: now) else { return }
 
