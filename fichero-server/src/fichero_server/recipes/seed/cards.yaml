@@ -89,6 +89,15 @@ cards:
     trainable: true
     runs_here: false         # Tesseract is not bundled yet (ai/local-runtimes.md)
     note: Tesseract's Spanish data; the fast local baseline for print.
+  - id: apple:vision/find-lines@os
+    pin: {builtin: apple-vision-lines}
+    jobs: [find-lines]
+    scripts: any
+    languages: any
+    material: [print, typescript]   # never handwriting: Kraken finds a hand's lines (#5451)
+    licence: system
+    pinnable: false
+    note: Apple's on-device text recognition used to find the lines of print only; it keeps no text.
   - id: apple:vision/recognize-text@os
     pin: {builtin: apple-vision}
     jobs: [read-a-page]

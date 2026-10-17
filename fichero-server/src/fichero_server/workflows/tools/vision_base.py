@@ -43,6 +43,7 @@ from fichero_server.media.ocr_geometry import (
     attach_char_spans,
     from_apple_vision_result,
     geometry_unavailable,
+    lines_only,
     parse_vlm_geometry,
 )
 from fichero_server.llm.read_guard import (
@@ -3731,6 +3732,8 @@ async def process_vision(
     save_to_file_flag: bool = False,
     return_boxes: bool = False,
     force_return_boxes: bool = False,
+    #: Apple Vision as a line FINDER: the boxes of its lines, no text (`source.recipe.apple-finds-lines-on-print`).
+    keep_text: bool = True,
     metadata_field: str | None = None,
     custom_metadata: dict | None = None,
     # Applied to the final LLM text BEFORE any save (#4329). Lets a markup
@@ -4609,6 +4612,8 @@ async def process_vision(
                     )
                     text = _vision_result.text
                     page_geometry = _apple_geometry_result(_vision_result)
+                    if not keep_text and page_geometry is not None:
+                        page_geometry, text = lines_only(page_geometry), ""
                 # Apple Vision doesn't use LLM params, parse as text
                 parsed = text
             elif vision_mode == "kraken":

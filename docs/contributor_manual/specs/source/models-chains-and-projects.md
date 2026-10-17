@@ -2541,11 +2541,12 @@ Jobs and chains
   page-level transcriptions and `page_content`, stay on the spread only (so "read a page" still reads a half);
   a line measured on a rendition's frame refuses the split loudly rather than being placed by a guess; the
   app showing the flag.
-- `source.recipe.apple-finds-lines-on-handwriting` — **[GAP]** (#5451; ruled 2026-10-04) when a page's
-  hand is not print (decided from the derived script and hand, `source.onboard.*`), a recipe runs Apple
-  Vision for its line finding only: its text is not kept as a reading. Apple's OCR of handwriting is
-  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`), and every Mosquera page carries such a pass
-  today.
+- `source.recipe.apple-finds-lines-on-print` — **[OK]** (#5451; ruled 2026-10-17, replacing the 2026-10-04
+  wording; tested in `fichero-server/tests/unit/recipes/test_apple_finds_lines_on_print_5451.py`: the card `apple:vision/find-lines@os`, the rule in `assemble._choose`, the planner's `detect_regions_apple_lines` workflow, `ocr_geometry.lines_only`; when a Kraken reader follows, it still finds its own lines) for print and typescript a recipe's Find lines step runs Apple Vision for its line finding only:
+  Apple finds the lines and keeps no text (the Detect Segments tool's `keep_text` off: the page's line boxes
+  carry no reading, no word boxes), so the text of a print page comes from the reader the recipe names. A
+  handwriting page goes to Kraken (the card states print and typescript only). Apple's OCR of handwriting is
+  noise (Mosquera SM_NPQ_C01_030: `WtrtNI-`, `¥eTIQ`) and would otherwise reach the Order tab as a reading.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
 - `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.

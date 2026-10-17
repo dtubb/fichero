@@ -73,6 +73,10 @@ TOOL_PURPOSES = frozenset({"edit-corpus", "decipher", "not-sure"})
 #: "text" is material that is already text (Markdown, plain text, Word, a PDF with a text layer, notes from a
 #: note-taking app): nothing reads it (`source.recipe.text-material-is-not-read`, #5553).
 MATERIALS: tuple[str, ...] = ("handwriting", "print", "typescript", "text")
+#: Apple Vision as a line finder only (`source.recipe.apple-finds-lines-on-print`): the card's pin, and the
+#: materials whose Find lines step it takes.
+APPLE_LINES_PIN = {"builtin": "apple-vision-lines"}
+APPLE_LINES_MATERIALS = ("print", "typescript")
 #: The materials a reader reads (a reading step gets one reader per kind ticked).
 READ_MATERIALS: tuple[str, ...] = tuple(m for m in MATERIALS if m != "text")
 #: The jobs that make a page's text from its picture: a project whose material is all text runs none of them, and
@@ -583,6 +587,9 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
             gap = "no reader states that it reads pages of this period; the bake-off measures the ones that state none"
             return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
         pool = stated
+    if job == "find-lines" and material in APPLE_LINES_MATERIALS:
+        # Print and typescript: Apple finds the lines and keeps no text; a hand is Kraken's (#5451, ruled 2026-10-17).
+        pool = [c for c in pool if c.pin == APPLE_LINES_PIN] or pool
     if job == "make-a-vector":
         # The embedder: the one this engine's search embeds with, where its card covers all the project's
         # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.

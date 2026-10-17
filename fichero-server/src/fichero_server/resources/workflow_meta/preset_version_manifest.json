@@ -63,6 +63,10 @@
   "preset_version": 3,
   "sha256": "542525a6012e65984151558947cb2647bceb77d375481558d5551f757bb138c6"
  },
+ "detect_regions_apple_lines.json": {
+  "preset_version": 1,
+  "sha256": "a30e478b47af7d63cebc4d9b38b56b3ea55135cc26a2cbc723a5479766438a11"
+ },
  "detect_regions_kraken.json": {
   "preset_version": 2,
   "sha256": "85ce4129398c263daed583ad3de2763ede92539356439f32f3d0c53e0d4df7bc"

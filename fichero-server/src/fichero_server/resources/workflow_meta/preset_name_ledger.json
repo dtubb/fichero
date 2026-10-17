@@ -33,6 +33,7 @@
     "Detect Regions (Kraken)",
     "Detect Regions (VLM)",
     "Detect Segments (Apple Vision)",
+    "Detect Segments (Apple Vision, lines only)",
     "Detect Segments (Kraken)",
     "Detect Segments (VLM)",
     "Diary Entries",

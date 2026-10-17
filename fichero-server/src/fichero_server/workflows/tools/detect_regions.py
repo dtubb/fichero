@@ -65,6 +65,14 @@ DETECT_REGIONS_CONFIG = {
             "runtime installed from Settings."
         ),
     },
+    "keep_text": {
+        "type": "boolean",
+        "default": True,
+        "description": (
+            "apple only: false keeps the line boxes and no text, so Apple is "
+            "a line finder and never a reader (a recipe's Find lines for print)."
+        ),
+    },
 }
 
 
@@ -207,6 +215,7 @@ async def detect_regions(
         return_boxes=use_vlm,
         force_return_boxes=use_vlm,
         language=inputs.get("language", "en"),
+        keep_text=bool(inputs.get("keep_text", True)),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         force_ocr=True,
         temperature=None,
