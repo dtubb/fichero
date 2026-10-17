@@ -50331,6 +50331,12 @@
             "title": "Faded Pages",
             "description": "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"
           },
+          "photographs": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Photographs",
+            "description": "the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)"
+          },
           "job_answers": {
             "additionalProperties": true,
             "type": "object",
@@ -68034,6 +68040,14 @@
             "title": "Unpriced Models",
             "description": "models under it the price list does not know"
           },
+          "places": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Places",
+            "description": "where the model calls under this one ran, and how many went to each place: this_mac, own_machine, provider (`ai.where.row-names-the-place`, #5582)"
+          },
           "account": {
             "$ref": "#/components/schemas/RunAccount",
             "nullable": true
@@ -76824,6 +76838,11 @@
           "drawn": {
             "type": "boolean",
             "title": "Drawn",
+            "default": false
+          },
+          "shapeless": {
+            "type": "boolean",
+            "title": "Shapeless",
             "default": false
           },
           "rank": {
@@ -86931,6 +86950,18 @@
             "title": "Is Furniture",
             "description": "True marks the segment as page furniture (running heads, folio numbers)."
           },
+          "mark_state": {
+            "type": "string",
+            "enum": [
+              "ticked",
+              "crossed",
+              "struck",
+              "none"
+            ],
+            "nullable": true,
+            "title": "Mark State",
+            "description": "The segment's one mark: ticked, crossed, struck or none."
+          },
           "language": {
             "type": "string",
             "nullable": true,
@@ -87014,6 +87045,11 @@
             "type": "boolean",
             "title": "Is Furniture",
             "default": false
+          },
+          "mark_state": {
+            "type": "string",
+            "title": "Mark State",
+            "default": "none"
           },
           "language": {
             "type": "string",
@@ -89197,6 +89233,12 @@
             "nullable": true,
             "title": "Cost Usd",
             "description": "0 on this Mac; null when the model has no price"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis",
+            "description": "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other place, or a model with no price): never a $0 for what is not known (#5590)",
+            "default": "unpriced"
           },
           "memory": {
             "type": "string",
