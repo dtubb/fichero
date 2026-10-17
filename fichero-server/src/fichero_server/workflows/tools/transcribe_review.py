@@ -226,9 +226,14 @@ async def transcribe_review(
         prompt = f"{prompt}\n\n{ANSWER_BY_ID}"
     if state.get("library_path"):  # the project's confirmed names go to every review, whatever prompt the node carries
         from fichero_server.db import db_manager
+        from fichero_server.db.manager import LibraryNotFoundError
         from fichero_server.recipes.known_names import instruction
 
-        if names := instruction(db_manager.get_database(state["library_path"])):
+        try:
+            names = instruction(db_manager.get_database(state["library_path"]))
+        except LibraryNotFoundError:  # no library on disk, so no confirmed names
+            names = None
+        if names:
             prompt = f"{prompt}\n\n{names}"
 
     tool_config = VisionToolConfig(

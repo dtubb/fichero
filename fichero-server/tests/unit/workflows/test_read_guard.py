@@ -181,8 +181,9 @@ async def test_a_looping_read_lands_flagged_and_the_page_keeps_its_text(test_pac
     assert len(saved) == 1 and saved[0].content == LOOP.strip(), "the flagged read must still land, to be looked at"
     assert read_flag_of(saved[0])["kind"] == REPETITION
     assert result["results"][0]["read_flag"]["kind"] == REPETITION
-    assert len(result["notes"]) == 1
-    note = result["notes"][0]
+    flagged = [n for n in result["notes"] if "repeated itself" in n]  # #5721 adds a no-lines note beside it
+    assert len(flagged) == 1, result["notes"]
+    note = flagged[0]
     assert "repeated itself" in note and "kept the earlier reading" in note, note
     assert result["records"] == [], "a flagged read must feed nothing downstream"
 
@@ -217,7 +218,7 @@ async def test_a_clean_read_lands_as_the_pages_text(test_package, tmp_path, monk
     assert db.get(Document, doc.id).page_content == NOTARIAL
     saved = _transcriptions(db, doc)
     assert len(saved) == 1 and read_flag_of(saved[0]) is None
-    assert result["notes"] == []
+    assert not [n for n in result["notes"] if "no lines on this page" not in n], result["notes"]  # #5721 note aside
     assert "read_flag" not in result["results"][0]
 
 
