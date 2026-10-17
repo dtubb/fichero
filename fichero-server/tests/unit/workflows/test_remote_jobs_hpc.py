@@ -234,6 +234,15 @@ class TestSshCommands:
         # The remote command is a single quoted string arg.
         assert cmd[-1] == "echo 'hi there'"
 
+    def test_one_builder_carries_key_and_control_master(self, tmp_path):
+        """WHY: SshShell and the v0 path must share ONE argv builder, or hardening lands in only one."""
+        cmd = build_ssh_command(_cluster(), ["true"], key=tmp_path / "id", control_dir=tmp_path, ssh="/x/ssh")
+        assert cmd[0] == "/x/ssh"
+        assert "BatchMode=yes" in cmd and "StrictHostKeyChecking=accept-new" in cmd
+        assert cmd[cmd.index("-i") + 1] == str(tmp_path / "id")
+        assert f"ControlPath={tmp_path}/%C" in cmd
+        assert cmd[-3:] == ["--", "researcher@acenet", "true"]
+
     def test_sinfo_probe_targets_partition(self):
         cmd = build_sinfo_probe_command(_cluster())
         assert cmd[0] == "ssh"

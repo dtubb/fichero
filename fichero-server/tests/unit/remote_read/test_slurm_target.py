@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from fichero_server.remote_read.slurm_target import SlurmError, SlurmTarget, parse_sacct
+from fichero_server.remote_read.slurm_target import SlurmError, SlurmReadTarget, SlurmTarget, parse_sacct
 from fichero_server.workflows.remote_jobs import HpcClusterConfig
 
 RORQUAL = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
@@ -124,3 +124,41 @@ def test_cluster_create_refuses_option_shaped_host_or_username(field, bad):
     HpcClusterCreate(**ok)
     with pytest.raises(ValidationError):
         HpcClusterCreate(**{**ok, field: bad})
+
+
+def _sent_package(tmp_path, shell):
+    import json
+
+    pkg = tmp_path / "pkg"
+    (pkg / "shards").mkdir(parents=True)
+    (pkg / "shards" / "shard-00001.tar").write_bytes(b"t")
+    (pkg / "job.json").write_text(json.dumps({"shards": [[0], [1]], "sources": [{"id": "a"}, {"id": "b"}]}))
+    target = SlurmReadTarget(RORQUAL, shell)
+    target.send(pkg, "job-1")
+    return target
+
+
+def test_the_read_loop_runs_one_single_task_sbatch_per_shard_and_reads_them_in_one_sacct(tmp_path):
+    """WHY (`read-at-scale` target=cluster): job.py submits a shard at a time (max_in_flight throttles), a shard's
+    id is Slurm's `<job>_<task>`, one sacct covers every shard sent, and the shard's tar of results lands as the
+    folder `land()` expects."""
+    shell = FakeShell({"sbatch": (0, "77;rorqual\n", ""), "sacct": (0, "77_1|COMPLETED\n", "")})
+    target = _sent_package(tmp_path, shell)
+    far = target.submit("job-1", script="ignored", flavor="t4-small", timeout="2h", script_args=[],
+                        labels={"fichero-shard": "1"})
+    assert far == "77_1"
+    script = shell.files[f"{target._dir('job-1')}/_fichero/read-1.sbatch"].decode()
+    assert "#SBATCH --array=1" in script and "--time=02:00:00" in script and "tar -C out/shard-00001" in script
+    assert target.statuses("job-1")["77_1"].state == "done"
+    assert [a for a in shell.ran if a[0] == "sacct"] == [["sacct", "-j", "77", "-X", "-P", "-n", "-o", "JobID,State"]]
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        info = tarfile.TarInfo("_outcome.json")
+        info.size = 2
+        tar.addfile(info, io.BytesIO(b"{}"))
+    shell.files[f"{target._dir('job-1')}/out/shard-00001.tar"] = buf.getvalue()
+    folder = target.fetch_part("job-1", "shard-00001", tmp_path / "home")
+    assert (folder / "_outcome.json").read_text() == "{}"
