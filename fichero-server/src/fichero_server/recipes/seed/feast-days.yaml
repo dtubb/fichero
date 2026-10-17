@@ -1,0 +1,41 @@
+# Feast days and liturgical dates (`source.date.feast-days`, #5542): a date written as a feast ("dia de San Juan de 1791").
+# Data, not code: a name in any language is one more row of `names`, a new phrase that introduces a feast one more
+# of `introducers`. `easter: N` is N days after Easter (movable feasts); `date: MM-DD` is a fixed day. `also` names the
+# other feasts the same words can mean ("San Juan": the Baptist, or the Evangelist); the first is the commoner.
+# Names are written folded: lower case, no accents, no full stops or apostrophes.
+introducers: [dia de, el dia de, la fiesta de, fiesta de, el, the feast of, feast of, the day of, the, in die, die, festum, fete de, le, festa de, dia do, tag des, am tag]
+joiners: [de, del, of, in, anno, ad, a d, do, im jahr, en, l an]
+feasts:
+  easter: {easter: 0, names: [pascua, pascua de resurreccion, pascua florida, domingo de resurreccion, easter, easter day, easter sunday, pascha, pasqua, paques, pascoa, ostern, osterfest]}
+  ash-wednesday: {easter: -46, names: [miercoles de ceniza, ash wednesday, dies cinerum, mercredi des cendres, quarta feira de cinzas, aschermittwoch]}
+  palm-sunday: {easter: -7, names: [domingo de ramos, palm sunday, dominica in palmis, dimanche des rameaux, domingo de ramos, palmsonntag]}
+  maundy-thursday: {easter: -3, names: [jueves santo, maundy thursday, holy thursday, feria quinta in cena domini, jeudi saint, quinta feira santa, gruendonnerstag]}
+  good-friday: {easter: -2, names: [viernes santo, good friday, feria sexta in parasceve, vendredi saint, sexta feira santa, karfreitag]}
+  low-sunday: {easter: 7, names: [domingo de quasimodo, low sunday, quasimodo, dominica in albis, dimanche de quasimodo, weisser sonntag]}
+  ascension: {easter: 39, names: [la ascension, ascension, ascension day, ascensione, ascensio domini, ascensao, christi himmelfahrt, himmelfahrt]}
+  pentecost: {easter: 49, names: [pentecostes, pentecost, whitsunday, whit sunday, whitsun, pentecoste, pfingsten, pfingstsonntag, pentecote]}
+  whit-monday: {easter: 50, names: [lunes de pentecostes, whit monday, whitmonday, pfingstmontag, lundi de pentecote]}
+  trinity-sunday: {easter: 56, names: [la santisima trinidad, domingo de la santisima trinidad, trinity sunday, trinity, trinitas, trinita, dreifaltigkeitssonntag, trindade]}
+  corpus-christi: {easter: 60, names: [corpus christi, corpus, el corpus, fete dieu, fronleichnam, corpo de deus]}
+  christmas: {date: "12-25", names: [navidad, natividad, la natividad del senor, christmas, christmas day, nativitas domini, noel, natale, natal, weihnachten, weihnachtstag]}
+  circumcision: {date: "01-01", names: [la circuncision, circuncision, circumcision, circumcisio domini, anno nuevo, new years day]}
+  epiphany: {date: "01-06", names: [epifania, reyes, dia de reyes, los reyes, reyes magos, epiphany, twelfth day, twelfth night, epiphania domini, epiphanie, dreikoenigstag, heilige drei koenige]}
+  candlemas: {date: "02-02", names: [candelaria, la candelaria, la purificacion, purificacion de nuestra senora, candlemas, purification, purificatio, la chandeleur, chandeleur, lichtmess, maria lichtmess]}
+  st-joseph: {date: "03-19", names: [san jose, st joseph, saint joseph, sanctus ioseph, josefstag, sao jose]}
+  annunciation: {date: "03-25", names: [la anunciacion, anunciacion, nuestra senora de marzo, annunciation, lady day, annunciatio, annonciation, mariae verkuendigung, anunciacao]}
+  st-john-baptist: {date: "06-24", also: [st-john-evangelist], names: [san juan, san juan bautista, st john, st johns day, st john the baptist, saint john, midsummer, midsummer day, nativitas sancti iohannis baptistae, saint jean, saint jean baptiste, johannistag, johannis, sao joao]}
+  sts-peter-paul: {date: "06-29", names: [san pedro y san pablo, san pedro, san pedro y pablo, st peter and st paul, st peter, sts peter and paul, saints peter and paul, petri et pauli, saint pierre, peter und paul, peter und pauli, petrus und paulus, sao pedro]}
+  santiago: {date: "07-25", names: [santiago, santiago apostol, st james day, st jamess day, st james, st james the apostle, saint james, sancti iacobi, saint jacques, jakobstag, sao tiago]}
+  st-anne: {date: "07-26", names: [santa ana, st anne, saint anne, sancta anna, sainte anne, annentag, santa ana madre de maria]}
+  st-lawrence: {date: "08-10", names: [san lorenzo, st lawrence, saint lawrence, sancti laurentii, saint laurent, laurentiustag, sao lourenco]}
+  assumption: {date: "08-15", names: [la asuncion, asuncion, asuncion de nuestra senora, nuestra senora de agosto, assumption, assumptio, l assomption, assomption, mariae himmelfahrt, assuncao]}
+  nativity-of-mary: {date: "09-08", names: [la natividad de nuestra senora, natividad de nuestra senora, nativity of our lady, nativity of mary, nativitas beatae mariae, mariae geburt]}
+  michaelmas: {date: "09-29", names: [san miguel, san miguel arcangel, michaelmas, st michaels day, st michael, saint michael, sancti michaelis, saint michel, michaelistag, michaeli, sao miguel]}
+  all-saints: {date: "11-01", names: [todos los santos, dia de todos los santos, all saints, all saints day, allhallows, hallowmas, omnium sanctorum, toussaint, la toussaint, allerheiligen, todos os santos]}
+  all-souls: {date: "11-02", names: [los difuntos, dia de los difuntos, fieles difuntos, todos los fieles difuntos, all souls, all souls day, commemoratio omnium fidelium defunctorum, jour des morts, allerseelen, finados]}
+  st-martin: {date: "11-11", names: [san martin, san martin obispo, martinmas, st martins day, st martin, saint martin, sancti martini, la saint martin, martinstag, martini, sao martinho]}
+  st-andrew: {date: "11-30", names: [san andres, san andres apostol, st andrews day, st andrew, saint andrew, sancti andreae, saint andre, andreastag, santo andre]}
+  immaculate-conception: {date: "12-08", names: [la concepcion, la purisima, la inmaculada concepcion, inmaculada concepcion, concepcion de nuestra senora, immaculate conception, conception of our lady, conceptio immaculata, l immaculee conception, mariae empfaengnis, imaculada conceicao]}
+  st-stephen: {date: "12-26", names: [san esteban, st stephens day, st stephen, saint stephen, stephanstag, sancti stephani, saint etienne, santo estevao, boxing day]}
+  st-john-evangelist: {date: "12-27", also: [st-john-baptist], names: [san juan evangelista, st john the evangelist, st john evangelist, saint john the evangelist, sancti iohannis evangelistae, saint jean l evangeliste, johannes der evangelist, sao joao evangelista]}
+  holy-innocents: {date: "12-28", names: [los santos inocentes, santos inocentes, innocents, holy innocents, childermas, sanctorum innocentium, les saints innocents, unschuldige kindlein, santos inocentes]}

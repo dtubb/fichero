@@ -258,6 +258,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
 $(SRCROOT)/../fichero-server/src/fichero_server/export_service.py
+$(SRCROOT)/../fichero-server/src/fichero_server/feast_days.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/accept.py
 $(SRCROOT)/../fichero-server/src/fichero_server/finddocs/adjust.py
@@ -470,6 +471,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/run_view.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/samples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/feast-days.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/iso15924.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-autonyms.txt

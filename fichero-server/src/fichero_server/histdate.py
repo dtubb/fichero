@@ -385,6 +385,18 @@ def parse_historical_date(
                          precision=precision,
                          confidence=0.6 if circa else 0.8)
 
+    # --- a feast: "dia de San Juan de 1791", "Easter 1700" (`source.date.feast-days`, #5542)
+    from fichero_server.feast_days import parse_feast_date
+
+    feast = parse_feast_date(low, julian_calendar=assume_julian)
+    if feast:
+        made = _make(s, feast.jdn, feast.jdn, calendar=feast.calendar, precision="circa" if circa else "day",
+                     confidence=feast.confidence)
+        made.meta.update(feast=feast.feast, reasoning=feast.reasoning)
+        if feast.alternatives:
+            made.meta["alternatives"] = list(feast.alternatives)
+        return made
+
     return None
 
 
