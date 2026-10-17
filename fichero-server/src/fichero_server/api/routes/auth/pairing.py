@@ -67,6 +67,7 @@ class _PairingCode:
     user_id: str
     expires_at: datetime
     used: bool = False
+    paired_by_device_id: str | None = None  # the paired device that minted it (#5351)
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -117,6 +118,7 @@ class DeviceResponse(BaseModel):
     last_seen: datetime
     expires_at: datetime
     revoked: bool
+    paired_by_device_id: str | None = None
 
 
 class DeviceListResponse(BaseModel):
@@ -145,8 +147,9 @@ def _multiuser_disabled() -> None:
         raise HTTPException(status_code=404, detail="multi-user auth is disabled")
 
 
-def _to_public_device(device: Device) -> DeviceResponse:
+def _to_public_device(device: Device, paired_by: str | None = None) -> DeviceResponse:
     return DeviceResponse(
+        paired_by_device_id=paired_by,
         id=device.id,
         name=device.name,
         user_id=device.user_id,
@@ -415,6 +418,7 @@ def create_pairing_code(
         code=code,
         user_id=user.id,
         expires_at=expires_at,
+        paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
@@ -470,6 +474,8 @@ def pair_device(
             user_id=user_id,
             token_hash=accounts.hash_token(raw_token),
         )
+        if record.paired_by_device_id:
+            app_db.set_device_paired_by(device.id, record.paired_by_device_id)
         record.used = True
         _PAIRING_CODES.pop(code, None)
         return _to_pair_response(device, raw_token)
@@ -532,7 +538,8 @@ def list_devices(
     devices = app_db.list_devices()
     if not user.is_owner:
         devices = [device for device in devices if device.user_id == user.id]
-    items = [_to_public_device(device) for device in devices]
+    paired_by = app_db.device_paired_by()
+    items = [_to_public_device(device, paired_by.get(device.id)) for device in devices]
     return DeviceListResponse(items=items, count=len(items))
 
 
