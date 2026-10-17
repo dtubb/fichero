@@ -59020,6 +59020,11 @@
           "revoked": {
             "type": "boolean",
             "title": "Revoked"
+          },
+          "paired_by_device_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Paired By Device Id"
           }
         },
         "type": "object",
