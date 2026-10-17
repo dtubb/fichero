@@ -180,3 +180,15 @@ class TestSignInAndKey:
             return {d.call for d in route.dependant.dependencies}
 
         assert hpc._require_owner_or_bootstrap in deps("/prompts", "GET")
+
+    def test_answering_an_expired_prompt_says_expired(self, client):
+        from fichero_server.remote_read.ssh_prompts import SecondFactorRefused, prompt_broker
+
+        broker = prompt_broker()
+        try:
+            broker.ask("Duo passcode: ", timeout=0.05)
+        except SecondFactorRefused:
+            pass
+        pid = next(i for i in range(1, 10_000) if broker.ended(str(i)) == "expired")
+        r = client.post(f"/api/hpc/prompts/{pid}", json={"answer": "123456"})
+        assert r.status_code == 410 and "expired" in r.json()["detail"]

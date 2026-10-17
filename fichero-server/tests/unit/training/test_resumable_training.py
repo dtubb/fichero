@@ -69,3 +69,41 @@ def test_the_sbatch_asks_for_the_warning_signal_and_requeue_and_the_row_reads_th
     assert "#SBATCH --requeue" in script and "--signal=B:USR1@" in script
     assert "resumable.sh" in script and "ketos train -f page" in script.replace("'", "")
     assert part_words(0) == "running (part 1)" and part_words(1) == "running (part 2)"
+
+
+def test_a_job_that_keeps_crashing_stops_after_a_count_and_says_so(tmp_path):
+    """WHY (review 49): `--requeue` also re-queues after a crash; without a cap a broken trainer loops for ever."""
+    wrapper = _setup(tmp_path)
+    env = {**os.environ, "PATH": f"{tmp_path}/bin:{os.environ['PATH']}", "FAKE_BIN": f"{tmp_path}/bin",
+           "CKPT": str(tmp_path / "last.ckpt"), "FICHERO_CKPT": str(tmp_path / "last.ckpt"), "SLURM_JOB_ID": "77",
+           "SLURM_RESTART_COUNT": "6"}
+    done = subprocess.run(["bash", str(wrapper), "--", "trainer", str(tmp_path / "steps.log")], env=env,
+                          capture_output=True, text=True, timeout=20)
+    assert done.returncode == 1 and "gave up after 6 restarts" in done.stdout
+    assert not (tmp_path / "steps.log").exists()  # the trainer was not started again
+    env.update(SLURM_RESTART_COUNT="2", FICHERO_MAX_RESTARTS="2")
+    proc = subprocess.Popen(["bash", str(wrapper), "--", "trainer", str(tmp_path / "steps.log")], env=env,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    time.sleep(0.5)
+    proc.send_signal(signal.SIGUSR1)  # the warning at the last allowed part: no more requeue
+    out, _ = proc.communicate(timeout=20)
+    assert proc.returncode == 1 and "gave up" in out and not (tmp_path / "bin" / "requeued").exists()
+
+
+def test_a_warning_is_requeued_only_if_the_trainer_stopped_cleanly_with_a_new_checkpoint(tmp_path):
+    """WHY (review 49): a trainer that died on the warning, or "stopped" without saving, must fail visibly, not
+    re-queue into a loop that repeats work from an old checkpoint."""
+    wrapper = _setup(tmp_path)
+    for name, body in (("dies", "#!/bin/bash\ntrap 'exit 3' USR1\nsleep 5 & wait\n"), ("no-save", "#!/bin/bash\ntrap 'exit 0' USR1\nsleep 5 & wait\n")):
+        f = tmp_path / "bin" / name
+        f.write_text(body)
+        f.chmod(f.stat().st_mode | stat.S_IEXEC)
+        env = {**os.environ, "PATH": f"{tmp_path}/bin:{os.environ['PATH']}", "FAKE_BIN": f"{tmp_path}/bin",
+               "FICHERO_CKPT": str(tmp_path / f"{name}.ckpt"), "SLURM_RESTART_COUNT": "0", "SLURM_JOB_ID": "77"}
+        proc = subprocess.Popen(["bash", str(wrapper), "--", name], env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True)
+        time.sleep(0.5)
+        proc.send_signal(signal.SIGUSR1)
+        out, _ = proc.communicate(timeout=20)
+        assert proc.returncode == 1 and "not re-queuing" in out, (name, out)
+        assert not (tmp_path / "bin" / "requeued").exists(), name
