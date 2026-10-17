@@ -40,6 +40,7 @@ from fichero_server.models.found_documents import (
     FindDocumentsRequest,
     FindDocumentsRun,
 )
+from fichero_server.api.errors import ErrorDetail as _RefusalBody
 
 router = APIRouter(prefix="/find-documents")
 
@@ -155,7 +156,7 @@ async def get_find_documents_proposal(
 
 @router.post("/proposals/{proposal_id}/accept", response_model=FindDocumentsAcceptResult,
              summary="Accept proposed documents: group nodes with their prototypes, the canvas laid out",
-             responses={409: {"description": "The proposal is out of date: a later run replaced it, or a "
+             responses={409: {"model": _RefusalBody, "description": "The proposal is out of date: a later run replaced it, or a "
                                              "document's pages were grouped, moved or deleted since."}},
              openapi_extra=AGENT_SUMMARY)
 async def accept_find_documents_proposal(
@@ -202,7 +203,7 @@ async def reject_find_documents_proposal(
 
 
 _ADJUST_RESPONSES = {
-    409: {"description": "The proposal is out of date: a later run replaced it, the document is already accepted "
+    409: {"model": _RefusalBody, "description": "The proposal is out of date: a later run replaced it, the document is already accepted "
                          "or rejected, or its pages were grouped, moved or deleted since."},
     422: {"description": "No such document or page in the proposal, or the adjustment cannot be made."},
 }
@@ -279,7 +280,7 @@ def _suggestion(db: Database) -> dict:
 
 @router.post("/score", response_model=FindDocumentsScoreResult,
              summary="Score a folder's proposal against the documents a person accepted or adjusted, and keep it",
-             responses={404: {"description": "No such folder or proposal."},
+             responses={404: {"model": _RefusalBody, "description": "No such folder or proposal."},
                         422: {"description": "The folder has no proposal, or a person set none of its documents."}})
 async def score_find_documents(
     body: FindDocumentsScoreRequest,
