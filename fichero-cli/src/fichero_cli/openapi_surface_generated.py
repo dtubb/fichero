@@ -12085,6 +12085,8 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         code: str = typer.Option(..., '--code', help='Code.'),
         device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        password: Optional[str] = typer.Option(None, '--password', help='Password.'),
+        username: Optional[str] = typer.Option(None, '--username', help='Username.'),
     ) -> None:
         """Pair Device (POST /api/pair)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12093,9 +12095,13 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "code": code,
                 "device_name": device_name,
+                "password": password,
+                "username": username,
             }, {
                 "code": {'type': 'string', 'minLength': 1, 'title': 'Code', 'x-cli-required': True},
                 "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "password": {'type': 'string', 'nullable': True, 'title': 'Password', 'x-cli-required': False},
+                "username": {'type': 'string', 'nullable': True, 'title': 'Username', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
