@@ -29,6 +29,7 @@ from fichero_server.api.routes.document.documents import _descendant_document_id
 from fichero_server.db import Database
 from fichero_server.models import DocType, Document, FileType, ImageEditChain
 from fichero_server.models.anchors import NodeRegion, RegionConfidence
+from fichero_server.split_carry import carry_readings_over
 from fichero_server.execution.batch import BatchItemStatus, BatchStatus
 from fichero_server.db.storage import resolve_pdf_render_source, resolve_source
 # NOTE: apply_operation is imported inside the functions that render (#3985) and
@@ -789,6 +790,7 @@ def split_image_impl(
         )
         db.save(child)
         children.append(child)
+    carry_readings_over(db, source, children)
     return children
 
 
