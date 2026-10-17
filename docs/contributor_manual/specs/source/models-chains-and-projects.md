@@ -1184,7 +1184,7 @@ plan's peak memory across steps. Ready shows none of it.
   run status (`entries`) says how many pages it split, how many had no text, and how many entries it
   made, kept, changed and removed. The entries are not pages: they are not counted as the project's
   material, and no later card reads them.
-- `source.onboard.auto.volumes-in-batches` — **[GAP]** (#5540) a run over several volumes goes one
+- `source.onboard.auto.volumes-in-batches` — **[OK]** (#5540; built as `source.recipe.batch-at-archive-scale` below, one batch per folder with every step finished on it before the next, progress per folder; tested in `fichero-server/tests/unit/recipes/test_recipe_batches_to_spec.py`) a run over several volumes goes one
   volume at a time, with every stage finished on that volume before the next volume starts. Progress is
   shown per volume.
 - `source.onboard.auto.train-offer-comes` — **[GAP]** (#5440) when a project's corrected lines reach a
