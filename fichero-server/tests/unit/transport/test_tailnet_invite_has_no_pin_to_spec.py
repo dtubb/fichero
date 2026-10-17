@@ -33,3 +33,21 @@ def test_pairing_over_a_ts_net_host_needs_no_configured_pin(two_macs, monkeypatc
 def test_a_local_invite_still_carries_the_pin(two_macs, monkeypatch):  # noqa: F811
     monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://studio.local:8765")
     assert _mint(two_macs["a"]).json()["spki_pin"] == "c3BraS1waW4="
+
+
+def test_the_detected_tailnet_address_is_offered_to_the_owner(two_macs, monkeypatch):  # noqa: F811
+    from fichero_server.security import tailscale_serve
+
+    monkeypatch.setattr(tailscale_serve, "detected_tailnet_url", lambda *a, **k: "https://studio.tail1234.ts.net")
+    session = two_macs["a"].post("/api/auth/login", json={"username": "owner", "password": "password"}).json()["session_token"]
+    r = two_macs["a"].get("/api/pair/tailnet", headers=_bearer(session))
+    assert r.status_code == 200
+    assert r.json() == {"tailnet_url": "https://studio.tail1234.ts.net"}
+
+
+def test_no_tailscale_means_an_empty_offer(two_macs, monkeypatch):  # noqa: F811
+    from fichero_server.security import tailscale_serve
+
+    monkeypatch.setattr(tailscale_serve, "detected_tailnet_url", lambda *a, **k: "")
+    session = two_macs["a"].post("/api/auth/login", json={"username": "owner", "password": "password"}).json()["session_token"]
+    assert two_macs["a"].get("/api/pair/tailnet", headers=_bearer(session)).json() == {"tailnet_url": None}

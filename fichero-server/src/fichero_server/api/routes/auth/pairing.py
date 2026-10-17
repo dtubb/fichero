@@ -94,6 +94,10 @@ class PairCodeResponse(BaseModel):
     spki_pin: str | None = None
 
 
+class TailnetOfferResponse(BaseModel):
+    tailnet_url: str | None = None
+
+
 class PairRequest(BaseModel):
     code: str = Field(min_length=1)
     device_name: str = Field(min_length=1)
@@ -407,6 +411,18 @@ def _record_device_audit(
     )
     get_app_db().save_action_audit(audit)
     return audit
+
+
+@router.get("/tailnet", response_model=TailnetOfferResponse)
+def detected_tailnet(
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> TailnetOfferResponse:
+    """This Mac's `.ts.net` address when Tailscale is running, for the share sheet to offer (#5318)."""
+    _pairing_user(request, app_db)
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+
+    return TailnetOfferResponse(tailnet_url=tailscale_serve.detected_tailnet_url() or None)
 
 
 @router.post("/code", response_model=PairCodeResponse)
