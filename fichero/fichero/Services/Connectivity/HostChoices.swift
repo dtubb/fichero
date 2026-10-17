@@ -30,7 +30,13 @@ enum HostChoices {
     static func typedURL(_ text: String) -> URL? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty, !t.lowercased().hasPrefix("localhost") else { return nil }
-        let full = t.contains("://") ? t : "https://" + (t.contains(".") ? t : t + ".local")
+        // host[:port] without a dot is a bare name: .local goes on the host, before any port
+        var full = t
+        if !t.contains("://") {
+            let colon = t.firstIndex(of: ":") ?? t.endIndex
+            let host = String(t[..<colon]), port = String(t[colon...])
+            full = "https://" + (host.contains(".") ? host : host + ".local") + port
+        }
         return try? validatedRemoteURL(from: full, allowLocalhost: false, requireSecureTransportForRemote: true)
     }
 

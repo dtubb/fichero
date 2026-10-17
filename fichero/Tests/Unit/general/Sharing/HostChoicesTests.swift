@@ -32,6 +32,7 @@ struct HostChoicesTests {
         #expect(HostChoices.typedURL("studio")?.absoluteString == "https://studio.local")
         #expect(HostChoices.typedURL(" studio.local:8443 ")?.absoluteString == "https://studio.local:8443")
         #expect(HostChoices.typedURL("https://studio.local:8443")?.host == "studio.local")
+        #expect(HostChoices.typedURL("studio:8443")?.absoluteString == "https://studio.local:8443")
     }
 
     @Test func typedNonsenseIsRefused() {
