@@ -87,9 +87,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - `sharing.revoke` — **[PARTIAL]** (→ #5049) the host lists paired devices and can revoke one; a revoked
   token is refused (pinned in `test_device_pairing_e2e.py`, in-process; run 2026-10-01 across two
   Macs: the paired MBP's next call was 401). The app's device list was not run.
-- `sharing.revoke-cascades` — **[GAP]** (#5351) revoking a paired device also revokes every device
-  it paired (and theirs, down the chain); the revoke sheet lists those devices first, before the
-  person confirms. (Ruled 2026-10-04.) Needs `paired_by_device_id` on pairing codes and on `devices` (an idempotent ALTER migration; ruled 2026-10-17) and a walk in `AppDatabase.revoke_device`. Most useful with Multi-user on, where a paired person can mint codes. Test: `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py` (cascade case).
+- `sharing.revoke-cascades` — **[PARTIAL]** (#5351; engine built, pinned by `fichero-server/tests/unit/transport/test_revoke_cascades_to_spec.py`) revoking a paired device also revokes every device it paired (and theirs, down the chain): a code minted by a paired device records it (`devices.paired_by_device_id`), `revoke_device` walks the chain, and `GET /api/pair/devices` returns `paired_by_device_id` for each device. *Not built: the revoke sheet listing those devices first (Swift).* (Ruled 2026-10-04.) Needs `paired_by_device_id` on pairing codes and on `devices` (an idempotent ALTER migration; ruled 2026-10-17) and a walk in `AppDatabase.revoke_device`. Most useful with Multi-user on, where a paired person can mint codes. Test: `fichero-server/tests/unit/security/test_sharing_probe_2026_10_01.py` (cascade case).
 
 ### D. Other people (Multi-user on)
 
