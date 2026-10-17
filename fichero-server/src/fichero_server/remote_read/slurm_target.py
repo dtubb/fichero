@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Protocol
 
 from fichero_server.training.hf_jobs import CANCELLED, DONE, FAILED, RUNNING, WAITING, FarStatus
-from fichero_server.workflows.remote_jobs import HpcClusterConfig, normalize_slurm_state
+from fichero_server.workflows.remote_jobs import HpcClusterConfig, build_ssh_command, normalize_slurm_state
 
 #: Slurm's states in a job row's words (`compute.hpc.failure-states-in-words`); anything else is still going.
 _WORDS = {
@@ -150,16 +150,13 @@ class SshShell:
         if not Path(key).is_file():
             raise NoKey(f"no key at {key}: make one in Settings (Compute) and add its public half in CCDB")
         self.cluster, self.ssh = cluster, ssh
-        self._opts = ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
-                      "-o", "StrictHostKeyChecking=accept-new", "-o", "ControlMaster=auto", "-o", "ControlPersist=4h",
-                      "-o", f"ControlPath={control_dir}/%C", "-p", str(cluster.ssh_port)]
-        self._dest = f"{cluster.username}@{cluster.host_alias}"
+        self._key, self._control_dir = Path(key), Path(control_dir)
 
     def _ssh(self, remote: str, **kw) -> "subprocess.CompletedProcess":
         if "stdout" not in kw:
             kw.setdefault("capture_output", True)
-        # "--" so a destination can never be read as an ssh option
-        return subprocess.run([self.ssh, *self._opts, "--", self._dest, remote], **kw)
+        return subprocess.run(
+            build_ssh_command(self.cluster, remote, key=self._key, control_dir=self._control_dir, ssh=self.ssh), **kw)
 
     def open_master(self) -> None:
         done = self._ssh("true", timeout=300)
