@@ -9195,7 +9195,13 @@
         "operation_id": "list_bakeoffs_api_recipes_project_bakeoffs_get",
         "summary": "List Bakeoffs",
         "path_params": [],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "named",
+            "required": false,
+            "type": "array"
+          }
+        ],
         "request_model": null,
         "response_model": "BakeoffList"
       },

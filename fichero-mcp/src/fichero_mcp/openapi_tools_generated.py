@@ -6274,9 +6274,11 @@ def fichero_recipes_what_runs_by_itself(
 
 
 def fichero_recipes_list_bakeoffs(
+    *,
+    named: Annotated[Optional[list[str]], Field(description='card ids of readers the person wants compared: `next_run` counts them in whatever the cap on readers of a kind (#5718)')] = None,
 ) -> Any:
     'List Bakeoffs\n\nEvery bake-off kept in the project, newest first, each with its table (`source.try.kept-and-rerunnable`),\nand whether the project has enough corrected lines to run one now (`readiness`, counted as a start is).\n\nRoute: GET /api/recipes/project/bakeoffs (toolset `recipes`; reads).'
-    return _rt.call("GET", "/api/recipes/project/bakeoffs")
+    return _rt.call("GET", "/api/recipes/project/bakeoffs", params={"named": named})
 
 
 def fichero_recipes_start_bakeoff(

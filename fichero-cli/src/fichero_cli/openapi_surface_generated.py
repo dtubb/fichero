@@ -13260,11 +13260,14 @@ def register_generated_openapi_commands(
     @target_app.command("list-bakeoffs")
     def recipes_list_bakeoffs_get(
         ctx: typer.Context,
+        named: Optional[list[str]] = typer.Option(None, '--named', help='card ids of readers the person wants compared: `next_run` counts them in whatever the cap on readers of a kind (#5718) A list: repeat the flag, or give the values comma-separated, or as JSON.'),
     ) -> None:
         """List Bakeoffs (GET /api/recipes/project/bakeoffs)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/project/bakeoffs"
-            params = None
+            params = {
+                "named": _list_values(named),
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

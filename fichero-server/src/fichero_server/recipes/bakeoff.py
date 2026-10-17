@@ -197,7 +197,8 @@ def cloud_readers() -> list[Card]:
 PER_KIND = 2
 
 
-def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int = 0) -> list[dict[str, Any]]:
+def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int = 0,
+               named: list[str] | None = None) -> list[dict[str, Any]]:
     """The readers that take part (ruled 2026-10-11: no fixed ranking decides; the bake-off does): from everything the
     finder found (the shipped cards, the models here, Kraken's repository, Hugging Face, and the remote endpoints the
     person has set up), at most `PER_KIND` of each kind (`FAMILIES`: Kraken, Apple Vision, an MLX vision model, a
@@ -205,7 +206,8 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
     take part; the winner is the one measured best. A kind with no model that reads here is listed once, with why
     (not available yet, not on this Mac, the pages stay here). A language with no Kraken reader still has its
     Hugging Face and remote readers. `sample_pages`: each candidate's `run_cost_usd` is what it costs to read the
-    sample, said before the bake-off starts."""
+    sample, said before the bake-off starts. `named`: card ids the person asked to have compared: they take part
+    in addition to the `PER_KIND` the rules' order chooses, so naming a reader never removes another (#5718)."""
     material = a.material
     remote = bool(a.cloud_allowed)
 
@@ -215,22 +217,25 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
         return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted", "no-reader-for-period")
 
     pool = list({c.id: c for c in [*cards, *cloud_readers()]}.values())
-    out, named = [], set()
+    out, placed = [], set()
+    wanted = set(named or [])
     for family in FAMILIES:
         # Those that can be scored here first (downloaded, allowed to leave), so the places go to readers that will
         # be measured; then an open licence; then the rules' order, which only chooses who takes part.
         options = sorted((c for c in pool if _family(c) == family and fits(c)),
                          key=lambda c: (not c.runs_here, _not_scored_because(c, *_reader_of(c), remote) is not None,
                                         not c.open_licence, _rank_key(c, material, a)))
-        taking = [c for c in options if c.runs_here][:PER_KIND] or options[:1]
+        chosen_by_name = [c for c in options if c.id in wanted]
+        rest = [c for c in options if c.id not in wanted]
+        taking = chosen_by_name + ([c for c in rest if c.runs_here][:PER_KIND] or rest[:1])
         for card in taking:
             out.append(_candidate(card, rule_rank=None, role="contender", volume=volume, remote_allowed=remote,
                                   sample_pages=sample_pages, a=a))
-            named.add(card.id)
+            placed.add(card.id)
     print_like = [m for m in a.materials if m in TESSERACT_MATERIALS]
     if print_like:
         for card in cards:
-            if ("tesseract" in card.pin and STEP in card.jobs and card.id not in named
+            if ("tesseract" in card.pin and STEP in card.jobs and card.id not in placed
                     and _tesseract_has_the_language(card, a)
                     and any(_refusal(STEP, card, a, m) is None for m in print_like)):
                 out.append(_candidate(card, rule_rank=None, role="baseline for print", volume=volume,
@@ -257,7 +262,7 @@ def next_run(db: Any, a: Answers, cards: list[Card], *, volume: int, named: list
     2026-10-11): each candidate with its cost on the sample pages, the total of those that would be scored, and the
     sentence that says it."""
     pages, _ = ground_truth(db, None)
-    chosen = candidates(a, cards, volume=volume, sample_pages=len(pages))
+    chosen = candidates(a, cards, volume=volume, sample_pages=len(pages), named=named)
     scored = [c for c in chosen if c["not_scored"] is None]
     paid = [c for c in scored if not c["local"]]
     total = sum(c["run_cost_usd"]["value"] or 0.0 for c in paid)
@@ -372,7 +377,7 @@ def start(db: Any, library: Path, a: Answers, cards: list[Card], *, page_ids: li
     ready = readiness(pages, unmarked_import_pages(db))
     if not ready["ready"]:
         raise BakeoffRefused(ready["sentence"])
-    chosen = candidates(a, cards, volume=volume, sample_pages=len(pages))
+    chosen = candidates(a, cards, volume=volume, sample_pages=len(pages), named=named)
     scored = [c for c in chosen if c["not_scored"] is None]
     if not scored:
         # Each reader by its card's name, never its id (section 7b).
