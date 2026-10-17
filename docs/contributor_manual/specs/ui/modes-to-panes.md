@@ -1034,3 +1034,6 @@ to decide; nothing was invented outside that set.
 ## Triaged from the backlog (2026-10-04)
 - `m2p.kg-feature-flag-retires` — **[GAP]** (#4792) the knowledgeGraph key is retired from features.yaml and FeatureTiers is regenerated, since the KG mode is gone (isKnowledgeGraphEnabled has no call site).
 - `m2p.kg-timeline-map-graph-mount-as-library-modes` — **[GAP]** (#5037) the KG timeline, map and graph are Library view modes on Entities, not only a one-document Reader surface capped at 500 claims (m2p.kg-graph-retires-as-library-takeover is tagged OK but the code disagrees).
+
+## iOS/iPad release 1 shell (2026-10-17)
+- `m2p.ios.window-state-per-scene` — **[PARTIAL]** (iOS I1, review-ios-2026-10-17 item 1) every iOS/iPad scene owns its own WindowState (selection, library, undo); a scene that has chosen a library is not moved by another window switching project; the app-wide current library applies only to a scene still on the global default; the multiple-scenes key is in Info.plist so Stage Manager windows open. Test: `fichero/Tests/Unit/general/Views/Library/SceneLibrarySelectionTests.swift`. Not built or run on a simulator.
