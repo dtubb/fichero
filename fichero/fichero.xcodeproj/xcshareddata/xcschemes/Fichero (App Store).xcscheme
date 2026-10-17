@@ -15,9 +15,9 @@
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "FEED00000000000000000261"
+                     BlueprintIdentifier = "500"
                      BuildableName = "Fichero.app"
-                     BlueprintName = "Fichero (App Store)"
+                     BlueprintName = "Fichero"
                      ReferencedContainer = "container:fichero.xcodeproj">
                   </BuildableReference>
                </EnvironmentBuildable>
@@ -33,9 +33,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "FEED00000000000000000261"
+               BlueprintIdentifier = "500"
                BuildableName = "Fichero.app"
-               BlueprintName = "Fichero (App Store)"
+               BlueprintName = "Fichero"
                ReferencedContainer = "container:fichero.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -63,9 +63,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FEED00000000000000000261"
+            BlueprintIdentifier = "500"
             BuildableName = "Fichero.app"
-            BlueprintName = "Fichero (App Store)"
+            BlueprintName = "Fichero"
             ReferencedContainer = "container:fichero.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -80,9 +80,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "FEED00000000000000000261"
+            BlueprintIdentifier = "500"
             BuildableName = "Fichero.app"
-            BlueprintName = "Fichero (App Store)"
+            BlueprintName = "Fichero"
             ReferencedContainer = "container:fichero.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -91,7 +91,7 @@
       buildConfiguration = "Release">
    </AnalyzeAction>
    <ArchiveAction
-      buildConfiguration = "Release"
+      buildConfiguration = "App Store"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

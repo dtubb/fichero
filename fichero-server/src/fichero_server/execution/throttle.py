@@ -13,6 +13,7 @@ Every probe degrades to "no reason" when it cannot read its signal (not macOS, a
 missing, a sandbox refusal): an unreadable signal must never park the queue for good.
 """
 from __future__ import annotations
+from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
 
 import logging
 import os

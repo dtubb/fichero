@@ -283,11 +283,13 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     from fichero_server.recipes.recipe import check_recipe
 
     if not recipe:
-        return {"runs": [], "workflows": [], "skipped": [], "offered": [], "waiting": [],
+        return {"runs": [], "workflows": [], "skipped": [], "offered": [], "waiting": [], "fallbacks": [],
                 "refusals": ["this project has no recipe yet: run setup first"]}
     runs: list[dict[str, Any]] = []
     skipped: list[dict[str, str | None]] = []
     offered: list[str] = []
+    #: Steps that run their next candidate because the first cannot (a missing key), each saying which and why.
+    fallbacks: list[dict[str, Any]] = []
     #: Steps kept in the recipe with no model (`source.onboard.no-model-step-kept`): skipped, never refusing Start.
     needs_a_model: list[dict[str, Any]] = []
 
@@ -332,12 +334,32 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
             continue
         if (keyless := provider_without_key(step)) is not None:
-            # waits; no other model is used in its place unless the person chooses one (`source.recipe.missing-key-never-substitutes`)
-            # Not a `_FIX_BUTTONS` token: the app has no Add Key button yet (`RecipeSetupStore` maps allow-cloud and
-            # choose-model only), so `skip` folds this into the why and `fix` is None. When the app grows the button,
-            # add "add-key" to `_FIX_BUTTONS` and pass it here.
-            skip(sid, f"{label}: Needs a key for {keyless}", "Add Key… in Settings")
-            continue
+            # The next candidate in the step's chain that can run takes its place, and the plan says so
+            # (`source.recipe.candidates-fallback-chain`); with none, the step waits and no other model is used
+            # (`source.recipe.missing-key-never-substitutes`).
+            rest = list(step.get("chain") or [])
+            mine = (step.get("model") or {}).get("cloud")
+            runnable = [c for c in rest if not (stays_local and _uses_cloud(c))
+                        and provider_without_key({"model": c.get("model")}) is None]
+            # Another local model, or the same provider, runs on its own; a different cloud provider sends pages
+            # somewhere new, so it is offered and never used without the person's press.
+            nxt = next((c for c in runnable if not _uses_cloud(c) or (c.get("model") or {}).get("cloud") == mine), None)
+            offer = next((c for c in runnable if c is not nxt), None) if nxt is None else None
+            if offer is not None:
+                fallbacks.append({"step": sid, "from": keyless, "to": offer["id"], "used": False,
+                                  "why": f"Needs a key for {keyless}: {offer['id']} would send pages to another "
+                                         "provider, so it is offered, not used until you choose it"})
+            if nxt is not None:
+                fallbacks.append({"step": sid, "from": keyless, "to": nxt["id"], "used": True,
+                                  "why": f"Needs a key for {keyless}: {nxt['id']} runs instead"})
+                step = {**step, "model": nxt["model"], "runs_on": nxt.get("runs_on", "this-mac"),
+                        "chain": rest[rest.index(nxt) + 1:]}
+            else:
+                # Not a `_FIX_BUTTONS` token: the app has no Add Key button yet (`RecipeSetupStore` maps allow-cloud
+                # and choose-model only), so `skip` folds this into the why and `fix` is None. When the app grows
+                # the button, add "add-key" to `_FIX_BUTTONS` and pass it here.
+                skip(sid, f"{label}: Needs a key for {keyless}", "Add Key… in Settings")
+                continue
         if step.get("when"):
             skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet",
                  "remove the condition from the step, or run it by hand")
@@ -532,7 +554,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                         if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
-            "waiting": waiting, "start_downloads": start_downloads(downloads)}
+            "waiting": waiting, "start_downloads": start_downloads(downloads), "fallbacks": fallbacks}
 
 
 def _size_words(size_mb: int | None) -> str:

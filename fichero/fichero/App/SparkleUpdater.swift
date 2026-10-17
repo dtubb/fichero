@@ -1,11 +1,11 @@
 #if os(macOS)
 import AppKit
 
-#if canImport(Sparkle)
+#if !FICHERO_APP_STORE
 import Sparkle
 #endif
 
-#if canImport(Sparkle)
+#if !FICHERO_APP_STORE
 /// Opts dev builds into the `dev` Sparkle channel (one feed, two channels —
 /// Daniel's 2026-08-25 ruling). Beta/release builds see only channel-less
 /// items (Fichero.dmg); dev builds also see `<sparkle:channel>dev</sparkle:channel>`
@@ -22,13 +22,13 @@ private final class SparkleChannelDelegate: NSObject, SPUUpdaterDelegate {
 final class SparkleUpdater {
     static let shared = SparkleUpdater()
 
-    #if canImport(Sparkle)
+    #if !FICHERO_APP_STORE
     private let updaterController: SPUStandardUpdaterController
     private let channelDelegate: SparkleChannelDelegate
     #endif
 
     private init() {
-        #if canImport(Sparkle)
+        #if !FICHERO_APP_STORE
         channelDelegate = SparkleChannelDelegate(
             channels: FeatureManager.shared.activeBuildTier == .dev ? ["dev"] : []
         )
@@ -58,14 +58,14 @@ final class SparkleUpdater {
     /// Sparkle's own persisted preferences — no shadow copy to drift.
     var automaticallyChecksForUpdates: Bool {
         get {
-            #if canImport(Sparkle)
+            #if !FICHERO_APP_STORE
             return updaterController.updater.automaticallyChecksForUpdates
             #else
             return false
             #endif
         }
         set {
-            #if canImport(Sparkle)
+            #if !FICHERO_APP_STORE
             updaterController.updater.automaticallyChecksForUpdates = newValue
             #endif
         }
@@ -73,14 +73,14 @@ final class SparkleUpdater {
 
     var automaticallyDownloadsUpdates: Bool {
         get {
-            #if canImport(Sparkle)
+            #if !FICHERO_APP_STORE
             return updaterController.updater.automaticallyDownloadsUpdates
             #else
             return false
             #endif
         }
         set {
-            #if canImport(Sparkle)
+            #if !FICHERO_APP_STORE
             updaterController.updater.automaticallyDownloadsUpdates = newValue
             #endif
         }
@@ -90,7 +90,7 @@ final class SparkleUpdater {
     /// Xcode runs do not) — Settings hides the section rather than showing
     /// dead toggles.
     var isAvailable: Bool {
-        #if canImport(Sparkle)
+        #if !FICHERO_APP_STORE
         return (Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String)
             .map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false
         #else
@@ -99,7 +99,7 @@ final class SparkleUpdater {
     }
 
     func checkForUpdates() {
-        #if canImport(Sparkle)
+        #if !FICHERO_APP_STORE
         guard let feedURLString = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String else {
             showMissingConfigurationAlert()
             return

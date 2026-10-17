@@ -1523,6 +1523,10 @@ class StartPlan(BaseModel):
     elsewhere: list[StartElsewhere] = Field(default_factory=list, description=(
         "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, "
         "never used without the person's press (ai.where.fallback-free-and-asked)"))
+    fallbacks: list[dict[str, Any]] = Field(default_factory=list, description=(
+        "steps that run the next candidate in their chain because the first cannot (a missing key), each saying which "
+        "and why (`used` true), or offered and not used (`used` false) when it would send pages to another provider: "
+        "never a silent substitute (`source.recipe.candidates-fallback-chain`)"))
     estimate: StartEstimate
     in_icloud: Optional[dict[str, Any]] = Field(default=None, description=(
         "pages whose linked originals are in iCloud and not on this Mac, with the offer to copy them into the project "
