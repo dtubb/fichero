@@ -3678,7 +3678,7 @@ Trying another option
   top results for the person's queries; each with cost, speed and carbon estimate.
 - `source.try.use-this-scope` — **[PARTIAL]** (#4950; tested in `fichero-server/tests/unit/recipes/test_bakeoff_readers.py`, `bakeoff.use_this`; the winner of a combination of steps is not built) Use This makes the winner the step's (or the
   combination's) choice for the project or for one folder, stored as an override on the recipe.
-- `source.try.kept-and-rerunnable` — **[GAP]** (#4950) a comparison is kept with its selection and
+- `source.try.kept-and-rerunnable` — **[PARTIAL]** (#4950; *built for the bake-off: the record is kept in `recipe/bakeoffs/<id>.yaml`, readable after Activity clears the job, listed, and run again on the same pages; pinned by `fichero-server/tests/unit/recipes/test_bakeoff_readers.py::test_the_comparison_is_kept_and_readable_later`. Not built: the other jobs' comparisons, and re-running with the saved selection and options in one action*) a comparison is kept with its selection and
   options and can be run again later.
 - `source.try.bakeoff-is-the-same-tool` — **[PARTIAL]** (#4950, #4951, #5660) **Changed 2026-10-11 (ruled: search
   wide, the bake-off decides):** the readers taking part are at most two of each kind (`bakeoff.PER_KIND`) from
