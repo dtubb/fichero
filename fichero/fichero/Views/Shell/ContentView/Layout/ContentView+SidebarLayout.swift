@@ -45,7 +45,9 @@ extension ContentView {
             // crash, and re-deriving from `library` (like the inspector boundary
             // does) avoids adding an unconditional @Environment read to
             // ContentView that would trap when no chat is shown.
+            // Not while the server is unreachable: a chat composer that cannot send is just clutter (#5396 item 5).
             if showChatPane,
+               appState.isBackendRunning,
                let library = libraryManager.getLibrary(id: windowState.libraryId) {
                 ResizableDivider(
                     width: $sidebarChatHeight,
