@@ -1447,9 +1447,9 @@ code path.
   watcher's thread asked for an event loop it did not have, which ended the watcher, and an
   extension named with its dot matched nothing) (`fichero-server/tests/unit/jobs/test_scheduled_and_triggered_runs.py`).* a scheduled or file-triggered run
   executes through the same path as a run started by hand.
-- `activity.run.resume-once` — **[BROKEN]** (#5373) resuming a run that is already running is
-  refused. Today `/threads/{id}/resume` never checks, so two clicks start two workers on one
-  checkpoint thread (`api/routes/workflow_execution/core.py:452-570`).
+- `activity.run.resume-once` — **[OK]** (#5373) resuming a run that is already running is
+  refused with 409, so two clicks never start two workers on one checkpoint thread; pinned by
+  `fichero-server/tests/unit/workflows/test_resume_once_5373.py`.
 - `activity.run.resume-default-workflow` — **[BROKEN]** (#5373) a paused run of a shipped default
   workflow resumes. Today resume loads the workflow from the store only, with no default fallback,
   and answers 404 (`core.py:452-570`; compare `/execute` at `core.py:311-318`).

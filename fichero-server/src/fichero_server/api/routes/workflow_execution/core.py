@@ -455,6 +455,14 @@ async def resume_workflow(
 
         checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
 
+        # A run that is live is not resumed again: two workers on one checkpoint thread
+        # (`activity.run.resume-once`, #5373).
+        from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
+
+        live = _running_workflows.get(thread_id)
+        if live and live.get("status") in ("accepted", "running"):
+            raise HTTPException(status_code=409, detail=f"The run {thread_id} is already running")
+
         # Get checkpoint
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
         checkpoint_tuple = await checkpointer.aget_tuple(config)
