@@ -304,7 +304,8 @@ The card's own behaviours (`source.model.card-id`, `cloud-pin-is-honest`, `weigh
   finder and the reader stay resident between pages (`llm/kraken_runtime.py:649` `_resident`), and
   the local-model lane runs one reader's pages together (`activity.lane.load-once`, which owns the
   rule; corrected 2026-10-04, this line said nothing was resident). Still a gap: batching pages into
-  one call, and several Kraken workers (`activity.run.kraken-workers`).
+  one call, and several Kraken workers (`activity.run.kraken-workers`). *Test:*
+  `fichero-server/tests/unit/llm/test_kraken_runtime.py::test_a_kraken_model_loads_once_and_is_replaced_not_stacked`.
 - `runtime.kraken.post-processing-uses-the-cores` — **[GAP]** (#5370, #5358) Kraken's line
   post-processing (about 10 s of a 17–20 s page, on one core) is spread over the performance cores
   or overlapped with the next page's segmentation; measured before and after on the fixture pages.
