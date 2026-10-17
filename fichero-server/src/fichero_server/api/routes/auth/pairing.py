@@ -422,8 +422,9 @@ def _require_secure_pairing_transport(request: Request) -> None:
         return
     if request.url.scheme != "https":
         raise HTTPException(status_code=400, detail="remote pairing requires https")
-    # A .ts.net host is served with Tailscale's publicly trusted certificate: system trust, no pin (#5753).
-    if (request.url.hostname or "").lower().endswith(".ts.net"):
+    # Sharing at a .ts.net name means Tailscale's publicly trusted certificate: system trust, no pin
+    # (#5753). Decided by what this engine shares at, not by the caller-supplied Host header.
+    if _shares_at_ts_net():
         return
     try:
         validate_spki_pin(os.environ.get("FICHERO_TLS_SPKI_HASH", ""))
