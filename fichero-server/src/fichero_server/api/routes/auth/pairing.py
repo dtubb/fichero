@@ -101,11 +101,32 @@ class TailnetOfferResponse(BaseModel):
 class SharingStateResponse(BaseModel):
     multiuser_enabled: bool
     tailnet_url: str | None = None
+    # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
+    # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
+    tailnet_serve_command: str | None = None
     paired_device_count: int
 
 
 class MultiuserRequest(BaseModel):
     enabled: bool
+
+
+def _tailnet_serve_command() -> str | None:
+    import shlex
+
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+
+    if not tailscale_serve.tailnet_url():
+        return None
+    port = int(os.environ.get("FICHERO_TCP_PORT") or "8765")
+    cli = tailscale_serve.tailscale_cli()
+    want = tailscale_serve.wanted_target(port)
+    try:
+        if cli and tailscale_serve.forward_target(tailscale_serve.serve_status(cli), port) == want:
+            return None
+    except Exception:  # CLI refused or unreadable: show the command
+        pass
+    return shlex.join([cli or "tailscale", "serve", "--bg", f"--https={port}", want])
 
 
 def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
@@ -115,6 +136,7 @@ def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
     return SharingStateResponse(
         multiuser_enabled=multiuser_enabled(),
         tailnet_url=tailscale_serve.detected_tailnet_url() or None,
+        tailnet_serve_command=_tailnet_serve_command(),
         paired_device_count=sum(1 for d in app_db.list_devices() if not getattr(d, "revoked_at", None)),
     )
 

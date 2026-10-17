@@ -45,3 +45,36 @@ def test_an_environment_setting_wins_and_says_so(two_macs, monkeypatch):  # noqa
     a = two_macs["a"]
     r = a.put("/api/pair/multiuser", json={"enabled": False}, headers=_owner(a))
     assert r.status_code == 409
+
+
+def test_a_missing_tailnet_forward_comes_with_the_one_command_to_paste(app_db, monkeypatch):
+    """A sandboxed app cannot run the Tailscale CLI, so the state names the command (#5317)."""
+    from fichero_server.api.routes.auth import pairing
+    from fichero_server.security import tailscale_serve
+
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://studio.tail1234.ts.net:8765")
+    monkeypatch.setenv("FICHERO_TCP_PORT", "8765")
+    monkeypatch.setattr(tailscale_serve, "detected_tailnet_url", lambda *a, **k: "https://studio.tail1234.ts.net")
+    monkeypatch.setattr(tailscale_serve, "tailscale_cli", lambda: "/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+    monkeypatch.setattr(tailscale_serve, "serve_status", lambda cli: {})
+    state = pairing._sharing_state(app_db)
+    assert state.tailnet_serve_command == (
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg --https=8765 https+insecure://127.0.0.1:8765"
+    )
+
+
+def test_no_command_when_the_forward_is_in_place_or_not_sharing_over_tailscale(app_db, monkeypatch):
+    from fichero_server.api.routes.auth import pairing
+    from fichero_server.security import tailscale_serve
+
+    monkeypatch.setattr(tailscale_serve, "detected_tailnet_url", lambda *a, **k: "")
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://studio.local:8765")
+    monkeypatch.delenv("FICHERO_TAILNET_URL", raising=False)
+    assert pairing._sharing_state(app_db).tailnet_serve_command is None
+
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://studio.tail1234.ts.net:8765")
+    monkeypatch.setenv("FICHERO_TCP_PORT", "8765")
+    monkeypatch.setattr(tailscale_serve, "tailscale_cli", lambda: "tailscale")
+    monkeypatch.setattr(tailscale_serve, "serve_status", lambda cli: {"x": 1})
+    monkeypatch.setattr(tailscale_serve, "forward_target", lambda status, port: "https+insecure://127.0.0.1:8765")
+    assert pairing._sharing_state(app_db).tailnet_serve_command is None
