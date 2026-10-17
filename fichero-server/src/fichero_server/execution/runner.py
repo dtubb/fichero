@@ -321,8 +321,44 @@ def _is_internal_langchain_node(name: str) -> bool:
     return name.startswith(_INTERNAL_LANGCHAIN_NAME_PREFIXES)
 
 
-def _classify_provider_error(error_text: str) -> dict[str, str]:
-    """Classify provider-facing failures into stable UI categories (#732)."""
+def _typed_failure(exc: BaseException | None) -> dict[str, str] | None:
+    """A failure's category from the exception the runtime raised, never from its message
+    (`runtime.errors-are-typed`, #5353): memory, unavailable in this build, a model that is not here,
+    egress refused, quota. None for an exception with no type of its own (the message words decide then)."""
+    if exc is None:
+        return None
+    from fichero_server.execution.throttle import MemoryShortError
+    from fichero_server.llm import (
+        AppleUnavailableError, LocalOnlyViolationError, ProviderQuotaError,
+    )
+    from fichero_server.llm.local_inference import (
+        LocalInferenceRuntimeMissingError, LocalModelMemoryUnavailableError, LocalModelNotInstalledError,
+    )
+
+    if isinstance(exc, ProviderQuotaError):
+        return {"category": "quota", "message": "Provider quota or rate limit reached.",
+                "action": "Top up account or switch provider/model."}
+    if isinstance(exc, LocalOnlyViolationError):
+        return {"category": "egress_refused", "message": "This project keeps its pages on this Mac.",
+                "action": "Choose a model on this Mac, or allow cloud models for the project."}
+    if isinstance(exc, (MemoryShortError, LocalModelMemoryUnavailableError)):
+        return {"category": "memory", "message": "This Mac does not have the memory for this model now.",
+                "action": "Close other work, or choose a smaller model."}
+    if isinstance(exc, LocalModelNotInstalledError):
+        return {"category": "model_missing", "message": "The model is not downloaded to this Mac.",
+                "action": "Download it in Settings, or choose another model."}
+    if isinstance(exc, (LocalInferenceRuntimeMissingError, AppleUnavailableError)):
+        return {"category": "unavailable_in_this_build", "message": "This runtime is not available in this build or on this Mac.",
+                "action": "Choose another model or runtime."}
+    return None
+
+
+def _classify_provider_error(error_text: str, exc: BaseException | None = None) -> dict[str, str]:
+    """Classify provider-facing failures into stable UI categories (#732). The exception's own type decides
+    first (`_typed_failure`); its message words only when it has none."""
+    typed = _typed_failure(exc)
+    if typed is not None:
+        return typed
     text = (error_text or "").lower()
 
     # Before any provider category: failures that are about the FILES, not
@@ -457,7 +493,7 @@ def _systemic_failure_message(e: "SystemicErrorDetected") -> tuple[str, dict[str
     payload, not just the generic systemic summary.
     """
     raw = str(e)
-    cls = _classify_provider_error(raw)
+    cls = _classify_provider_error(raw, e)
     if cls["category"] == "unknown":
         return raw, cls
     return (
@@ -2563,7 +2599,7 @@ async def _run_workflow_in_background(
                 workflow_id=workflow_id,
                 data={
                     "error": str(e),
-                    "error_category": _classify_provider_error(str(e))["category"],
+                    "error_category": _classify_provider_error(str(e), e)["category"],
                 },
             )
         )
