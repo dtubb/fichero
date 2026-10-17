@@ -273,7 +273,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### A Slurm cluster
 
-- `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
+- `compute.secret.fichero-makes-the-key` — **[PARTIAL]** (#5238; the engine makes the pair with the system `ssh-keygen` (`POST /api/hpc/clusters/{id}/key/make`, 409 if one exists), the private half stays in the engine's folder `hpc-keys/<cluster>/` (0600) rather than the Keychain, ruled by default 2026-10-17 pending the manager; `GET .../key/public` shows the public half again; removing the key removes both; test `fichero-server/tests/unit/api/test_routes_hpc.py` `TestMakeTheKey`; the app's Add-a-cluster sheet is `AddClusterSheet`, parse-checked only) for an SSH target Fichero makes an Ed25519 key pair;
   the private half is stored only in the Keychain, the one key store (`ai/ai-settings.md` (section K)); the
   public half is shown with Copy, to be added to the person's **own** cluster account, and can be
   shown again. Removing the target deletes the private half.
@@ -282,7 +282,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   One key per cluster site (one site's clusters share it), in a file of its own; a passphrase, if
   set, is kept in the Keychain (reference flow, 2026-10-04).
 
-- `compute.secret.ccdb-guided` — **[GAP]** (#5454, #5238) adding the public key to the cluster account
+- `compute.secret.ccdb-guided` — **[PARTIAL]** (#5454, #5238; `AddClusterSheet` copies the public half and links the account page, parse-checked only; the automatic retry while a new key reaches the clusters is not built) adding the public key to the cluster account
   (CCDB on the Alliance) is guided in the app: the public half is copied, and the account page is
   linked. A new key can take minutes to reach the clusters, so the app says so and retries the
   connection on its own until it is accepted or the person stops it. *Test:* the SSH fixture

@@ -89,6 +89,61 @@ final class HpcSignInService {
         return body.items.map { Cluster(id: $0.clusterId, name: $0.name, host: $0.hostAlias) }
     }
 
+    /// Saves a cluster (no secret in it: host alias, account, project path) and returns it.
+    func addCluster(name: String, hostAlias: String, username: String, remoteBaseDir: String, account: String,
+                    partition: String) async -> Result<Cluster, AddError> {
+        do {
+            let response = try await client.api.createOrUpdateClusterApiHpcClustersPost(
+                body: .json(.init(
+                    name: name, hostAlias: hostAlias, username: username, remoteBaseDir: remoteBaseDir,
+                    partition: partition, account: account.isEmpty ? nil : account)))
+            switch response {
+            case .ok(let ok):
+                let body = try ok.body.json
+                return .success(Cluster(id: body.clusterId, name: body.name, host: body.hostAlias))
+            case .unprocessableContent:
+                return .failure(.words("Check the host and user name: letters, digits, dots, dashes and underscores only."))
+            case .undocumented(let status, _):
+                return .failure(.words(status == 400 ? "The project folder must be an absolute path." : "The engine refused (\(status))."))
+            }
+        } catch {
+            return .failure(.words("Could not reach the engine: \(error.localizedDescription)"))
+        }
+    }
+
+    enum AddError: Error, Equatable { case words(String) }
+
+    /// Makes the cluster's key in the engine and returns its public half, to add in the cluster account (CCDB).
+    func makeKey(clusterId: String) async -> String? {
+        guard let response = try? await client.api.makeClusterKeyApiHpcClustersClusterIdKeyMakePost(
+            path: .init(clusterId: clusterId)),
+            case .ok(let ok) = response, let body = try? ok.body.json else { return await publicKey(clusterId: clusterId) }
+        return body.publicKey
+    }
+
+    /// The public half again (never the private one).
+    func publicKey(clusterId: String) async -> String? {
+        guard let response = try? await client.api.getClusterPublicKeyApiHpcClustersClusterIdKeyPublicGet(
+            path: .init(clusterId: clusterId)),
+            case .ok(let ok) = response, let body = try? ok.body.json else { return nil }
+        return body.publicKey
+    }
+
+    struct CheckStep: Identifiable, Equatable {
+        let name: String
+        let state: String
+        let answer: String
+        var id: String { name }
+    }
+
+    /// The honest check: each step passed, failed with its reason, or not tried.
+    func check(clusterId: String) async -> (ok: Bool, steps: [CheckStep])? {
+        guard let response = try? await client.api.checkClusterLiveApiHpcClustersClusterIdCheckPost(
+            path: .init(clusterId: clusterId)),
+            case .ok(let ok) = response, let body = try? ok.body.json else { return nil }
+        return (body.ok, body.steps.map { CheckStep(name: $0.name, state: $0.state, answer: $0.answer ?? "") })
+    }
+
     struct Cluster: Identifiable, Equatable {
         let id: String
         let name: String
