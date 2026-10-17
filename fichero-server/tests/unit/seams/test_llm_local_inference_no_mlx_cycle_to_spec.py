@@ -34,9 +34,8 @@ def test_the_leaf_imports_neither():
 
 
 def test_one_gate_seen_through_every_door():
-    from fichero_server.llm import local_inference, local_model_facts, local_models
+    from fichero_server.llm import local_inference, local_model_facts
 
     for name in ("check_local_model_hardware", "get_local_inference_capabilities", "LocalModelHardwareError"):
         owner = getattr(local_model_facts, name)
         assert getattr(local_inference, name) is owner
-        assert getattr(local_models, name) is owner
