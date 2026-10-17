@@ -16,6 +16,17 @@ extension ShareSettingsView {
                         .foregroundStyle(.secondary)
                 }
 
+                if let tailnet = detectedTailnetURL, tailnet != publicBaseURL {
+                    LabeledContent("Tailscale address") {
+                        Button("Use \(tailnet)") {
+                            addressDraft = tailnet
+                            publicBaseURL = tailnet
+                            Task { await applySharing() }
+                        }
+                        .disabled(isApplyingChange)
+                    }
+                }
+
                 TextField("Address other devices use", text: $addressDraft)
                     .textFieldStyle(.roundedBorder)
                     .autocorrectionDisabled()

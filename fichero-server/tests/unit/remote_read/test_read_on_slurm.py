@@ -65,7 +65,7 @@ def test_iiif_pages_are_fetched_on_the_login_node_and_the_shard_reads_them_offli
     """WHY (compute nodes have no internet): a package of IIIF pages is prefetched into itself on the
     login node; a shard then reads without a single request."""
     run = describe_slurm_read(ACENET, _package(3, iiif=True))
-    assert run.prefetch[:4] == ["ssh", "-p", "22", "historian@siku"] and "--prefetch" in run.prefetch[-1]
+    assert run.prefetch[:5] == ["ssh", "-p", "22", "--", "historian@siku"] and "--prefetch" in run.prefetch[-1]
 
     package = tmp_path / "pkg"
     (package / "_fichero").mkdir(parents=True)
@@ -87,3 +87,28 @@ def test_iiif_pages_are_fetched_on_the_login_node_and_the_shard_reads_them_offli
 
     outcome = runner.run_shard(package, 0, tmp_path / "out", reader=lambda image: [], get=offline)
     assert all(v["ok"] and v["size"] == [600, 800] for v in outcome["sources"].values())
+
+
+def test_the_script_fits_the_site_account_typed_gpu_signal_offline_and_no_forced_partition():
+    """WHY (`compute.hpc.sbatch-fits-the-site`): ACENET wants an account, a typed GPU, a warning signal
+    before the time limit and a requeue; compute nodes are offline; and a site with no named partition
+    must not be handed `--partition=default`."""
+    script = build_slurm_script(
+        config=SlurmJobConfig(gpus=1, gpu_type="h100", account="def-lab", signal_seconds=90),
+        remote_workdir="/p", runner_command=["true"])
+    for line in ("#SBATCH --account=def-lab", "#SBATCH --gres=gpu:h100:1", "#SBATCH --signal=B:USR1@90",
+                 "#SBATCH --requeue", "export HF_HUB_OFFLINE=1"):
+        assert line in script
+    assert "--partition" not in script
+    named = build_slurm_script(config=SlurmJobConfig(partition="gpu_h100"), remote_workdir="/p", runner_command=["true"])
+    assert "#SBATCH --partition=gpu_h100" in named and "--gres" not in named
+
+
+def test_a_cluster_without_a_partition_is_valid_and_its_sinfo_probe_names_none():
+    """WHY (`compute.hpc.sbatch-fits-the-site`): the partition is optional, not required."""
+    from fichero_server.workflows.remote_jobs import build_sinfo_probe_command
+    bare = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                            remote_base_dir="/project/def-lab/u", account="def-lab")
+    assert bare.validate() is None
+    assert "-p" not in build_sinfo_probe_command(bare)[-1].split()
+    assert "--partition" not in describe_slurm_read(bare, _package(10)).spec.sbatch_script
