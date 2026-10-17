@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Protocol
 
 from fichero_server.training.hf_jobs import CANCELLED, DONE, FAILED, RUNNING, WAITING, FarStatus
-from fichero_server.workflows.remote_jobs import HpcClusterConfig, normalize_slurm_state
+from fichero_server.workflows.remote_jobs import HpcClusterConfig, build_ssh_command, normalize_slurm_state
 
 #: Slurm's states in a job row's words (`compute.hpc.failure-states-in-words`); anything else is still going.
 _WORDS = {
@@ -150,16 +150,13 @@ class SshShell:
         if not Path(key).is_file():
             raise NoKey(f"no key at {key}: make one in Settings (Compute) and add its public half in CCDB")
         self.cluster, self.ssh = cluster, ssh
-        self._opts = ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
-                      "-o", "StrictHostKeyChecking=accept-new", "-o", "ControlMaster=auto", "-o", "ControlPersist=4h",
-                      "-o", f"ControlPath={control_dir}/%C", "-p", str(cluster.ssh_port)]
-        self._dest = f"{cluster.username}@{cluster.host_alias}"
+        self._key, self._control_dir = Path(key), Path(control_dir)
 
     def _ssh(self, remote: str, **kw) -> "subprocess.CompletedProcess":
         if "stdout" not in kw:
             kw.setdefault("capture_output", True)
-        # "--" so a destination can never be read as an ssh option
-        return subprocess.run([self.ssh, *self._opts, "--", self._dest, remote], **kw)
+        return subprocess.run(
+            build_ssh_command(self.cluster, remote, key=self._key, control_dir=self._control_dir, ssh=self.ssh), **kw)
 
     def open_master(self) -> None:
         done = self._ssh("true", timeout=300)
@@ -187,3 +184,69 @@ class SshShell:
             done = self._ssh(f"cat {shlex.quote(remote)}", stdout=f, stderr=subprocess.PIPE)
         if done.returncode:
             raise SlurmError(f"could not read {remote}: {done.stderr.decode(errors='replace').strip()[:300]}")
+
+
+def _walltime(timeout: str) -> str:
+    """`2h` / `90m` / `01:30:00` → Slurm's HH:MM:SS."""
+    if timeout.endswith(("h", "m")):
+        minutes = int(timeout[:-1]) * (60 if timeout.endswith("h") else 1)
+        return f"{minutes // 60:02d}:{minutes % 60:02d}:00"
+    return timeout
+
+
+class SlurmReadTarget(SlurmTarget):
+    """`SlurmTarget` in the shape `remote_read/job.py` drives (`target='cluster'`): the loop sends a shard at
+    a time, so each is its own single-task `sbatch --array=<n>` (id `<job>_<n>`, Slurm's own), the loop's
+    `max_in_flight` throttles, and a finished shard's results come home as the folder `land()` reads.
+
+    ponytail: `flavor` means nothing on a cluster (one GPU a task); the site's own gres is the cluster's setting."""
+
+    def __init__(self, cluster: HpcClusterConfig, shell: Shell) -> None:
+        super().__init__(cluster, shell)
+        self._package = None
+        self._sent: dict[str, list[str]] = {}  # job_key → the Slurm job ids submitted
+
+    def send(self, local_dir: str | Path, job_key: str) -> str:
+        import json
+
+        from fichero_server.remote_read.package import ReadPackage
+
+        job = json.loads((Path(local_dir) / "job.json").read_text(encoding="utf-8"))
+        self._package = ReadPackage(job_id=job_key, sources=job["sources"], shards=job["shards"])
+        return super().send(local_dir, job_key)
+
+    def submit(self, job_key: str, *, script: str = "", flavor: str = "", timeout: str = "2h",
+               script_args=None, dependencies=None, labels: dict[str, str] | None = None) -> str:
+        from fichero_server.remote_read.slurm import describe_slurm_read
+
+        shard = int((labels or {})["fichero-shard"])
+        spec = describe_slurm_read(self.cluster, self._package, shards=[shard], time_limit=_walltime(timeout)).spec
+        name = f"shard-{shard:05d}"
+        # the runner leaves a folder; one tar of it is what comes home in one transfer
+        text = spec.sbatch_script.rstrip("\n") + f"\ntar -C out/{name} -cf out/{name}.tar .\n"
+        self.shell.put_text(text, f"{self._dir(job_key)}/_fichero/read-{shard}.sbatch")
+        out = self._run(["sbatch", "--parsable", f"{self._dir(job_key)}/_fichero/read-{shard}.sbatch"])
+        job_id = out.strip().split(";")[0]
+        if not job_id.isdigit():
+            raise SlurmError(f"sbatch gave no job id: {job_id[:100]!r}")
+        self._sent.setdefault(job_key, []).append(job_id)
+        return f"{job_id}_{shard}"
+
+    def statuses(self, job_key: str) -> dict[str, FarStatus]:
+        ids = ",".join(dict.fromkeys(self._sent.get(job_key, [])))
+        return parse_sacct(self._run(["sacct", "-j", ids, "-X", "-P", "-n", "-o", "JobID,State"])) if ids else {}
+
+    def last_lines(self, far_id: str, n: int = 40, *, job_key: str | None = None) -> list[str]:
+        return super().last_lines(far_id, n, job_key=job_key or next(reversed(self._sent), None))
+
+    def fetch_part(self, job_key: str, part: str, local_dir: str | Path) -> Path:
+        import tarfile
+
+        local = Path(local_dir)
+        local.mkdir(parents=True, exist_ok=True)
+        tar_path = local.with_suffix(".tar")
+        self.shell.get(f"{self._dir(job_key)}/out/{part}.tar", tar_path)
+        with tarfile.open(tar_path) as tar:
+            tar.extractall(local, filter="data")
+        tar_path.unlink()
+        return local

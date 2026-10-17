@@ -572,18 +572,30 @@ class SshCliSubmitter:
 
 
 def build_ssh_command(
-    cluster: HpcClusterConfig, remote_command: list[str]
+    cluster: HpcClusterConfig,
+    remote_command: list[str] | str,
+    *,
+    key: Path | None = None,
+    control_dir: Path | None = None,
+    ssh: str = "ssh",
 ) -> list[str]:
-    """Render the argv for running ``remote_command`` on the cluster over SSH.
+    """The ONE ssh argv builder (the dry-run path and ``SshShell`` both use it).
 
-    Uses the user's own ``Host`` alias (plan §4) and a ControlMaster-friendly
-    invocation. Pure command construction — this does NOT execute anything; the
-    v0 slice builds and returns commands so they can be reviewed and unit-tested
-    before any real shell-out is wired.
+    Uses the user's own ``Host`` alias (plan §4). With ``key`` it adds the unattended-login options
+    (key only, no prompts, first contact accepts a new host key); with ``control_dir`` it reuses one
+    ControlMaster connection. ``remote_command`` is an argv (quoted here) or an already-built string.
+    Pure command construction: nothing executes.
     """
-    joined = " ".join(shlex.quote(part) for part in remote_command)
+    joined = remote_command if isinstance(remote_command, str) else " ".join(shlex.quote(p) for p in remote_command)
+    opts: list[str] = []
+    if key is not None:
+        opts += ["-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
+                 "-o", "StrictHostKeyChecking=accept-new"]
+    if control_dir is not None:
+        opts += ["-o", "ControlMaster=auto", "-o", "ControlPersist=4h", "-o", f"ControlPath={control_dir}/%C"]
     return [
-        "ssh",
+        ssh,
+        *opts,
         "-p",
         str(cluster.ssh_port),
         "--",  # destination can never be read as an ssh option
