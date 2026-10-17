@@ -41,6 +41,12 @@ def mlx_model_for(pin: dict) -> str | None:
     return repo if get_mlx_model_store().canonical_id(repo) is not None else None
 
 
+def lines_per_request_for(model: str) -> int | None:
+    """The `lines_per_request` a seed card states for this model id (a Hugging Face pin), or None."""
+    return next((c.lines_per_request for c in all_seed_cards()
+                 if c.pin.get("hf") == model and c.lines_per_request), None)
+
+
 def _set(value) -> frozenset[str] | None:
     return None if value in (None, "any") else frozenset(value)
 
@@ -91,5 +97,6 @@ def all_seed_cards() -> tuple[Card, ...]:
             note=str(row.get("note") or ""),
             period=tuple(row["period"]) if row.get("period") else None,
             handwriting_scripts=_set(row.get("handwriting_scripts")),
+            lines_per_request=int(row["lines_per_request"]) if row.get("lines_per_request") else None,
         ))
     return tuple(cards)

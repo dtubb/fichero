@@ -272,9 +272,11 @@ async def _re_ask_pages(result: dict[str, Any], artifact_ids: list[str], library
 
     from fichero_server.api.routes.document.segment_readings import counting_texts
     from fichero_server.db import db_manager
+    from fichero_server.llm.line_reader import LINES_PER_CALL
     from fichero_server.llm.re_ask_lines import re_ask
     from fichero_server.llm.working_lines import correct_lines, in_pixels, working_lines
     from fichero_server.models import Artifact, Document
+    from fichero_server.recipes.cards import lines_per_request_for
 
     db = db_manager.get_database(library_path)
     by_artifact = {r.get("artifact_id"): r for r in result.get("results") or [] if isinstance(r, dict)}
@@ -298,7 +300,8 @@ async def _re_ask_pages(result: dict[str, Any], artifact_ids: list[str], library
             width, height = img.size
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
                  for r in left]
-        got, missing = await re_ask(page.path, asked, artifact.content or "", llm_config)
+        got, missing = await re_ask(page.path, asked, artifact.content or "", llm_config,
+                                batch=lines_per_request_for(str(getattr(llm_config, "model", ""))) or LINES_PER_CALL)
         if missing:
             model = f"{llm_config.provider}/{llm_config.model}"
             why = (f"{model} gave no reading for {len(missing)} of the page's {len(rows.lines)} lines "
