@@ -748,6 +748,8 @@ class Segment(BaseModel):
     line_progression: str | None = None
 
     is_furniture: bool = False
+    #: One mark per segment (#4928): ticked | crossed | struck | none. Set only through `segment.update`.
+    mark_state: str = "none"
     provenance_kind: ProvenanceKind
     created_by: str | None = None
     #: Starts at 1; compare-and-set and stale-edit refusal arrive in slice 5.
@@ -1111,6 +1113,8 @@ class SegmentVersion(BaseModel):
     anchor: SourceAnchor
     baseline: list[list[float]] | None = None
     is_furniture: bool = False
+    #: One mark per segment (#4928): ticked | crossed | struck | none. Set only through `segment.update`.
+    mark_state: str = "none"
     #: The cascade's three facts, snapshotted with everything else (slice 9,
     #: #4938). They are here because the preimage is what undo restores from:
     #: a field `segment.update` can change and `SegmentVersion` does not carry
@@ -1176,7 +1180,7 @@ class SegmentDeleted(ValueError):
 #: snapshotted and restored but not compared, so a stale refusal never named a language change, and
 #: an undo could not see that somebody had set one since (found 2026-09-28).
 _VERSIONED_FIELDS = (
-    "anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture",
+    "anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture", "mark_state",
     "language", "script", "direction", "language_meta", "script_meta", "direction_meta", "line_progression",
 )
 
@@ -1201,7 +1205,7 @@ def snapshot_segment_version(
         segment_id=row.id, version=row.version, document_id=row.document_id,
         pass_id=row.pass_id, parent_segment_id=row.parent_segment_id,
         kind=row.kind, kind_raw=row.kind_raw, anchor=row.anchor, baseline=row.baseline,
-        is_furniture=row.is_furniture, deleted=deleted, actor=actor,
+        is_furniture=row.is_furniture, mark_state=row.mark_state, deleted=deleted, actor=actor,
         provenance_kind=row.provenance_kind, audit_id=audit_id, reason=reason,
         language=row.language, script=row.script, direction=row.direction,
         language_meta=row.language_meta, script_meta=row.script_meta,

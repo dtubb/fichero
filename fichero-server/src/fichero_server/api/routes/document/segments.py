@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -1638,6 +1638,7 @@ class SegmentUpdateParams(BaseModel):
     kind_raw: Optional[str] = Field(default=None, description='The kind as the source format named it.')
     parent_segment_id: Optional[str] = Field(default=None, description='The segment this one now sits inside.')
     is_furniture: Optional[bool] = Field(default=None, description='True marks the segment as page furniture (running heads, folio numbers).')
+    mark_state: Optional[Literal['ticked', 'crossed', 'struck', 'none']] = Field(default=None, description='The segment\'s one mark: ticked, crossed, struck or none.')
     #: The cascade's three facts (slice 9, #4938). Set here rather than through
     #: an action of their own, because `segment.update` already owns the version
     #: snapshot, the stale check, the inverse and the audit row -- a second
@@ -1812,6 +1813,8 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         row.parent_segment_id = params.parent_segment_id
     if params.is_furniture is not None:
         row.is_furniture = params.is_furniture
+    if params.mark_state is not None:
+        row.mark_state = params.mark_state
     _apply_cascade_facts(db, row, params, ctx)
     db.save(row)
 
@@ -1980,6 +1983,7 @@ def _copy_version_onto_row(row: Segment, target: "SegmentVersion") -> None:
     row.kind_raw = target.kind_raw
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
+    row.mark_state = target.mark_state
     # Slice 9 (#4938): restored with everything else. A fact the update can set
     # and the restore leaves behind would make undo quietly partial.
     row.language = target.language
@@ -2876,6 +2880,7 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         row.kind_raw = target.kind_raw
         row.parent_segment_id = target.parent_segment_id
         row.is_furniture = target.is_furniture
+        row.mark_state = target.mark_state
         row.doc_kind = f"{row.document_id}:{row.kind}"
         bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
         row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
@@ -3436,6 +3441,7 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
     row.kind_raw = target.kind_raw
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
+    row.mark_state = target.mark_state
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     row.doc_kind = f"{row.document_id}:{row.kind}"
