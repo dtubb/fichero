@@ -3498,7 +3498,7 @@ def fichero_hpc_create_or_update_cluster(
     cluster_id: Annotated[Optional[str], Field(description='Cluster Id.')] = None,
     host_alias: Annotated[str, Field(description='Host Alias.')],
     name: Annotated[str, Field(description='Name.')],
-    partition: Annotated[Optional[str], Field(description='Partition. Default: "default".')] = None,
+    partition: Annotated[Optional[str], Field(description='Partition. Default: "".')] = None,
     remote_base_dir: Annotated[str, Field(description='Remote Base Dir.')],
     ssh_port: Annotated[Optional[int], Field(description='Ssh Port. Default: 22.')] = None,
     username: Annotated[str, Field(description='Username.')],
@@ -3523,6 +3523,14 @@ def fichero_hpc_get_cluster(
     return _rt.call("GET", f"/api/hpc/clusters/{cluster_id}")
 
 
+def fichero_hpc_check_cluster_live(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Check Cluster Live\n\nThe honest check (`compute.connect.check-really-checks`): hostname, storage, Apptainer, GPUs and fair share,\nrun live on the login node over the open connection. Sign in first; nothing is submitted.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/check (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/check")
+
+
 def fichero_hpc_dry_run_submit(
     *,
     cluster_id: Annotated[str, Field(description='Cluster Id')],
@@ -3537,12 +3545,52 @@ def fichero_hpc_dry_run_submit(
     return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/dry-run-submit", json=_rt.body({"input_files": input_files, "library_path": library_path, "run_id": run_id, "throttle": throttle, "workflow_id": workflow_id, "workflow_name": workflow_name}))
 
 
+def fichero_hpc_delete_cluster_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Delete Cluster Key\n\nRoute: DELETE /api/hpc/clusters/{cluster_id}/key (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/hpc/clusters/{cluster_id}/key")
+
+
+def fichero_hpc_put_cluster_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+    private_key: Annotated[str, Field(description='The key the app holds in its Keychain.')],
+) -> Any:
+    "Put Cluster Key\n\nThe app pushes the cluster's private key into the engine's own folder; it is never read back.\n\nRoute: PUT /api/hpc/clusters/{cluster_id}/key (toolset `hpc`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", f"/api/hpc/clusters/{cluster_id}/key", json=_rt.body({"private_key": private_key}))
+
+
+def fichero_hpc_sign_in(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    "Sign In\n\nOpen the one connection to the cluster. ssh's prompts come out of `GET /prompts` for the app to answer;\nthe call returns when the connection is open or the attempt ended (typed reason).\n\nRoute: POST /api/hpc/clusters/{cluster_id}/sign-in (toolset `hpc`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/sign-in")
+
+
 def fichero_hpc_test_cluster(
     *,
     cluster_id: Annotated[str, Field(description='Cluster Id')],
 ) -> Any:
     "Test Cluster\n\nDry-run Test-connection: build the ``sinfo`` SSH probe command.\n\nv0 is honest about not executing: it validates the stored config and\nreturns the exact argv that a later wiring step will run over the user's\nSSH connection (plan §6). This lets the settings UI show a Test button that\nsurfaces the real command today, then flips to live results when shell-out\nlands — no contract change.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/test (toolset `hpc`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/test")
+
+
+def fichero_hpc_list_prompts(
+) -> Any:
+    'List Prompts\n\nWhat a cluster login is waiting on (a second factor, a passphrase), for the app to show.\n\nRoute: GET /api/hpc/prompts (toolset `hpc`; reads).'
+    return _rt.call("GET", "/api/hpc/prompts")
+
+
+def fichero_hpc_answer_prompt(
+    *,
+    prompt_id: Annotated[str, Field(description='Prompt Id')],
+    answer: Annotated[str, Field(description='Passed to ssh and kept nowhere.')],
+) -> Any:
+    'Answer Prompt\n\nRoute: POST /api/hpc/prompts/{prompt_id} (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/hpc/prompts/{prompt_id}", json=_rt.body({"answer": answer}))
 
 
 def fichero_iiif_refresh_folder(
@@ -6080,7 +6128,7 @@ def fichero_providers_test_connection(
 def fichero_reading_at_scale_start(
     *,
     card: Annotated[str, Field(description='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.')],
-    flavor: Annotated[Optional[str], Field(description='Hugging Face hardware for each shard. Default: "t4-small".')] = None,
+    flavor: Annotated[Optional[str], Field(description='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".')] = None,
     language: Annotated[Optional[str], Field(description='Language.')] = None,
     longest: Annotated[Optional[int], Field(description='Pixels on the longer side each image is read at. Default: 2000.')] = None,
     max_in_flight: Annotated[Optional[int], Field(description='Shards running at once. Default: 10.')] = None,
@@ -6089,10 +6137,11 @@ def fichero_reading_at_scale_start(
     reader: Annotated[Optional[str], Field(description='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages to read: images here, or pages imported by reference over IIIF.')],
     shard_size: Annotated[Optional[int], Field(description='Shard Size. Default: 50.')] = None,
+    target: Annotated[Optional[str], Field(description='Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute). Default: "huggingface-jobs".')] = None,
     timeout: Annotated[Optional[str], Field(description='Each shard\'s time limit; always sent. Default: "2h".')] = None,
 ) -> Any:
     "Read pages on Hugging Face Jobs, many shards as one job\n\nQueue a `read-at-scale` job: the pages in scope (images here, or IIIF canvases by reference) are\npacked with the reader and Fichero's runner, sent to a private bucket of the person's Hugging Face\naccount, read in shards (at most `max_in_flight` at once), and each shard's PAGE files land as new\npasses as it finishes. Refused, with nothing queued, without `pages_may_leave` (403), without a\nHugging Face token (412), or with a reader that cannot run off this Mac (422).\n\nRoute: POST /api/reading-at-scale (toolset `reading-at-scale`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "timeout": timeout}))
+    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "target": target, "timeout": timeout}))
 
 
 def fichero_reading_at_scale_job_status(
@@ -9188,8 +9237,14 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_hpc_create_or_update_cluster", "hpc", "POST", "/api/hpc/clusters", fichero_hpc_create_or_update_cluster),
     GeneratedTool("fichero_hpc_delete_cluster", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}", fichero_hpc_delete_cluster),
     GeneratedTool("fichero_hpc_get_cluster", "hpc", "GET", "/api/hpc/clusters/{cluster_id}", fichero_hpc_get_cluster),
+    GeneratedTool("fichero_hpc_check_cluster_live", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/check", fichero_hpc_check_cluster_live),
     GeneratedTool("fichero_hpc_dry_run_submit", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/dry-run-submit", fichero_hpc_dry_run_submit),
+    GeneratedTool("fichero_hpc_delete_cluster_key", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_delete_cluster_key),
+    GeneratedTool("fichero_hpc_put_cluster_key", "hpc", "PUT", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_put_cluster_key),
+    GeneratedTool("fichero_hpc_sign_in", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/sign-in", fichero_hpc_sign_in),
     GeneratedTool("fichero_hpc_test_cluster", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/test", fichero_hpc_test_cluster),
+    GeneratedTool("fichero_hpc_list_prompts", "hpc", "GET", "/api/hpc/prompts", fichero_hpc_list_prompts),
+    GeneratedTool("fichero_hpc_answer_prompt", "hpc", "POST", "/api/hpc/prompts/{prompt_id}", fichero_hpc_answer_prompt),
     GeneratedTool("fichero_iiif_refresh_folder", "iiif", "POST", "/api/iiif/folders/{folder_id}/refresh", fichero_iiif_refresh_folder),
     GeneratedTool("fichero_iiif_get_document_image", "iiif", "GET", "/api/iiif/iiif/image/{document_id}", fichero_iiif_get_document_image),
     GeneratedTool("fichero_iiif_get_lines_annotation_page", "iiif", "GET", "/api/iiif/iiif/lines/{document_id}", fichero_iiif_get_lines_annotation_page),
