@@ -31,6 +31,7 @@ def the_steps_local_models_are_on_this_mac(monkeypatch):
     and the refusal when it cannot, is test_local_model_choice.py's (#5520)."""
     monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
     monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])
+    monkeypatch.setattr(start, "provider_without_key", lambda step: None)  # keys: test_missing_key_never_substitutes_5364.py
 
 
 def _recipe(*steps):
