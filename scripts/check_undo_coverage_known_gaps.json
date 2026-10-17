@@ -466,6 +466,7 @@
   "PUT /api/documents/transfer/incoming/{transfer_id}/objects/{sha256}": "one object of a copy in flight; abandoning the copy removes it",
   "POST /api/documents/transfer/incoming/{transfer_id}/land": "lands as document.transfer_in, undone by document.untransfer from the audit row",
   "DELETE /api/documents/transfer/incoming/{transfer_id}": "abandons a copy in flight: nothing landed yet, nothing to undo",
+  "DELETE /api/machines/{machine_id}": "forgetting a machine drops this Mac's saved token; pairing again with a code from that Mac is the way back (#5661)",
   "POST /api/machines/pair": "pairing with another Mac is undone by revoking the device there (#5661: forgetting a machine here is not built yet)",
   "POST /api/documents/copy-into-project": "undoable on the engine (document.copy_into_project, inverse document.uncopy_from_project); the app runs it as that action through POST /api/actions/invoke and registers its ⌘Z there (ICloudPagesStore), which this axis counts on that route, not this one (#5669)",
   "POST /api/documents/relink-originals": "undoable on the engine (document.relink_originals, inverse document.unrelink_originals); the app runs it as that action through POST /api/actions/invoke and registers its ⌘Z there (OriginalsStore), which this axis counts on that route, not this one (#5672)",
