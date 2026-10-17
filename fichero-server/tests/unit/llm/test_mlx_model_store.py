@@ -261,57 +261,6 @@ def test_the_8b_vision_entry_warns_that_its_floor_is_not_its_working_memory() ->
     assert "24 GB" in spec.note
 
 
-@pytest.mark.asyncio
-async def test_a_repo_with_two_weight_sets_downloads_only_the_one_it_declares(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Nanonets ships a sharded set AND a duplicate single file (2026-09-03).
-
-    A plain snapshot takes both — 8.7 GB instead of 3.1 GB — and mlx's loader
-    then globs every *.safetensors in the folder, so it would load a MIXTURE
-    of two precisions. The skip list is what keeps that off the disk, so it
-    has to survive into the actual download command.
-    """
-    store = MLXModelStore(tmp_path / "mlx")
-    calls: list[tuple[str, ...]] = []
-
-    class FakeProcess:
-        returncode = 0
-
-        async def communicate(self):
-            return b"", b""
-
-    async def fake_exec(*argv, **kwargs):
-        calls.append(tuple(argv))
-        return FakeProcess()
-
-    class FakeRuntime:
-        def ensure_provisioned(self, on_message=None) -> Path:
-            return Path("/tmp/mlx-runtime/bin/python")
-
-    monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_runtime", lambda: FakeRuntime())
-    monkeypatch.setattr("fichero_server.llm.mlx_model_store.asyncio.create_subprocess_exec", fake_exec)
-
-    job = await store.start_download("Nanonets-OCR")
-    await store._job_tasks[job.job_id]
-
-    argv = calls[0]
-    assert "model-*-of-*.safetensors" in argv
-    assert "model.safetensors.index.json" in argv
-    # Clean repos send no patterns at all, so the script's `or None` holds.
-    assert MANAGED_MLX_MODELS["Qwen2.5-VL-3B"].ignore_patterns == ()
-
-
-def test_the_advertised_download_size_matches_what_is_actually_fetched() -> None:
-    """The number on the row is the disk cost, not the model's nominal size."""
-    nanonets = MANAGED_MLX_MODELS["Nanonets-OCR"]
-
-    assert nanonets.ignore_patterns, "the duplicate weight set must be skipped"
-    # 3.1 GB (the single 4-bit file this repo's config.json describes), not
-    # the 8.7 GB a whole-repo snapshot would cost.
-    assert nanonets.download_size_bytes < 4_000_000_000
-
-
 def _partial_snapshot(root: Path, spec, *, weights: bool, incomplete: bool, index: dict | None = None) -> Path:
     """Build a cache directory in one of the states a real download passes through."""
     snapshot = root / "hub" / f"models--{spec.repo_id.replace('/', '--')}" / "snapshots" / spec.revision
@@ -400,7 +349,7 @@ def test_a_stale_index_naming_a_different_layout_is_ignored(tmp_path: Path) -> N
 
 def test_a_finished_download_is_installed(tmp_path: Path) -> None:
     store = MLXModelStore(tmp_path / "mlx")
-    spec = MANAGED_MLX_MODELS["Nanonets-OCR"]
+    spec = MANAGED_MLX_MODELS["Qwen2.5-VL-3B"]
     _partial_snapshot(tmp_path / "mlx", spec, weights=True, incomplete=False)
 
     assert store.is_complete(spec) is True

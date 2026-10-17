@@ -987,7 +987,22 @@ Watch-outs:
 Settings reuses the row; land subtractively. Ready for CD review, not yet code.
 
 ## Triaged from the backlog (2026-10-04)
-- `models.curated-catalog-clean-licences` — **[GAP]** (#4611) Chandra-OCR and Nanonets-OCR are removed from MANAGED_MLX_MODELS (both still present at mlx_model_store.py:111,125).
+- `models.curated-catalog-clean-licences` — **[PARTIAL]** (#4611) ruling 2026-10-17: licence decides what
+  ships. A model Fichero cannot include by licence is dropped from what ships; a downloadable one is
+  offered as an in-app download; a machine-dependent one (Chandra-OCR) is offered only on a Mac with
+  enough memory; each model shows why it is or is not offered (#5519). Weights are never bundled.
+  Every catalogue entry declares its licence (`ManagedModelSpec.licence`, read from the Hub card on
+  2026-10-17). Dropped: Nanonets-OCR (no declared licence; base Qwen2.5-VL-3B-Instruct is
+  qwen-research; its card: "Not for release in any case"). Kept: Chandra-OCR (openrail, modified).
+  *Built and pinned:* the memory gate. On a Mac under 16 GB Chandra-OCR is listed with
+  `supported: false` and its reason ("needs 16 GB unified memory; this Mac has 8 GB"), and a download
+  is refused with that reason (`mlx_model_store.py`; `test_mlx_model_store.py`, the start refusal and
+  `test_catalog_marks_unsupported_when_memory_floor_is_missed`). The listing shows it greyed with its
+  reason, not hidden: that is the "shows why" half of the ruling.
+  *Test:* `fichero-server/tests/unit/llm/test_curated_catalog_licences_to_spec.py` (licences, and the
+  Chandra gate at 8 GB and 16 GB).
+  *Owed:* Qwen2.5-VL-3B's base is also qwen-research (research use only); the ruling would drop it,
+  but it is the default corrector, so it is held for a ruling.
 - `settings.local-only-mode` — **[GAP]** (#2063) a global local-only switch in Settings and a visible indicator; the engine already refuses cloud calls under FICHERO_LOCAL_ONLY (llm/__init__.py:1166 enforce_local_only_provider) but no app toggle or indicator exists.
 - `ai.onboarding-leaves-a-working-setup` — **[GAP]** (#5118) onboarding ends with a model that will run: RAM headroom is checked and HuggingFace discovery fills fields rather than chatting.
 - `settings.models.provider-status-says-what-is-true` — **[GAP]** (#4964) a provider row's dot is green only when a run would work now, and otherwise says not installed, installing with progress, install failed with the reason (Kraken today shows green while uninstallable).
