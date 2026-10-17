@@ -7,7 +7,8 @@ from typing import Any
 STEPS: list[tuple[str, list[str]]] = [
     ("hostname", ["hostname"]),
     ("storage", ["diskusage_report"]),
-    ("apptainer", ["module", "avail", "apptainer"]),
+    # `module` is a function of a login shell and answers on stderr
+    ("apptainer", ["bash", "-lc", "module avail apptainer 2>&1"]),
     ("gpus", ["sinfo", "-h", "-o", "%P|%a|%G"]),
     ("fair share", ["sshare", "-U", "-P", "-n"]),
 ]

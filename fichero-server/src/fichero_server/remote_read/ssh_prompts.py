@@ -12,9 +12,11 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import shlex
 import re
 import shutil
 import socket
+import stat
 import sys
 import tempfile
 import threading
@@ -115,7 +117,7 @@ class AskpassServer:
 
     def env(self) -> dict[str, str]:
         wrapper = self._dir / "askpass.sh"
-        wrapper.write_text(f'#!/bin/sh\nexec "{sys.executable}" "{ASKPASS}" "$@"\n')
+        wrapper.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(ASKPASS))} "$@"\n')
         wrapper.chmod(0o700)
         return {"SSH_ASKPASS": str(wrapper), "SSH_ASKPASS_REQUIRE": "force", "FICHERO_ASKPASS_SOCKET": str(self.path)}
 
@@ -124,10 +126,34 @@ class AskpassServer:
         shutil.rmtree(self._dir, ignore_errors=True)
 
 
+def _owner(st: os.stat_result) -> int:
+    return st.st_uid
+
+
+def _control_candidates() -> list[Path]:
+    """The engine's own state folder first; a unix socket path must stay under ~100 bytes (the connection's name
+    is a 40-character hash), so a long state folder falls back to a per-user folder of /tmp that is checked."""
+    from fichero_server.db.paths import server_state_dir
+
+    own = server_state_dir() / "hpc-ssh"
+    return [own] if len(str(own)) <= 50 else [Path(f"/tmp/fichero-ssh-{os.getuid()}")]
+
+
 def control_dir() -> Path:
-    """Where the one open connection's socket lives (short: a unix socket path stays under ~100 bytes)."""
-    path = Path(f"/tmp/fichero-ssh-{os.getuid()}")
-    path.mkdir(mode=0o700, exist_ok=True)
+    """Where the one open connection's socket lives: made 0700, and refused if it is a symlink or another user owns
+    it (a folder any local user could pre-create would let them sit in front of the connection)."""
+    path = _control_candidates()[0]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.mkdir(mode=0o700)
+    except FileExistsError:
+        pass
+    st = os.lstat(path)
+    if stat.S_ISLNK(st.st_mode):
+        raise PermissionError(f"{path} is a symlink: refused")
+    if _owner(st) != os.getuid():
+        raise PermissionError(f"{path} is owned by another user: refused")
+    os.chmod(path, 0o700)
     return path
 
 

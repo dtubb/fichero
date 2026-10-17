@@ -102,3 +102,36 @@ def test_the_key_lives_in_the_engine_folder_privately_and_goes_with_the_target(t
     for bad in ("../x", "a/b", "", ".hidden", "-oProxyCommand"):
         with pytest.raises(ValueError):
             store_cluster_key(bad, "k")
+
+
+def test_the_connection_folder_is_ours_private_and_not_a_symlink(tmp_path, monkeypatch):
+    """WHY (review 41): a folder any local user could pre-create would let them sit in front of the open connection."""
+    import os
+
+    from fichero_server.remote_read import ssh_prompts
+
+    monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+    path = ssh_prompts.control_dir()
+    assert stat.S_IMODE(path.stat().st_mode) == 0o700 and path.stat().st_uid == os.getuid() and not path.is_symlink()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.setattr(ssh_prompts, "_control_candidates", lambda: [tmp_path / "link"])
+    (tmp_path / "link").symlink_to(elsewhere)
+    with pytest.raises(PermissionError, match="symlink"):
+        ssh_prompts.control_dir()
+    monkeypatch.setattr(ssh_prompts, "_owner", lambda st: os.getuid() + 1)
+    (tmp_path / "link").unlink()
+    with pytest.raises(PermissionError, match="owned by another user"):
+        ssh_prompts.control_dir()
+
+
+def test_the_askpass_wrapper_quotes_its_paths(tmp_path, monkeypatch):
+    from fichero_server.remote_read import ssh_prompts
+
+    monkeypatch.setattr(ssh_prompts.sys, "executable", "/opt/my python/bin/python")
+    server = ssh_prompts.AskpassServer(PromptBroker())
+    try:
+        wrapper = server.env()["SSH_ASKPASS"]
+        assert "'/opt/my python/bin/python'" in open(wrapper).read()
+    finally:
+        server.close()

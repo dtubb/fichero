@@ -394,7 +394,7 @@ async def delete_cluster_key(
 
 
 @router.get("/prompts", response_model=HpcPromptList)
-async def list_prompts() -> HpcPromptList:
+async def list_prompts(_owner: None = Depends(_require_owner_or_bootstrap)) -> HpcPromptList:
     """What a cluster login is waiting on (a second factor, a passphrase), for the app to show."""
     from fichero_server.remote_read.ssh_prompts import prompt_broker
 
@@ -411,7 +411,7 @@ async def answer_prompt(
 
     if not prompt_broker().answer(prompt_id, body.answer):
         raise HTTPException(status_code=404, detail="no such prompt (answered, refused or timed out)")
-    return await list_prompts()
+    return await list_prompts(None)
 
 
 @router.post("/clusters/{cluster_id}/sign-in", response_model=HpcKeyState)
