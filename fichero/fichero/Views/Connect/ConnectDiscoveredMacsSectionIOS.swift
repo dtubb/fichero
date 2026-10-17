@@ -1,4 +1,4 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 
 /// Discovered-Mac list that leads first-run onboarding (#3102). Discovery only
