@@ -46,7 +46,7 @@ struct ShareSettingsView: View {
     @State var didBootstrap = false
     @State var copiedInvite = false
     @State var addressDraft = ""
-    @State var detectedTailnetURL: String?
+    @State var sharingState: SharingStateRecord?
     @State var confirmRemoveAllDevices = false
 
     let qrContext = CIContext()
@@ -161,7 +161,7 @@ struct ShareSettingsView: View {
                 await refreshDevices()
             }
             await refreshConnectedClients()
-            await refreshDetectedTailnet()
+            await refreshSharingState()
             await loadAuthzSnapshot()
             didBootstrap = true
         }

@@ -100,9 +100,9 @@ extension ShareSettingsView {
         }
     }
 
-    func refreshDetectedTailnet() async {
+    func refreshSharingState() async {
         guard EngineConfig.engineIsLocal else { return }
-        detectedTailnetURL = try? await PairingService(apiRoot: EngineConfig.host).detectedTailnetURL()
+        sharingState = try? await PairingService(apiRoot: EngineConfig.host).sharingState()
     }
 
     func refreshConnectedClients() async {
