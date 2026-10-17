@@ -3873,7 +3873,7 @@ def _find_fm_bridge_binary() -> Path | None:
 
 
 def _fm_bridge_unavailable_reason() -> str | None:
-    from fichero_server.llm.local_inference import get_local_inference_capabilities
+    from fichero_server.llm.local_model_facts import get_local_inference_capabilities
 
     if not get_local_inference_capabilities().subprocess_capable:
         return "Apple Intelligence is not available on this device"

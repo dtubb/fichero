@@ -166,6 +166,7 @@ def _read_token(
     base_url: str | None = None,
     as_user: str | None = None,
     prefer_container: bool = False,
+    refused: frozenset[str] = frozenset(),
 ) -> str | None:
     """Read the selected auth token, scoped to the actual backend host."""
     # An explicitly selected account must never fall back to the loopback
@@ -221,7 +222,8 @@ def _read_token(
             token = path.read_text(encoding="utf-8").strip()
         except OSError:
             continue
-        if token:
+        # A key this engine already refused is the other engine's (#5419): never offer it again.
+        if token and token not in refused:
             return token
     return None
 
@@ -430,6 +432,7 @@ class FicheroClient:
         # token="" is honoured (explicit "no token"); token=None means discover
         # from disk on demand so the client can survive startup ordering races.
         self._discover_token = token is None
+        self._refused: set[str] = set()
         self._as_user = as_user.strip() if isinstance(as_user, str) and as_user.strip() else None
         self.token = token if token is not None else _read_token(
             base_url=DEFAULT_BASE_URL if self._uds_path else self.base_url,
@@ -494,7 +497,7 @@ class FicheroClient:
         self.close()
 
     # -- core --------------------------------------------------------------
-    def _refresh_auth_context(self) -> bool:
+    def _refresh_auth_context(self, *, refused: bool = False) -> bool:
         """Refresh lazily discovered auth headers from their live sources.
 
         The shared-secret token is written by the engine at startup and the
@@ -506,7 +509,11 @@ class FicheroClient:
         """
         changed = False
         if self._discover_token:
-            refreshed = _read_token(base_url=self.base_url, as_user=self._as_user)
+            if refused and self.token:
+                self._refused.add(self.token)
+            refreshed = _read_token(
+                base_url=self.base_url, as_user=self._as_user, refused=frozenset(self._refused)
+            )
             if refreshed and refreshed != self.token:
                 self.token = refreshed
                 changed = True
@@ -589,7 +596,7 @@ class FicheroClient:
         except httpx.HTTPError as exc:
             raise FicheroError(f"{method} {path} failed: {exc}") from exc
 
-        if response.status_code in {401, 403} and self._refresh_auth_context():
+        if response.status_code in {401, 403} and self._refresh_auth_context(refused=response.status_code == 401):
             try:
                 response = self._client.request(
                     method,
@@ -641,7 +648,7 @@ class FicheroClient:
             raise _connect_error(self.base_url, exc) from exc
         except httpx.HTTPError as exc:
             raise FicheroError(f"GET {path} failed: {exc}") from exc
-        if response.status_code in {401, 403} and self._refresh_auth_context():
+        if response.status_code in {401, 403} and self._refresh_auth_context(refused=response.status_code == 401):
             response = self._client.request("GET", path, params=_clean(params), headers=self._headers())
         if response.status_code >= 400:
             raise FicheroError(

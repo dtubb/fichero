@@ -828,7 +828,7 @@ async def test_apple_chat_reports_platform_unavailable_before_missing_binary(mon
     from fichero_server.llm.local_inference import LocalInferenceCapabilities
 
     monkeypatch.setattr(
-        "fichero_server.llm.local_inference.get_local_inference_capabilities",
+        "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",

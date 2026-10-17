@@ -360,10 +360,11 @@ very engine spawn those tests exist to exercise.
 
 ### F. Distribution and bundle hygiene (P3, not urgent)
 
-- `engine.dmg-mas-byte-identical-guard` — **[GAP]** (#3982) both app targets stage from the
-  same bundle path today (structurally sound per the issue's own read), but no automated parity
-  guard exists to keep a future config change from silently shipping two different engines; not
-  built.
+- `engine.dmg-mas-byte-identical-guard` — **[OK]** (#3982) DMG and App Store are configurations of
+  one `Fichero` target sharing one "Embed Fichero Server" phase with one unconditional source path;
+  a second phase, a second source, or a branch on the channel fails the guard. Pinned:
+  `fichero-server/tests/unit/scripts/test_embed_phase_one_engine_for_dmg_and_mas_3982.py`. The
+  sandbox-path half of the issue (MAS container HOME) is not covered here.
 - `engine.bundle-trim-litellm` — **[GAP]** (#3929) `litellm` (+ the AWS SDK it drags in via
   `botocore`, ~84 MB) remains a full dependency though project policy says LLM calls route
   through langchain providers and litellm is used for pricing-lookup ONLY; not vendored down or
@@ -381,14 +382,12 @@ very engine spawn those tests exist to exercise.
   the source) has not been adopted. This is the one item in this milestone that most overlaps
   `transport-http-uds.md`'s territory — cited there, not duplicated as a competing claim; that
   spec's own maintainers should decide which spec's milestone eventually owns the fix.
-- `engine.embed-filelist-stays-current` — **[BROKEN]** (#4909) the manifest that tells Xcode's
+- `engine.embed-filelist-stays-current` — **[OK]** (#4909) the manifest that tells Xcode's
   Embed phase which engine sources to copy into the app must stay current with the real engine
   tree — a source missing from it means edits to that file are silently never picked up by the
-  built app. A guardrail enforces this, `scripts/check_engine_embed_filelist.py`, and it is
-  currently RED: 19 engine sources are not listed (e.g. `wikidata_enrich.py`,
-  `local_model_catalog.py`), both dated 2026-09-06/07 — pre-existing staleness, not from this
-  week. *Test:* the guardrail itself; fix is `scripts/regen_engine_embed_filelist.py`, then
-  commit the result.
+  built app. Pinned: `scripts/check_engine_embed_filelist.py` (green, 785 sources) and
+  `fichero-server/tests/unit/scripts/test_check_engine_embed_filelist.py`; to refresh run
+  `scripts/regen_engine_embed_filelist.py` and commit the result.
 
 ## Fold record for the 13 issues (Pass 2 — executed 2026-09-19)
 
@@ -442,7 +441,7 @@ closed by this pass — every "already built" finding was posted as GitHub-comme
 filed during Pass 1) — none closed, none recommended for closure by this pass.
 
 ## Triaged from the backlog (2026-10-04)
-- `engine.llm-no-local-inference-mlx-cycle` — **[GAP]** (#4080) llm/local_inference.py and llm/mlx_model_store.py do not import each other (still mutual lazy imports at local_inference.py:119,636 and mlx_model_store.py:216), with a cold-import test.
+- `engine.llm-no-local-inference-mlx-cycle` — **[PARTIAL]** (#4080) `llm/mlx_model_store.py` never imports `llm/local_inference.py` (which uses the store, one way), so the two are no longer a cycle. Still open: `local_inference.py` reaches the store through lazy in-function imports (one way); a constructor-injected store would remove them. The hardware gate (`check_local_model_hardware`, `get_local_inference_capabilities`, `LocalModelHardwareError`) and the catalog row shape (`LocalModelCatalogEntry`, `LocalModelSource`) are owned by the local-models side, a leaf module `llm/local_model_facts.py`; `llm/` asks it, never the reverse. Pinned: `fichero-server/tests/unit/seams/test_llm_local_inference_no_mlx_cycle_to_spec.py`.
 - `engine.library-scope-stopped-on-every-removal` — **[GAP]** (#4218) every path that drops a LibraryReference from openLibraries stops its security scope first; paired-remote adoption (LibraryManager+Helpers.swift:274 removeAll) still does not.
 - `engine.cold-start-defers-eager-imports` — **[PARTIAL]** (#4690) the engine's cold start defers route-module imports and pre-yield work and the prewarm waits for a quiet app (landed in 90413d77e, f3ea56d51, 36d323719, b85bb009d); app-side pre-spawn and readiness-probe time is not measured.
 - `engine.launch-to-authenticated-ready-profiled` — **[GAP]** (#4538) Dev Local launch reaches first authenticated ready in a measured budget, with the time before LibraryManager init (about 19s) profiled and ratcheted.

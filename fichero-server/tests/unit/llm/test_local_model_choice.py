@@ -83,7 +83,7 @@ def mac(monkeypatch, tmp_path, app_db):
         return LocalInferenceCapabilities(system="Darwin", machine="arm64", is_apple_silicon=True,
                                           physical_memory_bytes=state["ram"], macos_version="26.0")
 
-    monkeypatch.setattr("fichero_server.llm.local_inference.get_local_inference_capabilities", capabilities)
+    monkeypatch.setattr("fichero_server.llm.local_model_facts.get_local_inference_capabilities", capabilities)
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(choice, "_store", lambda: store)
 

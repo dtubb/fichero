@@ -59,7 +59,7 @@ def test_catalog_install_state_from_store_layout(tmp_path: Path) -> None:
 
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setattr(
-            "fichero_server.llm.local_inference.get_local_inference_capabilities",
+            "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
             lambda: LocalInferenceCapabilities(
                 system="Darwin",
                 machine="arm64",
@@ -151,7 +151,7 @@ def test_spawn_with_uninstalled_model_raises_typed_error(tmp_path: Path, monkeyp
     store = MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(
-        "fichero_server.llm.local_inference.get_local_inference_capabilities",
+        "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
@@ -172,7 +172,7 @@ def test_spawn_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.Monk
     _write_snapshot(store.root, spec.repo_id, spec.revision, size=8)
     monkeypatch.setattr("fichero_server.llm.mlx_model_store.get_mlx_model_store", lambda: store)
     monkeypatch.setattr(
-        "fichero_server.llm.local_inference.get_local_inference_capabilities",
+        "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
@@ -191,7 +191,7 @@ def test_spawn_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.Monk
 async def test_download_refuses_underpowered_mac(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr(
-        "fichero_server.llm.local_inference.get_local_inference_capabilities",
+        "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",
@@ -208,7 +208,7 @@ async def test_download_refuses_underpowered_mac(tmp_path: Path, monkeypatch: py
 def test_catalog_marks_unsupported_when_memory_floor_is_missed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     store = MLXModelStore(tmp_path / "mlx")
     monkeypatch.setattr(
-        "fichero_server.llm.local_inference.get_local_inference_capabilities",
+        "fichero_server.llm.local_model_facts.get_local_inference_capabilities",
         lambda: LocalInferenceCapabilities(
             system="Darwin",
             machine="arm64",

@@ -23,8 +23,8 @@ from fichero_server.llm.local_inference import (
     LocalModelCatalogEntry,
     LocalProviderProfile,
     ManagedLocalInferenceProcess,
-    get_local_inference_capabilities,
 )
+from fichero_server.llm.local_model_facts import get_local_inference_capabilities
 from fichero_server.llm.mlx_model_store import get_mlx_model_store
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
 
