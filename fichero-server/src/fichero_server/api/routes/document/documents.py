@@ -2913,16 +2913,13 @@ def update_document_impl(
 
     db.save(doc)
 
-    # Re-embed when page_content changed so search reflects the user's
-    # edit immediately. Without this, the stale embedding from before the
-    # edit stays in LanceDB until a manual reindex — and search returns
-    # the *old* content as if the edit never happened. (#481 follow-up)
+    # Re-embed when page_content changed so search reflects the user's edit, as a queued job
+    # (`activity.auto.reembed-on-change`, #5360): the embed is seconds a request must not pay, and
+    # the job shows in Activity. It reads the page's current text when it runs. (#481 follow-up)
     if "page_content" in update_data and doc.page_content:
-        outcome = db.embed(doc)
-        if outcome:
-            logger.info(f"Re-embedded {doc_id} after page_content edit")
-        else:
-            logger.warning(f"Re-embed after edit did not embed {doc_id}: {outcome.reason} {outcome.error or ''}")
+        from fichero_server.actions.page_text_cache import queue_reembed
+
+        queue_reembed(db, [doc_id])
         # Names and claims follow the edited text too, as a queued job of their own (#5361).
         from fichero_server.actions.page_text_cache import queue_reread_names
 
