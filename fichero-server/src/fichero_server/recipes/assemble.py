@@ -178,6 +178,9 @@ class Card:
     note: str = ""
     #: The years the reader was made for (its card's `period: [from, to]`), None when it states none (#5516).
     period: tuple[int, int] | None = None
+    #: The scripts whose handwriting it reads, where that is narrower than `scripts` (None: all of `scripts`): Apple
+    #: Vision reads Latin handwriting and only prints the others (#5715).
+    handwriting_scripts: frozenset[str] | None = None
     #: False when the card's runtime is not in this build (its seed row says `runs_here: false`): never a
     #: candidate for the recipe, but the bake-off names it (Tesseract, `source.onboard.bakeoff-tesseract-baseline`).
     runs_here: bool = True
@@ -272,7 +275,8 @@ class Choice:
 #: The hard constraints, in the order they are tried; a refused card names the first it fails. The
 #: code is what setup shows (in words, with a fix), the raw reason what the Inspector and log keep.
 _CONSTRAINTS = ("no-model-for-job", "no-model-for-script", "no-model-for-language", "no-model-for-language",
-                "no-reader-for-material", "licence-not-accepted", "cloud-not-allowed", "not-enough-memory")
+                "no-reader-for-material", "no-reader-for-period", "licence-not-accepted", "cloud-not-allowed",
+                "not-enough-memory")
 
 
 def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str] | None:
@@ -287,6 +291,12 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
         return "no-model-for-language", "a model that does not list the language would rewrite it into one it knows"
     if material == "handwriting" and card.material and "handwriting" not in card.material:
         return "no-reader-for-material", "it is made for print or typescript, never handwriting"
+    if (material == "handwriting" and card.handwriting_scripts is not None
+            and not (a.scripts <= card.handwriting_scripts)):
+        return "no-reader-for-material", "it reads this script printed, never handwritten"
+    if job in READING_JOBS and material == "handwriting" and in_period(card, a) is False:
+        return "no-reader-for-period", (f"it was made for pages of {card.period[0]}–{card.period[1]}, "
+                                        "not the project's period")
     if not card.open_licence:
         return "licence-not-accepted", _licence_words(card.licence)
     if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
@@ -311,6 +321,7 @@ _FIXES = {
     "no-model-for-script": ["download", "choose-cloud", "choose-model"],
     "no-model-for-language": ["download", "choose-cloud", "choose-model"],
     "no-reader-for-material": ["download", "choose-model"],
+    "no-reader-for-period": ["download", "choose-model"],
     "licence-not-accepted": ["accept-licence", "choose-model"],
     "cloud-not-allowed": ["allow-cloud", "choose-model"],
     "not-enough-memory": ["choose-cloud", "choose-model"],
@@ -337,6 +348,8 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
         return f"No {noun} here knows {_and([language_name(t) for t in sorted(a.languages)])} yet."
     if code == "no-reader-for-material":
         return f"No {noun} here is made for {material}."
+    if code == "no-reader-for-period":
+        return f"No {noun} here was made for pages written in {a.period or 'this period'}."
     if code == "licence-not-accepted":
         return f"The {noun} that fits has a licence you have not accepted yet."
     if code == "cloud-not-allowed":
@@ -559,6 +572,14 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     # Cheapest and local first: start with the best LOCAL candidate; a remote one only when no
     # local one passes (the A/B, not the rules, decides any move to a costlier option).
     pool = [c for c in kept if c.local] or kept
+    if job in READING_JOBS and material == "handwriting" and a.period:
+        # A reader that states no period is offered and measured, never the rules' choice, for handwriting of a
+        # stated period (#5714): nothing says it reads that hand, and its failure would show only as a poor score.
+        stated = [c for c in pool if c.period is not None] or [c for c in kept if c.period is not None]
+        if not stated:
+            gap = "no reader states that it reads pages of this period; the bake-off measures the ones that state none"
+            return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
+        pool = stated
     if job == "make-a-vector":
         # The embedder: the one this engine's search embeds with, where its card covers all the project's
         # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.

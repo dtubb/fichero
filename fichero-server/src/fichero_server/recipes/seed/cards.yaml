@@ -95,6 +95,8 @@ cards:
     scripts: [Latn, Cyrl, Hani, Hang, Arab, Thai]
     languages: any
     material: [print, handwriting]
+    handwriting_scripts: [Latn]   # the other scripts it lists are read printed only (#5715)
+    period: [1900, 2100]          # stated from use, not measured (#5715); a bake-off measurement replaces it
     licence: system
     pinnable: false
     note: Apple's on-device text recognition; changes with macOS.
