@@ -601,7 +601,7 @@ Giving a tool a piece of a page (#5026)
   of the ink's look), and the picture tools. **Still PARTIAL:** a page with no segments is given
   its page text, else its newest transcription, as one block with no boxes -- there is no pass to
   follow there.
-- `source.tool.results-name-their-segments` — **[GAP]** (#5026) a tool's result names the segment
+- `source.tool.results-name-their-segments` — **[PARTIAL]** (#5026; Extract Table in rows-as-JSON style asks for `row_segments` and keeps only ids that are segments of the page: `fichero-server/tests/unit/workflows/test_tool_results_name_their_segments_to_spec.py`; owed: the other tools and styles, a cell's own lines rather than a row's, and the table becoming cell segments) a tool's result names the segment
   ids it was read from (a table cell names its lines), so the output is anchored instead of
   free text that must be matched back; this is what `Tables and forms` means by a table becoming
   cell segments, and it changes what a tool RETURNS.
@@ -991,7 +991,7 @@ Storage
   mark, support and claim whose rectangle matches a converted box exactly, with the segment id
   it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
   2026-09-20: there is nowhere lawful to write the id until `source.point.anchor-names-its-segment`.)
-- `source.store.edit-converts-its-page-first` — **[GAP]** (#4924) reading a page never converts it; editing a page
+- `source.store.edit-converts-its-page-first` — **[PARTIAL]** (#4924; reading converts nothing, the edit is one audited action with name-based ids, undo keeps the records: `fichero-server/tests/unit/api/test_store_edit_converts_its_page_first_to_spec.py`; owed: ids equal to the whole-project conversion's, once that is built) reading a page never converts it; editing a page
   that is not yet converted converts it as part of that edit, one audited action, with the
   same ids the whole-project conversion would give it; undo takes back the edit and keeps the
   records. (Replaces `source.store.ids-on-first-edit`: by the ruling of 2026-09-20 this is no
@@ -1001,7 +1001,7 @@ Storage
   the source (threshold in the morning file).
 - `source.store.record-per-segment` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestRecordPerSegment::test_lines_of_this_pass_and_children_of_this_region_are_single_filtered_queries`) the store can answer questions about single segments
   (the lines of a page; a word's history; all segments in a hand).
-- `source.store.never-converted-by-a-migration` — **[GAP]** (#4924) no migration, script, second engine or
+- `source.store.never-converted-by-a-migration` — **[OK]** (#4924; pinned by `fichero-server/tests/unit/models/test_store_never_converted_by_a_migration_to_spec.py`) no migration, script, second engine or
   command-line process ever writes a segment record into an existing project; opening a
   project adds empty tables and columns and nothing else. (Replaces
   `source.store.no-batch-rewrite`, overturned 2026-09-20: a whole project IS converted, but
