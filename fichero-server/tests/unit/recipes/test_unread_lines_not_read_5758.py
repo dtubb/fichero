@@ -112,7 +112,7 @@ def test_the_mark_is_a_versioned_audited_segment_update_keyed_by_the_model_that_
     from fichero_server.models.segments import Segment
     from fichero_server.recipes.done import is_done
 
-    page = _page(db, 2, 1)
+    page = _page(db, 1, 0)
     blank = next(s for s in db.query(Segment, document_id=page) if s.kind == "line"
                  and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page)))
     before = blank.version
@@ -121,3 +121,20 @@ def test_the_mark_is_a_versioned_audited_segment_update_keyed_by_the_model_that_
     assert db.get(Segment, blank.id).version == before + 1, "saved through segment.update: versioned"
     assert is_done(db, {"job": "read-a-line", "model_override": "weak"}, page) is True
     assert is_done(db, {"job": "read-a-line", "model_override": "better"}, page) is False, "a better reader looks again"
+
+
+def test_one_blank_line_does_not_finish_a_page_for_a_reader_that_read_none_of_its_text(db):
+    from fichero_server.llm.working_lines import mark_no_writing
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import is_done
+
+    page = _page(db, 2, 1)  # line 0 has a reading (not by "better"), line 1 has none
+    blank = next(s for s in db.query(Segment, document_id=page) if s.kind == "line"
+                 and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page)))
+    mark_no_writing(db, [blank.id], model="better")
+    assert is_done(db, {"job": "read-a-line", "model_override": "better"}, page) is False
+
+    blank_page = _page(db, 1, 0)  # every line blank: looked at, nothing to read
+    only = next(s for s in db.query(Segment, document_id=blank_page) if s.kind == "line")
+    mark_no_writing(db, [only.id], model="better")
+    assert is_done(db, {"job": "read-a-line", "model_override": "better"}, blank_page) is True
