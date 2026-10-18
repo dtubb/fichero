@@ -825,6 +825,14 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         if sample_is_text(db_manager.get_database(str(library))):
             answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
+    if library is not None:
+        from dataclasses import replace
+
+        from fichero_server.recipes.project import read_noise_band
+
+        band = read_noise_band(library)
+        if band["measured"]:  # measured readers tie inside the project's own band (#4950, #5692)
+            a = replace(a, noise_band=band["value"])
     recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     if saved.get("overrides"):
