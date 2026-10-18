@@ -1517,10 +1517,12 @@ code path.
   the engine's run registry. Today the registry cap evicts the first entry when none has finished
   (`execution/runner.py:273-284`), and the reopen sweep then fails the evicted run
   (`workflows/activity.py:681-689`).
-- `activity.run.quit-pauses` — **[BROKEN]** (#5357) quitting pauses running runs at their next
-  boundary, and they carry on at the next launch. Today engine shutdown only closes the SSE hubs
-  (`api/main.py:1020-1022`), so quit is a crash, and on reopen every running, accepted and paused
-  run is failed (`workflows/activity_store.py:76-78`, `workflows/activity.py:658-707`).
+- `activity.run.quit-pauses` — **[PARTIAL]** (#5357) quitting pauses running runs at their next
+  boundary, and they carry on at the next launch. *Built 2026-10-18 (engine):* on shutdown each live run with a checkpoint on
+  disk is recorded `paused` (`runner.pause_live_runs_for_shutdown`, before the streams close), and a paused run is not swept on
+  reopen (`activity.durable.paused-stays-paused`), so it waits for Resume; pinned by `test_quit_pauses_runs_5357.py`.
+  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written) and
+  the run carrying on by itself at the next launch.
 - `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
   text or image it reads has changed, and is reused when it has not, in any workflow. Built
   (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a
