@@ -29,7 +29,7 @@ struct ModelFinderView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            ForEach(store.htrUnited.datasets, id: \.url) { dataset in
+            ForEach(store.htrUnited.datasets, id: \.key) { dataset in
                 HtrUnitedDatasetRow(dataset: dataset)
             }
             if let failure = store.searchFailure {
@@ -368,8 +368,13 @@ private struct HtrUnitedDatasetRow: View {
     private var detail: String {
         let uses = dataset._as.map { $0 == "test-set" ? "test set" : $0 }
         let says = uses.isEmpty
-            ? "Accept \(dataset.accept ?? dataset.licence.name) to use it"
+            ? (dataset.accept ?? "Accept \(dataset.licence.name) to use it")
             : "Can be used as " + uses.formatted(.list(type: .and))
         return "HTR-United · \(says)"
     }
+}
+
+private extension Components.Schemas.HtrUnitedDataset {
+    /// A missing url is stored as "", so the title joins it to tell two datasets apart.
+    var key: String { title + "|" + url }
 }
