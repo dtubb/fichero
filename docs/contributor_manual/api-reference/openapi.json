@@ -51348,6 +51348,16 @@
             "nullable": true,
             "title": "Process Cpu Percent"
           },
+          "process_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Process Memory Bytes"
+          },
+          "process_energy_watts": {
+            "type": "number",
+            "nullable": true,
+            "title": "Process Energy Watts"
+          },
           "cpu_count": {
             "type": "integer",
             "title": "Cpu Count"
@@ -54754,6 +54764,12 @@
             },
             "type": "array",
             "title": "Next Nodes"
+          },
+          "restorable": {
+            "type": "boolean",
+            "title": "Restorable",
+            "description": "false for a step read from the run's saved record: it is not a checkpoint, so a restore or fork by its id would find nothing",
+            "default": true
           }
         },
         "type": "object",
