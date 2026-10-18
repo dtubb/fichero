@@ -112,6 +112,25 @@ def test_a_reading_run_counts_each_shard_it_sent_and_a_cluster_read_costs_nothin
     assert spend["jobs"] == 3 and spend["spent_at_most_usd"] == 3.0, spend
 
 
+def test_the_month_turns_at_midnight_utc(db):
+    """Review 104: the month's boundary is UTC, whatever zone a row's time was written in."""
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    jobs._ensure(db)
+    eastern = timezone(timedelta(hours=-4))
+    for row_id, at in (("late-sept-eastern", datetime(2026, 9, 30, 21, 30, tzinfo=eastern)),  # 01:30 UTC on 1 Oct
+                       ("sept-utc", datetime(2026, 9, 30, 23, 59, tzinfo=timezone.utc))):
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, 'train-a-model', 's', 'done', 0, 't', ?, 'huggingface-jobs', ?)",
+                   [row_id, at, json.dumps({"price_per_hour_usd": 1.0, "far_id": row_id, "request": {"timeout": "1h"}})])
+    now = datetime(2026, 10, 1, 1, 0, tzinfo=eastern)  # 05:00 UTC on 1 Oct
+    assert spend_this_month(db, cap=5.0, now=now)["jobs"] == 1
+
+
 def test_a_reading_runs_inspector_shows_the_spend_against_the_cap(db):
     """The remote-run Inspector shows Hugging Face cost against the spend cap (rulings 2026-10-17 11:50)."""
     import json
