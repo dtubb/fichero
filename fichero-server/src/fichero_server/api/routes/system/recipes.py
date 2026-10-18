@@ -1519,6 +1519,10 @@ class TrainOffer(BaseModel):
         "how training happens in this project (the onboarding setting `answers.training`, or the machine's default): "
         "`mode` here, huggingface or offered, and `why`"))
     does: str = Field(description="what the setting does once the corrected lines reach the threshold, in a sentence")
+    noise_band: Optional[dict[str, Any]] = Field(default=None, description=(
+        "the project's noise band (#5692): `value`, the CER difference a trained model must beat its base by; "
+        "`measured`, whether this project's pages measured it (CER spread over 3 held-out splits) or it is the ruled "
+        "0.5 CER points; `basis` in words"))
 
 
 class StartPlan(BaseModel):
@@ -1607,6 +1611,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     from fichero_server.recipes.train_offers import training_setting
 
     from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.project import read_noise_band
 
     cap = spend_cap(setup["answers"])
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
@@ -1617,7 +1622,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
-                                        spend_cap=cap, clusters=_cluster_names())
+                                        spend_cap=cap, clusters=_cluster_names(),
+                                        noise_band=read_noise_band(library))
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     elif within is None and not pages["pages"]:

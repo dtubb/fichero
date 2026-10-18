@@ -4492,5 +4492,9 @@ Each is described in the paragraph named; the id lets a test cite it.
   the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
   lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). Needs the set's
   teacher `person` (51d6dde8e, m-acenet) on integration to run.*
-- `source.train.noise-band-per-project` — **[GAP]** (#5692) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
-  measured), stored and served, so a comparison says when a difference is noise.
+- `source.train.noise-band-per-project` — **[PARTIAL]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
+  measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
+  the best reader's pages (`training.evaluation.noise_band`), the project keeps it (`recipe/noise-band.yaml`,
+  `recipes.project.read_noise_band`, the ruled 0.5 CER points until then, said so), and every train offer carries it
+  (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. Not built: the reasons A/B
+  and a trained model's adoption reading the project's band instead of the constant.*

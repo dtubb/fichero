@@ -208,7 +208,8 @@ def _roots(db: Any) -> list[str]:
 
 def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool,
                  setting: dict[str, str] | None = None, spend_cap: float | None = None,
-                 clusters: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
+                 clusters: list[str] | tuple[str, ...] = (), noise_band: dict[str, Any] | None = None
+                 ) -> list[dict[str, Any]]:
     """One offer per recipe step a model can be trained for, in the recipe's order."""
     from fichero_server.recipes.assemble import TRAIN_OFFERED_FROM_LINES
     from fichero_server.recipes.bakeoff import readiness
@@ -234,7 +235,7 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
             ready = readiness(counts["pages"], counts["unmarked"],
                               min_lines=at_least.get(job) or at_least.get(step.get("id")) or TRAIN_OFFERED_FROM_LINES)
         offers.append({"step": step.get("id", job), "job": job, "title": TITLE, "ways": ways, "readiness": ready,
-                       "setting": setting, "does": _does(setting["mode"])})
+                       "setting": setting, "does": _does(setting["mode"]), "noise_band": noise_band})
     return offers
 
 
@@ -281,8 +282,10 @@ def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str
     setting = training_setting(answers.get("training"), mac_memory_gb=mac_memory_gb or this_mac_memory_gb(),
                                hf_configured=bool(get_api_key("huggingface")), stays_local=stays_local,
                                spend_cap=spend_cap(answers))
+    from fichero_server.recipes.project import read_noise_band
+
     return train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
-                        spend_cap=spend_cap(answers))
+                        spend_cap=spend_cap(answers), noise_band=read_noise_band(Path(db.path).parent))
 
 
 def _start(db: Any, action: str, params: dict[str, Any]) -> str:
