@@ -39,3 +39,26 @@ def test_names_cover_every_quartz_name_the_code_uses():
             elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "Quartz":
                 used.add(node.attr)
     assert used - set(quartz_warm.NAMES) == set()
+
+
+def test_every_module_that_uses_quartz_calls_warm():
+    """#5745 after #3950: quartz_warm no longer imports Quartz at import, so a module that uses Quartz must
+    call `quartz_warm.warm()` itself, or its first threaded use races on PyObjC's lazy names again."""
+    import ast
+    import pathlib
+
+    import fichero_server
+
+    missing = []
+    for path in pathlib.Path(fichero_server.__file__).parent.rglob("*.py"):
+        if path.name == "quartz_warm.py":
+            continue
+        text = path.read_text()
+        uses = any(
+            (isinstance(n, ast.ImportFrom) and n.module == "Quartz")
+            or (isinstance(n, ast.Import) and any(a.name == "Quartz" for a in n.names))
+            for n in ast.walk(ast.parse(text))
+        )
+        if uses and "quartz_warm.warm()" not in text:
+            missing.append(str(path.relative_to(pathlib.Path(fichero_server.__file__).parent)))
+    assert missing == []
