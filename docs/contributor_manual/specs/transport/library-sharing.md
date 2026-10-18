@@ -3,7 +3,7 @@
 > Milestone: Sharing & Pairing — Dead-Simple UX; Engine - Sharing - Accounts, Multi-user & Libraries
 > Manual: TBD — "Working on one library from two Macs".
 >
-> Design-led (Testing Constitution). **Status: APPROVED, 2026-10-17** (every [GAP] names its `(not yet written: …)` test, so `check_specs_have_tests` guards it). Written from the rulings in
+> Design-led (Testing Constitution). **Status: DRAFT, 2026-10-17** (every [GAP] names its `(not yet written: …)` test, so `check_specs_have_tests` guards it; APPROVED waits for the manual section, because `Manual: TBD` blocks it). Written from the rulings in
 > memory (two toggles; accounts are people; loopback + `tailscale serve`; device pairing; loopback is
 > owner; transport invariants) and a read of the code on integration at 5293d084f. Tags: **[OK]**
 > built and seen working · **[PARTIAL]** built, unproven or incomplete · **[GAP]** not built.
