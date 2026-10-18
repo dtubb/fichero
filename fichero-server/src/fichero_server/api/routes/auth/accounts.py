@@ -340,6 +340,32 @@ def _require_owner_or_bootstrap(request: Request) -> None:
     raise HTTPException(status_code=403, detail="owner access required")
 
 
+def _audit(
+    request: Request,
+    app_db: AppDatabase,
+    name: str,
+    target_id: str,
+    **params: object,
+) -> None:
+    """Record who changed an account, invite or session (#5765). Never takes a password or token."""
+    if getattr(request.state, "bootstrap_auth", False):
+        actor = "bootstrap"
+    else:
+        user = _current_session_user(request)
+        actor = f"user:{user.id}" if user is not None else "system"
+    device = getattr(request.state, "device", None)
+    app_db.save_action_audit(
+        ActionAudit(
+            action_name=name,
+            actor=actor,
+            client=request.headers.get("x-fichero-client"),
+            device={"id": device.id, "name": getattr(device, "name", None)} if device is not None else None,
+            target_ids=[target_id],
+            params=params,
+        )
+    )
+
+
 def _require_authenticated_or_bootstrap(request: Request) -> None:
     if not _use_multiuser_auth():
         return
@@ -511,6 +537,7 @@ def create_invite(
         channel=body.channel,
         ttl=EMAIL_INVITE_TTL if body.channel == "email" else INVITE_TTL,
     )
+    _audit(request, app_db, "invite.create", invite.id, username=username, channel=body.channel)
     return InviteMintResponse(
         invite=_invite_response(invite),
         invite_token=raw_token,
@@ -590,6 +617,7 @@ def revoke_invite(
     if invite is None:
         raise HTTPException(status_code=404, detail="invite not found")
     app_db.revoke_invite(invite_id)
+    _audit(request, app_db, "invite.revoke", invite_id, username=invite.username)
     return StatusResponse(status="ok")
 
 
@@ -647,6 +675,7 @@ def revoke_session(
         raise HTTPException(status_code=403, detail="owner or matching session required")
 
     app_db.revoke_session_by_id(session_id)
+    _audit(request, app_db, "session.revoke", session_id, user_id=target.user_id)
     return StatusResponse(status="ok")
 
 
@@ -685,6 +714,7 @@ def create_user(
         is_owner=is_owner,
         active=True,
     )
+    _audit(request, app_db, "user.create", user.id, username=username, is_owner=is_owner)
     return _to_public_user(user)
 
 
@@ -739,6 +769,9 @@ def update_user(
     updated = app_db.get_user(user_id)
     if updated is None:
         raise HTTPException(status_code=404, detail="user not found")
+    changed = sorted(k for k in body.model_fields_set if getattr(body, k) is not None)
+    _audit(request, app_db, "user.update", user_id, changed=changed,
+           **{k: getattr(body, k) for k in ("active", "is_owner", "display_name") if k in changed})
     return _to_public_user(updated)
 
 
@@ -761,4 +794,5 @@ def delete_user(
     if user.is_owner and len([candidate for candidate in app_db.list_users() if candidate.is_owner]) == 1:
         raise HTTPException(status_code=409, detail="cannot delete the last owner")
     app_db.delete_user(user_id)
+    _audit(request, app_db, "user.delete", user_id, username=user.username)
     return StatusResponse(status="ok")
