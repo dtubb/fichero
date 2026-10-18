@@ -854,6 +854,15 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+    from fichero_server.recipes.jobs import get_job
+
+    for step in steps:
+        known = get_job(step["job"])
+        step.setdefault("layer", known.layer if known else step["job"])  # `source.recipe.steps-name-layers`
+    # What the purpose (or a layer added later) turns on by itself, in step order, never written by hand.
+    brought = set(purpose_jobs(a.purposes)) | {j for layer in a.layers for j in layer_jobs(layer)}
+    automatic = [{"id": s["id"], "layer": s["layer"], "uses_cloud": bool(s.get("uses_cloud"))}
+                 for s in steps if s["job"] in brought]
     for step in steps:
         if needs.get(step["job"]):
             # Ready offers no Remove for a step a later one needs, and says which (#5627).
@@ -875,6 +884,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "suits": {"scripts": sorted(a.scripts), "languages": sorted(a.languages), "material": list(a.materials)},
         "purposes": list(a.purposes),
         "steps": steps,
+        "automatic": automatic,
         "by_hand": left_by_hand,
         "removed": taken_out,
         "left_off": left_off,
