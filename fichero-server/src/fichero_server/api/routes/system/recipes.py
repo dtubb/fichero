@@ -2080,6 +2080,7 @@ class LayerChangeParams(LayerChangeRequest):
 
 @router.post("/project/layers", response_model=StartPlan)
 async def change_project_layers(
+    http: Request,
     request: LayerChangeRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -2093,7 +2094,7 @@ async def change_project_layers(
         registry.invoke(db, "project.add_layer", request.model_dump(mode="json"), ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_start_plan(db))
+    return StartPlan(**_start_plan(db, clusters=_cluster_names(http)))
 
 
 def _invert_add_layer(before: dict | None, after: dict | None, ctx: ActionContext):
