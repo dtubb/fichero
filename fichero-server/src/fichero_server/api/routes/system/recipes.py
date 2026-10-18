@@ -1020,6 +1020,37 @@ class ModelCandidate(BaseModel):
         "listed first (#5660 item 8)"))
 
 
+class HtrUnitedLicence(BaseModel):
+    name: str
+    url: str
+
+
+class HtrUnitedDataset(BaseModel):
+    """One HTR-United ground-truth dataset and what it may be used as (#5571)."""
+
+    title: str
+    url: str
+    description: str
+    languages: list[str]
+    scripts: list[str]
+    handwriting: bool
+    format: str
+    licence: HtrUnitedLicence
+    lines: Optional[int] = None
+    pages: Optional[int] = None
+    as_: list[str] = Field(alias="as", description="test-set and training when the licence is open; empty until "
+                           "the licence is accepted")
+    accept: Optional[str] = Field(default=None, description="what to accept first; null when the licence is open")
+    importable: bool = Field(description="whether Fichero can import its format (PAGE or ALTO)")
+
+    model_config = {"populate_by_name": True}
+
+
+class HtrUnitedDatasets(BaseModel):
+    fetched_at: Optional[str] = Field(default=None, description="when the catalogue was kept; null when never")
+    datasets: list[HtrUnitedDataset]
+
+
 class ModelCandidateList(BaseModel):
     job: str
     items: list[ModelCandidate]
@@ -1078,8 +1109,8 @@ def _step_reader(request: Request, library_path: Optional[str], step: str) -> Op
     return str(card["id"]) if isinstance(card, dict) and card.get("id") else None
 
 
-@router.get("/htr-united")
-async def htr_united_datasets(languages: str, scripts: str = "") -> dict[str, Any]:
+@router.get("/htr-united", response_model=HtrUnitedDatasets)
+async def htr_united_datasets(languages: str, scripts: str = "") -> HtrUnitedDatasets:
     """HTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as
     (a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job
     keeps the catalogue."""
@@ -1093,7 +1124,7 @@ async def htr_united_datasets(languages: str, scripts: str = "") -> dict[str, An
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     kept = htr_united.cached()
     found = htr_united.matching(kept["records"], languages=tags, scripts=script_codes) if kept else []
-    return {"fetched_at": kept["fetched_at"] if kept else None, "datasets": htr_united.offered(found)}
+    return HtrUnitedDatasets(fetched_at=kept["fetched_at"] if kept else None, datasets=htr_united.offered(found))
 
 
 @router.get("/candidates", response_model=ModelCandidateList)
