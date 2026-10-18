@@ -108,7 +108,7 @@ struct ShareSettingsView: View {
             if hostingEnabled {
                 Section("Connected Devices") {
                     if let note = RemoteAccessConfig.thisNetworkOffNote(
-                        thisNetwork: RemoteAccessConfig.bonjourEnabled, publicHost: validatedPublicURL?.host
+                        thisNetwork: RemoteAccessConfig.thisNetworkChoice ?? true, publicHost: validatedPublicURL?.host
                     ) {
                         Text(note).font(.caption).foregroundStyle(.secondary)
                     }

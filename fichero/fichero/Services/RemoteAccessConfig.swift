@@ -17,17 +17,13 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: hostingEnabledKey)
     }
 
-    /// "This network": the stored choice, else (a setup made before the choice existed) on when it already
-    /// shares over a `.local` address, so an update never cuts off a paired phone; off on a fresh setup.
-    static var bonjourEnabled: Bool {
-        thisNetworkOn(
-            stored: defaults.object(forKey: bonjourEnabledKey) as? Bool,
-            hostingEnabled: hostingEnabled, publicHost: publicBaseURL?.host
-        )
-    }
+    static let thisNetworkKey = "fichero.remote_access.this_network"
 
-    static func thisNetworkOn(stored: Bool?, hostingEnabled: Bool, publicHost: String?) -> Bool {
-        stored ?? (hostingEnabled && publicHost?.hasSuffix(".local") == true)
+    /// "This network", only once the person has chosen. Unset is not "off": the engine then keeps the `.local`
+    /// listener exactly while a device is paired, so an update never drops one and a fresh setup stays off.
+    /// A new key, not `bonjourEnabledKey`: that one has its own advertising toggle and may hold a stale false.
+    static var thisNetworkChoice: Bool? {
+        defaults.object(forKey: thisNetworkKey) as? Bool
     }
 
     /// Why a device paired over `.local` cannot connect, shown on the devices list while "This network" is off.
@@ -36,10 +32,9 @@ enum RemoteAccessConfig {
         return "This network is off, so devices paired over the local network can't connect. Turn it on to let them in."
     }
 
-    /// The one extra `.local` listener exists only while "This network" is checked and the address is a `.local`
-    /// one (`sharing.listener`, `sharing.share-on-choice`): unchecked, nothing listens on the network at work.
-    static func lanListenerHost(publicHost: String?, thisNetwork: Bool) -> String? {
-        guard thisNetwork, let publicHost, publicHost.hasSuffix(".local") else { return nil }
+    /// The `.local` address the engine may listen on (`sharing.listener`); whether it does follows "This network".
+    static func lanListenerHost(publicHost: String?) -> String? {
+        guard let publicHost, publicHost.hasSuffix(".local") else { return nil }
         return publicHost
     }
 
