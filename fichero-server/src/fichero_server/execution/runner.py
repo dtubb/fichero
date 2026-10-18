@@ -278,6 +278,10 @@ def close_all_event_hubs_for_shutdown() -> int:
     return closed
 
 
+#: The reason a quit records on the runs it pauses; the next launch resumes the runs that carry it (#5357).
+QUIT_PAUSED_ERROR = "Paused: the app quit"
+
+
 async def pause_live_runs_for_shutdown() -> int:
     """Quit pauses the runs in flight, they do not fail (#5357, `activity.run.quit-pauses`): each live run that has a
     checkpoint on disk is asked to pause (the pause request every run checks at its boundary, so it settles as `paused`
@@ -301,7 +305,8 @@ async def pause_live_runs_for_shutdown() -> int:
             if saved is None:
                 continue
             request_pause(thread_id)
-            await get_activity_tracker(db_path).store.update_workflow_run(thread_id=thread_id, status="paused")
+            await get_activity_tracker(db_path).store.update_workflow_run(
+                thread_id=thread_id, status="paused", error=QUIT_PAUSED_ERROR)
             paused += 1
     finally:
         for checkpointer in checkpointers.values():
