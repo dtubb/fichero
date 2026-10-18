@@ -163,34 +163,35 @@ def teacher_pass(db: Any, document_id: str, teacher: str) -> Any | None:
     return max((passes[pid] for pid in chosen), key=lambda p: p.created_at, default=None)
 
 
-def lines_not_by_a_person(db: Any, pass_row: Any, segments: dict[str, str]) -> set[str]:
+def lines_not_by_a_person(db: Any, pass_row: Any) -> set[str]:
     """The PAGE ids of the pass's lines whose counting transcription a person did not make. A pass a person made or
-    vouched for (`made_by_a_person`) is all theirs."""
-    from fichero_server.api.routes.document.segment_readings import counting_by_kind, readings_of_segment
+    vouched for (`made_by_a_person`) is all theirs. One batched lookup for the whole pass (`counting_readings`), not a
+    query per line."""
+    from fichero_server.api.routes.document.segment_readings import counting_readings
+    from fichero_server.formats.harness import xml_id
+    from fichero_server.models import Segment
     from fichero_server.models.segments import made_by_a_person
 
     if made_by_a_person(pass_row):
         return set()
-    out: set[str] = set()
-    for page_id, segment_id in segments.items():
-        items = readings_of_segment(db, segment_id)
-        answer = counting_by_kind(db, segment_id, items).get("transcription")
-        by_id = {item.id: item for item in items}
-        counted = by_id.get(answer.representation_id) if answer is not None and answer.representation_id else None
-        if counted is None or counted.provenance_kind.value != "human":
-            out.add(page_id)
-    return out
+    lines = [s for s in db.query(Segment, pass_id=pass_row.id) if s.kind == "line" and not s.deleted_at]
+    counted = counting_readings(db, lines)
+    return {xml_id(line.id) for line in lines
+            if (reading := counted.get(line.id)) is None or reading.provenance_kind.value != "human"}
 
 
-def person_pass(db: Any, document_id: str) -> Any | None:
-    """The newest live line pass on the page with at least one line a person made, or None."""
+def person_pass(db: Any, document_id: str) -> tuple[Any, set[str]] | None:
+    """The newest live line pass on the page with at least one line a person made, and the PAGE ids of its lines a
+    person did not make; None when no pass has one. Each pass is looked at once."""
+    from fichero_server.models import Segment
     from fichero_server.models.segments import SegmentPass
 
     for candidate in sorted((p for p in db.query(SegmentPass, document_id=document_id) if not p.deleted_at),
                             key=lambda p: p.created_at, reverse=True):
-        segments, _rejected, _n = lines_of_pass(db, candidate.id, {})
-        if segments and len(lines_not_by_a_person(db, candidate, segments)) < len(segments):
-            return candidate
+        total = sum(1 for s in db.query(Segment, pass_id=candidate.id) if s.kind == "line" and not s.deleted_at)
+        others = lines_not_by_a_person(db, candidate)
+        if total and len(others) < total:
+            return candidate, others
     return None
 
 
@@ -305,7 +306,12 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
         if page.id in held:
             result.held_out.append({"document_id": page.id, "name": page.name})
             continue
-        chosen = person_pass(db, page.id) if teacher == PERSON else teacher_pass(db, page.id, teacher)
+        not_person: set[str] = set()
+        if teacher == PERSON:
+            found = person_pass(db, page.id)
+            chosen, not_person = found if found else (None, set())
+        else:
+            chosen = teacher_pass(db, page.id, teacher)
         if chosen is None:
             result.missing.append({"document_id": page.id, "name": page.name,
                                    "why": "no line corrected by a person" if teacher == PERSON
@@ -317,7 +323,6 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
             result.missing.append({"document_id": page.id, "name": page.name, "why": str(exc)})
             continue
         segments, rejected, with_verdict = lines_of_pass(db, chosen.id, verdicts)
-        not_person = lines_not_by_a_person(db, chosen, segments) if teacher == PERSON else set()
         result.lines_with_a_verdict += with_verdict
         content, dropped = drop_flagged_lines(exported.data.decode("utf-8"), rejected, not_person)
         result.left_out_lines.extend({"document_id": page.id, "segment_id": segments.get(line_id, line_id),
