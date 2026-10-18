@@ -385,9 +385,24 @@ class SetupStage(BaseModel):
     tried_by: Literal["bake-off", "workflow"]
 
 
+class MoneyAndPlace(BaseModel):
+    """The three ruled money-and-place settings as the engine holds them (#5769), for the setup screen to show; this
+    month's spend against the cap is on the Start plan (`hf_spend`)."""
+
+    hf_spend_cap_usd: float = Field(description="the monthly Hugging Face cap (`answers.hf_spend_cap_usd`); $0 offers "
+                                    "only")
+    copies_may_stay_on_cluster: bool = Field(description="whether working copies stay on a cluster for re-runs, as it "
+                                             "stands: the person's answer, else what they said about pages leaving")
+    copies_follow_pages_may_leave: bool = Field(description="true while the person has not answered the copies "
+                                                "question, so its value follows pages-may-leave")
+    clusters: list[str] = Field(description="the clusters set up here, by name: the copies question and the cluster "
+                                "offer apply only where there is one")
+
+
 class SetupStageList(BaseModel):
     items: list[SetupStage]
     count: int
+    money_and_place: Optional[MoneyAndPlace] = None
 
 
 @router.get("/stages", response_model=SetupStageList)
@@ -401,7 +416,15 @@ async def list_stages(request: Request) -> SetupStageList:
     library = _optional_library(request)
     setup = read_project_setup(library) if library else {"recipe": None, "answers": None}
     items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
-    return SetupStageList(items=items, count=len(items))
+    return SetupStageList(items=items, count=len(items), money_and_place=_money_and_place(setup["answers"] or {}))
+
+
+def _money_and_place(answers: dict[str, Any]) -> MoneyAndPlace:
+    from fichero_server.recipes.answers import COPIES_STAY, copies_may_stay, spend_cap
+
+    return MoneyAndPlace(hf_spend_cap_usd=spend_cap(answers), copies_may_stay_on_cluster=copies_may_stay(answers),
+                         copies_follow_pages_may_leave=not isinstance(answers.get(COPIES_STAY), bool),
+                         clusters=_cluster_names())
 
 
 class SamplePage(BaseModel):
