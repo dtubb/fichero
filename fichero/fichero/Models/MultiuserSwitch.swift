@@ -24,6 +24,8 @@ enum MultiuserSwitch {
             let body = try okResponse.body.json
             return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
                                       auditId: body.auditId)
+        case .unprocessableContent:
+            throw APIError.httpError(statusCode: 422, message: "Unexpected response")
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
