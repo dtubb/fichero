@@ -979,6 +979,8 @@ def first_run(
     with _first_run_lock:
         if any(user.is_owner for user in app_db.list_users()):
             raise HTTPException(status_code=409, detail="this library already has an owner")
+        if app_db.get_user_by_username("owner") is not None:
+            raise HTTPException(status_code=409, detail="the username 'owner' is already taken")
         user = app_db.create_user(
             username="owner",
             display_name=body.display_name,

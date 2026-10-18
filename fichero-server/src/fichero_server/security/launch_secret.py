@@ -47,18 +47,20 @@ def read_from_file(path: str) -> None:
     """Debug Dev Local only: the dev script's 0600 file. Refused unless ours and closed to group and others.
 
     The app deletes the file after reading it; the engine leaves it alone."""
-    info = os.stat(path)
-    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
-        raise ValueError("the launch-secret file must be owned by this user and mode 0600")
-    with open(path, encoding="ascii") as handle:
+    # O_NOFOLLOW + fstat on the opened fd: a symlink swap between check and read cannot redirect us.
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, encoding="ascii") as handle:
+        info = os.fstat(handle.fileno())
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
+            raise ValueError("the launch-secret file must be a regular file owned by this user and mode 0600")
         _set_checked(handle.read())
 
 
 def load_at_startup(environ: Mapping[str, str], stdin: TextIO) -> None:
     """The one place an engine takes the secret. A flag (not the secret) says the app spawned us over a pipe.
 
-    A `--reload` dev engine cannot inherit stdin, so it names the dev file instead. With neither, first-run stays closed."""
+    A `--reload` dev engine cannot inherit stdin, so it names the dev file instead (honoured only when FICHERO_ENV=development, which the dev script sets). With neither, first-run stays closed."""
     if environ.get("FICHERO_LAUNCH_SECRET_STDIN") == "1":
         read_from_stream(stdin)
-    elif environ.get("FICHERO_DEV_LAUNCH_SECRET_FILE"):
+    elif environ.get("FICHERO_DEV_LAUNCH_SECRET_FILE") and environ.get("FICHERO_ENV") == "development":
         read_from_file(environ["FICHERO_DEV_LAUNCH_SECRET_FILE"])
