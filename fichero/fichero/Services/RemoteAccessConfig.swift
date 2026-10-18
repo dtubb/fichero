@@ -17,6 +17,11 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: hostingEnabledKey)
     }
 
+    /// Whether the address is advertised on Bonjour. Not "This network" (`thisNetworkChoice`): that has its own key.
+    static var bonjourEnabled: Bool {
+        defaults.bool(forKey: bonjourEnabledKey)
+    }
+
     static let thisNetworkKey = "fichero.remote_access.this_network"
 
     /// "This network", only once the person has chosen. Unset is not "off": the engine then keeps the `.local`
