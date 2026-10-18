@@ -2570,7 +2570,7 @@ Jobs and chains
   half is flagged `metadata.crosses_gutter`, never cut; the spread keeps all of it. Tested in
   `fichero-server/tests/unit/api/test_split_carries_readings_5452.py` (`is_done` sees the halves).
   Regions and words go too (2026-10-17): every kind of segment is carried with its readings, a segment inside
-  another (a word in its line) with the one it sits in, still inside it
+  another (a word or character in its line) with the line it sits in, still inside it, while a region and a line go by their own centre (`test_a_line_goes_by_its_own_centre_even_inside_a_region_that_crosses_the_gutter`)
   (`test_regions_and_words_go_with_their_lines_and_keep_their_parents`).
   *Not built:* a real run on a read spread; the spread's page-level transcriptions and `page_content` stay on
   the spread only (so "read a page" still reads a half);
@@ -3631,7 +3631,11 @@ The recipe and its format
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
 - `source.recipe.train-never-automatic` — **[PARTIAL]** (#4950, #5336, #5440; reworded 2026-10-17; *built: a train step is never among what Start runs and
-  the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`*) training runs by itself only per
+  the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`; under `here`, a ready offer starts by itself on this Mac when a recipe step finishes, once
+  (a training job waiting, running, paused or done stops another), never on Hugging Face, and a refusal never fails the
+  step: `train_offers.start_when_ready`, `fichero-server/tests/unit/recipes/test_training_starts_by_setting_5440.py`.
+  Not built: `huggingface` starting by itself (its pages leave only on the person's yes); training again on later
+  corrections (#5441)*) training runs by itself only per
   the onboarding setting (`answers.training`: here, huggingface or offered, defaulting by machine; see `source.onboard.auto.train-offer-comes`); with
   `offered` it is offered when its condition is met and runs only when the person starts it. Never an alert.
 - `source.recipe.train-offered-per-step` — **[PARTIAL]** (#5660 item 9) for each step a model can be trained
