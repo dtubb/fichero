@@ -35,7 +35,7 @@ struct CopySpaceTests {
     }
 
     @Test("the size counts every file under a chosen folder and a loose file")
-    func sizes() throws {
+    func sizes() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let sub = root.appendingPathComponent("box", isDirectory: true)
         try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
@@ -44,6 +44,6 @@ struct CopySpaceTests {
         try Data(count: 500).write(to: sub.appendingPathComponent("b.jpg"))
         let loose = root.appendingPathComponent("c.pdf")
         try Data(count: 250).write(to: loose)
-        #expect(RecipeSetupStore.byteSize(of: [sub, loose]) == 1750)
+        #expect(await RecipeSetupStore.byteSize(of: [sub, loose]) == 1750)
     }
 }
