@@ -1525,8 +1525,8 @@ code path.
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
   `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
   run is done. **Done** means all of: the run's record says `completed` (written, with its log and timeline); the run's account
-  is `done` with no failed page and no page left (so Retry has nothing to read again); the checkpoint has no pending writes; and
-  the run's documents are settled. A paused, failed, cancelled, interrupted or partly failed run keeps its checkpoint (Resume and
+  is `done` with no failed page and no page left (so Retry has nothing to read again), built from the state and the checkpoint's
+  writes before they go; and the run's documents are settled. A paused, failed, cancelled, interrupted or partly failed run keeps its checkpoint (Resume and
   Read Again read it). *Readers of a finished run's checkpoint that must read the record instead, first:* the run's account
   (`run_account._checkpoint`: pages done, failures, peak), the status route's `current_state`
   (`workflow_execution/core.py` `get_thread_status`), and the history's last step (`threads.py`). The finished account is therefore
