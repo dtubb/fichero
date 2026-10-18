@@ -5525,7 +5525,8 @@ async def process_vision(
                     from fichero_server.db import db_manager as _dbm
                     from fichero_server.llm.working_lines import NO_WRITING_KEY, mark_no_writing, write_readings
 
-                    mark_no_writing(_dbm.get_database(library_path), page_geometry.metadata.get(NO_WRITING_KEY) or [])
+                    mark_no_writing(_dbm.get_database(library_path), page_geometry.metadata.get(NO_WRITING_KEY) or [],
+                                    model=page_geometry.model, run_id=task_id, library_path=library_path)
 
                     # A line whose read the checker flagged (#5522) gets no reading: it
                     # would otherwise count over a better one.
