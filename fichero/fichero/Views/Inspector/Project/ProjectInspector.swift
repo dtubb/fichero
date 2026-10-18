@@ -23,6 +23,8 @@ struct ProjectInspector: View {
     // Optional (#4703): the Inspector is a boundary that does not inherit the window's environment, where a
     // non-optional read traps. Set Up… falls back to the one LibraryManager; sharing needs the app's state.
     @Environment(LibraryManager.self) private var libraryManager: LibraryManager?
+    // @AppStorage, not a plain defaults read, so the host mark follows the Sharing switch live.
+    @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
     @Environment(AppState.self) private var appState: AppState?
 
     @State private var recipeStore: RecipeSetupStore?
@@ -119,7 +121,7 @@ struct ProjectInspector: View {
     }
 
     private var showsHostMark: Bool {
-        SharedMark.showsOnHost(hostingEnabled: RemoteAccessConfig.hostingEnabled, isLocal: library.host.isLocal)
+        SharedMark.showsOnHost(hostingEnabled: hostingEnabled, isLocal: library.host.isLocal)
     }
 
     /// The devices paired with this Mac, listed while Sharing is on (`sharing.sidebar.host-mark`).

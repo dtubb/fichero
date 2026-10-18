@@ -18,8 +18,4 @@ struct HostSharedMarkTests {
     @Test func aGuestsRemoteProjectIsNotTheHostsMark() {
         #expect(!SharedMark.showsOnHost(hostingEnabled: true, isLocal: false))
     }
-
-    @Test func theMarkIsTheOneTheGuestRowUses() {
-        #expect(SharedMark.symbol == LibraryLocationDescriptor.sharedSymbol)
-    }
 }

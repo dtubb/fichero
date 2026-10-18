@@ -59,6 +59,8 @@ struct LibrarySectionHeader: View {
     var onTap: (() -> Void)?
 
     @State private var isDropTargeted = false
+    // @AppStorage, not a plain defaults read, so the host mark follows the Sharing switch live.
+    @AppStorage(RemoteAccessConfig.hostingEnabledKey) private var hostingEnabled = false
 
     var body: some View {
         headerContent
@@ -148,7 +150,7 @@ struct LibrarySectionHeader: View {
                 .truncationMode(.middle)  // Finder's rule: keep the distinguishing tail (2026-09-28)
                 .foregroundStyle(isDropTargeted ? Color.white : Color.primary)
             locationBadge
-            if SharedMark.showsOnHost(hostingEnabled: RemoteAccessConfig.hostingEnabled,
+            if SharedMark.showsOnHost(hostingEnabled: hostingEnabled,
                               isLocal: library.host.isLocal) {
                 Image(systemName: SharedMark.symbol)
                     .font(.caption)

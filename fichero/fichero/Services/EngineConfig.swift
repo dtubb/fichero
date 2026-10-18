@@ -412,8 +412,8 @@ extension EngineConfig {
 /// `host` lands on `LibraryReference`, only that one call site changes — the
 /// badge UI keeps reading `library.locationDescriptor`.
 struct LibraryLocationDescriptor: Equatable {
-    /// The small shared mark, here and on the host's row (`SharedMark.symbol`).
-    static let sharedSymbol = "person.2"
+    /// The small shared mark, here and on the host's row: one constant, `SharedMark.symbol`.
+    static var sharedSymbol: String { SharedMark.symbol }
 
     /// True when the engine runs on the same machine as the app.
     let isLocal: Bool
