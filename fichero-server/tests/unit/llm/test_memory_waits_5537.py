@@ -340,3 +340,13 @@ def test_footprint_of_this_process_is_read_or_none():
 def test_model_server_pids_lists_only_running_engine_servers(mac):  # noqa: F811
     assert routes.model_server_pids() == []
 
+
+
+def test_peak_memory_reports_the_resident_set_and_swap_growth_not_only_the_footprint():
+    """M4 2026-10-17 (#5758): footprint 19.7 GB (pages in the compressor) against 6.9 GB resident and flat swap."""
+    rss, swap = iter([4 * GB, 7 * GB, 5 * GB]), iter([GB, GB, 3 * GB, 2 * GB])
+    peak = PeakMemory(engine=lambda: 19 * GB, servers=lambda: None, rss=lambda: next(rss), swap=lambda: next(swap))
+    for _ in range(3):
+        peak.sample()
+    assert peak.pressure() == {"engine_peak_rss_bytes": 7 * GB, "swap_growth_bytes": 2 * GB}
+    assert peak.record()["engine_peak_memory_bytes"] == 19 * GB, "the footprint stays, as a detail"

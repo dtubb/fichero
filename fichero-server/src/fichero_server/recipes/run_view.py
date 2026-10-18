@@ -183,6 +183,7 @@ class RecipeRunSummary(BaseModel):
     pages_read: int = Field(description="of those, the pages that have a reading (lines read, or a page text), "
                             "not counting a page the run left out as blank (#5705)")
     lines_unread: int = Field(default=0, description="the lines found on those pages that have no reading (#5758)")
+    lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
@@ -259,6 +260,14 @@ def lines_unread_why(db: Any, pages: list[str]) -> dict[str, int]:
         for why in unread_reasons(db, p).values():
             out[why] = out.get(why, 0) + 1
     return out
+
+
+def lines_seen_blank(db: Any, pages: list[str]) -> int:
+    """Lines a reader looked at and found no writing on, on pages that also have text: counted read, but shown, so
+    a person can judge a reader that sees half a page as blank."""
+    from fichero_server.recipes.done import lines_state
+
+    return sum(lines_state(db, p)[2] for p in pages)
 
 
 def pages_read_nothing(db: Any, pages: list[str]) -> int:
@@ -368,9 +377,13 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
     if shapes:
         said = " · ".join(shapes)
         lines.append(said[0].upper() + said[1:])
+    if s.pages_with_lines is not None and s.pages_with_lines < s.pages:
+        lines.append(f"No lines found on {_plural(s.pages - s.pages_with_lines, 'page')}")
     lines.append(f"Read {s.pages_read} of {_plural(s.pages, 'page')}")
     if s.pages_read_nothing:
         lines.append(f"{_plural(s.pages_read_nothing, 'page')} the reader returned nothing for")
+    if s.lines_seen_blank:
+        lines.append(f"{_plural(s.lines_seen_blank, 'line')} the reader found no writing on")
     if s.lines_unread:
         lines.append(f"{_plural(s.lines_unread, 'line')} {'has' if s.lines_unread == 1 else 'have'} no reading")
     if s.left_out:
@@ -434,6 +447,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         pages=len(pages), pages_read=len([p for p in pages_fully_read(db, pages) if p not in blank]),
         lines_unread=lines_unread(db, [p for p in pages if p not in blank]),
         lines_unread_why=lines_unread_why(db, [p for p in pages if p not in blank]),
+        lines_seen_blank=lines_seen_blank(db, [p for p in pages if p not in blank]),
         pages_read_nothing=pages_read_nothing(db, [p for p in pages if p not in blank]),
         names=names, dates=dates, statements=statements, pages_dated=_pages_dated(db, pages),
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,

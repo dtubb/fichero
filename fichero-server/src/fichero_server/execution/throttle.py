@@ -142,6 +142,29 @@ def footprint_bytes(pid: int) -> int | None:
     return int(info.ri_phys_footprint)
 
 
+def rss_bytes(pid: int) -> int | None:
+    """A process's resident set now, in bytes (`ps -o rss=`), or None when it cannot be read."""
+    import subprocess
+
+    try:
+        out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, timeout=2).stdout
+        return int(out.strip()) * 1024
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def swap_used_bytes() -> int | None:
+    """The swap in use now (`vm.swapusage`), in bytes, or None when it cannot be read."""
+    import re
+    import subprocess
+
+    try:
+        out = subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=2).stdout
+        return int(float(re.search(r"used = ([\d.]+)M", out).group(1)) * 1024**2)  # type: ignore[union-attr]
+    except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
+        return None
+
+
 class PeakMemory:
     """The peak memory of the engine and of the model servers it started, over one run (#5537): the
     run's account says what the run took, which is how the need of a model is re-measured
@@ -151,16 +174,34 @@ class PeakMemory:
     a page's read. The readers are injectable so a test never reads the real machine."""
 
     def __init__(self, *, engine: Callable[[], int | None] | None = None,
-                 servers: Callable[[], int | None] | None = None, interval: float = 1.0) -> None:
+                 servers: Callable[[], int | None] | None = None, interval: float = 1.0,
+                 rss: Callable[[], int | None] | None = None, swap: Callable[[], int | None] | None = None) -> None:
         self._engine = engine or (lambda: footprint_bytes(os.getpid()))
         self._servers = servers or _model_servers_footprint
         self._interval = interval
+        self._rss = rss or (lambda: rss_bytes(os.getpid()))
+        self._swap = swap or swap_used_bytes
+        self.rss_peak: int | None = None
+        self.swap_start: int | None = self._safe(self._swap)
+        self.swap_peak: int | None = self.swap_start
         self.engine_peak: int | None = None
         self.server_peak: int | None = None
         self._stop = None
         self._thread = None
 
+    @staticmethod
+    def _safe(read: Callable[[], int | None]) -> int | None:
+        try:
+            return read()
+        except Exception:  # noqa: BLE001 -- a reading must never fail the run
+            return None
+
     def sample(self) -> None:
+        rss, swap = self._safe(self._rss), self._safe(self._swap)
+        if rss is not None and rss > (self.rss_peak or 0):
+            self.rss_peak = rss
+        if swap is not None and swap > (self.swap_peak or 0):
+            self.swap_peak = swap
         for attr, read in (("engine_peak", self._engine), ("server_peak", self._servers)):
             try:
                 value = read()
@@ -188,6 +229,17 @@ class PeakMemory:
         if self._stop is not None:
             self._stop.set()
         self.sample()
+
+    def pressure(self) -> dict[str, int]:
+        """What the run did to this Mac's memory: the engine's peak resident set and how far swap grew. The honest
+        load: the physical footprint in `record` counts pages in the compressor and overstates it (M4 2026-10-17:
+        19.7 GB footprint, 6.9 GB resident, swap flat). Only what was read."""
+        out = {}
+        if self.rss_peak is not None:
+            out["engine_peak_rss_bytes"] = self.rss_peak
+        if self.swap_start is not None and self.swap_peak is not None:
+            out["swap_growth_bytes"] = max(0, self.swap_peak - self.swap_start)
+        return out
 
     def record(self) -> dict[str, int]:
         """The peaks for the run's account (`run_usage`), only those read."""
