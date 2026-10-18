@@ -23,3 +23,27 @@ struct OnboardingTextTests {
         #expect(sheet.contains("Errors per 100 letters") && !sheet.contains("TableColumn(\"CER\")"))
     }
 }
+
+/// Copy is the default intake, so setup says what a copy takes before Start.
+@MainActor
+struct CopySpaceTests {
+    @Test("the sentence names the size and the room")
+    func sentence() {
+        #expect(RecipeSetupStore.copySpaceSentence(bytes: 1_200_000_000, free: 112_000_000_000)
+                == "The copy takes 1.2 GB; 112 GB free.")
+        #expect(RecipeSetupStore.copySpaceSentence(bytes: 1_200_000_000, free: nil) == "The copy takes 1.2 GB.")
+    }
+
+    @Test("the size counts every file under a chosen folder and a loose file")
+    func sizes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sub = root.appendingPathComponent("box", isDirectory: true)
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data(count: 1000).write(to: sub.appendingPathComponent("a.jpg"))
+        try Data(count: 500).write(to: sub.appendingPathComponent("b.jpg"))
+        let loose = root.appendingPathComponent("c.pdf")
+        try Data(count: 250).write(to: loose)
+        #expect(RecipeSetupStore.byteSize(of: [sub, loose]) == 1750)
+    }
+}
