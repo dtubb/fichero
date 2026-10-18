@@ -288,7 +288,7 @@ async def pause_live_runs_for_shutdown() -> int:
     through its own path) and is recorded `paused` here as the fallback for a worker that does not reach a boundary
     before the process ends. A run with no checkpoint yet has nothing to resume from and is left for the reopen sweep.
     Returns how many."""
-    from fichero_server.execution.cancellation import request_pause  # noqa: PLC0415
+    from fichero_server.execution.cancellation import pause_requested, request_pause  # noqa: PLC0415
     from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
 
     paused = 0
@@ -304,9 +304,11 @@ async def pause_live_runs_for_shutdown() -> int:
                 {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
             if saved is None:
                 continue
+            # A pause the person already asked for is theirs: no marker, so the next open leaves it for Resume.
+            by_person = pause_requested(thread_id)
             request_pause(thread_id)
             await get_activity_tracker(db_path).store.update_workflow_run(
-                thread_id=thread_id, status="paused", error=QUIT_PAUSED_ERROR)
+                thread_id=thread_id, status="paused", error=None if by_person else QUIT_PAUSED_ERROR)
             paused += 1
     finally:
         for checkpointer in checkpointers.values():
