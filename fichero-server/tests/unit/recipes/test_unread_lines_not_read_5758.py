@@ -138,3 +138,30 @@ def test_one_blank_line_does_not_finish_a_page_for_a_reader_that_read_none_of_it
     only = next(s for s in db.query(Segment, document_id=blank_page) if s.kind == "line")
     mark_no_writing(db, [only.id], model="better")
     assert is_done(db, {"job": "read-a-line", "model_override": "better"}, blank_page) is True
+
+
+def test_a_line_a_recognising_reader_gave_no_text_is_saved_marked_with_why():
+    """The live run (M4, 2026-10-17) segmented and read in one go: a line read as empty text was saved with no
+    reading and no mark, so 36 lines were 'unread' with no reason anywhere."""
+    from fichero_server.models.segments import segment_from_box
+    from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel
+
+    def box(text, source):
+        return OCRGeometryBox(text=text, bbox=[0.1, 0.1, 0.5, 0.05], level=OCRGeometryLevel.LINE, provider="kraken",
+                              model="m1", source=source, metadata={"polygon_px": [[0, 0], [9, 0], [9, 3]]})
+
+    read = lambda b: segment_from_box(document_id="d", artifact_id="a", box_index=0, box=b, rendition_id=None,
+                                      pass_provenance_kind=ProvenanceKind.workflow)
+    blank = read(box("", "kraken-htr")).metadata["read_no_writing"]
+    assert blank["model"] == "m1" and blank["reason"]
+    assert "read_no_writing" not in read(box("", "kraken-blla")).metadata, "a finder reads nothing: not looked at"
+    assert "read_no_writing" not in read(box("texto", "kraken-htr")).metadata
+
+
+def test_every_unread_line_has_a_reason(db):
+    from fichero_server.recipes.done import unread_reasons
+
+    page = _page(db, 3, 1)
+    reasons = unread_reasons(db, page)
+    assert len(reasons) == 2 and all(isinstance(r, str) and r for r in reasons.values())
+    assert run_view.lines_unread_why(db, [page]) == {next(iter(reasons.values())): 2}

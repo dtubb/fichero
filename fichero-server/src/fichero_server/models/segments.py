@@ -500,6 +500,10 @@ def segment_from_box(
         metadata["raw_baseline_px"] = box.metadata.get("baseline_px")
     if "pixel_frame" in box.metadata:
         metadata["raw_pixel_frame"] = box.metadata.get("pixel_frame")
+    # A line a recognising reader gave no text for was looked at: it carries that, and why, so it is not 'unread'
+    # with no reason (#5758). A segmenter alone reads nothing, so its lines carry no mark.
+    if box.source == "kraken-htr" and str(box.level) == "line" and not (box.text or "").strip():
+        metadata["read_no_writing"] = {"model": box.model or "", "reason": "the reader gave no text for the line"}
     # The box this one sits inside, by its place in the same result (#5487: Kraken's line in its region).
     parent_index = box.metadata.get("parent_box_index")
     if isinstance(parent_index, int) and parent_index != box_index:
