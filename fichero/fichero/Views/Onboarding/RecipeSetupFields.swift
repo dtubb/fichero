@@ -81,7 +81,7 @@ struct SetupWhereItLivesFields: View {
 }
 
 /// How sources come in (ruled 2026-10-03 and 2026-10-05, `source.onboard.five-ways-in`): Link,
-/// Copy, Move, Index or Keep arranged, each with what it does to the originals. Link is the
+/// Copy, Move, Index or Keep arranged, each with what it does to the originals. Copy is the
 /// default; Move says plainly that the originals go. Keep arranged (#5480) imports as Index and,
 /// after its dry run and the person's yes, keeps the folder arranged.
 struct ProjectIntakeChoice: View {

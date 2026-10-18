@@ -746,7 +746,7 @@ lives somewhere).
    person stays on it. This is what fixes the first-run 400 (#5477): there is always a project to
    save to.
 2. **Your material** (#5480). How material comes in, five ways, each with one sentence of what it
-   does to the originals: **Link** (default; read where they are, never changed), **Copy** (the
+   does to the originals: **Link** (read where they are, never changed), **Copy** (the default; the
    project keeps its own copy), **Move** (the files move into the project; the originals go),
    **Index** (the folder stays where it is; Fichero writes its changes back into it and takes in
    files added to it after a preview), and **Keep arranged** (as Index, and Fichero also keeps the
@@ -3390,7 +3390,7 @@ Setup
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
 - `source.onboard.five-ways-in` — **[PARTIAL]** (#5480) **Built 2026-10-05 (app), not yet seen:** Link, Copy, Move, Index and Keep arranged as radio buttons, each with its sentence; Keep arranged imports as Index and is saved as `ingest_mode: keep-arranged`, read back as Keep arranged (`SetupWayIn`; `fichero/Tests/Unit/general/Models/KeepArrangedTests.swift`). *Not built: the import menus and drops starting from the saved choice.* Your material offers five ways material comes in,
-  each with one sentence of what it does to the originals: Link (default), Copy, Move, Index and
+  each with one sentence of what it does to the originals: Copy (default), Link, Move, Index and
   Keep arranged; the choice is saved with the project and used by Add a Folder… and by the
   project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup.
 - `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). Keep arranged ties the folder the same way (built 2026-10-05, below). *Not built: the file count.* choosing Index or Keep arranged
