@@ -105,9 +105,34 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         levels, refused = normalise_levels(job_answers["normalise_how_far"])
         problems += refused
         out["job_answers"] = {**job_answers, "normalise_how_far": levels}
+    cap = out.get(SPEND_CAP)
+    if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0):
+        problems.append(f"The Hugging Face spend cap is an amount in dollars a month, $0 or more, not {cap!r}.")
+    if out.get(COPIES_STAY) is not None and not isinstance(out[COPIES_STAY], bool):
+        problems.append(f"Whether working copies may stay on the cluster is yes or no, not {out[COPIES_STAY]!r}.")
     if strict and problems:
         raise ValueError(" ".join(problems))
     return out
+
+
+#: The ruled money-and-place answers (#5769, ruled 2026-10-17).
+SPEND_CAP = "hf_spend_cap_usd"
+COPIES_STAY = "copies_may_stay_on_cluster"
+
+
+def spend_cap(answers: dict[str, Any] | None) -> float:
+    """How much the project may spend on Hugging Face a month (`source.onboard.spend-cap`): $0 unless setup said more,
+    so every paid offer stays an offer."""
+    cap = (answers or {}).get(SPEND_CAP)
+    return float(cap) if isinstance(cap, (int, float)) and not isinstance(cap, bool) and cap > 0 else 0.0
+
+
+def copies_may_stay(answers: dict[str, Any] | None) -> bool:
+    """Whether downscaled working copies may stay on the cluster for re-runs (`source.onboard.copies-may-stay-on-cluster`):
+    setup's answer, else what the project said about pages leaving this Mac."""
+    a = answers or {}
+    said = a.get(COPIES_STAY)
+    return said if isinstance(said, bool) else bool(a.get("cloud_allowed"))
 
 
 #: The levels "Translate or normalise › Into what" may ask for (#5660 item 1): the page model's reading levels a
