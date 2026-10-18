@@ -309,6 +309,13 @@ extension LibraryManager {
         libraryManagerLogger.info("Renamed library \(id.uuidString) to: \(trimmed)")
     }
 
+    /// The host turned Sharing off: this guest says one sentence and closes the shared project, so its
+    /// windows go back to the Mac's own projects with no error screen (`sharing.off-closes-the-guest`, #5731).
+    func hostStoppedSharing(libraryId: UUID, hostName: String) {
+        sharingStoppedNotice = SharingStopped.sentence(host: hostName)
+        closeLibrary(libraryId)
+    }
+
     /// Close a library
     /// Only closes if no windows are using it
     /// Cannot close the Global library
