@@ -62,14 +62,23 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   `paired_by_device_id`, `paired_route` carry over).
 - **Session**: a short-lived token minted after a verified challenge. It carries `(person_id, client_id)`.
   Every `ActionContext`, audit row and Activity line shows both.
-- **Challenge**: `POST /api/auth/challenge {client_id}` → random nonce, 60 s, single use. `POST /api/auth/sign-in
-  {client_id, nonce, signature}` → session. Failure is 401 with a stable code; rate-limited like login today.
+- **Challenge**: `POST /api/auth/challenge {client_id}` → `{nonce, expires_at, engine_id}`, 60 s, single use. The client
+  signs a **domain-separated message**, never the bare nonce:
+  `"fichero-sign-in-v1" 0x00 engine_id 0x00 client_id 0x00 nonce 0x00 expires_at`. The engine rebuilds the message from
+  ITS OWN id, the client id, the nonce it issued and the expiry it stored, so a signature made for another engine, another
+  client, another purpose or another expiry does not verify (the cross-engine relay: the same synced person key is
+  registered on every engine she belongs to, and a malicious host could otherwise relay one engine's nonce to her
+  client and sign in there as her; this is why WebAuthn signs the rpId). `engine_id` is a random id each engine makes
+  once and keeps in its app database. `POST /api/auth/sign-in {client_id, nonce, signature}` → session. Failure is 401
+  with a stable code; rate-limited like login today. The reset challenge uses the same shape with the purpose string
+  `"fichero-reset-v1"`.
 
 ## Transports and the two secrets
 
 - **UDS only for local clients.** The app, the CLI and MCP reach the engine through its Unix socket (mode 0600, in the
-  app container). The engine reads the connecting process from the socket (pid, uid, executable path from the peer
-  credentials). Loopback TCP serves only the network side (paired devices, who sign in with keys or passwords like
+  App Group container: see `multiuser.socket-location`). The engine identifies the connecting process from the socket's
+  audit token (`LOCAL_PEERTOKEN`) and runs the code-signing check on that token, never by mapping a pid to a path
+  afterwards (pids get reused, a time-of-check race); the executable path shown is read from the same token. Loopback TCP serves only the network side (paired devices, who sign in with keys or passwords like
   anyone else); it carries no local-client routes and no bootstrap.
 - **The launch secret** (replaces "the bootstrap token" on the sensitive routes): 32 random bytes made by the app at
   each launch, handed to the engine it spawns over an inherited pipe (never an environment variable, argv or a file),
@@ -80,7 +89,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   (`~/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock`), so the app did not spawn it. Once an owner exists
   the Dev Local app needs no launch secret at all: it signs in with the owner's Keychain key over the UDS like any
   local client. For FIRST RUN only (no owner yet) the script passes the secret to the engine on stdin and writes it
-  0600 into the app container next to the socket; the app reads it once and deletes it. That file path is compiled out of
+  0600 into the app's container next to the socket; the app reads it once and deletes it. Until it is deleted any process of the same user can read it: **accepted for Debug builds only**, where the user is also the developer. That file path is compiled out of
   Release, Beta and App Store builds, which only ever spawn their own engine. Tests start the engine in-process with a
   fixed test secret. One rule everywhere: the engine takes the secret on stdin at start-up; only Debug has a file.
 - **Session lifetime:** app and device sessions last 12 h, sliding; CLI/MCP sessions last 1 h and renew by silent
@@ -95,6 +104,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
 - `multiuser.always-on` — **[GAP]** (→ #2403) there is no Multi-user setting. `sharing.set_multiuser`, `GET/PUT` of the flag, `FICHERO_MULTIUSER`, `multiuserEnabledKey` and `_use_multiuser_auth()` are removed; the engine always enforces. Test: (not yet written: `fichero-server/tests/unit/security/test_multiuser_always_on_to_spec.py::test_no_switch_and_enforcement_is_unconditional`).
 - `multiuser.loopback-is-not-owner` — **[GAP]** (→ #2403) a request from 127.0.0.1 or the UDS with the bootstrap token and no signed-in client is refused 401 everywhere except the three first-run/sign-in routes. `_pairing_user`'s "loopback + bootstrap = owner" and `_require_owner_or_bootstrap` go. Test: (not yet written: `…/test_multiuser_always_on_to_spec.py::test_loopback_bootstrap_alone_reaches_nothing`).
 - `multiuser.sign-in-by-challenge` — **[GAP]** (→ #2403) the challenge-response above; the nonce is single use and expires; a signature over another client's nonce, a replayed nonce and a revoked client all fail. Test: (not yet written: `…/test_challenge_sign_in_to_spec.py`).
+- `multiuser.signature-is-bound-to-this-engine` — **[GAP]** (→ #2403) the signed message carries the purpose string, the engine id, the client id, the nonce and the expiry (above). A signature made for engine B is refused by engine A; one for another client, another purpose (sign-in vs reset) or a tampered expiry is refused; an expired one is refused even if the nonce is unspent. Test: (not yet written beyond the slice 1 red tests: `fichero-server/tests/unit/security/test_challenge_sign_in_to_spec.py::test_a_signature_made_for_another_engine_is_refused`, `::test_a_signature_over_a_different_expiry_is_refused`, and the same pair for the reset challenge in its slice).
 - `multiuser.password-fallback` — **[PARTIAL]** (→ #2403) (login exists: `POST /api/auth/login`, rate-limited) stays for other people and non-Apple clients; a password session is a client of kind `device` named by the caller. The owner can switch their own password fallback off. Test: (existing `test_auth_accounts.py`; add `test_password_session_names_a_client`, not yet written).
 - `multiuser.audit-names-person-and-client` — **[PARTIAL]** (→ #5319; `ChangeEvent.person/device`, `BackgroundJob.started_by` built) every audit row, change event, background job and Activity line carries person AND client; a CLI call shows "fichero CLI for Ann". Test: (extend `test_sharing_who_did_it.py`; client column not yet written).
 
@@ -126,7 +136,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
 - `multiuser.client-acts-for-a-person` — **[GAP]** (→ #2403) a client's session carries `(person, client)`; it can do what that person can, never more, and never act as another person. The owner can restrict a client to read-only (optional, slice 6). Test: (not yet written: `…/test_client_cannot_exceed_its_person_to_spec.py`).
 - `multiuser.cli-mcp-sign-in-flow` — **[GAP]** (→ #2403) the CLI and MCP server, when they find no credential, print/return a single sentence: "Ask the app to allow this client (Settings › Sharing › This Mac)", start the request, and wait up to 60 s for the answer. They never fall back to the bootstrap token. Test: (not yet written: a CLI-side `test_no_credential_asks_the_app`).
 
-- `multiuser.local-flow-in-four-steps` — **[GAP]** (→ #2403) the whole local CLI/MCP flow, as ruled: (1) the client connects over the same UDS and is refused while its Settings switch is off; (2) with no credential, the engine identifies the peer from the socket itself (`LOCAL_PEERPID`/`getpeereid` give uid and pid, from which the executable path and code-signing identity), never a self-asserted name, and the app's approval sheet names that verified program, like Xcode's agent access; (3) on approval the engine registers the client's own public key, the private half stays in the client's Keychain, and Settings lists and revokes it; (4) every later call carries that credential and the audit and Activity read "<client> for <person>". Test: (not yet written: `…/test_local_client_flow_to_spec.py::test_flow_end_to_end_names_client_for_person`).
+- `multiuser.local-flow-in-four-steps` — **[GAP]** (→ #2403) the whole local CLI/MCP flow, as ruled: (1) the client connects over the same UDS and is refused while its Settings switch is off; (2) with no credential, the engine identifies the peer from the socket itself (`getpeereid` gives the uid, the audit token `LOCAL_PEERTOKEN` gives the process, and the executable path and code-signing identity are checked on that token, not on a pid), never a self-asserted name, and the app's approval sheet names that verified program, like Xcode's agent access; (3) on approval the engine registers the client's own public key, the private half stays in the client's Keychain, and Settings lists and revokes it; (4) every later call carries that credential and the audit and Activity read "<client> for <person>". Test: (not yet written: `…/test_local_client_flow_to_spec.py::test_flow_end_to_end_names_client_for_person`).
 - `multiuser.socket-location` — **[GAP]** (→ #2403) the socket must be reachable by the CLI and MCP without macOS's "access data from other apps" prompt. Evaluated: (a) the app's own container (`~/Library/Containers/app.fichero.fichero/Data/tmp/`, today's Dev Local path): another process reaching into a sandboxed app's container is exactly what raises that prompt, on every new client and after updates; (b) an **App Group container** (`~/Library/Group Containers/<group>/`, the group entitlement on the app and on the signed CLI and MCP binaries, same team): shared by design, no prompt for members, and a sandboxed app may bind a socket there; its path is long, so the engine binds a short path and the group container holds a symlink or the path is kept under the 104-byte `sun_path` limit; (c) a fixed location outside both (`~/Library/Application Support/Fichero/`): a sandboxed App Store build cannot create it without a temporary-exception entitlement, so it is rejected. **Decision for review: (b), the App Group container**, with the hand-started Dev Local engine keeping its container path until the Debug build has the group entitlement. If a prompt still appears on the M4 checklist run, the checklist says to answer it once and slice 6 reopens this line. Test: (not yet written: `…/test_socket_path_fits_sun_path_to_spec.py`; the prompt itself is an M4 checklist step, it cannot be unit-tested).
 
 ### F. iOS
