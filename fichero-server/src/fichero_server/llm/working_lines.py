@@ -14,12 +14,18 @@ Here: the working pass's lines (`working_lines`), their outline and baseline in 
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from typing import Any
 
 #: Kept on a reading's page artifact (`Artifact.data`): the pass whose lines the reading was written onto.
 #: Its text is the lines' text joined, so it is never itself a page reading to tie to the lines (#5444).
 READ_ONTO_PASS = "read_onto_pass"
+#: The result's list of the lines a reader looked at and found no writing on (a ruled or blank line), and the
+#: mark it leaves on each segment so a second Start does not read it again (#5758).
+NO_WRITING_KEY = "lines_looked_no_writing"
+NO_WRITING_MARK = "read_no_writing"
 #: Where a line with no baseline of its own (Apple Vision's boxes give none) is read along: this far down its
 #: box, the usual place of a baseline in a line's box.
 BASELINE_AT = 0.75
@@ -143,8 +149,50 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
     return made
 
 
+def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_id: str | None = None,
+                    library_path: str | None = None) -> None:
+    """Record 'looked, no writing' on each line, by the model that looked, through `segment.update` (versioned and
+    audited): the line counts as read for that reader and a different one looks again (#5758)."""
+    import fichero_server.api.routes.document.segments  # noqa: F401  (segment.update)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.segments import Segment
+
+    ctx = ActionContext(actor="system", run_id=run_id, library_path=library_path, is_bootstrap=True)
+    for segment_id in segment_ids:
+        segment = db.get(Segment, segment_id)
+        if segment is None or segment.deleted_at is not None or (segment.metadata or {}).get(NO_WRITING_MARK) == {
+                "model": model or ""}:
+            continue
+        registry.invoke(db, "segment.update", {"segment_id": segment_id, "expected_version": segment.version,
+                                                "no_writing_model": model or ""}, ctx)
+
+
 #: What a correcting step's per-page result says when its text cannot be put onto the page's lines.
 NOT_TIED = "not tied to lines"
+#: The flag a review gives each line (`source.job.review-is-segment-native`).
+LINE_FLAGS = ("certain", "uncertain", "unreadable")
+#: Where a line's short note starts: ` | note: ...` at its end (#5724).
+_BOX = re.compile(r"^-?[\d.]+(\s+-?[\d.]+){3}$")
+_NOTE = re.compile(r"\s*\|\s*note:\s*(.*)$", re.IGNORECASE)
+
+
+def answer_line(line: str) -> tuple[str, str, str, str]:
+    """(segment id, flag or '', text, note or '') of one answer line, `<id> | [<flag> |] <text> [| note: <note>]`.
+    Only the leading id and flag are split off, so a `|` or `||` in diplomatic text stays in the text, and a
+    note is only what follows `| note:`, so a dropped flag never makes the note the text (#5724)."""
+    head, bar, rest = line.partition("|")
+    if not bar:
+        return line.strip(), "", "", ""
+    flag, bar, tail = rest.partition("|")
+    flag = flag.strip().lower()
+    if not bar and flag in LINE_FLAGS:  # a bare `<id> | unreadable`: a flag with no text, never the text (#5724)
+        return head.strip(), flag, "", ""
+    text = tail if bar and flag in LINE_FLAGS else rest
+    if bar and _BOX.match(flag):  # the lines echoed as shown, `id | x y w h | maker | [confidence |] text`
+        text = rest.rpartition("|")[2]
+    note = _NOTE.search(text)
+    return (head.strip(), flag if text is tail and bar else "", (text[:note.start()] if note else text).strip(),
+            note.group(1).strip() if note else "")
 
 
 def correct_lines(
@@ -185,13 +233,13 @@ def correct_lines(
     unreadable: set[str] = set()
     uncertain: set[str] = set()
     for line in answer:
-        parts = [part.strip() for part in line.split("|")]
-        if len(parts) >= 2 and parts[0] in ids:
-            by_id[parts[0]] = parts[-1]
-            if len(parts) >= 3 and parts[1].lower() == "unreadable":
-                unreadable.add(parts[0])
-            elif len(parts) >= 3 and parts[1].lower() == "uncertain":
-                uncertain.add(parts[0])
+        segment_id, flag, said_text, _note = answer_line(line)
+        if segment_id in ids and "|" in line:
+            by_id[segment_id] = said_text
+            if flag == "unreadable":
+                unreadable.add(segment_id)
+            elif flag == "uncertain":
+                uncertain.add(segment_id)
     if answer and len(by_id) == len(answer):
         corrected = dict(by_id)
     elif len(answer) == len(shown):

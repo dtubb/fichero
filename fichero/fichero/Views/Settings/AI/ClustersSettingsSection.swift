@@ -6,12 +6,11 @@ struct ClustersSettingsSection: View {
     @Environment(AppState.self) private var appState
     @State private var clusters: [HpcSignInService.Cluster] = []
     @State private var signingIn: HpcSignInService.Cluster?
+    @State private var adding = false
 
     var body: some View {
         Group {
-            if clusters.isEmpty {
-                Text("No cluster is set up.").foregroundStyle(.secondary)
-            }
+            Button("Add a Cluster…") { adding = true }
             ForEach(clusters) { cluster in
                 HStack {
                     VStack(alignment: .leading) {
@@ -24,6 +23,11 @@ struct ClustersSettingsSection: View {
             }
         }
         .task { clusters = await appState.hpcSignInService.listClusters() }
+        .sheet(isPresented: $adding) {
+            AddClusterSheet(service: appState.hpcSignInService) {
+                Task { clusters = await appState.hpcSignInService.listClusters() }
+            }
+        }
         .sheet(item: $signingIn) { cluster in
             HpcSignInSheet(clusterId: cluster.id, clusterName: cluster.name, service: appState.hpcSignInService)
         }

@@ -65,6 +65,7 @@ extension SidebarView {
                     }
                 } header: {
                     Text(SidebarProjectSections.projectsHeading)
+                        .accessibilityIdentifier(SidebarAccessibilityID.projectsHeading)
                 }
             }
             // App-level destinations pinned once at the bottom, not repeated
@@ -72,6 +73,7 @@ extension SidebarView {
             pinnedGlobalNavigationRows()
         }
         .listStyle(.sidebar)
+        .accessibilityIdentifier(SidebarAccessibilityID.list)
         // A right-click on no row offers the always-there project's menu (New Folder, Import
         // Files…, Edit Document Types…, Show in Finder): it lost its header row, which held them
         // (`sidebar.top-section.empty-area-menu`). Rows keep their own `.contextMenu`; for a

@@ -33,6 +33,8 @@ struct DocumentOverlay: Equatable {
     }
 
     var boxes: [Box] = []
+    /// The library's transcription family for the inline words (#5438); nil draws in the system font.
+    var transcriptionFamily: String?
 
     /// The finest level drawn: read once per draw, not once per box. Only it sets its reading inline.
     var finestLevel: SegmentHierarchy.Level { SegmentHierarchy.finestLevel(boxes.map(\.kind)) }

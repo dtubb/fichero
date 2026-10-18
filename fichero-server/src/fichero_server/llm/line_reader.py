@@ -20,6 +20,7 @@ import re
 
 from PIL import Image, ImageDraw, ImageStat
 
+from fichero_server.llm.working_lines import NO_WRITING_KEY
 from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)
 from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read, finish_reason_of, is_truncation
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
@@ -124,11 +125,16 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             return [cut_short_reading(raw)]
         return answer
 
+    looked: set[int] = set()  # lines the reader answered for, with or without words
+
     async def batch(indices: list[int]) -> list[str | None]:
         answer = await ask(indices)
         if answer is None and len(indices) > 1:  # re-ask line by line rather than misplace a reading
             singles = await asyncio.gather(*(ask([i]) for i in indices))
             answer = [s[0] if s else None for s in singles]
+            looked.update(i for i, s in zip(indices, singles) if s is not None)
+        elif answer is not None:
+            looked.update(indices)
         return answer or [None]
 
     per_call = 1 if apple else lines_per_call(config)
@@ -137,8 +143,14 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
 
     boxes, texts, cursor = list(regions), [], 0
     flagged: list[ReadFlag] = []
-    for box, text in zip(found, readings):
+    no_writing: list[str] = []  # looked at, nothing written: a ruled or blank line, read as such (#5758)
+    for n, (box, text) in enumerate(zip(found, readings)):
         if text is None:
+            if n in looked and box.metadata.get("segment_id"):
+                no_writing.append(box.metadata["segment_id"])
+            # Every line left without a reading, and why (#5758): the reader said no writing, or never answered.
+            logger.debug("line left without a reading: %s on %s — %s", box.metadata.get("segment_id"), image_path,
+                        "the reader found no writing" if n in looked else "the reader gave no answer for it")
             continue
         texts.append(text)
         # Each line's reading is checked as it lands (#5522): one picture is one line, so a reading
@@ -159,11 +171,14 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             "source": "apple-lines" if apple else "kraken-lines+vision", "metadata": metadata,
         }))
         cursor += len(text) + 1
+    if no_writing and not texts:
+        no_writing = []  # every line came back empty: a failed read, not 'no writing' (review 64); read again
     read = len(boxes) - len(regions)
     logger.info("line reader %s: %d lines found, %d read, %d without writing, %d flagged",
                 config.model, len(found), read, len(found) - read, len(flagged))
     page_metadata = {**lines.metadata, "lines_found_by": "kraken", "lines_found": len(found),
-                     "lines_without_writing": len(found) - read, "lines_flagged": len(flagged)}
+                     "lines_without_writing": len(found) - read, "lines_flagged": len(flagged),
+                     NO_WRITING_KEY: no_writing}
     if flagged:
         # The page's reading is as trusted as its worst line: it lands marked, not as the page's text.
         page_metadata[READ_FLAG_KEY] = {

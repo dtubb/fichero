@@ -33,8 +33,6 @@ struct SidebarBottomToolbar: View {
     private var metrics: MiniToolbarMetrics {
         #if os(macOS)
         MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false)
-        #elseif os(tvOS)
-        MiniToolbarMetricPolicy.metrics(isMac: false, isTV: true)
         #else
         MiniToolbarMetricPolicy.metrics(isMac: false, isTV: false)
         #endif
@@ -43,8 +41,6 @@ struct SidebarBottomToolbar: View {
     private var iconFont: Font {
         #if os(macOS)
         .caption
-        #elseif os(tvOS)
-        .title
         #else
         .body
         #endif

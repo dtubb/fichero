@@ -23,7 +23,7 @@ struct LicenceReviewSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Review the Licence for \(setup.title(ofStepId: step.id))").font(.headline)
-            Text("These models fit this step, but their licence is not open. Read it, and accept it only if your use fits.")
+            Text("These models fit this step, but each comes with conditions on use. Read them, and accept it only if your use fits.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             let shown = Self.licensed(finder.candidates, refused: Self.refusedForLicence(setup, step: step.id))

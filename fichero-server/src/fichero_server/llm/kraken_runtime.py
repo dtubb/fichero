@@ -847,6 +847,38 @@ def _release_if_idle() -> None:
         _INFERENCE_LOCK.release()
 
 
+#: The most lines the reader sends through the network at once, however much memory there is, and what one line
+#: of a batch is budgeted at (a line crop through the recogniser, measured nowhere yet: a deliberately large guess).
+_MAX_READER_BATCH = 16
+_BATCH_LINE_BYTES = 256 * 1024**2
+
+
+def reader_batch_size() -> int:
+    """How many lines the reader sends through at once, from what this Mac can hand out now (#5758: a page of
+    handwriting took the engine to 18.2 GB on a 16 GB Mac). One line a time when the memory is not known or the
+    model alone leaves little: slower, never swapping. Beyond the model's own need (`_kraken_memory_need_bytes`)
+    each `_BATCH_LINE_BYTES` buys a line, up to `_MAX_READER_BATCH`."""
+    available = _available_memory_bytes()
+    if available is None:
+        return 1
+    spare = available - _kraken_memory_need_bytes()
+    return max(1, min(_MAX_READER_BATCH, spare // _BATCH_LINE_BYTES))
+
+
+#: What each page read at once holds beyond the model: its image, the segmenter's maps, the lines' crops (measured
+#: loosely: 4 pages at once took the engine's footprint to 19 GB on a 16 GB Mac, #5758).
+_PAGE_BYTES = 1536 * 1024**2
+
+
+def page_fan_out(cap: int) -> int:
+    """How many pages may be read at once: `cap`, or fewer when this Mac's spare memory (beyond the model's own
+    need) holds fewer pages, never below one (#5758, `user-machine-always-useful`). Unknown memory reads one."""
+    available = _available_memory_bytes()
+    if available is None:
+        return 1
+    return max(1, min(cap, (available - _kraken_memory_need_bytes()) // _PAGE_BYTES))
+
+
 def _reader_config(config_cls: Callable[..., object]) -> object:
     """The reader's device, as the person chose (`torch_accelerator`: auto is the CPU, #5529). Kraken's
     "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
@@ -856,7 +888,10 @@ def _reader_config(config_cls: Callable[..., object]) -> object:
     # num_line_workers=0: Kraken's default (2) extracts lines in a multiprocessing Pool, whose semaphore the
     # app sandbox refuses ("[Errno 1] Operation not permitted"), so every reader failed in the app and worked
     # in a terminal (2026-10-10). 0 is Kraken's own in-process path; training already runs with --workers 0.
-    return config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1, num_line_workers=0)
+    config = config_cls(accelerator=torch_accelerator(compute_preferences()["device"]), device=1, num_line_workers=0)
+    if hasattr(config, "batch_size"):  # bounded by the memory the Mac has now, not Kraken's own default (#5758)
+        config.batch_size = reader_batch_size()
+    return config
 
 
 def _segmenter() -> object:
@@ -1324,7 +1359,19 @@ def recognize_to_geometry(
             )
         )
 
-    if not texts:
+    lines_found = [b for b in boxes if b.level == OCRGeometryLevel.LINE]
+    # Whether the page was read at all: a blank line among read ones is 'no writing'; every line blank is a read
+    # that failed (review 64), so it is not marked and the page is read again.
+    flag = "page_has_readings" if texts else "page_read_nothing"
+    for b in lines_found:
+        b.metadata[flag] = True
+    if not texts and lines_found:
+        # Lines found and every one read as empty text: the lines are kept (each saved marked 'looked, no
+        # writing'), never thrown away with the page's reading (#5758: page 1 of the M4 run had 30 lines, a quick
+        # all-empty read, and then no lines stored anywhere).
+        logger.warning("Kraken found %d lines on %s and read every one as empty text; the lines are kept unread",
+                       len(lines_found), image_path)
+    elif not texts:
         return geometry_unavailable(
             status=OCRGeometryStatus.PRODUCED_NOTHING,
             provider=_PROVIDER,
