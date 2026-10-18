@@ -129,3 +129,36 @@ def test_the_workflow_split_carries_the_same_way(db, tmp_path, test_package):
     assert [_text(db, s) for s in _lines(db, left.id)] == ["left page line"]
     assert sorted(_text(db, s) for s in _lines(db, right.id)) == ["across the gutter", "right page line"]
     assert report["carried"][0]["lines"] == 3 and report["carried"][0]["crossing"] == 1
+
+
+def test_regions_and_words_go_with_their_lines_and_keep_their_parents(db, tmp_path):
+    """A region, its line and the line's words on the left page all go to the left half, each still inside the
+    one it sat in; a word whose centre is past the gutter still goes with its line.
+    WHY: carrying only lines left a half's words and regions on the spread, so a word-level read or a region
+    step on the half found nothing and ran again."""
+    import fichero_server.api.main  # noqa: F401  (registers every action)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.anchors import SourceAnchor
+
+    spread = _read_spread(db, tmp_path)
+    ctx = ActionContext(actor="kraken", run_id="run-1", library_path=None, is_bootstrap=True)
+    pass_id = registry.invoke(db, "segment.pass_create", {"document_id": spread.id, "name": "regions"}, ctx).result["id"]
+
+    def make(kind, rect, parent=None):
+        return registry.invoke(db, "segment.create", {
+            "document_id": spread.id, "pass_id": pass_id, "kind": kind, "parent_segment_id": parent,
+            "anchor": SourceAnchor(document_id=spread.id, rect=rect).model_dump(mode="json")}, ctx).result["segment_ids"][0]
+
+    region = make("region", [0.05, 0.6, 0.4, 0.2])
+    line = make("line", [0.05, 0.65, 0.4, 0.05], region)
+    make("word", [0.05, 0.65, 0.1, 0.05], line)
+    make("word", [0.47, 0.65, 0.06, 0.05], line)  # its centre is just past the gutter
+    left, right = _split(db, spread)
+    carried = [s for p in db.query(SegmentPass, document_id=left.id) for s in db.query(Segment, pass_id=p.id)
+               if s.metadata.get("carried_from_segment_id") in {region, line} or s.kind == "word"]
+    by_kind = {k: [s for s in carried if s.kind == k] for k in ("region", "line", "word")}
+    assert len(by_kind["region"]) == 1 and len(by_kind["line"]) == 1 and len(by_kind["word"]) == 2
+    assert by_kind["line"][0].parent_segment_id == by_kind["region"][0].id
+    assert all(w.parent_segment_id == by_kind["line"][0].id for w in by_kind["word"])
+    assert not [s for p in db.query(SegmentPass, document_id=right.id) for s in db.query(Segment, pass_id=p.id)
+                if s.kind == "word"]
