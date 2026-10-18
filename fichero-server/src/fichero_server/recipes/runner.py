@@ -1049,8 +1049,9 @@ def _after_the_step(db: Any, card: dict[str, Any], step: dict[str, Any], batch: 
 
         try:
             train_offers.start_when_ready(db)
-        except Exception:  # noqa: BLE001 -- the step's own end stands whatever training does
+        except Exception as exc:  # noqa: BLE001 -- the step's own end stands whatever training does
             logger.exception("could not ask whether training is due after step %s", named)
+            problems.append(f"training could not be checked after step {named}: {exc}")
     if state in ("done", "failed"):
         # The run carries on past a failed batch (#5540, provisional): the step's failed pages are kept on it,
         # and a step that did none of a batch's pages counts towards stopping the run (`_halted`).
