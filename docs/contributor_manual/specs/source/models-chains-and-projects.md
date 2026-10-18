@@ -1080,11 +1080,13 @@ plan's peak memory across steps. Ready shows none of it.
   from a sample of the material, setup fills in its suggestions for language, script, material, period
   and hand, labelled "suggested from your pages", along with the pages that are blank or duplicates. The
   person confirms them; they do not type them.
-- `source.onboard.auto.reader-measured-before-bulk` — **[GAP]** (#5533, #5519, #4951) no reader reads
-  the whole material on the strength of a published figure alone. The Start plan OFFERS a comparison on the sample,
-  cost first, and never runs it by itself (ruled 2026-10-17, #5660 item 7); once run, its winner is the step's model
-  and the bulk read waits for the person's Use This (the ruling of section 12, "Use the winner"). The teacher-line
-  check (#5446) removes a strong reader's misreads from the sample.
+- `source.onboard.auto.reader-measured-before-bulk` — **[PARTIAL]** (#5533, #5519, #4951, #5660; built: the Start
+  plan carries `bakeoff_offer`, the comparison on the sample with its cost first and whether the project has the
+  corrected lines for it, pinned by `fichero-server/tests/unit/recipes/test_bakeoff_offered_on_start_plan.py`;
+  not built: the strong-reader sample read and the teacher-line check as jobs of the run) no reader reads the
+  whole material on the strength of a published figure alone. The Start plan OFFERS a comparison on the sample,
+  cost first, and never runs it by itself (ruled 2026-10-17, #5660 item 7); once run, its winner is the step's
+  model and the bulk read waits for the person's Use This (the ruling of section 12, "Use the winner").
 - `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578; tested in
   `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
   each page is read by the reader for its kind. A cheap first job sorts the pages (handwriting, print,
@@ -2592,7 +2594,7 @@ Jobs and chains
   job, so adding a card adds a candidate; the planner maps a chosen candidate's pin to its shipped workflow
   from a table, and a pin with no workflow is skipped saying so ("cannot run here"), never run as Kraken.
   *Test:* every card naming `find-lines` is a bake-off candidate; a pin with no workflow is skipped by name.
-- `source.job.find-statements.candidates` — **[PARTIAL]** (#5637; ruled 2026-10-17; *built: the free-parser default and the installed-model preference in `assemble._choose`, the parser cards in `discovery.known_cards`; pinned by `fichero-server/tests/unit/recipes/test_find_statements_candidates_5637.py`. Not built: Apple Intelligence as a statements candidate that runs, and the bake-off comparing the candidates, cost first*) Find statements is not parser-or-nothing:
+- `source.job.find-statements.candidates` — **[PARTIAL]** (#5637; ruled 2026-10-17; *built: the free-parser default and the installed-model preference in `assemble._choose`, the parser cards in `discovery.known_cards`; pinned by `fichero-server/tests/unit/recipes/test_find_statements_candidates_5637.py`; Apple Intelligence and the cloud text models of the provider rows are listed candidates, a cloud one flagged needs-permission, pinned by `fichero-server/tests/unit/recipes/test_find_statements_cloud_candidates.py`. Not built: Apple Intelligence running as a statements model where this build has it, and the bake-off comparing the candidates, cost first*) Find statements is not parser-or-nothing:
   its candidates are the spaCy parser's triples, Apple Intelligence, and text models such as Claude or Qwen, compared
   by the same bake-off pattern as reading, with the cost shown first. The default: where no text model is installed
   on this Mac, the free local candidates (the parser, Apple Intelligence) run at Start, and a text model is offered
@@ -3525,7 +3527,7 @@ Setup
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
   Also (#5589): each step declares where it can run (Mac / GPU cluster / CPU cluster / cloud); the plan places a step by scale and by GPU saturation. A step reaches a `cluster` target only through its bound target (`source.recipe.runs-on-binds-to-a-target`). Supersedes `source.recipe.cheapest-local-first` (cheapest only within the noise band). *Test:* a 1,000-page step places local; a 100,000-page step places on the bound `cluster` target; a recipe with no bound cluster never places there.
-- `source.onboard.pages-may-leave` — **[PARTIAL]** (#4951, #5768; built: the toggle `RecipeSetupStore.cloudAllowed` and the hard constraint in `assemble.py`; not built: the greyed "needs permission" cards; ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
+- `source.onboard.pages-may-leave` — **[PARTIAL]** (#4951, #5768; built: the engine flags a cloud candidate `needs_permission` until `cloud_allowed`, pinned by `fichero-server/tests/unit/recipes/test_cloud_candidates_need_permission_5768.py`; not built: the greyed card in the app, Swift) (ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
   answer is yes (`answers.cloud_allowed`), and cloud candidates show greyed with "needs permission" until then.
 - `source.recipe.volume-rule` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** training offered from 5,000 pages in `assemble()`; cost and time limits not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
@@ -4477,7 +4479,7 @@ Each is described in the paragraph named; the id lets a test cite it.
 - `source.lines.correct-this-line-verb` — **[PARTIAL]** (#5499; *built in part, pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`
   and `test_import_ground_truth.py`*) correcting a line is one verb, not three ids and six flags, and a person's corrections count as the
   bake-off's ground truth.
-- `source.try.compare-in-setup-works` — **[GAP]** (#5727) the Compare step in Set Up (the bake-off) works on a scratch project with enough
+- `source.try.compare-in-setup-works` — **[PARTIAL]** (#5727; built: the engine path Set Up calls, offer to table to Use This, pinned by `fichero-server/tests/unit/recipes/test_compare_in_setup_works_5727.py`; not reproduced: the live failure on the scratch project, which needs a GUI Set Up run) the Compare step in Set Up (the bake-off) works on a scratch project with enough
   corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
 - `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
   period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
