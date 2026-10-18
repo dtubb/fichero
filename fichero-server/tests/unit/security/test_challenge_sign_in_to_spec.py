@@ -208,3 +208,25 @@ def test_slice_one_removes_nothing_password_login_still_works(alice_client):
     harness, _users, _key, _client = alice_client
     logged_in = harness.client().post("/api/auth/login", json={"username": "alice", "password": "pw-alice"})
     assert logged_in.status_code == 200
+
+
+def test_failures_for_unknown_clients_are_not_remembered(alice_client):
+    # Review 101: sign-in is reachable over TCP, so ids nobody registered must not grow engine memory.
+    from fichero_server.api.routes.auth import accounts as routes
+
+    harness, _users, _key, _client = alice_client
+    before = dict(routes._sign_in_failures)
+    for i in range(5):
+        harness.client().post(
+            "/api/auth/sign-in", json={"client_id": f"nobody-{i}", "nonce": "x", "signature": "eA=="}
+        )
+    assert routes._sign_in_failures == before
+
+
+def test_only_a_few_challenges_stay_outstanding_per_client(alice_client):
+    harness, _users, key, client = alice_client
+    first = _issue(harness, client.id)
+    for _ in range(8):
+        _issue(harness, client.id)
+    # The oldest nonce was dropped, so even a correct signature over it is refused.
+    assert _sign_in(harness, client.id, first, _sign(key, client.id, first)).status_code == 401

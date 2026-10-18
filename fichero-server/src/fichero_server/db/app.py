@@ -1436,6 +1436,7 @@ class AppDatabase:
         token_hash: str,
         device_label: str | None,
         ttl: timedelta,
+        client_id: str | None = None,
     ) -> AccountSession:
         """Insert a new session row and return the typed record."""
         now = utc_now()
@@ -1452,9 +1453,9 @@ class AppDatabase:
                 """
                 INSERT INTO sessions (
                     id, user_id, token_hash, device_label,
-                    created_at, last_seen_at, expires_at, revoked
+                    created_at, last_seen_at, expires_at, revoked, client_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 [
                     session.id,
@@ -1465,6 +1466,7 @@ class AppDatabase:
                     session.last_seen_at,
                     session.expires_at,
                     session.revoked,
+                    client_id,
                 ],
             )
             self.conn.commit()
@@ -1821,11 +1823,6 @@ class AppDatabase:
                 "UPDATE clients SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", [utc_now(), client_id]
             )
             self.conn.execute("UPDATE sessions SET revoked = TRUE WHERE client_id = ?", [client_id])
-            self.conn.commit()
-
-    def set_session_client(self, token_hash: str, client_id: str) -> None:
-        with self._lock:
-            self.conn.execute("UPDATE sessions SET client_id = ? WHERE token_hash = ?", [client_id, token_hash])
             self.conn.commit()
 
     def session_client_id(self, token_hash: str) -> str | None:

@@ -69,7 +69,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   client, another purpose or another expiry does not verify (the cross-engine relay: the same synced person key is
   registered on every engine she belongs to, and a malicious host could otherwise relay one engine's nonce to her
   client and sign in there as her; this is why WebAuthn signs the rpId). `engine_id` is a random id each engine makes
-  once and keeps in its app database. `POST /api/auth/sign-in {client_id, nonce, signature}` → session. Failure is 401
+  once and keeps in its app database. `POST /api/auth/sign-in {client_id, nonce, signature}` → session (the signature is base64 of the DER-encoded ECDSA-P256-SHA256 signature, which is CryptoKit's `derRepresentation`; failures are counted only for a live client, outstanding challenges are capped at 5 per client). Failure is 401
   with a stable code; rate-limited like login today. The reset challenge uses the same shape with the purpose string
   `"fichero-reset-v1"`.
 
