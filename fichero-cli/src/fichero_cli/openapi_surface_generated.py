@@ -17582,7 +17582,7 @@ def register_generated_openapi_commands(
         contenders: str = typer.Option(..., '--contenders', help='The answer-only student, the reasoning students, the teacher and a cheap baseline. JSON.'),
         held_out_ids: list[str] = typer.Option(..., '--held-out-ids', help='The held-out checked pages: no arm trained on them. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         language: Optional[str] = typer.Option(None, '--language', help='Language.'),
-        noise_band: Optional[float] = typer.Option(None, '--noise-band', help='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.'),
+        noise_band: Optional[float] = typer.Option(None, '--noise-band', help="A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692)."),
     ) -> None:
         """Measure answer-only against reasoning students on held-out checked pages (POST /api/training/reasons-ab)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17599,7 +17599,7 @@ def register_generated_openapi_commands(
                 "contenders": {'items': {'$ref': '#/components/schemas/ContenderSpec'}, 'type': 'array', 'minItems': 2, 'title': 'Contenders', 'description': 'The answer-only student, the reasoning students, the teacher and a cheap baseline.', 'x-cli-required': True},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'The held-out checked pages: no arm trained on them.', 'x-cli-required': True},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Noise Band', 'description': 'A reasoning student is adopted only if it beats the answer-only one by more than this CER.', 'default': 0.005, 'x-cli-required': False},
+                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Noise Band', 'description': "A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692).", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
