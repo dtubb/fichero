@@ -298,14 +298,16 @@ def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
 
 
 def _cap_workflow_state_registry() -> None:
-    """Bound the in-memory workflow state registry by dropping finished runs only: a live run is never evicted,
-    so the registry may stand above its cap while more runs than the cap are live (#5376,
-    `activity.run.live-run-never-evicted`)."""
+    """Bound the in-memory workflow state registry."""
     while len(_running_workflows) > _RUNNING_WORKFLOWS_LIMIT:
-        evict_id = next((tid for tid, state in _running_workflows.items()
-                         if state.get("status") in _EXITED_WORKFLOW_STATUSES), None)
-        if evict_id is None:
-            return
+        evict_id = next(
+            (
+                tid
+                for tid, state in _running_workflows.items()
+                if state.get("status") in _EXITED_WORKFLOW_STATUSES
+            ),
+            next(iter(_running_workflows)),
+        )
         _running_workflows.pop(evict_id, None)
 
 
