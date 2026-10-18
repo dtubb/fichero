@@ -407,7 +407,17 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
                       "gpu_hours": sum(seconds) / 3600 if seconds else None},
            **{k: v for k, v in detail.items() if k in ("package", "landing", "flavor", "price_per_hour_usd", "step")}}
     out["far_state"] = far_state(out)
+    out["hf_spend"] = _hf_spend(db) if out["target"] == TARGET else None
     return out
+
+
+def _hf_spend(db: Any) -> dict[str, Any]:
+    """This month's Hugging Face spend against the project's cap, for the run's Inspector (`source.onboard.spend-cap`)."""
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.project import read_project_setup
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    return spend_this_month(db, cap=spend_cap(read_project_setup(Path(db.path).parent)["answers"]))
 
 
 def register_job_kinds() -> None:
