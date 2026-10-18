@@ -851,11 +851,10 @@ def fichero_auth_me(
 def fichero_auth_migrate_owner(
     *,
     client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
-    display_name: Annotated[str, Field(description='Display Name.')],
     public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
 ) -> Any:
     'Migrate Owner\n\nGive an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.\n\nRoute: POST /api/auth/migrate-owner (toolset `auth`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "display_name": display_name, "public_key_pem": public_key_pem}))
+    return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "public_key_pem": public_key_pem}))
 
 
 def fichero_auth_list_sessions(
