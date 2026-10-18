@@ -51,6 +51,8 @@ nonisolated protocol OwnerKeyProviding: Sendable {
 nonisolated protocol ClientIDStoring: Sendable {
     func clientID() -> String?
     func save(clientID: String)
+    /// The engine no longer knows this client (its database was reset, or the client was revoked).
+    func forget()
 }
 
 /// Signs the owner in to their engine by key, with no prompt and no password.
@@ -73,7 +75,14 @@ actor AppSignInService {
     /// Challenge, sign, sign in. Returns the session token.
     func signIn() async throws -> String {
         guard let clientID = clients.clientID() else { throw Failure.notRegistered }
-        let challenge = try await transport.challenge(clientID: clientID)
+        let challenge: SignInChallenge
+        do {
+            challenge = try await transport.challenge(clientID: clientID)
+        } catch SignInRefusal.refused(statusCode: 401) {
+            // An unknown or revoked client looks the same to the engine. Forget it so the next step registers afresh.
+            clients.forget()
+            throw Failure.notRegistered
+        }
         let message = SignInMessage.bytes(
             engineID: challenge.engineID, clientID: clientID, nonce: challenge.nonce, expiresAt: challenge.expiresAt
         )
