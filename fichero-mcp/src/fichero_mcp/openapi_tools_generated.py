@@ -799,6 +799,16 @@ def fichero_auth_me(
     return _rt.call("GET", "/api/auth/me")
 
 
+def fichero_auth_migrate_owner(
+    *,
+    client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
+    display_name: Annotated[str, Field(description='Display Name.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'Migrate Owner\n\nGive an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.\n\nRoute: POST /api/auth/migrate-owner (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "display_name": display_name, "public_key_pem": public_key_pem}))
+
+
 def fichero_auth_list_sessions(
 ) -> Any:
     'List Sessions\n\nRoute: GET /api/auth/sessions (toolset `auth`; reads).'
@@ -8972,6 +8982,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_login", "auth", "POST", "/api/auth/login", fichero_auth_login),
     GeneratedTool("fichero_auth_logout", "auth", "POST", "/api/auth/logout", fichero_auth_logout),
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
+    GeneratedTool("fichero_auth_migrate_owner", "auth", "POST", "/api/auth/migrate-owner", fichero_auth_migrate_owner),
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
     GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),

@@ -1784,6 +1784,29 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("migrate-owner")
+    def auth_migrate_owner_post(
+        ctx: typer.Context,
+        client: str = typer.Option(..., '--client', help='FirstRunClient. JSON.'),
+        display_name: str = typer.Option(..., '--display-name', help='Display Name.'),
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+    ) -> None:
+        """Migrate Owner (POST /api/auth/migrate-owner)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/migrate-owner"
+            params = None
+            payload = _build_json_payload({
+                "client": client,
+                "display_name": display_name,
+                "public_key_pem": public_key_pem,
+            }, {
+                "client": {'properties': {'kind': {'type': 'string', 'const': 'app', 'title': 'Kind', 'default': 'app'}, 'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'FirstRunClient', 'x-cli-required': True},
+                "display_name": {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Display Name', 'x-cli-required': True},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-sessions")
     def auth_list_sessions_get(
         ctx: typer.Context,
