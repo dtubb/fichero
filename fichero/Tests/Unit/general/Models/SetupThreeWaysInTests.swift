@@ -23,10 +23,4 @@ struct SetupThreeWaysInTests {
         let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
         #expect(store.direction(of: "Latn") == "ltr")
     }
-
-    /// No direction is asked (ruled 2026-10-18): with none chosen, a script reads in the engine's derived one.
-    @Test func aScriptWithNoChosenDirectionReadsLeftToRightUntilTheEngineSaysOtherwise() {
-        let store = RecipeSetupStore(client: FicheroClient(libraryPath: nil))
-        #expect(store.direction(of: "Latn") == "ltr")
-    }
 }
