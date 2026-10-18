@@ -25,6 +25,7 @@ from fichero_server.execution.cancellation import (
     clear_pause,
     pause_requested,
 )
+from fichero_server.execution.run_log import BoundedLog
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_steps import close_open_steps
@@ -1071,7 +1072,7 @@ async def _run_workflow_in_background(
     activity_tracker = get_activity_tracker(str(db.path))
     start_time = datetime.now(timezone.utc)
     node_start_times: dict[str, datetime] = {}
-    execution_log_lines: list[str] = []  # Collect execution logs
+    execution_log_lines = BoundedLog()  # the run's log, bounded in memory (#5376)
     # How many of those lines the node-boundary flush has written (#5645): None until the first flush, which replaces
     # the stored log as before; each later flush appends only the lines since, so a flush stays the same size however
     # long the run's log grows.
@@ -1232,7 +1233,7 @@ async def _run_workflow_in_background(
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="cancelled",
-            execution_log="\n".join(execution_log_lines),
+            execution_log=execution_log_lines.text(),
             progress_timeline=progress_timeline,
             duration_ms=(
                 datetime.now(timezone.utc) - start_time
@@ -1339,7 +1340,7 @@ async def _run_workflow_in_background(
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="paused",
-            execution_log="\n".join(execution_log_lines),
+            execution_log=execution_log_lines.text(),
             progress_timeline=progress_timeline,
             run_usage=_run_usage_record(),
         )
@@ -2227,14 +2228,15 @@ async def _run_workflow_in_background(
                     # must never fail the run.
                     try:
                         flushed = log_lines_flushed[0]
-                        lines = list(execution_log_lines)
+                        count = len(execution_log_lines)
                         await activity_tracker.store.flush_node_boundary(
                             thread_id,
                             progress_timeline=progress_timeline,
-                            log_text="\n".join(lines if flushed is None else lines[flushed:]),
+                            log_text=(execution_log_lines.text() if flushed is None
+                                      else "\n".join(execution_log_lines.since(flushed))),
                             replace=flushed is None,
                         )
-                        log_lines_flushed[0] = len(lines)
+                        log_lines_flushed[0] = count
                     except Exception as flush_exc:
                         logger.warning(
                             "progress_timeline node-boundary flush failed for "
@@ -2436,7 +2438,7 @@ async def _run_workflow_in_background(
                 await log_execution(f"Model fallback — {summary}")
 
         # Save execution log and progress timeline to workflow run
-        execution_log = "\n".join(execution_log_lines)
+        execution_log = execution_log_lines.text()
         complete_data: dict = {
             "checkpoint_id": checkpoint_tuple.checkpoint["id"]
             if checkpoint_tuple
@@ -2532,7 +2534,7 @@ async def _run_workflow_in_background(
         )
 
         # Save execution log and progress timeline to workflow run
-        execution_log = "\n".join(execution_log_lines)
+        execution_log = execution_log_lines.text()
         event_queue.put(
             SSEEvent(
                 event="systemic_error",
@@ -2589,7 +2591,7 @@ async def _run_workflow_in_background(
         )
 
         # Save execution log and progress timeline to workflow run
-        execution_log = "\n".join(execution_log_lines)
+        execution_log = execution_log_lines.text()
         event_queue.put(
             SSEEvent(
                 event="error",
