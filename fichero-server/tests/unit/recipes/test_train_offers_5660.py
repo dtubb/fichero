@@ -102,11 +102,13 @@ def test_each_way_carries_what_its_action_needs_and_none_without_a_teacher():
     from fichero_server.recipes.train_offers import _ways
 
     counts = {"teacher": "kraken-zenodo-21788410", "scope_ids": ["box-1"]}
-    kraken = next(w for w in _ways("read-a-line", stays_local=False, counts=counts) if w["method"] == "kraken")
-    assert kraken["how"] == "distil"
+    kraken = next(w for w in _ways("read-a-line", stays_local=False, counts=counts)
+                  if w["method"] == "kraken" and w["how"] == "distil")
     here = next(t for t in kraken["targets"] if t["starts"] == "training.start_here")
     assert here["params"] == {"scope_ids": ["box-1"], "teacher": "kraken-zenodo-21788410"}
     regions = _ways("find-regions", stays_local=True, counts=counts)[0]["targets"][0]
     assert regions["params"] == {"name": "regions", "scope_ids": ["box-1"]}
     untaught = _ways("read-a-line", stays_local=True, counts={"teacher": None, "scope_ids": ["box-1"]})
-    assert all(t["params"] is None for w in untaught for t in w["targets"])
+    # a distillation needs a model's readings; the person's fine-tune (#5700) needs only their corrected lines
+    assert all(t["params"] is None for w in untaught if w["how"] == "distil" for t in w["targets"])
+    assert all(t["params"]["teacher"] == "person" for w in untaught if w["how"] == "fine-tune" for t in w["targets"])
