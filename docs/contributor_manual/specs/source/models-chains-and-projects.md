@@ -3526,7 +3526,7 @@ Setup
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
   one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
   fine-tuning are still offered as options, never defaults.
-- `source.recipe.candidates-fallback-chain` — **[PARTIAL]** (#4950, #5582; ruled 2026-10-17) *Built 2026-10-17 (engine): `assemble._choose` ranks all candidates that pass the hard constraints, best accuracy band first (a cloud one only when pages may leave), and the step carries the rest as `chain`; `start.plan_start` runs the next chain entry that can run when the step's key is missing and records it in `fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: the noise band per project (only the one-point band ties), measured-on-the-person's-pages candidates in the chain beyond `cer_measured_here`, 'not enough memory' / 'repository gone' fallbacks, and the app showing `fallbacks`.* the candidates for a step are ranked best-measured first
+- `source.recipe.candidates-fallback-chain` — **[PARTIAL]** (#4950, #5582; ruled 2026-10-17) *Built 2026-10-17 (engine): `assemble._choose` ranks all candidates that pass the hard constraints, best accuracy band first (a cloud one only when pages may leave), and the step carries the rest as `chain`; `start.plan_start` runs the next chain entry that can run when the step's key is missing and records it in `fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Built 2026-10-18: readers measured on the person's pages tie inside the project's noise band once an evaluation measured it (`Answers.noise_band`, read from `project.read_noise_band` when the project's recipe is assembled; one point until then), `test_a_project_that_measured_its_noise_band_ties_measured_readers_inside_it`, `test_the_recipe_the_project_assembles_reads_its_measured_band`. Not built: measured-on-the-person's-pages candidates in the chain beyond `cer_measured_here`, 'not enough memory' / 'repository gone' fallbacks, and the app showing `fallbacks`.* the candidates for a step are ranked best-measured first
   (accuracy in one-point bands, measured on the person's pages, else published, else coverage); cheaper, then local, only break ties inside the
   noise band (`source.train.noise-band-per-project`). Cloud candidates stay shown greyed with "needs permission" until the person has said in setup
   that pages may leave this Mac (`source.onboard.pages-may-leave`). When the best candidate cannot run (no key, not enough memory, the repository
@@ -3827,9 +3827,15 @@ Trying another option
   comparison code path.
 
 Running and failure
-- `source.recipe.download-failure-waits` — **[GAP]** (#4950, #5352) a failed model download is shown
+- `source.recipe.download-failure-waits` — **[PARTIAL]** (#4950, #5352) a failed model download is shown
   in Activity with its reason, retried three times, then the steps that need the model wait with
-  "Model download failed" and offer Retry or the next candidate; other steps run.
+  "Model download failed" and offer Retry or the next candidate; other steps run. *Built: a download retries a
+  broken connection on its own (`model_downloads.BACKOFF_SECONDS`, four tries, then `COME_BACK_ROUNDS`, five, five
+  minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it are not run
+  with "Model download failed: <model> did not download (<reason>). Retry it in Activity, or choose the step's next
+  candidate in Set Up" while the other steps run (`runner._await_downloads`,
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Not built: Retry and the next candidate
+  as actions on the run's summary itself (they are said, and done in Activity and Set Up).*
 - `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no model that sends pages somewhere new for it: a LOCAL model, or one of the same provider, from the step's `chain` runs on its own and is named in `plan.fallbacks` (`used` true, `source.recipe.candidates-fallback-chain`); another cloud provider is offered there (`used` false) and never used without the person's press; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.
