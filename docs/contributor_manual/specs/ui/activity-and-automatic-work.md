@@ -1688,7 +1688,7 @@ is done exactly once, and no artifact is written twice.
 |-----|---------------|------|------|
 | Backend (pytest) | y | job rows, lease recovery, paused-stays-paused, nothing-twice, invalidation edges, re-extract on correction | `fichero-server/tests/unit/jobs/**` (new), extending `test_page_content_is_a_cache.py`, `test_activity_jobs.py`, `test_run_lifecycle_vocabulary.py` |
 | Pure rule (Swift) | y | table row model, roll-up, column formatting off-main | a new `JobsStoreTests.swift` under `fichero/Tests/Unit/general/` |
-| MCP / CLI | y | list jobs, pause all, pause/cancel one | `fichero-mcp/tests/test_mcp_full.py`; CLI generated from OpenAPI |
+| MCP / CLI | y | list jobs, pause all, pause/cancel one | `fichero-mcp/tests/test_mcp_generated.py`; CLI generated from OpenAPI |
 | Click-around (Mac) | y | pause all → island says paused → relaunch → still paused | `fichero/Tests/UI/…` |
 | Load (#4634) | y | 10,000 queued pages: bounded memory, no CPU peg, table pages | `fichero-server/tests/perf/…` |
 | iPhone / iPad | n | jobs are seen on the Mac first | — |
