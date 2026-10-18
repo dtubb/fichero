@@ -14716,7 +14716,7 @@
           "recipes"
         ],
         "summary": "Save Project Setup",
-        "description": "Save the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.",
+        "description": "Save the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet\nalso store the recipe the rules assemble from them (#5747); a recipe already stored is kept.",
         "operationId": "save_project_setup_api_recipes_project_put",
         "parameters": [
           {
@@ -81306,6 +81306,12 @@
             "title": "Pages Read",
             "description": "of those, the pages that have a reading (lines read, or a page text), not counting a page the run left out as blank (#5705)"
           },
+          "lines_unread": {
+            "type": "integer",
+            "title": "Lines Unread",
+            "description": "the lines found on those pages that have no reading (#5758)",
+            "default": 0
+          },
           "names": {
             "items": {
               "$ref": "#/components/schemas/NamesOfAKind"
@@ -87659,6 +87665,12 @@
             "nullable": true,
             "title": "Mark State",
             "description": "The segment's one mark: ticked, crossed, struck or none."
+          },
+          "no_writing_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "No Writing Model",
+            "description": "The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758)."
           },
           "language": {
             "type": "string",
