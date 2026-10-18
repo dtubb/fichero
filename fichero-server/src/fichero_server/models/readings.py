@@ -751,6 +751,9 @@ class PassCandidate(BaseModel):
     #: Why this machine read cannot be the page's text by default, or None (#5654 item 2,
     #: :func:`doubtful_read`): it ranks after every sound machine pass, never out.
     doubtful: str | None = None
+    #: True for a pass of words (no lines) on a page that also has a pass of read lines (#5648, ruled
+    #: 2026-10-17): it ranks after every sound pass of lines, never out, and leads where it is all there is.
+    words_beside_read_lines: bool = False
     created_at: datetime
 
     @property
@@ -914,12 +917,15 @@ def rank_passes(
     # A doubtful machine read (#5654 item 2: longer than a page holds, or another script's letters) ranks
     # after every sound one, newest first, so a newer noisy pass never takes a page from a reader's pass.
     sound, doubtful = [row for row in rest if not row.doubtful], [row for row in rest if row.doubtful]
+    # A pass of words never takes the page from a pass of read lines (#5648): words come after the sound lines.
+    words = [row for row in sound if row.words_beside_read_lines]
+    sound = [row for row in sound if not row.words_beside_read_lines]
     eligible_ids = {row.pass_id for row in eligible}
     passed_over = [row for row in passes_with_makers if row.pass_id not in eligible_ids]
     chosen_id = ranked[0].pass_id if ranked else None
     for rows, basis in (
         (touched, PassBasis.human_touched), (text_layer, PassBasis.text_layer), (sound, machine),
-        (doubtful, machine), (passed_over, machine),
+        (words, machine), (doubtful, machine), (passed_over, machine),
     ):
         ranked += [PassAnswer(pass_id=row.pass_id, basis=basis) for row in newest_first(rows) if row.pass_id != chosen_id]
     return ranked

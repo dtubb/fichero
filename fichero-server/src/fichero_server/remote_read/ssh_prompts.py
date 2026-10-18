@@ -37,6 +37,8 @@ class PromptBroker:
         self._lock = threading.Lock()
         self._ids = itertools.count(1)
         self._open: dict[str, dict] = {}
+        self._ended: dict[str, str] = {}  # id → "expired" | "refused": why a prompt is gone, for the person to be told
+        self.log: list[tuple[str, str]] = []  # (id, reason) in order, so a sign-in can tell what happened to it
 
     def ask(self, prompt: str, *, timeout: float = 300.0) -> str:
         done = threading.Event()
@@ -46,13 +48,25 @@ class PromptBroker:
             self._open[key] = entry
         try:
             if not done.wait(timeout):
+                self._end(key, "expired")
                 raise SecondFactorRefused("no answer to the sign-in prompt in time")
             if entry["answer"] is None:
+                self._end(key, "refused")
                 raise SecondFactorRefused("the sign-in prompt was refused")
             return entry["answer"]
         finally:
             with self._lock:
                 self._open.pop(key, None)
+
+    def _end(self, key: str, reason: str) -> None:
+        with self._lock:
+            self._ended[key] = reason
+            self.log.append((key, reason))
+
+    def ended(self, prompt_id: str) -> str | None:
+        """Why a prompt is gone (`expired` or `refused`), or None if it never existed or was answered."""
+        with self._lock:
+            return self._ended.get(prompt_id)
 
     def pending(self) -> list[dict]:
         with self._lock:
@@ -185,8 +199,37 @@ def store_cluster_key(cluster_id: str, private_key: str) -> Path:
     return path
 
 
+class KeyExists(RuntimeError):
+    """A key is already made for this cluster; replacing it silently would orphan the one in CCDB."""
+
+
+def make_cluster_key(cluster_id: str) -> str:
+    """Make the cluster's Ed25519 pair with the system `ssh-keygen`; the private half stays in the engine's folder
+    (0600), the public half is returned to be added in CCDB (`compute.secret.fichero-makes-the-key`)."""
+    import subprocess
+
+    path = cluster_key_path(cluster_id)
+    if path.exists():
+        raise KeyExists(f"{cluster_id} already has a key: show its public half, or remove it first")
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(path.parent, 0o700)
+    done = subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", f"fichero-{cluster_id}", "-f", str(path)],
+                          capture_output=True, text=True, timeout=30)
+    if done.returncode:
+        raise RuntimeError(f"ssh-keygen failed: {done.stderr.strip()[:200]}")
+    os.chmod(path, 0o600)
+    return public_key(cluster_id) or ""
+
+
+def public_key(cluster_id: str) -> str | None:
+    """The public half, to show again; None when no key is made."""
+    pub = cluster_key_path(cluster_id).with_name("id_ed25519.pub")
+    return pub.read_text().strip() if pub.exists() else None
+
+
 def remove_cluster_key(cluster_id: str) -> None:
     path = cluster_key_path(cluster_id)
+    path.with_name("id_ed25519.pub").unlink(missing_ok=True)
     path.unlink(missing_ok=True)
     try:
         path.parent.rmdir()

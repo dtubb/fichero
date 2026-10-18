@@ -334,17 +334,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
             continue
         if (keyless := provider_without_key(step)) is not None:
-            # The next candidate in the step's chain that can run takes its place, and the plan says so
+            # The next LOCAL candidate in the step's chain takes its place, and the plan says so
             # (`source.recipe.candidates-fallback-chain`); with none, the step waits and no other model is used
             # (`source.recipe.missing-key-never-substitutes`).
             rest = list(step.get("chain") or [])
-            mine = (step.get("model") or {}).get("cloud")
             runnable = [c for c in rest if not (stays_local and _uses_cloud(c))
                         and provider_without_key({"model": c.get("model")}) is None]
-            # Another local model, or the same provider, runs on its own; a different cloud provider sends pages
-            # somewhere new, so it is offered and never used without the person's press.
-            nxt = next((c for c in runnable if not _uses_cloud(c) or (c.get("model") or {}).get("cloud") == mine), None)
-            offer = next((c for c in runnable if c is not nxt), None) if nxt is None else None
+            # Only a local model runs on its own; any other provider sends pages somewhere new (the same provider has
+            # the same missing key), so it is offered and never used without the person's press.
+            nxt = next((c for c in runnable if not _uses_cloud(c)), None)
+            offer = next(iter(runnable), None) if nxt is None else None
             if offer is not None:
                 fallbacks.append({"step": sid, "from": keyless, "to": offer["id"], "used": False,
                                   "why": f"Needs a key for {keyless}: {offer['id']} would send pages to another "

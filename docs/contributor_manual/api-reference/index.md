@@ -205,6 +205,25 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   them. The action (`document.relink_originals`, audited, undoable) repoints the matched pages and folders and
   their recorded source paths. Server paths: owner only, inside an allowed location.
 
+## Making a cluster's key (#5238)
+
+`POST /api/hpc/clusters/{cluster_id}/key/make` · `GET /api/hpc/clusters/{cluster_id}/key/public`
+
+- The engine makes the cluster's Ed25519 pair with the system `ssh-keygen`; the private half stays in the engine's
+  folder (mode 0600) and is never returned. `make` answers `{cluster_id, public_key}`, to add to the person's own
+  cluster account (CCDB on the Alliance); 409 if a key is already made (it would orphan the one already added).
+  `public` shows the same public half again (404 before one is made). Owner only. `DELETE .../key` removes both halves.
+
+## Remote runs in Activity (#5740)
+
+`POST /api/reading-at-scale/jobs/{job_id}/catch-up`
+
+- Look at the far side now, after the Mac slept: a live run skips its next wait once; a run the scheduler dropped
+  (paused or failed with shards still out) is queued again and carries on from its recorded shards. Answers
+  `{job_id, state}`; 404 for an unknown run; 409 for a run that has ended (completed, cancelled, or failed with no shard still out): a finished run is never resent. `parent_job_id` on a start must be an existing run or step job (422 otherwise). `GET /api/reading-at-scale/jobs/{job_id}` now also answers the
+  run's `target`, `far_state`, `shards_done`/`shards_total`, `pages_landed`, each shard, `estimate` and `actual`; a
+  run in `GET /api/activity/jobs` carries a `remote` summary and its `parent_id` (the step that sent it).
+
 ## Set Up, one page per stage (#5668)
 
 `GET /api/recipes/stages`
@@ -347,6 +366,43 @@ exposes them.
 - Request body: `EnrollmentRequest` with the required `enrollment_secret`.
 - Response: `200` with `PairResponse`. The enrollment secret is not itself a
   device credential, so the returned token remains independently revocable.
+
+### This Mac's tailnet address
+
+`GET /api/pair/tailnet`
+
+- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the
+  share sheet to offer (#5318). Behind pairing auth.
+- Response: `200` with `TailnetOfferResponse`.
+
+### Cluster connection (ACENet)
+
+`POST /api/hpc/clusters/{cluster_id}/check`
+
+- Purpose: the live check on the login node: hostname, storage, Apptainer,
+  GPUs and fair share (`compute.connect.check-really-checks`).
+- Response: `200` with `HpcCheckResponse`.
+
+`PUT /api/hpc/clusters/{cluster_id}/key` and
+`DELETE /api/hpc/clusters/{cluster_id}/key`
+
+- Purpose: the app pushes the cluster's private key into the engine's own
+  folder, or removes it; the key is never read back.
+- Request body (PUT): `HpcKeyPush`.
+- Response: `200` with `HpcKeyState`.
+
+`POST /api/hpc/clusters/{cluster_id}/sign-in`
+
+- Purpose: open the one connection to the cluster; ssh's prompts come out of
+  `GET /api/hpc/prompts` for the app to answer.
+- Response: `200` with `HpcKeyState`.
+
+`GET /api/hpc/prompts` and `POST /api/hpc/prompts/{prompt_id}`
+
+- Purpose: what a cluster login is waiting on (a second factor, a
+  passphrase), and the person's answer to one. Owner only.
+- Request body (POST): `HpcPromptAnswer`.
+- Response: `200` with `HpcPromptList`.
 
 ### Agent workspace membership
 

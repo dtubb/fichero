@@ -105,7 +105,7 @@ ANSWER_BY_ID = (
     "The prior transcription is a list of lines, each as `<segment id> | box | maker | confidence | text` "
     "(confidence is how sure the machine was). Answer with exactly one "
     "line per listed line, in the same order, as `<segment id> | <certain, uncertain or unreadable> | <corrected "
-    "text>`: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
+    "text>`, optionally followed by ` | note: <short note>` saying why you changed or doubt a line: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
     "never merge, split, drop or add a line."
 )
 #: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
@@ -119,6 +119,18 @@ def shows_segment_lines(prior_text: Any) -> bool:
     return any(_SHOWN_LINE.search(str(text)) for text in shown)
 
 
+def line_notes(answer: str) -> dict[str, str]:
+    """The short note the review gave after a line, by segment id: `<id> | <flag> | <text> | note: <note>` (#5724)."""
+    from fichero_server.llm.working_lines import answer_line
+
+    notes = {}
+    for line in answer.splitlines():
+        segment_id, _flag, _text, note = answer_line(line)
+        if note and _SHOWN_LINE.match(line.strip()[:35]):
+            notes[segment_id] = note
+    return notes
+
+
 def build_transcribe_review_prompt(config: dict) -> str:
     """Expose the prompt to the workflow editor UI. A node with a `lens` and no prompt is built at run time from
     the project; the editor shows what the generic profile would send."""
@@ -129,6 +141,63 @@ def build_transcribe_review_prompt(config: dict) -> str:
 
         return review_prompt(config["lens"], None)[0]
     return _DEFAULT_REVIEW_PROMPT
+
+
+def _with_line_scripts(prior_text: Any, documents: list, files: list, library_path: str) -> Any:
+    """Each page's context, with its lines' own scripts and directions said when the page mixes them (#5728)."""
+    if not library_path or not documents or not (isinstance(prior_text, list) or len(files) == 1):
+        return prior_text
+    from fichero_server.db import db_manager
+    from fichero_server.db.manager import LibraryNotFoundError
+    from fichero_server.llm.working_lines import working_lines
+    from fichero_server.recipes.review_profiles import line_scripts
+
+    try:
+        db = db_manager.get_database(library_path)
+    except LibraryNotFoundError:
+        return prior_text
+    texts = list(prior_text) if isinstance(prior_text, list) else [prior_text]
+    for index, doc in enumerate(documents[:len(texts)]):
+        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+        rows = working_lines(db, str(doc_id)) if doc_id else None
+        said = line_scripts([(r.id, r.script, r.direction) for r in rows.lines]) if rows else ""
+        if said:
+            texts[index] = f"{texts[index] or ''}\n\n{said}".strip()
+    return texts if isinstance(prior_text, list) else texts[0]
+
+
+def _within_budget(prior_text: Any, model: str) -> tuple[Any, list[str]]:
+    """Each page's listed lines, in reading order, up to the model's prefill budget (its card's `prefill_tokens`,
+    #5648); a page over it is told how many lines were left out, and the step's notes say so too. A model with no
+    stated budget is sent everything."""
+    import logging
+
+    from fichero_server.recipes import cards
+
+    budget = cards.prefill_tokens_for(model) if model else None
+    if not budget or not prior_text:
+        return prior_text, []
+    texts = list(prior_text) if isinstance(prior_text, list) else [prior_text]
+    said = []
+    for index, text in enumerate(texts):
+        rows = str(text or "").split("\n")
+        listed = [i for i, row in enumerate(rows) if _SHOWN_LINE.match(row)]
+        used, keep = 0, []
+        for i in listed:
+            used += len(rows[i]) // 4 + 1  # ponytail: ~4 characters a token; a tokenizer per model if this misjudges
+            if used > budget and keep:
+                break
+            keep.append(i)
+        if len(keep) == len(listed):
+            continue
+        left = len(listed) - len(keep)
+        message = (f"{left} of the page's {len(listed)} lines were left out to fit the model's budget of {budget} "
+                   "tokens; they are not reviewed in this pass")
+        dropped = set(listed[len(keep):])
+        texts[index] = "\n".join(row for i, row in enumerate(rows) if i not in dropped) + f"\n\n({message}.)"
+        logging.getLogger(__name__).warning("review context: %s", message)
+        said.append(message)
+    return (texts if isinstance(prior_text, list) else texts[0]), said
 
 
 def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
@@ -217,6 +286,8 @@ async def transcribe_review(
         from fichero_server.tool_context import with_page_context
 
         prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
+    prior_text = _with_line_scripts(prior_text, documents, files, state.get("library_path", ""))
+    prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""))
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", False)
@@ -267,6 +338,7 @@ async def transcribe_review(
     )
     if profile_said:
         result.setdefault("notes", []).append(profile_said)
+    result.setdefault("notes", []).extend(cut)
     library_path = state.get("library_path", "")
     if library_path and result.get("artifacts"):
         import asyncio
@@ -296,8 +368,11 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, l
         artifact = db.get(Artifact, artifact_id) if artifact_id else None
         if artifact is None or artifact.artifact_type != "transcription_review":
             continue  # a review of a segment is already a reading of it (`segment.<type>`)
-        if lens:  # the corrections name this artifact, so it is where the lens that made them is recorded
-            artifact.data = {**(artifact.data or {}), "lens": lens}
+        # the corrections name this artifact, so it is where the lens that made them and each line's note are kept
+        notes_by_line = line_notes(artifact.content or "")
+        if lens or notes_by_line:
+            artifact.data = {**(artifact.data or {}), **({"lens": lens} if lens else {}),
+                             **({"line_notes": notes_by_line} if notes_by_line else {})}
             db.save(artifact)
         _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
                                     artifact_id=artifact.id, run_id=run_id, library_path=library_path)
