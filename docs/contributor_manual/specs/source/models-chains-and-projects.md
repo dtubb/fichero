@@ -2345,9 +2345,14 @@ Jobs and chains
   version that added them; a newly registered one is available to recipes, setup, the activity
   queue and the recipe check with no other change; a recipe naming a job this copy lacks is
   refused before anything runs, naming the job and the version that has it.
-- `source.recipe.jobs-carry-descriptions` — **[GAP]** (#4949) every registered job carries a plain
+- `source.recipe.jobs-carry-descriptions` — **[PARTIAL]** (#4949) every registered job carries a plain
   description, an example and the trade-offs between its usual options, and declares how its
   outputs are compared; setup, the Inspector and an exported recipe's README show that same text.
+  *Built: every registered job (33) has its topic's sentence and paragraph and declares how its outputs are
+  compared (`Job.compare`), served at `GET /api/topics/{id}`
+  (`fichero-server/tests/unit/recipes/test_jobs_carry_descriptions_4949.py`). Not built: an example per job (Set Up's
+  stages carry theirs, `recipes/stages.py`), the trade-offs between a job's usual options, and an exported recipe's
+  README (#5364).*
 - `source.job.find-and-identify-signs` — **[GAP]** (#4949) finding signs and identifying them
   against a sign list are jobs a recipe can name, used in place of finding lines and reading a
   line for scripts read sign by sign.
