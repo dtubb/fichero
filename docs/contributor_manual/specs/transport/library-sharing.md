@@ -33,6 +33,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
 - **Pairing:** the host shows a QR / one-time code; the device sends it to `POST /api/pair` over the
   pinned connection and receives its own token, revocable per device.
 - **2026-10-17:** shared editing (a deletion on one Mac is a deletion on the other); no open lookup of libraries; Multi-user sits beside Sharing; `.ts.net` is system trust, `.local` is the SPKI pin; the owner account owns every library.
+- **2026-10-18 (later, SUPERSEDES the next line): multi-user is always on, no switch, no ambient owner** — see `multiuser-always-on.md`.
 - **2026-10-18 (#3331): access is enforced only while Multi-user is on.** Accounts existing never imply enforcement; the switch is the only thing that turns it on (`sharing.multiuser-mode-single-source`).
 - **2026-10-04 (#5351): revoking cascades.** Revoking a paired device also revokes the devices it
   paired; the revoke sheet lists them first (`sharing.revoke-cascades`).
