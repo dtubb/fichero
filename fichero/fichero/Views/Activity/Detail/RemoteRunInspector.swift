@@ -44,11 +44,14 @@ struct RemoteRunInspector: View {
 }
 
 #Preview("A cluster run with one failed shard") {
-    let service = AppState().remoteRunService
-    service.showForPreview(.init(
-        target: "Rorqual", farState: "failed", shardsDone: 18, shardsTotal: 20, pagesLanded: 900,
-        shards: [.init(id: 7, state: "failed", why: "ran out of time before it finished",
-                       lastLines: ["slurmstepd: error: *** JOB 4242_7 ON rc12345 CANCELLED DUE TO TIME LIMIT ***"], seconds: nil)],
-        estimateGpuHours: 1.2, actualSecondsPerShard: 310))
-    return RemoteRunInspector(jobId: "preview", service: service).padding().frame(width: 460)
+    let appState = AppState()
+    let shard = RemoteRunService.Shard(
+        id: 7, state: "failed", why: "ran out of time before it finished",
+        lastLines: ["slurmstepd: error: *** JOB 4242_7 ON rc12345 CANCELLED DUE TO TIME LIMIT ***"], seconds: nil)
+    let run = RemoteRunService.Run(
+        target: "Rorqual", farState: "failed", shardsDone: 18, shardsTotal: 20, pagesLanded: 900, shards: [shard],
+        estimateGpuHours: 1.2, actualSecondsPerShard: 310)
+    RemoteRunInspector(jobId: "preview", service: RemoteRunService.previewing(run, in: appState))
+        .padding()
+        .frame(width: 460)
 }

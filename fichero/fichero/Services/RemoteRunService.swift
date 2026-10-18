@@ -78,5 +78,12 @@ final class RemoteRunService {
     #if DEBUG
     /// Previews only: a service already holding a run.
     func showForPreview(_ run: Run) { self.run = run }
+
+    /// A previewed service already holding a run: one expression for the `#Preview` body.
+    static func previewing(_ run: Run, in appState: AppState) -> RemoteRunService {
+        let service = appState.remoteRunService
+        service.showForPreview(run)
+        return service
+    }
     #endif
 }
