@@ -638,6 +638,7 @@ class ScriptFacts(BaseModel):
     may_be_vertical: bool
     font: Optional[str] = None
     font_from: str
+    audit_id: Optional[str] = Field(default=None, description="the audit row of a choice just made; Undo reverses it")
 
 
 class MacFacts(BaseModel):
@@ -726,10 +727,11 @@ async def choose_font(
     else:
         answers.pop("fonts", None)
     try:
-        registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ScriptFacts(**derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script)))
+    facts = derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script))
+    return ScriptFacts(**facts, audit_id=done.audit_id)
 
 
 @router.get("/scripts", response_model=NamedCodeList)

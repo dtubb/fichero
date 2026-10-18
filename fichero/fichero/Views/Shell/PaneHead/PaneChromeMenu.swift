@@ -59,6 +59,7 @@ struct PaneMenuEntries: View {
     var onClose: (() -> Void)?
     @Environment(\.offersTranscriptionFont) private var offersFont
     @Environment(TranscriptionFontStore.self) private var fontStore: TranscriptionFontStore?
+    @Environment(WindowSteps.self) private var windowSteps: WindowSteps?
 
     var body: some View {
         if let actions = splitActions {
@@ -99,10 +100,10 @@ struct PaneMenuEntries: View {
         if offersFont, let fontStore {
             Divider()
             Menu("Font") {
-                Button("Automatic") { Task { await fontStore.choose(nil) } }
+                Button("Automatic") { Task { await fontStore.choose(nil, steps: windowSteps) } }
                 ForEach(BundledFonts.shared.familyNames, id: \.self) { name in
                     Button {
-                        Task { await fontStore.choose(name) }
+                        Task { await fontStore.choose(name, steps: windowSteps) }
                     } label: {
                         if fontStore.family == name { Label(name, systemImage: "checkmark") } else { Text(name) }
                     }
