@@ -89,3 +89,15 @@ def test_the_local_slot_reads_the_memory_each_time_not_once(monkeypatch):
         return peak
 
     assert asyncio.run(run()) == 1
+
+
+def test_the_local_in_process_readers_draw_from_the_local_pool_not_the_hosted_one():
+    """M4 run 2026-10-17: Kraken and MLX read as 'remote' (no provider record), so all 5 pages took the wide hosted
+    pool and the memory gate never ran."""
+    from types import SimpleNamespace
+
+    from fichero_server.workflows.builder import _is_remote_model
+
+    for provider in ("kraken", "mlx", "apple"):
+        assert _is_remote_model(SimpleNamespace(provider=provider, api_base=None, base_url=None)) is False, provider
+    assert _is_remote_model(SimpleNamespace(provider="openai", api_base=None, base_url=None)) is True
