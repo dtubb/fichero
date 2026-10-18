@@ -102,3 +102,20 @@ def test_a_correction_to_a_grouped_line_is_a_reading_of_the_line_and_the_words_k
     assert reading.content == "w00 w01 corrected"
     assert [r.content for w in words[lines[0]] for r in db.query(ContentRepresentation, segment_id=w)] == [
         "w00", "w01", "w02"]
+
+
+def test_a_grouped_line_holding_a_persons_word_is_left_as_they_read_it_5648(db):
+    from fichero_server.llm.working_lines import correct_lines
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    doc_id = _page(db)
+    lines, words = _words_in_lines(db, doc_id)
+    registry.invoke(db, "representation.create", {"document_id": doc_id, "segment_id": words[lines[0]][1],
+                    "kind": "transcription", "content": "w01-person"},
+                    ActionContext(actor="historian", library_path=None, is_bootstrap=True))
+    review = Artifact(document_id=doc_id, artifact_type="transcription_review", provider="x", model="y", content="")
+    db.save(review)
+    made, said = correct_lines(db, document_id=doc_id, text=f"{lines[0]} | certain | changed by a model",
+                               artifact_id=review.id, run_id="run-r", library_path=None)
+    assert made == [] and "a person read kept" in said, said
+    assert not db.query(ContentRepresentation, segment_id=lines[0])
