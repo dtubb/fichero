@@ -131,7 +131,10 @@ class SlurmTarget:
         self._run(["scancel", far_id])
 
     def remove(self, job_key: str) -> None:
-        """Take the run's folder off the cluster: the downscaled pages, the package and what came back."""
+        """Take the run's folder off the cluster: the downscaled pages, the package and what came back. Only ever one
+        run's own folder: a key that is empty or names another folder is refused, never removed."""
+        if not job_key or "/" in job_key or job_key in (".", ".."):
+            raise ValueError(f"not a run's key: {job_key!r}")
         self._run(["rm", "-rf", self._dir(job_key)])
 
     def price_per_hour(self, flavor: str) -> float | None:

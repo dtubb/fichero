@@ -355,6 +355,21 @@ def test_working_copies_stay_for_re_runs_when_the_project_said_yes_5769(db, arch
     assert "stay on the cluster" in jobs.read_job(db, job_id)["reason"]
 
 
+def test_removing_copies_refuses_anything_but_one_runs_own_folder(tmp_path):
+    """Review 104: `rm -rf` on `<base>/fichero/runs/<key>` only ever for a run's own key."""
+    from fichero_server.remote_read.slurm_target import SlurmReadTarget
+    from fichero_server.workflows.remote_jobs import HpcClusterConfig
+
+    cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                               remote_base_dir="/project/def-lab/u", account="def-lab")
+    shell = FakeClusterShell(tmp_path / "login")
+    target = SlurmReadTarget(cluster, shell)
+    for key in ("", "a/b", "..", "."):
+        with pytest.raises(ValueError):
+            target.remove(key)
+    assert not (tmp_path / "login").exists()
+
+
 # --- remote runs in Activity (`activity.remote-under-its-step`, #5740) -------------------------------------
 
 def _cluster_run(db, archive, tmp_path, **kw):

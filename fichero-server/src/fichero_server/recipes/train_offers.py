@@ -385,19 +385,16 @@ def spend_this_month(db: Any, *, cap: float, now: Any = None) -> dict[str, Any]:
     calendar month at its most, its hardware's price an hour (as listed when it was sent) times its time limit, where
     the service ends it. A Job not yet sent costs nothing yet; one with no listed price is counted as unknown, never $0.
     ponytail: an upper bound; the time a Job actually ran, when the service reports it."""
-    import json
     from datetime import datetime, timezone
 
+    from fichero_server.core.timeutil import ensure_utc
     from fichero_server.execution import jobs
 
-    now = now or datetime.now(timezone.utc)
-    month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    jobs._ensure(db)
-    rows = db.execute_fetchall(f"SELECT detail FROM jobs WHERE kind IN ({', '.join('?' for _ in HF_PAID_KINDS)}) "
-                               "AND created_at >= ?", [*HF_PAID_KINDS, month])
+    month = ensure_utc(now or datetime.now(timezone.utc)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     spent, counted_jobs, unpriced = 0.0, 0, 0
-    for (raw,) in rows:
-        detail = json.loads(raw or "{}")
+    for at, detail in jobs.details_of_kinds(db, HF_PAID_KINDS):
+        if at < month:  # both in UTC: the month turns at midnight UTC
+            continue
         request = detail.get("request") or {}
         if request.get("target", "huggingface-jobs") != "huggingface-jobs":
             continue  # a read on a cluster: an allocation, not bought by the hour

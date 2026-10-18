@@ -54,7 +54,7 @@ import weakref
 from concurrent.futures import Future
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -681,6 +681,14 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return job_id
+
+
+def details_of_kinds(db: "Database", kinds: tuple[str, ...] | list[str]) -> list[tuple[datetime, dict[str, Any]]]:
+    """Every row of these kinds as (created_at in UTC, its detail), oldest first."""
+    _ensure(db)
+    rows = db.execute_fetchall(f"SELECT created_at, detail FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+                               "ORDER BY created_at", list(kinds))
+    return [(ensure_utc(at), json.loads(raw or "{}")) for at, raw in rows]
 
 
 def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, detail: str,
