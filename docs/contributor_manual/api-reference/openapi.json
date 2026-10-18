@@ -2148,6 +2148,90 @@
         }
       }
     },
+    "/api/auth/challenge": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Challenge",
+        "operationId": "challenge_api_auth_challenge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sign-in": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Sign In",
+        "operationId": "sign_in_api_auth_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -50804,6 +50888,30 @@
         ],
         "title": "AuditLogResponse"
       },
+      "AuthIdentityClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "AuthIdentityClient",
+        "description": "The client a session was signed in through (multiuser-always-on)."
+      },
       "AuthIdentityResponse": {
         "properties": {
           "multiuser_enabled": {
@@ -50816,6 +50924,10 @@
           },
           "user": {
             "$ref": "#/components/schemas/AuthIdentityUser",
+            "nullable": true
+          },
+          "client": {
+            "$ref": "#/components/schemas/AuthIdentityClient",
             "nullable": true
           },
           "is_owner_access": {
@@ -53903,6 +54015,47 @@
         ],
         "title": "ChainStepsAcceptedResponse",
         "description": "202 body for POST /chains/{chain_id}/execute-steps.\n\nThread ids are assigned up front so a client can watch any step's run\n(SSE stream, Activity trace) the moment it starts."
+      },
+      "ChallengeRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "ChallengeRequest"
+      },
+      "ChallengeResponse": {
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At"
+          },
+          "engine_id": {
+            "type": "string",
+            "title": "Engine Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nonce",
+          "expires_in",
+          "expires_at",
+          "engine_id"
+        ],
+        "title": "ChallengeResponse"
       },
       "CharacterRange": {
         "properties": {
@@ -87792,6 +87945,73 @@
         ],
         "title": "SharingStateResponse"
       },
+      "SignInClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "SignInClient"
+      },
+      "SignInRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "nonce",
+          "signature"
+        ],
+        "title": "SignInRequest"
+      },
+      "SignInResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/SignInClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user",
+          "client"
+        ],
+        "title": "SignInResponse"
+      },
       "SignInstance": {
         "properties": {
           "representation_id": {
@@ -90152,6 +90372,15 @@
             "type": "array",
             "title": "Refused",
             "description": "every card refused for the step, and why"
+          },
+          "licence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Licence",
+            "description": "for licence-not-accepted: the card, the licence's name and the words the Review the licence button shows (source.onboard.every-setup-button-acts-or-says-why)"
           }
         },
         "type": "object",

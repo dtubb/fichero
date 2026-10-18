@@ -1103,6 +1103,16 @@
     ],
     "auth": [
       {
+        "method": "POST",
+        "path": "/auth/challenge",
+        "operation_id": "challenge_api_auth_challenge_post",
+        "summary": "Challenge",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ChallengeRequest",
+        "response_model": "ChallengeResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/identity",
         "operation_id": "identity_api_auth_identity_get",
@@ -1205,6 +1215,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "StatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/sign-in",
+        "operation_id": "sign_in_api_auth_sign_in_post",
+        "summary": "Sign In",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SignInRequest",
+        "response_model": "SignInResponse"
       }
     ],
     "authz": [
