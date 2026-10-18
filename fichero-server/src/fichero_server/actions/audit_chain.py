@@ -42,6 +42,7 @@ _HASH_FIELDS: tuple[str, ...] = (
     "inverse_of",
     "prev_hash",
 )
+_HASH_WHEN_SET: tuple[str, ...] = ("client", "device")
 
 
 @dataclass(frozen=True)
@@ -92,10 +93,17 @@ def action_audit_hash_payload(audit: ActionAudit) -> dict[str, Any]:
     creation. The chain proves creation history is intact; ``undone`` remains a
     separate mutable state flag for the undo stack.
     """
-    return {
+    payload = {
         field: _canonical_json_value(getattr(audit, field))
         for field in _HASH_FIELDS
     }
+    # The client and the paired device are hashed only when the row has them, so every row written before
+    # they were covered still verifies (review 85).
+    for field in _HASH_WHEN_SET:
+        value = getattr(audit, field, None)
+        if value is not None:
+            payload[field] = _canonical_json_value(value)
+    return payload
 
 
 def _compute_legacy_action_audit_hash(audit: ActionAudit) -> str:
