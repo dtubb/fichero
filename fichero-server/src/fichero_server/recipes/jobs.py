@@ -188,13 +188,15 @@ def starts_with(materials) -> frozenset[str]:
     return TEXT_STARTS_WITH if given and given <= {"text"} else STARTS_WITH
 
 
-def unmet_inputs(step_jobs: list[str], *, starts_with: frozenset[str] = STARTS_WITH) -> list[str]:
+def unmet_inputs(step_jobs: list[str | None], *, starts_with: frozenset[str] = STARTS_WITH) -> list[str]:
     """Check a recipe's steps in order: every step's inputs must be produced earlier (or be a page
     image, which every project starts with). Returns one plain sentence per problem; [] is clean.
     An unknown job is a problem too, named, so a recipe from a newer Fichero says what is missing."""
     have = set(starts_with)
     problems = []
     for index, job_id in enumerate(step_jobs, start=1):
+        if job_id is None:  # not a step at all: the recipe check names it
+            continue
         job = get_job(job_id)
         if job is None:
             problems.append(f"step {index}: this copy of Fichero has no job {job_id!r}")

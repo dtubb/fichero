@@ -1370,10 +1370,21 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                         "detail": (f"Remote compute: {compute['where']}" if compute["available"]
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
-                     "detail": "Transkribus models: not searched"},
-                    {"source": "htr-united", "state": "not-searched", "count": 0,
-                     "detail": "HTR-United: not searched"}]
+                     "detail": "Transkribus models: not searched"}, _htr_united_source(a)]
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
+
+
+def _htr_united_source(a: Answers) -> dict[str, Any]:
+    """HTR-United's ground-truth datasets for the project's languages, from the kept catalogue (#5571); never the
+    network. Said not searched when none is kept."""
+    from fichero_server.recipes import htr_united
+
+    kept = htr_united.cached()
+    if kept is None:
+        return {"source": "htr-united", "state": "not-searched", "count": 0, "detail": "HTR-United: not searched"}
+    found = htr_united.matching(kept["records"], languages=a.languages, scripts=a.scripts)
+    return {"source": "htr-united", "state": "cached", "count": len(found),
+            "detail": f"HTR-United: {len(found)} datasets for these"}
 
 
 #: Said in place of the online sources for a step with no search of its own (#5668).
@@ -1546,6 +1557,18 @@ def search_online(languages: frozenset[str], progress: Callable[[str], None] = l
             sources["kraken-repository"] = {"state": "failed", "detail": "Could not reach Zenodo"}
     else:
         sources["kraken-repository"] = {"state": "cached", "detail": f"{len(cached['records'])} found on Zenodo"}
+    from fichero_server.recipes import htr_united
+
+    if _stale(htr_united.cached()):
+        progress("Searching HTR-United…")
+        try:
+            kept = htr_united.refresh()
+            sources["htr-united"] = {"state": "searched", "detail": f"{len(kept['records'])} datasets on GitHub"}
+        except (OSError, ValueError) as exc:  # the network or the catalogue failed: say so, keep the cache
+            logger.warning("HTR-United's catalogue could not be read: %s", exc)
+            sources["htr-united"] = {"state": "failed", "detail": "Could not reach HTR-United"}
+    else:
+        sources["htr-united"] = {"state": "cached", "detail": "HTR-United: kept from before"}
     try:
         found, left_out = asyncio.run(search_hugging_face(languages, progress, hand_tags))
         keep_hub(found, languages, left_out)

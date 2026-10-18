@@ -2501,7 +2501,7 @@ Jobs and chains
   loses nothing. For a model that does not localise text as for one that does, a cloud model as a local one. *Test:*
   with a stub that answers a paragraph to the page and arrays to the batches, every line is tied; with one that
   answers nothing usable, the step fails for that page and the Kraken readings are unchanged.
-- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); **Built 2026-10-17 (engine):** the bake-off asks its two best vision candidates and any named at lines / region / page (`evaluation.requests_for`, `granularities_for`, `evaluate`'s trial pass; `granularities_for_best`, `named`), one table row per way asked (`granularity` on the row, `winner_granularity`), Use This records it on the override and the step (`use_this(granularity=)`), and `next_run` shows the extra cost first (`granularity_run_cost_usd`); pinned by `test_bakeoff_granularity_5722.py`. STILL OWED: the read step reading with the recipe's granularity at Start (it records, nothing reads it yet); answers tied by segment id rather than by position in an array; the app naming readers to compare (`named`) and showing the granularity column; a real run.* how a model is asked is an option the A/B measures,
+- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); **Built 2026-10-17 (engine):** the bake-off asks its two best vision candidates and any named at lines / region / page (`evaluation.requests_for`, `granularities_for`, `evaluate`'s trial pass; `granularities_for_best`, `named`), one table row per way asked (`granularity` on the row, `winner_granularity`), Use This records it on the override and the step (`use_this(granularity=)`), and `next_run` shows the extra cost first (`granularity_run_cost_usd`); pinned by `test_bakeoff_granularity_5722.py`. **Built 2026-10-18:** the read step reads with the recipe's granularity at Start (`start.plan_start` gives the run's read node `read_granularity`; the transcribe tool passes it to `line_reader.read_lines(granularity=)`, `request_groups`; pinned by `fichero-server/tests/unit/recipes/test_granularity_reaches_the_read_5722.py`). STILL OWED: answers tied by segment id rather than by position in an array; the app naming readers to compare (`named`) and showing the granularity column; a real run.* how a model is asked is an option the A/B measures,
   not a constant: the whole page, a region (a paragraph, the unit Kraken's regions give) at a time, or a few lines at a
   time, always with segment ids and always answered by id. A card states `lines_per_request`, the most lines the model is asked to read at once (decided 2026-10-16: a field
   on the card, never found by trying: a large cloud model, the whole page; a 2B local model, a few lines), and a request
@@ -3671,6 +3671,14 @@ The recipe and its format
 - `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.
+- `source.recipe.check-names-every-fault` — **[OK]** (#5364, R6 exit) the check of a hand-edited recipe (`POST /api/recipes/check`,
+  `fichero_recipes_check`) names each fault in it, one sentence each, and one fault never hides another or stops the check with
+  an error: a schema it cannot read, a missing id, title or steps, code or a key anywhere, steps that are not a list, a step
+  that is not a step, a step with no id or another's id, a job this Fichero lacks, a layer not the job's, an unknown condition,
+  an unpinned model, an unknown place, a missing prompt file, a step whose inputs no earlier step gives, and a kept choice
+  (override) that names a step the recipe does not have or no scope. *`recipes/recipe.check_recipe`;
+  `fichero-server/tests/unit/recipes/test_check_names_every_fault_5364.py`.* Publishing, following and forking a recipe stay
+  open under #5364.
 - `source.recipe.data-not-code` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** code-shaped keys refused anywhere in a recipe (`recipes/recipe.py`); pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe can name only registered jobs, models,
   prompts, settings and workflows built from Fichero's tools; it cannot carry scripts or grant a
   model tools or network access, and an imported recipe that tries is refused, naming the entry.
@@ -4486,7 +4494,7 @@ Each is described in the paragraph named; the id lets a test cite it.
   bake-off's ground truth.
 - `source.try.compare-in-setup-works` — **[PARTIAL]** (#5727; built: the engine path Set Up calls, offer to table to Use This, pinned by `fichero-server/tests/unit/recipes/test_compare_in_setup_works_5727.py`; not reproduced: the live failure on the scratch project, which needs a GUI Set Up run) the Compare step in Set Up (the bake-off) works on a scratch project with enough
   corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
-- `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
+- `source.find.htr-united-and-tessdata` — **[PARTIAL]** (#5571; built 2026-10-18, HTR-United half: `recipes/htr_united.py` reads the catalogue (`catalog.json`), keeps it in `discovery/`, and `matching` finds datasets by language, script and hand, most lines first, with licence, format and size; `search_online` fetches it when a day old and the finder counts the kept datasets for the project's languages; pinned by `fichero-server/tests/unit/recipes/test_htr_united_datasets_5571.py`. NOT built: offering a dataset as the bake-off's test set or as training data (the app and the import of its PAGE/ALTO), Tesseract's tessdata) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
   period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
 - `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
   model's lines, and the readiness count matches what it trains on. *Offer built (#5700, m-recipes-r3): the line reader's
@@ -4494,10 +4502,21 @@ Each is described in the paragraph named; the id lets a test cite it.
   the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
   lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). The set's teacher `person` is built and pinned by
   `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py`.*
-- `source.train.noise-band-per-project` — **[PARTIAL]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
+- `source.train.noise-band-per-project` — **[OK]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
   the best reader's pages, from 15 read pages up (`training.evaluation.noise_band`, `NOISE_MIN_PAGES`), the project keeps it (`recipe/noise-band.yaml`,
   `recipes.project.read_noise_band`, the ruled 0.5 CER points until then, said so), and every train offer carries it
   (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. The reasons A/B judges by it when its
-  request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). Not
-  built: a trained reader's adoption past the band (no adoption step exists yet).*
+  request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). A
+  trained reader is adopted only past it (`source.train.adopt-only-past-the-noise-band`).*
+- `source.train.adopt-only-past-the-noise-band` — **[PARTIAL]** (#5700, #5441, R4 exit) after an evaluation, the best trained Kraken
+  reader measured becomes the project's read-a-line reader only when its CER on the held-out pages beats the best downloadable
+  reader's by more than the project's noise band; it is kept as the step's project-scope override (`model: {trained: <reader id>}`,
+  its CER, and why, naming both CERs and the band) through `project.save_setup`, audited and undoable. The reader to beat is the
+  step's current one when the evaluation measured it, else the best downloadable one. A reader the person chose (Use This, a
+  bake-off, a cloud reader) is never replaced: past the band the trained reader is `offered`, and only a reader the rules or an
+  earlier adoption chose is swapped (review 77). Measured on fewer than 15 held-out pages (`NOISE_MIN_PAGES`), nothing is
+  adopted. Within the band, or worse, the current reader is kept and the evaluation's reason says why. *Built: `training.evaluation.adopt_trained`, called by
+  the evaluation job (`result.adoption`); `recipes.cards.kraken_reader_for` reads a `trained` pin;
+  `fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py`. Not built: a trained vision model set on the
+  step (it is measured and carded only).*

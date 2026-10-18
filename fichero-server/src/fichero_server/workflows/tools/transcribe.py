@@ -97,6 +97,15 @@ TRANSCRIBE_CONFIG = {
             "that is a training set for a Kraken reader (distilling the model into it)."
         ),
     },
+    "read_granularity": {
+        "type": "string",
+        "enum": ["lines", "region", "page"],
+        "description": (
+            "With lines_read_by='model': how the model is asked, as a bake-off measured it (a line, a region or the "
+            "whole page a request). Unset: a few lines a call."
+        ),
+        "x-group": "advanced",
+    },
     "kraken_model": {
         "type": "string",
         "default": "",
@@ -450,6 +459,7 @@ async def transcribe(
         # recognition model and save the transcript tied to its baselines.
         kraken_recognition_model=inputs.get("kraken_model"),
         lines_read_by=lines_read_by,
+        read_granularity=inputs.get("read_granularity") or None,
         # Apple Vision needs a concrete recognition locale and has no "unknown"
         # — it keeps its historical en-US fallback. That is an OCR hint, not a
         # claim about the document, and unlike the prompt above it does not
