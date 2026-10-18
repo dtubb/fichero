@@ -1528,7 +1528,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
-    plan["placement"] = place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local)
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local)
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
