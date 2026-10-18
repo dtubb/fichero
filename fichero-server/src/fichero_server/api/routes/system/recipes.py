@@ -309,11 +309,17 @@ def _hf_token_set() -> bool:
     return bool(get_api_key("huggingface"))
 
 
-def _cluster_names() -> list[str]:
-    """The clusters set up on this Mac, by name (#5769); none when the app's settings cannot be read."""
+def _cluster_names(request: Request) -> list[str]:
+    """The clusters set up on this Mac, by name (#5769); none when the app's settings cannot be read, and none for a
+    caller who is not the owner: every /api/hpc route is owner-only (review 85, review 124)."""
     from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
     from fichero_server.db.app import get_app_db
 
+    try:
+        _require_owner_or_bootstrap(request)
+    except HTTPException:
+        return []
     try:
         return sorted(str(c.get("name") or c.get("cluster_id") or "a cluster") for c in _load_clusters(get_app_db()).values())
     except Exception:  # noqa: BLE001 -- no clusters to offer, never a failed plan
@@ -416,15 +422,16 @@ async def list_stages(request: Request) -> SetupStageList:
     library = _optional_library(request)
     setup = read_project_setup(library) if library else {"recipe": None, "answers": None}
     items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
-    return SetupStageList(items=items, count=len(items), money_and_place=_money_and_place(setup["answers"] or {}))
+    return SetupStageList(items=items, count=len(items),
+                          money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
 
 
-def _money_and_place(answers: dict[str, Any]) -> MoneyAndPlace:
+def _money_and_place(answers: dict[str, Any], clusters: list[str]) -> MoneyAndPlace:
     from fichero_server.recipes.answers import COPIES_STAY, copies_may_stay, spend_cap
 
     return MoneyAndPlace(hf_spend_cap_usd=spend_cap(answers), copies_may_stay_on_cluster=copies_may_stay(answers),
                          copies_follow_pages_may_leave=not isinstance(answers.get(COPIES_STAY), bool),
-                         clusters=_cluster_names())
+                         clusters=clusters)
 
 
 class SamplePage(BaseModel):
@@ -1721,7 +1728,8 @@ class StartPlan(BaseModel):
         "(source.recipe.folder-scoped-start)"))
 
 
-def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]:
+def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
+                ) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
     LookupError for a folder not in the project."""
     from fichero_server.recipes import runner
@@ -1773,7 +1781,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
-                                        spend_cap=cap, clusters=_cluster_names(),
+                                        spend_cap=cap, clusters=clusters,
                                         noise_band=read_noise_band(library))
     from fichero_server.recipes.train_offers import spend_this_month
 
@@ -1846,6 +1854,7 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
 
 @router.get("/project/start", response_model=StartPlan)
 async def get_start_plan(
+    http: Request,
     folder_id: Optional[str] = Query(default=None, description=(
         "plan Start on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); omit for the whole project")),
@@ -1854,7 +1863,7 @@ async def get_start_plan(
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
-        return StartPlan(**_start_plan(db, folder_id))
+        return StartPlan(**_start_plan(db, folder_id, clusters=_cluster_names(http)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -1881,6 +1890,7 @@ class StartRequest(BaseModel):
 
 @router.post("/project/start", response_model=StartPlan)
 async def start_project(
+    http: Request,
     request: Optional[StartRequest] = None,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -1898,7 +1908,7 @@ async def start_project(
                         ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_as_started(db, _start_plan(db, folder_id)))
+    return StartPlan(**_as_started(db, _start_plan(db, folder_id, clusters=_cluster_names(http))))
 
 
 class UseInsteadRequest(BaseModel):
