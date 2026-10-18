@@ -381,7 +381,7 @@ async def test_a_lines_short_note_is_kept_with_the_review_and_never_read_as_its_
     from fichero_server.models import Artifact, ContentRepresentation
 
     second = _lines(page)[1]
-    await _review(page, monkeypatch, f"{second.id} | uncertain | vezino de la ciudad | c and z unclear in this hand")
+    await _review(page, monkeypatch, f"{second.id} | uncertain | vezino de la ciudad | note: c and z unclear in this hand")
     (new,) = [r for r in _readings(page, second) if r.content == "vezino de la ciudad"]
     artifact = page["db"].get(Artifact, page["db"].get(ContentRepresentation, new.id).derived_from_artifact_id)
     assert artifact.data["line_notes"] == {second.id: "c and z unclear in this hand"}
@@ -436,3 +436,28 @@ async def test_the_shipped_review_is_built_from_the_projects_answers_5723(page, 
         assert len(seen) >= 3
         for prompt in seen:
             assert ("carta de poder" in prompt or "ç/c/z" in prompt) is sent, (tags, prompt)
+
+
+@pytest.mark.asyncio
+async def test_a_bar_inside_a_lines_text_stays_in_its_text_5724(page, monkeypatch):
+    """Diplomatic text may hold `|` or `||` (a line or verse divider on the page): only the leading id and flag are
+    split off, so the whole rest is the line's text.
+    WHY: splitting on every bar kept only the last piece and dropped the line's beginning."""
+    second = _lines(page)[1]
+    await _review(page, monkeypatch, f"{second.id} | certain | vezino || de la ciudad | note: divider kept")
+    assert [r.content for r in _readings(page, second) if "vezino" in r.content and "ciudad" in r.content] == [
+        "vezino || de la ciudad"]
+
+
+@pytest.mark.asyncio
+async def test_a_note_without_a_flag_is_never_the_lines_text_5724(page, monkeypatch):
+    """A model that drops the flag but adds a note (`<id> | <text> | note: ...`): the text is still the line's
+    reading and the note is still kept as its note.
+    WHY: with the flag gone, the last column was taken as the text, so the note replaced the line."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    second = _lines(page)[1]
+    await _review(page, monkeypatch, f"{second.id} | vezino de la ciudad | note: z for c")
+    (new,) = [r for r in _readings(page, second) if r.content == "vezino de la ciudad"]
+    artifact = page["db"].get(Artifact, page["db"].get(ContentRepresentation, new.id).derived_from_artifact_id)
+    assert artifact.data["line_notes"] == {second.id: "z for c"}

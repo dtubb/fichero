@@ -14,6 +14,8 @@ Here: the working pass's lines (`working_lines`), their outline and baseline in 
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -147,6 +149,26 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
 NOT_TIED = "not tied to lines"
 #: The flag a review gives each line (`source.job.review-is-segment-native`).
 LINE_FLAGS = ("certain", "uncertain", "unreadable")
+#: Where a line's short note starts: ` | note: ...` at its end (#5724).
+_BOX = re.compile(r"^-?[\d.]+(\s+-?[\d.]+){3}$")
+_NOTE = re.compile(r"\s*\|\s*note:\s*(.*)$", re.IGNORECASE)
+
+
+def answer_line(line: str) -> tuple[str, str, str, str]:
+    """(segment id, flag or '', text, note or '') of one answer line, `<id> | [<flag> |] <text> [| note: <note>]`.
+    Only the leading id and flag are split off, so a `|` or `||` in diplomatic text stays in the text, and a
+    note is only what follows `| note:`, so a dropped flag never makes the note the text (#5724)."""
+    head, bar, rest = line.partition("|")
+    if not bar:
+        return line.strip(), "", "", ""
+    flag, bar, tail = rest.partition("|")
+    flag = flag.strip().lower()
+    text = tail if bar and flag in LINE_FLAGS else rest
+    if bar and _BOX.match(flag):  # the lines echoed as shown, `id | x y w h | maker | [confidence |] text`
+        text = rest.rpartition("|")[2]
+    note = _NOTE.search(text)
+    return (head.strip(), flag if text is tail else "", (text[:note.start()] if note else text).strip(),
+            note.group(1).strip() if note else "")
 
 
 def correct_lines(
@@ -187,15 +209,13 @@ def correct_lines(
     unreadable: set[str] = set()
     uncertain: set[str] = set()
     for line in answer:
-        parts = [part.strip() for part in line.split("|")]
-        if len(parts) >= 2 and parts[0] in ids:
-            flag = parts[1].lower() if len(parts) >= 3 else ""
-            # `id | flag | text | note`: a flagged line's text is its third column, never the note after it (#5724)
-            by_id[parts[0]] = parts[2] if flag in LINE_FLAGS else parts[-1]
+        segment_id, flag, said_text, _note = answer_line(line)
+        if segment_id in ids and "|" in line:
+            by_id[segment_id] = said_text
             if flag == "unreadable":
-                unreadable.add(parts[0])
+                unreadable.add(segment_id)
             elif flag == "uncertain":
-                uncertain.add(parts[0])
+                uncertain.add(segment_id)
     if answer and len(by_id) == len(answer):
         corrected = dict(by_id)
     elif len(answer) == len(shown):

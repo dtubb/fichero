@@ -105,7 +105,7 @@ ANSWER_BY_ID = (
     "The prior transcription is a list of lines, each as `<segment id> | box | maker | confidence | text` "
     "(confidence is how sure the machine was). Answer with exactly one "
     "line per listed line, in the same order, as `<segment id> | <certain, uncertain or unreadable> | <corrected "
-    "text>`, optionally followed by ` | <short note>` saying why you changed or doubt a line: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
+    "text>`, optionally followed by ` | note: <short note>` saying why you changed or doubt a line: keep every id; give a line you cannot read as `unreadable` with its text as shown, never invented; and "
     "never merge, split, drop or add a line."
 )
 #: A line that starts with a segment id (a uuid, hex): the lines as shown, and an earlier pass's answer by id, which the
@@ -120,14 +120,14 @@ def shows_segment_lines(prior_text: Any) -> bool:
 
 
 def line_notes(answer: str) -> dict[str, str]:
-    """The short note the review gave after a line, by segment id: `<id> | <flag> | <text> | <note>` (#5724)."""
-    from fichero_server.llm.working_lines import LINE_FLAGS
+    """The short note the review gave after a line, by segment id: `<id> | <flag> | <text> | note: <note>` (#5724)."""
+    from fichero_server.llm.working_lines import answer_line
 
     notes = {}
     for line in answer.splitlines():
-        parts = [part.strip() for part in line.split("|")]
-        if len(parts) >= 4 and _SHOWN_LINE.match(line.strip()[:35]) and parts[1].lower() in LINE_FLAGS and parts[3]:
-            notes[parts[0]] = " | ".join(parts[3:])
+        segment_id, _flag, _text, note = answer_line(line)
+        if note and _SHOWN_LINE.match(line.strip()[:35]):
+            notes[segment_id] = note
     return notes
 
 
