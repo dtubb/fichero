@@ -63,6 +63,32 @@ extension RecipeSetupStore {
                 if !error.isCancellationError { errorMessage = "Could not add the files: \(error.localizedDescription)" }
             }
         }
+        if ingestMode == .copy, !said.isEmpty {
+            said.append(Self.copySpaceSentence(bytes: Self.byteSize(of: urls), free: RecipeDownloadRows.freeDiskBytes()))
+        }
         materialAdded = said.isEmpty ? nil : said.joined(separator: " ")
+    }
+
+    /// The bytes a Copy takes: every regular file under the chosen files and folders (what the copy duplicates).
+    nonisolated static func byteSize(of urls: [URL]) -> Int64 {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+        var total: Int64 = 0
+        for url in urls {
+            let values = try? url.resourceValues(forKeys: keys)
+            if values?.isRegularFile == true { total += Int64(values?.fileSize ?? 0); continue }
+            guard let walk = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys)) else { continue }
+            for case let file as URL in walk {
+                let inner = try? file.resourceValues(forKeys: keys)
+                if inner?.isRegularFile == true { total += Int64(inner?.fileSize ?? 0) }
+            }
+        }
+        return total
+    }
+
+    /// "The copy takes 1.2 GB; 112 GB free." (the free room when known), said before Start.
+    nonisolated static func copySpaceSentence(bytes: Int64, free: Int64?) -> String {
+        let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        guard let free else { return "The copy takes \(size)." }
+        return "The copy takes \(size); \(ByteCountFormatter.string(fromByteCount: free, countStyle: .file)) free."
     }
 }

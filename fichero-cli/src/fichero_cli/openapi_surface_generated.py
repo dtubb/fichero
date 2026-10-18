@@ -7578,6 +7578,30 @@ def register_generated_openapi_commands(
             return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("make-cluster-key")
+    def hpc_make_cluster_key_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Make Cluster Key (POST /api/hpc/clusters/{cluster_id}/key/make)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key/make"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-cluster-public-key")
+    def hpc_get_cluster_public_key_get(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Get Cluster Public Key (GET /api/hpc/clusters/{cluster_id}/key/public)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key/public"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("sign-in")
     def hpc_sign_in_post(
         ctx: typer.Context,
@@ -12975,11 +12999,13 @@ def register_generated_openapi_commands(
     def reading_at_scale_start_post(
         ctx: typer.Context,
         card: str = typer.Option(..., '--card', help='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.'),
+        expected_pages_per_second: Optional[float] = typer.Option(None, '--expected-pages-per-second', help="A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took."),
         flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".'),
         language: Optional[str] = typer.Option(None, '--language', help='Language.'),
         longest: Optional[int] = typer.Option(None, '--longest', help='Pixels on the longer side each image is read at. Default: 2000.'),
         max_in_flight: Optional[int] = typer.Option(None, '--max-in-flight', help='Shards running at once. Default: 10.'),
         pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages (or their IIIF addresses) to go to Hugging Face. Default: false."),
+        parent_job_id: Optional[str] = typer.Option(None, '--parent-job-id', help='The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`).'),
         pass_name: Optional[str] = typer.Option(None, '--pass-name', help='Pass Name.'),
         reader: Optional[str] = typer.Option(None, '--reader', help='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".'),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages to read: images here, or pages imported by reference over IIIF. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
@@ -12993,11 +13019,13 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "card": card,
+                "expected_pages_per_second": expected_pages_per_second,
                 "flavor": flavor,
                 "language": language,
                 "longest": longest,
                 "max_in_flight": max_in_flight,
                 "pages_may_leave": pages_may_leave,
+                "parent_job_id": parent_job_id,
                 "pass_name": pass_name,
                 "reader": reader,
                 "scope_ids": scope_ids,
@@ -13006,11 +13034,13 @@ def register_generated_openapi_commands(
                 "timeout": timeout,
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': 'The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.', 'x-cli-required': True},
+                "expected_pages_per_second": {'type': 'number', 'exclusiveMinimum': True, 'nullable': True, 'title': 'Expected Pages Per Second', 'description': "A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.", 'minimum': 0.0, 'x-cli-required': False},
                 "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard (ignored on a cluster).', 'default': 't4-small', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
                 "longest": {'type': 'integer', 'maximum': 10000.0, 'minimum': 256.0, 'title': 'Longest', 'description': 'Pixels on the longer side each image is read at.', 'default': 2000, 'x-cli-required': False},
                 "max_in_flight": {'type': 'integer', 'maximum': 500.0, 'minimum': 1.0, 'title': 'Max In Flight', 'description': 'Shards running at once.', 'default': 10, 'x-cli-required': False},
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages (or their IIIF addresses) to go to Hugging Face.", 'default': False, 'x-cli-required': False},
+                "parent_job_id": {'type': 'string', 'nullable': True, 'title': 'Parent Job Id', 'description': 'The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`).', 'x-cli-required': False},
                 "pass_name": {'type': 'string', 'nullable': True, 'title': 'Pass Name', 'x-cli-required': False},
                 "reader": {'type': 'string', 'title': 'Reader', 'description': '`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).', 'default': 'kraken', 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages to read: images here, or pages imported by reference over IIIF.', 'x-cli-required': True},
@@ -13043,6 +13073,19 @@ def register_generated_openapi_commands(
         """Stop a reading run (cancels its running shards on Hugging Face) (POST /api/reading-at-scale/jobs/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/reading-at-scale/jobs/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("look-the-far-side-now-after-the-mac-slept-a-dropped-run-carries-on", hidden=True)
+    @target_app.command("catch-up-job")
+    def reading_at_scale_catch_up_job_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+    ) -> None:
+        """Look at the far side now (after the Mac slept); a dropped run carries on (POST /api/reading-at-scale/jobs/{job_id}/catch-up)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-at-scale/jobs/{job_id}/catch-up"
             params = None
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13315,15 +13358,37 @@ def register_generated_openapi_commands(
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
+        period: Optional[str] = typer.Option(None, '--period', help='Period.'),
         scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
     ) -> None:
         """Derived Facts (GET /api/recipes/derived)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/derived"
             params = {
+                "period": period,
                 "scripts": scripts,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-font")
+    def recipes_choose_font_put(
+        ctx: typer.Context,
+        font: Optional[str] = typer.Option(None, '--font', help='a bundled family; null returns to the derived font.'),
+        script: str = typer.Option(..., '--script', help='ISO 15924 code of the script the font draws.'),
+    ) -> None:
+        """Choose Font (PUT /api/recipes/font)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/font"
+            params = None
+            payload = _build_json_payload({
+                "font": font,
+                "script": script,
+            }, {
+                "font": {'type': 'string', 'nullable': True, 'title': 'Font', 'description': 'a bundled family; null returns to the derived font', 'x-cli-required': False},
+                "script": {'type': 'string', 'title': 'Script', 'description': 'ISO 15924 code of the script the font draws', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-hands")
@@ -15976,6 +16041,7 @@ def register_generated_openapi_commands(
         kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it.'),
         language: Optional[str] = typer.Option(None, '--language', help="The segment's language, a BCP 47 tag."),
         mark_state: Optional[str] = typer.Option(None, '--mark-state', help="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none."),
+        no_writing_model: Optional[str] = typer.Option(None, '--no-writing-model', help='The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).'),
         parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment this one now sits inside.'),
         script: Optional[str] = typer.Option(None, '--script', help="The segment's script, an ISO 15924 code."),
         segment_id_2: str = typer.Option(..., '--segment-id', help='The segment to change.'),
@@ -15994,6 +16060,7 @@ def register_generated_openapi_commands(
                 "kind_raw": kind_raw,
                 "language": language,
                 "mark_state": mark_state,
+                "no_writing_model": no_writing_model,
                 "parent_segment_id": parent_segment_id,
                 "script": script,
                 "segment_id": segment_id,
@@ -16007,6 +16074,7 @@ def register_generated_openapi_commands(
                 "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it.', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The segment's language, a BCP 47 tag.", 'x-cli-required': False},
                 "mark_state": {'type': 'string', 'enum': ['ticked', 'crossed', 'struck', 'none'], 'nullable': True, 'title': 'Mark State', 'description': "The segment's one mark: ticked, crossed, struck or none.", 'x-cli-required': False},
+                "no_writing_model": {'type': 'string', 'nullable': True, 'title': 'No Writing Model', 'description': 'The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).', 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment this one now sits inside.', 'x-cli-required': False},
                 "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'description': "The segment's script, an ISO 15924 code.", 'x-cli-required': False},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to change.', 'x-cli-required': True},

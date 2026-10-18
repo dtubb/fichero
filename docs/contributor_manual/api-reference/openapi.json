@@ -2305,94 +2305,6 @@
         }
       }
     },
-    "/api/pair/sharing": {
-      "get": {
-        "tags": [
-          "pairing",
-          "pairing"
-        ],
-        "summary": "Sharing State",
-        "description": "Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751).",
-        "operationId": "sharing_state_api_pair_sharing_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SharingStateResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/pair/multiuser": {
-      "put": {
-        "tags": [
-          "pairing",
-          "pairing"
-        ],
-        "summary": "Set Multiuser",
-        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route.",
-        "operationId": "set_multiuser_api_pair_multiuser_put",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          },
-          {
-            "name": "X-Fichero-Client",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Client"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MultiuserRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SharingStateResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/pair/tailnet": {
       "get": {
         "tags": [
@@ -8186,6 +8098,72 @@
                     "type": "string"
                   },
                   "title": "Response Cancel Reading Job Api Reading At Scale Jobs  Job Id  Cancel Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading-at-scale/jobs/{job_id}/catch-up": {
+      "post": {
+        "tags": [
+          "reading-at-scale"
+        ],
+        "summary": "Look at the far side now (after the Mac slept); a dropped run carries on",
+        "operationId": "catch_up_reading_job_api_reading_at_scale_jobs__job_id__catch_up_post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Catch Up Reading Job Api Reading At Scale Jobs  Job Id  Catch Up Post"
                 }
               }
             }
@@ -14424,6 +14402,16 @@
               "default": "",
               "title": "Scripts"
             }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Period"
+            }
           }
         ],
         "responses": {
@@ -14433,6 +14421,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DerivedFacts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/font": {
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Choose Font",
+        "description": "Remember a pane's font choice for a script in this library's setup answers (`answers.fonts`),\nor clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it\n(`layers.text.font-from-script-and-period`).",
+        "operationId": "choose_font_api_recipes_font_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontChoice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFacts"
                 }
               }
             }
@@ -27921,6 +27973,92 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HpcKeyState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}/key/make": {
+      "post": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Make Cluster Key",
+        "description": "Fichero makes the cluster's key pair (`compute.secret.fichero-makes-the-key`): the private half stays in the\nengine's folder, the public half is returned to be added in CCDB. 409 if a key is already made.",
+        "operationId": "make_cluster_key_api_hpc_clusters__cluster_id__key_make_post",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcPublicKey"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hpc/clusters/{cluster_id}/key/public": {
+      "get": {
+        "tags": [
+          "hpc"
+        ],
+        "summary": "Get Cluster Public Key",
+        "description": "The public half again, to copy into CCDB; never the private one.",
+        "operationId": "get_cluster_public_key_api_hpc_clusters__cluster_id__key_public_get",
+        "parameters": [
+          {
+            "name": "cluster_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Cluster Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HpcPublicKey"
                 }
               }
             }
@@ -51301,10 +51439,9 @@
             "nullable": true,
             "title": "Failed At"
           },
-          "started_by": {
-            "type": "string",
-            "nullable": true,
-            "title": "Started By"
+          "remote": {
+            "$ref": "#/components/schemas/RemoteRunRow",
+            "nullable": true
           }
         },
         "type": "object",
@@ -65202,6 +65339,26 @@
         "title": "FolderViewsResponse",
         "description": "Available folder/workspace lenses for the selected document folder."
       },
+      "FontChoice": {
+        "properties": {
+          "script": {
+            "type": "string",
+            "title": "Script",
+            "description": "ISO 15924 code of the script the font draws"
+          },
+          "font": {
+            "type": "string",
+            "nullable": true,
+            "title": "Font",
+            "description": "a bundled family; null returns to the derived font"
+          }
+        },
+        "type": "object",
+        "required": [
+          "script"
+        ],
+        "title": "FontChoice"
+      },
       "FormatInfo": {
         "properties": {
           "name": {
@@ -66600,6 +66757,25 @@
           "items"
         ],
         "title": "HpcPromptList"
+      },
+      "HpcPublicKey": {
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "title": "Cluster Id"
+          },
+          "public_key": {
+            "type": "string",
+            "title": "Public Key",
+            "description": "To add to the person's own cluster account (CCDB on the Alliance)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster_id",
+          "public_key"
+        ],
+        "title": "HpcPublicKey"
       },
       "HpcTestResponse": {
         "properties": {
@@ -75200,19 +75376,6 @@
         ],
         "title": "MovedGroup"
       },
-      "MultiuserRequest": {
-        "properties": {
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled"
-          }
-        },
-        "type": "object",
-        "required": [
-          "enabled"
-        ],
-        "title": "MultiuserRequest"
-      },
       "MutationListResponse": {
         "properties": {
           "items": {
@@ -80142,6 +80305,20 @@
             "title": "Pages May Leave",
             "description": "The person's yes for these pages (or their IIIF addresses) to go to Hugging Face.",
             "default": false
+          },
+          "parent_job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Parent Job Id",
+            "description": "The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`)."
+          },
+          "expected_pages_per_second": {
+            "type": "number",
+            "exclusiveMinimum": true,
+            "nullable": true,
+            "title": "Expected Pages Per Second",
+            "description": "A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.",
+            "minimum": 0.0
           }
         },
         "type": "object",
@@ -80301,6 +80478,52 @@
             "type": "object",
             "nullable": true,
             "title": "Step"
+          },
+          "target": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target"
+          },
+          "far_state": {
+            "type": "string",
+            "nullable": true,
+            "title": "Far State"
+          },
+          "shards_done": {
+            "type": "integer",
+            "title": "Shards Done",
+            "default": 0
+          },
+          "shards_total": {
+            "type": "integer",
+            "title": "Shards Total",
+            "default": 0
+          },
+          "pages_landed": {
+            "type": "integer",
+            "title": "Pages Landed",
+            "default": 0
+          },
+          "shards": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Shards",
+            "default": []
+          },
+          "estimate": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Estimate"
+          },
+          "actual": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Actual"
           }
         },
         "type": "object",
@@ -81176,6 +81399,12 @@
             "type": "integer",
             "title": "Pages Read",
             "description": "of those, the pages that have a reading (lines read, or a page text), not counting a page the run left out as blank (#5705)"
+          },
+          "lines_unread": {
+            "type": "integer",
+            "title": "Lines Unread",
+            "description": "the lines found on those pages that have no reading (#5758)",
+            "default": 0
           },
           "names": {
             "items": {
@@ -82498,6 +82727,41 @@
         ],
         "title": "RemoteBackendHealth",
         "description": "Health diagnostics for the remote-backend client path."
+      },
+      "RemoteRunRow": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "nullable": true,
+            "title": "Target"
+          },
+          "far_state": {
+            "type": "string",
+            "title": "Far State"
+          },
+          "shards": {
+            "type": "string",
+            "title": "Shards"
+          },
+          "pages_landed": {
+            "type": "integer",
+            "title": "Pages Landed",
+            "default": 0
+          },
+          "offers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Offers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "far_state",
+          "shards"
+        ],
+        "title": "RemoteRunRow"
       },
       "RemoveBackgroundOperationRequest": {
         "properties": {
@@ -87496,6 +87760,12 @@
             "title": "Mark State",
             "description": "The segment's one mark: ticked, crossed, struck or none."
           },
+          "no_writing_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "No Writing Model",
+            "description": "The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758)."
+          },
           "language": {
             "type": "string",
             "nullable": true,
@@ -88090,39 +88360,6 @@
         ],
         "title": "ShareResponse",
         "description": "Result of a share: the granted access + a link the recipient can open."
-      },
-      "SharingStateResponse": {
-        "properties": {
-          "multiuser_enabled": {
-            "type": "boolean",
-            "title": "Multiuser Enabled"
-          },
-          "tailnet_url": {
-            "type": "string",
-            "nullable": true,
-            "title": "Tailnet Url"
-          },
-          "tailnet_serve_command": {
-            "type": "string",
-            "nullable": true,
-            "title": "Tailnet Serve Command"
-          },
-          "paired_device_count": {
-            "type": "integer",
-            "title": "Paired Device Count"
-          },
-          "audit_id": {
-            "type": "string",
-            "nullable": true,
-            "title": "Audit Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "multiuser_enabled",
-          "paired_device_count"
-        ],
-        "title": "SharingStateResponse"
       },
       "SignInstance": {
         "properties": {

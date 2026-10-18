@@ -138,9 +138,9 @@ struct BakeoffSection: View {
             // Use This sits after the numbers, before the long reasons, so it stays in reach however wide those are.
             TableColumn("Reader") { row in nameCell(row) }
                 .width(min: 140, ideal: 180)
-            TableColumn("CER") { row in Text(BakeoffStore.errorRate(row)).monospacedDigit() }
+            TableColumn("Errors per 100 letters") { row in Text(BakeoffStore.errorRate(row)).monospacedDigit() }
                 .width(min: 44, ideal: 50)
-            TableColumn("WER") { row in Text(BakeoffStore.wordErrorRate(row)).monospacedDigit() }
+            TableColumn("Errors per 100 words") { row in Text(BakeoffStore.wordErrorRate(row)).monospacedDigit() }
                 .width(min: 44, ideal: 50)
             TableColumn("Time") { row in Text(BakeoffStore.time(row)).monospacedDigit() }
                 .width(min: 80, ideal: 90)

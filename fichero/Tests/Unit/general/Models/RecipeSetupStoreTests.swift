@@ -285,13 +285,12 @@ struct RecipeSetupStoreTests {
         #expect(store.asksCloudQuestion, "a yes already given stays answerable")
     }
 
-    /// WHY: sources are linked by default, so files stay where they are
-    /// (ruled 2026-10-03). A copy or move default would duplicate or relocate a
-    /// person's files on their first import without them choosing it.
-    @Test("sources are linked by default")
-    func intakeDefaultsToLink() {
+    /// WHY: sources are copied by default (section 7d): the originals are never touched and the
+    /// project owns its files. A move default would relocate a person's files unasked.
+    @Test("sources are copied by default")
+    func intakeDefaultsToCopy() {
         let store = makeStore { request in Self.reply(request, 200, "{}") }
-        #expect(store.ingestMode == .link)
+        #expect(store.ingestMode == .copy)
     }
 
     /// WHY: first run and Set Up… reopen where the person left off. If loading
@@ -369,7 +368,7 @@ struct RecipeSetupStoreTests {
         await store.loadSaved()
 
         #expect(store.purposes == ["transcribe"])
-        #expect(store.ingestMode == .link)
+        #expect(store.ingestMode == .copy)
         #expect(store.recipe == nil)
         #expect(store.errorMessage == nil)
     }
@@ -694,7 +693,7 @@ extension RecipeSetupStoreTests {
           {"step":"read-a-line","job":"read-a-line","title":"Train a model of your own for this step",
            "readiness":{"ready":true,"lines":2400,"pages":3,"sentence":null},
            "ways":[
-            {"method":"kraken","how":"distil","says":"Train a Kraken reader of your own on the lines your reader read",
+            {"method":"kraken","how":"distil","says":"Train a reader on the lines you have corrected",
              "available":true,
              "targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_here","params":\(taught)},
                         {"place":"huggingface-jobs","name":"Hugging Face Jobs","starts":"training.start",
@@ -703,7 +702,7 @@ extension RecipeSetupStoreTests {
              "why":"not available yet: Fichero has no spaCy trainer"}]},
           {"step":"find-regions","job":"find-regions","title":"Train a model of your own for this step",
            "readiness":\(regions),
-           "ways":[{"method":"yolo","how":"fine-tune","says":"Fine-tune a YOLO layout model on your corrected regions",
+           "ways":[{"method":"yolo","how":"fine-tune","says":"Train the region finder on the regions you corrected",
              "available":true,"targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_regions_here",
              "params":{"name":"regions","scope_ids":["root-1","root-2"]}}]}]}]}
         """

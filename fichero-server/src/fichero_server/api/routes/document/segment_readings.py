@@ -1148,7 +1148,29 @@ def _pass_candidates(
                 created_at=pass_row.created_at,
             )
         )
+    _mark_words_beside_read_lines(db, candidates)
     return candidates
+
+
+def _mark_words_beside_read_lines(db: Database, candidates: list[PassCandidate]) -> None:
+    """Mark a pass of words (no lines) when the page also has a pass of lines that carry readings (#5648). Two
+    counts per pass; the readings are looked up only on a page that has a pass of words."""
+    from fichero_server.models import ContentRepresentation
+
+    def count(pass_id: str, kind: str) -> int:
+        return db.count(Segment, pass_id=pass_id, kind=kind, deleted_at=None)
+
+    words = [c for c in candidates if count(c.pass_id, "word") and not count(c.pass_id, "line")]
+    if not words:
+        return
+    for candidate in candidates:
+        if candidate in words:
+            continue
+        line_ids = [row.id for row in ordered_lines(db, candidate.pass_id)]
+        if line_ids and db.query_in(ContentRepresentation, "segment_id", line_ids):
+            for word_pass in words:
+                word_pass.words_beside_read_lines = True
+            return
 
 
 #: The unconverted results of a page: those with boxes and no conversion marker. A constant, as

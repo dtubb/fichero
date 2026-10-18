@@ -29,7 +29,15 @@ extension FeatureTier {
 }
 
 extension FeatureManager {
-    var shouldShowTierChrome: Bool { activeBuildTier != .release }
+    /// Mac only: the tier glyphs are explained by the Feature Tier Legend window, which a phone does not
+    /// have, so on iOS they are unexplained internal markers (#5396 item 8).
+    var shouldShowTierChrome: Bool {
+        #if os(macOS)
+        activeBuildTier != .release
+        #else
+        false
+        #endif
+    }
 
     var buildTierStatusText: String {
         "\(activeBuildTier.tierBadgeText) build - features shown at tier >= \(activeBuildTier.environmentValue)."

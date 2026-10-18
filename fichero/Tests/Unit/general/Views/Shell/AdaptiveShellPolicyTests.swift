@@ -204,17 +204,6 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         #endif
     }
 
-    func testAdaptiveAppleShellRouteUsesStackOnlyForCompactWidth() {
-        #if os(macOS)
-        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: nil), .split)
-        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .compact), .split)
-        #else
-        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: nil), .split)
-        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .regular), .split)
-        XCTAssertEqual(AdaptiveAppleShellRoute.resolve(horizontalSizeClass: .compact), .stack)
-        #endif
-    }
-
     func testSplittablePanesCollapseWhenWindowIsTooNarrow() {
         XCTAssertFalse(
             ContentView.shouldUseSplittablePane(
@@ -330,7 +319,8 @@ final class AdaptiveShellPolicyTests: XCTestCase {
         XCTAssertFalse(buildersSource.contains("detailTabStrip"))
         XCTAssertFalse(buildersSource.contains("detailLocationPathBar"))
         XCTAssertFalse(buildersSource.contains("breadcrumbBar"))
-        XCTAssertTrue(workspaceRootSource.contains("AdaptiveAppleShellHost"))
+        // #5742 I1: no NavigationStack around the split view; the split collapses itself.
+        XCTAssertFalse(workspaceRootSource.contains("AdaptiveAppleShellHost"))
     }
 
     func testSelectionStatusTextIsFinderStyleWithoutPath() throws {
