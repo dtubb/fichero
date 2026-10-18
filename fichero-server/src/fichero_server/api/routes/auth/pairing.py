@@ -501,10 +501,17 @@ def _multiuser_invert(before: dict | None, after: dict | None, ctx: ActionContex
 
 
 @action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert)
-def _set_multiuser_action(_db, params: MultiuserParams, _ctx: ActionContext):
+def _set_multiuser_action(_db, params: MultiuserParams, ctx: ActionContext):
     """Who sees every library: audited and undoable. Owner only at the route; the environment wins."""
+    from fichero_server.security.authz import AuthorizationError
     from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY, multiuser_enabled
 
+    # Owner-only HERE, not only at the route: POST /api/actions/invoke, MCP and chat reach this action
+    # with library WRITE alone, and an editor who turned Multi-user off would own every library (review 58).
+    if not ctx.is_bootstrap:
+        person = next((u for u in get_app_db().list_users() if u.username == ctx.actor), None)
+        if not (person and person.active and person.is_owner):
+            raise AuthorizationError("only the owner can change Multi-user", required="owner")
     if (os.environ.get("FICHERO_MULTIUSER") or "").strip():
         raise ActionRefused("Multi-user is set by FICHERO_MULTIUSER; unset it to change it here")
     app_db = get_app_db()
