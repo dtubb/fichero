@@ -39,11 +39,12 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
 
 ## Prior art (adopt, don't invent)
 
-- **Passkeys / WebAuthn** (W3C): a per-account public-key credential, challenge-response, private key synced
-  by iCloud Keychain. This is exactly the owner's model. Decision for review: the wire format is a plain
-  challenge-response over a P-256 key (CryptoKit on Apple, `cryptography` in the engine), NOT full WebAuthn,
-  because the engine is a localhost API and the clients are our own; the key type and "synced credential"
-  semantics are the same, so moving to real passkeys (`ASAuthorization`) later changes the signer, not the engine.
+- **Passkeys / WebAuthn** (W3C): the same shape (per-account public key, challenge-response, synced by iCloud
+  Keychain), but **not used here**: a passkey is bound to a relying-party domain proven by associated domains, and a
+  home engine at a `.local` name or a tailnet address has none. We use a plain P-256 key with a challenge-response
+  (CryptoKit on Apple, `cryptography` in the engine), kept `kSecAttrSynchronizable` in iCloud Keychain, and NOT in
+  the Secure Enclave (an Enclave key cannot sync). Passkeys are kept for the web client (`web-frontend-spec.md`,
+  LATER, out of scope here).
 - **SSH public keys** (`authorized_keys`, agent forwarding): the host stores public keys, one per client, each
   revocable, each logged. The CLI/MCP credentials follow this.
 - **Xcode's "Allow external agents" / macOS TCC prompts**: a Settings switch plus a first-use approval naming
@@ -106,6 +107,8 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
 ### C. Same person, more devices
 
 - `multiuser.second-device-by-synced-key` — **[GAP]** (→ #2403) a Mac, iPhone or iPad signed into the same iCloud account already has the person's key (iCloud Keychain). Pointing it at the library signs in by challenge with no password and no pairing code; the engine registers it as a new `device` client named by the device on first success (the key is already trusted, the client row is new). Test: (not yet written: `…/test_synced_key_registers_device_client_to_spec.py`).
+- `multiuser.remote-flow-no-pairing-code` — **[GAP]** (→ #2403) the same person's other devices (iPhone, iPad, another Mac) reach an engine over the NETWORK transport only (Tailscale, or Bonjour LAN plus the TLS pin), never the UDS. The person's list of engines (address and TLS pin) syncs through their iCloud (an iCloud Keychain item, or the CloudKit private database), so a new device of theirs needs no pairing code: it reads the list, dials the engine, answers the challenge with the synced key, and gets a session. The engine still records that device ("Daniel's iPhone") as a `device` client, for the audit and for per-device revoke. Test: (not yet written: `…/test_synced_key_registers_device_client_to_spec.py`; Swift `EngineListSyncTests::testNewDeviceDialsFromTheSyncedListWithoutACode`).
+- `multiuser.invitee-registered-on-accept` — **[GAP]** (→ #2403) an invited person (Ann) has her key registered when she accepts the invite, so all her devices then sign in the same way, each recorded as its own client. (See `multiuser.invite-registers-public-key`.) Test: (not yet written: `…/test_invite_registers_public_key_to_spec.py`).
 - `multiuser.device-without-the-key-is-approved` — **[PARTIAL]** (→ #2403) (pairing codes and QR exist, S8 person picker) a device without the synced key shows "Ask a signed-in device": the engine creates an approval request, a signed-in device of that person approves it by QR or 6-digit code, and the new device gets its own key registered. Test: (existing pairing tests; `test_approval_request_needs_a_signed_in_device`, not yet written).
 - `multiuser.password-comes-last` — **[GAP]** (→ #2403) the sign-in screen offers, in this order: silent key, approval from another device, password. Test: (not yet written: Swift `SignInOptionsOrderTests`).
 
