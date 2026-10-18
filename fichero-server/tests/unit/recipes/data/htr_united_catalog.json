@@ -1,0 +1,690 @@
+{
+ "918807511": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "TranscriboQuest 2024 Medieval Literary",
+  "url": "10.5281/zenodo.13757440",
+  "authors": [
+   {
+    "name": "Jessie",
+    "surname": "Dummer"
+   },
+   {
+    "name": "Emmanuelle",
+    "surname": "Kuhry"
+   },
+   {
+    "name": "Zdzislaw",
+    "surname": "Koczarski"
+   },
+   {
+    "name": "Sylvain",
+    "surname": "Besson"
+   },
+   {
+    "name": "Caroline",
+    "orcid": "0000-0002-7574-6742",
+    "surname": "Chevalier-Royet"
+   },
+   {
+    "name": "Caroline",
+    "roles": [
+     "project-manager"
+    ],
+    "surname": "Vandyck"
+   }
+  ],
+  "institutions": [],
+  "description": "This dataset was created in the context of TranscriboQuest 2024 (Medieval Literary Team) held in Lyon (11/09/2024-13/09/",
+  "language": [
+   "lat",
+   "dum",
+   "fro",
+   "gmh"
+  ],
+  "production-software": "eScriptorium + Kraken",
+  "automatically-aligned": false,
+  "script": [
+   {
+    "iso": "Latn"
+   }
+  ],
+  "script-type": "only-manuscript",
+  "time": {
+   "notBefore": "800",
+   "notAfter": "1500"
+  },
+  "hands": {
+   "count": "1-per-folder",
+   "precision": "exact"
+  },
+  "license": {
+   "name": "CC-BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "format": "Alto-XML",
+  "volume": [
+   {
+    "count": 800,
+    "metric": "lines"
+   }
+  ],
+  "transcription-guidelines": "CATMuS Guidelines (https://catmus-guidelines.github.io)",
+  "_pid": "918807511"
+ },
+ "255da7ea1": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "ÖNB, Cod. 3891. Ground Truth",
+  "url": "10.5281/zenodo.7467249",
+  "authors": [
+   {
+    "name": "Ainonen",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Tuija"
+   },
+   {
+    "name": "Andresen",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Suse"
+   },
+   {
+    "name": "Bakker",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Loïs"
+   },
+   {
+    "name": "Boylan",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Amy"
+   },
+   {
+    "name": "Della Manna",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Silvia"
+   },
+   {
+    "name": "Dziemski",
+    "orcid": "0000-0001-8166-2249",
+    "surname": "Wiktor"
+   },
+   {
+    "name": "Henderson",
+    "orcid": "0000-0002-5040-9926",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "C. E. M."
+   },
+   {
+    "name": " Impagnatiello",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Michele"
+   },
+   {
+    "name": "Jenko Kovačič",
+    "orcid": "0000-0001-7243-7082",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Ana"
+   },
+   {
+    "name": "Komatović",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Stevan"
+   },
+   {
+    "name": "Ku",
+    "orcid": "0000-0003-2688-6287",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Ruby Wai-Ying"
+   },
+   {
+    "name": "Loss",
+    "orcid": "0000-0002-9837-8321",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Edward"
+   },
+   {
+    "name": "Mairhofer",
+    "orcid": "0000-0002-3531-9658",
+    "roles": [
+     "transcriber",
+     "project-manager"
+    ],
+    "surname": "Daniela"
+   },
+   {
+    "name": "Morcos",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Erene"
+   },
+   {
+    "name": "Odstrčilík",
+    "orcid": "0000-0001-9104-9827",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Jan"
+   },
+   {
+    "name": "Paternicò",
+    "orcid": "0000-0002-7124-8869",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Giuseppe"
+   },
+   {
+    "name": "Riparante",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Marta"
+   },
+   {
+    "name": "Schimdt",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Nathalie"
+   },
+   {
+    "name": "Sołomieniuk",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Michal"
+   },
+   {
+    "name": "Walczak",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Tomasz "
+   },
+   {
+    "name": "Zharov",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Dmitry"
+   }
+  ],
+  "institutions": [],
+  "description": "The Ground Truth was produced by the participants of the HTR Winter School 2022 in the Late Latin Group (more informatio",
+  "project-name": "HTR Winter School 2022, Vienna",
+  "language": [
+   "lat"
+  ],
+  "production-software": "Transkribus",
+  "script": [
+   {
+    "iso": "Latn"
+   }
+  ],
+  "script-type": "only-manuscript",
+  "time": {
+   "notBefore": "1200",
+   "notAfter": "1299"
+  },
+  "hands": {
+   "count": "1",
+   "precision": "exact"
+  },
+  "license": [
+   {
+    "name": "CC-BY 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+   }
+  ],
+  "format": "Page-XML",
+  "volume": [
+   {
+    "count": 952,
+    "metric": "lines"
+   }
+  ],
+  "transcription-guidelines": "Regular transcription with expansion of abbreviations. \n- Normalization of J to I \n- V to U in the vowel function, U to V in the consonant function\n- long S to S. \n- No correction of mispellings (tagged in the ground truth)\n- No standardization of lower-case and upper-case letters\n- No added interpunction",
+  "automatically-aligned": false,
+  "_pid": "255da7ea1"
+ },
+ "c326a6fee": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "Données vérité de terrain HTR+ Annuaire des propriétaires et des propriétés de Paris et du département de la Seine (1898-1923)",
+  "url": "http://dx.doi.org/10.34847/nkl.acb724xs",
+  "project-name": "Groupe annuaires et adresses - Consortium Huma-num Paris Time Machine\n",
+  "project-website": "https://paris-timemachine.huma-num.fr/groupe-adresses-et-annuaires/",
+  "authors": [
+   {
+    "name": "Elgarrista",
+    "roles": [
+     "transcriber",
+     "quality-control"
+    ],
+    "surname": "Gabriela"
+   },
+   {
+    "name": "Mélanie-Becquet",
+    "roles": [
+     "project-manager",
+     "quality-control"
+    ],
+    "surname": "Frédérique"
+   },
+   {
+    "name": "Brando",
+    "roles": [
+     "project-manager",
+     "quality-control"
+    ],
+    "surname": "Carmen"
+   }
+  ],
+  "description": "Annuaire des propriétaires et des propriétés de Paris et du département de la Seine. Lien dans le catalogue de la BNF : ",
+  "language": [
+   "fra"
+  ],
+  "script": [
+   {
+    "iso": "Latn"
+   }
+  ],
+  "script-type": "only-typed",
+  "time": {
+   "notBefore": "1898",
+   "notAfter": "1923"
+  },
+  "hands": {
+   "count": "less-than-11",
+   "precision": "estimated"
+  },
+  "license": [
+   {
+    "name": "CC-BY-SA 4.0",
+    "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+   }
+  ],
+  "format": "Alto-XML",
+  "volume": [
+   {
+    "count": 169,
+    "metric": "pages"
+   },
+   {
+    "count": 19022,
+    "metric": "lines"
+   },
+   {
+    "count": 641401,
+    "metric": "characters"
+   }
+  ],
+  "transcription-guidelines": "Transcription diplomatique. Les accolades n'ont pas été segmentées.\n",
+  "production-software": "Transkribus",
+  "automatically-aligned": false,
+  "_pid": "c326a6fee"
+ },
+ "7a99090c5": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "University of Denver Jewish Consumptives Relief Society Medical Records   Training and Validation Set",
+  "url": "http://dx.doi.org/10.5281/zenodo.4243023",
+  "authors": [
+   {
+    "name": "Pham",
+    "orcid": "0000-0002-9115-4739",
+    "roles": [
+     "project-manager"
+    ],
+    "surname": "Kim"
+   }
+  ],
+  "institutions": [],
+  "description": "Training and validation set. Transcribed records available upon request.\nThe transcribed corpus of records from the Jewi",
+  "project-name": "Collections as Data - University of Denver Transcribing Handwritten Medical Records",
+  "project-website": "https://du-collections-as-data.netlify.app/",
+  "language": [
+   "eng"
+  ],
+  "production-software": "Transkribus",
+  "script": [
+   {
+    "iso": "Latn"
+   }
+  ],
+  "script-type": "mainly-manuscript",
+  "time": {
+   "notBefore": "1900",
+   "notAfter": "1950"
+  },
+  "hands": {
+   "count": "unknown",
+   "precision": "estimated"
+  },
+  "license": [
+   {
+    "name": "CC-BY 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+   }
+  ],
+  "format": "Page-XML",
+  "volume": [
+   {
+    "count": 36027,
+    "metric": "lines"
+   },
+   {
+    "count": 3494619,
+    "metric": "characters"
+   },
+   {
+    "count": 2660,
+    "metric": "files"
+   },
+   {
+    "count": 4254,
+    "metric": "regions"
+   }
+  ],
+  "automatically-aligned": false,
+  "_bibtex": "@misc{https://doi.org/10.5281/zenodo.4243023,\n  doi = {10.5281/ZENODO.4243023},\n  url = {https://zenodo.org/record/4243023},\n  author = {Pham, Kim},\n  title = {University of Denver Collections as Data - HTR Train and Validation Set JCRS_2020_5_27},\n  publisher = {Zenodo},\n  year = {2020},\n  copyright = {Creative Commons Attribution 4.0 International}\n}\n",
+  "_pid": "7a99090c5"
+ },
+ "a7d28f30d": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "AMSMB HTR",
+  "url": "https://dataverse.bsc.es/citation?persistentId=perma:BSC/0VB0MC",
+  "authors": [
+   {
+    "name": "Mariona",
+    "orcid": "0000-0001-8455-7196",
+    "roles": [
+     "project-manager",
+     "quality-control",
+     "support"
+    ],
+    "surname": "Coll Ardanuy"
+   },
+   {
+    "name": "Ramon",
+    "orcid": "0000-0003-2099-3567",
+    "roles": [
+     "transcriber",
+     "aligner"
+    ],
+    "surname": "Sarobe"
+   },
+   {
+    "name": "Coral",
+    "orcid": "0000-0003-4577-2381",
+    "roles": [
+     "project-manager",
+     "digitization"
+    ],
+    "surname": "Cuadrada"
+   }
+  ],
+  "institutions": [
+   {
+    "name": "Barcelona Supercomputing Center"
+   },
+   {
+    "name": "Arxiu dels Marquesos de Santa Maria de Barberà"
+   },
+   {
+    "name": "Arxiu Municipal de Vilassar de Dalt"
+   }
+  ],
+  "description": "Dataset for handwritten text recognition on medieval notarial charters written on parchment (1208-1499). The dataset is ",
+  "project-website": "https://www.bsc.es/discover-bsc/organisation/scientific-structure/cssh",
+  "language": [
+   "lat",
+   "cat"
+  ],
+  "production-software": "eScriptorium + Kraken",
+  "automatically-aligned": false,
+  "script": [
+   {
+    "iso": "Latn"
+   }
+  ],
+  "script-type": "only-manuscript",
+  "time": {
+   "notBefore": "1208",
+   "notAfter": "1499"
+  },
+  "hands": {
+   "count": "more-than-10",
+   "precision": "exact"
+  },
+  "license": {
+   "name": "CC-BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "format": "Page-XML",
+  "sources": [
+   {
+    "link": "https://dataverse.bsc.es/dataset.xhtml?persistentId=perma:BSC/0VB0MC",
+    "reference": "Coll Ardanuy, M., Cuadrada, C., & Sarobe, R. (2025). AMSMB HTR: A Dataset for Handwritten Text Recognition in Medieval Notarial Charters Written on Parchment (1208-1499) [Dataset]. BSC Dataverse."
+   }
+  ],
+  "volume": [
+   {
+    "count": 3369,
+    "metric": "lines"
+   },
+   {
+    "count": 100,
+    "metric": "files"
+   }
+  ],
+  "transcription-guidelines": "The transcription follows a semi-diplomatic approach, in which abbreviations and symbols are expanded. Annotation and transcription decisions are documented in the datasheet accompanying the original dataset at: https://dataverse.bsc.es/citation?persistentId=perma:BSC/0VB0MC.",
+  "_pid": "a7d28f30d"
+ },
+ "0be31b50c": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "Ground truth data for printed Devanagari",
+  "url": "https://doi.org/10.11588/data/EGOKEI",
+  "authors": [
+   {
+    "name": "Nicole",
+    "orcid": "0000-0002-0344-6169",
+    "roles": [
+     "transcriber",
+     "project-manager"
+    ],
+    "surname": "Merkel-Hilf"
+   },
+   {
+    "name": "Daria",
+    "roles": [
+     "support"
+    ],
+    "surname": "Peshcherova"
+   }
+  ],
+  "institutions": [
+   {
+    "name": "Heidelberg University Library"
+   }
+  ],
+  "description": "Ground truth (GT) data (jpg and alto xml files) for an OCR model that recognizes printed text in Devanagari script.\n\nThe",
+  "project-name": "Naval Kishore Press - digital",
+  "project-website": "https://digi.ub.uni-heidelberg.de/en/sammlungen/suedasien/navalkishore.html",
+  "language": [
+   "hin",
+   "san",
+   "bra"
+  ],
+  "production-software": "Transkribus",
+  "script": [
+   {
+    "iso": "Deva"
+   }
+  ],
+  "script-type": "only-typed",
+  "time": {
+   "notBefore": "1880",
+   "notAfter": "1953"
+  },
+  "hands": {
+   "count": "less-than-11",
+   "precision": "exact"
+  },
+  "license": [
+   {
+    "name": "CC-BY 4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/"
+   }
+  ],
+  "format": "Alto-XML",
+  "volume": [
+   {
+    "count": 4333,
+    "metric": "lines"
+   }
+  ],
+  "transcription-guidelines": "Diplomatic transcription, no correction of mispelling",
+  "automatically-aligned": false,
+  "_bibtex": "@misc{https://doi.org/10.11588/data/egokei,\n  doi = {10.11588/DATA/EGOKEI},\n  url = {https://heidata.uni-heidelberg.de/citation?persistentId=doi:10.11588/data/EGOKEI},\n  author = {Merkel-Hilf, Nicole},\n  title = {Ground Truth data for printed Devanagari},\n  publisher = {heiDATA},\n  year = {2022}\n}\n",
+  "_pid": "0be31b50c"
+ },
+ "669f8cd0d": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "Ground Truth data for printed Malayalam",
+  "url": "https://doi.org/10.11588/data/L2KRZO",
+  "authors": [],
+  "institutions": [
+   {
+    "name": "Tübingen University Library",
+    "roles": [
+     "project-manager"
+    ]
+   }
+  ],
+  "description": "Ground Truth (GT) data (JPG and ALTO XML files) which can be used to train OCR models that recognize printed text in Mal",
+  "project-name": "DigitalSouthAsia",
+  "project-website": "http://idb.ub.uni-tuebingen.de/digitue/southasia",
+  "language": [
+   "mal"
+  ],
+  "production-software": "Transkribus",
+  "script": [
+   {
+    "iso": "Mlym"
+   }
+  ],
+  "script-type": "only-typed",
+  "time": {
+   "notBefore": "1850",
+   "notAfter": "1996"
+  },
+  "hands": {
+   "count": "unknown",
+   "precision": "exact"
+  },
+  "license": {
+   "name": "CC-BY 4.0",
+   "url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "format": "Page-XML",
+  "volume": [
+   {
+    "count": 43,
+    "metric": "pages"
+   }
+  ],
+  "_bibtex": "@misc{https://doi.org/10.11588/data/l2krzo,\n  doi = {10.11588/DATA/L2KRZO},\n  url = {https://heidata.uni-heidelberg.de/citation?persistentId=doi:10.11588/data/L2KRZO},\n  author = {{Tübingen University Library}},\n  title = {Ground Truth data for printed Malayalam},\n  publisher = {heiDATA},\n  year = {2023}\n}\n",
+  "_pid": "669f8cd0d"
+ },
+ "0a089ab6d": {
+  "schema": "https://htr-united.github.io/schema/2023-06-27/schema.json",
+  "title": "Incunabula Reichenau",
+  "url": "https://doi.org/10.5281/zenodo.11046061",
+  "authors": [
+   {
+    "name": "Annika",
+    "orcid": "0000-0002-6305-4810",
+    "roles": [
+     "project-manager"
+    ],
+    "surname": "Stello"
+   },
+   {
+    "name": "Gerit",
+    "orcid": "0000-0002-5820-7771",
+    "roles": [
+     "project-manager"
+    ],
+    "surname": "Heim"
+   },
+   {
+    "name": "Katharina",
+    "orcid": "0000-0002-6234-9721",
+    "roles": [
+     "transcriber"
+    ],
+    "surname": "Ost"
+   }
+  ],
+  "institutions": [],
+  "description": "This data set contains the training data for the following three published Transkribus models\\:\nGerman Incunabula (Reich",
+  "project-name": "Digitalisierung und Volltexterkennung der ehemals Reichenauer Inkunabeln",
+  "language": [
+   "lat",
+   "deu"
+  ],
+  "production-software": "Transkribus",
+  "automatically-aligned": false,
+  "script": [
+   {
+    "iso": "Latn"
+   },
+   {
+    "iso": "Latf"
+   }
+  ],
+  "script-type": "only-typed",
+  "time": {
+   "notBefore": "1470",
+   "notAfter": "1510"
+  },
+  "hands": {
+   "count": "more-than-10",
+   "precision": "exact"
+  },
+  "license": {
+   "name": "CC-BY-SA 4.0",
+   "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "format": "Page-XML",
+  "volume": [
+   {
+    "count": 2200,
+    "metric": "pages"
+   }
+  ],
+  "transcription-guidelines": "Abbreviations are represented through special characters, please see the project repository for a full documentation.",
+  "_bibtex": "@misc{https://doi.org/10.5281/zenodo.11046061,\n  doi = {10.5281/ZENODO.11046061},\n  url = {https://zenodo.org/doi/10.5281/zenodo.11046061},\n  author = {{Badische Landesbibliothek} and Ost, Katharina and Stello, Annika and Heim, Gerrit},\n  language = {de},\n  title = {Training Data Incunabula Reichenau},\n  publisher = {Zenodo},\n  year = {2024},\n  copyright = {Creative Commons Attribution Share Alike 4.0 International}\n}\n",
+  "_pid": "0a089ab6d"
+ }
+}
