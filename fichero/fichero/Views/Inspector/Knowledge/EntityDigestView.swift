@@ -361,7 +361,7 @@ struct EntityDigestContent: View {
 
     /// What the engine's `stale_reason` says in words (#5360). "Not embedded" is the state of every entity in a
     /// library that never embeds, so it is not called out of date; a changed text or model is.
-    static func staleLine(_ reason: String?) -> String? {
+    nonisolated static func staleLine(_ reason: String?) -> String? {
         switch reason {
         case "not-embedded": "Not embedded"
         case "text-changed", "model-changed": "Out of date"
