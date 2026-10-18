@@ -8260,11 +8260,12 @@ def fichero_training_start_kraken(
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to Hugging Face. Default: false.")] = None,
     release_note: Annotated[Optional[str], Field(description='Release Note.')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
+    target: Annotated[Optional[str], Field(description='Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there). Default: "huggingface-jobs".')] = None,
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.')],
     timeout: Annotated[Optional[str], Field(description='The Job\'s time limit; always sent (the service\'s default is 30 minutes). Default: "4h".')] = None,
 ) -> Any:
     "Train a Kraken reader on Hugging Face Jobs\n\nQueue a `train-a-model` job: the pages in scope whose lines the teacher read go to a private\nbucket of the person's Hugging Face account, Fichero's trainer fine-tunes the base reader there,\nand the trained reader comes home as a reader card. Refused (and nothing queued) without the\nperson's yes for the pages to leave, without a Hugging Face token, or with a base reader that is\nnot installed.\n\nRoute: POST /api/training/kraken (toolset `training`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/training/kraken", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "flavor": flavor, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
+    return _rt.call("POST", "/api/training/kraken", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "flavor": flavor, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "target": target, "teacher": teacher, "timeout": timeout}))
 
 
 def fichero_training_start_kraken_here(
