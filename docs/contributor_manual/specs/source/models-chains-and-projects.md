@@ -3632,9 +3632,13 @@ The recipe and its format
   **(2026-10-11)** A YOLO layout model is pinned by its catalogue name (`{yolo: yolo-doclaynet-11n}`), the form
   the shipped card writes, and the recipe check knows it; a pin the check does not know is said in words, never
   as a list of its keys (`recipes/recipe.PIN_FORMS`; `fichero-server/tests/unit/recipes/test_yolo_pin_is_a_known_form.py`).
-- `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
+- `source.recipe.runs-on-binds-to-a-target` — **[PARTIAL]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
-  and an unbound step waits with "No cluster is set up".
+  and an unbound step waits with "No cluster is set up". *Built: the placement rule takes the step's bound
+  cluster and, with none, keeps a step a cluster would suit on this Mac, saying "No cluster is set up for
+  this project" (`placement.place_step`; `fichero-server/tests/unit/recipes/test_placement.py`). Not built:
+  the binding itself (nothing binds a cluster to a step yet, so `start.place_runs` passes none), and a
+  `gpu-service` target.*
 - `source.recipe.alternatives-in-order` — **[PARTIAL]** (#4950) when this Mac cannot run a step's pin,
   the first listed alternative that can is used, and the choice is recorded and shown. *Built 2026-10-17 for a missing key: the step's `chain`, first entry that can run, `plan.fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: a model this Mac cannot serve (memory) still goes through `elsewhere`, offered and never used without the person's press (`ai.where.fallback-free-and-asked`): the two rules need the maintainer to say which wins.*
 - `source.recipe.conditions-fixed-list` — **[OK]** (#4950) a step's `when` and `offered_when` use
