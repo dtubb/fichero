@@ -228,19 +228,17 @@ extension AppViewMode {
     }
 }
 
-/// The ONE empty-state view every pane shares (#4525/#4518). SwiftUI's native
-/// affordance, already used in-tree, so an honest absence looks the same in
-/// every pane instead of four hand-rolled variants drifting.
+/// The ONE empty-state view every pane shares (#4525/#4518): BLANK (`panes.empty-state.blank`, ruled
+/// 2026-10-11, #5273). An empty pane draws nothing a person reads; the reason is for VoiceOver only.
+/// `systemImage` stays so call sites keep compiling and say what the absence is.
 struct PaneEmptyStateView: View {
     let reason: String
     var systemImage: String = "rectangle.dashed"
 
     var body: some View {
-        ContentUnavailableView {
-            Label("Nothing to Show", systemImage: systemImage)
-        } description: {
-            Text(reason)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement()
+            .accessibilityLabel(reason)
     }
 }
