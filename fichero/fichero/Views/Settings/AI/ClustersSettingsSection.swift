@@ -10,10 +10,7 @@ struct ClustersSettingsSection: View {
 
     var body: some View {
         Group {
-            if clusters.isEmpty {
-                Text("No cluster is set up.").foregroundStyle(.secondary)
-            }
-            Button("Add a cluster…") { adding = true }
+            Button("Add a Cluster…") { adding = true }
             ForEach(clusters) { cluster in
                 HStack {
                     VStack(alignment: .leading) {
