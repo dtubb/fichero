@@ -63,7 +63,7 @@ struct ShareSettingsView: View {
             Section {
                 Toggle(isOn: sharingBinding) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(hostingEnabled ? "On" : "Off")
+                        Text(SharingToggles.all[0].label)
                             .font(.headline)
                         Text(SharingToggles.caption(.sharing))
                             .font(.caption)
@@ -106,7 +106,7 @@ struct ShareSettingsView: View {
             }
 
             if hostingEnabled {
-                Section {
+                Section("Connected Devices") {
                     PairedDevicesSectionView(
                         devices: activePairedDevices(from: pairedDevices),
                         isLoading: isLoadingDevices,

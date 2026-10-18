@@ -18,12 +18,18 @@ extension ShareSettingsView {
 
                 if let tailnet = detectedTailnetURL, tailnet != publicBaseURL {
                     LabeledContent("Tailscale address") {
-                        Button("Use \(tailnet)") {
-                            addressDraft = tailnet
-                            publicBaseURL = tailnet
-                            Task { await applySharing() }
+                        HStack {
+                            Text(tailnet)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .foregroundStyle(.secondary)
+                            Button("Use") {
+                                addressDraft = tailnet
+                                publicBaseURL = tailnet
+                                Task { await applySharing() }
+                            }
+                            .disabled(isApplyingChange)
                         }
-                        .disabled(isApplyingChange)
                     }
                 }
 
