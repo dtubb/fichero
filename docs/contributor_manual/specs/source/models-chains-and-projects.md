@@ -3503,19 +3503,16 @@ Setup
 - `source.onboard.deterministic-recipe` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** `assemble()` from answers and cards (`recipes/assemble.py`); cards are not yet read from the real catalogue; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. **Built 2026-10-11 (#5682):** each step's reasons are its own kind's: only a reading step says what material it is made for, its CER and that a bake-off measures it; a line finder, name finder or search model says what covers the project (script, languages), where it comes from and whether it is here (seen in the MCP walk: the embedder, spaCy and blla each said "made for handwriting" and "unmeasured on your pages until a bake-off measures it"); pinned by `fichero-server/tests/unit/recipes/test_step_reasons_by_kind_5682.py`. the recipe is assembled by rules
   from the answers and the cards' confirmed facts; the same answers and catalogue always give the
   same recipe, and each choice names the card facts and measurements it rests on.
-- `source.recipe.candidates-filtered-then-ranked` — **[PARTIAL]** (#4950) candidates are kept only if
-  they pass the hard constraints (job, script coverage, language where it matters, runs here or on
-  a bound target, licence, egress); material and period only lower a candidate's rank. The rest
-  are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
-  coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
-  card id. *Built (`assemble._choose`, `_refusal`, `_rank_key`): the hard constraints filter (job, script,
-  language where it matters, the cloud only where pages may leave, memory, licence), and the kept are ranked
-  measured-here band first, then the order above, local, cheaper and the card id breaking ties
-  (`fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py`). Where the code differs from
-  this entry: material is also a hard constraint for handwriting (a print-only reader is refused, not lowered,
-  `no-reader-for-material`), and between the measured and published bands come made-for-the-script, language,
-  period and material ranks (`source.recipe.script-reader-first`, #5516); "bound target" waits on
-  `runs-on-binds-to-a-target`.*
+- `source.recipe.candidates-filtered-then-ranked` — **[OK]** (#4950) candidates are kept only if they pass the
+  hard constraints: the job, script coverage (a Latin reader covers Fraktur and Gaelic type), the language where it
+  matters, the material where a reader is made for print or typescript only and the pages are handwriting, the cloud
+  only where pages may leave this Mac, this Mac's memory, and the licence. The rest are ranked in a fixed order: a
+  measurement on the project's pages in one-point bands; then a reader made for the project's script; then one that
+  lists the project's languages, one made for its period, one made for its material; then the published CER in
+  one-point bands; then a model already on this Mac, local before remote, cheaper, faster, lower carbon, trainable,
+  smaller, and the card id, so a tie is always broken the same way. *Built: `assemble._choose`, `_refusal`,
+  `_rank_key` (`source.recipe.script-reader-first`, #5516). Pinned by
+  `fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py`.*
 - `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; RETIRED 2026-10-17, the code changed in 4ffd86b01 and `assemble._choose` now ranks every passing candidate best first; replaced by `source.recipe.candidates-fallback-chain` and
   `source.recipe.placement-by-scale` below, ruled by the maintainer) the bulk reader is the BEST MEASURED candidate, not the cheapest local one.
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
