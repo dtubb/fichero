@@ -124,3 +124,45 @@ def test_an_unreadable_dev_file_never_stops_start_up(tmp_path):
     env = {"FICHERO_DEV_LAUNCH_SECRET_FILE": str(tmp_path / "missing"), "FICHERO_ENV": "development"}
     launch_secret.load_at_startup(env, io.StringIO(""))
     assert not launch_secret.matches(SECRET)
+
+
+def _pipe_with(data: bytes, *, close_writer: bool = True):
+    read_fd, write_fd = os.pipe()
+    os.write(write_fd, data)
+    if close_writer:
+        os.close(write_fd)
+    return os.fdopen(read_fd, "r"), write_fd
+
+
+def test_launch_with_no_secret_and_no_flag_does_not_wait():
+    import time
+
+    started = time.monotonic()
+    launch_secret.load_at_startup({}, open(os.devnull))
+    assert time.monotonic() - started < 0.5
+    assert not launch_secret.matches(SECRET)
+
+
+def test_the_flag_with_stdin_not_a_pipe_does_not_wait():
+    import time
+
+    started = time.monotonic()
+    launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, open(os.devnull))
+    assert time.monotonic() - started < 0.5
+    assert not launch_secret.matches(SECRET)
+
+
+def test_an_empty_line_on_the_pipe_leaves_first_run_closed_and_returns_at_once():
+    import time
+
+    stream, _ = _pipe_with(b"\n")
+    started = time.monotonic()
+    launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, stream)
+    assert time.monotonic() - started < 0.5
+    assert not launch_secret.matches(SECRET)
+
+
+def test_a_real_pipe_line_is_taken():
+    stream, _ = _pipe_with((SECRET + "\n").encode())
+    launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, stream)
+    assert launch_secret.matches(SECRET)
