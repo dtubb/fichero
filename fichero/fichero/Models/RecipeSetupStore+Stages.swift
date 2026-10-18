@@ -11,7 +11,9 @@ extension RecipeSetupStore {
         guard stages.isEmpty else { return }
         do {
             if case .ok(let success) = try await client.api.listStagesApiRecipesStagesGet() {
-                let items = try success.body.json.items
+                let list = try success.body.json
+                let items = list.items
+                moneyAndPlace = list.moneyAndPlace
                 stages = items
                 stageChoice = SetupStageChoice(
                     stages: items.map(Self.choiceStage),
