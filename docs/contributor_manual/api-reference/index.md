@@ -399,6 +399,65 @@ exposes them.
 - Response: `200` with the owner `user` and the registered `client`; the app then signs in by challenge. `401` for a
   missing or wrong secret, `403` over TCP, `409` once an owner exists, `422` for a key that is not P-256.
 
+`POST /api/auth/migrate-owner`
+
+- Purpose: give an existing owner row its first key, once (`multiuser.migrate-owner`, #2403). Same guards as
+  first-run; the body is `public_key_pem` and `client` (no `display_name`: the owner row has its name). The key goes
+  to the owner row only.
+- Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
+  over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
+
+### Sign in by key
+
+`POST /api/auth/challenge`
+
+- Purpose: start a passwordless sign-in for a registered client (`multiuser.sign-in-by-challenge`, #2403).
+- Request: `client_id`.
+- Response: `200` with `nonce`, `expires_in`, `expires_at` and `engine_id`. The nonce is single use and lives 60 s;
+  at most 5 stay outstanding per client. `401` ("sign-in refused") for an unknown or revoked client, with the same
+  body for both. Open: no session needed.
+
+`POST /api/auth/sign-in`
+
+- Purpose: finish the sign-in with the client's signature.
+- Request: `client_id`, `nonce`, and `signature`: base64 DER ECDSA-P256-SHA256 over
+  `"fichero-sign-in-v1" 0x00 engine_id 0x00 client_id 0x00 nonce 0x00 expires_at`. The engine rebuilds the message
+  from its own `engine_id`, so a signature made for another engine is refused.
+- Response: `200` with `session_token`, `user` and `client`. `401` ("sign-in refused") for any failure; `429` after
+  10 failures a minute for a live client. Open: no session needed.
+
+### Local CLI and MCP clients
+
+All under `/api/auth/local-clients`. Off until the owner turns a switch on (`multiuser.first-connection-asks-the-person`,
+#2403). Engine side only: the transport that stamps the socket's verified peer onto each request comes with the app.
+
+`GET /api/auth/local-clients/switches` and `PUT /api/auth/local-clients/switches`
+
+- Purpose: read or set *Allow local MCP clients* and *Allow the fichero CLI* (`{mcp, cli}`, both default off). The
+  signed-in owner only; the bootstrap token is refused.
+
+`POST /api/auth/local-clients/request`
+
+- Purpose: a local program asks to be allowed (`{kind: cli|mcp, name, host}`). Unix socket only (`403` over TCP), a
+  verified peer of the same macOS user (`403` otherwise), and the kind's switch on (`403` "not allowed on this Mac").
+- Response: `200` with the request, including what the engine verified about the program (`peer.pid`, `peer.exe`,
+  `peer.signer`) and `state` `pending`. Requests expire after five minutes; at most 20 are pending (`429`).
+
+`GET /api/auth/local-clients/requests`
+
+- Purpose: the pending and decided requests, for the app's approval sheet. Signed-in owner only.
+
+`POST /api/auth/local-clients/requests/{request_id}/decision`
+
+- Purpose: Allow or Deny (`{allow}`). Signed-in owner only; audited. `404` unless pending.
+
+`POST /api/auth/local-clients/register`
+
+- Purpose: the allowed program registers its OWN public key (`{request_id, public_key_pem}`, P-256), once. Unix socket only, from
+  the same program (pid and path) that asked. `409` while pending, `403` when denied or the switch went off, `404`
+  for another program or a used request.
+- Response: `200` with the new client; it then signs in by challenge. The client acts for the owner who allowed it.
+
 ### Sharing state
 
 `GET /api/pair/tailnet`

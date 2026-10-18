@@ -51,13 +51,17 @@ def signed_in_client(harness, user, *, kind="device", name="Test client", host="
     return SignedIn(token, {"Authorization": f"Bearer {token}"}, key, client)
 
 
-def uds_client(harness):
-    """A client whose requests arrive as if over the engine's Unix socket (the server stamps `fichero.transport`)."""
+def uds_client(harness, peer=None):
+    """A client whose requests arrive as if over the engine's Unix socket (the server stamps `fichero.transport`).
+
+    `peer` stands for the socket's verified peer credentials (`fichero.peer`: uid, pid, exe, signer)."""
     from fastapi.testclient import TestClient
 
     async def over_the_socket(scope, receive, send):
         if scope["type"] in ("http", "websocket"):
             scope["fichero.transport"] = "uds"
+            if peer is not None:
+                scope["fichero.peer"] = peer
         await harness.app(scope, receive, send)
 
     return TestClient(over_the_socket, base_url="http://testserver", headers={**harness.lib_header, "Authorization": ""})
