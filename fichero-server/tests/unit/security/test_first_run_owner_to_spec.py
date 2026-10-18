@@ -94,3 +94,11 @@ def test_first_run_is_409_when_an_owner_already_exists(harness, engine_secret):
     )
     _key, pem = new_key()
     assert _first_run(uds_client(harness), pem).status_code == 409
+
+
+def test_a_non_owner_already_called_owner_gives_409_not_500(harness, engine_secret):
+    harness.app_db.create_user(
+        username="owner", display_name="Not the owner", password_hash=accounts.hash_password("x"), is_owner=False
+    )
+    _key, pem = new_key()
+    assert _first_run(uds_client(harness), pem).status_code == 409

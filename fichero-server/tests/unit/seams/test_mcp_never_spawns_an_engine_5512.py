@@ -4,13 +4,19 @@ engine. Two engines on one DuckDB is the harm; no code path here may launch one.
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
+# scripts/ is not a package: load the repo's scan helper by path (see test_scan_files_skips_nested_worktrees).
+_spec = importlib.util.spec_from_file_location("_scan_files", ROOT / "scripts" / "_scan_files.py")
+assert _spec and _spec.loader
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 FORBIDDEN = {"subprocess", "uvicorn", "fichero_cli.engine_manager", "multiprocessing"}
 #: ui_control.py runs `osascript` to drive the app's own panes; it launches no engine.
 SUBPROCESS_OK = {"ui_control.py"}
-SOURCES = [*sorted((ROOT / "fichero-mcp" / "src").rglob("*.py")), ROOT / "fichero-cli" / "src" / "fichero_cli" / "client.py"]
+SOURCES = [*sorted(scan_files.scan_rglob(ROOT / "fichero-mcp" / "src", "*.py")), ROOT / "fichero-cli" / "src" / "fichero_cli" / "client.py"]
 
 
 def _imported(path: Path) -> set[str]:

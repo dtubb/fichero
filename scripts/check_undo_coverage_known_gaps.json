@@ -480,5 +480,10 @@
   "POST /api/hpc/clusters/{cluster_id}/key/make": "not undoable by design: makes the cluster's key pair in the engine's folder; removing the key (DELETE .../key) is its inverse (#5238)",
   "POST /api/auth/challenge": "sign-in handshake: issues a one-time nonce, changes no library data - nothing to undo (multiuser-always-on, #2403)",
   "POST /api/auth/sign-in": "signs a client in (a session, like POST /api/auth/login); not undoable, the session is ended by revoking the client (multiuser-always-on, #2403)",
-  "POST /api/auth/first-run": "creates the owner once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)"
+  "POST /api/auth/first-run": "creates the owner once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)",
+  "POST /api/auth/migrate-owner": "gives the owner row its first key once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)",
+  "POST /api/auth/local-clients/request": "a local program asks to be allowed; a request record, no library data (multiuser-always-on slice 6a, #2403)",
+  "POST /api/auth/local-clients/requests/{request_id}/decision": "the owner's Allow/Deny of a request; reversed by revoking the client, not by undo (slice 6a, #2403)",
+  "POST /api/auth/local-clients/register": "the allowed program registers its own key; reversed by revoking the client (slice 6a, #2403)",
+  "PUT /api/auth/local-clients/switches": "the two local-client switches; set back by the owner, not an undoable library change (slice 6a, #2403)"
 }

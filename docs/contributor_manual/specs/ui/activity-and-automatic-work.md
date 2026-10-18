@@ -1217,16 +1217,18 @@ and node, not by job); a retry action for failed pages.
   not yet seen in the app. Still a gap: a reading on a cloud model (the network lane) is not held,
   and the small display image is made on first view, not at import.
 - `activity.lane.measures-processors` — **[PARTIAL]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
-  Engine, memory), measured by the engine. Built: the engine's own CPU %, memory and energy (watts) are measured
-  process-wide, the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
+  Engine, memory), measured by the engine. Built: the engine's CPU %, memory and energy (watts) are measured
+  process-wide, the last two summed over its child processes (`process_tree_rusage`), the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
   ride on `GET /api/activity/jobs` (`fichero-server/tests/unit/jobs/test_process_rusage_5358.py`). Still a gap:
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
   step can run at the same time when memory allows; two steps on the same processor do not.
-- `activity.lane.idle-unload` — **[PARTIAL]** (#5358, #5529) a resident model with no work is unloaded after a short idle
-  time. Built for Kraken: its line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
-  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`; `fichero-server/tests/unit/jobs/test_engine_memory.py`).
-  Still a gap: the other resident models (the embedder, a local model server).
+- `activity.lane.idle-unload` — **[OK]** (#5358, #5529) a resident model with no work is unloaded after a short idle
+  time. Kraken's line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
+  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`); an embedding model no embed holds after
+  600 s (`db/embeddings.py` `EMBEDDER_IDLE_SECONDS`, `release_idle_embedders`); an engine-started local model server
+  after 600 s (`api/routes/ai/local_inference.py` `IDLE_STOP_SECONDS`). Tests: `fichero-server/tests/unit/jobs/test_engine_memory.py`,
+  `fichero-server/tests/unit/db/test_embedding_model_only_while_needed.py`.
 - `activity.throttle.watched-first` — **[PARTIAL]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS. Built (2026-10-04): handed-in work (a page of a run a
   person started) is ordered first on the local-model lane, and a long background job (training)
@@ -1293,12 +1295,14 @@ and node, not by job); a retry action for failed pages.
   implies is written in the change's own transaction. Built for the correction re-embed
   (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`) and an import's derivative stages, which commit or roll
   back with the documents (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`).
-- `activity.durable.lease-not-fail` — **[BROKEN]** (#5357) after a crash or quit, an
-  interrupted job goes back to waiting and resumes; today every running, accepted **and paused**
-  workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
-  checkpoints are on disk (`workflows/checkpointer.py`). Since #5555 the flip is on every open and says
-  so — "Interrupted: the engine stopped at HH:MM" — and the run offers to read its pages not done as a new
-  run (`compute.run.interrupted-on-start`); it is still not resumed in place.
+- `activity.durable.lease-not-fail` — **[PARTIAL]** (#5357) after a crash or quit, an
+  interrupted job goes back to waiting and resumes. *Quit — built 2026-10-18:* a quit records each live run that has a checkpoint
+  `paused` and the next open resumes it (`activity.run.quit-pauses`); a paused run is not swept on reopen
+  (`activity.durable.paused-stays-paused`). *Crash — not built:* a run that was `running` or `accepted` when the engine died
+  (no quit to pause it) is still flipped to `failed` on the next open (`workflows/activity.py` `_recover_stale_runs_bg`),
+  although its checkpoints are on disk (`workflows/checkpointer.py`). The flip says so — "Interrupted: the engine stopped at HH:MM" —
+  and the run offers to read its pages not done as a new run (`compute.run.interrupted-on-start`, #5555); it is not resumed in
+  place.
 - `activity.durable.dies-with-the-engine` — **[OK]** (2026-10-11) when the engine dies mid-job (killed, not closed),
   nothing reads "running" after it starts again: on the project's open a queued job (an import's page, a model
   download, a recipe run) goes back to waiting, "Interrupted; carries on", and is taken up again from its own
@@ -1511,16 +1515,23 @@ code path.
   step and page from the start: the event hub keeps every event but the log lines for the saved timeline
   (`WorkflowEventHub.record`), while a late viewer's replay stays the newest 2,000; pinned by
   `fichero-server/tests/unit/execution/test_record_keeps_all_history_5376.py`.
-- `activity.run.log-is-bounded` — **[PARTIAL]** (#5376) a run's log is bounded in memory and
+- `activity.run.log-is-bounded` — **[OK]** (#5376) a run's log is bounded in memory and
   appended, not rewritten. *Built 2026-10-18:* the log is a `BoundedLog` (`execution/run_log.py`: the first 200 and the latest
   1,800 lines held, the middle counted; a node boundary appends only the lines since its last flush; the final text says
   how many it leaves out); the node-boundary append was built in #5645; pinned by `test_run_log_bounded_5376.py`.
-  *Not built:* the `complete` frame still ships the whole final state (`execution/runner.py`).
+  The `complete` frame carries each final-state value only when its JSON is within 2,000 characters, else its size
+  (`run_log.bounded_final_state`; the same test file). The full state stays on the run's checkpoint. **[OK]** once the
+  M4 run is green.
 - `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
   kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
-  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
-  run is done (a finished run's final state is still read, and a resume reads it, #5373).
+  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built, and not safe to build yet:*
+  deleting the last one when the run is done. Tried and reverted 2026-10-18: the last checkpoint is the run's final state, and
+  it is read after the run is done, by the status route's `current_state` (the review-step test checks the answer reached the
+  tool through it, `test_review_step_pauses_through_the_routes_5429.py`), by the run's account (pages done, failures) and by a
+  group run's member pages (`test_run_on_any_level_5604.py`). Deleting it needs each of those to read the saved final state
+  instead; until then one checkpoint per run is what is kept (it is what bounds the growth). Resume reads the last checkpoint
+  of a paused run (#5373).
 - `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
   the engine's run registry: the cap evicts only runs that have exited (`execution/runner.py`
   `_cap_workflow_state_registry`); pinned by `fichero-server/tests/unit/workflows/test_live_run_never_evicted_5376.py`.
@@ -1528,8 +1539,12 @@ code path.
   boundary, and they carry on at the next launch. *Built 2026-10-18 (engine):* on shutdown each live run with a checkpoint on
   disk is recorded `paused` (`runner.pause_live_runs_for_shutdown`, before the streams close), and a paused run is not swept on
   reopen (`activity.durable.paused-stays-paused`), so it waits for Resume; pinned by `test_quit_pauses_runs_5357.py`.
-  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written) and
-  the run carrying on by itself at the next launch.
+  *Built (engine):* the quit records the reason (`runner.QUIT_PAUSED_ERROR`) and the library's next open resumes the runs that
+  carry it, clearing the reason first so a later pause by a person is left for Resume; a resume that fails leaves the run paused
+  with why (`activity.resume_quit_paused_runs`; `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`).
+  The quit then waits up to `runner.BOUNDARY_GRACE_SECONDS` (1 s; the app kills the engine soon after) for each asked run to reach
+  its boundary and settle `paused`; one that does not is covered by the `paused` record (`test_quit_paused_runs_resume_5357.py`).
+  *Not built:* a step that runs longer than the grace is still cut at exit, so its checkpoint is the last one written.
 - `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
   text or image it reads has changed, and is reused when it has not, in any workflow. Built
   (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a

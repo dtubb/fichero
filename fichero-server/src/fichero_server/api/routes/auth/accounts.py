@@ -872,7 +872,8 @@ def _identity_client(request: Request, app_db: AppDatabase) -> AuthIdentityClien
 
 def _live_client(app_db: AppDatabase, client_id: str):
     client = app_db.get_client(client_id)
-    return client if client is not None and client.revoked_at is None else None
+    # A keyless client (a migrated device token) can never sign in.
+    return client if client is not None and client.revoked_at is None and client.public_key_pem else None
 
 
 def _engine_id(app_db: AppDatabase) -> str:
@@ -928,6 +929,13 @@ class FirstRunClient(BaseModel):
     host: str = Field(default="", max_length=120)
 
 
+class MigrateOwnerRequest(BaseModel):
+    """The owner row already has a name; only the key and the client are new."""
+
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    client: FirstRunClient
+
+
 class FirstRunRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     public_key_pem: str = Field(min_length=1, max_length=2000)
@@ -953,6 +961,16 @@ def _is_p256_public_key(pem: str) -> bool:
     return isinstance(key, ec.EllipticCurvePublicKey) and key.curve.name == "secp256r1"
 
 
+def _require_local_launch(request: Request, secret: str | None, public_key_pem: str) -> None:
+    """Guards shared by first-run and migrate-owner: Unix socket only, launch secret, a P-256 key."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    if not launch_secret.matches(secret):
+        raise HTTPException(status_code=401, detail="refused")
+    if not _is_p256_public_key(public_key_pem):
+        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+
+
 @auth_router.post("/first-run", response_model=FirstRunResponse)
 def first_run(
     body: FirstRunRequest,
@@ -964,15 +982,12 @@ def first_run(
 
     Only over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is
     not the launch secret. The owner gets an unusable password: they sign in by their key."""
-    if request.scope.get("fichero.transport") != "uds":
-        raise HTTPException(status_code=403, detail="first-run is local only")
-    if not launch_secret.matches(x_fichero_launch_secret):
-        raise HTTPException(status_code=401, detail="first-run refused")
-    if not _is_p256_public_key(body.public_key_pem):
-        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+    _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
     with _first_run_lock:
         if any(user.is_owner for user in app_db.list_users()):
             raise HTTPException(status_code=409, detail="this library already has an owner")
+        if app_db.get_user_by_username("owner") is not None:
+            raise HTTPException(status_code=409, detail="the username 'owner' is already taken")
         user = app_db.create_user(
             username="owner",
             display_name=body.display_name,
@@ -984,6 +999,211 @@ def first_run(
             public_key_pem=body.public_key_pem,
         )
     return FirstRunResponse(user=_to_public_user(user), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
+
+
+@auth_router.post("/migrate-owner", response_model=FirstRunResponse)
+def migrate_owner(
+    body: MigrateOwnerRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+    x_fichero_launch_secret: str | None = Header(default=None, alias="X-Fichero-Launch-Secret"),
+) -> FirstRunResponse:
+    """Give an existing owner row its first key, once (multiuser.migrate-owner).
+
+    Same guards as first-run. The key goes to the owner row only, never to another person."""
+    _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
+    with _first_run_lock:
+        owners = [user for user in app_db.list_users() if user.is_owner]
+        if not owners:
+            raise HTTPException(status_code=404, detail="this library has no owner yet; use first-run")
+        if len(owners) > 1:
+            raise HTTPException(status_code=409, detail="this library has several owners; none is chosen for you")
+        owner = owners[0]
+        if app_db.user_has_key(owner.id):
+            raise HTTPException(status_code=409, detail="the owner already has a key")
+        client = app_db.create_client(
+            user_id=owner.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
+    return FirstRunResponse(user=_to_public_user(owner), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
+
+
+# --- Local CLI/MCP clients (multiuser.first-connection-asks-the-person, slice 6a) --------------------------------
+# A local client asks over the Unix socket; the owner, signed in in the app, allows it; the client then registers
+# its OWN public key. Nothing here is on until the owner turns a switch on (default off). The transport stamps
+# `fichero.peer` ({uid, pid, exe, signer}) from the socket's peer credentials; with no peer the request is refused.
+
+REQUEST_TTL_SECONDS = 300
+MAX_PENDING_REQUESTS = 20
+_client_requests: dict[str, dict] = {}
+_client_requests_lock = threading.Lock()
+_SWITCH_KEYS = {"mcp": "local_clients_allow_mcp", "cli": "local_clients_allow_cli"}
+
+
+class LocalClientSwitches(BaseModel):
+    mcp: bool
+    cli: bool
+
+
+class LocalClientRequestBody(BaseModel):
+    kind: Literal["cli", "mcp"]
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
+class LocalClientPeer(BaseModel):
+    pid: int
+    exe: str
+    signer: str | None = None
+
+
+class LocalClientRequestResponse(BaseModel):
+    id: str
+    kind: str
+    name: str
+    host: str
+    peer: LocalClientPeer
+    state: Literal["pending", "allowed", "denied"]
+
+
+class LocalClientRequestList(BaseModel):
+    items: list[LocalClientRequestResponse]
+
+
+class LocalClientDecision(BaseModel):
+    allow: bool
+
+
+class LocalClientRegisterBody(BaseModel):
+    request_id: str = Field(min_length=1, max_length=64)
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+
+
+def _signed_in_owner(request: Request):
+    """The owner signed in by a session. The bootstrap token and loopback are not the owner here."""
+    user = _current_session_user(request)
+    if user is None or not user.is_owner:
+        raise HTTPException(status_code=403, detail="owner access required")
+    return user
+
+
+def _verified_peer(request: Request) -> dict:
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    peer = request.scope.get("fichero.peer")
+    if not peer or peer.get("uid") != os.getuid():
+        raise HTTPException(status_code=403, detail="the connecting program could not be verified")
+    return peer
+
+
+def _switch_on(app_db: AppDatabase, kind: str) -> bool:
+    return app_db.get_setting(_SWITCH_KEYS[kind]) == "1"
+
+
+def _request_view(request_id: str, entry: dict) -> LocalClientRequestResponse:
+    peer = entry["peer"]
+    return LocalClientRequestResponse(
+        id=request_id,
+        kind=entry["kind"],
+        name=entry["name"],
+        host=entry["host"],
+        peer=LocalClientPeer(pid=peer["pid"], exe=peer["exe"], signer=peer.get("signer")),
+        state=entry["state"],
+    )
+
+
+def _live_requests() -> dict[str, dict]:
+    now = time.time()
+    for stale in [rid for rid, entry in _client_requests.items() if entry["expires_at"] <= now]:
+        del _client_requests[stale]
+    return _client_requests
+
+
+@auth_router.get("/local-clients/switches", response_model=LocalClientSwitches)
+def get_local_client_switches(
+    request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientSwitches:
+    _signed_in_owner(request)
+    return LocalClientSwitches(mcp=_switch_on(app_db, "mcp"), cli=_switch_on(app_db, "cli"))
+
+
+@auth_router.put("/local-clients/switches", response_model=LocalClientSwitches)
+def put_local_client_switches(
+    body: LocalClientSwitches, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientSwitches:
+    _signed_in_owner(request)
+    _audit(request, app_db, "local_clients.switches", "local_clients", mcp=body.mcp, cli=body.cli)
+    for kind, value in (("mcp", body.mcp), ("cli", body.cli)):
+        app_db.set_setting(_SWITCH_KEYS[kind], "1" if value else "0")
+    return body
+
+
+@auth_router.post("/local-clients/request", response_model=LocalClientRequestResponse)
+def request_local_client(
+    body: LocalClientRequestBody, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientRequestResponse:
+    peer = _verified_peer(request)
+    if not _switch_on(app_db, body.kind):
+        raise HTTPException(status_code=403, detail="not allowed on this Mac")
+    with _client_requests_lock:
+        live = _live_requests()
+        if len(live) >= MAX_PENDING_REQUESTS:
+            raise HTTPException(status_code=429, detail="too many pending requests")
+        request_id = secrets.token_urlsafe(16)
+        live[request_id] = {
+            "kind": body.kind, "name": body.name.strip(), "host": body.host.strip(), "peer": dict(peer),
+            "state": "pending", "user_id": None, "expires_at": time.time() + REQUEST_TTL_SECONDS,
+        }
+        return _request_view(request_id, live[request_id])
+
+
+@auth_router.get("/local-clients/requests", response_model=LocalClientRequestList)
+def list_local_client_requests(request: Request) -> LocalClientRequestList:
+    _signed_in_owner(request)
+    with _client_requests_lock:
+        return LocalClientRequestList(items=[_request_view(rid, e) for rid, e in _live_requests().items()])
+
+
+@auth_router.post("/local-clients/requests/{request_id}/decision", response_model=LocalClientRequestResponse)
+def decide_local_client_request(
+    request_id: str, body: LocalClientDecision, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientRequestResponse:
+    owner = _signed_in_owner(request)
+    with _client_requests_lock:
+        entry = _live_requests().get(request_id)
+        if entry is None or entry["state"] != "pending":
+            raise HTTPException(status_code=404, detail="no such pending request")
+        _audit(request, app_db, "local_clients.decide", request_id, allow=body.allow, kind=entry["kind"])
+        entry["state"] = "allowed" if body.allow else "denied"
+        entry["user_id"] = owner.id
+        return _request_view(request_id, entry)
+
+
+@auth_router.post("/local-clients/register", response_model=SignInClient)
+def register_local_client(
+    body: LocalClientRegisterBody,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> SignInClient:
+    """The allowed client registers its own public key, once, from the same program that asked. No secret crosses."""
+    peer = _verified_peer(request)
+    if not _is_p256_public_key(body.public_key_pem):
+        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+    with _client_requests_lock:
+        request_id = body.request_id
+        entry = _live_requests().get(request_id)
+        if entry is None or (entry["peer"]["pid"], entry["peer"]["exe"]) != (peer["pid"], peer["exe"]):
+            raise HTTPException(status_code=404, detail="no such request")
+        if entry["state"] == "pending":
+            raise HTTPException(status_code=409, detail="not allowed yet")
+        if entry["state"] == "denied" or not _switch_on(app_db, entry["kind"]):
+            raise HTTPException(status_code=403, detail="not allowed on this Mac")
+        client = app_db.create_client(
+            user_id=entry["user_id"], kind=entry["kind"], name=entry["name"], host=entry["host"],
+            public_key_pem=body.public_key_pem,
+        )
+        del _client_requests[request_id]
+    return SignInClient(id=client.id, kind=client.kind, name=client.name)
 
 
 @auth_router.post("/sign-in", response_model=SignInResponse)
