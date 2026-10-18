@@ -184,6 +184,7 @@ def _canvas_layout_change_spec(
             actor=ctx.actor,
             origin_window=ctx.origin_window,
             origin_user=ctx.actor,
+            device=(ctx.device or {}).get("name"),
         )
 
     return ChangeSpec(

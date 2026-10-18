@@ -926,6 +926,7 @@ async def chat(
         metadata={"conversation_id": conv.id},
         origin_window=ctx.origin_window,
         origin_user=ctx.actor,
+        device=(ctx.device or {}).get("name"),
     )
 
     return ChatResponse(
