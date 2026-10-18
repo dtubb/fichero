@@ -34,7 +34,22 @@ def test_a_live_run_with_a_checkpoint_is_paused_and_one_without_is_not(tmp_path,
         "done": {"status": "completed", "db_path": db_path},
         "bare": {"status": "running"}})
 
+    from fichero_server.execution.cancellation import clear_pause, pause_requested
+
+    opened = []
+    real = AsyncDuckDBCheckpointer.from_db_path
+    monkeypatch.setattr(AsyncDuckDBCheckpointer, "from_db_path",
+                        classmethod(lambda cls, p, **k: opened.append(real(p, **k)) or opened[-1]))
     assert asyncio.run(runner.pause_live_runs_for_shutdown()) == 1
+    # the run is asked to pause, so it settles as paused through its own path at its next boundary ...
+    assert pause_requested("with-cp") and not pause_requested("no-cp")
+    clear_pause("with-cp")
+    # ... and one connection was opened for the library, then closed
+    assert len(opened) == 1
+    import duckdb
+    import pytest
+    with pytest.raises(duckdb.ConnectionException):
+        opened[0].conn.execute("select 1")
     status = lambda t: asyncio.run(store.get_workflow_run(t)).status  # noqa: E731
     assert (status("with-cp"), status("no-cp"), status("done")) == ("paused", "running", "completed")
 
