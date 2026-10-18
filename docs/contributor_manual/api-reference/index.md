@@ -35,6 +35,20 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   header recorded during auth enforcement, so an unnamed caller is attributed
   by transport rather than rejected.
 
+## Signing in by a client's key (#2403)
+
+`POST /api/auth/challenge` and `POST /api/auth/sign-in` sign a registered client (a paired device or the app) in
+with its own key instead of a password.
+
+- `POST /api/auth/challenge` `{client_id}` answers a single-use `nonce`, `expires_in` (60 seconds), `expires_at` and
+  this engine's `engine_id`. At most 5 challenges are outstanding per client; an older one is dropped. An unknown and a
+  revoked client get the same 401, so client ids cannot be probed.
+- `POST /api/auth/sign-in` `{client_id, nonce, signature}`: the signature is ECDSA P-256 / SHA-256 over
+  `fichero-sign-in-v1`, the engine id, the client id, the nonce and its expiry, NUL-separated, so a signature made for
+  another engine, client or expiry never verifies. The nonce is spent whether or not the signature is good. A good
+  one answers `session_token`, the `user` and the `client`; anything else is 401 "sign-in refused", and more than 10
+  failed sign-ins a minute for one client is 429 with `Retry-After: 60`.
+
 ## W3C annotation export
 
 `GET /api/documents/{doc_id}/annotations.jsonld`
@@ -1512,7 +1526,7 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/recipes/jobs`: every job a recipe can name, with what it takes and gives, its plain description and the `topic` that explains it.
 - `GET /api/topics`, `GET /api/topics/{topic_id}`: each topic setup teaches and each recipe job, explained once (#5471): `kind` (`job` or `topic`), `title`, `short` (one sentence), `long` (a paragraph after it), `example` and `manual`. `404` for an unknown id. The text lives only in `fichero-server/src/fichero_server/recipes/seed/topics.yaml`; a job's name and description are read from it.
 - `GET /api/recipes/purposes`: the purposes setup offers, in order, and whether each runs by itself.
-- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. `left_off` lists the steps left off by default with why and their cost; Correct's carries `offered` when a cloud corrector's provider has a key set here (its `card`, `runs_on`, `pages`, `cost_usd`), offered at Ready, never turned on by itself (#5677). Writes nothing.
+- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. `left_off` lists the steps left off by default with why and their cost; Correct's carries `offered` when a cloud corrector's provider has a key set here (its `card`, `runs_on`, `pages`, `cost_usd`), offered at Ready, never turned on by itself (#5677). The Normalise step (`translate-transliterate-normalise`) carries `run_titles`, its runs by title in the order Start makes them: one for each reading level asked ("As written", "Abbreviations expanded", "Normalised spelling", "Modernised") and one for a translation ("Translation into English"); null on every other step (#5795). Writes nothing.
 - `POST /api/recipes/check`: every reason a recipe cannot run as it stands, step by step.
 - `GET /api/recipes/candidates?scripts=&languages=&material=&job=&online=`: every reader candidate for these scripts and languages (#5519), each a card saying where it came from (`source`: `shipped`, `installed`, `kraken-repository`, `hugging-face`), why it is offered (`offered_because`), what it states (scripts, languages, licence, size, published CER) and what the rules make of it (`rule_rank` in the fixed order, or `refused` with the rules' reason), and `measured` ("unmeasured on your pages until a bake-off measures it" until one does). Installed: every complete MLX vision model in the model store no shipped card pins, its card made from its own config and README (a model Fichero trained included). Kraken's repository: htrmopo's listing of Zenodo's `ocr_models` community (the call `kraken list` makes), Kraken recognition models only, newest version of each, kept in the model store's `discovery/` folder and fetched again at most daily; a record's published CER is ranked on only when it names the project's languages. Hugging Face: image-to-text and image-text-to-text models by task and language tag, MLX builds only (or a safetensors model's MLX conversion, found by its `base_model:` tag), never GGUF; listed with `in_recipe_rules: false` because Fichero cannot download a Hub model outside its catalogue yet. The network is reached only with `online=true` and never when the engine works offline (`FICHERO_LOCAL_ONLY` / `local_only_ai`); `sources` says what each source did (`read`, `searched`, `cached`, `not-searched`, `offline`, `failed`). `POST /api/recipes/assemble` and the bake-off choose from the shipped, installed and cached repository cards (never the network); an assembled step's `card.source` names where its card came from. `422` for an unknown script, language, material or job.
 - `GET /api/recipes/htr-united?languages=&scripts=` (#5571): HTR-United's ground-truth datasets kept for these languages (required; codes or names) and scripts, most lines first, never the network (the search job keeps the catalogue). `fetched_at` is when it was kept (null: never searched). Each of `datasets` has `title`, `url`, `languages`, `scripts`, `handwriting`, `format`, `licence {name, url}`, `lines`, `pages`, and what it may be used as: `as` (`test-set`, `training`; empty until a licence outside the open ones is accepted), `accept` (the words to accept first, null when open) and `importable` (PAGE or ALTO). `422` for an unknown script or language.

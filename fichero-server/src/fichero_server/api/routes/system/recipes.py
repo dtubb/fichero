@@ -237,6 +237,9 @@ class RecipeStep(BaseModel):
     needed_by: Optional[list[str]] = Field(default=None, description=(
         "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they "
         "stay (source.onboard.plan-editable)"))
+    run_titles: Optional[list[str]] = Field(default=None, description=(
+        "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the "
+        "order Start makes them (#5795); null for every other step"))
 
 
 class TakenOutStep(BaseModel):
@@ -876,6 +879,14 @@ def _answers(answers: dict[str, Any]) -> Answers:
 READS = {"x-fichero-reads": True}
 
 
+def _run_titles(step: dict[str, Any]) -> dict[str, Any]:
+    from fichero_server.recipes.answers import normalise_run_titles
+
+    if step.get("job") != "translate-transliterate-normalise":
+        return {}
+    return {"run_titles": normalise_run_titles((step.get("settings") or {}).get("target"))}
+
+
 @router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS)
 async def assemble_recipe(
     request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
@@ -893,7 +904,8 @@ async def assemble_recipe(
     return AssembledRecipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
-        steps=[RecipeStep(**s) for s in recipe["steps"]], gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
+        steps=[RecipeStep(**s, **_run_titles(s)) for s in recipe["steps"]], gaps=recipe["gaps"],
+        by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"),

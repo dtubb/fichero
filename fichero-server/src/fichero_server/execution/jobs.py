@@ -683,6 +683,10 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
     return job_id
 
 
+#: The kinds whose row watches a Job elsewhere (Hugging Face or a cluster, its id the row's `target`).
+FAR_SIDE_KINDS = ("train-a-model", "read-at-scale")
+
+
 def details_of_kinds(db: "Database", kinds: tuple[str, ...] | list[str]) -> list[tuple[datetime, dict[str, Any]]]:
     """Every row of these kinds as (created_at in UTC, its detail), oldest first."""
     _ensure(db)
@@ -1134,13 +1138,14 @@ def resume(db: "Database") -> None:
         f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)})",
         [utc_now(), *attached],
     )
-    # A job watching a Job on Hugging Face is never set aside for being interrupted: the Job runs (and
-    # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449).
+    # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
+    # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
     now = utc_now()
     for job_id, attempts, started_at in db.execute_fetchall(
         "SELECT id, attempts, started_at FROM jobs "
-        "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs'",
-        [MAX_ATTEMPTS],
+        "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs' "
+        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)})",
+        [MAX_ATTEMPTS, *FAR_SIDE_KINDS],
     ):
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
