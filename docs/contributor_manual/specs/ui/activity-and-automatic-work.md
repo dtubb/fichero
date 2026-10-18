@@ -1470,9 +1470,10 @@ code path.
 - `activity.run.resume-default-workflow` — **[OK]** (#5373) a paused run of a shipped default
   workflow resumes: resume finds the workflow as `/execute` does, falling back to the default; pinned by
   `fichero-server/tests/unit/workflows/test_resume_default_workflow_5373.py`.
-- `activity.run.resume-from-snapshot` — **[BROKEN]** (#5373) a run resumes on the graph it started
-  with, built from its own snapshot. Today resume rebuilds the graph from the current definition,
-  so an edit made while paused changes the graph under the checkpoint.
+- `activity.run.resume-from-snapshot` — **[OK]** (#5373) a run resumes on the graph it started
+  with, built from its own snapshot (`workflows/resume_snapshot.as_started`: the snapshot's nodes and edges over the stored
+  workflow, so an edit made while paused changes nothing under the checkpoint); pinned by
+  `fichero-server/tests/unit/workflows/test_resume_from_snapshot_5373.py`.
 - `activity.run.resume-keeps-model` — **[OK]** (#5373) a resumed run uses the provider and model the person chose when it started, read from the run's own snapshot; pinned by
   `fichero-server/tests/unit/workflows/test_resume_keeps_model_5373.py`.
 - `activity.run.batch-off-the-request` — **[OK]** (#5374) *Built (2026-10-04): a batch runs on a worker
