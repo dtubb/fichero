@@ -69,15 +69,26 @@ def _ready(stream: TextIO, timeout: float) -> bool:
     return bool(select.select([fd], [], [], timeout)[0])
 
 
+def _is_pipe_or_memory(stream: TextIO) -> bool:
+    """True for a pipe (what the app hands us) or an in-memory stream (tests); a tty, file or /dev/null is not."""
+    try:
+        return stat.S_ISFIFO(os.fstat(stream.fileno()).st_mode)
+    except (AttributeError, OSError, ValueError):
+        return True
+
+
 def load_at_startup(environ: Mapping[str, str], stdin: TextIO, *, timeout: float = 5.0) -> None:
     """The one place an engine takes the secret. A flag (not the secret) says the app spawned us over a pipe.
 
     A `--reload` dev engine cannot inherit stdin, so it names the dev file instead (honoured only when FICHERO_ENV=development, which the dev script sets). With neither, first-run stays closed.
 
-    Never raises and never waits past `timeout`: a secret that does not arrive, arrives malformed, or a file that
+    Waits at all only when the flag is set AND stdin is a pipe; the app always writes one line (the secret, or empty)
+    and closes it, so the read returns at once and `timeout` is only a backstop. Never raises: a secret that does not arrive, arrives malformed, or a file that
     cannot be read leaves first-run closed and the engine starts (#5797: nothing may stop the embedded app's launch)."""
     try:
         if environ.get("FICHERO_LAUNCH_SECRET_STDIN") == "1":
+            if not _is_pipe_or_memory(stdin):
+                raise ValueError("the launch-secret flag is set but stdin is not a pipe")
             if not _ready(stdin, timeout):
                 raise ValueError(f"no launch secret on stdin within {timeout:g} s")
             read_from_stream(stdin)
