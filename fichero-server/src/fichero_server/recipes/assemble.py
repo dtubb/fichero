@@ -133,7 +133,7 @@ STEP_ORDER: tuple[str, ...] = (
 assert all(list(s) == sorted(s, key=STEP_ORDER.index) for s in PURPOSE_STEPS.values())
 #: The jobs a layer added later can turn on (`source.onboard.add-layer`), in order.
 LAYER_STEPS: tuple[str, ...] = ("find-lines", "read-a-line", "correct", "find-names-tag-words", "work-out-dates",
-                                "find-statements", "place-in-a-gazetteer", "make-a-vector")
+                                "find-statements", "place-in-a-gazetteer", "make-a-vector", "publish")
 
 
 def purpose_jobs(purposes) -> list[str]:

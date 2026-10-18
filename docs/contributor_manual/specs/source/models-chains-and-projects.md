@@ -2907,7 +2907,7 @@ Profiles (the defaults section of a recipe)
   website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
   site export (`export_service.export_eleventy_site`), into the folder its `where` setting names on the
   engine's disk, as a card of a started recipe; publishing again rewrites that site in place. A step that
-  names no folder is skipped and says so. What the site shows of the checks is `source.check.on-the-site`.
+  names no folder is skipped and says so. No purpose turns publishing on; a project adds the `publish` layer later (`POST /api/recipes/project/layers`, `source.onboard.add-layer`), which puts the step last in the recipe, tested in `fichero-server/tests/unit/recipes/test_publish_purpose_turns_it_on.py`. What the site shows of the checks is `source.check.on-the-site`.
 - `source.profile.is-a-prototype` — **[GAP]** (#4951) a recipe's profile is stored as a prototype
   the project inherits from; the followed recipe is the parent, the project's overrides its own
   values; any value can be overridden and shows where it came from.

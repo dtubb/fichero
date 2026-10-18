@@ -150,9 +150,13 @@ async def with_accounts(db: Any, status: dict[str, Any]) -> dict[str, Any]:
         # The step reading and its pages, never "0 of 1 folder" while its pages are read (#5685).
         from fichero_server.recipes.regions import progress_words
 
-        status["reason"] = (f"{running.get('doing') or 'Running'}: "
-                            + progress_words(account.pages_done, account.pages_total,
-                                             seconds_left=account.estimate_seconds_left))
+        pages = progress_words(account.pages_done, account.pages_total, seconds_left=account.estimate_seconds_left)
+        if account.waiting_reason and status["waiting_for"]:
+            # Held by the throttle: the row says it waits and why, with the pages it has (#5685).
+            said = account.waiting_reason
+            status["reason"] = f"{said if said.startswith('Waiting') else 'Waiting: ' + said} ({pages})"
+        else:
+            status["reason"] = f"{running.get('doing') or 'Running'}: {pages}"
     return status
 
 
