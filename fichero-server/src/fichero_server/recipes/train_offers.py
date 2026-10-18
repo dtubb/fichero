@@ -1,6 +1,7 @@
 """Training in the recipe (#5660 item 9, `source.recipe.train-offered-per-step`): for each step a model can be
 trained for, the Start plan offers "Train a model of your own for this step", offered later, never run at Start
-(`source.recipe.train-never-automatic`).
+(`source.recipe.train-never-automatic`). Under the setting `here`, a ready offer starts by itself on this Mac when a
+recipe step finishes (`start_when_ready`, #5440), once.
 
 Each offer names the ways to train (fine-tune or distil), and for each the places the engine can run it and the
 audited action that starts it: only trainers and places the engine already has. A way with no trainer here is
@@ -194,3 +195,79 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
         offers.append({"step": step.get("id", job), "job": job, "title": TITLE, "ways": ways, "readiness": ready,
                        "setting": setting, "does": _does(setting["mode"])})
     return offers
+
+
+#: The jobs a start on this Mac makes; one that is waiting, running, paused or done means training has started.
+_HERE_KINDS = ("train-on-this-mac", "train-regions-on-this-mac")
+
+
+def due_starts(offers: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
+    """(action, params) for each offer that starts by itself now: its setting is `here`, it is ready, and this Mac
+    can start it with what the engine filled (a teacher, a scope). Hugging Face never starts by itself: its pages
+    leave only on the person's yes."""
+    due = []
+    for offer in offers:
+        if offer["setting"]["mode"] != "here" or not offer["readiness"].get("ready"):
+            continue
+        start = next((t for w in offer["ways"] for t in w["targets"]
+                      if t["place"] == THIS_MAC["place"] and t.get("params")), None)
+        if start:
+            due.append((start["starts"], start["params"]))
+    return due
+
+
+def this_mac_memory_gb() -> float:
+    import os
+
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+    except (ValueError, OSError):
+        return 8.0
+
+
+def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str, Any]]:
+    """The project's train offers as the Start plan counts them, with its setting."""
+    from pathlib import Path
+
+    from fichero_server.llm import get_api_key
+    from fichero_server.recipes.project import read_project_setup
+
+    setup = read_project_setup(Path(db.path).parent)
+    answers = setup["answers"] or {}
+    stays_local = not answers.get("cloud_allowed", False)
+    setting = training_setting(answers.get("training"), mac_memory_gb=mac_memory_gb or this_mac_memory_gb(),
+                               hf_configured=bool(get_api_key("huggingface")), stays_local=stays_local)
+    return train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
+
+
+def _start(db: Any, action: str, params: dict[str, Any]) -> Any:
+    from pathlib import Path
+
+    import fichero_server.api.routes.training  # noqa: F401  (registers the training actions)
+    from fichero_server.actions.registry import ActionContext, registry
+
+    ctx = ActionContext(actor="recipe", library_path=str(Path(db.path).parent), is_bootstrap=True)
+    return registry.invoke(db, action, params, ctx)
+
+
+def start_when_ready(db: Any, *, mac_memory_gb: float | None = None) -> list[str]:
+    """Start each training due under `here` (#5440), unless training has already started on this Mac (a job
+    waiting, running, paused or done). Returns the actions started. A refusal (nothing to train on) is logged, never
+    fails the step that asked.
+    ponytail: once per project; training again on later corrections waits for the evaluation that adopts (#5441)."""
+    import logging
+
+    from fichero_server.execution import jobs
+
+    jobs._ensure(db)
+    if db.execute_fetchone(f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in _HERE_KINDS)}) "
+                           "AND state NOT IN ('failed', 'cancelled') LIMIT 1", list(_HERE_KINDS)):
+        return []
+    started = []
+    for action, params in due_starts(_offers_now(db, mac_memory_gb=mac_memory_gb)):
+        try:
+            _start(db, action, params)
+            started.append(action)
+        except Exception as exc:  # noqa: BLE001 -- training not starting never fails the recipe step
+            logging.getLogger(__name__).warning("training did not start by itself (%s): %s", action, exc)
+    return started

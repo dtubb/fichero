@@ -7,7 +7,6 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import asyncio
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -302,10 +301,9 @@ def _hf_token_set() -> bool:
 
 
 def _this_machine_memory_gb() -> float:
-    try:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
-    except (ValueError, OSError):
-        return 8.0
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
+
+    return this_mac_memory_gb()
 
 
 class PurposeJob(BaseModel):
