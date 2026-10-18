@@ -19,7 +19,7 @@ struct RecipeDownloadRows: View {
         if sentence != nil || !underWay.isEmpty || !instead.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
                 if let sentence {
-                    Label(sentence, systemImage: "arrow.down.circle")
+                    Label(Self.withFreeDisk(sentence), systemImage: "arrow.down.circle")
                         .font(.body)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("setup.ready.startDownloads")
@@ -44,6 +44,19 @@ struct RecipeDownloadRows: View {
                 }
             }
         }
+    }
+
+    /// The engine's sentence plus the room there is for it ("5.8 GB in all; 112 GB free").
+    static func withFreeDisk(_ sentence: String, free: Int64? = freeDiskBytes()) -> String {
+        guard let free else { return sentence }
+        let words = ByteCountFormatter.string(fromByteCount: free, countStyle: .file)
+        return sentence.hasSuffix(".") ? "\(sentence.dropLast()); \(words) free." : "\(sentence) (\(words) free)"
+    }
+
+    static func freeDiskBytes() -> Int64? {
+        let values = try? URL(fileURLWithPath: NSHomeDirectory()).resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     /// The engine's sentence for what Start will fetch, or nil when it fetches nothing.
