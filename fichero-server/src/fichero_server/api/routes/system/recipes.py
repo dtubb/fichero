@@ -197,6 +197,9 @@ class StepProblem(BaseModel):
         "up to three refused readers closest to fitting, the ones the sentence names "
         "(source.onboard.nothing-fits-names-nearest)"))
     refused: list[RefusedCard] = Field(default_factory=list, description="every card refused for the step, and why")
+    licence: Optional[dict[str, str]] = Field(default=None, description=(
+        "for licence-not-accepted: the card, the licence's name and the words the Review the licence button shows "
+        "(source.onboard.every-setup-button-acts-or-says-why)"))
 
 
 class StepReader(BaseModel):
@@ -652,6 +655,7 @@ class ScriptFacts(BaseModel):
     may_be_vertical: bool
     font: Optional[str] = None
     font_from: str
+    audit_id: Optional[str] = Field(default=None, description="the audit row of a choice just made; Undo reverses it")
 
 
 class MacFacts(BaseModel):
@@ -740,10 +744,11 @@ async def choose_font(
     else:
         answers.pop("fonts", None)
     try:
-        registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ScriptFacts(**derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script)))
+    facts = derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script))
+    return ScriptFacts(**facts, audit_id=done.audit_id)
 
 
 @router.get("/scripts", response_model=NamedCodeList)
@@ -1285,11 +1290,18 @@ async def save_project_setup(
     (`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`
     and `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,
     or refused), and one direction per script. Refused with 422 when either holds code or
-    credentials, or an answer Fichero does not know."""
+    credentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet
+    also store the recipe the rules assemble from them (#5747); a recipe already stored is kept."""
     try:
         params = request.model_dump(mode="json", exclude_unset=True)
         if "answers" in params:
             params["answers"] = normalise_answers(params["answers"], strict=True)
+            if params["answers"] and "recipe" not in params:
+                # Answers alone to a project with no recipe yet: Start needs one, so the rules assemble it (#5747).
+                # A recipe already stored is kept: the person's own choices of model stay.
+                library = _library(db)
+                if read_project_setup(library).get("recipe") is None:
+                    params["recipe"] = _assemble(params["answers"], library)
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1713,7 +1725,28 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
 
 
+_OFFER_SECONDS = 5.0
+_offers: dict[tuple, tuple[float, dict | None]] = {}
+
+
 def _bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
+    """`_compute_bakeoff_offer`, kept five seconds: it scans every pass of the project, and the Start sheet polls
+    the plan. ponytail: a timed keep, not a change token (none exists); a correction shows within five seconds."""
+    import json
+    import time
+
+    key = (id(db), json.dumps(setup["answers"], sort_keys=True, default=str), volume)
+    kept = _offers.get(key)
+    if kept and time.monotonic() - kept[0] < _OFFER_SECONDS:
+        return kept[1]
+    if len(_offers) > 32:
+        _offers.clear()
+    offer = _compute_bakeoff_offer(db, setup, volume)
+    _offers[key] = (time.monotonic(), offer)
+    return offer
+
+
+def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
     """The comparison of readers, offered on the plan with its cost first (`reader-measured-before-bulk`): only for a
     recipe that has a reading step and answers; Start never runs it."""
     answers = setup["answers"]

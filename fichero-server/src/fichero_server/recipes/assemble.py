@@ -2,7 +2,7 @@
 
 `source/models-chains-and-projects.md` sections 6, 7b and 8: `source.onboard.deterministic-recipe`,
 `source.onboard.purpose-sets-layers`, `source.onboard.material-any-mix`, `source.onboard.says-no-model`,
-`source.recipe.cheapest-local-first`, `source.recipe.volume-rule`, `source.recipe.embedder-by-language`.
+`source.recipe.volume-rule`, `source.recipe.embedder-by-language`.
 A pure function: the same answers and the same cards always give the same recipe, and every choice
 names the facts it rests on. A language model never decides anything here; it may only have filled
 in a card earlier, for a person to confirm.
@@ -133,7 +133,7 @@ STEP_ORDER: tuple[str, ...] = (
 assert all(list(s) == sorted(s, key=STEP_ORDER.index) for s in PURPOSE_STEPS.values())
 #: The jobs a layer added later can turn on (`source.onboard.add-layer`), in order.
 LAYER_STEPS: tuple[str, ...] = ("find-lines", "read-a-line", "correct", "find-names-tag-words", "work-out-dates",
-                                "find-statements", "place-in-a-gazetteer", "make-a-vector")
+                                "find-statements", "place-in-a-gazetteer", "make-a-vector", "publish")
 
 
 def purpose_jobs(purposes) -> list[str]:
@@ -204,6 +204,8 @@ class Card:
     #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
     #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
     offered_only: bool = False
+    #: A frontier cloud model counted as multilingual (#5718): not refused a rewrite for a language it does not list.
+    multilingual: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
     #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).
@@ -310,7 +312,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
-    if job in REWRITING_JOBS and card.languages is None:
+    if job in REWRITING_JOBS and card.languages is None and not card.multilingual:
         return "no-model-for-language", "a model that does not list the language would rewrite it into one it knows"
     if material == "handwriting" and card.material and "handwriting" not in card.material:
         return "no-reader-for-material", "it is made for print or typescript, never handwriting"
@@ -345,6 +347,16 @@ _FIXES = {
     "licence-not-accepted": ["accept-licence", "choose-model"],
     "cloud-not-allowed": ["allow-cloud", "choose-model"],
     "not-enough-memory": ["choose-cloud", "choose-model"],
+}
+
+#: What each fix does when the person presses it: (the route the app calls, or "") and (why it cannot act, or ""),
+#: exactly one set (`source.onboard.every-setup-button-acts-or-says-why`, #5790; a test fails on a fix in neither).
+FIX_ACTIONS: dict[str, tuple[str, str]] = {
+    "download": ("POST /api/local-models/download/{model_type}/{model_id:path}", ""),
+    "choose-cloud": ("POST /api/recipes/project/steps/use-candidate", ""),
+    "choose-model": ("GET /api/recipes/candidates", ""),
+    "allow-cloud": ("PUT /api/recipes/project", ""),
+    "accept-licence": ("POST /api/recipes/project/steps/use-candidate", ""),
 }
 
 
@@ -471,9 +483,15 @@ def _problem(job: str, cards: list[Card], a: Answers, material: str, detail: str
     if nearest:
         sentence += " Nearest: " + "; ".join(f"{n['name']} ({n['why']})" for n in nearest) + "."
     # `kind`, not `code`: a recipe refuses any key named code (`recipe._FORBIDDEN_KEYS`), and this one is saved.
-    return {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
+    out = {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
             "nearest": nearest,
             "refused": [{"card": c.id, "why": r[1]} for c, r in sorted(refusals, key=lambda cr: cr[0].id)]}
+    if code == "licence-not-accepted":
+        # The licence "Review the licence…" opens: the nearest card refused for it, named and worded.
+        card = next((c for c, r in sorted(refusals, key=lambda cr: cr[0].id) if r[0] == code), None)
+        if card:
+            out["licence"] = {"card": card.id, "name": card.licence, "words": _licence_words(card.licence)}
+    return out
 
 
 #: Licences that are open and copyleft: said so, never "not open" (#5687).

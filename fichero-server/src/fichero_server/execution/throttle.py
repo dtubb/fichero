@@ -13,7 +13,7 @@ Every probe degrades to "no reason" when it cannot read its signal (not macOS, a
 missing, a sandbox refusal): an unreadable signal must never park the queue for good.
 """
 from __future__ import annotations
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 import logging
 import os
@@ -237,12 +237,12 @@ class PeakMemory:
         self.swap_end = self._safe(self._swap)
 
     def pressure(self) -> dict[str, int]:
-        """What the run did to this Mac's memory: the engine's peak resident set and how far swap grew. The honest
+        """What the run did to this Mac's memory: the engine's peak resident set SINCE THE ENGINE STARTED (getrusage keeps a lifetime peak, not this run's) and how far swap grew during the run. The honest
         load: the physical footprint in `record` counts pages in the compressor and overstates it (M4 2026-10-17:
         19.7 GB footprint, 6.9 GB resident, swap flat). Only what was read."""
         out = {}
         if self.rss_peak is not None:
-            out["engine_peak_rss_bytes"] = self.rss_peak
+            out["engine_peak_rss_since_start_bytes"] = self.rss_peak
         if self.swap_start is not None and self.swap_end is not None:
             out["swap_growth_bytes"] = max(0, self.swap_end - self.swap_start)
         return out
@@ -294,6 +294,7 @@ def thermal_state_level() -> int | None:
 def seconds_since_input() -> float | None:
     """Seconds since the person last touched keyboard or mouse, or None when unreadable."""
     try:
+        quartz_warm.warm()
         import Quartz
 
         return float(Quartz.CGEventSourceSecondsSinceLastEventType(

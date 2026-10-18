@@ -13,7 +13,7 @@ Provides:
 """
 
 from __future__ import annotations
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 import asyncio
 import concurrent.futures
@@ -63,6 +63,9 @@ from fichero_server.workflows.types import PortDef, DataType
 # does for parallel transcribe runs) races and intermittently raises
 # `KeyError(<symbol>)`. Module-load resolution happens once on the main
 # thread before any executor task can fire.
+# Every name the engine uses, under the lock, before the few below: this module's page-read threads use more
+# than they (CGImageGetWidth, CGRectMake, the destination calls) and the first use must not race (#5745).
+quartz_warm.warm()
 try:
     from Quartz import (  # noqa: F401  (imported for side-effect)
         CGImageSourceCreateWithURL,
@@ -3752,6 +3755,7 @@ async def process_vision(
     # vision_mode="kraken" with no recognition model: "model" has the run's vision model read
     # each line Kraken found (the teacher labelling lines for a Kraken reader to learn from).
     lines_read_by: str = "kraken",
+    read_granularity: str | None = None,  # how the model is asked per call, as a bake-off measured it (#5722)
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4657,6 +4661,7 @@ async def process_vision(
                                             model=effective_config.model),
                             effective_config, language=language,
                             **({"apple": True} if lines_read_by == "apple" else {}),
+                            granularity=read_granularity,
                         )
                     from fichero_server.llm import kraken_runtime as _kr
 
@@ -4763,6 +4768,7 @@ async def process_vision(
                             result = await read_lines(
                                 image_path, result, effective_config, language=language,
                                 **({"apple": True} if lines_read_by == "apple" else {}),
+                                granularity=read_granularity,
                             )
                     if page_index is not None:
                         result = result.model_copy(

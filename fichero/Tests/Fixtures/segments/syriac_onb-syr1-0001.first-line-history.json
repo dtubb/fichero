@@ -228,6 +228,7 @@
      ]
     ],
     "is_furniture": false,
+    "mark_state": "none",
     "language": null,
     "script": null,
     "direction": null,
@@ -469,6 +470,7 @@
      ]
     ],
     "is_furniture": false,
+    "mark_state": "none",
     "language": null,
     "script": null,
     "direction": null,

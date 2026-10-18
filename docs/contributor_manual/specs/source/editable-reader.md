@@ -193,7 +193,7 @@ Tests follow the rulings. This is what would pin the design.
 | Backend (pytest) | y | real files: a PAGE XML page with words, edited, exports words with the right marks | the formats harness |
 | Pure rule (Swift) | y | the read-only reasons; which views are editable | `fichero/Tests/Unit/general/Views/Reader/…` |
 | Availability (Swift) | y | the iOS bridge routes every edit message; the native page pane has no writer of its own | same, through the real coordinator |
-| MCP | y | an agent's edit goes through the same actions (`source.lineeditor.agent-parity`) | `fichero-mcp/tests/test_mcp_full.py` |
+| MCP | y | an agent's edit goes through the same actions (`source.lineeditor.agent-parity`) | `fichero-mcp/tests/test_mcp_generated.py` |
 | CLI | n | | |
 | Click-around (XCUITest, Mac) | y | type a word, see the box; ⌘Z, see it back | `fichero/Tests/UI/…` |
 | iPhone (iOS) | y | the edit path on iPhone | `fichero-ui-ios` plan |

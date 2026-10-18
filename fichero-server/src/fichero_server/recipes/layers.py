@@ -40,7 +40,7 @@ def _insert(steps: list[dict], new: dict) -> None:
     rank = STEP_ORDER.index(new["job"])
     for i, step in enumerate(steps):
         job = step.get("job")
-        last = (j := get_job(job or "")) is not None and j.layer in ("check", "output")
+        last = (j := get_job(job or "")) is not None and j.layer in ("check", "output", "publish")
         if last or (job in STEP_ORDER and STEP_ORDER.index(job) > rank):
             steps.insert(i, new)
             return

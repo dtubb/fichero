@@ -23,6 +23,7 @@
    "working": true,
    "working_basis": "newest-machine-unchosen",
    "drawn": true,
+   "shapeless": false,
    "rank": 0
   }
  ],

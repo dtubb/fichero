@@ -21,3 +21,15 @@ def test_no_reading_step_no_offer(client, db, folder):  # noqa: F811
     if not any(s.get("job") == "read-a-line" for s in recipe.get("steps", [])):
         client.put("/api/recipes/project", json={"answers": answers, "recipe": recipe})
         assert client.get("/api/recipes/project/start").json()["bakeoff_offer"] is None
+
+
+def test_the_offer_is_kept_briefly_so_a_polled_plan_does_not_rescan_the_project(monkeypatch):
+    from fichero_server.api.routes.system import recipes as r
+
+    calls = []
+    monkeypatch.setattr(r, "_compute_bakeoff_offer", lambda db, setup, volume: calls.append(1) or {"n": len(calls)})
+    r._offers.clear()
+    db, setup = object(), {"answers": {"a": 1}}
+    assert r._bakeoff_offer(db, setup, 10) == r._bakeoff_offer(db, setup, 10) == {"n": 1}
+    r._bakeoff_offer(db, {"answers": {"a": 2}}, 10)
+    assert len(calls) == 2

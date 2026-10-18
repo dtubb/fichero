@@ -205,3 +205,32 @@ def test_working_offline_queues_no_search(client, db, store, hub, monkeypatch):
     body = _candidates(client, online="true")
     assert body["search_job"] is None and _source(body, "hugging-face")["state"] == "offline"
     assert jobs.find_jobs(db, kinds=[discovery.SEARCH_KIND]) == []
+
+
+def test_a_script_named_in_a_listing_is_stated_whatever_the_script():
+    """#5594 residue: not only Fraktur and Kuzushiji; any script ISO 15924 names, said from the listing's tags or name."""
+    cyrillic = {"modelId": "someone/cyrillic-htr-mlx", "pipeline_tag": "image-to-text", "tags": ["ocr", "ru"]}
+    card = discovery._hf_card(cyrillic, "an OCR model", "runs on this Mac", frozenset({"ru"}))
+    assert "Cyrl" in (card.scripts or ()) and "made for Cyrillic" in card.offered_because
+    arabic = {"modelId": "someone/arabic-ocr", "pipeline_tag": "image-to-text", "tags": ["ocr", "ar"]}
+    assert "Arab" in discovery._hf_card(arabic, "an OCR model", "runs on this Mac", frozenset({"ar"})).scripts or ()
+
+
+def test_latin_in_a_listing_is_the_language_not_the_script():
+    """"latin-htr" names Latin the language; it must not state the Latin script (the Fraktur rule keeps its own word)."""
+    latin = {"modelId": "someone/trocr-latin-htr", "pipeline_tag": "image-to-text", "tags": ["ocr", "la"]}
+    card = discovery._hf_card(latin, "an OCR model", "runs on this Mac", frozenset({"la"}))
+    assert "Latn" not in (card.scripts or ()) and "made for" not in card.offered_because
+
+
+def test_a_gothic_hand_reader_stays_visible_to_a_latin_project():
+    """Review 83: "gothic" in a listing is Latin blackletter, not Wulfila's Gothic alphabet (Goth): stating Goth hid the
+    reader from a Latin project under the no-cross-script rule (#5593)."""
+    from fichero_server.recipes.assemble import Answers, _refusal
+
+    gothic = {"modelId": "someone/gothic-htr-mlx", "pipeline_tag": "image-to-text", "tags": ["htr", "de"]}
+    card = discovery._hf_card(gothic, "an OCR model", "runs on this Mac", frozenset({"de"}))
+    assert card.scripts is None
+    a = Answers(purposes=("transcribe",), languages=frozenset({"de"}), scripts=frozenset({"Latn"}),
+                materials=("handwriting",))
+    assert (_refusal("read-a-line", card, a, "handwriting") or ("",))[0] != "no-model-for-script"

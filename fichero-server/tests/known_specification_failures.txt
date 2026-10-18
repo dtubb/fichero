@@ -43,3 +43,6 @@ tests/unit/scripts/test_coverage_ratchet_guardrail.py::TestTheCommittedBaselineI
 # ---- #5100 (1) ----
 # Duplicating a 1,050-deep tree exhausts the per-connection DuckDB cap (1.5 GB; the recursive
 # walk cannot spill). Both the depth and the cap are intentional; which gives is open on #5100.
+
+# ---- #5794 (1) App Store embed branch has its own ENGINE_SRC (#5730); fix on a build day, delete this line in that commit ----
+tests/unit/scripts/test_embed_phase_one_engine_for_dmg_and_mas_3982.py::test_dmg_and_mas_share_one_unconditional_engine_source
