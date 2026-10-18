@@ -134,7 +134,7 @@ _job("train-a-model", {"line_readings", "lines"}, {"model_card"}, "train",
 # so `takes` names only what every check needs, the readings the proposals came from.
 _job("check", {READING}, {"verdicts"}, "check", _LIST, ("layer", "model", "prompt"))
 _job("export", {READING}, {"files"}, "output", "the files side by side", ("formats", "folder"))
-_job("publish", {"files"}, {"published"}, "output", "the published pages side by side", ("where",))
+_job("publish", {"files"}, {"published"}, "publish", "the published pages side by side", ("where",))
 
 
 def starts_with(materials) -> frozenset[str]:
