@@ -248,7 +248,7 @@ struct ModelFinderCard: View {
     /// person's own), where the download is still the way to it.
     static func offersDownload(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         guard !needsPermission(candidate) else { return false }
-        offersUse(candidate) || candidate.availability == .elsewhere
+        return offersUse(candidate) || candidate.availability == .elsewhere
     }
 
     /// Its why names Settings › AI ("add Claude (Anthropic) in Settings › AI first"): the card links there.
