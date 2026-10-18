@@ -484,3 +484,31 @@ def test_the_3b_mlx_reader_states_its_prefill_budget_5648():
 
     assert prefill_tokens_for("mlx-community/Qwen2.5-VL-3B-Instruct-4bit")
     assert prefill_tokens_for("gemini-2.5-pro") is None
+
+
+@pytest.mark.asyncio
+async def test_a_bare_unreadable_answer_is_a_line_the_model_could_not_read_never_its_text_5724(page, monkeypatch):
+    """`<id> | unreadable` with no text: the line keeps its reading, gets no reading 'unreadable', and the review
+    artifact lists it among the lines the model could not read.
+    WHY: the bare flag was taken as the line's text, so the word 'unreadable' became the page's reading."""
+    from fichero_server.models import Artifact
+
+    second = _lines(page)[1]
+    result = await _review(page, monkeypatch, f"{second.id} | unreadable")
+    assert not [r for r in _readings(page, second) if r.content.lower() == "unreadable"]
+    assert _counting(page)[1] == "vezino de la cibdad"
+    artifact = page["db"].get(Artifact, result["results"][0]["artifact_id"])
+    assert artifact.data["unreadable_lines"] == [second.id]
+
+
+@pytest.mark.asyncio
+async def test_the_budget_counts_the_prompt_and_the_image_not_only_the_lines_5648(page, monkeypatch):
+    """A budget the prompt and the page image already fill leaves room for no more than the first line, though the
+    lines alone would fit.
+    WHY: counting only the lines' text sent a page whose image and instructions took most of the model's prefill."""
+    from fichero_server.recipes import cards
+
+    first, second, third = _lines(page)
+    monkeypatch.setattr(cards, "prefill_tokens_for", lambda model: 200)  # the lines alone (~60 tokens) fit; the prompt (~500) does not
+    result = await _review(page, monkeypatch, f"{first.id} | certain | el dicho escriuano")
+    assert third.id not in result["prompt"] and "left out" in result["prompt"]
