@@ -209,7 +209,13 @@ enum MobileCaptureQueueRouting {
 @MainActor
 protocol MobileCaptureQueueUploading {
     var backendHost: URL? { get }
+    /// The library this uploader writes into, as the string an item's `targetLibraryId` holds; nil = any.
+    var targetLibraryKey: String? { get }
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String
+}
+
+extension MobileCaptureQueueUploading {
+    var targetLibraryKey: String? { nil }
 }
 
 struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
@@ -220,6 +226,8 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
     var backendHost: URL? {
         EngineConfig.host
     }
+
+    var targetLibraryKey: String? { targetLibraryId?.uuidString }
 
     @MainActor
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String {

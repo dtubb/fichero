@@ -189,7 +189,8 @@ struct LibraryWorkspaceRoot: View {
         guard (try? captureQueue.enqueueCapturedImage(
             data,
             catalog: catalog,
-            fileExtension: imageData == nil ? "png" : "jpg"
+            fileExtension: imageData == nil ? "png" : "jpg",
+            targetLibraryId: library.id.uuidString
         )) != nil else { return }
         startUploadToActiveLibrary()
     }
@@ -205,7 +206,8 @@ struct LibraryWorkspaceRoot: View {
             _ = try? captureQueue.enqueueCapturedImage(
                 data,
                 catalog: catalog,
-                fileExtension: imageData == nil ? "png" : "jpg"
+                fileExtension: imageData == nil ? "png" : "jpg",
+                targetLibraryId: library.id.uuidString
             )
         }
         startUploadToActiveLibrary()
