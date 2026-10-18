@@ -63,3 +63,31 @@ def test_a_session_file_written_before_this_has_no_engine_and_still_works_anywhe
         "alice": {"session_token": "legacy", "user": {"username": "alice"}}}}))
     (tmp_path / "cli-session.json").chmod(0o600)
     assert client_module._read_token(base_url=ENGINE_B, as_user="alice", engine=client_module.engine_key(ENGINE_B, None)) == "legacy"
+
+
+def test_a_legacy_session_an_engine_refuses_is_dropped_not_tried_elsewhere(monkeypatch, tmp_path):
+    """review 76: a session saved before sessions were keyed by engine carries no engine, so any engine was offered it.
+    The first engine that answers 401 to it drops it from the file; it is never sent to another."""
+    import httpx
+
+    _isolate(monkeypatch, tmp_path)
+    path = client_module._CLI_SESSION_PATH
+    path.write_text(json.dumps({"current_user": "alice", "sessions": {"alice": {"session_token": "old-token"}}}))
+    path.chmod(0o600)
+    monkeypatch.setenv("FICHERO_API_KEY", "bootstrap")
+
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get("authorization"))
+        return httpx.Response(401, json={"detail": "bad token"})
+
+    c = client_module.FicheroClient(base_url=ENGINE_A, transport=httpx.MockTransport(handler))
+    try:
+        c.request("GET", "/api/health")
+    except client_module.FicheroError:
+        pass  # the 401 is the point
+
+    assert json.loads(path.read_text())["sessions"] == {}
+    assert client_module._read_token(base_url=ENGINE_B, as_user="alice",
+                                     engine=client_module.engine_key(ENGINE_B, None)) is None
