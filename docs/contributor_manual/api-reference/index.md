@@ -387,6 +387,14 @@ exposes them.
 - Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
   over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
 
+`POST /api/auth/invites/redeem`
+
+- Purpose: accept an invite with a password, or with the person's own key (`multiuser.invite-registers-public-key`,
+  #2403). Body: `invite_token`, then `new_password` OR `public_key_pem` (P-256) with `client` (`kind` app/device,
+  `name`, `host`). A key redemption gives the person an unusable password: they sign in by challenge.
+- Response: `200` with `session_token`, `user` and `client` (null for a password redemption). `422` when neither
+  a password nor a key is sent, for a non-P-256 key, or for a key without a client; the invite stays unused.
+
 ### Sign in by key
 
 `POST /api/auth/challenge`
