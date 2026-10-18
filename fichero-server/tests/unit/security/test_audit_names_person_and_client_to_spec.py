@@ -2,10 +2,8 @@
 
 A session signed in through a client carries that client; the audit row's `device` names it ({id, name, kind}) next to
 the person in `actor`, and a run's `started_by` reads "<client> for <person>" for a CLI or MCP client and
-"<person> on <device>" for a device. Held as strict xfail until the slice 2 code lands (then the markers are removed).
+"<person> on <device>" for a device. 
 """
-
-import pytest
 
 from fichero_server.actions.registry import ActionContext, started_by_for
 from tests.unit.security.test_challenge_sign_in_to_spec import (  # noqa: F401
@@ -18,9 +16,6 @@ from tests.unit.security.test_challenge_sign_in_to_spec import (  # noqa: F401
     harness,
 )
 
-HELD = pytest.mark.xfail(strict=True, reason="slice 2 of multiuser-always-on (#2403): audit names the client")
-
-
 def _note_audits(harness):
     return [a for a in harness.audit_rows() if a.action_name == "note.create"]
 
@@ -32,7 +27,6 @@ def _sign_in_session(harness, client, key) -> str:
     return signed.json()["session_token"]
 
 
-@HELD
 def test_a_note_made_through_a_signed_in_client_names_person_and_client(alice_client):
     harness, _users, key, client = alice_client
     token = _sign_in_session(harness, client, key)
@@ -43,7 +37,6 @@ def test_a_note_made_through_a_signed_in_client_names_person_and_client(alice_cl
     assert row.device == {"id": client.id, "name": "Alice's iPhone", "kind": "device"}
 
 
-@HELD
 def test_a_cli_client_is_named_for_its_person(alice_client):
     harness, users, _key, _client = alice_client
     key, pem = _new_key()
@@ -57,7 +50,6 @@ def test_a_cli_client_is_named_for_its_person(alice_client):
     assert row.device["kind"] == "cli" and row.device["name"] == "fichero CLI"
 
 
-@HELD
 def test_started_by_reads_client_for_person_and_person_on_device():
     cli = ActionContext(actor="alice", device={"id": "c1", "name": "fichero CLI", "kind": "cli"})
     mcp = ActionContext(actor="daniel", device={"id": "c2", "name": "Claude Code (MCP)", "kind": "mcp"})
