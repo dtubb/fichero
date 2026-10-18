@@ -74129,6 +74129,12 @@
             "title": "Refused",
             "description": "the rules' first reason it cannot do the job here"
           },
+          "needs_permission": {
+            "type": "boolean",
+            "title": "Needs Permission",
+            "description": "a cloud reader the project may not use until the person has said pages may leave this Mac: shown greyed, \"needs permission\" (`source.onboard.pages-may-leave`, #5768)",
+            "default": false
+          },
           "installed": {
             "type": "boolean",
             "nullable": true,
@@ -81405,6 +81411,20 @@
             "title": "Lines Unread",
             "description": "the lines found on those pages that have no reading (#5758)",
             "default": 0
+          },
+          "pages_read_nothing": {
+            "type": "integer",
+            "title": "Pages Read Nothing",
+            "description": "pages the reader returned nothing for, line by line: failed reads (#5758)",
+            "default": 0
+          },
+          "lines_unread_why": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Lines Unread Why",
+            "description": "why those lines have none: each reason with its count (#5758)"
           },
           "names": {
             "items": {
@@ -92495,7 +92515,7 @@
           "place": {
             "type": "string",
             "title": "Place",
-            "description": "this-mac or huggingface-jobs: only the places the engine trains on today"
+            "description": "this-mac, huggingface-jobs, or cluster (a cluster set up here, the free alternative offered beside Hugging Face; no start action yet)"
           },
           "name": {
             "type": "string",
@@ -92503,8 +92523,9 @@
           },
           "starts": {
             "type": "string",
+            "nullable": true,
             "title": "Starts",
-            "description": "the action that starts it, e.g. training.start_here"
+            "description": "the action that starts it, e.g. training.start_here; null for a cluster, offered with its first-run steps"
           },
           "params": {
             "additionalProperties": true,
@@ -92512,13 +92533,27 @@
             "nullable": true,
             "title": "Params",
             "description": "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for pages to leave (`pages_may_leave`) is asked at start, never sent here"
+          },
+          "held": {
+            "type": "string",
+            "nullable": true,
+            "title": "Held",
+            "description": "why this place stays an offer, never started by itself: a $0 Hugging Face spend cap (#5769)"
+          },
+          "first_run": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "First Run",
+            "description": "a cluster's attended first run, step by step (`source.onboard.cluster-offer`, #5769)"
           }
         },
         "type": "object",
         "required": [
           "place",
-          "name",
-          "starts"
+          "name"
         ],
         "title": "TrainTarget",
         "description": "A place a way of training runs, and the audited action that starts it there (#5660 item 9)."
