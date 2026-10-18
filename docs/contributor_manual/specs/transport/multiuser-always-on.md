@@ -74,8 +74,11 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   each launch, handed to the engine it spawns over an inherited pipe (never an environment variable, argv or a file),
   held only in the app's memory and the engine's memory. It authorises exactly three routes: first-run,
   migrate-owner and the reset challenge. The old bearer-token file the CLI/MCP read today is **refused** on those
-  three routes, and a process that did not spawn the engine cannot obtain the secret. An engine started by hand (Dev
-  Local from Xcode, tests) takes the secret from stdin at start-up, so one code path serves every launch.
+  three routes, and a process that did not spawn the engine cannot obtain the secret. Dev Local (Xcode runs the app, a launch script
+  starts the engine): the script makes the secret, passes it to the engine on stdin and writes it 0600 into the app
+  container, where the Debug app reads it; this file path is compiled out of Release, Beta and App Store builds, which
+  only ever spawn their own engine. Tests start the engine in-process with a fixed test secret. So the engine has
+  one rule everywhere (secret on stdin at start-up) and only Debug has a file.
 - **Session lifetime:** app and device sessions last 12 h, sliding; CLI/MCP sessions last 1 h and renew by silent
   re-sign-in (a challenge costs nothing); a revoked client or person ends at once.
 - **Keychain access group:** one shared group (team id + `app.fichero.shared`) holds the owner key for every bundle
@@ -149,7 +152,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
 
 **Recommendation (for the owner to confirm):** ship the synced key as the default for ordinary scholars — it is
 the only option that satisfies "second device is easy" with no step. Offer **Secure Enclave per-device keys as
-an opt-in "Strict" setting** (slice 7): turning it on generates Enclave keys, registers them, and revokes the
+an opt-in "Strict" setting** (slice 9): turning it on generates Enclave keys, registers them, and revokes the
 synced key. Local CLI/MCP clients use plain Keychain keys (never synced; they belong to one Mac). Open question
 for review: should Strict be offered at all in the first release? (Cheap to defer; the engine already handles
 both kinds because `credentials.kind` is `synced | device`.)
@@ -162,7 +165,7 @@ both kinds because `credentials.kind` is `synced | device`.)
   declaration for `sharing.set_multiuser`. `sharing.device-chooses-person` and the S8 person picker stay and now
   authenticate with a key or a password.
 - The #3331 ruling of 2026-10-18 is superseded; its test (`test_acl_status_multiuser_off_to_spec.py`) is deleted
-  in slice 1, not left to rot.
+  in slice 10, not left to rot.
 
 ## Implementation plan in slices
 
@@ -170,23 +173,23 @@ Order: this spec → SPEC READY → review → red tests → code, **one slice a
 Rule of the order (review 94): add every way to sign in FIRST, remove the ambient owner LAST, so the app, Dev Local,
 the CLI and the MCP operator keep working after every slice.
 
-1. **1a Tables + challenge**: `clients` + `credentials` tables, the challenge and sign-in routes, sessions carry `(person, client)`. Additive; nothing removed. Contract regen.
-2. **1b Audit columns**: person AND client on audit rows, change events, background jobs, Activity.
-3. **1c Test-fixture migration**: the `signed_in_client` helper; every existing test moves to it and the new guard `check_no_ambient_owner_in_tests` lands in warn mode.
-4. **2 App sign-in**: first-run route (UDS + launch secret), the Keychain owner key, silent sign-in, the launch-secret pipe in the embedded, Dev Local and test engines.
-5. **3 Migration**: owner key via migrate-owner, device tokens → clients, flag retirement, banner. Reviewed against a copy of Daniel's real library, never the live one.
-6. **4 CLI and MCP sign-in**: the two switches, UDS-only client request, verified-peer approval sheet, client-owned keys, the no-credential flow, signed single-binary CLI/MCP.
-7. **5 More devices + iOS**: synced-key registration, approval request/QR, sign-in options order.
-8. **6 Other people**: invite registers a public key, revoke person/client, password fallback naming clients.
-9. **7 Recovery + Strict**: recovery code, host reset by the Secure Enclave reset key, optional Strict mode (deferrable).
-10. **8 No ambient owner (LAST engine slice)**: remove the Multi-user switch and `sharing.set_multiuser`, loopback/bootstrap = owner, `_require_owner_or_bootstrap`, the old bearer file on owner routes; the guard turns blocking. Only now can anything stop working, and everything has a replacement.
-11. **9 Docs + manual + M4 checklist**: user-manual sections; M4 steps for two Macs + iPhone + Claude Code approve/revoke; closes the tester items.
+1. **Slice 1: tables + challenge**: `clients` + `credentials` tables, the challenge and sign-in routes, sessions carry `(person, client)`. Additive; nothing removed. Contract regen.
+2. **Slice 2: audit columns**: person AND client on audit rows, change events, background jobs, Activity.
+3. **Slice 3: test-fixture migration**: the `signed_in_client` helper; every existing test moves to it and the new guard `check_no_ambient_owner_in_tests` lands in warn mode.
+4. **Slice 4: App sign-in**: first-run route (UDS + launch secret), the Keychain owner key, silent sign-in, the launch-secret pipe in the embedded, Dev Local and test engines.
+5. **Slice 5: Migration**: owner key via migrate-owner, device tokens → clients, flag retirement, banner. Reviewed against a copy of Daniel's real library, never the live one.
+6. **Slice 6: CLI and MCP sign-in**: the two switches, UDS-only client request, verified-peer approval sheet, client-owned keys, the no-credential flow, signed single-binary CLI/MCP.
+7. **Slice 7: More devices + iOS**: synced-key registration, approval request/QR, sign-in options order.
+8. **Slice 8: Other people**: invite registers a public key, revoke person/client, password fallback naming clients.
+9. **Slice 9: Recovery + Strict**: recovery code, host reset by the Secure Enclave reset key, optional Strict mode (deferrable).
+10. **Slice 10: No ambient owner (LAST engine slice)**: remove the Multi-user switch and `sharing.set_multiuser`, loopback/bootstrap = owner, `_require_owner_or_bootstrap`, the old bearer file on owner routes; the guard turns blocking. Only now can anything stop working, and everything has a replacement.
+11. **Slice 11: Docs + manual + M4 checklist**: user-manual sections; M4 steps for two Macs + iPhone + Claude Code approve/revoke, including the macOS "access data from other apps" prompt the CLI/MCP may hit reaching a socket inside the app's container (answer it once; the checklist says so); closes the tester items.
 
 Risks to review first: (1) first-run, migrate-owner and reset are the only privileged writes: each once-only,
 UDS-only, launch-secret-gated, replay-tested; (2) local-client routes exist only on the UDS listener, with a test
 that the TCP listener's route table lacks them; (3) the synced key means an iCloud compromise equals an owner
 compromise, which Strict mitigates; (4) every route in `security/authz_kinds.py` keeps its declaration and no route
-may use `bootstrap == owner` after slice 8.
+may use `bootstrap == owner` after slice 10.
 
 ## Test matrix
 
@@ -198,4 +201,4 @@ may use `bootstrap == owner` after slice 8.
 | MCP | y | signs in as a client; no credential asks the app | an MCP-side `test_signs_in_as_client` |
 | CLI | y | same | a CLI-side `test_signs_in_as_client`, `test_no_credential_asks_the_app.py` |
 | Guard | y | no test relies on ambient owner; no route uses bootstrap as owner | a new guard, `check_no_ambient_owner_in_tests` (not yet written) |
-| Real Mac/iPhone | y | Keychain sync, Touch ID reset, approval round trip | M4 checklist (slice 8) |
+| Real Mac/iPhone | y | Keychain sync, Touch ID reset, approval round trip | M4 checklist (slice 11) |
