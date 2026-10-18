@@ -57,9 +57,33 @@ def _stamp(label: str) -> None:
     logger.info("engine-launch: %s @ %.0fms", label, (time.monotonic() - _LAUNCH_EPOCH) * 1000)
 
 
-def _listener_hosts(bind_host: str) -> list[str]:
+def _app_db_for_listener():
+    from fichero_server.db.app import get_app_db  # lazy: app-import budget (#3950)
+
+    return get_app_db()
+
+
+def _this_network_on(app_db) -> bool:
+    """"This network" (`sharing.share-on-choice`): the app's explicit choice, else on only while a device is
+    actually paired over .local or the LAN (never one paired through Tailscale), so an update never drops a
+    phone and a fresh setup stays off. No ``app_db``: no gate."""
+    choice = (os.environ.get("FICHERO_THIS_NETWORK") or "").strip()
+    if choice in ("0", "1"):
+        return choice == "1"
+    if app_db is None:
+        return True
+    try:
+        # The app sets FICHERO_LAN_HOST to the sharing address only for a .local one.
+        shares_over_local = (os.environ.get("FICHERO_LAN_HOST") or "").strip().lower().endswith(".local")
+        return app_db.has_lan_paired_device(legacy_is_lan=shares_over_local)
+    except Exception:  # an unreadable device list must not silently drop an owner's paired phone
+        logger.warning("Could not read paired devices for the .local listener; keeping it.", exc_info=True)
+        return True
+
+
+def _listener_hosts(bind_host: str, app_db=None) -> list[str]:
     lan_host = resolve_lan_bind_host()
-    if lan_host is None or lan_host == bind_host:
+    if lan_host is None or lan_host == bind_host or not _this_network_on(app_db):
         return [bind_host]
     return [bind_host, lan_host]
 
@@ -400,7 +424,7 @@ def main(argv: list[str] | None = None):
                     "FICHERO_TLS_KEYFILE — refusing a plaintext TCP listener."
                 )
             tcp_bind_host = resolve_bind_host()
-            tcp_hosts = _listener_hosts(tcp_bind_host)
+            tcp_hosts = _listener_hosts(tcp_bind_host, _app_db_for_listener())
             # 8765 is the product port; the env override exists for tests,
             # which cannot assume it is free on a developer machine.
             tcp_port = int(os.environ.get("FICHERO_TCP_PORT", "8765"))
@@ -512,7 +536,7 @@ def main(argv: list[str] | None = None):
 
     _bookmarks_activated()
     bind_host = resolve_bind_host()
-    listener_hosts = _listener_hosts(bind_host)
+    listener_hosts = _listener_hosts(bind_host, _app_db_for_listener())
 
     uvicorn_kwargs = dict(
         app="fichero_server.api.tcp_transport:app",

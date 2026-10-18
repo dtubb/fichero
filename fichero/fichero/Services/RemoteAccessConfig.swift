@@ -17,8 +17,30 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: hostingEnabledKey)
     }
 
+    /// Whether the address is advertised on Bonjour. Not "This network" (`thisNetworkChoice`): that has its own key.
     static var bonjourEnabled: Bool {
         defaults.bool(forKey: bonjourEnabledKey)
+    }
+
+    static let thisNetworkKey = "fichero.remote_access.this_network"
+
+    /// "This network", only once the person has chosen. Unset is not "off": the engine then keeps the `.local`
+    /// listener exactly while a device is paired, so an update never drops one and a fresh setup stays off.
+    /// A new key, not `bonjourEnabledKey`: that one has its own advertising toggle and may hold a stale false.
+    static var thisNetworkChoice: Bool? {
+        defaults.object(forKey: thisNetworkKey) as? Bool
+    }
+
+    /// Why a device paired over `.local` cannot connect, shown on the devices list while "This network" is off.
+    static func thisNetworkOffNote(thisNetwork: Bool, publicHost: String?) -> String? {
+        guard !thisNetwork, publicHost?.hasSuffix(".local") == true else { return nil }
+        return "This network is off, so devices paired over the local network can't connect. Turn it on to let them in."
+    }
+
+    /// The `.local` address the engine may listen on (`sharing.listener`); whether it does follows "This network".
+    static func lanListenerHost(publicHost: String?) -> String? {
+        guard let publicHost, publicHost.hasSuffix(".local") else { return nil }
+        return publicHost
     }
 
     static var publicBaseURLString: String {
