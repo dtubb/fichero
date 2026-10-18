@@ -234,7 +234,9 @@ class ArtifactService {
             // A converted result something still depends on (#5066). The engine's sentence says
             // which -- a box without its own reading, a segment whose origin is not recorded yet,
             // a correction that names it -- and it is shown as said, not as a server error.
-            throw ArtifactServiceError.refused(try refusal.body.json.detail)
+            // `detail` is a sentence or, for the structured refusals, an object (#5094).
+            let detail = try refusal.body.json.detail
+            throw ArtifactServiceError.refused(detail.value1 ?? detail.value2.map { String(describing: $0) } ?? "The engine refused (409).")
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw ArtifactServiceError.serverError(detail?.detail?.description ?? "Validation error")
