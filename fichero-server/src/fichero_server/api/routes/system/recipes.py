@@ -1541,6 +1541,11 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
 
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
                                hf_configured=_hf_token_set(), stays_local=stays_local)
+    from fichero_server.recipes.train_offers import held_after_failure
+
+    held = held_after_failure(db) if setting["mode"] == "here" else None
+    if held:  # the last training here failed: said on the plan, where the person looks (#5440)
+        setting = {**setting, "why": held}
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
