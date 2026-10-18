@@ -1088,8 +1088,12 @@ def workflow_requires_vision(
     nodes: list | None,
     *,
     workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+    unresolved: list[str] | None = None,
 ) -> bool:
     """True when running this workflow needs a vision-capable model (#3804).
+
+    A sub-workflow that cannot be resolved is not inspected, so a False may mean "could not tell":
+    pass a list as ``unresolved`` to receive those refs, or use :func:`workflow_requires_vision_or_unknown` (#4506).
 
     Server-computed and served on the workflow response so surfaces READ the
     answer instead of recomputing it. The SwiftUI sidebar kept its own copy of
@@ -1120,8 +1124,12 @@ def workflow_requires_vision(
                 child = resolver(ref)
             except Exception as exc:
                 logger.debug("requires_vision could not resolve %r: %s", ref, exc)
+                if unresolved is not None:
+                    unresolved.append(ref)
                 continue
             if child is None:
+                if unresolved is not None:
+                    unresolved.append(ref)
                 continue
             visited.update(key for key in (child.id, child.name) if key)
             if visit(child.nodes):
@@ -1129,6 +1137,18 @@ def workflow_requires_vision(
         return False
 
     return visit(nodes)
+
+
+def workflow_requires_vision_or_unknown(
+    nodes: list | None,
+    *,
+    workflow_resolver: Callable[[str], WorkflowDef | None] | None = None,
+) -> bool | None:
+    """True / False as :func:`workflow_requires_vision`, or None when a sub-workflow could not be resolved
+    and no inspected node needed vision: "could not determine" is not "does not need vision" (#4506)."""
+    unresolved: list[str] = []
+    needs = workflow_requires_vision(nodes, workflow_resolver=workflow_resolver, unresolved=unresolved)
+    return True if needs else (None if unresolved else False)
 
 
 def workflow_accepts_model_override(

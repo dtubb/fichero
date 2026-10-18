@@ -407,7 +407,7 @@ rather than defaulting to the pessimistic prior.
 
 ### H. Future direction, explicitly deferred (not this milestone's gap to close)
 
-- `histnorm.future.cascading-attribute-resolution` — **NOT NOW, ratified future direction.**
+- `histnorm.future.cascading-attribute-resolution` — **[GAP]** (#5518) **NOT NOW, ratified future direction.**
   **2026-09-19: no longer deferred.** The maintainer ruled that settings cascade (a folder
   inside a project can differ); the design now lives in `languages-scripts-signs.md`. What
   follows is the earlier note, kept for the record.

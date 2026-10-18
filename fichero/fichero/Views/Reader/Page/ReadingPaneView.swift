@@ -503,6 +503,7 @@ struct ReadingPaneView: View {
         // fault survived the active-surface gating. One key, one publisher;
         // the menu prefers the preview's actions and falls back to these.
         return readerFocusPublishes(on: head)
+            .environment(\.offersTranscriptionFont, true)
             // "Open in New Tab/Window" (#3582) followed the chrome up from the
             // retired bottom bar: right-click the HEAD to pop this document out.
             // (Per-pane — a context menu is not a window-scoped singleton, so it

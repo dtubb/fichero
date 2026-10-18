@@ -60,8 +60,6 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     private static var platformMetrics: MiniToolbarMetrics {
         #if os(macOS)
         MiniToolbarMetricPolicy.metrics(isMac: true, isTV: false)
-        #elseif os(tvOS)
-        MiniToolbarMetricPolicy.metrics(isMac: false, isTV: true)
         #else
         MiniToolbarMetricPolicy.metrics(isMac: false, isTV: false)
         #endif
@@ -139,8 +137,6 @@ struct MiniToolbar<Content: View, Trailing: View>: View {
     private var splitIconFont: Font {
         #if os(macOS)
         .body
-        #elseif os(tvOS)
-        .largeTitle
         #else
         .title2
         #endif

@@ -66,3 +66,28 @@ final class MobileCaptureQueueItemCodingTests: XCTestCase {
         XCTAssertNil(decoded.lastAttemptAt)
     }
 }
+
+extension MobileCaptureQueueItemCodingTests {
+    /// #3281: the target library and host round-trip, and an item queued before
+    /// the fields existed still decodes (nil target).
+    func testTargetRoundTripsAndLegacyItemDecodes() throws {
+        var item = MobileCaptureQueueItem(
+            id: "cap-2", imageFileName: "a.jpg",
+            createdAt: Date(timeIntervalSince1970: 1), updatedAt: Date(timeIntervalSince1970: 2),
+            catalog: MobileCaptureCatalogFields(), uploadState: .queued,
+            uploadedDocumentId: nil, lastError: nil, retryCount: 0, lastAttemptAt: nil,
+            targetLibraryId: "lib-1", targetHost: "https://mac.example:8765")
+        let decoded = try JSONDecoder().decode(MobileCaptureQueueItem.self, from: JSONEncoder().encode(item))
+        XCTAssertEqual(decoded.targetLibraryId, "lib-1")
+        XCTAssertEqual(decoded.targetHost, "https://mac.example:8765")
+
+        item.targetLibraryId = nil
+        item.targetHost = nil
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(item)) as? [String: Any])
+        json.removeValue(forKey: "targetLibraryId")
+        json.removeValue(forKey: "targetHost")
+        let legacy = try JSONDecoder().decode(
+            MobileCaptureQueueItem.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertNil(legacy.targetHost)
+    }
+}

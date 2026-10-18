@@ -26,8 +26,8 @@ jobs, and sessions with their time left.
 **Fichero itself drives the cluster (ruled 2026-10-04).** No agent is involved. Fichero holds its
 own SSH (`compute.connect.ssh-in-process`), with the key in the Keychain and the second factor
 passing through its own UI. It downloads its released image into the project folder, installs it
-and updates it (`compute.image.the-image-is-the-only-install`), stages packages and models
-(`compute.connect.stage-on-the-login-node`, `compute.connect.models-staged-before-a-job`), submits,
+and updates it (`compute.image.the-image-is-the-only-install`), stages packages and models onto `/project`
+by Globus or a data-transfer node, never a login node (`compute.connect.stage-on-the-login-node`, `compute.connect.models-staged-before-a-job`), submits,
 watches (Activity rows), fetches and lands the results, and cleans up. An agent only ever drives
 Fichero through its MCP tools, as a person drives it through the screens
 (`compute.target.every-step-has-an-mcp-tool`).
@@ -110,7 +110,7 @@ and is known to run training reliably (#5398); then a **Slurm cluster** (ACENET)
 |---|---|---|---|
 | Needs beforehand | SSH access; Docker installed there. Fichero does **not** install Docker or Tailscale: it checks and says what is missing. | an account and an allocation; Apptainer (the clusters provide it) | an account with credit; a fine-grained token |
 | Credential | a key Fichero makes, for install and upkeep; then a paired-device token for the API | a key Fichero makes; the public half goes on the cluster's account page; **the second factor stays with the person** | the token |
-| Install | pull the image of **this app's engine version**; start it with the port mapped to the machine's loopback and a data folder mounted; read back a one-time pairing link; pair | on a login node (which has the internet): pull the image once as an Apptainer file into `<base>/fichero/images/<version>.sif`; make the model cache folder. Nothing is started. | nothing |
+| Install | pull the image of **this app's engine version**; start it with the port mapped to the machine's loopback and a data folder mounted; read back a one-time pairing link; pair | on a data-transfer node, or uploaded from the Mac (never a login node): place the image once as an Apptainer file into `<base>/fichero/images/<version>.sif`; make the model cache folder. Nothing is started. | nothing |
 | Reach | `tailscale serve` on that machine if it is on the person's tailnet; otherwise an SSH forward Fichero keeps open | SSH for submit, poll and fetch; an SSH forward through the login node for a session | HTTPS |
 | Check | health route answers; versions match; `capabilities` read | SSH login succeeds; `sinfo` answers for the partition; the `.sif` of this version is present; the base folder is writable | token is valid; has permission to run jobs; credit is not zero |
 | Remove | stop and remove the container; ask before deleting the data folder | ask before deleting `<base>/fichero/`; cancel nothing silently: running jobs are listed first | revoke nothing; forget the token |
@@ -207,7 +207,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### Checking
 
-- `compute.connect.check-really-checks` — **[GAP]** (#5238) "Check" reaches the target and reports what answered.
+- `compute.connect.check-really-checks` — **[PARTIAL]** (#5238, #5454; `POST /api/hpc/clusters/{id}/check` now runs the steps live over the open connection (hostname, `diskusage_report`, `module avail apptainer`, `sinfo`, `sshare`), each passed, failed with its reason, or not tried; the old `POST .../test` is still the dry run that returns a command and says so, `api/routes/ai/hpc.py`, and is not yet removed). Test: `fichero-server/tests/unit/remote_read/test_cluster_check.py`. "Check" reaches the target and reports what answered.
   `ok` is true only if every step for that kind (the table above) succeeded just now. The
   answer lists each step with *passed*, *failed: reason* or *not tried*. It never returns a
   command it "would" run as if that were a result. *Existing data:* the present dishonest
@@ -273,16 +273,18 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### A Slurm cluster
 
-- `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
-  the private half is stored only in the Keychain, the one key store (`ai/ai-settings.md` (section K)); the
-  public half is shown with Copy, to be added to the person's **own** cluster account, and can be
-  shown again. Removing the target deletes the private half.
-  *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
-  read public half twice (same), remove target, assert the secret is gone.
-  One key per cluster site (one site's clusters share it), in a file of its own; a passphrase, if
-  set, is kept in the Keychain (reference flow, 2026-10-04).
+- `compute.secret.fichero-makes-the-key` — **[PARTIAL]** (#5238; ruled by the manager 2026-10-17: engine-folder storage replaces the Keychain, because the engine may be remote and the app's Keychain would be on the wrong Mac; `POST /api/hpc/clusters/{id}/key/make`, 409 if one exists; `GET .../key/public` shows the public half again; tests `fichero-server/tests/unit/api/test_routes_hpc.py` `TestMakeTheKey` and `TestThePrivateKeyStaysInTheEngineFolder`, `tests/unit/remote_read/test_ssh_second_factor.py`; the app's Add-a-cluster sheet is `AddClusterSheet`, parse-checked only) for an SSH target Fichero makes an Ed25519 key pair
+  with the system `ssh-keygen` (`-N ''`: **no passphrase**). The private half is stored as a plain file, 0600, in a
+  0700 folder `hpc-keys/<cluster>/` of the engine's state folder. It is readable by processes running as that person
+  (the same exposure as `~/.ssh`); the cluster's second factor is what guards it. No route ever returns the private
+  half (only `/key/public`), it is never in a library export, sync or backup bundle (only the key module and its routes
+  name the folder; a test fails if another module does), and deleting the cluster or its key deletes it. The public
+  half is shown with Copy, to be added to the person's **own** cluster account, and can be shown again.
+  *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create, read public half twice
+  (same), delete the cluster, assert the key file and its folder are gone; assert the modes.
+  One key per cluster, in a file of its own.
 
-- `compute.secret.ccdb-guided` — **[GAP]** (#5454, #5238) adding the public key to the cluster account
+- `compute.secret.ccdb-guided` — **[PARTIAL]** (#5454, #5238; `AddClusterSheet` copies the public half and links the account page, parse-checked only; the automatic retry while a new key reaches the clusters is not built) adding the public key to the cluster account
   (CCDB on the Alliance) is guided in the app: the public half is copied, and the account page is
   linked. A new key can take minutes to reach the clusters, so the app says so and retries the
   connection on its own until it is accepted or the person stops it. *Test:* the SSH fixture
@@ -293,16 +295,21 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   person's target (key in the Keychain), bound by the project (`source.recipe.runs-on-binds-to-a-target`).
   A recipe that carries a host, an account, a key or a token is refused when it is checked, naming
   the field. *Test:* a recipe with an `ssh_key` or `user` field fails the recipe check.
-- `compute.connect.ssh-in-process` — **[GAP]** (#5238) the server connects over SSH itself and does not run the
-  system's `ssh`, so it works inside the app's sandbox. *Existing data:*
-  `remote_jobs.build_ssh_command` and the three `*_command` builders stay as the **description**
-  of what is run (they are what "show me what will run" displays) but are no longer the way it
-  is run. *Test:* in the sandboxed build, a check against the SSH fixture passes.
-- `compute.connect.second-factor-passes-through` — **[GAP]** (#5238) when the far side asks for a second factor,
-  Fichero shows the far side's own prompt text and waits for the person; it stores no factor;
-  a refusal or a time-out ends the attempt with that reason. *Test:* the SSH fixture configured
-  with a keyboard-interactive second step: the prompt text reaches the caller; a wrong answer
-  yields a typed failure.
+- `compute.connect.ssh-in-process` — **[PARTIAL]** (#5238; ruled 2026-10-17) the engine runs the system's `ssh` as a
+  subprocess (one ControlMaster connection, no new dependency; asyncssh ruled out), never from `~/.ssh`:
+  the key is the one the app pushes into the engine's own state folder (`hpc-keys/<cluster>/id_ed25519`, mode
+  0600, under `FICHERO_BASE_PATH`), passed with `-i` and `IdentitiesOnly`. That folder is inside the app's
+  container, so it works in the sandbox. The open connection's socket lives in `hpc-ssh` beside it (mode 0700, refused if a symlink or owned by another user); when that path is too long for a unix socket (about 100 bytes) it is a per-user `/tmp/fichero-ssh-<uid>` with the same checks, and a pre-created folder is refused, never used. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
+  argv builder `remote_jobs.build_ssh_command`, which is also what "show me what will run" displays. Not yet:
+  a check against the SSH fixture in the sandboxed build. *Test:* `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py`.
+- `compute.connect.second-factor-passes-through` — **[PARTIAL]** (#5238; ruled 2026-10-17) when the far side asks for a
+  second factor (or a key passphrase), `ssh` runs Fichero's `SSH_ASKPASS` helper, which hands ssh's own prompt text to
+  the engine over a private socket; the engine holds it as a pending prompt the app lists and answers
+  (`GET /api/hpc/prompts`, `POST /api/hpc/prompts/{id}`); the answer goes back to ssh and is stored nowhere. A
+  refusal, a time-out or a wrong answer ends the attempt with a typed failure naming the reason. The master is opened
+  without `BatchMode` (which would forbid asking); every later command reuses it. *Test:*
+  `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py` (a fake ssh with a keyboard-interactive step:
+  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). The app's sheet is written (`HpcSignInService`, `HpcSignInSheet`, parse-checked, NOT built or run); nothing presents it yet because the Add-a-cluster row is not built.
   For a push factor (Duo), the app says to approve on the phone. The app says which credential is
   being asked for, because a wrong key passphrase falls back to the account password (seen on
   Rorqual, 2026-10-04).
@@ -318,15 +325,12 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   anything needing a forward still use the ordinary login. *Test:* with the fixture's
   restricted-key account: submit and fetch pass; opening a forward is refused and reported as
   "this cluster's automation path does not allow sessions".
-- `compute.connect.stage-on-the-login-node` — **[GAP]** (#5238) "Install" on a cluster runs on a login node:
-  fetch the image of this version as `<base>/fichero/images/<version>.sif`; create
-  `<base>/fichero/models/` and `<base>/fichero/jobs/`. It starts nothing, and it does no work
-  there beyond the fetch. If the cluster refuses the fetch on a login node, Fichero says so and
-  offers to upload a `.sif` from the Mac instead (UNVERIFIED whether Alliance login nodes permit
-  the fetch; S1). *Test:* on the fixture: the three paths exist afterwards; a second install is
+- `compute.connect.stage-on-the-login-node` — **[GAP]** (#5238) "Install" on a cluster never runs on a login node (`compute.hpc.nothing-heavy-on-a-login-node`):
+  place the image of this version, pulled from CI onto a data-transfer node or uploaded from the Mac, as `<base>/fichero/images/<version>.sif`; create
+  `<base>/fichero/models/` and `<base>/fichero/jobs/`. It starts nothing. Login-node fetches are withdrawn (S1; the 2026-10-17 ACENET ruling: staging never on the login node). The Mac uploads the `.sif` when no data-transfer node is available. *Test:* on the fixture: the three paths exist afterwards; a second install is
   a no-op.
 - `compute.connect.models-staged-before-a-job` — **[GAP]** (#5238) a model a job needs is fetched into the
-  target's model cache from a login node **before** the job is submitted, never from inside the
+  target's model cache, placed by Globus or a data-transfer node, **before** the job is submitted, never from a login node or from inside the
   job. The card's licence rule applies to this fetch exactly as to a fetch on the Mac. *Test:*
   a job naming an absent model triggers one staging step first; with the fixture's compute
   container cut off from the network, the job still runs.

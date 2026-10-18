@@ -179,16 +179,16 @@ async def test_a_steps_model_beats_settings_local_model(mac, client):
 async def test_settings_local_model_changes_what_is_served(mac, client):
     """The setting the error messages name is real: it changes the profile and what a request
     naming no model is served -- no environment variable, no restart."""
-    mac.install("Qwen2.5-VL-3B", "Nanonets-OCR")
-    assert client.put("/api/settings/ai-defaults", json={"local_model": "Nanonets-OCR"}).status_code == 200
+    mac.install("Qwen2.5-VL-3B", "Qwen2.5-VL-7B")
+    assert client.put("/api/settings/ai-defaults", json={"local_model": "Qwen2.5-VL-7B"}).status_code == 200
 
-    assert client.get("/api/local-inference/profiles").json()["items"][0]["model_id"] == "Nanonets-OCR"
+    assert client.get("/api/local-inference/profiles").json()["items"][0]["model_id"] == "Qwen2.5-VL-7B"
     got = client.get("/api/settings/ai-defaults").json()
-    assert got["local_model"] == "Nanonets-OCR"
+    assert got["local_model"] == "Qwen2.5-VL-7B"
     assert choice.LOCAL_MODEL_SETTING_NAME in got["chosen_because"]["local_model"]
 
     await llm._ensure_managed_local_provider_ready(LLMConfig(provider="omlx", model="local-model"))
-    assert _served() == "Nanonets-OCR"
+    assert _served() == "Qwen2.5-VL-7B"
 
 
 def test_settings_refuses_a_local_model_this_mac_cannot_run(mac, client):
@@ -215,9 +215,9 @@ def test_on_16_gb_the_default_local_model_is_one_that_fits(mac):
 
 
 def test_an_installed_model_that_fits_is_preferred(mac):
-    mac.install("Nanonets-OCR")
+    mac.install("Qwen2.5-VL-7B")
     pick = choice.default_local_model()
-    assert pick.model_id == "Nanonets-OCR" and "installed" in pick.reason
+    assert pick.model_id == "Qwen2.5-VL-7B" and "installed" in pick.reason
 
 
 def test_a_mac_with_room_gets_the_strongest_reader(mac):

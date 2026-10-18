@@ -45,7 +45,7 @@ shipped app breaks on config no test covered. And because the harness forces
   `ALL_FEATURES=1`: at minimum a **release**-gate run (what users get) plus the
   all-features dev run. A feature that works dev-on but is broken/hidden at release is a
   bug the current setup can't see.
-- `testenv.gate-availability` — for each tier, the capability-availability tests assert the
+- `testenv.gate-availability` — **[GAP]** (#5283) for each tier, the capability-availability tests assert the
   surfaces that tier SHOULD expose are reachable, and the ones it shouldn't are absent.
 
 ### C. Model / data locations
@@ -53,6 +53,12 @@ shipped app breaks on config no test covered. And because the harness forces
   home has none, so an embeddings test must point at a shared cached model (offline) or
   seed it — otherwise it downloads/hangs (the prewarm bug). Define one cached location the
   briefcase and an embeddings-testing engine both use.
+- `testenv.embedding-tests-never-skip` — **[GAP]** (#5528) an embedding test does not skip when
+  the model is missing. The model is put on the test machines and the tests run; a skip is a
+  failure (Rule 0). Ruled 2026-10-17.
+- `testenv.scratch-rows-forgotten-not-deleted` — **[GAP]** (#5532) test and scratch project rows
+  left in the real library are removed through the app's own forget-project action. Nothing on
+  disk is deleted. Ruled 2026-10-17.
 
 ## Test matrix
 
@@ -79,14 +85,13 @@ n/a (infrastructure spec).
   the developer's real `~/.cache` (fast but not hermetic)?
 
 ## Triaged from the backlog (2026-10-04)
-- `testenv.one-mcp-test-tree` — **[GAP]** (#4480) fichero-mcp is tested from one tree only; the stale copy under fichero-server/tests/unit/mcp is removed or made the same suite (it still exists).
+- `testenv.one-mcp-test-tree` — **[PARTIAL]** (#4480) fichero-mcp is tested from one tree only: no duplicate file remains; six engine-side tests import `fichero_mcp` by design.
 - `testenv.no-defaults-leak` — **[GAP]** (#4234, #4103, #4578) tests never create UserDefaults suites in the shipping app container, and a sweep removes the ~180 test.purge.* plists.
 - `testenv.full-suite-completes` — **[GAP]** (#5249, #4039) a full engine pytest run finishes without a hang (the perf test is bounded, not skipped) and without shared-app middleware errors at setup.
 - `testenv.no-modal-in-hosted-tests` — **[GAP]** (#4270) a hosted unit test never raises a user-visible save panel or alert; save paths are pointed at a temp directory.
 - `testenv.no-real-files-touched` — **[GAP]** (#4537) tests running in the app container never write real container files (e.g. .api-key) without save/restore; a sweep and guardrail cover the class.
 - `testenv.expect-message-is-comment` — **[GAP]** (#4698) a guardrail fails before a build when a Swift Testing #expect/Issue.record message is a concatenation or String variable.
 - `testenv.load-insensitive-unit-tests` — **[GAP]** (#4793) WebKit-backed ReaderTranscriptWrapTests and ServiceHostReconfigurationTests:78 do not fail the gate under machine load.
-- `testenv.gate-watchdog-two-readings` — **[GAP]** (#4916) scripts/gate kills a run at memory-pressure level 4 only when a second reading, GATE_PRESSURE_CONFIRM_S (default 10) later, is still 4; a single spike never kills. macOS reports only levels 1/2/4, so there is no level-3 branch. Self-test: `scripts/gate --self-test` (GATE_FAKE_PRESSURE).
 - `testenv.engine-leg-fits-footprint` — **[GAP]** (#4916) the gate's engine leg completes under the 4096 MB footprint ceiling (scripts/gate GATE_FOOTPRINT_MB) by sharding the engine suite across processes.
 - `testenv.transport-error-tests-use-stubs` — **[GAP]** (#4207) twelve service suites that assert transport error mapping use a stub transport, not real DNS/network.
 - `testenv.guardrails-fail-on-stale-baseline` — **[GAP]** (#3339) every scripts/check_*.py returns nonzero when a KNOWN_VIOLATIONS or baseline entry is stale (check_native_controls.py and check_feature_flags.py warn and return 0).
@@ -98,3 +103,6 @@ n/a (infrastructure spec).
 
 ## Future (ideas, not scheduled)
 - (#4425) Design principle: what must not be forgotten lives in the gate, advice lives in skills.
+
+## Triaged from the overnight plan (2026-10-17)
+- `testenv.shard-peak-footprint-measured` — **[PARTIAL]** (#4916) the engine suite runs as shards (afc029f8a) but the peak footprint of each shard is not measured, and the gate ceiling stays 6144 MB until it is. The figure in the gate comes from a recorded run per shard, never a stated number. Test: `fichero-server/tests/unit/scripts/test_cross_language_gate.py` (to extend: a shard report carries its peak MB).

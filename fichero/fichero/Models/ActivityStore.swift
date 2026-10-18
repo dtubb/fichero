@@ -22,12 +22,12 @@ final class ActivityStore: ChangeEventConsumer {
     // ─── Refresh signal (views observe this) ──────────────────────────────────
     /// Bumped whenever an activity SSE event arrives or a reconnect resync fires.
     /// `ActivityBrowserView` observes this to reload its run list.
-    private(set) var refreshToken: Int = 0
+    var refreshToken: Int = 0
     /// Coalesces activity-frame bursts into one refreshToken bump (see
     /// `applyActivityEvent`).
-    private let refreshDebouncer = ReloadDebouncer()
+    let refreshDebouncer = ReloadDebouncer()
 
-    private let log = Logger(subsystem: "app.fichero.fichero", category: "ActivityStore")
+    let log = Logger(subsystem: "app.fichero.fichero", category: "ActivityStore")
     private let streamService: ActivityStreamService
 
     /// When set (REMOTE hosts only), folded change frames arriving on
@@ -43,12 +43,12 @@ final class ActivityStore: ChangeEventConsumer {
     /// or CLI kicked off), or `nil` when nothing is running. Views observe this
     /// for a live progress indicator. Updated in place — a backend-work frame
     /// never bumps `refreshToken`, so it can't trigger a run-list reload.
-    private(set) var backendWork: BackendWorkStatus?
+    var backendWork: BackendWorkStatus?
 
     /// The most recent "library opened" signal — e.g. the CLI opened a library
     /// out of band (#2279). Views surface it subtly so the user knows the backend
     /// touched a library they didn't open in this window.
-    private(set) var lastLibraryOpened: LibraryOpenedSignal?
+    var lastLibraryOpened: LibraryOpenedSignal?
 
     // MARK: - Run list (#3231, #4960)
     //
@@ -56,17 +56,17 @@ final class ActivityStore: ChangeEventConsumer {
     // inside ActivityBrowserView). Views observe `runs`/`runLoadFailures` and
     // call `rebuildRuns`, passing @Environment deps in. `runs` is patched
     // in place (`patchRun`) — no method here reassigns the whole array.
-    private(set) var runs: [ActivityRun] = []
+    var runs: [ActivityRun] = []
     /// Which read a footer line came from: the run list, or the jobs poll (#5469).
-    private enum LoadSource: Int { case runs, jobs }
-    private struct LoadFailureKey: Hashable {
+    enum LoadSource: Int { case runs, jobs }
+    private struct FailureKey: Hashable {
         let library: UUID
         let source: LoadSource
     }
     /// The footer's lines (`activity.window.honest-state`, #5431): one per
     /// library and read whose last load failed, naming the cause. Keyed so the
     /// next successful load of that read clears exactly its own line.
-    private var loadFailures: [LoadFailureKey: String] = [:]
+    private var loadFailures: [FailureKey: String] = [:]
     var runLoadFailures: [String] {
         let ordered = loadFailures
             .sorted { ($0.key.library.uuidString, $0.key.source.rawValue) < ($1.key.library.uuidString, $1.key.source.rawValue) }
@@ -77,23 +77,23 @@ final class ActivityStore: ChangeEventConsumer {
     }
 
     /// Set ONE footer line, or clear it with nil; untouched when unchanged.
-    private func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) {
-        let key = LoadFailureKey(library: library, source: source)
+    func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) {
+        let key = FailureKey(library: library, source: source)
         if loadFailures[key] != message { loadFailures[key] = message }
     }
 
     /// The library this store belongs to, named in a jobs-poll footer line (#5469).
-    @ObservationIgnored private weak var library: LibraryManager.LibraryReference?
-    private(set) var isRebuildingRuns = false
+    @ObservationIgnored weak var library: LibraryManager.LibraryReference?
+    var isRebuildingRuns = false
     /// True when the last `GET /workflow-execution/runs` page was full —
     /// probably a next page to page in. `false` on a short page, or before load.
-    private(set) var runsHasMore = false
+    var runsHasMore = false
     /// Historical rows fetched so far (reset by `rebuildRuns`) — the `offset`
     /// `loadMoreRuns` pages from.
-    private var historicalRunsFetched = 0
+    var historicalRunsFetched = 0
     /// One page at a time — the old 7-day/100-event ceiling is gone, so the
     /// list can be arbitrarily long ("show ALL items"); page it instead.
-    private let runsPageSize = 50
+    let runsPageSize = 50
 
     // MARK: - Background jobs (#user-machine-always-useful FIX 2)
     //
@@ -105,17 +105,17 @@ final class ActivityStore: ChangeEventConsumer {
     // running or whether it FAILED. Updated in place, only when the value
     // actually changes (no-wholesale-rerender): a steady 100%-idle poll never
     // invalidates the observing views.
-    private(set) var backgroundJobs: [ActivityJob] = []
+    var backgroundJobs: [ActivityJob] = []
     /// Counts the Find the Documents runs seen to end, a recipe's step among them (`finddocs.review.items`):
     /// Items and the Inspector read their proposals again when it moves.
     private(set) var findDocumentsRunsEnded = 0
     private(set) var processCpuPercent: Double?
     private(set) var cpuCount: Int = 0
     /// Pause Background Work is on (`activity.pause.global`), from the same read.
-    private(set) var backgroundPaused = false
+    var backgroundPaused = false
     /// How background work runs (`activity.mode.start-stop`, #5621), same read:
     /// what the Start / Stop control shows and sets.
-    private(set) var backgroundMode: ActivityMode = .automatic
+    var backgroundMode: ActivityMode = .automatic
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
     private(set) var machine: Components.Schemas.MachineState?
     private var jobsPollTask: Task<Void, Never>?
@@ -130,44 +130,44 @@ final class ActivityStore: ChangeEventConsumer {
     /// Bumped each time the engine answers a mode set (#5621). A jobs read that
     /// began before it is older than that answer: its mode and pause are not
     /// applied, or a poll in flight while Pause All was chosen put "running" back.
-    @ObservationIgnored private var modeAnswers = 0
+    @ObservationIgnored var modeAnswers = 0
     /// Runs Delete or Clear Failed removed: a live execution still held in the
     /// app's memory does not bring its row back on the next rebuild (#5634).
-    @ObservationIgnored private var deletedRunIds: Set<String> = []
+    @ObservationIgnored var deletedRunIds: Set<String> = []
 
     // MARK: - Run trees (#5415: the Activity table's run → step → page rows)
     //
     // `GET /api/activity/jobs/{threadId}` per run, keyed by thread id. A tree
     // is fetched when its row is first shown and again when the change stream
     // names its run: ONE key patched, never the whole dictionary replaced.
-    private(set) var runTrees: [String: ActivityJobNode] = [:]
+    var runTrees: [String: ActivityJobNode] = [:]
     /// Runs the engine has no tree for (recorded before the jobs table): not
     /// asked again, their row shows the run alone.
-    private var runsWithoutTree: Set<String> = []
-    private var treeFetchesInFlight: Set<String> = []
+    var runsWithoutTree: Set<String> = []
+    var treeFetchesInFlight: Set<String> = []
     /// One pending tree read per run, restarted by each frame of a burst.
-    @ObservationIgnored private var pendingTreeReads: [String: Task<Void, Never>] = [:]
-    private let treeReadDelay: Duration = .milliseconds(300)
+    @ObservationIgnored var pendingTreeReads: [String: Task<Void, Never>] = [:]
+    let treeReadDelay: Duration = .milliseconds(300)
     /// The log of a row and the rows under it (#5561), newest last, keyed by
     /// the row's job id: one key patched, and only when it changed.
-    private(set) var jobLogs: [String: [ActivityJobLogLine]] = [:]
+    var jobLogs: [String: [ActivityJobLogLine]] = [:]
     /// A recipe run's folders done of its folders in all (`activity.run.progress-per-folder`, #5540), keyed
     /// by the run's id: read from its status each time its tree is read, one key patched, only when changed.
-    private(set) var recipeRunFolders: [String: RecipeRunFolders] = [:]
+    var recipeRunFolders: [String: RecipeRunFolders] = [:]
     /// The recipe run the project window's strip shows (#5576, #5577): the
     /// project's running recipe run, seen on the jobs poll, and once it ends,
     /// that run until the person puts it away. Its words are its tree's
     /// (`runTrees[projectRunId]`), the record the Activity details read.
-    private(set) var projectRunId: String?
+    var projectRunId: String?
     /// Runs the person put away: never shown on the strip again, across
     /// relaunches (kept under `putAwayKey` in the app's defaults).
-    @ObservationIgnored private var putAwayRunIds: Set<String> = []
+    @ObservationIgnored var putAwayRunIds: Set<String> = []
     /// The project's key for the runs put away (`project.runStrip.closed.<project id>`);
     /// nil for a store with no project, which remembers them only while it lives.
-    @ObservationIgnored private let putAwayKey: String?
-    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored let putAwayKey: String?
+    @ObservationIgnored let defaults: UserDefaults
     /// How many put-away run ids are kept: the newest; older runs are never adopted again anyway.
-    private static let putAwayKept = 50
+    static let putAwayKept = 50
     /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
@@ -309,594 +309,5 @@ final class ActivityStore: ChangeEventConsumer {
     func reconnectLiveUpdates() {
         stop()
         start()
-    }
-
-    // MARK: - Run list assembly (#3231, #4960)
-
-    /// Rebuild `runs` from the window's live executions + this library's
-    /// FIRST page of runs. #4960: reads the engine's `workflow_runs` table —
-    /// the SAME record `/activity/jobs` (the popover) already reads —
-    /// instead of the old 7-day/100-event log, the verified cause of the
-    /// popover and window disagreeing (`agent-work/reviews/
-    /// activity-system-review-2026-09-20.md` §2). Every fresh row is PATCHED
-    /// into `runs`, never a wholesale replace. Fetches through
-    /// `self.activityService`, not `library.activityService` (identical by
-    /// construction) — a store built directly in a test needs no
-    /// `LibraryReference` transport.
-    func rebuildRuns(
-        activeExecutions: [WorkflowExecution],
-        library: LibraryManager.LibraryReference
-    ) async {
-        isRebuildingRuns = true
-        defer { isRebuildingRuns = false }
-
-        // A run deleted here stays deleted although its execution is still in memory (#5634).
-        let live = activeExecutions.filter { !deletedRunIds.contains($0.threadId) }
-            .map { liveRun(from: $0, library: library) }
-        let liveIds = Set(live.map(\.id))
-        do {
-            let page = try await activityService.listWorkflowRuns(limit: runsPageSize, offset: 0)
-            let historical = page.items
-                .filter { !liveIds.contains(historicalRunId(threadId: $0.threadId, library: library)) }
-                .map { historicalRun(from: $0, library: library) }
-            for run in live + historical {
-                patchRun(run)
-            }
-            historicalRunsFetched = page.items.count
-            runsHasMore = page.items.count >= runsPageSize
-            setLoadFailure(nil, library: library.id, source: .runs)
-        } catch {
-            let message = Self.runLoadFailureMessage(libraryName: library.displayName, error: error)
-            log.error("ActivityStore: run list load failed: \(message, privacy: .public)")
-            setLoadFailure(message, library: library.id, source: .runs)
-        }
-    }
-
-    /// Page in the NEXT page of this library's historical runs, appended —
-    /// never replacing what `runs` already holds. A no-op while there is no
-    /// further page, or a rebuild is already in flight.
-    func loadMoreRuns(library: LibraryManager.LibraryReference) async {
-        guard runsHasMore, !isRebuildingRuns else { return }
-        do {
-            let page = try await activityService.listWorkflowRuns(
-                limit: runsPageSize,
-                offset: historicalRunsFetched
-            )
-            for summary in page.items {
-                patchRun(historicalRun(from: summary, library: library))
-            }
-            historicalRunsFetched += page.items.count
-            runsHasMore = page.items.count >= runsPageSize
-        } catch {
-            // A page-in failure leaves `runs` exactly as it was; scrolling
-            // again retries.
-        }
-    }
-
-    /// Update ONE row in place by id, at its EXISTING array position (same
-    /// identity for a future Table's selection/scroll); a run not yet
-    /// present is appended. The only way `runs` content ever changes.
-    func patchRun(_ run: ActivityRun) {
-        if let index = runs.firstIndex(where: { $0.id == run.id }) {
-            runs[index] = run
-        } else {
-            runs.append(run)
-        }
-    }
-
-    /// Delete runs by explicit id OR by a status filter — "Clear Failed" is
-    /// this SAME call with `statuses: ["failed"]`. Removes exactly the
-    /// `deletedIds` the engine reports; `skippedIds` (still-running, unknown)
-    /// keep their row, returned so the caller can say so plainly.
-    @discardableResult
-    func deleteRuns(threadIds: [String]? = nil, statuses: [String]? = nil) async -> RunDeleteOutcome {
-        do {
-            let result = try await activityService.deleteWorkflowRuns(threadIds: threadIds, statuses: statuses)
-            let deleted = Set(result.deletedIds)
-            deletedRunIds.formUnion(deleted)
-            runs.removeAll { deleted.contains($0.runId) }
-            return RunDeleteOutcome(deletedIds: result.deletedIds, skippedIds: result.skippedIds)
-        } catch {
-            log.error("ActivityStore: deleteRuns failed \(error.localizedDescription, privacy: .public)")
-            return RunDeleteOutcome(deletedIds: [], skippedIds: threadIds ?? [], failure: error.localizedDescription)
-        }
-    }
-
-    /// Clear Failed in this project (`activity.window.clear-failed`, #5634):
-    /// its failed runs deleted (`deleteRuns(statuses:)`) and its failed jobs of
-    /// their own cleared (`job.clear_failed`), each cleared row removed in place
-    /// and the jobs read taken again. Before, only runs were deleted, so a
-    /// failed job's row (and the toolbar's error glyph) never went away.
-    func clearFailed() async -> ClearFailedOutcome {
-        let deletedRuns = await deleteRuns(statuses: ["failed"])
-        var outcome = ClearFailedOutcome(
-            runsCleared: deletedRuns.deletedIds.count,
-            runsSkipped: deletedRuns.skippedIds.count,
-            failures: deletedRuns.failure.map { [$0] } ?? []
-        )
-        do {
-            let cleared = Set(try await activityService.clearFailedJobs())
-            outcome.jobsCleared = cleared.count
-            if backgroundJobs.contains(where: { cleared.contains($0.id) }) {
-                backgroundJobs.removeAll { cleared.contains($0.id) }
-            }
-            await refreshBackgroundJobs()
-        } catch {
-            log.error("ActivityStore: clear failed jobs failed \(error.localizedDescription, privacy: .public)")
-            outcome.failures.append(error.localizedDescription)
-        }
-        return outcome
-    }
-
-    /// The footer line for a failed run-list or jobs load: the library AND the
-    /// cause (#5431). A refusal (401/403, e.g. an engine respawn's token change)
-    /// and an engine that cannot be reached are different fixes, so they read
-    /// differently; anything else carries its own description. A 403 names the
-    /// cause the engine's typed body gives (#5469): the project's location
-    /// (`library_outside_allowed_locations`, the roots check) is not the app's
-    /// credentials, and any other coded refusal reads as the engine wrote it.
-    static func runLoadFailureMessage(libraryName: String, error: Error) -> String {
-        let cause: String
-        switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {
-        case .forbidden(let reason, _) where reason == AccessError.outsideAllowedLocations:
-            cause = "the engine isn't allowed to open the project from where it's saved"
-        case .forbidden(_?, let message?):
-            cause = message
-        case .unauthenticated, .staleBootstrapToken, .deviceAccessExpired, .forbidden:
-            cause = "the engine refused the app's credentials"
-        case .engineUnreachable:
-            cause = "the engine could not be reached"
-        case let other:
-            cause = other.localizedDescription
-        }
-        // The always-there project has no name: no "from" (never "from : …").
-        guard let project = ActivityRun.projectLabel(libraryName) else {
-            return "Couldn't load activity: \(cause)"
-        }
-        return "Couldn't load activity from \(project): \(cause)"
-    }
-
-    private func liveRun(
-        from execution: WorkflowExecution,
-        library: LibraryManager.LibraryReference
-    ) -> ActivityRun {
-        ActivityRun(
-            id: historicalRunId(threadId: execution.threadId, library: library),
-            runId: execution.threadId,
-            workflowId: execution.id,
-            threadId: execution.threadId,
-            workflowName: activityCleanWorkflowName(execution.name),
-            timestamp: execution.startTime,
-            status: activityMapExecutionStatus(execution.status),
-            progress: execution.overallProgress,
-            currentStep: execution.currentNodeName,
-            errorCount: execution.nodeStates.values.reduce(0) { $0 + $1.errorCount },
-            fileCount: execution.totalFiles,
-            isLive: true,
-            libraryId: library.id,
-            libraryName: library.displayName
-        )
-    }
-
-    /// A run straight from the runs table, not an event. `startedAt` is read
-    /// with the one engine-date parser (fractional seconds, any offset); a
-    /// time it cannot read is `nil`, shown as unknown and logged, never
-    /// replaced by "now", which made every row say "just now" (#5432).
-    private func historicalRun(
-        from summary: Components.Schemas.WorkflowRunSummary,
-        library: LibraryManager.LibraryReference
-    ) -> ActivityRun {
-        let timestamp = summary.startedAt.flatMap(parseEngineDate)
-        if timestamp == nil {
-            let raw = summary.startedAt ?? "nil"
-            log.error("ActivityStore: run \(summary.threadId, privacy: .public) has an unreadable started_at \(raw, privacy: .public)")
-        }
-        return ActivityRun(
-            id: historicalRunId(threadId: summary.threadId, library: library),
-            runId: summary.threadId,
-            workflowId: summary.workflowId,
-            threadId: summary.threadId,
-            workflowName: activityCleanWorkflowName(summary.workflowName),
-            timestamp: timestamp,
-            status: activityMapRunStatus(summary.status),
-            progress: nil,
-            currentStep: nil,
-            errorCount: (summary.error?.isEmpty == false) ? 1 : 0,
-            fileCount: summary.documentCount ?? 0,
-            isLive: false,
-            libraryId: library.id,
-            libraryName: library.displayName,
-            failureReason: (summary.error?.isEmpty == false) ? summary.error : nil
-        )
-    }
-
-    /// A live run and its later-settled historical record share this id —
-    /// what lets `patchRun` update a finishing run's row IN PLACE.
-    private func historicalRunId(threadId: String, library: LibraryManager.LibraryReference) -> String {
-        "\(library.id.uuidString)|\(threadId)"
-    }
-
-    // MARK: - ChangeEventConsumer
-
-    /// Activity refresh is driven by `/activity/stream`, not workflow-definition
-    /// events. Keep this consumer only so change-stream reconnects can resync.
-    nonisolated var changeDomains: Set<String> { [] }
-
-    func apply(_ event: ChangeEvent) {
-        log.debug("ActivityStore ignored change event \(event.type, privacy: .public)")
-    }
-
-    func resync() async {
-        refreshToken += 1
-        log.debug("ActivityStore: resync, refreshToken → \(self.refreshToken, privacy: .public)")
-    }
-
-    func applyActivityEvent(_ activity: ActivityItem) {
-        // Backend-work / library-opened signals (#2279) ride the same folded
-        // frames but are informational, not domain mutations — intercept them
-        // first and update the observable indicator IN PLACE (no run-list
-        // reload, no domain-store fan-out).
-        if let metadata = activity.metadataStrings,
-           let signal = BackendActivityEvent(activityMetadata: metadata) {
-            applyBackendSignal(signal)
-            return
-        }
-        // #3159 folds per-library mutations onto the activity stream so REMOTE
-        // subscribers see them (the dedicated /changes/stream can drop over the
-        // tailnet, #2479). Such a frame carries `change_type` in its metadata:
-        // reconstruct the ChangeEvent and fan it to the domain stores instead of
-        // treating it as a run update. It must NOT bump `refreshToken` — that
-        // would reload the whole run list on every mutation (no-wholesale
-        // re-render).
-        //
-        // CHEAP-DROP ON LOCAL (2026-09-06): `changeRouter` is nil on local hosts
-        // — the same mutations already arrive on the dedicated /changes/stream,
-        // so the folded copy is pure waste there. Detect the folded frame by its
-        // `change_type` key (one dict lookup, the same guard ChangeEvent's init
-        // uses) and, when there is no router, drop it WITHOUT reconstructing the
-        // ChangeEvent — whose init JSON-decodes up to five id lists per frame —
-        // and WITHOUT the per-frame log. Bulk embedding fires a `document.updated`
-        // per doc; that flooded this branch 30+ times back-to-back on the main
-        // actor (Daniel's Xcode console during an image-folder expand), each time
-        // building an event nothing consumed. Still `return` in both cases: a
-        // folded change must never fall through to the refresh burst below and
-        // reload the run list.
-        if let metadata = activity.metadataStrings,
-           let changeType = metadata["change_type"], !changeType.isEmpty {
-            if let route = changeRouter, let change = ChangeEvent(activityMetadata: metadata) {
-                route(change)
-                log.debug("ActivityStore: folded change \(change.type, privacy: .public) routed")
-            }
-            return
-        }
-        // The Activity table's row for this run (#5415): re-read ITS tree only,
-        // once the burst settles — one row updated in place, no list reload. A
-        // run that is a stage of a recipe run (#5576) re-reads the recipe run's
-        // tree, which holds it: the stage's pages done and left follow live.
-        if let threadId = activity.threadId {
-            if runTrees[threadId] != nil { scheduleTreeRead(threadId: threadId) }
-            for key in recipeRunTrees(holdingStage: threadId) { scheduleTreeRead(threadId: key) }
-        }
-        // Debounced (perf audit 2026-08-19): a running workflow emits several
-        // activity frames per second, and every refreshToken bump used to fan
-        // out to a full run-list refetch in the sidebar, the activity pane
-        // AND the library's pending-status poll — ~10 GET /api/activity per
-        // second for the whole run. One bump per burst carries the same
-        // "something changed" signal.
-        refreshDebouncer.schedule { [weak self] in
-            await MainActor.run {
-                guard let self else { return }
-                self.refreshToken += 1
-                self.log.debug("ActivityStore: activity burst, refreshToken → \(self.refreshToken, privacy: .public)")
-            }
-        }
-    }
-
-    /// Drive the live backend-work indicator from a decoded signal (#2279).
-    /// Single-task model: `backendWork` tracks the latest running task and clears
-    /// when THAT task reaches a terminal phase. (Concurrent backend tasks show
-    /// the most recent; a multi-task queue view is a follow-up.)
-    private func applyBackendSignal(_ signal: BackendActivityEvent) {
-        switch signal {
-        case .libraryOpened(let opened):
-            lastLibraryOpened = opened
-            log.debug(
-                "ActivityStore: library.opened \(opened.libraryName, privacy: .public) via \(opened.source, privacy: .public)"
-            )
-        case .work(let status):
-            if status.isTerminal {
-                // Only clear if the finishing task is the one we're showing —
-                // don't wipe a still-running task's indicator.
-                if backendWork?.runId == status.runId {
-                    backendWork = nil
-                }
-            } else {
-                backendWork = status
-            }
-            log.debug(
-                "ActivityStore: backend.work \(status.phase.rawValue, privacy: .public) \(status.taskName, privacy: .public)"
-            )
-        }
-    }
-}
-
-// MARK: - Run trees (#5415): the Activity table's run → step → page rows
-
-extension ActivityStore {
-    /// Fetch one run's tree once, when its row is first shown. Later reads
-    /// come from the change stream (`applyActivityEvent`), never a poll.
-    func loadRunTree(threadId: String) async {
-        guard runTrees[threadId] == nil, !runsWithoutTree.contains(threadId) else { return }
-        await fetchRunTree(threadId: threadId)
-    }
-
-    /// Read one run's tree and patch that ONE key. A failed read keeps what
-    /// the row showed; a run the engine has no tree for is remembered.
-    private func fetchRunTree(threadId: String) async {
-        guard !treeFetchesInFlight.contains(threadId) else { return }
-        treeFetchesInFlight.insert(threadId)
-        defer { treeFetchesInFlight.remove(threadId) }
-        do {
-            if let tree = try await activityService.getJobTree(id: threadId) {
-                if runTrees[threadId] != tree { runTrees[threadId] = tree }
-                if tree.kind == Self.recipeRunKind { await readRecipeRunFolders(jobId: threadId) }
-            } else {
-                runsWithoutTree.insert(threadId)
-            }
-        } catch {
-            log.debug("ActivityStore: tree for \(threadId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// A recipe run's folders from its status (`GET /api/recipes/project/runs/{id}`), patched on its ONE key.
-    /// A failed read keeps what was shown.
-    private func readRecipeRunFolders(jobId: String) async {
-        do {
-            guard let status = try await activityService.getRecipeRunStatus(jobId: jobId),
-                  let folders = RecipeRunFolders(status) else { return }
-            if recipeRunFolders[jobId] != folders { recipeRunFolders[jobId] = folders }
-        } catch {
-            log.debug("ActivityStore: recipe run \(jobId, privacy: .public) status failed \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Pause or resume one row's job (`activity.pause.per-job`) and set the
-    /// state the engine answers on that ONE node in place. `runThreadId` is
-    /// the run whose tree holds it. Returns what went wrong, in words, or nil.
-    func setJobPaused(jobId: String, paused: Bool, runThreadId: String?) async -> String? {
-        do {
-            let state = try await activityService.setJobPaused(id: jobId, paused: paused)
-            patchJobState(state, jobId: jobId, runThreadId: runThreadId)
-            await rereadJobOfItsOwn(jobId)
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    /// Stop one row's job and what is under it (the audited `job.cancel`).
-    func cancelJob(jobId: String, runThreadId: String?) async -> String? {
-        do {
-            let state = try await activityService.cancelJob(id: jobId)
-            patchJobState(state, jobId: jobId, runThreadId: runThreadId)
-            await rereadJobOfItsOwn(jobId)
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    /// Run a failed or stopped row's job again (`job.retry`, #5356): the state
-    /// the engine answers is set on that ONE node in place, and a job of its
-    /// own is re-read by the jobs poll. Returns the engine's refusal, in its
-    /// words, or nil.
-    func retryJob(jobId: String, runThreadId: String?) async -> String? {
-        do {
-            let answer = try await activityService.retryJob(id: jobId)
-            let listed = backgroundJobs.contains { $0.id == jobId }
-            if let old = answer.replaces, old != answer.id {
-                // A retried workflow run is a NEW run (#5555's read-again path): the old row becomes it, in place,
-                // and nothing is set on the old id, which the engine no longer lists.
-                replaceRetriedRun(old, with: answer.id, state: answer.state)
-            } else {
-                patchJobState(answer.state, jobId: jobId, runThreadId: runThreadId)
-            }
-            if listed { await refreshBackgroundJobs() }
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    /// Read the pages a finished run did not do (#5555): the engine starts one
-    /// new run; the run list picks it up on the next resync. Returns what went
-    /// wrong, in words, or nil.
-    func readPagesAgain(runThreadId: String) async -> String? {
-        do {
-            _ = try await activityService.readPagesAgain(threadId: runThreadId)
-            await resync()
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
-    }
-
-    private func scheduleTreeRead(threadId: String) {
-        pendingTreeReads[threadId]?.cancel()
-        pendingTreeReads[threadId] = Task { [weak self] in
-            guard let delay = self?.treeReadDelay else { return }
-            try? await Task.sleep(for: delay)
-            guard !Task.isCancelled, let self else { return }
-            self.pendingTreeReads[threadId] = nil
-            await self.fetchRunTree(threadId: threadId)
-        }
-    }
-
-    // MARK: - The details of one row (#5561)
-
-    /// The project's name, for the details' heading; nil for the always-there project, which has
-    /// no name (`ActivityRun.projectLabel`).
-    var projectName: String? { ActivityRun.projectLabel(library?.displayName) }
-
-    /// A row's node, read from the record the table reads (`activity.details.one-record`):
-    /// its node in a loaded tree, else a job of its own from the jobs poll.
-    /// `nil` until its tree is loaded (`loadDetails`).
-    func node(jobId: String) -> ActivityJobNode? {
-        if let root = runTrees[jobId] { return root }
-        for root in runTrees.values {
-            if let found = root.node(withId: jobId) { return found }
-        }
-        return backgroundJobs.first { $0.id == jobId }.map(ActivityJobNode.init(job:))
-    }
-
-    /// The recipe runs (#5576) whose stages include the run `threadId`: their
-    /// trees are read again when that run changes, so a stage's pages done and
-    /// left follow live in the recipe run's details.
-    func recipeRunTrees(holdingStage threadId: String) -> [String] {
-        runTrees.compactMap { key, tree in
-            tree.kind == "run-a-recipe" && tree.children.contains { $0.id == threadId } ? key : nil
-        }
-    }
-
-    /// The engine's kind for a recipe run (`recipes/runner.KIND`).
-    nonisolated static let recipeRunKind = "run-a-recipe"
-
-    /// Follow the project's running recipe run on the strip (#5576): the first
-    /// one the jobs poll lists running, waiting or paused (never the row that
-    /// stands for several waiting ones), its tree read once. Later reads are
-    /// the poll's and the change stream's; when it ends and leaves the list its
-    /// tree is read once more, which carries what it made (#5577).
-    func followProjectRun(in jobs: [ActivityJob]) async {
-        guard let live = jobs.first(where: { job in
-            job.taskType == Self.recipeRunKind && job.parentId == nil && !job.id.hasPrefix("waiting:")
-                && (job.state.isActive || job.state == .waiting) && !putAwayRunIds.contains(job.id)
-        }) else { return }
-        await adoptProjectRun(live.id)
-    }
-
-    /// When the project opens (#5576, `source.onboard.auto.lands-on-the-run`): the
-    /// run the strip would be showing had the app stayed open. The newest recipe
-    /// run still running, waiting or paused; else the newest run that ended, unless
-    /// the person closed its summary. Read once from the project's recipe runs
-    /// (newest first); from then on the jobs poll follows it as any other.
-    func restoreProjectRun() async {
-        guard projectRunId == nil else { return }
-        let runs: [Components.Schemas.RecipeRunStatus]
-        do {
-            runs = try await activityService.getProjectRecipeRuns()
-        } catch {
-            log.debug("ActivityStore: recipe runs read failed \(error.localizedDescription, privacy: .public)")
-            return
-        }
-        let ended: Set<String> = ["done", "failed", "cancelled"]
-        let live = runs.first(where: { !ended.contains($0.state) && !putAwayRunIds.contains($0.jobId) })
-        // Only the newest ended run: an older one never takes the place of a summary the person closed.
-        let newestEnded = runs.first(where: { ended.contains($0.state) })
-        let run = live ?? newestEnded.flatMap { putAwayRunIds.contains($0.jobId) ? nil : $0 }
-        guard let run, projectRunId == nil else { return }
-        await adoptProjectRun(run.jobId)
-    }
-
-    /// The strip shows `id`: its tree read once, as the record its words come from.
-    private func adoptProjectRun(_ id: String) async {
-        if projectRunId != id { projectRunId = id }
-        await loadRunTree(threadId: id)
-    }
-
-    /// A recipe run's stage (a workflow run) whose row on the jobs poll moved
-    /// re-reads the recipe run's tree, so the project's strip and its details
-    /// follow the stage's pages (#5576), as a change-stream frame naming it does.
-    private func rereadRecipeRuns(holdingStagesChangedFrom before: [String: ActivityJob], to jobs: [ActivityJob]) {
-        for job in jobs where before[job.id] != job {
-            for key in recipeRunTrees(holdingStage: job.id) { scheduleTreeRead(threadId: key) }
-        }
-    }
-
-    /// The person put the strip away: that run is not shown on it again, nor
-    /// after a relaunch (#5576).
-    func putAwayProjectRun() {
-        guard let id = projectRunId else { return }
-        putAwayRunIds.insert(id)
-        projectRunId = nil
-        guard let putAwayKey else { return }
-        let kept = (defaults.stringArray(forKey: putAwayKey) ?? []).filter { $0 != id } + [id]
-        defaults.set(Array(kept.suffix(Self.putAwayKept)), forKey: putAwayKey)
-    }
-
-    /// The key of the tree that holds `jobId`: its run's thread id, or the
-    /// job's own id for a job of its own.
-    func treeKey(containing jobId: String) -> String? {
-        if runTrees[jobId] != nil { return jobId }
-        return runTrees.first { $0.value.node(withId: jobId) != nil }?.key
-    }
-
-    /// Read the tree a row's details need, once: a step's run (its id is
-    /// `<run>:<step>`), else the job's own. Later reads are the table's own
-    /// (the change stream, the jobs poll): the details open no stream or poll.
-    func loadDetails(jobId: String) async {
-        guard treeKey(containing: jobId) == nil else { return }
-        if let colon = jobId.lastIndex(of: ":") {
-            await loadRunTree(threadId: String(jobId[..<colon]))
-            if treeKey(containing: jobId) != nil { return }
-        }
-        await loadRunTree(threadId: jobId)
-    }
-
-    /// Read one row's log; the details call it when the row's node changes.
-    /// A failed read keeps the lines already shown.
-    func loadJobLog(jobId: String) async {
-        do {
-            let lines = try await activityService.getJobLog(id: jobId) ?? []
-            if jobLogs[jobId] != lines { jobLogs[jobId] = lines }
-        } catch {
-            log.debug("ActivityStore: log for \(jobId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// The old run's rows become the new run's, where they stood: its jobs-list row, its run row, its tree (dropped, to
-    /// be read for the new run), the project's run strip and the details' selection.
-    private func replaceRetriedRun(_ old: String, with new: String, state: String) {
-        let jobs = Self.swapping(backgroundJobs, old: old, new: new, state: state)
-        if jobs != backgroundJobs { backgroundJobs = jobs }
-        let swappedRuns = Self.swapping(runs, old: old, new: new, state: state)
-        if swappedRuns.map(\.id) != runs.map(\.id) { runs = swappedRuns }
-        if runTrees[old] != nil { runTrees[old] = nil }
-        if projectRunId == old { projectRunId = new }
-        let selection = ActivityWindowSelectionState.shared
-        if selection.selection?.jobId == old {
-            selection.select(ActivitySelection(jobId: new, libraryId: selection.selection?.libraryId))
-        }
-    }
-
-    private func patchJobState(_ state: String, jobId: String, runThreadId: String?) {
-        guard let runThreadId, let tree = runTrees[runThreadId],
-              let changed = tree.settingState(state, of: jobId) else { return }
-        runTrees[runThreadId] = changed
-    }
-
-    /// A job of its own (the import's row, a kind's counted row, #5621) has no
-    /// tree node to patch: the jobs read gives its state after Pause or Stop.
-    private func rereadJobOfItsOwn(_ jobId: String) async {
-        if backgroundJobs.contains(where: { $0.id == jobId }) {
-            await refreshBackgroundJobs()
-        }
-    }
-
-    /// Set how background work runs on this Mac (`activity.mode.start-stop`,
-    /// #5621): the one engine action behind the main toolbar's Start / Stop
-    /// button and the Activity window's. The mode the engine answers is set
-    /// in place (the pause with it), then the jobs read follows. Returns what
-    /// went wrong, in words, or nil.
-    func setBackgroundMode(_ mode: ActivityMode) async -> String? {
-        do {
-            let now = try await activityService.setBackgroundMode(mode)
-            modeAnswers += 1
-            if backgroundMode != now { backgroundMode = now }
-            if backgroundPaused != (now == .paused) { backgroundPaused = now == .paused }
-            await refreshBackgroundJobs()
-            return nil
-        } catch {
-            return error.localizedDescription
-        }
     }
 }

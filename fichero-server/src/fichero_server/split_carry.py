@@ -8,9 +8,10 @@ spread keeps its passes as history: nothing is moved, read again or paid for, an
 passes of their own, so a recipe's "already done" sees the work.
 
 A page's results that are not yet rows (a transcription's boxes in an artifact) are converted first,
-the same conversion an edit makes, so the carry sees one kind of record. Regions above the lines
-(kind `region`), word segments, and the spread's artifacts are not carried: the halves hold the
-pass, its lines and their readings.
+the same conversion an edit makes, so the carry sees one kind of record. Every kind of segment is
+carried, each with its readings: a region and a line by where its own centre falls, a word or character
+with the line it sits in, so it stays inside it; a segment whose outer one went to the other half has none. The spread's artifacts are not
+carried.
 """
 from __future__ import annotations
 
@@ -32,8 +33,12 @@ from fichero_server.models.reading_orders import ReadingOrder, ReadingOrderEntry
 from fichero_server.models.segments import bbox_and_tile_from_anchor
 
 _TOLERANCE = 1e-6
-#: The kind of segment that is a line; the spec carries "each line segment".
+#: The kind of segment that is a line; the report counts lines.
 LINE = "line"
+#: Outer segments first, so a segment inside one goes with it (#5452).
+_DEPTH = {"region": 0, LINE: 1, "word": 3, "character": 4}
+#: The kinds that sit inside a line and go with it, wherever their own centre falls.
+_INSIDE_A_LINE = frozenset({"word", "character"})
 
 
 def _bounds(anchor: SourceAnchor) -> tuple[float, float, float, float]:
@@ -104,14 +109,19 @@ def carry_readings_over(db: Any, parent: Document, children: list[Document]) -> 
     now = utc_now()
     new_pass: dict[tuple[str, str], str] = {}  # (old pass id, child id) -> the half's pass
     new_segment: dict[str, dict[str, Segment]] = {}  # old segment id -> {child id: its copy}
+    placed: dict[str, str] = {}  # old segment id -> the half it went to
     for pass_row in [p for p in db.query(SegmentPass, document_id=parent.id) if p.deleted_at is None]:
-        for segment in [s for s in db.query(Segment, pass_id=pass_row.id) if s.deleted_at is None and s.kind == LINE]:
+        live = [s for s in db.query(Segment, pass_id=pass_row.id) if s.deleted_at is None]
+        for segment in sorted(live, key=lambda s: _DEPTH.get(s.kind, 2)):
             if segment.anchor.rendition_id is not None:
                 raise ValueError(
-                    f"line {segment.id} is measured on rendition {segment.anchor.rendition_id}, not on the "
-                    "page's own frame, so its place in a half cannot be worked out from the split's regions")
+                    f"{segment.kind} {segment.id} is measured on rendition {segment.anchor.rendition_id}, not on "
+                    "the page's own frame, so its place in a half cannot be worked out from the split's regions")
             bounds = _bounds(segment.anchor)
-            child_id = _half_for(bounds, regions)
+            # a word or a character goes with its line; a region and a line go by their own centre, so a region
+            # over the gutter never takes a page of lines to the wrong half (review 63)
+            inside = segment.kind in _INSIDE_A_LINE and placed.get(segment.parent_segment_id or "")
+            child_id = inside or _half_for(bounds, regions)
             if child_id is None:
                 report["unplaced"].append(segment.id)
                 continue
@@ -135,9 +145,13 @@ def carry_readings_over(db: Any, parent: Document, children: list[Document]) -> 
                 "metadata": {**segment.metadata, "carried_from_segment_id": segment.id,
                              **({"crosses_gutter": True} if crossing else {})},
             })
+            outer = new_segment.get(segment.parent_segment_id or "", {}).get(child_id)
+            twin_segment.parent_segment_id = outer.id if outer else None  # still inside the one it sat in
             db.save(twin_segment)
             new_segment.setdefault(segment.id, {})[child_id] = twin_segment
-            report["lines"] += 1
+            placed[segment.id] = child_id
+            report["lines"] += segment.kind == LINE
+            report["segments"] = report.get("segments", 0) + 1
             report["crossing"] += crossing
     _carry_readings(db, new_segment, now)
     _carry_orders(db, new_pass, new_segment)

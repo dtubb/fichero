@@ -1013,7 +1013,7 @@ Reuse existing pane-head and inspector-tab identifiers where they already exist
   readable-paragraph Reader rendition, `kg/kg-readable-representation.md` Migration step 6):
   → #4838 needs to know WHICH entity/claim is focused to draw its paragraph, the same payload
   #4804 already identified as missing — #4804 should land first, or as the same delivery.
-- `library.pane` — confirms the Library leaf's identity is stable across selections
+- `library.pane` — **[GAP]** (#4838) confirms the Library leaf's identity is stable across selections
 - `pane.kindSwitcher` — the per-pane-head kind selector (`m2p.pane-head-parity`)
 - `inspector.surface.<kind>` — which inspector surface is mounted, for the agreement test
 
@@ -1034,3 +1034,9 @@ to decide; nothing was invented outside that set.
 ## Triaged from the backlog (2026-10-04)
 - `m2p.kg-feature-flag-retires` — **[GAP]** (#4792) the knowledgeGraph key is retired from features.yaml and FeatureTiers is regenerated, since the KG mode is gone (isKnowledgeGraphEnabled has no call site).
 - `m2p.kg-timeline-map-graph-mount-as-library-modes` — **[GAP]** (#5037) the KG timeline, map and graph are Library view modes on Entities, not only a one-document Reader surface capped at 500 claims (m2p.kg-graph-retires-as-library-takeover is tagged OK but the code disagrees).
+
+## iOS/iPad release 1 shell (2026-10-17)
+- `m2p.ios.window-state-per-scene` — **[PARTIAL]** (#2570, iOS I1, review-ios-2026-10-17 item 1) every iOS/iPad scene owns its own WindowState (selection, library, undo); a scene that has chosen a library is not moved by another window switching project; the app-wide current library applies only to a scene still on the global default; the multiple-scenes key is in Info.plist so Stage Manager windows open. Test: `fichero/Tests/Unit/general/Views/Library/SceneLibrarySelectionTests.swift`. Not built or run on a simulator.
+- `m2p.ios.no-stack-around-split` — **[PARTIAL]** (iOS I1, review item 2) nothing wraps the shell's NavigationSplitView in a NavigationStack at compact width; the split view collapses itself. AdaptiveAppleShellHost is deleted; the inner compact reader stacks stay (they are the list-to-reader pushes). Test: `fichero/Tests/Unit/general/Views/Shell/AdaptiveShellPolicyTests.swift`. Not built or run; the rotation rebuild (#2408) still needs a simulator check.
+- `m2p.ios.no-measured-collapse` — **[PARTIAL]** (#2570, iOS I1, review item 3) on iOS the sidebar/inspector collapse policy reads no measured width (shellCollapseWidth is 0) and the shell has no hard minimum width, so columnVisibility belongs to the user and the system; the Mac keeps its measured policy; pane dropping by width (WidescreenPanePlan) is kept, per the iPad panes ruling. Test: `fichero/Tests/Unit/general/Views/Shell/IOSNoMeasuredCollapseTests.swift`. Not built or run.
+- `m2p.ios.no-tvos-branches` — **[PARTIAL]** (#2570, iOS I1, review item 8) tvOS is not a target, so no source under Views or Services branches on it; the iOS picker menu lives at Views/Library/LibraryPickerMenuIOS.swift. Test: `fichero/Tests/Unit/general/Views/Shell/NoTvOSBranchesTests.swift`. Not built or run.

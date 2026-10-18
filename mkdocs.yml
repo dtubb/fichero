@@ -143,6 +143,7 @@ nav:
               - Clean Up Text: reference_manual/tool_references/workflows/clean-up-text.md
               - Describe (visual): reference_manual/tool_references/workflows/describe-visual.md
               - Detect Segments (Apple Vision): reference_manual/tool_references/workflows/detect-segments-apple-vision.md
+              - Detect Segments (Apple Vision, lines only): reference_manual/tool_references/workflows/detect-segments-apple-vision-lines-only.md
               - Detect Segments (Kraken): reference_manual/tool_references/workflows/detect-segments-kraken.md
               - Detect Segments (VLM): reference_manual/tool_references/workflows/detect-segments-vlm.md
               - Diary Entries: reference_manual/tool_references/workflows/diary-entries.md
@@ -337,6 +338,7 @@ nav:
       - Roadmap (the research pipeline): contributor_manual/roadmap/research-pipeline.md
       - Testing: contributor_manual/TESTING.md
       - Testing Constitution: contributor_manual/TESTING-CONSTITUTION.md
+      - Sharing Two-Mac Checklist: contributor_manual/testing/sharing-two-mac-checklist.md
       - Test Template: contributor_manual/TEST-TEMPLATE.md
       - Writing the Guides: contributor_manual/writing-the-guides.md
       - Manual Facts (2026-10-05): contributor_manual/manual-facts/2026-10-05.md

@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -778,6 +778,7 @@ def _mark_working_pass(db: Database, doc_id: str, passes: list[PassRead], segmen
     for pass_read in passes:
         pass_read.rank = place.get(pass_read.id)
         pass_read.drawn = pass_read.id == drawn_id
+        pass_read.shapeless = drawn_id is not None and place.get(pass_read.id) == 0 and pass_read.id != drawn_id
         if pass_read.rank == 0:
             pass_read.working = True
             pass_read.working_basis = ranked[0].basis.value
@@ -1637,6 +1638,8 @@ class SegmentUpdateParams(BaseModel):
     kind_raw: Optional[str] = Field(default=None, description='The kind as the source format named it.')
     parent_segment_id: Optional[str] = Field(default=None, description='The segment this one now sits inside.')
     is_furniture: Optional[bool] = Field(default=None, description='True marks the segment as page furniture (running heads, folio numbers).')
+    mark_state: Optional[Literal['ticked', 'crossed', 'struck', 'none']] = Field(default=None, description='The segment\'s one mark: ticked, crossed, struck or none.')
+    no_writing_model: Optional[str] = Field(default=None, description="The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).")
     #: The cascade's three facts (slice 9, #4938). Set here rather than through
     #: an action of their own, because `segment.update` already owns the version
     #: snapshot, the stale check, the inverse and the audit row -- a second
@@ -1811,6 +1814,10 @@ def _action_segment_update(db: Database, params: SegmentUpdateParams, ctx: Actio
         row.parent_segment_id = params.parent_segment_id
     if params.is_furniture is not None:
         row.is_furniture = params.is_furniture
+    if params.mark_state is not None:
+        row.mark_state = params.mark_state
+    if params.no_writing_model is not None:
+        row.metadata = {**(row.metadata or {}), "read_no_writing": {"model": params.no_writing_model}}
     _apply_cascade_facts(db, row, params, ctx)
     db.save(row)
 
@@ -1979,6 +1986,7 @@ def _copy_version_onto_row(row: Segment, target: "SegmentVersion") -> None:
     row.kind_raw = target.kind_raw
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
+    row.mark_state = target.mark_state
     # Slice 9 (#4938): restored with everything else. A fact the update can set
     # and the restore leaves behind would make undo quietly partial.
     row.language = target.language
@@ -2875,6 +2883,7 @@ def _action_unmerge(db: Database, params: SegmentUnmergeParams, ctx: ActionConte
         row.kind_raw = target.kind_raw
         row.parent_segment_id = target.parent_segment_id
         row.is_furniture = target.is_furniture
+        row.mark_state = target.mark_state
         row.doc_kind = f"{row.document_id}:{row.kind}"
         bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
         row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
@@ -3435,6 +3444,7 @@ def _action_unsplit(db: Database, params: SegmentUnsplitParams, ctx: ActionConte
     row.kind_raw = target.kind_raw
     row.parent_segment_id = target.parent_segment_id
     row.is_furniture = target.is_furniture
+    row.mark_state = target.mark_state
     bbox_x, bbox_y, bbox_w, bbox_h, tile = bbox_and_tile_from_anchor(row.anchor)
     row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h, row.tile = bbox_x, bbox_y, bbox_w, bbox_h, tile
     row.doc_kind = f"{row.document_id}:{row.kind}"

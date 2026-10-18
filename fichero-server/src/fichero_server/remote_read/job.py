@@ -29,6 +29,8 @@ from fichero_server.models.compute_requests import ReadAtScaleRequest  # noqa: F
 KIND = "read-at-scale"
 TARGET = "huggingface-jobs"
 POLL_SECONDS = 60.0
+#: The jobs a remote run may hang under: a recipe run, a workflow run or a step of one (`activity.jobs-are-a-tree`).
+STEP_KINDS = ("run-a-recipe", "workflow", "workflow-step", "batch", "recipe")
 #: A vision-model reader needs these where the Job runs (the runner's own header has Kraken).
 VLM_DEPENDENCIES = ["torch>=2.5", "transformers>=4.57,<5", "accelerate>=1.3"]
 
@@ -56,10 +58,14 @@ def _row(db: Any, job_id: str) -> tuple[str, dict[str, Any]]:
     return row["state"], json.loads(row["detail"] or "{}")
 
 
-def _save(db: Any, job_id: str, detail: dict[str, Any], reason: str | None = None, *, keep_cancel: bool = True) -> None:
-    """Write the run's detail. A stop the person asked for meanwhile is kept, not saved over."""
-    if keep_cancel and _row(db, job_id)[1].get("cancel"):
+def _save(db: Any, job_id: str, detail: dict[str, Any], reason: str | None = None, *, keep_cancel: bool = True,
+          keep_catch_up: bool = True) -> None:
+    """Write the run's detail. A stop (or a catch-up) the person asked for meanwhile is kept, not saved over."""
+    latest = _row(db, job_id)[1]
+    if keep_cancel and latest.get("cancel"):
         detail["cancel"] = True
+    if keep_catch_up and latest.get("catch_up"):
+        detail["catch_up"] = True
     from fichero_server.execution import jobs
 
     jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
@@ -92,6 +98,17 @@ def resolve_step(request: ReadAtScaleRequest, *, bucket: str | None) -> dict[str
             "lines_per_call": 1, "language": request.language}
 
 
+def cluster_target(cluster_id: str) -> Callable[[], Any]:
+    """The target for a Slurm cluster. ponytail: the Keychain key and the MFA prompt passed through the app
+    (#5238) are not built, so a cluster is refused by name here; tests and the live run inject the target."""
+    from fichero_server.remote_read.slurm_target import NoKey
+
+    def refuse() -> Any:
+        raise NoKey(f"cluster {cluster_id}: the app's key and sign-in step are not built yet (#5238)")
+
+    return refuse
+
+
 def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
           target_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
     from fichero_server.training.hf_jobs import HfJobsTarget
@@ -101,13 +118,21 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
-    target = (target_factory or HfJobsTarget)()  # no token: refused here, by name
+    if request.parent_job_id:
+        parent = jobs.read_job(db, request.parent_job_id)
+        if parent is None or parent["kind"] not in STEP_KINDS:
+            raise ValueError(f"parent_job_id {request.parent_job_id!r} is not a step job of this library")
+    target = (target_factory or (HfJobsTarget if request.target == TARGET else cluster_target(request.target)))()
+    # no token (or key): refused here, by name
     step = resolve_step(request, bucket=getattr(target, "bucket", None))
     detail = {"request": request.model_dump(), "step": step, "flavor": request.flavor,
               "price_per_hour_usd": target.price_per_hour(request.flavor),
-              "yes": {"by": started_by, "at": _now(), "to": TARGET}, "phase": "waiting"}
+              "yes": {"by": started_by, "at": _now(), "to": request.target}, "phase": "waiting"}
     job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
-                                 reason="Waiting to send to Hugging Face", started_by=started_by)
+                                 reason="Waiting to send to Hugging Face" if request.target == TARGET else "Waiting to send to the cluster",
+                                 started_by=started_by)
+    if request.parent_job_id:
+        jobs.set_parent(db, job_id, request.parent_job_id)  # under the step that sent it
     return {"job_id": job_id, "flavor": request.flavor, "price_per_hour_usd": detail["price_per_hour_usd"]}
 
 
@@ -167,7 +192,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     request = ReadAtScaleRequest(**detail["request"])
     if target is None:
         try:
-            target = HfJobsTarget()
+            target = HfJobsTarget() if request.target == TARGET else cluster_target(request.target)()
         except Exception as exc:
             _out_of_reach_if_running_there(db, job_id, detail, exc)
             raise
@@ -183,6 +208,9 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             longest=request.longest, library_root=Path(db.path).parent,
             step=ReadStep(**{k: v for k, v in step.items() if k in ReadStep.__dataclass_fields__}))
         detail["package"] = {"sources": len(made.sources), "shards": len(made.shards), "skipped": made.skipped}
+        detail["estimate"] = {"pages": len(made.sources), "shards": len(made.shards),
+                              "gpu_hours": (len(made.sources) / request.expected_pages_per_second / 3600
+                                            if request.expected_pages_per_second else None)}
         _save(db, job_id, detail, reason=f"Sending {len(made.sources)} pages in {len(made.shards)} shards")
         target.send(work / "pkg", job_id)
         detail["shards"] = {str(i): {"state": "pending", "tries": 0} for i in range(len(made.shards))}
@@ -231,7 +259,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                 result = land(db, job_id, folder, pass_name=pass_name, actor=started_by)
                 for name, value in result.items():
                     detail["landing"][name] = detail["landing"].get(name, 0) + value
-                shard.update(state="landed", landed=result)
+                shard.update(state="landed", landed=result, seconds=_shard_seconds(folder))
             else:
                 shard.update(state="failed", why=f"Hugging Face: {far.message or far.stage}",
                              last_lines=target.last_lines(shard["far_id"])[-5:])
@@ -239,12 +267,17 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         _save(db, job_id, detail, reason=_words(counts, total))
         if counts["pending"] == 0 and counts["submitted"] == 0:
             break
+        if _row(db, job_id)[1].get("catch_up"):  # asked to look now (after the Mac slept): skip this wait, once
+            detail.pop("catch_up", None)
+            _save(db, job_id, detail, keep_catch_up=False)
+            continue
         sleep(poll)
     counts = _counts(shards)
     words = f"Done: {counts['landed']} of {total} shards landed, {detail['landing']['landed']} pages read"
     if counts["failed"]:
         words += f"; {counts['failed']} shards failed (re-send them)"
-    _save(db, job_id, detail, reason=words)
+    detail.pop("catch_up", None)  # a request made as the run ended has nothing left to hurry
+    _save(db, job_id, detail, reason=words, keep_catch_up=False)
     return counts
 
 
@@ -290,15 +323,74 @@ def request_cancel(db: Any, job_id: str) -> str:
     return state
 
 
+def _shard_seconds(folder: Path) -> float | None:
+    """How long the shard took where it ran: the runner's own record, kept for the estimate against the actual."""
+    try:
+        return float(json.loads((Path(folder) / "_outcome.json").read_text(encoding="utf-8")).get("seconds"))
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def far_state(status: dict[str, Any]) -> str:
+    """Where the run is, in words, on the far side (`activity.remote-under-its-step`): queued, running, done, failed."""
+    counts = status["counts"]
+    if counts.get("submitted"):
+        return "running"
+    if counts.get("pending"):
+        return "queued"
+    if counts.get("failed"):
+        return "failed"
+    return "done" if counts.get("landed") else "queued"
+
+
+def remote_row(status: dict[str, Any]) -> dict[str, Any]:
+    """What Activity's row shows for a remote run, and what it offers (Cancel, Retry failed shards, Catch up)."""
+    state = far_state(status)
+    done, total = status.get("shards_done", status["counts"].get("landed", 0)), status.get("shards_total") or sum(
+        status["counts"].values())
+    offers = {"queued": ["Cancel", "Catch up"], "running": ["Cancel", "Catch up"], "failed": ["Retry failed shards"]}
+    return {"target": status.get("target"), "far_state": state, "shards": f"{done} of {total} shards",
+            "pages_landed": status.get("pages_landed", 0), "offers": offers.get(state, [])}
+
+
+def catch_up(db: Any, job_id: str) -> str:
+    """After the Mac slept: look at the far side now. A live run skips its next wait; a run the scheduler dropped
+    (paused, failed with shards still out) is queued again and carries on from its recorded shards."""
+    state, detail = _row(db, job_id)
+    if state in ("running", "waiting"):
+        detail["catch_up"] = True
+        _save(db, job_id, detail)
+        return state
+    out = any(sh.get("state") == "submitted" for sh in (detail.get("shards") or {}).values())
+    if not (state == "paused" or (state == "failed" and out)):
+        # a finished run is never brought back: resending it would be billed again
+        raise ValueError(f"nothing to catch up with: the run is {state} and has no shard still out")
+    jobs.requeue(db, job_id, reason="Catching up with the far side")
+    return "waiting"
+
+
 def status(db: Any, job_id: str) -> dict[str, Any]:
     state, detail = _row(db, job_id)
     from fichero_server.execution import jobs
 
     reason = (jobs.read_job(db, job_id) or {}).get("reason")
     shards = detail.pop("shards", {}) or {}
+    counts = _counts(shards)
     failed = {k: {"why": s.get("why"), "last_lines": s.get("last_lines")} for k, s in shards.items() if s["state"] == "failed"}
-    return {"job_id": job_id, "state": state, "reason": reason, "counts": _counts(shards), "failed_shards": failed,
-            **{k: v for k, v in detail.items() if k in ("package", "landing", "flavor", "price_per_hour_usd", "step")}}
+    seconds = [s["seconds"] for s in shards.values() if s.get("seconds") is not None]
+    out = {"job_id": job_id, "state": state, "reason": reason, "counts": counts, "failed_shards": failed,
+           "target": (detail.get("request") or {}).get("target", TARGET),
+           "shards_done": counts["landed"], "shards_total": sum(counts.values()),
+           "pages_landed": (detail.get("landing") or {}).get("landed", 0),
+           "shards": [{"shard": int(k), "state": s["state"], "far_id": s.get("far_id"), "tries": s.get("tries", 0),
+                       "why": s.get("why"), "last_lines": s.get("last_lines"), "seconds": s.get("seconds")}
+                      for k, s in sorted(shards.items(), key=lambda kv: int(kv[0]))],
+           "estimate": detail.get("estimate"),
+           "actual": {"seconds_per_shard": sum(seconds) / len(seconds) if seconds else None,
+                      "gpu_hours": sum(seconds) / 3600 if seconds else None},
+           **{k: v for k, v in detail.items() if k in ("package", "landing", "flavor", "price_per_hour_usd", "step")}}
+    out["far_state"] = far_state(out)
+    return out
 
 
 def register_job_kinds() -> None:

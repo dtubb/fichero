@@ -47,6 +47,16 @@ def lines_per_request_for(model: str) -> int | None:
                  if c.pin.get("hf") == model and c.lines_per_request), None)
 
 
+def prefill_tokens_for(model: str) -> int | None:
+    """The `prefill_tokens` a seed card states for this model id (a Hugging Face pin): how many prompt tokens it
+    takes in before the engine's first-token wait runs out (#5648). None: no budget stated, nothing is capped."""
+    import yaml
+
+    rows = yaml.safe_load(SEED.read_text(encoding="utf-8"))["cards"]
+    return next((int(r["prefill_tokens"]) for r in rows
+                 if (r.get("pin") or {}).get("hf") == model and r.get("prefill_tokens")), None)
+
+
 def _set(value) -> frozenset[str] | None:
     return None if value in (None, "any") else frozenset(value)
 
@@ -54,9 +64,12 @@ def _set(value) -> frozenset[str] | None:
 def kraken_reader_for(pin: dict) -> str | None:
     """The model id under which this Mac fetches and runs the Kraken reader a Zenodo pin names: the
     catalogue's id, or `kraken-zenodo-<n>` for any other reader in Kraken's repository (fetched
-    through the same download job, which checks the record is a Kraken recognition model)."""
+    through the same download job, which checks the record is a Kraken recognition model); a `trained` pin is
+    the id of a reader Fichero trained, already on this Mac."""
     from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS, reader_id_for_doi
 
+    if pin.get("trained"):  # a reader Fichero trained and adopted for this project (#5700)
+        return str(pin["trained"])
     if not pin.get("zenodo"):
         return None
     return next((rid for rid, row in KRAKEN_RECOGNITION_MODELS.items()

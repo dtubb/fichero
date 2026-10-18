@@ -5173,6 +5173,18 @@
       },
       {
         "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/check",
+        "operation_id": "check_cluster_live_api_hpc_clusters__cluster_id__check_post",
+        "summary": "Check Cluster Live",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcCheckResponse"
+      },
+      {
+        "method": "POST",
         "path": "/hpc/clusters/{cluster_id}/dry-run-submit",
         "operation_id": "dry_run_submit_api_hpc_clusters__cluster_id__dry_run_submit_post",
         "summary": "Dry Run Submit",
@@ -5182,6 +5194,66 @@
         "query_params": [],
         "request_model": "HpcDryRunSubmitRequest",
         "response_model": "HpcDryRunSubmitResponse"
+      },
+      {
+        "method": "DELETE",
+        "path": "/hpc/clusters/{cluster_id}/key",
+        "operation_id": "delete_cluster_key_api_hpc_clusters__cluster_id__key_delete",
+        "summary": "Delete Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcKeyState"
+      },
+      {
+        "method": "PUT",
+        "path": "/hpc/clusters/{cluster_id}/key",
+        "operation_id": "put_cluster_key_api_hpc_clusters__cluster_id__key_put",
+        "summary": "Put Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": "HpcKeyPush",
+        "response_model": "HpcKeyState"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/key/make",
+        "operation_id": "make_cluster_key_api_hpc_clusters__cluster_id__key_make_post",
+        "summary": "Make Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPublicKey"
+      },
+      {
+        "method": "GET",
+        "path": "/hpc/clusters/{cluster_id}/key/public",
+        "operation_id": "get_cluster_public_key_api_hpc_clusters__cluster_id__key_public_get",
+        "summary": "Get Cluster Public Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPublicKey"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/sign-in",
+        "operation_id": "sign_in_api_hpc_clusters__cluster_id__sign_in_post",
+        "summary": "Sign In",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcKeyState"
       },
       {
         "method": "POST",
@@ -5194,6 +5266,28 @@
         "query_params": [],
         "request_model": null,
         "response_model": "HpcTestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/hpc/prompts",
+        "operation_id": "list_prompts_api_hpc_prompts_get",
+        "summary": "List Prompts",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPromptList"
+      },
+      {
+        "method": "POST",
+        "path": "/hpc/prompts/{prompt_id}",
+        "operation_id": "answer_prompt_api_hpc_prompts__prompt_id__post",
+        "summary": "Answer Prompt",
+        "path_params": [
+          "prompt_id"
+        ],
+        "query_params": [],
+        "request_model": "HpcPromptAnswer",
+        "response_model": "HpcPromptList"
       }
     ],
     "iiif": [
@@ -7529,6 +7623,18 @@
         "query_params": [],
         "request_model": "PairMachineRequest",
         "response_model": "MachineOut"
+      },
+      {
+        "method": "DELETE",
+        "path": "/machines/{machine_id}",
+        "operation_id": "forget_machine_api_machines__machine_id__delete",
+        "summary": "Forget a paired machine: remove its saved token on this Mac",
+        "path_params": [
+          "machine_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
       }
     ],
     "mcp": [
@@ -8403,6 +8509,16 @@
         "query_params": [],
         "request_model": "EnrollmentRequest",
         "response_model": "PairResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/tailnet",
+        "operation_id": "detected_tailnet_api_pair_tailnet_get",
+        "summary": "Detected Tailnet",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "TailnetOfferResponse"
       }
     ],
     "policies": [
@@ -8908,6 +9024,18 @@
       },
       {
         "method": "POST",
+        "path": "/reading-at-scale/jobs/{job_id}/catch-up",
+        "operation_id": "catch_up_reading_job_api_reading_at_scale_jobs__job_id__catch_up_post",
+        "summary": "Look at the far side now (after the Mac slept); a dropped run carries on",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
         "path": "/reading-at-scale/jobs/{job_id}/resend-failed",
         "operation_id": "resend_failed_shards_api_reading_at_scale_jobs__job_id__resend_failed_post",
         "summary": "Send a reading run's failed shards again, and only those",
@@ -9094,6 +9222,11 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "period",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "scripts",
             "required": false,
             "type": "string"
@@ -9101,6 +9234,16 @@
         ],
         "request_model": null,
         "response_model": "DerivedFacts"
+      },
+      {
+        "method": "PUT",
+        "path": "/recipes/font",
+        "operation_id": "choose_font_api_recipes_font_put",
+        "summary": "Choose Font",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FontChoice",
+        "response_model": "ScriptFacts"
       },
       {
         "method": "GET",

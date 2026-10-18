@@ -2899,7 +2899,15 @@ async def audio_transcription(
     budget = _compute_timeout(config, "langchain")
     try:
         async with _remote_llm_call_slot(config):
-            return await asyncio.wait_for(asyncio.to_thread(parse), timeout=budget)
+            text = await asyncio.wait_for(asyncio.to_thread(parse), timeout=budget)
+        # The provider bills audio by the minute and reports no tokens: the call is recorded with
+        # none, so the run account lists it and its cost reads unknown, never absent
+        # (`ai.where.remote-audio-priced`, #5591).
+        _record_usage(
+            config.provider, config.model, "audio_transcription", place=_place_of(config),
+            input_tokens=None, output_tokens=None, total_tokens=None,
+        )
+        return text
     except asyncio.TimeoutError as exc:
         raise RuntimeError(
             f"LangChain {config.provider}/{config.model} audio transcription "

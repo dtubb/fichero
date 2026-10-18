@@ -198,12 +198,11 @@ def _pipeline(language: str):
         return None
     model = MODELS[language]
     try:
-        import spacy
+        from fichero_server.llm.local_models import load_spacy_pipeline
 
-        from fichero_server.llm.local_models import spacy_pipeline_path
-
-        # The model store first (`runtime.spacy.store-first`), then the bundled pipeline.
-        return spacy.load(spacy_pipeline_path(model) or model, exclude=["lemmatizer"])
+        # The model store first (`runtime.spacy.store-first`), then the bundled pipeline; the one
+        # pipeline NER shares, with its lemmatizer (#5370).
+        return load_spacy_pipeline(model)
     except Exception as exc:  # noqa: BLE001 — an absent extra is not a fault
         logger.info(
             "spaCy tier unavailable (%s): %s. spaCy and its small models ship with the app; a missing "

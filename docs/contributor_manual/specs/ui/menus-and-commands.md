@@ -518,11 +518,11 @@ get menu homes (e.g. View ▸ Filter ▸ per active view) or stay in-surface? De
 
 The beachball lesson applies to menus: **test the design, not the code.** Each ruling above gets a
 spec test so a regression fails CI, not the CD by hand:
-- `menus.bar-structure` — a source/policy test (the `MenuShortcutBoundaryTests` shape) asserts the
+- `menus.bar-structure` — **[GAP]** (#5652) a source/policy test (the `MenuShortcutBoundaryTests` shape) asserts the
   menu bar declares exactly these top-level menus and that each named command lives in its ruled
   home (e.g. Reader Lens under **Read**, New Workflow under **Knowledge**, Sort under **View ▸ Sort**),
   NOT in a generic dump. Fails if a command drifts back to the wrong menu.
-- `menus.submenu-nesting` — asserts View composes its groups as `Menu` submenus (Workspaces/Sort/
+- `menus.submenu-nesting` — **[GAP]** (#5652) asserts View composes its groups as `Menu` submenus (Workspaces/Sort/
   Preview/Layout), not flat sections.
 - `menus.no-hand-rolled-duplicates` / `menus.data-and-plus-agree` (below) — the "+" and Knowledge
   menu render the same shared components.
@@ -626,8 +626,8 @@ make it automatic — this is a reason to reuse, not rebuild:
   each creation + selection verb has a reusable component (so both a `CommandMenu` and a
   `.contextMenu` can host it), rather than living solely inside a macOS-only `CommandMenu` body.
 
-**Open**: is iOS/iPad a first-class target now, or Mac-first with iPad to follow? The design holds
-either way (shared components), but scope of the cross-platform tests depends on the answer.
+**Settled 2026-10-17**: iOS/iPad is a first-class target for release 1 (iOS and iPadOS 27 only; ruled in
+rulings-2026-10-17). The design holds (shared components), and iOS-only tests may be written.
 
 ---
 
@@ -676,7 +676,7 @@ either way (shared components), but scope of the cross-platform tests depends on
   shows; that is `undo.window`, tagged BROKEN there. Its tests (`LastActionScopingTests`,
   `AuditStoreRedoTests`) are replaced in that spec's slice 1. The Edit menu's single ⌘Z owner and
   the routing ahead of the responder chain stay this spec's (`MenuShortcutBoundaryTests`).
-- `menus.ipad-full-parity` — **[GAP]** (#3307) iPad must expose the SAME menu-bar command set and
+- `menus.ipad-full-parity` — **[PARTIAL]** (#3307) built 2026-10-17 (iOS I1, unrun): the iOS App declares File, View, Go and Page from the same structs as the Mac (`FicheroApp_iOS.swift` `.commands`); Edit, Format and the app-menu extras are still Mac-only, pending the undo-gesture ruling (#5658). Test: `fichero/Tests/Unit/general/App/IOSCommandsSharedTests.swift`. Original text: iPad must expose the SAME menu-bar command set and
   the SAME contextual-menu items as macOS — no iPad-reduced subset (the maintainer's 2026-07-06 directive;
   iPhone scope is explicitly left open, undecided). Not audited this pass: no source scan was run
   against every `CommandGroup`/`.commands` definition and every `.contextMenu` for an
@@ -759,8 +759,7 @@ standard Edit items) alone.
   pass.
 - Re-homing changes muscle memory and shortcuts; keep every existing key equivalent working (the
   `MenuShortcutBoundaryTests` invariants are the safety net) and move menus, not shortcuts.
-- iOS/iPad target scope is unconfirmed (open question) — the design is platform-agnostic, but don't
-  write iOS-only tests until it's a real target.
+- iOS/iPad is a real target (release 1, ruled 2026-10-17): the design stays platform-agnostic; iOS-only tests are allowed.
 
 **Verdict:** reject the catalog; adopt "reuse the existing `@FocusedValue` components + HIG
 re-homing," landed as small subtractive increments (Data/"+" dedupe first — the clearest win), each

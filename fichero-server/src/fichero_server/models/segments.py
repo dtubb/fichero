@@ -252,6 +252,10 @@ class PassRead(BaseModel):
     #: working pass when it has shapes, else the next pass in the working-pass ranking that has them
     #: (`resolve_drawn_pass`). Exactly one pass is drawn when any has shapes; none when none has.
     drawn: bool = False
+    #: True on the WORKING pass when it has no shape to draw and another pass is drawn in its stead
+    #: (#4955, `source.pass.nothing-drawable-never-covers`): the app says the chosen result had no usable shapes.
+    #: False on a text-only page, where nothing is drawn at all.
+    shapeless: bool = False
     #: This pass's place in the working-pass ranking (`rank_passes`), 0 for the working pass; None
     #: for a pass the ranking does not hold (a georeferencing pass, which is never the page's text).
     rank: int | None = None
@@ -496,6 +500,14 @@ def segment_from_box(
         metadata["raw_baseline_px"] = box.metadata.get("baseline_px")
     if "pixel_frame" in box.metadata:
         metadata["raw_pixel_frame"] = box.metadata.get("pixel_frame")
+    # A line a recognising reader gave no text for was looked at: it carries that, and why, so it is not 'unread'
+    # with no reason (#5758). A segmenter alone reads nothing, so its lines carry no mark.
+    if box.source == "kraken-htr" and str(box.level) == "line" and not (box.text or "").strip():
+        if box.metadata.get("page_has_readings"):
+            metadata["read_no_writing"] = {"model": box.model or "", "reason": "the reader gave no text for the line"}
+        elif box.metadata.get("page_read_nothing"):
+            # Every line of the page came back empty: a failed read, not 'no writing'. Unread, with why.
+            metadata["unread_reason"] = "every line came back empty: the reader may not suit this hand"
     # The box this one sits inside, by its place in the same result (#5487: Kraken's line in its region).
     parent_index = box.metadata.get("parent_box_index")
     if isinstance(parent_index, int) and parent_index != box_index:
@@ -744,6 +756,8 @@ class Segment(BaseModel):
     line_progression: str | None = None
 
     is_furniture: bool = False
+    #: One mark per segment (#4928): ticked | crossed | struck | none. Set only through `segment.update`.
+    mark_state: str = "none"
     provenance_kind: ProvenanceKind
     created_by: str | None = None
     #: Starts at 1; compare-and-set and stale-edit refusal arrive in slice 5.
@@ -1107,6 +1121,8 @@ class SegmentVersion(BaseModel):
     anchor: SourceAnchor
     baseline: list[list[float]] | None = None
     is_furniture: bool = False
+    #: One mark per segment (#4928): ticked | crossed | struck | none. Set only through `segment.update`.
+    mark_state: str = "none"
     #: The cascade's three facts, snapshotted with everything else (slice 9,
     #: #4938). They are here because the preimage is what undo restores from:
     #: a field `segment.update` can change and `SegmentVersion` does not carry
@@ -1172,7 +1188,7 @@ class SegmentDeleted(ValueError):
 #: snapshotted and restored but not compared, so a stale refusal never named a language change, and
 #: an undo could not see that somebody had set one since (found 2026-09-28).
 _VERSIONED_FIELDS = (
-    "anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture",
+    "anchor", "baseline", "kind", "kind_raw", "parent_segment_id", "is_furniture", "mark_state",
     "language", "script", "direction", "language_meta", "script_meta", "direction_meta", "line_progression",
 )
 
@@ -1197,7 +1213,7 @@ def snapshot_segment_version(
         segment_id=row.id, version=row.version, document_id=row.document_id,
         pass_id=row.pass_id, parent_segment_id=row.parent_segment_id,
         kind=row.kind, kind_raw=row.kind_raw, anchor=row.anchor, baseline=row.baseline,
-        is_furniture=row.is_furniture, deleted=deleted, actor=actor,
+        is_furniture=row.is_furniture, mark_state=row.mark_state, deleted=deleted, actor=actor,
         provenance_kind=row.provenance_kind, audit_id=audit_id, reason=reason,
         language=row.language, script=row.script, direction=row.direction,
         language_meta=row.language_meta, script_meta=row.script_meta,

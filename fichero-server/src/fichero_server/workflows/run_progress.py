@@ -13,6 +13,8 @@ until the moment it finished.
 """
 from __future__ import annotations
 
+import re
+
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -52,11 +54,17 @@ class RunProgress(BaseModel):
     steps: list[StepProgress] = Field(default_factory=list)
 
 
+def _in_words(error: str) -> str:
+    """A reason that is one bare token ('CGImageGetWidth', KeyError('x')) is an internal key, not a reason (#5745)."""
+    bare = re.fullmatch(r"(?:KeyError\()?['\"]?(\w+)['\"]?\)?", error.strip())
+    return f"This page could not be read (internal error: {bare.group(1)}). Read it again." if bare else error
+
+
 def _item_error(item: dict[str, Any]) -> str | None:
     result = item.get("result")
     error = item.get("error") or (result.get("error") if isinstance(result, dict) else None)
     if error:
-        return str(error)
+        return _in_words(str(error))
     return "failed" if item.get("success") is False else None
 
 

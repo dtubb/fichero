@@ -207,6 +207,8 @@ struct DocumentThumbnailView: View {
                                 .foregroundStyle(.secondary)
                                 .shadow(color: Color(.windowBackgroundColor), radius: 1)
                                 .padding(5)
+                                .accessibilityLabel("Linked")
+                                .help("Linked: the file stays where it is")
                         }
                         Spacer()
                         statusIndicator

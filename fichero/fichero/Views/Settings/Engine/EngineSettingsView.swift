@@ -5,9 +5,6 @@ struct EngineSettingsView: View {
     @Environment(AppState.self) var appState
     @Environment(EmbeddedBackendService.self) var backendService
     @Environment(LibraryManager.self) var libraryManager
-    // Default OFF to match EngineConfig.multiuserEnabled (absent key ⇒ off);
-    // a `true` default would show the toggle on while the engine ran single-user.
-    @AppStorage(EngineConfig.multiuserEnabledKey) private var multiuserEnabled = false
 
     @State private var storageStats: StorageStats?
     @State private var isLoadingStats = false
@@ -38,21 +35,6 @@ struct EngineSettingsView: View {
                     }
                 }
 
-                LabeledContent("Multi-user mode") {
-                    Toggle("", isOn: multiuserBinding)
-                        .labelsHidden()
-                        // Only the Mac hosting the library can change its multi-user
-                        // mode (the engine reads the flag at startup and we restart it
-                        // to apply). On a remote-connected Mac the switch would write a
-                        // local flag the host never sees — a silent no-op — so disable
-                        // it there instead of offering a dead control (#3776).
-                        .disabled(isRestarting || !EngineConfig.engineIsLocal)
-                }
-
-                Text(multiuserStatusDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
                 if isLoadingStats {
                     LabeledContent("Storage") {
                         ProgressView().controlSize(.small)
@@ -78,7 +60,6 @@ struct EngineSettingsView: View {
             // #3331) and align the desired toggle to it so the control reflects
             // reality on open; an explicit toggle afterward is a pending change.
             await appState.identityStore.load()
-            multiuserEnabled = appState.identityStore.multiuserEnabled
             await loadStorageStats()
         }
     }
@@ -87,43 +68,6 @@ struct EngineSettingsView: View {
         EngineConfig.requiresExternalBackendConnection
             ? "Connected to a shared Fichero project."
             : "Local engine for this Mac."
-    }
-
-    /// The engine's ACTUAL multi-user state — the single source of truth
-    /// (`GET /api/auth/identity` via IdentityStore), shared with the Users and
-    /// Connect tabs so all three agree (#3331). The @AppStorage flag is only the
-    /// desired setting the toggle writes, applied on the next engine restart.
-    private var backendMultiuser: Bool { appState.identityStore.multiuserEnabled }
-
-    /// Flipping multi-user is ONE action. The engine reads this flag at startup, so
-    /// the app restarts its OWN engine to apply the change — the user does not press
-    /// a separate "Restart" to finish our lifecycle management (#3776). Off by
-    /// default; this does not make multi-user always-on and the engine's fail-closed
-    /// enforcement is unchanged. The `.task` alignment writes `multiuserEnabled`
-    /// directly, bypassing this setter, so opening Settings never restarts.
-    private var multiuserBinding: Binding<Bool> {
-        Binding(
-            get: { multiuserEnabled },
-            set: { newValue in
-                multiuserEnabled = newValue
-                // No-op if the engine already reflects the desired state.
-                guard newValue != backendMultiuser else { return }
-                Task { await restartEngine() }
-            }
-        )
-    }
-
-    private var multiuserStatusDescription: String {
-        guard appState.isBackendRunning else {
-            return multiuserEnabled
-                ? "Multi-user will be enforced when the engine starts."
-                : "The engine runs without multi-user."
-        }
-        // The toggle applies itself by restarting, so there is no "please restart"
-        // instruction to give — just report what the engine is doing now.
-        return backendMultiuser
-            ? "The engine is enforcing per-project access."
-            : "The engine is not enforcing per-project access."
     }
 
     private func restartEngine() async {

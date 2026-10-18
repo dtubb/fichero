@@ -21,7 +21,7 @@ enum FirstLaunchChoices {
             + "either keeps its own copy or reads them where they are.",
         "Your work lives in projects. A project holds one body of material, such as an archive's bundle, a run "
             + "of letters or a set of notebooks, with everything Fichero finds in it. You can have as many as you "
-            + "like, and one is always there for things that don't belong to a project yet."
+            + "like."
     ]
 
     /// "Next, your project": what setting one up takes, step by step (Daniel's words, 2026-10-11).

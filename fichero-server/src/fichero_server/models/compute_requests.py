@@ -90,8 +90,9 @@ class ReasonsABRequest(BaseModel):
     contenders: list[ContenderSpec] = Field(min_length=2, description="The answer-only student, the reasoning "
                                             "students, the teacher and a cheap baseline.")
     language: str | None = None
-    noise_band: float = Field(0.005, ge=0.0, le=1.0, description="A reasoning student is adopted only if it beats "
-                              "the answer-only one by more than this CER.")
+    noise_band: float | None = Field(None, ge=0.0, le=1.0, description="A reasoning student is adopted only if it "
+                                     "beats the answer-only one by more than this CER; null: the project's noise band "
+                                     "(measured, else the ruled 0.005, #5692).")
 
 
 class ReadAtScaleRequest(BaseModel):
@@ -102,12 +103,18 @@ class ReadAtScaleRequest(BaseModel):
     language: str | None = None
     shard_size: int = Field(50, ge=1, le=10000)
     longest: int = Field(2000, ge=256, le=10000, description="Pixels on the longer side each image is read at.")
-    flavor: str = Field("t4-small", description="Hugging Face hardware for each shard.")
+    target: str = Field("huggingface-jobs", description="Where the shards run: `huggingface-jobs`, or the id of a "
+                        "Slurm cluster set up in Settings (Compute).")
+    flavor: str = Field("t4-small", description="Hugging Face hardware for each shard (ignored on a cluster).")
     timeout: str = Field("2h", description="Each shard's time limit; always sent.")
     max_in_flight: int = Field(10, ge=1, le=500, description="Shards running at once.")
     pass_name: str | None = None
     pages_may_leave: bool = Field(False, description="The person's yes for these pages (or their IIIF addresses) to go "
                                   "to Hugging Face.")
+    parent_job_id: str | None = Field(None, description="The recipe step that sends this run: the run shows under it "
+                                      "in Activity (`activity.remote-under-its-step`).")
+    expected_pages_per_second: float | None = Field(None, gt=0, description="A pilot's measured rate: the estimate "
+                                                    "of GPU-hours the Inspector sets beside what it took.")
 
 
 class EvaluationCandidate(BaseModel):

@@ -27,6 +27,7 @@ struct ShareSettingsView: View {
     // Multi-user status is read from the backend (IdentityStore) via
     // `backendMultiuser`, not a local flag, so this tab agrees with Users +
     // Engine (#3331).
+    @AppStorage(EngineConfig.multiuserEnabledKey) var multiuserEnabled = false
     @AppStorage(RemoteAccessConfig.hostingEnabledKey) var hostingEnabled = false
     @AppStorage(RemoteAccessConfig.bonjourEnabledKey) var bonjourEnabled = false
     @AppStorage(RemoteAccessConfig.publicBaseURLKey) var publicBaseURL = ""
@@ -45,6 +46,7 @@ struct ShareSettingsView: View {
     @State var didBootstrap = false
     @State var copiedInvite = false
     @State var addressDraft = ""
+    @State var detectedTailnetURL: String?
     @State var confirmRemoveAllDevices = false
 
     let qrContext = CIContext()
@@ -62,11 +64,26 @@ struct ShareSettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(hostingEnabled ? "On" : "Off")
                             .font(.headline)
-                        Text("Share Fichero on this Mac with other devices, the fichero command-line tool, and MCP clients.")
+                        Text(SharingToggles.caption(.sharing))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
+                .padding(.vertical, 4)
+
+                Toggle(isOn: multiuserBinding) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SharingToggles.all[1].label)
+                            .font(.headline)
+                        Text(SharingToggles.caption(.multiUser))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                // Only the Mac hosting the library can change it: the engine reads the
+                // flag at startup, so a remote-connected Mac would write a flag the
+                // host never sees (#3776).
                 .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
                 .padding(.vertical, 4)
 
@@ -136,6 +153,7 @@ struct ShareSettingsView: View {
             // Refresh the backend's real multi-user state so this tab's status
             // matches Users + Engine (#3331).
             await appState.identityStore.load()
+            multiuserEnabled = appState.identityStore.multiuserEnabled
             if hostingEnabled && publicBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 publicBaseURL = Self.autoLocalBaseURL
                 await applySharing()
@@ -143,6 +161,7 @@ struct ShareSettingsView: View {
                 await refreshDevices()
             }
             await refreshConnectedClients()
+            await refreshDetectedTailnet()
             await loadAuthzSnapshot()
             didBootstrap = true
         }

@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -228,6 +229,7 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
     person's Ollama and LM Studio rows (no embedder). Where it runs is by its address (`llm.places`): a server on
     this Mac runs on this Mac, free; one on another machine of the person's own is free, but its pages leave this
     Mac (`cloud:<type>`), so the rules choose it only where the project lets pages leave."""
+    from fichero_server.llm.local_inference import local_memory_gb
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
 
     out: dict[str, Card] = {}
@@ -252,7 +254,7 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
             open_licence=open_licence, licence=licence,
             size_gb=round(spec.download_size_bytes / 1e9, 3),
-            memory_gb=round(spec.min_memory_bytes / 1024**3, 2),  # text alone: no page image to hold
+            memory_gb=local_memory_gb(spec),  # the load gate's number (#5537)
             note=spec.display_name, source="installed", installed=True,
             offered_because=f"installed on this Mac: {spec.display_name}, in your model store; it reads text",
         )
@@ -275,6 +277,7 @@ def other_text_cards() -> list[Card]:
     Foundation Models; not available where this build or this Mac lacks it), the catalogue's MLX text models still
     to download, and the cloud models of the person's provider rows (Claude, when none is configured, as a card that
     says to add it in Settings › AI)."""
+    from fichero_server.llm.local_inference import local_memory_gb
     from fichero_server.llm.local_model_choice import apple_intelligence_in_this_build
     from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS, get_mlx_model_store
 
@@ -298,7 +301,7 @@ def other_text_cards() -> list[Card]:
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
             licence="", size_gb=round(spec.download_size_bytes / 1e9, 3),
-            memory_gb=round(spec.min_memory_bytes / 1024**3, 2), note=spec.display_name, source="shipped", offered_only=True,
+            memory_gb=local_memory_gb(spec), note=spec.display_name, source="shipped", offered_only=True,
             installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
         ))
     out += _cloud_text_cards()
@@ -319,6 +322,16 @@ def _parser_statement_cards() -> list[Card]:
                     offered_because="free and on this Mac: the parser's statements, proposals for you to accept or "
                                     "reject (no language model)")
             for c in seed_cards() if c.id.startswith("spacy:pkg/")]
+
+
+FRONTIER_PROVIDERS_FILE = Path(__file__).parent / "seed" / "frontier-cloud-providers.txt"
+
+
+@lru_cache(maxsize=1)
+def frontier_providers() -> frozenset[str]:
+    """The cloud provider types whose models count as multilingual (a default the owner can change)."""
+    lines = FRONTIER_PROVIDERS_FILE.read_text(encoding="utf-8").splitlines()
+    return frozenset(line.strip() for line in lines if line.strip() and not line.startswith("#"))
 
 
 def _cloud_text_cards() -> list[Card]:
@@ -345,9 +358,11 @@ def _cloud_text_cards() -> list[Card]:
         for model in app_db.list_models(row.id):
             if not model.enabled or _is_embedder(model):
                 continue
+            frontier = ptype in frontier_providers()
             out.append(Card(
                 id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
-                jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+                jobs=TEXT_MODEL_JOBS | {"correct"} if frontier else TEXT_MODEL_JOBS, multilingual=frontier,
+                scripts=None, languages=None, material=frozenset(),
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
@@ -393,6 +408,7 @@ def _server_text_cards() -> list[Card]:
                 jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
                 runs_on="this-mac" if here else f"cloud:{ptype}", open_licence=True,
                 licence="", note=f"{model.name or model.model_id} on {row.name}", source="installed",
+                installed=here,  # on this Mac it is installed here, so the rules take it over the parser (#5637)
                 offered_because=f"a model you run with {row.name}, {where}, free",
             ))
     return out
@@ -744,8 +760,22 @@ HF_TAG_LIMIT = 50
 #: The project's languages as Hugging Face model names spell them ("trocr-spanish-…", "…-latin-htr").
 _LANGUAGE_WORDS = {"es": "spanish", "la": "latin", "fr": "french", "it": "italian", "de": "german", "pt": "portuguese",
                    "ca": "catalan", "nl": "dutch", "en": "english"}
-#: Script words a reader's tags or name may state, as ISO 15924 codes.
+#: Script words a reader's tags or name may state, as ISO 15924 codes: these two, then any one-word script name
+#: ISO 15924 lists (`script_words`).
 _SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
+#: Not read from a listing: "latin" in a model's name is the language, "gothic" the blackletter hand of Latin script
+#: (not Wulfila's Gothic alphabet, Goth), and the codes for no script in particular.
+_NOT_SCRIPT_WORDS = frozenset({"Latn", "Goth", "Zyyy", "Zinh", "Zzzz", "Zsym", "Zmth", "Zxxx", "Zsye"})
+
+
+@lru_cache(maxsize=1)
+def script_words() -> dict[str, str]:
+    """Word -> ISO 15924 code for every script whose English name is one word ("cyrillic" -> Cyrl) (#5594 residue)."""
+    from fichero_server.recipes.names import _scripts
+
+    words = {row["name"].lower(): row["code"] for row, _text in _scripts()
+             if row["code"] not in _NOT_SCRIPT_WORDS and re.fullmatch(r"[a-z]{4,}", row["name"].lower())}
+    return {**words, **_SCRIPT_WORDS}
 
 
 def _words(model: dict[str, Any]) -> frozenset[str]:
@@ -795,7 +825,7 @@ def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
     words = _words(model)
     licence = next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), "")
     langs = _hub_tags(model) or languages
-    scripts = frozenset(code for word, code in _SCRIPT_WORDS.items() if word in words)
+    scripts = frozenset(code for word, code in script_words().items() if word in words)
     material = _hub_material(words)
     why = [what]
     if scripts:
@@ -1191,8 +1221,9 @@ def _step_row(m: dict[str, Any], job: str, task: str) -> dict[str, Any]:
     return {"repo": repo, "job": job, "pipeline_tag": m.get("pipeline_tag") or task, "runs_here": runs,
             "licence": next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), ""),
             "languages": sorted(_hub_tags(m) or ()) or None, "downloads": int(m.get("downloads") or 0),
-            "cannot_run_because": "" if runs else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task,
-                                                                      "Fichero cannot run it yet")}
+            "cannot_run_because": "" if runs else (
+                "a GGUF build: this build runs MLX builds only" if _gguf_only(m)
+                else _CANNOT_RUN_FOR.get(m.get("pipeline_tag") or task, "Fichero cannot run it yet"))}
 
 
 async def search_hugging_face_for_step(job: str, languages: frozenset[str],
@@ -1208,8 +1239,10 @@ async def search_hugging_face_for_step(job: str, languages: frozenset[str],
     for n, (task, tags) in enumerate(asks, 1):
         progress(f"Searching Hugging Face ({n} of {len(asks)})")
         for m in await _fetch_hf_models(task=task, tags=tags, limit=HF_LIMIT):
-            if m.get("pipeline_tag") not in (None, task) or _gguf_only(m):
+            if m.get("pipeline_tag") not in (None, task):
                 continue
+            # A GGUF-only repository is listed, not runnable and saying why: nothing is dropped silently
+            # (`ai.where.never-dropped-silently`, #5519).
             row = _step_row(m, job, task)
             rows.setdefault(row["repo"], row)
     return sorted(rows.values(), key=lambda r: (not r["runs_here"], -r["downloads"], r["repo"]))
@@ -1364,10 +1397,21 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                         "detail": (f"Remote compute: {compute['where']}" if compute["available"]
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
-                     "detail": "Transkribus models: not searched"},
-                    {"source": "htr-united", "state": "not-searched", "count": 0,
-                     "detail": "HTR-United: not searched"}]
+                     "detail": "Transkribus models: not searched"}, _htr_united_source(a)]
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
+
+
+def _htr_united_source(a: Answers) -> dict[str, Any]:
+    """HTR-United's ground-truth datasets for the project's languages, from the kept catalogue (#5571); never the
+    network. Said not searched when none is kept."""
+    from fichero_server.recipes import htr_united
+
+    kept = htr_united.cached()
+    if kept is None:
+        return {"source": "htr-united", "state": "not-searched", "count": 0, "detail": "HTR-United: not searched"}
+    found = htr_united.matching(kept["records"], languages=a.languages, scripts=a.scripts)
+    return {"source": "htr-united", "state": "cached", "count": len(found),
+            "detail": f"HTR-United: {len(found)} datasets for these"}
 
 
 #: Said in place of the online sources for a step with no search of its own (#5668).
@@ -1540,6 +1584,18 @@ def search_online(languages: frozenset[str], progress: Callable[[str], None] = l
             sources["kraken-repository"] = {"state": "failed", "detail": "Could not reach Zenodo"}
     else:
         sources["kraken-repository"] = {"state": "cached", "detail": f"{len(cached['records'])} found on Zenodo"}
+    from fichero_server.recipes import htr_united
+
+    if _stale(htr_united.cached()):
+        progress("Searching HTR-United…")
+        try:
+            kept = htr_united.refresh()
+            sources["htr-united"] = {"state": "searched", "detail": f"{len(kept['records'])} datasets on GitHub"}
+        except (OSError, ValueError) as exc:  # the network or the catalogue failed: say so, keep the cache
+            logger.warning("HTR-United's catalogue could not be read: %s", exc)
+            sources["htr-united"] = {"state": "failed", "detail": "Could not reach HTR-United"}
+    else:
+        sources["htr-united"] = {"state": "cached", "detail": "HTR-United: kept from before"}
     try:
         found, left_out = asyncio.run(search_hugging_face(languages, progress, hand_tags))
         keep_hub(found, languages, left_out)

@@ -89,6 +89,12 @@ from fichero_server.models import (
     SegmentVersion,
 )
 
+if TYPE_CHECKING:
+    from fichero_server.api.routes.document.segments import (
+        SegmentDetailResponse,
+        SegmentReferenceResponse,
+    )
+
 # https, not http (#4468): the engine MANDATES TLS on TCP (engine_manager
 # refuses to start without certs), so an http default could never work
 # against the engine we ship — a default that cannot work is a trap, and

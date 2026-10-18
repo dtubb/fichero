@@ -223,6 +223,9 @@ Tests that pin the two delete behaviors:
 Everything above the Delete section is the larger design, pinned in later waves —
 NOT this PR.
 
+## Sharing rows (ruled 2026-10-17)
+Shared libraries appear in PROJECTS, not in a section of their own; the three behaviours live in `transport/library-sharing.md`: `sharing.sidebar.guest-row`, `sharing.sidebar.host-mark`, `sharing.sidebar.off-greys-row` (all [GAP] until built).
+
 ## Triaged from the backlog (2026-10-04)
 - `sidebar.drag-identity-edges` — **[GAP]** (#4530) a foreign plain-text drag is not blamed as internal, a user folder named fichero-drag-* is not swallowed, and canonicalLibraryKey matching is case-insensitive.
 - `sidebar.drop-on-content-pane-silent` — **[GAP]** (#4551) releasing an in-app library drag on the content pane is a silent no-op, never a modal Import Error (message still in ContentView+ActionsImport.swift).
@@ -288,3 +291,10 @@ read change; types, files and identifiers keep their names.
 - (#4169) Double-click opens per the new-tab/new-window setting; Command-double-click inverts it, for every object everywhere.
 - (#4260) Audit sidebar, list, keyboard and menu behaviour against NetNewsWire as a reference implementation.
 - (#3703) Entity drag to associate/merge/export: engine export landed (PR #3722) and entity rows are draggable, but drop-to-merge/associate is app-wide drag and drop vision
+
+## Triaged from the August restart handoff (2026-10-17)
+- `create.drop.folder-or-image-imports-like-the-menu` — **[GAP]** (#4520) a folder or an image dropped on the sidebar (Inbox or the library icon) imports exactly as the menu import does and does not pop back. Test: a new ExternalFileDropLoaderTests.swift in `fichero/Tests/Unit/` (to write).
+- `read.import-updates-one-row-once` — **[GAP]** (#4522) importing one file updates one row, once: not a whole-sidebar redraw, and not twice (a direct reload plus a change-stream reload). Test: a new SidebarImportRefreshTests.swift in `fichero/Tests/Unit/` (to write).
+- `sidebar.accessibility-identifiers` — **[PARTIAL]** (#5763) *Built 2026-10-17 (app), not yet seen:* every row, project header, the Projects heading and the list carry a stable identifier, spelled once in `SidebarAccessibilityID` (`sidebar.row.<id>`, `sidebar.project.<libraryId>`, `sidebar.projectsHeading`, `sidebar.trash.<libraryId>`, `sidebar.models.<libraryId>`, `sidebar.list`). *Test:* `SidebarAccessibilityIDTests` (the strings, and that each view applies its identifier). *Not built:* the XCUITest that finds the Sources row.
+- `read.leaf.no-chevron` — **[PARTIAL]** (#5764) *Built 2026-10-17 (model pinned, not yet seen):* a leaf row (a page, an image, Trash, a model) is not a disclosure row and lines up with Sources and Workflows. `SidebarItem.isExpandable` is false for a page or image whatever its child count says; Trash and each trained model are plain rows. *Test:* `SidebarLeafRowsTests`. *Not built:* the closed folder's invisible chevron slot (#3355) cannot be seen from the model; needs a screen.
+- `sidebar.top-section.order` — **[PARTIAL]** (#5655, #5764) each project's nodes after its items are knowledge rows, Models, Trash last (`SidebarProjectNode.order`), the always-there project's top section included. *Test:* `SidebarLeafRowsTests.nodeOrder`.

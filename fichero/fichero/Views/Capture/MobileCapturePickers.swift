@@ -1,13 +1,13 @@
 //  Extracted from MobileCaptureQueueView.swift for file_length (#5113). Byte-for-byte.
 //
-//  The OUTER `#if os(iOS) || os(tvOS) || os(visionOS)` is reproduced here because the split
+//  The OUTER `#if os(iOS) || os(visionOS)` is reproduced here because the split
 //  would otherwise separate an `#if` from its `#endif` — the first cut landed INSIDE two
 //  nested conditional-compilation blocks and produced "Expected #else or #endif at end of
 //  conditional compilation block" in one file and "Unexpected conditional compilation block
 //  terminator" in the other. A split point has to be a brace boundary AND a preprocessor
 //  boundary.
 
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -15,7 +15,6 @@ import UniformTypeIdentifiers
 import VisionKit
 #endif
 
-#if !os(tvOS)
 struct MobileCaptureImagePicker: UIViewControllerRepresentable {
     let sourceType: UIImagePickerController.SourceType
     let onImage: (UIImage) -> Void
@@ -108,6 +107,5 @@ struct MobileDocumentScanner: UIViewControllerRepresentable {
         }
     }
 }
-#endif
 #endif
 #endif

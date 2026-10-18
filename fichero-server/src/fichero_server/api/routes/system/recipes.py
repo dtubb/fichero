@@ -7,7 +7,6 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import asyncio
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -15,7 +14,7 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
@@ -144,6 +143,10 @@ class AssembleRequest(BaseModel):
         "the pages are faded: a recipe that lines or reads them first raises their contrast on a new rendition, "
         "keeping the original; unset, it is on when a sample of the open project's pages (up to ten, spread "
         "across them) shows a faded page (source.onboard.auto.prepare-damaged-images)"))
+    photographs: Optional[bool] = Field(default=None, description=(
+        "the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, "
+        "and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the "
+        "images (source.onboard.photographed-pages-asked)"))
     job_answers: dict[str, Any] = Field(default_factory=dict, description=(
         "the answers under a purpose (entity_kinds, gazetteer, normalise_how_far): each becomes the setting of the "
         "step it configures (source.onboard.auto.job-answers-read)"))
@@ -255,6 +258,9 @@ class LeftOffStep(BaseModel):
     job: str
     title: str
     sentence: str
+    offered: Optional[dict[str, Any]] = Field(default=None, description=(
+        "Correct offered at Ready (ruled Q3 2026-10-17, #5677): a cloud corrector whose provider has a key set here, "
+        "`card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"))
 
 
 class AssembledRecipe(BaseModel):
@@ -291,11 +297,27 @@ class AssembledRecipe(BaseModel):
         "plan starts (source.recipe.text-material-is-not-read)"))
 
 
-def _this_machine_memory_gb() -> float:
+def _hf_token_set() -> bool:
+    from fichero_server.llm import get_api_key
+
+    return bool(get_api_key("huggingface"))
+
+
+def _cluster_names() -> list[str]:
+    """The clusters set up on this Mac, by name (#5769); none when the app's settings cannot be read."""
+    from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.db.app import get_app_db
+
     try:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
-    except (ValueError, OSError):
-        return 8.0
+        return sorted(str(c.get("name") or c.get("cluster_id") or "a cluster") for c in _load_clusters(get_app_db()).values())
+    except Exception:  # noqa: BLE001 -- no clusters to offer, never a failed plan
+        return []
+
+
+def _this_machine_memory_gb() -> float:
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
+
+    return this_mac_memory_gb()
 
 
 class PurposeJob(BaseModel):
@@ -440,7 +462,7 @@ async def try_stage(stage: str, body: Optional[TryStageRequest] = None,
     try:
         return await asyncio.to_thread(
             samples.start_try, db, stage, setup, page_ids=body.page_ids or None, cost_ok=body.cost_ok,
-            started_by=ctx.actor or "owner", candidates=body.candidates or None,
+            started_by=started_by_for(ctx), candidates=body.candidates or None,
             run_evaluation=lambda params: registry.invoke(db, "evaluation.run", params, ctx).result["job_id"])
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -630,6 +652,7 @@ class ScriptFacts(BaseModel):
     may_be_vertical: bool
     font: Optional[str] = None
     font_from: str
+    audit_id: Optional[str] = Field(default=None, description="the audit row of a choice just made; Undo reverses it")
 
 
 class MacFacts(BaseModel):
@@ -656,7 +679,12 @@ class DerivedFacts(BaseModel):
 
 
 @router.get("/derived", response_model=DerivedFacts, response_model_by_alias=True)
-async def derived_facts(scripts: str = "", app_db=Depends(_app_database)) -> DerivedFacts:
+async def derived_facts(
+    scripts: str = "",
+    period: str = "",
+    app_db=Depends(_app_database),
+    library_path: Optional[str] = Depends(optional_library_path),
+) -> DerivedFacts:
     """What setup works out instead of asking, each fact saying where it came from
     (`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical
     and its bundled font; this Mac's chip and memory; which providers have a key; where work
@@ -669,12 +697,55 @@ async def derived_facts(scripts: str = "", app_db=Depends(_app_database)) -> Der
     if unknown:
         raise HTTPException(status_code=422, detail=f"not ISO 15924 script codes: {', '.join(unknown)}")
     keys = derived._providers_with_keys()
+    # The period and a person's font choice come from the open project's saved setup (#5438).
+    saved = (read_project_setup(Path(library_path)).get("answers") or {}) if library_path else {}
+    when = period or str(saved.get("period") or "")
+    chosen = saved.get("fonts") or {}
     clusters = sorted(c.get("name") or cid for cid, c in _load_clusters(app_db).items())
     return DerivedFacts(
-        scripts=[ScriptFacts(**derived.script_facts(c)) for c in codes],
+        scripts=[ScriptFacts(**derived.script_facts(c, when, chosen.get(c))) for c in codes],
         mac=MacFacts(**derived.this_mac()), keys=keys,
         targets=[PlaceToRun(**t) for t in derived.targets(keys, clusters)],
     )
+
+
+class FontChoice(BaseModel):
+    script: str = Field(description="ISO 15924 code of the script the font draws")
+    font: Optional[str] = Field(default=None, description="a bundled family; null returns to the derived font")
+
+
+@router.put("/font", response_model=ScriptFacts)
+async def choose_font(
+    body: FontChoice,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ScriptFacts:
+    """Remember a pane's font choice for a script in this library's setup answers (`answers.fonts`),
+    or clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it
+    (`layers.text.font-from-script-and-period`)."""
+    from fichero_server.recipes import derived
+
+    problem = derived.font_choice_problem(body.font)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
+    if derived.unknown_scripts([body.script]):
+        raise HTTPException(status_code=422, detail=f"not an ISO 15924 script code: {body.script}")
+    answers = dict(read_project_setup(_library(db)).get("answers") or {})
+    fonts = dict(answers.get("fonts") or {})
+    if body.font:
+        fonts[body.script] = body.font
+    else:
+        fonts.pop(body.script, None)
+    if fonts:
+        answers["fonts"] = fonts
+    else:
+        answers.pop("fonts", None)
+    try:
+        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    facts = derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script))
+    return ScriptFacts(**facts, audit_id=done.audit_id)
 
 
 @router.get("/scripts", response_model=NamedCodeList)
@@ -755,6 +826,12 @@ def _optional_library(request: Request) -> Optional[Path]:
     return _library(get_library_database(request, path)) if path else None
 
 
+def _providers_with_keys() -> list[str]:
+    from fichero_server.recipes.derived import _providers_with_keys as keyed
+
+    return keyed()
+
+
 def _answers(answers: dict[str, Any]) -> Answers:
     """Setup's answers as the rules read them (the one place they are turned into `Answers`)."""
 
@@ -766,9 +843,9 @@ def _answers(answers: dict[str, Any]) -> Answers:
         pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
-        faded_pages=bool(a.get("faded_pages")),
+        faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
         job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
-        search_embedder=search_embedder(),
+        search_embedder=search_embedder(), cloud_keys=tuple(_providers_with_keys()),
     )
 
 
@@ -940,6 +1017,7 @@ class ModelCandidate(BaseModel):
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules' fixed order among the "
                                      "candidates they keep; null when refused or not in the rules")
     refused: Optional[str] = Field(default=None, description="the rules' first reason it cannot do the job here")
+    needs_permission: bool = Field(default=False, description="a cloud reader the project may not use until the person has said pages may leave this Mac: shown greyed, \"needs permission\" (`source.onboard.pages-may-leave`, #5768)")
     installed: Optional[bool] = Field(default=None, description=(
         "whether its model is already on this Mac (an MLX model in the store, a spaCy pipeline, a bundled Kraken "
         "model); null where nothing is downloaded first (a Kraken reader the run fetches, a cloud model) (#5612)"))
@@ -1045,7 +1123,7 @@ async def model_candidates(
     counts them. Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, rank_key
+    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, needs_permission, rank_key
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
         candidate_availability,
@@ -1144,7 +1222,7 @@ async def model_candidates(
         memory_gb=None if not c.memory_gb and c.source == "hugging-face" else c.memory_gb,
         size=size_words(c.size_gb), cer_published=c.cer_published,
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
-        rule_rank=rank.get(c.id), refused=refused(c),
+        rule_rank=rank.get(c.id), refused=refused(c), needs_permission=needs_permission(c, a),
         installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id, fit=fit(c),
@@ -1242,6 +1320,9 @@ class StartEstimateRun(BaseModel):
     where: str
     pages: int
     cost_usd: Optional[float] = Field(description="0 on this Mac; null when the model has no price")
+    basis: str = Field(default="unpriced", description=(
+        "how cost_usd is known: `free on this Mac`, `the model's listed rate`, or `unpriced` (a cluster or other "
+        "place, or a model with no price): never a $0 for what is not known (#5590)"))
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
         "and the peak that comes to (#5537); null for any other run"))
@@ -1408,13 +1489,20 @@ class ProposedJobs(BaseModel):
 class TrainTarget(BaseModel):
     """A place a way of training runs, and the audited action that starts it there (#5660 item 9)."""
 
-    place: str = Field(description="this-mac or huggingface-jobs: only the places the engine trains on today")
+    place: str = Field(description=(
+        "this-mac, huggingface-jobs, or cluster (a cluster set up here, the free alternative offered beside Hugging "
+        "Face; no start action yet)"))
     name: str
-    starts: str = Field(description="the action that starts it, e.g. training.start_here")
+    starts: Optional[str] = Field(default=None, description=(
+        "the action that starts it, e.g. training.start_here; null for a cluster, offered with its first-run steps"))
     params: Optional[dict[str, Any]] = Field(default=None, description=(
         "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot "
         "fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for "
         "pages to leave (`pages_may_leave`) is asked at start, never sent here"))
+    held: Optional[str] = Field(default=None, description=(
+        "why this place stays an offer, never started by itself: a $0 Hugging Face spend cap (#5769)"))
+    first_run: Optional[list[str]] = Field(default=None, description=(
+        "a cluster's attended first run, step by step (`source.onboard.cluster-offer`, #5769)"))
 
 
 class TrainWay(BaseModel):
@@ -1438,6 +1526,24 @@ class TrainOffer(BaseModel):
     readiness: dict[str, Any] = Field(description=(
         "whether the project has enough corrected material: counts, how many more lines and pages, and the "
         "sentence that says so (the bake-off's one count, at the train step's threshold)"))
+    setting: dict[str, str] = Field(description=(
+        "how training happens in this project (the onboarding setting `answers.training`, or the machine's default): "
+        "`mode` here, huggingface or offered, and `why`"))
+    does: str = Field(description="what the setting does once the corrected lines reach the threshold, in a sentence")
+    noise_band: Optional[dict[str, Any]] = Field(default=None, description=(
+        "the project's noise band (#5692): `value`, the CER difference a trained model must beat its base by; "
+        "`measured`, whether this project's pages measured it (CER spread over 3 held-out splits) or it is the ruled "
+        "0.5 CER points; `basis` in words"))
+
+
+class BakeoffOffer(BaseModel):
+    """The bake-off offered on the Start plan: its cost said first, then whether the project can run it now."""
+
+    sentence: str = Field(description="what the comparison costs, first")
+    run_cost_usd: float
+    pages: int = Field(description="the corrected sample pages it would read")
+    ready: bool = Field(description="false until the project holds enough corrected lines")
+    readiness_sentence: Optional[str] = Field(default=None, description="when not ready, what to correct")
 
 
 class StartPlan(BaseModel):
@@ -1453,6 +1559,9 @@ class StartPlan(BaseModel):
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
+    bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
+        "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
+        "recipe has no reading step (#5660 item 7)"))
     refusals: list[str] = Field(description="Start is refused while this is not empty")
     waiting: list[str] = Field(default_factory=list, description=(
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
@@ -1465,6 +1574,10 @@ class StartPlan(BaseModel):
     elsewhere: list[StartElsewhere] = Field(default_factory=list, description=(
         "models the steps are pinned to that this Mac cannot run, each with the free places offered instead, "
         "never used without the person's press (ai.where.fallback-free-and-asked)"))
+    fallbacks: list[dict[str, Any]] = Field(default_factory=list, description=(
+        "steps that run the next candidate in their chain because the first cannot (a missing key), each saying which "
+        "and why (`used` true), or offered and not used (`used` false) when it would send pages to another provider: "
+        "never a silent substitute (`source.recipe.candidates-fallback-chain`)"))
     estimate: StartEstimate
     in_icloud: Optional[dict[str, Any]] = Field(default=None, description=(
         "pages whose linked originals are in iCloud and not on this Mac, with the offer to copy them into the project "
@@ -1488,7 +1601,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     from fichero_server.recipes.done import annotate, material
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
-    from fichero_server.recipes.start import estimate, plan_start
+    from fichero_server.recipes.start import estimate, place_runs, plan_start
     from fichero_server.recipes.train_offers import counted, train_offers
 
     library = _library(db)
@@ -1507,6 +1620,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local)
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
@@ -1518,7 +1632,23 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
-    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local)
+    from fichero_server.recipes.train_offers import training_setting
+
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.project import read_noise_band
+
+    cap = spend_cap(setup["answers"])
+    setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
+                               hf_configured=_hf_token_set(), stays_local=stays_local, spend_cap=cap)
+    from fichero_server.recipes.train_offers import held_after_failure
+
+    held = held_after_failure(db) if setting["mode"] == "here" else None
+    if held:  # the last training here failed: said on the plan, where the person looks (#5440)
+        setting = {**setting, "why": held}
+    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
+                                        spend_cap=cap, clusters=_cluster_names(),
+                                        noise_band=read_noise_band(library))
+    plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     elif within is None and not pages["pages"]:
@@ -1547,6 +1677,41 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"]), "counted": counted}
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
     return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
+
+
+_OFFER_SECONDS = 5.0
+_offers: dict[tuple, tuple[float, dict | None]] = {}
+
+
+def _bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
+    """`_compute_bakeoff_offer`, kept five seconds: it scans every pass of the project, and the Start sheet polls
+    the plan. ponytail: a timed keep, not a change token (none exists); a correction shows within five seconds."""
+    import json
+    import time
+
+    key = (id(db), json.dumps(setup["answers"], sort_keys=True, default=str), volume)
+    kept = _offers.get(key)
+    if kept and time.monotonic() - kept[0] < _OFFER_SECONDS:
+        return kept[1]
+    if len(_offers) > 32:
+        _offers.clear()
+    offer = _compute_bakeoff_offer(db, setup, volume)
+    _offers[key] = (time.monotonic(), offer)
+    return offer
+
+
+def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
+    """The comparison of readers, offered on the plan with its cost first (`reader-measured-before-bulk`): only for a
+    recipe that has a reading step and answers; Start never runs it."""
+    answers = setup["answers"]
+    if not answers or not any(s.get("job") == "read-a-line" for s in (setup["recipe"] or {}).get("steps") or []):
+        return None
+    bakeoff = _bakeoff()
+    a = _answers(answers)
+    run = bakeoff.next_run(db, a, known_cards(a, include_not_built=True), volume=a.pages or volume)
+    ready = bakeoff.readiness(*[bakeoff.ground_truth(db, None)[0], bakeoff.unmarked_import_pages(db)])
+    return {"sentence": run["sentence"], "run_cost_usd": run["run_cost_usd"], "pages": run["pages"],
+            "ready": ready["ready"], "readiness_sentence": ready.get("sentence")}
 
 
 @router.get("/project/start", response_model=StartPlan)
@@ -1728,14 +1893,14 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         recipe = read_project_setup(library)["recipe"] or {}
         runner.register_job_kinds()
         # Start fetches what its steps need (#5664): each download queued now, and the run's steps on it wait.
-        queue_downloads(db, plan, started_by=ctx.actor or "owner")
+        queue_downloads(db, plan, started_by=started_by_for(ctx))
         record = {
             "started_at": utc_now_iso(timespec="seconds"),
             "recipe_id": recipe.get("id"),
             "recipe_version": recipe.get("version"),
             "workflows": [w["workflow"] for w in plan["workflows"]],
             "pages": plan["estimate"]["pages"],
-            "job_id": runner.enqueue(db, plan, documents=None, started_by=ctx.actor or "owner", redo=params.redo,
+            "job_id": runner.enqueue(db, plan, documents=None, started_by=started_by_for(ctx), redo=params.redo,
                                      folder_id=params.folder_id),
             "folder_id": params.folder_id,
         }
@@ -2094,7 +2259,7 @@ async def start_bakeoff(
     if request is not None and request.step == "find-lines":
         try:
             record = bakeoff.start_lines(db, library, page_ids=request.page_ids or None,
-                                         now=utc_now_iso(timespec="seconds"), started_by=ctx.actor or "owner")
+                                         now=utc_now_iso(timespec="seconds"), started_by=started_by_for(ctx))
             return BakeoffResult(**bakeoff.result(db, library, record["id"]))
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

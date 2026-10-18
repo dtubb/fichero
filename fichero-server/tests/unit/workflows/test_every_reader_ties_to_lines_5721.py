@@ -200,3 +200,43 @@ async def test_a_page_whose_lines_came_back_empty_keeps_its_page_text_in_a_run_o
     assert all(page["db"].get(Artifact, a) is not None for a in result["artifacts"]), "no deleted id is handed on"
     notes = result.get("notes", [])
     assert any("testamento_p2.png" in n and "did not read line by line" in n for n in notes), notes
+
+
+@pytest.mark.asyncio
+async def test_a_run_where_only_some_pages_have_lines_reads_every_page_whole_and_says_which_has_no_lines_5721(  # noqa: F811
+        page, monkeypatch, tmp_path):
+    """source.read.once-lines-exist-every-reading-ties-to-a-line, owed: "a run of several pages where only some have
+    lines reads them page-level". One page has lines, one has none: both are read as pages (no line call), each keeps its
+    text, and the note names the page that has no line."""
+    from PIL import Image
+
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.models import Artifact, DocType, Document, FileType
+    from fichero_server.workflows.tools.sources import files_tool
+    from fichero_server.workflows.tools.transcribe import transcribe
+
+    path = tmp_path / "sin_lineas.png"
+    Image.new("RGB", (400, 300), "white").save(path)
+    bare = Document(name=path.name, doc_type=DocType.file, file_type=FileType.image, path=str(path))
+    page["db"].save(bare)
+    src = await files_tool(inputs={}, state={"selected_doc_ids": [page["doc"].id, bare.id], "library_path": page["library"]},
+                           llm_config=LLMConfig(provider="", model=""))
+    prompts = []
+
+    async def vision(images, prompt, config, **kw):
+        prompts.append(prompt)
+        return "texto de la pagina"
+
+    monkeypatch.setattr(llm, "vision", vision)
+    result = await transcribe(
+        inputs={"files": src["files"], "documents": src["documents"], "regions_first": False,
+                "vision_mode": "llm", "force_ocr": True, "prompt": "PAGE"},
+        state={"library_path": page["library"], "task_id": "run-mixed"},
+        llm_config=LLMConfig(provider=MODEL[0], model=MODEL[1]))
+    assert not result.get("error"), result.get("error")
+    assert prompts == ["PAGE", "PAGE"], "every page is read whole, none line by line"
+    assert [r["text"] for r in result["results"]] == ["texto de la pagina"] * 2
+    assert any("sin_lineas.png" in n and "tied to no line" in n for n in result.get("notes", []))
+    assert not any("read each of the page's lines" in n for n in result.get("notes", []))
+    assert [a for a in page["db"].query(Artifact, document_id=bare.id) if a.artifact_type == "transcription"]

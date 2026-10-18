@@ -94,10 +94,13 @@ struct PairedDeviceRecord: Codable, Identifiable {
     let lastSeen: Date
     let expiresAt: Date
     let revoked: Bool
+    /// The paired device that minted this one; revoking that device revokes this one too (#5351).
+    var pairedByDeviceId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
+        case pairedByDeviceId = "paired_by_device_id"
         case userId = "user_id"
         case createdAt = "created_at"
         case lastSeen = "last_seen"
@@ -138,6 +141,17 @@ final class PairingService {
         }
     }
 
+    /// This Mac's `.ts.net` address when Tailscale is running, else nil (#5318).
+    func detectedTailnetURL() async throws -> String? {
+        let response = try await client.api.detectedTailnetApiPairTailnetGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.tailnetUrl
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
     /// Which client surfaces (app, CLI, MCP) have talked to the engine this
     /// session — the Sharing pane's "Connected Clients" list (2026-08-27).
     func connectedClients() async throws -> [ConnectedClientRecord] {
@@ -171,7 +185,8 @@ final class PairingService {
                     createdAt: device.createdAt,
                     lastSeen: device.lastSeen,
                     expiresAt: device.expiresAt,
-                    revoked: device.revoked
+                    revoked: device.revoked,
+                    pairedByDeviceId: device.pairedByDeviceId
                 )
             }
         case .undocumented(let statusCode, _):

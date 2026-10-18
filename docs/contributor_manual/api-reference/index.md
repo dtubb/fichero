@@ -151,7 +151,7 @@ mind-palace routes, renamed to `/api/canvas`), and more.
 
 Between machines a transfer is always a copy. The sending engine pushes; the far engine lands.
 
-`GET /api/machines` · `POST /api/machines/pair`
+`GET /api/machines` · `POST /api/machines/pair` · `DELETE /api/machines/{machine_id}` (forget a machine: removes this Mac's saved token, owner only)
 
 - The other Fichero engines this one is paired with, and pairing with one: `address`
   (its tailnet name, `name.tailnet.ts.net`) and the `code` its Fichero shows. This
@@ -204,6 +204,25 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   by name alone; lists the ones not found and the ambiguous ones; and names the folders whose root moves with
   them. The action (`document.relink_originals`, audited, undoable) repoints the matched pages and folders and
   their recorded source paths. Server paths: owner only, inside an allowed location.
+
+## Making a cluster's key (#5238)
+
+`POST /api/hpc/clusters/{cluster_id}/key/make` · `GET /api/hpc/clusters/{cluster_id}/key/public`
+
+- The engine makes the cluster's Ed25519 pair with the system `ssh-keygen`; the private half stays in the engine's
+  folder (mode 0600) and is never returned. `make` answers `{cluster_id, public_key}`, to add to the person's own
+  cluster account (CCDB on the Alliance); 409 if a key is already made (it would orphan the one already added).
+  `public` shows the same public half again (404 before one is made). Owner only. `DELETE .../key` removes both halves.
+
+## Remote runs in Activity (#5740)
+
+`POST /api/reading-at-scale/jobs/{job_id}/catch-up`
+
+- Look at the far side now, after the Mac slept: a live run skips its next wait once; a run the scheduler dropped
+  (paused or failed with shards still out) is queued again and carries on from its recorded shards. Answers
+  `{job_id, state}`; 404 for an unknown run; 409 for a run that has ended (completed, cancelled, or failed with no shard still out): a finished run is never resent. `parent_job_id` on a start must be an existing run or step job (422 otherwise). `GET /api/reading-at-scale/jobs/{job_id}` now also answers the
+  run's `target`, `far_state`, `shards_done`/`shards_total`, `pages_landed`, each shard, `estimate` and `actual`; a
+  run in `GET /api/activity/jobs` carries a `remote` summary and its `parent_id` (the step that sent it).
 
 ## Set Up, one page per stage (#5668)
 
@@ -347,6 +366,43 @@ exposes them.
 - Request body: `EnrollmentRequest` with the required `enrollment_secret`.
 - Response: `200` with `PairResponse`. The enrollment secret is not itself a
   device credential, so the returned token remains independently revocable.
+
+### This Mac's tailnet address
+
+`GET /api/pair/tailnet`
+
+- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the
+  share sheet to offer (#5318). Behind pairing auth.
+- Response: `200` with `TailnetOfferResponse`.
+
+### Cluster connection (ACENet)
+
+`POST /api/hpc/clusters/{cluster_id}/check`
+
+- Purpose: the live check on the login node: hostname, storage, Apptainer,
+  GPUs and fair share (`compute.connect.check-really-checks`).
+- Response: `200` with `HpcCheckResponse`.
+
+`PUT /api/hpc/clusters/{cluster_id}/key` and
+`DELETE /api/hpc/clusters/{cluster_id}/key`
+
+- Purpose: the app pushes the cluster's private key into the engine's own
+  folder, or removes it; the key is never read back.
+- Request body (PUT): `HpcKeyPush`.
+- Response: `200` with `HpcKeyState`.
+
+`POST /api/hpc/clusters/{cluster_id}/sign-in`
+
+- Purpose: open the one connection to the cluster; ssh's prompts come out of
+  `GET /api/hpc/prompts` for the app to answer.
+- Response: `200` with `HpcKeyState`.
+
+`GET /api/hpc/prompts` and `POST /api/hpc/prompts/{prompt_id}`
+
+- Purpose: what a cluster login is waiting on (a second factor, a
+  passphrase), and the person's answer to one. Owner only.
+- Request body (POST): `HpcPromptAnswer`.
+- Response: `200` with `HpcPromptList`.
 
 ### Agent workspace membership
 
@@ -867,7 +923,7 @@ of the `contenders` (`label`, `provider`, `model`, `arm`, `role`: student, teach
 held-out checked lines (`held_out_ids`, required) as it was trained, and a reasoning student also with
 its reasoning off; one CER and WER each, seconds a line, and for a `why` student how many of its errors
 fall on lines it called uncertain. A reasoning student is adopted only if it beats the answer-only
-student by more than `noise_band` (0.005); the result is written on every Fichero-trained contender's
+student by more than `noise_band` (the request's, else the project's noise band, 0.005 until measured, #5692); the result is written on every Fichero-trained contender's
 card either way. Through `training.measure_reasons_ab`; `GET /api/training/reasons-ab/{job_id}` gives the
 scores and verdicts.
 
@@ -906,7 +962,8 @@ a trained model whose card holds no held-out page, a named page a trained candid
 on, no page with a checked reading, a model not on this Mac, a remote provider. Through
 `evaluation.run` (not undoable: a score is a result). `GET /api/evaluation/runs/{job_id}` gives the plan
 (candidates, pages, pages missing and why, readers not on this Mac) and the result (per model and per
-page, the CER under each policy, who checked each page, the best). Each model's scores are appended to
+page, the CER under each policy, who checked each page, the best, and `adoption`: whether the best trained
+Kraken reader became the project's read-a-line reader, only past the project's noise band, and why). Each model's scores are appended to
 its card; `GET /api/evaluation/scores?model=&reader=` reads them back. Activity's stop ends it before
 its next page, with nothing written on the cards.
 
@@ -1436,11 +1493,11 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/recipes/jobs`: every job a recipe can name, with what it takes and gives, its plain description and the `topic` that explains it.
 - `GET /api/topics`, `GET /api/topics/{topic_id}`: each topic setup teaches and each recipe job, explained once (#5471): `kind` (`job` or `topic`), `title`, `short` (one sentence), `long` (a paragraph after it), `example` and `manual`. `404` for an unknown id. The text lives only in `fichero-server/src/fichero_server/recipes/seed/topics.yaml`; a job's name and description are read from it.
 - `GET /api/recipes/purposes`: the purposes setup offers, in order, and whether each runs by itself.
-- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. Writes nothing.
+- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. `left_off` lists the steps left off by default with why and their cost; Correct's carries `offered` when a cloud corrector's provider has a key set here (its `card`, `runs_on`, `pages`, `cost_usd`), offered at Ready, never turned on by itself (#5677). Writes nothing.
 - `POST /api/recipes/check`: every reason a recipe cannot run as it stands, step by step.
 - `GET /api/recipes/candidates?scripts=&languages=&material=&job=&online=`: every reader candidate for these scripts and languages (#5519), each a card saying where it came from (`source`: `shipped`, `installed`, `kraken-repository`, `hugging-face`), why it is offered (`offered_because`), what it states (scripts, languages, licence, size, published CER) and what the rules make of it (`rule_rank` in the fixed order, or `refused` with the rules' reason), and `measured` ("unmeasured on your pages until a bake-off measures it" until one does). Installed: every complete MLX vision model in the model store no shipped card pins, its card made from its own config and README (a model Fichero trained included). Kraken's repository: htrmopo's listing of Zenodo's `ocr_models` community (the call `kraken list` makes), Kraken recognition models only, newest version of each, kept in the model store's `discovery/` folder and fetched again at most daily; a record's published CER is ranked on only when it names the project's languages. Hugging Face: image-to-text and image-text-to-text models by task and language tag, MLX builds only (or a safetensors model's MLX conversion, found by its `base_model:` tag), never GGUF; listed with `in_recipe_rules: false` because Fichero cannot download a Hub model outside its catalogue yet. The network is reached only with `online=true` and never when the engine works offline (`FICHERO_LOCAL_ONLY` / `local_only_ai`); `sources` says what each source did (`read`, `searched`, `cached`, `not-searched`, `offline`, `failed`). `POST /api/recipes/assemble` and the bake-off choose from the shipped, installed and cached repository cards (never the network); an assembled step's `card.source` names where its card came from. `422` for an unknown script, language, material or job.
 - `GET|PUT /api/recipes/project`: the open project's saved setup answers and recipe (files in the project's `recipe/` folder). Saving is audited and undoable, and is not Start.
-- `GET /api/recipes/project/start`: what Start would run — `runs`, in order, each a card: a shipped workflow (the steps it carries out, with the step's model as its override), a check run (`check`, its layer and checker) the project's synced folder (`export`, its folder and formats) or the project as a static site (`publish`, the folder its `where` names); `skipped`, each step Start cannot run with why (no model, a condition Start cannot honour yet, a cloud step in a project that keeps its pages here, a job no card runs yet); the steps only offered later (training); `refusals`, which stop Start (no recipe, a recipe that fails the check, nothing left to run, a model neither on this Mac nor downloading); `waiting`, the steps that wait for a model already downloading, in words, which do not stop Start (each such `downloads` entry has `downloading`, its `job_id` and its `progress`; the run's steps on it wait for it to land, #5660); the page count and the cost estimate — and the first yes once given. Each run carries `done`, `of` and a `note`: "already done on N of M pages" for splitting, finding lines and reading (a page already split, already with lines, or already read by the step's own model), or that the card cannot tell and runs on every page.
+- `GET /api/recipes/project/start`: what Start would run — `runs`, in order, each a card: a shipped workflow (the steps it carries out, with the step's model as its override), a check run (`check`, its layer and checker) the project's synced folder (`export`, its folder and formats) or the project as a static site (`publish`, the folder its `where` names); `skipped`, each step Start cannot run with why (no model, a condition Start cannot honour yet, a cloud step in a project that keeps its pages here, a job no card runs yet); the steps only offered later (training); `refusals`, which stop Start (no recipe, a recipe that fails the check, nothing left to run, a model neither on this Mac nor downloading); `waiting`, the steps that wait for a model already downloading, in words, which do not stop Start (each such `downloads` entry has `downloading`, its `job_id` and its `progress`; the run's steps on it wait for it to land, #5660); the page count and the cost estimate — and the first yes once given. Each run carries `done`, `of` and a `note`: "already done on N of M pages" for splitting, finding lines and reading (a page already split, already with lines, or already read by the step's own model), or that the card cannot tell and runs on every page. `train_offers` lists, per trainable step, its ways and each way's `targets` (`place` this-mac, huggingface-jobs or cluster; `starts` and `params`; `held`, why a Hugging Face place stays an offer under a $0 spend cap, setup's `answers.hf_spend_cap_usd`; and for a cluster set up here, `first_run`, the attended first run's steps, with `starts` null), with the project's training `setting` (#5769) and its `noise_band` (`value`, `measured`, `basis`: the CER spread over 3 held-out splits an evaluation measured, else the ruled 0.5 CER points, #5692).
 - `POST /api/recipes/project/start`: the first yes. Records when Start was pressed and on which recipe version (`recipe/started.yaml`), audited and undoable, and runs the recipe over the project's material as one `run-a-recipe` job (#5390): the cards in order, each its own job beneath it (a workflow run, a check run, the synced folder's writes), a card starting only when the one before has finished, one that fails stopping those after it. `started.job_id` names the run. A step runs only on the pages that do not yet have its output, unless its id is in the optional body's `redo` (`{"redo": ["read"]}`). The cards include `Split Pages` (a photograph of an open notebook cut at its gutter; the steps after it read the cut pages) and, for a reading step pinned to a cloud or MLX model, `Read Lines (Kraken lines, vision model)`. `422` while the plan has refusals. After Start, on a purpose that runs by itself, each import runs the recipe over the pages it brought; on a "tools" purpose, nothing runs at import.
 - `POST /api/recipes/project/start/use-instead`: use an installed model instead of downloading the one the plan waits for (#5583, `source.onboard.auto.installed-model-first`). Body `{model, card}`: `model` as the plan's `downloads` entry names it, `card` one of that entry's `instead` (each with its name and, when not open, its `licence`, which the press accepts). Kept as a project-scope override, as a bake-off's Use This is, so proposing the recipe again keeps it. `422` for a choice the plan does not offer.
 - `POST /api/recipes/project/steps/use-candidate`: use any candidate `GET /api/recipes/candidates` lists as a step's reader (#5612, `source.find.app-card-actions`). Body `{step, card}`. Kept as a project-scope override by the path use-instead takes, through `project.save_setup` (audited, undoable); a model still to download is then a download the Start plan offers. Each candidate also carries `download` (`model.download` with its runtime and id, or null), `installed` and `runs_where` (`this_mac`, `own_machine`, `provider`). `422` for a card not found here, a step the recipe lacks, or a card that does not do the step's job.
@@ -1453,7 +1510,8 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/iiif/iiif/lines/{document_id}`: a page's working-pass lines as a W3C AnnotationPage on its IIIF canvas, each the counting reading's text, language and maker, at line granularity, in canvas pixels.
 - `POST /api/iiif/import`: start a job in Activity that imports a IIIF manifest or collection (an https URL; Presentation 2 or 3) into a folder bound to it, each canvas a page by reference; a source already bound imports into its folder, adding only new canvases. Returns the job id.
 - `POST /api/iiif/folders/{folder_id}/refresh`: start the same job for a folder bound to a IIIF source; 404 when the folder has no source.
-- `GET /api/recipes/derived?scripts=`: what setup works out instead of asking, each fact with where it came from: per script its direction, whether it may be vertical and its bundled font; this Mac's chip and memory; providers with a key (names only); places work can run.
+- `GET /api/recipes/derived?scripts=&period=`: what setup works out instead of asking, each fact with where it came from: per script its direction, whether it may be vertical and its bundled font, chosen from the script and the period (the saved period when none is given, and a font the project chose); this Mac's chip and memory; providers with a key (names only); places work can run.
+- `PUT /api/recipes/font`: the transcription font the project chose for a script (`{script, font}`), saved in the project setup through the audited `project.save_setup` action; a font that does not cover the script is refused.
 - `GET /api/recipes/routes?teacher=&local_reader=&pages=&sample_pages=`: what can be done with this many pages: the cloud, this-Mac and distil routes, each cost and time marked `measured`, `estimate` or `unknown`.
 - `GET /api/recipes/scripts?q=`: search ISO 15924 scripts by name or code (the Unicode Consortium's table, shipped with the engine).
 - `GET /api/settings/compute`: how hard local model work may push this Mac (`priority`: `balanced`, the default, keeps the Mac usable; `fast` drops the throttle; `background` yields to everything) and on which processor (`device`: `auto`, `cpu`, `gpu`), plus `effective`, what applies now (`FICHERO_COMPUTE_PRIORITY` / `FICHERO_COMPUTE_DEVICE` override the saved choice for a test run).

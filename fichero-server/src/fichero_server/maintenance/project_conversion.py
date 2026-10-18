@@ -453,7 +453,9 @@ def _convert_one_page(db: Any, document_id: str, run_id: str | None) -> str:
     )
     try:
         registry.invoke(db, "segment.convert_and_edit", {"document_id": document_id}, ctx)
-    except (AlreadyConverted, NothingToConvert):
+    except (AlreadyConverted, NothingToConvert) as exc:
+        # Said once per page, so a page whose lines never became segments shows why (#5758, page 1 on the M4).
+        logger.info("page %s: new result not converted (%s)", document_id, type(exc).__name__)
         return "skipped"
     return "converted"
 

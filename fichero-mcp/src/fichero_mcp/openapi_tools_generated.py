@@ -2263,6 +2263,7 @@ def fichero_documents_update(
     doc_type: Annotated[Optional[str], Field(description='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.')] = None,
     exclude_from_processing: Annotated[Optional[bool], Field(description='Leave it out of runs.')] = None,
     exclude_from_search: Annotated[Optional[bool], Field(description='Leave it out of search.')] = None,
+    expected_updated_at: Annotated[Optional[str], Field(description="The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348).")] = None,
     file_type: Annotated[Optional[str], Field(description='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.')] = None,
     is_flagged: Annotated[Optional[bool], Field(description='Flag or unflag it.')] = None,
     is_read: Annotated[Optional[bool], Field(description='Mark it read or unread.')] = None,
@@ -2283,7 +2284,7 @@ def fichero_documents_update(
     z_index: Annotated[Optional[int], Field(description='Its stacking order on the canvas.')] = None,
 ) -> Any:
     'Update Document\n\nUpdate an existing document.\n\nRoute: PUT /api/documents/{doc_id} (toolset `documents`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/documents/{doc_id}", json=_rt.body({"attributes": attributes, "doc_type": doc_type, "exclude_from_processing": exclude_from_processing, "exclude_from_search": exclude_from_search, "file_type": file_type, "is_flagged": is_flagged, "is_read": is_read, "is_starred": is_starred, "metadata": metadata, "name": name, "node_kind": node_kind, "page_content": page_content, "parent_id": parent_id, "path": path, "position_x": position_x, "position_y": position_y, "position_z": position_z, "prototype_key": prototype_key, "rotation_z": rotation_z, "scale": scale, "status": status, "z_index": z_index}))
+    return _rt.call("PUT", f"/api/documents/{doc_id}", json=_rt.body({"attributes": attributes, "doc_type": doc_type, "exclude_from_processing": exclude_from_processing, "exclude_from_search": exclude_from_search, "expected_updated_at": expected_updated_at, "file_type": file_type, "is_flagged": is_flagged, "is_read": is_read, "is_starred": is_starred, "metadata": metadata, "name": name, "node_kind": node_kind, "page_content": page_content, "parent_id": parent_id, "path": path, "position_x": position_x, "position_y": position_y, "position_z": position_z, "prototype_key": prototype_key, "rotation_z": rotation_z, "scale": scale, "status": status, "z_index": z_index}))
 
 
 def fichero_documents_get_ancestors(
@@ -3497,7 +3498,7 @@ def fichero_hpc_create_or_update_cluster(
     cluster_id: Annotated[Optional[str], Field(description='Cluster Id.')] = None,
     host_alias: Annotated[str, Field(description='Host Alias.')],
     name: Annotated[str, Field(description='Name.')],
-    partition: Annotated[Optional[str], Field(description='Partition. Default: "default".')] = None,
+    partition: Annotated[Optional[str], Field(description='Partition. Default: "".')] = None,
     remote_base_dir: Annotated[str, Field(description='Remote Base Dir.')],
     ssh_port: Annotated[Optional[int], Field(description='Ssh Port. Default: 22.')] = None,
     username: Annotated[str, Field(description='Username.')],
@@ -3522,6 +3523,14 @@ def fichero_hpc_get_cluster(
     return _rt.call("GET", f"/api/hpc/clusters/{cluster_id}")
 
 
+def fichero_hpc_check_cluster_live(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Check Cluster Live\n\nThe honest check (`compute.connect.check-really-checks`): hostname, storage, Apptainer, GPUs and fair share,\nrun live on the login node over the open connection. Sign in first; nothing is submitted.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/check (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/check")
+
+
 def fichero_hpc_dry_run_submit(
     *,
     cluster_id: Annotated[str, Field(description='Cluster Id')],
@@ -3536,12 +3545,68 @@ def fichero_hpc_dry_run_submit(
     return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/dry-run-submit", json=_rt.body({"input_files": input_files, "library_path": library_path, "run_id": run_id, "throttle": throttle, "workflow_id": workflow_id, "workflow_name": workflow_name}))
 
 
+def fichero_hpc_delete_cluster_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Delete Cluster Key\n\nRoute: DELETE /api/hpc/clusters/{cluster_id}/key (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("DELETE", f"/api/hpc/clusters/{cluster_id}/key")
+
+
+def fichero_hpc_put_cluster_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+    private_key: Annotated[str, Field(description='The key the app holds in its Keychain.')],
+) -> Any:
+    "Put Cluster Key\n\nThe app pushes the cluster's private key into the engine's own folder; it is never read back.\n\nRoute: PUT /api/hpc/clusters/{cluster_id}/key (toolset `hpc`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", f"/api/hpc/clusters/{cluster_id}/key", json=_rt.body({"private_key": private_key}))
+
+
+def fichero_hpc_make_cluster_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    "Make Cluster Key\n\nFichero makes the cluster's key pair (`compute.secret.fichero-makes-the-key`): the private half stays in the\nengine's folder, the public half is returned to be added in CCDB. 409 if a key is already made.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/key/make (toolset `hpc`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/key/make")
+
+
+def fichero_hpc_get_cluster_public_key(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    'Get Cluster Public Key\n\nThe public half again, to copy into CCDB; never the private one.\n\nRoute: GET /api/hpc/clusters/{cluster_id}/key/public (toolset `hpc`; reads).'
+    return _rt.call("GET", f"/api/hpc/clusters/{cluster_id}/key/public")
+
+
+def fichero_hpc_sign_in(
+    *,
+    cluster_id: Annotated[str, Field(description='Cluster Id')],
+) -> Any:
+    "Sign In\n\nOpen the one connection to the cluster. ssh's prompts come out of `GET /prompts` for the app to answer;\nthe call returns when the connection is open or the attempt ended (typed reason).\n\nRoute: POST /api/hpc/clusters/{cluster_id}/sign-in (toolset `hpc`; changes data, as the agent account when one exists)."
+    return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/sign-in")
+
+
 def fichero_hpc_test_cluster(
     *,
     cluster_id: Annotated[str, Field(description='Cluster Id')],
 ) -> Any:
     "Test Cluster\n\nDry-run Test-connection: build the ``sinfo`` SSH probe command.\n\nv0 is honest about not executing: it validates the stored config and\nreturns the exact argv that a later wiring step will run over the user's\nSSH connection (plan §6). This lets the settings UI show a Test button that\nsurfaces the real command today, then flips to live results when shell-out\nlands — no contract change.\n\nRoute: POST /api/hpc/clusters/{cluster_id}/test (toolset `hpc`; changes data, as the agent account when one exists)."
     return _rt.call("POST", f"/api/hpc/clusters/{cluster_id}/test")
+
+
+def fichero_hpc_list_prompts(
+) -> Any:
+    'List Prompts\n\nWhat a cluster login is waiting on (a second factor, a passphrase), for the app to show.\n\nRoute: GET /api/hpc/prompts (toolset `hpc`; reads).'
+    return _rt.call("GET", "/api/hpc/prompts")
+
+
+def fichero_hpc_answer_prompt(
+    *,
+    prompt_id: Annotated[str, Field(description='Prompt Id')],
+    answer: Annotated[str, Field(description='Passed to ssh and kept nowhere.')],
+) -> Any:
+    'Answer Prompt\n\nRoute: POST /api/hpc/prompts/{prompt_id} (toolset `hpc`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/hpc/prompts/{prompt_id}", json=_rt.body({"answer": answer}))
 
 
 def fichero_iiif_refresh_folder(
@@ -5106,6 +5171,14 @@ def fichero_machines_pair(
     return _rt.call("POST", "/api/machines/pair", json=_rt.body({"address": address, "code": code}))
 
 
+def fichero_machines_forget(
+    *,
+    machine_id: Annotated[str, Field(description='Machine Id')],
+) -> Any:
+    "Forget a paired machine: remove its saved token on this Mac\n\nOwner only. Removes this Mac's saved token; the device stays listed on the far Mac until it revokes it.\n\nRoute: DELETE /api/machines/{machine_id} (toolset `machines`; changes data, as the agent account when one exists)."
+    return _rt.call("DELETE", f"/api/machines/{machine_id}")
+
+
 def fichero_mcp_servers_list(
 ) -> Any:
     'List Mcp Servers\n\nList all MCP servers.\n\nRoute: GET /api/mcp-servers (toolset `mcp-servers`; reads).'
@@ -5695,9 +5768,11 @@ def fichero_pairing_pair_device(
     *,
     code: Annotated[str, Field(description='Code.')],
     device_name: Annotated[str, Field(description='Device Name.')],
+    password: Annotated[Optional[str], Field(description='Password.')] = None,
+    username: Annotated[Optional[str], Field(description='Username.')] = None,
 ) -> Any:
     'Pair Device\n\nExchange a valid one-time pairing code for a device token.\n\nRoute: POST /api/pair (toolset `pairing`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name}))
+    return _rt.call("POST", "/api/pair", json=_rt.body({"code": code, "device_name": device_name, "password": password, "username": username}))
 
 
 def fichero_pairing_create_code(
@@ -5733,6 +5808,12 @@ def fichero_pairing_enroll_device(
 ) -> Any:
     "Enroll Device\n\nExchange one owner's synced enrollment secret for a new device token.\n\nRoute: POST /api/pair/enroll (toolset `pairing`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/pair/enroll", json=_rt.body({"device_name": device_name, "enrollment_secret": enrollment_secret}))
+
+
+def fichero_pairing_detected_tailnet(
+) -> Any:
+    "Detected Tailnet\n\nThis Mac's `.ts.net` address when Tailscale is running, for the share sheet to offer (#5318).\n\nRoute: GET /api/pair/tailnet (toolset `pairing`; reads)."
+    return _rt.call("GET", "/api/pair/tailnet")
 
 
 def fichero_orchestration_list_policy_rules(
@@ -6069,19 +6150,22 @@ def fichero_providers_test_connection(
 def fichero_reading_at_scale_start(
     *,
     card: Annotated[str, Field(description='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.')],
-    flavor: Annotated[Optional[str], Field(description='Hugging Face hardware for each shard. Default: "t4-small".')] = None,
+    expected_pages_per_second: Annotated[Optional[float], Field(description="A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.")] = None,
+    flavor: Annotated[Optional[str], Field(description='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".')] = None,
     language: Annotated[Optional[str], Field(description='Language.')] = None,
     longest: Annotated[Optional[int], Field(description='Pixels on the longer side each image is read at. Default: 2000.')] = None,
     max_in_flight: Annotated[Optional[int], Field(description='Shards running at once. Default: 10.')] = None,
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages (or their IIIF addresses) to go to Hugging Face. Default: false.")] = None,
+    parent_job_id: Annotated[Optional[str], Field(description='The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`).')] = None,
     pass_name: Annotated[Optional[str], Field(description='Pass Name.')] = None,
     reader: Annotated[Optional[str], Field(description='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages to read: images here, or pages imported by reference over IIIF.')],
     shard_size: Annotated[Optional[int], Field(description='Shard Size. Default: 50.')] = None,
+    target: Annotated[Optional[str], Field(description='Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute). Default: "huggingface-jobs".')] = None,
     timeout: Annotated[Optional[str], Field(description='Each shard\'s time limit; always sent. Default: "2h".')] = None,
 ) -> Any:
     "Read pages on Hugging Face Jobs, many shards as one job\n\nQueue a `read-at-scale` job: the pages in scope (images here, or IIIF canvases by reference) are\npacked with the reader and Fichero's runner, sent to a private bucket of the person's Hugging Face\naccount, read in shards (at most `max_in_flight` at once), and each shard's PAGE files land as new\npasses as it finishes. Refused, with nothing queued, without `pages_may_leave` (403), without a\nHugging Face token (412), or with a reader that cannot run off this Mac (422).\n\nRoute: POST /api/reading-at-scale (toolset `reading-at-scale`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "timeout": timeout}))
+    return _rt.call("POST", "/api/reading-at-scale", json=_rt.body({"card": card, "expected_pages_per_second": expected_pages_per_second, "flavor": flavor, "language": language, "longest": longest, "max_in_flight": max_in_flight, "pages_may_leave": pages_may_leave, "parent_job_id": parent_job_id, "pass_name": pass_name, "reader": reader, "scope_ids": scope_ids, "shard_size": shard_size, "target": target, "timeout": timeout}))
 
 
 def fichero_reading_at_scale_job_status(
@@ -6098,6 +6182,14 @@ def fichero_reading_at_scale_cancel_job(
 ) -> Any:
     'Stop a reading run (cancels its running shards on Hugging Face)\n\nRoute: POST /api/reading-at-scale/jobs/{job_id}/cancel (toolset `reading-at-scale`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/reading-at-scale/jobs/{job_id}/cancel")
+
+
+def fichero_reading_at_scale_catch_up_job(
+    *,
+    job_id: Annotated[str, Field(description='Job Id')],
+) -> Any:
+    'Look at the far side now (after the Mac slept); a dropped run carries on\n\nRoute: POST /api/reading-at-scale/jobs/{job_id}/catch-up (toolset `reading-at-scale`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/reading-at-scale/jobs/{job_id}/catch-up")
 
 
 def fichero_reading_at_scale_resend_failed_shards(
@@ -6185,6 +6277,7 @@ def fichero_recipes_assemble(
     materials: Annotated[Optional[list[Any]], Field(description="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting.")] = None,
     pages: Annotated[Optional[int], Field(description='roughly how many pages. Default: 0.')] = None,
     period: Annotated[Optional[str], Field(description="when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)")] = None,
+    photographs: Annotated[Optional[bool], Field(description='the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)')] = None,
     place: Annotated[Optional[str], Field(description='where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)')] = None,
     purpose: Annotated[Optional[str], Field(description='a single purpose, as before 2026-10-05: read as a list of one.')] = None,
     purposes: Annotated[Optional[list[Any]], Field(description="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)")] = None,
@@ -6192,7 +6285,7 @@ def fichero_recipes_assemble(
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
     "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
-    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "hands": hands, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "period": period, "place": place, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
+    return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "hands": hands, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "period": period, "photographs": photographs, "place": place, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
 
 
 def fichero_recipes_model_candidates(
@@ -6221,10 +6314,20 @@ def fichero_recipes_check(
 
 def fichero_recipes_derived_facts(
     *,
+    period: Annotated[Optional[str], Field(description='Period')] = None,
     scripts: Annotated[Optional[str], Field(description='Scripts')] = None,
 ) -> Any:
     "Derived Facts\n\nWhat setup works out instead of asking, each fact saying where it came from\n(`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical\nand its bundled font; this Mac's chip and memory; which providers have a key; where work\ncan run.\n\nRoute: GET /api/recipes/derived (toolset `recipes`; reads)."
-    return _rt.call("GET", "/api/recipes/derived", params={"scripts": scripts})
+    return _rt.call("GET", "/api/recipes/derived", params={"period": period, "scripts": scripts})
+
+
+def fichero_recipes_choose_font(
+    *,
+    font: Annotated[Optional[str], Field(description='a bundled family; null returns to the derived font.')] = None,
+    script: Annotated[str, Field(description='ISO 15924 code of the script the font draws.')],
+) -> Any:
+    "Choose Font\n\nRemember a pane's font choice for a script in this library's setup answers (`answers.fonts`),\nor clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it\n(`layers.text.font-from-script-and-period`).\n\nRoute: PUT /api/recipes/font (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", "/api/recipes/font", json=_rt.body({"font": font, "script": script}))
 
 
 def fichero_recipes_list_hands(
@@ -7487,12 +7590,14 @@ def fichero_segments_update(
     kind: Annotated[Optional[str], Field(description="The segment's new kind.")] = None,
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it.')] = None,
     language: Annotated[Optional[str], Field(description="The segment's language, a BCP 47 tag.")] = None,
+    mark_state: Annotated[Optional[str], Field(description="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none.")] = None,
+    no_writing_model: Annotated[Optional[str], Field(description='The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).')] = None,
     parent_segment_id: Annotated[Optional[str], Field(description='The segment this one now sits inside.')] = None,
     script: Annotated[Optional[str], Field(description="The segment's script, an ISO 15924 code.")] = None,
     segment_id_2: Annotated[str, Field(description='The segment to change.')],
 ) -> Any:
     'Update Segment\n\nRoute: PUT /api/segments/{segment_id} (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
+    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "mark_state": mark_state, "no_writing_model": no_writing_model, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
 
 
 def fichero_segments_correct_line(
@@ -8222,7 +8327,7 @@ def fichero_training_start_reasons_ab(
     contenders: Annotated[list[Any], Field(description='The answer-only student, the reasoning students, the teacher and a cheap baseline.')],
     held_out_ids: Annotated[list[Any], Field(description='The held-out checked pages: no arm trained on them.')],
     language: Annotated[Optional[str], Field(description='Language.')] = None,
-    noise_band: Annotated[Optional[float], Field(description='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.')] = None,
+    noise_band: Annotated[Optional[float], Field(description="A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692).")] = None,
 ) -> Any:
     "Measure answer-only against reasoning students on held-out checked pages\n\nQueue a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): every contender reads the held-out\nchecked lines as it was trained (a reasoning student also with its reasoning off); one CER and WER\neach, seconds a line, and for a `why` student whether its errors fall where it said it was unsure. A\nreasoning student is adopted only beyond `noise_band`; the result is written on every Fichero-trained\ncontender's card either way. Through `training.measure_reasons_ab`; 422 without held-out pages.\n\nRoute: POST /api/training/reasons-ab (toolset `training`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/training/reasons-ab", json=_rt.body({"checked": checked, "contenders": contenders, "held_out_ids": held_out_ids, "language": language, "noise_band": noise_band}))
@@ -9175,8 +9280,16 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_hpc_create_or_update_cluster", "hpc", "POST", "/api/hpc/clusters", fichero_hpc_create_or_update_cluster),
     GeneratedTool("fichero_hpc_delete_cluster", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}", fichero_hpc_delete_cluster),
     GeneratedTool("fichero_hpc_get_cluster", "hpc", "GET", "/api/hpc/clusters/{cluster_id}", fichero_hpc_get_cluster),
+    GeneratedTool("fichero_hpc_check_cluster_live", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/check", fichero_hpc_check_cluster_live),
     GeneratedTool("fichero_hpc_dry_run_submit", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/dry-run-submit", fichero_hpc_dry_run_submit),
+    GeneratedTool("fichero_hpc_delete_cluster_key", "hpc", "DELETE", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_delete_cluster_key),
+    GeneratedTool("fichero_hpc_put_cluster_key", "hpc", "PUT", "/api/hpc/clusters/{cluster_id}/key", fichero_hpc_put_cluster_key),
+    GeneratedTool("fichero_hpc_make_cluster_key", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/key/make", fichero_hpc_make_cluster_key),
+    GeneratedTool("fichero_hpc_get_cluster_public_key", "hpc", "GET", "/api/hpc/clusters/{cluster_id}/key/public", fichero_hpc_get_cluster_public_key),
+    GeneratedTool("fichero_hpc_sign_in", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/sign-in", fichero_hpc_sign_in),
     GeneratedTool("fichero_hpc_test_cluster", "hpc", "POST", "/api/hpc/clusters/{cluster_id}/test", fichero_hpc_test_cluster),
+    GeneratedTool("fichero_hpc_list_prompts", "hpc", "GET", "/api/hpc/prompts", fichero_hpc_list_prompts),
+    GeneratedTool("fichero_hpc_answer_prompt", "hpc", "POST", "/api/hpc/prompts/{prompt_id}", fichero_hpc_answer_prompt),
     GeneratedTool("fichero_iiif_refresh_folder", "iiif", "POST", "/api/iiif/folders/{folder_id}/refresh", fichero_iiif_refresh_folder),
     GeneratedTool("fichero_iiif_get_document_image", "iiif", "GET", "/api/iiif/iiif/image/{document_id}", fichero_iiif_get_document_image),
     GeneratedTool("fichero_iiif_get_lines_annotation_page", "iiif", "GET", "/api/iiif/iiif/lines/{document_id}", fichero_iiif_get_lines_annotation_page),
@@ -9348,6 +9461,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_locations_resolve", "locations", "POST", "/api/locations/resolve", fichero_locations_resolve),
     GeneratedTool("fichero_machines_list", "machines", "GET", "/api/machines", fichero_machines_list),
     GeneratedTool("fichero_machines_pair", "machines", "POST", "/api/machines/pair", fichero_machines_pair),
+    GeneratedTool("fichero_machines_forget", "machines", "DELETE", "/api/machines/{machine_id}", fichero_machines_forget),
     GeneratedTool("fichero_mcp_servers_list", "mcp-servers", "GET", "/api/mcp-servers", fichero_mcp_servers_list),
     GeneratedTool("fichero_mcp_servers_create", "mcp-servers", "POST", "/api/mcp-servers", fichero_mcp_servers_create),
     GeneratedTool("fichero_mcp_servers_get_all_tools", "mcp-servers", "GET", "/api/mcp-servers/tools/all", fichero_mcp_servers_get_all_tools),
@@ -9411,6 +9525,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
     GeneratedTool("fichero_pairing_revoke_device", "pairing", "POST", "/api/pair/devices/{device_id}/revoke", fichero_pairing_revoke_device),
     GeneratedTool("fichero_pairing_enroll_device", "pairing", "POST", "/api/pair/enroll", fichero_pairing_enroll_device),
+    GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),
     GeneratedTool("fichero_orchestration_list_policy_rules", "orchestration", "GET", "/api/policies/orchestration", fichero_orchestration_list_policy_rules),
     GeneratedTool("fichero_orchestration_create_policy_rule", "orchestration", "POST", "/api/policies/orchestration", fichero_orchestration_create_policy_rule),
     GeneratedTool("fichero_orchestration_evaluate_policy", "orchestration", "POST", "/api/policies/orchestration/evaluate", fichero_orchestration_evaluate_policy),
@@ -9451,6 +9566,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_reading_at_scale_start", "reading-at-scale", "POST", "/api/reading-at-scale", fichero_reading_at_scale_start),
     GeneratedTool("fichero_reading_at_scale_job_status", "reading-at-scale", "GET", "/api/reading-at-scale/jobs/{job_id}", fichero_reading_at_scale_job_status),
     GeneratedTool("fichero_reading_at_scale_cancel_job", "reading-at-scale", "POST", "/api/reading-at-scale/jobs/{job_id}/cancel", fichero_reading_at_scale_cancel_job),
+    GeneratedTool("fichero_reading_at_scale_catch_up_job", "reading-at-scale", "POST", "/api/reading-at-scale/jobs/{job_id}/catch-up", fichero_reading_at_scale_catch_up_job),
     GeneratedTool("fichero_reading_at_scale_resend_failed_shards", "reading-at-scale", "POST", "/api/reading-at-scale/jobs/{job_id}/resend-failed", fichero_reading_at_scale_resend_failed_shards),
     GeneratedTool("fichero_reading_orders_create", "reading-orders", "POST", "/api/reading-orders", fichero_reading_orders_create),
     GeneratedTool("fichero_reading_orders_list_document", "reading-orders", "GET", "/api/reading-orders/document/{document_id}", fichero_reading_orders_list_document),
@@ -9462,6 +9578,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
+    GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
