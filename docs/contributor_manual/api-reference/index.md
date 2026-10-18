@@ -379,6 +379,25 @@ exposes them.
 - Response: `200` with the owner `user` and the registered `client`; the app then signs in by challenge. `401` for a
   missing or wrong secret, `403` over TCP, `409` once an owner exists, `422` for a key that is not P-256.
 
+### Sign in by key
+
+`POST /api/auth/challenge`
+
+- Purpose: start a passwordless sign-in for a registered client (`multiuser.sign-in-by-challenge`, #2403).
+- Request: `client_id`.
+- Response: `200` with `nonce`, `expires_in`, `expires_at` and `engine_id`. The nonce is single use and lives 60 s;
+  at most 5 stay outstanding per client. `401` ("sign-in refused") for an unknown or revoked client, with the same
+  body for both. Open: no session needed.
+
+`POST /api/auth/sign-in`
+
+- Purpose: finish the sign-in with the client's signature.
+- Request: `client_id`, `nonce`, and `signature`: base64 DER ECDSA-P256-SHA256 over
+  `"fichero-sign-in-v1" 0x00 engine_id 0x00 client_id 0x00 nonce 0x00 expires_at`. The engine rebuilds the message
+  from its own `engine_id`, so a signature made for another engine is refused.
+- Response: `200` with `session_token`, `user` and `client`. `401` ("sign-in refused") for any failure; `429` after
+  10 failures a minute for a live client. Open: no session needed.
+
 ### Sharing state
 
 `GET /api/pair/tailnet`
