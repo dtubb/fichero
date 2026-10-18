@@ -381,6 +381,18 @@ exposes them.
 - Response: `200` with `PairResponse`. The enrollment secret is not itself a
   device credential, so the returned token remains independently revocable.
 
+### First launch: the owner
+
+`POST /api/auth/first-run`
+
+- Purpose: make the library's owner and register their public key, once
+  (`multiuser.first-launch-creates-owner-and-key`, #2403). Local only: it works over the engine's Unix socket and
+  never over TCP.
+- Request: header `X-Fichero-Launch-Secret` (the per-launch secret the app handed the engine; the old bearer token is
+  refused) and a body with `display_name`, `public_key_pem` (a P-256 public key) and `client` (`name`, `host`).
+- Response: `200` with the owner `user` and the registered `client`; the app then signs in by challenge. `401` for a
+  missing or wrong secret, `403` over TCP, `409` once an owner exists, `422` for a key that is not P-256.
+
 ### Sharing state
 
 `GET /api/pair/tailnet`

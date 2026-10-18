@@ -49,3 +49,15 @@ def signed_in_client(harness, user, *, kind="device", name="Test client", host="
     assert signed.status_code == 200, signed.text
     token = signed.json()["session_token"]
     return SignedIn(token, {"Authorization": f"Bearer {token}"}, key, client)
+
+
+def uds_client(harness):
+    """A client whose requests arrive as if over the engine's Unix socket (the server stamps `fichero.transport`)."""
+    from fastapi.testclient import TestClient
+
+    async def over_the_socket(scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            scope["fichero.transport"] = "uds"
+        await harness.app(scope, receive, send)
+
+    return TestClient(over_the_socket, base_url="http://testserver", headers={**harness.lib_header, "Authorization": ""})
