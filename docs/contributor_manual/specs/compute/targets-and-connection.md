@@ -297,7 +297,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   subprocess (one ControlMaster connection, no new dependency; asyncssh ruled out), never from `~/.ssh`:
   the key is the one the app pushes into the engine's own state folder (`hpc-keys/<cluster>/id_ed25519`, mode
   0600, under `FICHERO_BASE_PATH`), passed with `-i` and `IdentitiesOnly`. That folder is inside the app's
-  container, so it works in the sandbox. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
+  container, so it works in the sandbox. The open connection's socket lives in `hpc-ssh` beside it (mode 0700, refused if a symlink or owned by another user); when that path is too long for a unix socket (about 100 bytes) it is a per-user `/tmp/fichero-ssh-<uid>` with the same checks, and a pre-created folder is refused, never used. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
   argv builder `remote_jobs.build_ssh_command`, which is also what "show me what will run" displays. Not yet:
   a check against the SSH fixture in the sandboxed build. *Test:* `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py`.
 - `compute.connect.second-factor-passes-through` — **[PARTIAL]** (#5238; ruled 2026-10-17) when the far side asks for a
@@ -307,8 +307,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   refusal, a time-out or a wrong answer ends the attempt with a typed failure naming the reason. The master is opened
   without `BatchMode` (which would forbid asking); every later command reuses it. *Test:*
   `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py` (a fake ssh with a keyboard-interactive step:
-  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). Not yet: the app's
-  sheet that shows the prompt (Swift).
+  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). The app's sheet is written (`HpcSignInService`, `HpcSignInSheet`, parse-checked, NOT built or run); nothing presents it yet because the Add-a-cluster row is not built.
   For a push factor (Duo), the app says to approve on the phone. The app says which credential is
   being asked for, because a wrong key passphrase falls back to the account password (seen on
   Rorqual, 2026-10-04).

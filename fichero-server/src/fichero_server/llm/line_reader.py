@@ -21,6 +21,7 @@ import re
 from PIL import Image, ImageDraw, ImageStat
 
 from fichero_server.llm.working_lines import NO_WRITING_KEY
+from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)
 from fichero_server.llm.read_guard import READ_FLAG_KEY, ReadFlag, check_read, finish_reason_of, is_truncation
 from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel, OCRGeometryResult
 
@@ -31,7 +32,6 @@ LINES_PER_CALL = 8
 #: run, by what its memory allows (`llm.model_call_slot`, `local_inference.local_reads_at_once`:
 #: one at a time for a 3B on an 8 GB Mac, #5537); a cloud model keeps these four.
 CONCURRENT_CALLS = 4
-_MAX_CROP_WIDTH = 1600
 #: What one line's reading may spend (#5534). A line of handwriting is a few dozen words; the
 #: step's own ceiling (8,192) let a student that loops on a line ("1000000000…") generate for
 #: ~100 s per line at 20 tokens/s, past the 60 s request timeout, and every retry ran it again.
@@ -45,29 +45,6 @@ PROMPT = (
     "writing (a ruler, graph paper, blank paper, a smudge), answer null for it. Reply with only "
     "a JSON array of {n} strings or nulls, nothing else."
 )
-
-
-def crop_line(page: Image.Image, polygon_px: list) -> Image.Image:
-    """The line's polygon bounds, padded by a third of its height, at most 1,600 px wide, with everything
-    outside the polygon (a sixth of its height beyond it, for ascenders) painted the crop's paper colour,
-    so no neighbouring line shows (#5445): the picture the teacher reads. A student is trained on exactly
-    this cut (`training.line_pairs`), so it learns the teacher's task and is asked it the same way."""
-    xs = [p[0] for p in polygon_px]
-    ys = [p[1] for p in polygon_px]
-    height = max(ys) - min(ys)
-    pad = height / 3
-    box = tuple(round(v) for v in (max(0, min(xs) - pad), max(0, min(ys) - pad),
-                                   min(page.width, max(xs) + pad), min(page.height, max(ys) + pad)))
-    crop = page.crop(box).convert("RGB")
-    mask = Image.new("L", crop.size, 0)
-    shape = [(x - box[0], y - box[1]) for x, y in polygon_px]
-    draw = ImageDraw.Draw(mask)
-    draw.polygon(shape, fill=255)
-    draw.line(shape + shape[:1], fill=255, width=max(1, round(pad)), joint="curve")
-    crop = Image.composite(crop, Image.new("RGB", crop.size, tuple(ImageStat.Stat(crop).median)), mask)
-    if crop.width > _MAX_CROP_WIDTH:
-        crop = crop.resize((_MAX_CROP_WIDTH, round(crop.height * _MAX_CROP_WIDTH / crop.width)))
-    return crop
 
 
 def prompt_for(n: int, language: str | None = None) -> str:
@@ -113,25 +90,6 @@ def cut_short_reading(raw: str) -> str | None:
     it), rather than dropped as a line with no writing."""
     text = re.sub(r'^\s*(?:```(?:json)?\s*)?\[?\s*"?', "", raw or "").strip()
     return None if _says_null(text) else text or None
-
-
-def _says_null(text: str) -> bool:
-    """The word null alone is a model's way of saying "no text", never the line's text (#5447)."""
-    return text.strip().strip("\"'").strip().lower() == "null"
-
-
-def parse_answer(raw: str, n: int) -> list[str | None] | None:
-    """The model's JSON array of n readings, or None when it is not exactly that."""
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", (raw or "").strip())
-    try:
-        answer = json.loads(text)
-    except ValueError:
-        return None
-    if not isinstance(answer, list) or len(answer) != n:
-        return None
-    if not all(a is None or isinstance(a, str) for a in answer):
-        return None
-    return [a.strip() if isinstance(a, str) and a.strip() and not _says_null(a) else None for a in answer]
 
 
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
