@@ -3926,7 +3926,7 @@ Finding models
   an abliterated chat model offers the first two and says one was left out.
 - `source.find.unknown-size-said` — **[OK]** (#5594; built 2026-10-08: `ModelCandidate.size`, null `size_gb`/`memory_gb` in `api/routes/system/recipes.py`; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`) a candidate whose size or memory its listing does
   not state says "size not stated" (`size`), and its `size_gb`/`memory_gb` are null, never 0.0 GB.
-- `source.find.reason-names-fit` — **[PARTIAL]** (#5594; built 2026-10-08: `discovery._hf_card`; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`. *Residue: a script is read only from the words Fraktur and Kuzushiji in a listing's tags or name; other scripts stay unstated.*) a found reader's reason says why it fits the
+- `source.find.reason-names-fit` — **[OK]** (#5594; built 2026-10-08: `discovery._hf_card`; pinned by `fichero-server/tests/unit/recipes/test_hub_discovery_quality_5594.py`. Built 2026-10-18: any script ISO 15924 names in one word is read from the listing's tags or name (`discovery.script_words`; "latin" is the language and is not read; a two-word script name is not; `test_a_script_named_in_a_listing_is_stated_whatever_the_script`, `test_latin_in_a_listing_is_the_language_not_the_script`).) a found reader's reason says why it fits the
   project in words: what it reads (OCR, handwriting, a script such as Fraktur where its tags or name say
   so), the project's languages it lists by name, and that it is an MLX build this Mac runs; never only
   "tagged de".
