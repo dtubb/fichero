@@ -116,7 +116,10 @@ def _get_vision_semaphore() -> asyncio.Semaphore:
     except RuntimeError:
         loop = None
     if _vision_fan_out_sem is None or _vision_fan_out_sem_loop is not loop:
-        _vision_fan_out_sem = asyncio.Semaphore(VISION_FAN_OUT_CONCURRENCY)
+        from fichero_server.llm.kraken_runtime import page_fan_out
+
+        # A local reader holds memory per page read at once: the cap follows what this Mac has (#5758).
+        _vision_fan_out_sem = asyncio.Semaphore(page_fan_out(VISION_FAN_OUT_CONCURRENCY))
         _vision_fan_out_sem_loop = loop
     return _vision_fan_out_sem
 

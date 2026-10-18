@@ -69,6 +69,8 @@ class RunAccount(BaseModel):
     interrupted: bool = False
     estimate_seconds_left: float | None = Field(None, description="At this run's own pace so far; null "
                                                 "until a page is done or when nothing is left.")
+    # Physical FOOTPRINT (Activity Monitor's Memory): resident + compressed + swapped pages, so it can exceed the Mac's
+    # RAM when the Mac swapped, and is larger than the RSS a sampler reads (#5758).
     engine_peak_memory_bytes: int | None = None
     model_server_peak_memory_bytes: int | None = None
     offer: RunOffer | None = None

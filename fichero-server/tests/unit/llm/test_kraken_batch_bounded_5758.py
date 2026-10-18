@@ -36,3 +36,27 @@ def test_the_reader_config_carries_the_bound_when_kraken_takes_one(monkeypatch):
     config = kraken_runtime._reader_config(_Config)
     assert config.batch_size == kraken_runtime.reader_batch_size() < 64
     assert config.num_line_workers == 0
+
+
+def test_pages_read_at_once_follow_the_memory_and_never_exceed_the_cap(monkeypatch):
+    sizes = {}
+    for gb in (3, 6, 16, 64):
+        monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda gb=gb: gb * GB)
+        sizes[gb] = kraken_runtime.page_fan_out(4)
+    assert sizes[3] == 1 and sizes[3] <= sizes[6] < sizes[64] == 4, sizes
+    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: None)
+    assert kraken_runtime.page_fan_out(4) == 1
+
+
+def test_the_local_fan_out_semaphore_takes_the_memory_bound(monkeypatch):
+    import asyncio
+
+    from fichero_server.workflows import builder
+
+    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: 3 * GB)
+
+    async def size():
+        return builder._get_vision_semaphore()._value
+
+    monkeypatch.setattr(builder, "_vision_fan_out_sem", None)
+    assert asyncio.run(size()) == 1
