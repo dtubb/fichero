@@ -51300,6 +51300,11 @@
             "format": "date-time",
             "nullable": true,
             "title": "Failed At"
+          },
+          "started_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started By"
           }
         },
         "type": "object",
