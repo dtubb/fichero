@@ -37,7 +37,9 @@ async def test_a_bad_server_error_shows_on_the_list(monkeypatch):
 
     await servers._resync_registry()  # the save that asked still succeeds: nothing raises
 
-    assert servers._server_to_response(_server(True)).last_load_error == "RuntimeError: server 'bad' would not start"
+    shown = servers._server_to_response(_server(True)).last_load_error
+    assert shown == "RuntimeError: the tools could not be loaded; see the engine log"
+    assert "would not start" not in shown  # the error's own text may carry a token: log only
     assert servers._server_to_response(_server(False)).last_load_error is None
 
 

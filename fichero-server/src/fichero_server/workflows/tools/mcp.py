@@ -32,9 +32,10 @@ last_load_error: str | None = None
 
 
 def note_load_result(exc: BaseException | None) -> None:
-    """Record how the last load of MCP tools went: the error, or None when it worked."""
+    """Record how the last load of MCP tools went: the error's type and a fixed sentence, or None when it worked.
+    The error's own text stays in the engine log: it can carry a token from a server's URL or headers."""
     global last_load_error
-    last_load_error = None if exc is None else f"{type(exc).__name__}: {exc}"
+    last_load_error = None if exc is None else f"{type(exc).__name__}: the tools could not be loaded; see the engine log"
 
 
 async def load_mcp_tools_into_registry() -> int:
