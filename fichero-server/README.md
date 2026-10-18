@@ -27,7 +27,7 @@ This file keeps only what is specific to the engine: its layout and how it works
 | `pyproject.toml` | Package + Briefcase config (app key `fichero_server`) |
 
 The CLI and MCP server are separate peer packages — `fichero-cli/` (console
-script `fichero`) and `fichero-mcp/` (`fichero-mcp`, `fichero-mcp-simple`) —
+script `fichero`) and `fichero-mcp/` (`fichero-mcp`) —
 each a thin client over this server's HTTP surface with its own README and
 tests.
 
@@ -126,7 +126,7 @@ workflow, see [CONTRIBUTING.md](../CONTRIBUTING.md) and
 
 The MCP server lives in the peer package `fichero-mcp/` (`fichero_mcp`), which
 exposes engine capabilities to MCP-aware agents over the same HTTP surface
-(`fichero-mcp` full, `fichero-mcp-simple` minimal). The `src/fichero_server/mcp/`
+(`fichero-mcp`). The `src/fichero_server/mcp/`
 module here is the server-side integration seam, not the MCP entry point.
 
 ## Keep the Swift client in sync

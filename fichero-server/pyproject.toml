@@ -488,7 +488,7 @@ dev = [
 ]
 
 # #4227: console entry points moved with their code — `fichero` is declared by
-# fichero-cli/pyproject.toml, `fichero-mcp`/`fichero-mcp-simple` by
+# fichero-cli/pyproject.toml, `fichero-mcp` by
 # fichero-mcp/pyproject.toml. The server package ships no CLI.
 
 [tool.pytest.ini_options]

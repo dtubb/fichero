@@ -534,7 +534,7 @@ The student lives in the project and can be made global (`compute.model.lives-in
 | Backend (pytest) | y | schema additions; entries as nodes; one unit through the real runner with a stub model landing cited values; not-found; checks; review actions and undo; filters; CSV and Parquet with sources; annotations | to be written: `test_structured_data_to_spec.py` |
 | Backend, known answer | y | a synthetic box of attestation papers and one muster roll with a known table; column accuracy and span exactness reported | to be written: `test_structured_known_answer.py` |
 | Load (#4634) | y | dataset query with sources at 41k and 100k rows, twenty fields, timed | to be written: `test_structured_table_scale.py` |
-| MCP / CLI | y | the generated tools and commands for run, review and export | `fichero-mcp/tests/test_mcp_full.py`, `fichero-cli/tests/` |
+| MCP / CLI | y | the generated tools and commands for run, review and export | `fichero-mcp/tests/test_mcp_generated.py`, `fichero-cli/tests/` |
 | Swift unit | y | cell state, keyboard review model, column problems | to be written: `StructuredReviewTests.swift` |
 | Click-around (Mac) | y | select a cell → words lit → Return accepts → undo | `fichero/Tests/UI/` |
 

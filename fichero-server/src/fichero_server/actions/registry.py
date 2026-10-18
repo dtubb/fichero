@@ -201,6 +201,10 @@ class ActionRegistration:
     # as overwriting it (`safety.undo.refuses-when-changed`). Set only where the inverse has been read and does
     # that: `document.write_extracted_date` passes `expected` and keeps a date changed since (#5597).
     undo_keeps_later_work: bool = False
+    # Only a library OWNER may run this action (`sharing.owner-only-asserted-in-the-action`, #5766). Asserted here,
+    # in `invoke`, before `execute`, so every door (`POST /api/actions/invoke`, MCP, chat, a route) is held to it
+    # with library WRITE alone never enough. The loopback owner (bootstrap) passes. Declared per action.
+    owner_only: bool = False
 
 
 class ActionNotFoundError(KeyError):
@@ -269,6 +273,8 @@ class ActionRegistry:
 
         from fichero_server.security import authz
 
+        if reg.owner_only and not ctx.is_bootstrap:
+            authz.require_owner(ctx.actor, ctx.library_path)  # raises AuthorizationError: nothing has run yet
         target_ids = authz.target_ids_from_params(params)
         if not ctx.is_bootstrap:
             if not target_ids:
@@ -442,6 +448,7 @@ def action(
     read_only: bool = False,
     redo_via_own_invert: bool = False,
     undo_keeps_later_work: bool = False,
+    owner_only: bool = False,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -468,6 +475,7 @@ def action(
                 read_only=read_only,
                 redo_via_own_invert=redo_via_own_invert,
                 undo_keeps_later_work=undo_keeps_later_work,
+                owner_only=owner_only,
             )
         )
         return fn

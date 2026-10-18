@@ -528,7 +528,6 @@ nav:
           - KG Endpoints Reference: contributor_manual/architecture/fichero-server/KG_ENDPOINTS.md
           - Capture Sessions & Resumable Upload Contract: contributor_manual/architecture/fichero-server/capture_sessions_resumable_upload_contract.md
           - Backend Key Files: contributor_manual/architecture/fichero-server/key_files.md
-          - Simplified MCP Interface: contributor_manual/architecture/fichero-server/mcp_simple_interface.md
           - Backend Dev Workflow Checklist: contributor_manual/architecture/fichero-server/workflow_checklist.md
           - Startup, Transport & UX — Fabel Review (2026-07-20): contributor_manual/architecture/fichero/2026-07-20-startup-transport-ux-fabel-review.md
           - HANDOFF 2026-07-21 (Transport → Engine Hygiene → Login): contributor_manual/architecture/fichero/HANDOFF-2026-07-21-transport-hygiene-login.md

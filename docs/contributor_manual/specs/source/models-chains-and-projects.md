@@ -2607,7 +2607,7 @@ Jobs and chains
   and the page's text stays what the chosen reading was. *Test:* the correcting step does not write the page text
   by default; with the corrected readings on the lines, the page's text is the lines' text.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
-- `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
+- `source.job.find-statements` — **[PARTIAL]** (#4949, #5637; built: spaCy triples and an installed text model as candidates, `assemble.py`, pinned by `test_find_statements_candidates_5637.py`; not built: Apple Intelligence and cloud text models as bake-off candidates) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
 - `source.job.find-statements.parser-tier` — **[PARTIAL]** (#5637) a free tier for Find statements: the bundled
   spaCy pipelines (`es_core_news_sm`, `en_core_web_sm`) are offered for the step (`spacy:svo/<pipeline>`, the
@@ -2910,7 +2910,7 @@ Profiles (the defaults section of a recipe)
   website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
   site export (`export_service.export_eleventy_site`), into the folder its `where` setting names on the
   engine's disk, as a card of a started recipe; publishing again rewrites that site in place. A step that
-  names no folder is skipped and says so. What the site shows of the checks is `source.check.on-the-site`.
+  names no folder is skipped and says so. No purpose turns publishing on; a project adds the `publish` layer later (`POST /api/recipes/project/layers`, `source.onboard.add-layer`), which puts the step last in the recipe, tested in `fichero-server/tests/unit/recipes/test_publish_purpose_turns_it_on.py`. What the site shows of the checks is `source.check.on-the-site`.
 - `source.profile.is-a-prototype` — **[GAP]** (#4951) a recipe's profile is stored as a prototype
   the project inherits from; the followed recipe is the parent, the project's overrides its own
   values; any value can be overridden and shows where it came from.
@@ -3263,7 +3263,7 @@ Setup
 - `source.onboard.ready.will-not-run-when-chosen` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeSetupStore.skippedStepsOfChosenStages`; and an unchosen stage's jobs are taken out of the answers. a step that will not run is
   listed on Ready only when its stage was chosen. *Test:* pure Swift, an unchosen stage's refusal is not
   listed.
-- `source.onboard.models.chooser-per-step` — **[BROKEN]** (#5668) a step's model candidates and online
+- `source.onboard.models.chooser-per-step` — **[PARTIAL]** (#5668; the engine is pinned by `test_model_chooser_per_step_5668.py`; the Swift search label naming the step is unseen) a step's model candidates and online
   search are that step's own: Find statements never lists page readers or says it searched for readers.
   *Test:* engine, the candidates for `find-statements` carry that job; pure Swift, the search label
   names the step.
@@ -3508,7 +3508,7 @@ Setup
   are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
   coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
   card id.
-- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; SUPERSEDED 2026-10-17, the code still follows it until the fallback-chain change lands; replaced by `source.recipe.candidates-fallback-chain` and
+- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; RETIRED 2026-10-17, the code changed in 4ffd86b01 and `assemble._choose` now ranks every passing candidate best first; replaced by `source.recipe.candidates-fallback-chain` and
   `source.recipe.placement-by-scale` below, ruled by the maintainer) the bulk reader is the BEST MEASURED candidate, not the cheapest local one.
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
   one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
@@ -4498,8 +4498,8 @@ Each is described in the paragraph named; the id lets a test cite it.
   model's lines, and the readiness count matches what it trains on. *Offer built (#5700, m-recipes-r3): the line reader's
   first way is "Fine-tune a Kraken reader on the lines you corrected" (teacher `person`, this Mac or Hugging Face Jobs),
   the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
-  lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). Needs the set's
-  teacher `person` (51d6dde8e, m-acenet) on integration to run.*
+  lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). The set's teacher `person` is built and pinned by
+  `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py`.*
 - `source.train.noise-band-per-project` — **[OK]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
   the best reader's pages, from 15 read pages up (`training.evaluation.noise_band`, `NOISE_MIN_PAGES`), the project keeps it (`recipe/noise-band.yaml`,
