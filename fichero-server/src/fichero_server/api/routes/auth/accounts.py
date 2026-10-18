@@ -20,7 +20,7 @@ import sys
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -955,7 +955,10 @@ def _is_p256_public_key(pem: str) -> bool:
 
 @auth_router.post("/first-run", response_model=FirstRunResponse)
 def first_run(
-    body: FirstRunRequest, request: Request, app_db: AppDatabase = Depends(get_app_database)
+    body: FirstRunRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+    x_fichero_launch_secret: str | None = Header(default=None, alias="X-Fichero-Launch-Secret"),
 ) -> FirstRunResponse:
     """Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).
 
@@ -963,7 +966,7 @@ def first_run(
     not the launch secret. The owner gets an unusable password: they sign in by their key."""
     if request.scope.get("fichero.transport") != "uds":
         raise HTTPException(status_code=403, detail="first-run is local only")
-    if not launch_secret.matches(request.headers.get("X-Fichero-Launch-Secret")):
+    if not launch_secret.matches(x_fichero_launch_secret):
         raise HTTPException(status_code=401, detail="first-run refused")
     if not _is_p256_public_key(body.public_key_pem):
         raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
