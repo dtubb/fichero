@@ -333,7 +333,7 @@ def test_an_empty_or_list_answer_reaches_the_agent_as_one_json_block(monkeypatch
 
 
 def test_only_one_server_module():
-    """`research.mcp-three-servers-not-collapsed` (#2896): `server.py` is the one MCP server and its tools are
+    """`research.mcp-one-generated-server` (#2896): `server.py` is the one MCP server and its tools are
     generated from the contract. The hand-maintained `full.py`, `simple.py` and the tool lists behind them are gone,
     so a route is never described by two tool sets that drift apart."""
     import fichero_mcp

@@ -243,7 +243,7 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   own window on the Mac. Pinned by `UIVerbsTests` (a test window's PNG at its pixel size; a pane's
   crop is that pane's pixels; a pane not shown is refused, naming those shown). Still partial: the
   live panes' recorded frames are not yet checked in the running app.
-- `openapi.ui.agents-connect-as-accounts` **[GAP]** (#5453) with Multi-user on, an agent connects to
+- `openapi.ui.agents-connect-as-accounts` **[GAP]** (#5453; the owner adds the agent account in Settings › Sharing › Accounts, and `fichero auth login agent` keeps its session per engine, `sharing.cli-session-per-engine`) with Multi-user on, an agent connects to
   the engine as its own account, which the owner adds in Settings' accounts list like a person's;
   its MCP writes are audited under that account and its device. No new switch: sharing and
   Multi-user stay the only two. With Multi-user off the MCP acts as the owner, labelled
