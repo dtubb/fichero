@@ -379,6 +379,13 @@ exposes them.
 - Response: `200` with the owner `user` and the registered `client`; the app then signs in by challenge. `401` for a
   missing or wrong secret, `403` over TCP, `409` once an owner exists, `422` for a key that is not P-256.
 
+`POST /api/auth/migrate-owner`
+
+- Purpose: give an existing owner row its first key, once (`multiuser.migrate-owner`, #2403). Same guards and body as
+  first-run; the key goes to the owner row only.
+- Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
+  over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
+
 ### Sign in by key
 
 `POST /api/auth/challenge`

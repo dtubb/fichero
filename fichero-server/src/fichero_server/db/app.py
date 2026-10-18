@@ -148,6 +148,7 @@ class AppDatabase:
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
+        self.migrate_device_tokens_to_clients()
 
     def commit(self) -> None:
         """Commit pending app-wide database work through the typed wrapper."""
@@ -1813,6 +1814,32 @@ class AppDatabase:
             self.conn.commit()
         return client
 
+    def user_has_key(self, user_id: str) -> bool:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT 1 FROM clients WHERE user_id = ? AND public_key_pem <> '' AND revoked_at IS NULL LIMIT 1",
+                [user_id],
+            ).fetchone()
+        return row is not None
+
+    def migrate_device_tokens_to_clients(self) -> int:
+        """Give each live paired device a keyless `device` client with the device's id (multiuser.migrate-device-tokens).
+
+        The old token keeps working; nothing can sign in as the client until it registers a key. Idempotent."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, user_id, name, created_at FROM devices "
+                "WHERE revoked = FALSE AND id NOT IN (SELECT id FROM clients)"
+            ).fetchall()
+            for device_id, user_id, name, created_at in rows:
+                self.conn.execute(
+                    "INSERT INTO clients (id, user_id, kind, name, host, public_key_pem, created_at) "
+                    "VALUES (?, ?, 'device', ?, '', '', ?)",
+                    [device_id, user_id, name, created_at],
+                )
+            self.conn.commit()
+        return len(rows)
+
     def get_client(self, client_id: str) -> AccountClient | None:
         with self._lock:
             row = self.conn.execute(
@@ -2012,6 +2039,8 @@ class AppDatabase:
             for one in ids:
                 self.conn.execute("UPDATE devices SET revoked = TRUE WHERE id = ?", [one])
             self.conn.commit()
+            for one in ids:
+                self.revoke_client(one)
         return self.get_device(device_id)
 
     def renew_device(
