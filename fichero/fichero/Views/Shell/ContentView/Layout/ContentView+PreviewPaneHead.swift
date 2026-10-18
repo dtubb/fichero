@@ -144,6 +144,7 @@ extension ContentView {
             canSplit: previewPaneCanSplit,
             switchableRoots: PaneCrumb.otherLibraries(than: windowState.libraryId)
         )
+        .environment(\.offersTranscriptionFont, true)
     }
 
     /// #4705 increment 2: routes through `PaneSurface.allowsSplit`, the ONE

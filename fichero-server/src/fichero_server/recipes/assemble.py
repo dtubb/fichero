@@ -290,6 +290,12 @@ _CONSTRAINTS = ("no-model-for-job", "no-model-for-script", "no-model-for-languag
                 "not-enough-memory")
 
 
+def needs_permission(card: Card, a: Answers) -> bool:
+    """A cloud candidate the project may not use yet: shown greyed, "needs permission", until the person has said
+    pages may leave this Mac (`source.onboard.pages-may-leave`, #5768)."""
+    return not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed
+
+
 def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str] | None:
     """(code, raw reason) for why `card` cannot do `job` for this project, or None if it may."""
     if job not in card.jobs:
@@ -311,7 +317,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
     # A period is never a refusal: another period, or none stated, only lowers the rank (`_period_rank`, ruled 2026-10-17).
     if not card.open_licence:
         return "licence-not-accepted", _licence_words(card.licence)
-    if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
+    if needs_permission(card, a):
         return "cloud-not-allowed", "it runs in the cloud and this project keeps pages on this Mac"
     if card.local and card.memory_gb > a.mac_memory_gb - MEMORY_HEADROOM_GB:
         return "not-enough-memory", "this Mac does not have the memory to run it alongside macOS and Fichero"

@@ -15,4 +15,13 @@ struct PaneEmptyStateTests {
         // The middle pane is Items (ruled 2026-10-10, 6e5bcc488): the hint names it by its one constant.
         #expect(PaneEmptyState.reader.hint.contains(ItemsPane.name))
     }
+
+    @Test("panes.empty-state.blank: neither empty-state view draws anything a person reads")
+    func emptyPanesAreBlank() throws {
+        for file in ["Views/Shell/PaneSurface.swift", "Views/Shell/PaneEmptyState.swift"] {
+            let source = try AppSource.code(file)
+            #expect(!source.contains("ContentUnavailableView"), "\(file)")
+            #expect(!source.contains("Label(\"Nothing to Show\""), "\(file)")
+        }
+    }
 }

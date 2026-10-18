@@ -254,7 +254,7 @@ final class DocumentOverlayView: NSView {
                 // A theme-matched plate so the word reads, translucent so the scan stays checkable.
                 NSColor.textBackgroundColor.withAlphaComponent(InlineWords.plateAlpha).setFill()
                 path.fill()
-                InlineWords.draw(box.text, direction: box.direction, in: rect)
+                InlineWords.draw(box.text, direction: box.direction, in: rect, family: overlay.transcriptionFamily)
             }
             colour(OCRBoxConfidence.strokeOpacity(box.confidence)).setStroke()
             path.lineWidth = width

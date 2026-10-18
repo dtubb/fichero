@@ -163,7 +163,7 @@
      {
       "method": "kraken",
       "how": "distil",
-      "says": "Train a Kraken reader of your own on the lines your reader read",
+      "says": "Train a reader on the lines you have corrected",
       "targets": [
        {
         "place": "this-mac",
@@ -178,7 +178,7 @@
      {
       "method": "mlx-vision-lora",
       "how": "distil",
-      "says": "Distil a vision model's readings into a small MLX model (LoRA)",
+      "says": "Make a small, fast reader from the best model's readings",
       "targets": [],
       "available": false,
       "why": "this project keeps its pages on this Mac, and this training runs only on Hugging Face Jobs"

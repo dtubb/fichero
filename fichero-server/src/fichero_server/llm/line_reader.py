@@ -14,11 +14,10 @@ import asyncio
 import base64
 import dataclasses
 import io
-import json
 import logging
 import re
 
-from PIL import Image, ImageDraw, ImageStat
+from PIL import Image
 
 from fichero_server.llm.working_lines import NO_WRITING_KEY
 from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)
@@ -149,7 +148,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             if n in looked and box.metadata.get("segment_id"):
                 no_writing.append(box.metadata["segment_id"])
             # Every line left without a reading, and why (#5758): the reader said no writing, or never answered.
-            logger.info("line left without a reading: %s on %s — %s", box.metadata.get("segment_id"), image_path,
+            logger.debug("line left without a reading: %s on %s — %s", box.metadata.get("segment_id"), image_path,
                         "the reader found no writing" if n in looked else "the reader gave no answer for it")
             continue
         texts.append(text)
@@ -171,6 +170,8 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             "source": "apple-lines" if apple else "kraken-lines+vision", "metadata": metadata,
         }))
         cursor += len(text) + 1
+    if no_writing and not texts:
+        no_writing = []  # every line came back empty: a failed read, not 'no writing' (review 64); read again
     read = len(boxes) - len(regions)
     logger.info("line reader %s: %d lines found, %d read, %d without writing, %d flagged",
                 config.model, len(found), read, len(found) - read, len(flagged))

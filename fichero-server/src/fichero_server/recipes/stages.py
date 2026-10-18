@@ -63,7 +63,7 @@ STAGES: tuple[Stage, ...] = (
           "“Juan de la Cruz vende una casa” read from its line, ready to correct.",
           (Question("read_how", "Read line by line or the page at once?", "one",
                     (("lines", "Line by line"), ("page", "The page at once")), default="lines"),
-           Question("correct_with_a_second_model", "Correct with a second model?", "yes-no", default=False))),
+           Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False))),
     Stage("normalise", "Normalise", ("translate-transliterate-normalise",),
           "Writes the text again in the same language at another level: as written (a diplomatic reading), "
           "abbreviations expanded, spelling normalised, or modernised.",
@@ -90,7 +90,7 @@ STAGES: tuple[Stage, ...] = (
                     (("people", "People"), ("places", "Places"), ("organisations", "Organisations"), ("dates", "Dates"),
                      ("things", "Things (objects, goods)"), ("events", "Events")),
                     default=["people", "places", "organisations"], read_by_a_step=True),
-           Question("gazetteer", "Which gazetteer?", "one",
+           Question("gazetteer", "Which place list? GeoNames (worldwide, modern names) · Wikidata · My own list", "one",
                     (("geonames", "GeoNames"), ("wikidata", "Wikidata"), ("project", "The project's own list")),
                     default="geonames", read_by_a_step=True)),
           needs=("read",)),

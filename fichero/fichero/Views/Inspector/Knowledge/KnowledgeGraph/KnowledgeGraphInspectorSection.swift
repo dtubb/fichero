@@ -172,8 +172,12 @@ struct KnowledgeGraphInspectorSection: View {
                     .padding(.top, 8)
             }
             kgContent
-            Divider()
-            kgMiniToolbar
+            // Nothing to prune, filter or count: no bar (#5508). Kept while a kind filter is
+            // active, since the filter menu lives here and an empty list may be its doing.
+            if !(grouped.isEmpty && hiddenKindsCSV.isEmpty) {
+                Divider()
+                kgMiniToolbar
+            }
         }
         .task(id: documentId) { await loadStatements() }
         // Resync when any claim mutates anywhere — ClaimStore bumps its

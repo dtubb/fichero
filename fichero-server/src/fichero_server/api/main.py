@@ -1085,15 +1085,25 @@ async def lifespan(app: FastAPI):
                 break
             await asyncio.sleep(remaining)
         await asyncio.get_running_loop().run_in_executor(None, _warm_workflow_stack)
-        # The enabled MCP servers' tools join the workflow registry (`mcp.client.tools-survive-a-restart`, #5760),
-        # after the launch is ready so a slow server never slows it; it never raises.
-        from fichero_server.api.routes.mcp.servers import sync_mcp_tools
-
-        await sync_mcp_tools()
         # The embedding model is NOT warmed (#5283, ruled 2026-10-01): it is about 1.5 GB, and it
         # loads on the first embed or semantic search and is released once idle.
 
     warm_started = asyncio.create_task(_warm_after_ready())
+
+    async def _load_mcp_tools() -> None:
+        """An enabled MCP server's tools are in the workflow registry from start (#5760), off the bind path."""
+        try:
+            from fichero_server.workflows.tools.mcp import note_load_result, sync_mcp_tools_from_db
+
+            await sync_mcp_tools_from_db()
+            note_load_result(None)
+        except Exception as exc:
+            from fichero_server.workflows.tools.mcp import note_load_result
+
+            note_load_result(exc)
+            logger.warning("MCP tools did not load at start: %r", exc)
+
+    mcp_tools_started = asyncio.create_task(_load_mcp_tools())
 
     _api_stamp("lifespan pre-yield complete")
     yield
@@ -1137,6 +1147,7 @@ async def lifespan(app: FastAPI):
     # `_first_registry_200_signal.wait()` (a short-lived process that never
     # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
     # would hang shutdown on traffic that may never come.
+    mcp_tools_started.cancel()
     warm_started.cancel()
     with suppress(asyncio.CancelledError):
         await warm_started

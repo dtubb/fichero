@@ -21,10 +21,11 @@ struct ImagePreviewMenuCommands: View {
 
     // MARK: - Storage
 
-    @AppStorage("imagePreview.magnifierEnabled") private var magnifierEnabled = false
-    @AppStorage("imagePreview.loupeEnabled") private var loupeEnabled = false
-    @AppStorage("imagePreview.magnifierLocked") private var magnifierLocked = false
-    @AppStorage("imagePreview.loupeLocked") private var loupeLocked = false
+    // On/off and lock are the FOCUSED pane's own (#5015); sizes stay app-wide.
+    private var magnifierEnabled: Bool { zoomActions?.magnifier?.isOn ?? false }
+    private var loupeEnabled: Bool { zoomActions?.loupe?.isOn ?? false }
+    private var magnifierLocked: Bool { zoomActions?.magnifier?.isLocked ?? false }
+    private var loupeLocked: Bool { zoomActions?.loupe?.isLocked ?? false }
     @AppStorage("imagePreview.loupeMagnification") private var loupeMagnification: Double = 3.0
     @AppStorage("imagePreview.loupeSize") private var loupeSize: Double = 150.0
     @AppStorage("imagePreview.panelMagnification") private var panelMagnification: Double = 4.0
@@ -94,7 +95,7 @@ struct ImagePreviewMenuCommands: View {
     private var magnifierSection: some View {
         // Magnifier panel toggle (⌘⇧M)
         Button {
-            magnifierEnabled.toggle()
+            zoomActions?.magnifier?.toggle()
         } label: {
             HStack {
                 if magnifierEnabled {
@@ -108,7 +109,7 @@ struct ImagePreviewMenuCommands: View {
 
         // Lock magnifier (⌘⌥M — freezes focus point at last location)
         Button {
-            magnifierLocked.toggle()
+            zoomActions?.magnifier?.toggleLock()
         } label: {
             HStack {
                 if magnifierLocked {
@@ -141,7 +142,7 @@ struct ImagePreviewMenuCommands: View {
     private var loupeSection: some View {
         // Loupe toggle (L for Loupe)
         Button {
-            loupeEnabled.toggle()
+            zoomActions?.loupe?.toggle()
         } label: {
             HStack {
                 if loupeEnabled {
@@ -155,7 +156,7 @@ struct ImagePreviewMenuCommands: View {
 
         // Lock loupe toggle (Shift + toggle shortcut)
         Button {
-            loupeLocked.toggle()
+            zoomActions?.loupe?.toggleLock()
         } label: {
             HStack {
                 if loupeLocked {
