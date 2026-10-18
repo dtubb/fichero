@@ -48,11 +48,11 @@ final class RemoteRunService {
               case .ok(let ok) = response, let body = try? ok.body.json
         else { return }
         run = Run(
-            target: body.target ?? "", farState: body.farState ?? "queued", shardsDone: body.shardsDone,
-            shardsTotal: body.shardsTotal, pagesLanded: body.pagesLanded,
-            shards: body.shards.compactMap { Self.shard(from: $0.value as? [String: Any]) },
-            estimateGpuHours: body.estimate?.value["gpu_hours"] as? Double,
-            actualSecondsPerShard: body.actual?.value["seconds_per_shard"] as? Double)
+            target: body.target ?? "", farState: body.farState ?? "queued", shardsDone: body.shardsDone ?? 0,
+            shardsTotal: body.shardsTotal ?? 0, pagesLanded: body.pagesLanded ?? 0,
+            shards: (body.shards ?? []).compactMap { Self.shard(from: $0.additionalProperties.value.compactMapValues { $0 }) },
+            estimateGpuHours: body.estimate?.additionalProperties.value["gpu_hours"] as? Double,
+            actualSecondsPerShard: body.actual?.additionalProperties.value["seconds_per_shard"] as? Double)
     }
 
     private static func shard(from raw: [String: Any]?) -> Shard? {
