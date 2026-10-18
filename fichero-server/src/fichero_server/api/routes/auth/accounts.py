@@ -872,7 +872,8 @@ def _identity_client(request: Request, app_db: AppDatabase) -> AuthIdentityClien
 
 def _live_client(app_db: AppDatabase, client_id: str):
     client = app_db.get_client(client_id)
-    return client if client is not None and client.revoked_at is None else None
+    # A keyless client (a migrated device token) can never sign in.
+    return client if client is not None and client.revoked_at is None and client.public_key_pem else None
 
 
 def _engine_id(app_db: AppDatabase) -> str:
@@ -953,6 +954,16 @@ def _is_p256_public_key(pem: str) -> bool:
     return isinstance(key, ec.EllipticCurvePublicKey) and key.curve.name == "secp256r1"
 
 
+def _require_local_launch(request: Request, secret: str | None, public_key_pem: str) -> None:
+    """Guards shared by first-run and migrate-owner: Unix socket only, launch secret, a P-256 key."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    if not launch_secret.matches(secret):
+        raise HTTPException(status_code=401, detail="refused")
+    if not _is_p256_public_key(public_key_pem):
+        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+
+
 @auth_router.post("/first-run", response_model=FirstRunResponse)
 def first_run(
     body: FirstRunRequest,
@@ -964,12 +975,7 @@ def first_run(
 
     Only over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is
     not the launch secret. The owner gets an unusable password: they sign in by their key."""
-    if request.scope.get("fichero.transport") != "uds":
-        raise HTTPException(status_code=403, detail="first-run is local only")
-    if not launch_secret.matches(x_fichero_launch_secret):
-        raise HTTPException(status_code=401, detail="first-run refused")
-    if not _is_p256_public_key(body.public_key_pem):
-        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+    _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
     with _first_run_lock:
         if any(user.is_owner for user in app_db.list_users()):
             raise HTTPException(status_code=409, detail="this library already has an owner")
@@ -984,6 +990,30 @@ def first_run(
             public_key_pem=body.public_key_pem,
         )
     return FirstRunResponse(user=_to_public_user(user), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
+
+
+@auth_router.post("/migrate-owner", response_model=FirstRunResponse)
+def migrate_owner(
+    body: FirstRunRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+    x_fichero_launch_secret: str | None = Header(default=None, alias="X-Fichero-Launch-Secret"),
+) -> FirstRunResponse:
+    """Give an existing owner row its first key, once (multiuser.migrate-owner).
+
+    Same guards as first-run. The key goes to the owner row only, never to another person."""
+    _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
+    with _first_run_lock:
+        owner = next((user for user in app_db.list_users() if user.is_owner), None)
+        if owner is None:
+            raise HTTPException(status_code=404, detail="this library has no owner yet; use first-run")
+        if app_db.user_has_key(owner.id):
+            raise HTTPException(status_code=409, detail="the owner already has a key")
+        client = app_db.create_client(
+            user_id=owner.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
+    return FirstRunResponse(user=_to_public_user(owner), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
 
 
 @auth_router.post("/sign-in", response_model=SignInResponse)

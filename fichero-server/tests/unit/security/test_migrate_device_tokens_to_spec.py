@@ -4,23 +4,18 @@ Spec: docs/contributor_manual/specs/transport/multiuser-always-on.md. Each non-r
 row (same id, same person, kind "device") with no key yet; the old token keeps working as that client's credential
 until the device signs in by key (slice 7). A revoked device stays revoked, and revoking a device ends its client.
 
-Held as strict xfail until the migration is built (the code commit removes the markers).
+Built in slice 5.
 """
-
-import pytest
 
 from fichero_server.security import accounts
 from tests.signed_in import new_key, signature_for
 from tests.unit.security.test_sharing_probe_2026_10_01 import _bearer, _multiuser_on, harness  # noqa: F401
-
-held = pytest.mark.xfail(strict=True, reason="slice 5 (#2403): device-token migration not built yet")
 
 
 def _device(harness, user, name, token):
     return harness.app_db.create_device(name=name, user_id=user.id, token_hash=accounts.hash_token(token))
 
 
-@held
 def test_a_live_device_becomes_a_device_client_of_its_person(harness, monkeypatch):
     users = _multiuser_on(harness, monkeypatch)
     phone = _device(harness, users["alice"], "Alice's iPhone", "tok-phone")
@@ -30,7 +25,6 @@ def test_a_live_device_becomes_a_device_client_of_its_person(harness, monkeypatc
     assert client.revoked_at is None
 
 
-@held
 def test_a_revoked_device_is_not_migrated(harness, monkeypatch):
     users = _multiuser_on(harness, monkeypatch)
     old = _device(harness, users["alice"], "Old iPad", "tok-old")
@@ -39,7 +33,6 @@ def test_a_revoked_device_is_not_migrated(harness, monkeypatch):
     assert harness.app_db.get_client(old.id) is None
 
 
-@held
 def test_running_the_migration_twice_adds_nothing(harness, monkeypatch):
     users = _multiuser_on(harness, monkeypatch)
     _device(harness, users["alice"], "Alice's iPhone", "tok-phone")
@@ -47,7 +40,6 @@ def test_running_the_migration_twice_adds_nothing(harness, monkeypatch):
     assert harness.app_db.migrate_device_tokens_to_clients() == 0
 
 
-@held
 def test_the_old_token_keeps_working_after_the_migration(harness, monkeypatch):
     users = _multiuser_on(harness, monkeypatch)
     _device(harness, users["alice"], "Alice's iPhone", "tok-phone")
@@ -57,7 +49,6 @@ def test_the_old_token_keeps_working_after_the_migration(harness, monkeypatch):
     assert identity.json()["auth_kind"] == "device"
 
 
-@held
 def test_a_migrated_device_has_no_key_so_nothing_signs_in_as_it(harness, monkeypatch):
     users = _multiuser_on(harness, monkeypatch)
     phone = _device(harness, users["alice"], "Alice's iPhone", "tok-phone")
@@ -75,7 +66,6 @@ def test_a_migrated_device_has_no_key_so_nothing_signs_in_as_it(harness, monkeyp
         assert issued.status_code == 401
 
 
-@held
 def test_revoking_the_device_revokes_its_client(harness, monkeypatch):
     users = _multiuser_on(harness, monkeypatch)
     phone = _device(harness, users["alice"], "Alice's iPhone", "tok-phone")

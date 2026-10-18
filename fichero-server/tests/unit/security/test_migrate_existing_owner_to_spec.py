@@ -4,7 +4,7 @@ Spec: docs/contributor_manual/specs/transport/multiuser-always-on.md. `POST /api
 for the OWNER row only, only while the owner has no key, only over the Unix socket, only with the launch secret (the
 old bootstrap token is refused). First-run is the path for a library with no owner.
 
-Held as strict xfail until the route is built (the code commit removes the markers).
+Built in slice 5.
 """
 
 import pytest
@@ -14,7 +14,6 @@ from tests.signed_in import new_key, signature_for, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
 
 SECRET = "cd" * 32
-held = pytest.mark.xfail(strict=True, reason="slice 5 (#2403): POST /api/auth/migrate-owner not built yet")
 
 
 @pytest.fixture
@@ -46,7 +45,6 @@ def _migrate(http, pem, *, secret=SECRET, headers=None):
     )
 
 
-@held
 def test_the_owner_row_gets_its_first_key_and_signs_in_by_it(harness, engine_secret):
     owner, _alice = _users(harness)
     key, pem = new_key()
@@ -63,7 +61,6 @@ def test_the_owner_row_gets_its_first_key_and_signs_in_by_it(harness, engine_sec
     assert signed.status_code == 200 and signed.json()["user"]["id"] == owner.id
 
 
-@held
 def test_it_works_once_then_409(harness, engine_secret):
     _users(harness)
     _key, pem = new_key()
@@ -72,13 +69,11 @@ def test_it_works_once_then_409(harness, engine_secret):
     assert _migrate(uds_client(harness), pem2).status_code == 409
 
 
-@held
 def test_without_an_owner_row_it_is_refused(harness, engine_secret):
     _key, pem = new_key()
     assert _migrate(uds_client(harness), pem).status_code == 404
 
 
-@held
 def test_it_is_refused_over_tcp_and_without_the_secret(harness, engine_secret):
     _users(harness)
     _key, pem = new_key()
@@ -87,7 +82,6 @@ def test_it_is_refused_over_tcp_and_without_the_secret(harness, engine_secret):
     assert _migrate(uds_client(harness), pem, secret=None).status_code == 401
 
 
-@held
 def test_the_bootstrap_token_is_not_the_launch_secret(harness, engine_secret):
     _users(harness)
     _key, pem = new_key()
@@ -95,7 +89,6 @@ def test_the_bootstrap_token_is_not_the_launch_secret(harness, engine_secret):
     assert as_bearer.status_code == 401
 
 
-@held
 def test_the_key_goes_to_the_owner_never_to_another_person(harness, engine_secret):
     owner, alice = _users(harness)
     _key, pem = new_key()
