@@ -730,9 +730,12 @@ async def resume_quit_paused_runs(store: Any, db: Any) -> list[str]:
     from fichero_server.api.routes.workflow_execution import core  # noqa: PLC0415
     from fichero_server.execution.runner import QUIT_PAUSED_ERROR  # noqa: PLC0415
 
+    from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
+
     resumed: list[str] = []
     for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
-        if run.error != QUIT_PAUSED_ERROR:
+        if run.error != QUIT_PAUSED_ERROR or _running_workflows.get(run.thread_id, {}).get("status") in (
+                "accepted", "running"):  # still winding down to its boundary in this process: not yet resumable
             continue
         await store.update_workflow_run(run.thread_id, error="Resumed after the app reopened")
         try:

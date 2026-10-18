@@ -6,6 +6,15 @@ from fichero_server.workflows import activity
 from fichero_server.workflows.activity_store import ActivityStore
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_boundary_wait(monkeypatch):
+    """The workers here are stand-ins that never reach a boundary; the wait has its own tests below."""
+    monkeypatch.setattr(runner, "BOUNDARY_GRACE_SECONDS", 0)
+
+
 def _save(store, thread_id, status="paused", error=None):
     asyncio.run(store.save_workflow_run(thread_id=thread_id, workflow_id="w", workflow_name="W", python_code="",
                                         execution_log="", status=status))
@@ -93,3 +102,61 @@ def test_a_pause_the_person_asked_for_before_the_quit_is_not_resumed(tmp_path, m
 
     monkeypatch.setattr("fichero_server.api.routes.workflow_execution.core.resume_workflow", fake_resume)
     assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == []
+
+
+def _running_with_checkpoint(tmp_path, monkeypatch):
+    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
+
+    db_path = str(tmp_path / "fichero.duckdb")
+    store = ActivityStore(db_path)
+    _save(store, "r", status="running")
+
+    async def go():
+        cp = AsyncDuckDBCheckpointer.from_db_path(db_path)
+        await cp.aput({"configurable": {"thread_id": "r", "checkpoint_ns": ""}},
+                      {"id": "c1", "type": "checkpoint", "channel_values": {}, "channel_versions": {},
+                       "versions_seen": {}}, {"source": "t", "step": 1, "writes": {}}, {})
+
+    asyncio.run(go())
+    state = {"status": "running", "db_path": db_path}
+    monkeypatch.setattr(runner, "_running_workflows", {"r": state})
+    return state
+
+
+def test_quit_waits_for_the_worker_to_reach_its_boundary(tmp_path, monkeypatch):
+    """#5357: the worker stops at its boundary (status paused) before the quit goes on, not killed mid-step."""
+    from fichero_server.execution.cancellation import clear_pause
+
+    state = _running_with_checkpoint(tmp_path, monkeypatch)
+    monkeypatch.setattr(runner, "BOUNDARY_GRACE_SECONDS", 2)
+
+    async def quit_with_a_worker():
+        async def worker():
+            await asyncio.sleep(0.3)  # reaches its boundary after the pause request
+            state["status"] = "paused"
+
+        task = asyncio.create_task(worker())
+        await runner.pause_live_runs_for_shutdown()
+        seen = state["status"]
+        await task
+        return seen
+
+    try:
+        assert asyncio.run(quit_with_a_worker()) == "paused"
+    finally:
+        clear_pause("r")
+
+
+def test_quit_does_not_wait_past_the_grace_for_a_stuck_worker(tmp_path, monkeypatch):
+    import time
+
+    from fichero_server.execution.cancellation import clear_pause
+
+    _running_with_checkpoint(tmp_path, monkeypatch)
+    monkeypatch.setattr(runner, "BOUNDARY_GRACE_SECONDS", 0.2)
+    start = time.monotonic()
+    try:
+        assert asyncio.run(runner.pause_live_runs_for_shutdown()) == 1
+    finally:
+        clear_pause("r")
+    assert time.monotonic() - start < 1.5

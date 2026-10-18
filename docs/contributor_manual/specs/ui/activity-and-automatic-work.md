@@ -1217,8 +1217,8 @@ and node, not by job); a retry action for failed pages.
   not yet seen in the app. Still a gap: a reading on a cloud model (the network lane) is not held,
   and the small display image is made on first view, not at import.
 - `activity.lane.measures-processors` — **[PARTIAL]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
-  Engine, memory), measured by the engine. Built: the engine's own CPU %, memory and energy (watts) are measured
-  process-wide, the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
+  Engine, memory), measured by the engine. Built: the engine's CPU %, memory and energy (watts) are measured
+  process-wide, the last two summed over its child processes (`process_tree_rusage`), the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
   ride on `GET /api/activity/jobs` (`fichero-server/tests/unit/jobs/test_process_rusage_5358.py`). Still a gap:
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
@@ -1293,12 +1293,14 @@ and node, not by job); a retry action for failed pages.
   implies is written in the change's own transaction. Built for the correction re-embed
   (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`) and an import's derivative stages, which commit or roll
   back with the documents (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`).
-- `activity.durable.lease-not-fail` — **[BROKEN]** (#5357) after a crash or quit, an
-  interrupted job goes back to waiting and resumes; today every running, accepted **and paused**
-  workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
-  checkpoints are on disk (`workflows/checkpointer.py`). Since #5555 the flip is on every open and says
-  so — "Interrupted: the engine stopped at HH:MM" — and the run offers to read its pages not done as a new
-  run (`compute.run.interrupted-on-start`); it is still not resumed in place.
+- `activity.durable.lease-not-fail` — **[PARTIAL]** (#5357) after a crash or quit, an
+  interrupted job goes back to waiting and resumes. *Quit — built 2026-10-18:* a quit records each live run that has a checkpoint
+  `paused` and the next open resumes it (`activity.run.quit-pauses`); a paused run is not swept on reopen
+  (`activity.durable.paused-stays-paused`). *Crash — not built:* a run that was `running` or `accepted` when the engine died
+  (no quit to pause it) is still flipped to `failed` on the next open (`workflows/activity.py` `_recover_stale_runs_bg`),
+  although its checkpoints are on disk (`workflows/checkpointer.py`). The flip says so — "Interrupted: the engine stopped at HH:MM" —
+  and the run offers to read its pages not done as a new run (`compute.run.interrupted-on-start`, #5555); it is not resumed in
+  place.
 - `activity.durable.dies-with-the-engine` — **[OK]** (2026-10-11) when the engine dies mid-job (killed, not closed),
   nothing reads "running" after it starts again: on the project's open a queued job (an import's page, a model
   download, a recipe run) goes back to waiting, "Interrupted; carries on", and is taken up again from its own
@@ -1533,7 +1535,9 @@ code path.
   *Built (engine):* the quit records the reason (`runner.QUIT_PAUSED_ERROR`) and the library's next open resumes the runs that
   carry it, clearing the reason first so a later pause by a person is left for Resume; a resume that fails leaves the run paused
   with why (`activity.resume_quit_paused_runs`; `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`).
-  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written).
+  The quit then waits up to `runner.BOUNDARY_GRACE_SECONDS` (1 s; the app kills the engine soon after) for each asked run to reach
+  its boundary and settle `paused`; one that does not is covered by the `paused` record (`test_quit_paused_runs_resume_5357.py`).
+  *Not built:* a step that runs longer than the grace is still cut at exit, so its checkpoint is the last one written.
 - `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
   text or image it reads has changed, and is reused when it has not, in any workflow. Built
   (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a
