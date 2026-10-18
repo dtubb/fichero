@@ -7,6 +7,15 @@ from fichero_server.workflows.activity_store import ActivityStore
 from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_boundary_wait(monkeypatch):
+    """The workers here are stand-ins that never reach a boundary; the wait has its own tests below."""
+    monkeypatch.setattr(runner, "BOUNDARY_GRACE_SECONDS", 0)
+
+
 def _save(store, thread_id, status="running"):
     asyncio.run(store.save_workflow_run(thread_id=thread_id, workflow_id="w", workflow_name="W", python_code="",
                                         execution_log="", status=status))

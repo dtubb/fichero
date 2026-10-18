@@ -6,6 +6,15 @@ from fichero_server.workflows import activity
 from fichero_server.workflows.activity_store import ActivityStore
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_boundary_wait(monkeypatch):
+    """The workers here are stand-ins that never reach a boundary; the wait has its own tests below."""
+    monkeypatch.setattr(runner, "BOUNDARY_GRACE_SECONDS", 0)
+
+
 def _save(store, thread_id, status="paused", error=None):
     asyncio.run(store.save_workflow_run(thread_id=thread_id, workflow_id="w", workflow_name="W", python_code="",
                                         execution_log="", status=status))
@@ -119,6 +128,7 @@ def test_quit_waits_for_the_worker_to_reach_its_boundary(tmp_path, monkeypatch):
     from fichero_server.execution.cancellation import clear_pause
 
     state = _running_with_checkpoint(tmp_path, monkeypatch)
+    monkeypatch.setattr(runner, "BOUNDARY_GRACE_SECONDS", 2)
 
     async def quit_with_a_worker():
         async def worker():
