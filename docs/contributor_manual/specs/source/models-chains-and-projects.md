@@ -4496,7 +4496,7 @@ Each is described in the paragraph named; the id lets a test cite it.
   teacher `person` (51d6dde8e, m-acenet) on integration to run.*
 - `source.train.noise-band-per-project` — **[PARTIAL]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
-  the best reader's pages (`training.evaluation.noise_band`), the project keeps it (`recipe/noise-band.yaml`,
+  the best reader's pages, from 15 read pages up (`training.evaluation.noise_band`, `NOISE_MIN_PAGES`), the project keeps it (`recipe/noise-band.yaml`,
   `recipes.project.read_noise_band`, the ruled 0.5 CER points until then, said so), and every train offer carries it
   (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. The reasons A/B judges by it when its
   request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). Not

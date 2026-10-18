@@ -20,10 +20,14 @@ def test_the_band_is_the_cer_spread_over_three_splits(monkeypatch):
     import fichero_server.workflows.transcription_accuracy as ta
 
     monkeypatch.setattr(ta, "DEFAULT_POLICY_NAME", "default")
-    # pages go to splits 0,1,2,0,1,2: split CERs 0.02, 0.05, 0.08 -> spread 0.06
-    pages = [_page(2), _page(5), _page(8), _page(2), _page(5), _page(8)]
+    from fichero_server.training.evaluation import NOISE_MIN_PAGES
+
+    # pages go to splits 0,1,2,0,1,2,...: split CERs 0.02, 0.05, 0.08 -> spread 0.06
+    pages = [_page(2), _page(5), _page(8)] * (NOISE_MIN_PAGES // 3)
     assert round(noise_band(pages), 6) == 0.06
-    assert noise_band(pages[:2]) is None  # fewer pages than splits: not measured
+    # review 70: a band from a handful of pages is noise itself, so too few pages are not measured
+    assert NOISE_MIN_PAGES >= 15
+    assert noise_band(pages[:NOISE_MIN_PAGES - 1]) is None
 
 
 def test_until_measured_the_ruled_band_is_served_and_said_so(tmp_path):
