@@ -782,7 +782,7 @@ def delete_user(
 CHALLENGE_TTL_SECONDS = 60
 SIGN_IN_FAILURES_PER_MINUTE = 10
 _REFUSED = HTTPException(status_code=401, detail="sign-in refused")
-_challenges: dict[str, tuple[str, float]] = {}  # nonce -> (client_id, expires_at)
+_challenges: dict[str, tuple[str, int]] = {}  # nonce -> (client_id, expires_at, whole seconds)
 _sign_in_failures: dict[str, list[float]] = {}  # client_id -> failure times
 
 
@@ -793,12 +793,14 @@ class ChallengeRequest(BaseModel):
 class ChallengeResponse(BaseModel):
     nonce: str
     expires_in: int
+    expires_at: int
+    engine_id: str
 
 
 class SignInRequest(BaseModel):
     client_id: str
     nonce: str
-    signature: str  # base64 ECDSA-P256-SHA256 over the nonce's UTF-8 bytes
+    signature: str  # base64 ECDSA-P256-SHA256 over _sign_in_message(...)
 
 
 class SignInClient(BaseModel):
@@ -827,14 +829,28 @@ def _live_client(app_db: AppDatabase, client_id: str):
     return client if client is not None and client.revoked_at is None else None
 
 
-def _signature_is_valid(public_key_pem: str, nonce: str, signature: str) -> bool:
+def _engine_id(app_db: AppDatabase) -> str:
+    """This engine's own id, made once and kept: what a sign-in signature is bound to (review 98)."""
+    engine_id = app_db.get_setting("engine_id")
+    if not engine_id:
+        engine_id = secrets.token_urlsafe(16)
+        app_db.set_setting("engine_id", engine_id)
+    return engine_id
+
+
+def _sign_in_message(engine_id: str, client_id: str, nonce: str, expires_at: int) -> bytes:
+    """Domain-separated, so a signature for another engine, client, purpose or expiry never verifies."""
+    return "\x00".join(["fichero-sign-in-v1", engine_id, client_id, nonce, str(expires_at)]).encode()
+
+
+def _signature_is_valid(public_key_pem: str, message: bytes, signature: str) -> bool:
     from cryptography.exceptions import InvalidSignature
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import ec
 
     try:
         key = serialization.load_pem_public_key(public_key_pem.encode())
-        key.verify(base64.b64decode(signature, validate=True), nonce.encode(), ec.ECDSA(hashes.SHA256()))
+        key.verify(base64.b64decode(signature, validate=True), message, ec.ECDSA(hashes.SHA256()))
     except (InvalidSignature, ValueError, TypeError):
         return False
     return True
@@ -849,8 +865,11 @@ def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_data
     for stale in [n for n, (_, exp) in _challenges.items() if exp <= now]:
         del _challenges[stale]
     nonce = secrets.token_urlsafe(32)
-    _challenges[nonce] = (body.client_id, now + CHALLENGE_TTL_SECONDS)
-    return ChallengeResponse(nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS)
+    expires_at = int(now) + CHALLENGE_TTL_SECONDS
+    _challenges[nonce] = (body.client_id, expires_at)
+    return ChallengeResponse(
+        nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
+    )
 
 
 @auth_router.post("/sign-in", response_model=SignInResponse)
@@ -867,7 +886,11 @@ def sign_in(body: SignInRequest, app_db: AppDatabase = Depends(get_app_database)
         and issued[0] == body.client_id
         and issued[1] > now
         and client is not None
-        and _signature_is_valid(client.public_key_pem, body.nonce, body.signature)
+        and _signature_is_valid(
+            client.public_key_pem,
+            _sign_in_message(_engine_id(app_db), body.client_id, body.nonce, issued[1]),
+            body.signature,
+        )
     )
     if not ok:
         _sign_in_failures[body.client_id] = [*recent, now]

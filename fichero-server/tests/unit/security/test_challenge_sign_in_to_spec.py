@@ -6,9 +6,11 @@ token keep working; this only adds `clients`/`credentials` and the two routes. W
 Contract the tests fix:
 - `app_db.create_client(user_id, kind, name, host, public_key_pem)` -> object with `.id`, `.revoked_at`;
   `app_db.revoke_client(client_id)`; `app_db.get_client(client_id)`.
-- `POST /api/auth/challenge {client_id}` -> 200 {nonce, expires_in}. Unknown or revoked client: 401, same body.
-- `POST /api/auth/sign-in {client_id, nonce, signature}` (signature = base64 ECDSA-P256-SHA256 over the nonce
-  bytes) -> 200 {session_token, user, client}. Anything else: 401 {"detail": "sign-in refused"}.
+- `POST /api/auth/challenge {client_id}` -> 200 {nonce, expires_in, expires_at, engine_id}. Unknown or revoked
+  client: 401, same body.
+- `POST /api/auth/sign-in {client_id, nonce, signature}`: the signature (base64 ECDSA-P256-SHA256) is over the
+  domain-separated message `"fichero-sign-in-v1" 0x00 engine_id 0x00 client_id 0x00 nonce 0x00 expires_at`, never
+  the bare nonce (review 98: cross-engine relay). -> 200 {session_token, user, client}. Else 401 {"detail": "sign-in refused"}.
 - The session carries the client: `sessions.client_id`; `GET /api/auth/identity` shows `client.id`.
 """
 
@@ -34,8 +36,14 @@ def _new_key():
     return key, pem
 
 
-def _sign(key, nonce: str) -> str:
-    return base64.b64encode(key.sign(nonce.encode(), ec.ECDSA(hashes.SHA256()))).decode()
+def _message(client_id: str, issued: dict, *, engine_id=None, expires_at=None, purpose="fichero-sign-in-v1") -> bytes:
+    parts = [purpose, engine_id or issued["engine_id"], client_id, issued["nonce"], str(expires_at or issued["expires_at"])]
+    return "\x00".join(parts).encode()
+
+
+def _sign(key, client_id: str, issued: dict, **overrides) -> str:
+    message = _message(client_id, issued, **overrides)
+    return base64.b64encode(key.sign(message, ec.ECDSA(hashes.SHA256()))).decode()
 
 
 @pytest.fixture
@@ -52,9 +60,13 @@ def _challenge(harness, client_id):
     return harness.client().post("/api/auth/challenge", json={"client_id": client_id})
 
 
-def _sign_in(harness, client_id, nonce, signature):
+def _issue(harness, client_id) -> dict:
+    return _challenge(harness, client_id).json()
+
+
+def _sign_in(harness, client_id, issued, signature):
     return harness.client().post(
-        "/api/auth/sign-in", json={"client_id": client_id, "nonce": nonce, "signature": signature}
+        "/api/auth/sign-in", json={"client_id": client_id, "nonce": issued["nonce"], "signature": signature}
     )
 
 
@@ -69,9 +81,9 @@ def test_a_client_row_round_trips_and_can_be_revoked(alice_client):
 
 
 def test_the_right_key_signs_in_as_that_person_through_that_client(alice_client):
-    harness, users, key, client = alice_client
-    nonce = _challenge(harness, client.id).json()["nonce"]
-    signed = _sign_in(harness, client.id, nonce, _sign(key, nonce))
+    harness, _users, key, client = alice_client
+    issued = _issue(harness, client.id)
+    signed = _sign_in(harness, client.id, issued, _sign(key, client.id, issued))
     assert signed.status_code == 200, signed.text
     body = signed.json()
     assert body["user"]["username"] == "alice"
@@ -83,28 +95,61 @@ def test_the_right_key_signs_in_as_that_person_through_that_client(alice_client)
 
 def test_a_nonce_is_single_use(alice_client):
     harness, _users, key, client = alice_client
-    nonce = _challenge(harness, client.id).json()["nonce"]
-    assert _sign_in(harness, client.id, nonce, _sign(key, nonce)).status_code == 200
-    assert _sign_in(harness, client.id, nonce, _sign(key, nonce)).status_code == 401
+    issued = _issue(harness, client.id)
+    assert _sign_in(harness, client.id, issued, _sign(key, client.id, issued)).status_code == 200
+    assert _sign_in(harness, client.id, issued, _sign(key, client.id, issued)).status_code == 401
 
 
 def test_a_nonce_expires(alice_client, monkeypatch):
     harness, _users, key, client = alice_client
-    issued = _challenge(harness, client.id).json()
+    issued = _issue(harness, client.id)
     assert 0 < issued["expires_in"] <= 120
     real = time.time
     monkeypatch.setattr(time, "time", lambda: real() + issued["expires_in"] + 5)
-    late = _sign_in(harness, client.id, issued["nonce"], _sign(key, issued["nonce"]))
+    late = _sign_in(harness, client.id, issued, _sign(key, client.id, issued))
     assert late.status_code == 401
 
 
 def test_a_signature_from_another_key_is_refused(alice_client):
     harness, _users, _key, client = alice_client
-    nonce = _challenge(harness, client.id).json()["nonce"]
+    issued = _issue(harness, client.id)
     other_key, _ = _new_key()
-    refused = _sign_in(harness, client.id, nonce, _sign(other_key, nonce))
+    refused = _sign_in(harness, client.id, issued, _sign(other_key, client.id, issued))
     assert refused.status_code == 401
     assert refused.json()["detail"] == "sign-in refused"
+
+
+def test_the_bare_nonce_is_not_what_is_signed(alice_client):
+    # Review 98: signing only the nonce is the relay hole; it must not verify.
+    harness, _users, key, client = alice_client
+    issued = _issue(harness, client.id)
+    bare = base64.b64encode(key.sign(issued["nonce"].encode(), ec.ECDSA(hashes.SHA256()))).decode()
+    assert _sign_in(harness, client.id, issued, bare).status_code == 401
+
+
+def test_a_signature_made_for_another_engine_is_refused(alice_client):
+    # The same synced key is registered on every engine a person belongs to; a host that relays
+    # engine A's nonce to her client must not get a signature that engine B accepts, and vice versa.
+    harness, _users, key, client = alice_client
+    issued = _issue(harness, client.id)
+    assert issued["engine_id"]
+    relayed = _sign(key, client.id, issued, engine_id="some-other-engine")
+    assert _sign_in(harness, client.id, issued, relayed).status_code == 401
+
+
+def test_a_signature_over_a_different_expiry_is_refused(alice_client):
+    harness, _users, key, client = alice_client
+    issued = _issue(harness, client.id)
+    longer = _sign(key, client.id, issued, expires_at=int(issued["expires_at"]) + 3600)
+    assert _sign_in(harness, client.id, issued, longer).status_code == 401
+
+
+def test_a_signature_for_another_purpose_is_refused(alice_client):
+    # A reset signature (or any other purpose) can never be replayed as a sign-in.
+    harness, _users, key, client = alice_client
+    issued = _issue(harness, client.id)
+    reset = _sign(key, client.id, issued, purpose="fichero-reset-v1")
+    assert _sign_in(harness, client.id, issued, reset).status_code == 401
 
 
 def test_a_nonce_made_for_one_client_does_not_work_for_another(alice_client):
@@ -113,18 +158,18 @@ def test_a_nonce_made_for_one_client_does_not_work_for_another(alice_client):
     other = harness.app_db.create_client(
         user_id=users["bob"].id, kind="device", name="Bob's Mac", host="Mac", public_key_pem=other_pem
     )
-    nonce = _challenge(harness, client.id).json()["nonce"]
+    issued = _issue(harness, client.id)
     # Bob's key signs a nonce that was issued to Alice's client.
-    assert _sign_in(harness, other.id, nonce, _sign(other_key, nonce)).status_code == 401
+    assert _sign_in(harness, other.id, issued, _sign(other_key, other.id, issued)).status_code == 401
     # And Alice's key cannot be presented as Bob's client.
-    assert _sign_in(harness, other.id, nonce, _sign(key, nonce)).status_code == 401
+    assert _sign_in(harness, other.id, issued, _sign(key, other.id, issued)).status_code == 401
 
 
 def test_a_revoked_client_gets_no_challenge_and_no_session(alice_client):
     harness, _users, key, client = alice_client
-    nonce = _challenge(harness, client.id).json()["nonce"]
+    issued = _issue(harness, client.id)
     harness.app_db.revoke_client(client.id)
-    assert _sign_in(harness, client.id, nonce, _sign(key, nonce)).status_code == 401
+    assert _sign_in(harness, client.id, issued, _sign(key, client.id, issued)).status_code == 401
     assert _challenge(harness, client.id).status_code == 401
 
 
@@ -138,8 +183,8 @@ def test_an_unknown_client_looks_like_a_revoked_one(alice_client):
 
 def test_revoking_a_client_ends_its_sessions(alice_client):
     harness, _users, key, client = alice_client
-    nonce = _challenge(harness, client.id).json()["nonce"]
-    token = _sign_in(harness, client.id, nonce, _sign(key, nonce)).json()["session_token"]
+    issued = _issue(harness, client.id)
+    token = _sign_in(harness, client.id, issued, _sign(key, client.id, issued)).json()["session_token"]
     assert harness.client().get("/api/auth/me", headers=_bearer(token)).status_code == 200
     harness.app_db.revoke_client(client.id)
     assert harness.client().get("/api/auth/me", headers=_bearer(token)).status_code == 401
@@ -150,15 +195,16 @@ def test_repeated_bad_signatures_are_rate_limited(alice_client):
     other_key, _ = _new_key()
     codes = []
     for _ in range(12):
-        nonce = _challenge(harness, client.id).json().get("nonce", "x")
-        codes.append(_sign_in(harness, client.id, nonce, _sign(other_key, nonce)).status_code)
+        issued = _issue(harness, client.id)
+        if "nonce" not in issued:  # already refused at the challenge
+            codes.append(429)
+            continue
+        codes.append(_sign_in(harness, client.id, issued, _sign(other_key, client.id, issued)).status_code)
     assert codes[0] == 401
     assert 429 in codes
 
 
 def test_slice_one_removes_nothing_password_login_still_works(alice_client):
     harness, _users, _key, _client = alice_client
-    logged_in = harness.client().post(
-        "/api/auth/login", json={"username": "alice", "password": "pw-alice"}
-    )
+    logged_in = harness.client().post("/api/auth/login", json={"username": "alice", "password": "pw-alice"})
     assert logged_in.status_code == 200
