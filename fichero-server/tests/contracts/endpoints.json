@@ -9222,6 +9222,11 @@
         "path_params": [],
         "query_params": [
           {
+            "name": "period",
+            "required": false,
+            "type": "string"
+          },
+          {
             "name": "scripts",
             "required": false,
             "type": "string"
@@ -9229,6 +9234,16 @@
         ],
         "request_model": null,
         "response_model": "DerivedFacts"
+      },
+      {
+        "method": "PUT",
+        "path": "/recipes/font",
+        "operation_id": "choose_font_api_recipes_font_put",
+        "summary": "Choose Font",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FontChoice",
+        "response_model": "ScriptFacts"
       },
       {
         "method": "GET",

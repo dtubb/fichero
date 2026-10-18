@@ -1,4 +1,4 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import FicheroAPIClient
 import OSLog
 import SwiftUI
@@ -9,7 +9,6 @@ struct FicheroAppIOS: App {
     @State private var appState = AppState()
     @State private var viewSettings = ViewSettings()
     @State private var libraryManager = LibraryManager.shared
-    @State private var windowState = WindowState(libraryId: LibraryManager.globalLibraryId)
     @State private var claimFocusState = ClaimFocusState.shared
     @State private var kgFocusState = KGFocusState.shared
     @State private var executionObserver = WorkflowExecutionObserver()
@@ -27,11 +26,7 @@ struct FicheroAppIOS: App {
         // of being a silent no-op (#2815). Harmless on iPhone, which has no
         // multi-window support.
         WindowGroup(id: "main") {
-            FicheroSharedPlatformRoot(
-                windowState: windowState,
-                executionObserver: executionObserver
-            )
-                .environment(windowState)
+            FicheroSceneRoot(executionObserver: executionObserver)
                 .environment(backendService)
                 .environment(appState)
                 .environment(viewSettings)
@@ -44,6 +39,21 @@ struct FicheroAppIOS: App {
                 // Launch connects via the SAME entry point as the Retry button
                 // and pairing (#3108): FicheroSharedPlatformRoot owns the single
                 // `reconnectToConfiguredHost()` task.
+        }
+        // The Mac's menus on the iPad menu bar (hardware keyboard, pointer, Stage Manager) and the
+        // iPhone overflow. The same structs as FicheroApp.swift, never a second set. Edit, Format and
+        // the app-menu extras stay Mac-only until their iOS behavior is ruled (undo gestures: #5658).
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                FileMenuCommands()
+                    .environment(libraryManager)
+            }
+            CommandGroup(after: .toolbar) {
+                ViewMenuCommands()
+                    .environment(viewSettings)
+            }
+            GoMenuCommands()
+            PageAndProjectMenuCommands()
         }
 
         // Detached document-detail scene, mirroring the macOS registration so
@@ -61,6 +71,29 @@ private struct IdentifiableURL: Identifiable {
     var id: String { url.absoluteString }
 }
 
+/// One instance per scene: each iPad window owns its own `WindowState` (selection, library, undo),
+/// so Stage Manager windows on different projects do not share one (#5742 multi-window ruling).
+private struct FicheroSceneRoot: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var windowState = WindowState(libraryId: LibraryManager.globalLibraryId)
+    let executionObserver: WorkflowExecutionObserver
+
+    var body: some View {
+        FicheroSharedPlatformRoot(windowState: windowState, executionObserver: executionObserver)
+            .environment(windowState)
+            // The scene the user is in is the one a UI verb (App Intent) drives (#5453).
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                if phase == .active { WindowState.front = windowState }
+            }
+            // Renew a near-expiry device token each time the app comes forward (#3290),
+            // not only at launch; a no-op for local hosts or an unknown expiry.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await DeviceTokenRenewal.renewIfNeeded(host: EngineConfig.host) }
+            }
+    }
+}
+
 private struct FicheroSharedPlatformRoot: View {
     private let logger = Logger(subsystem: "app.fichero.fichero", category: "FicheroSharedPlatformRoot")
     @Environment(AppState.self) private var appState
@@ -74,7 +107,10 @@ private struct FicheroSharedPlatformRoot: View {
 
     private var activeLibrary: LibraryManager.LibraryReference? {
         LibraryWorkspaceSelection.activeLibrary(
-            currentLibraryId: libraryManager.currentLibraryId,
+            currentLibraryId: LibraryWorkspaceSelection.appDefaultLibraryId(
+                windowLibraryId: windowState.libraryId,
+                currentLibraryId: libraryManager.currentLibraryId
+            ),
             windowLibraryId: windowState.libraryId,
             libraryManager: libraryManager
         )
@@ -141,8 +177,6 @@ private struct FicheroSharedPlatformRoot: View {
         // Launch connects through the SAME entry point as the Retry button and
         // pairing (#3108) — one iOS connect path, no divergent launch task.
         .task {
-            // The one window state is the one a UI verb (App Intent) drives (#5453).
-            WindowState.front = windowState
             await reconnectToConfiguredHost()
         }
         // #2389: reconnectToConfiguredHost covers launch/Retry/pairing, but a

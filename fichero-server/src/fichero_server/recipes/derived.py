@@ -34,19 +34,41 @@ def unknown_scripts(codes: list[str]) -> list[str]:
     return [c for c in codes if c not in known]
 
 
-def script_facts(code: str) -> dict[str, Any]:
-    from fichero_server.llm.language_policy import resolve_direction, script_may_be_vertical
+#: Years up to which Latin is medieval for the font rule: Junicode draws MUFI letters and the long s.
+_MEDIEVAL_UNTIL = 1500
+
+
+def script_facts(code: str, period: str | None = None, chosen: str | None = None) -> dict[str, Any]:
+    """A script's direction and font. The font is, in order: the one a person chose for this library
+    (`chosen`, `layers.text.font-from-script-and-period`), the bundled one for a script macOS lacks, Junicode
+    for Latin written no later than `_MEDIEVAL_UNTIL` (the `period` answer), else the system font."""
+    from fichero_server.llm.language_policy import (
+        resolve_direction,
+        script_may_be_vertical,
+    )
+    from fichero_server.recipes.hands import period_years
 
     direction = resolve_direction(script=code)
     font = next((f for f, scripts in FONT_SCRIPTS.items() if code in scripts and code not in _SYSTEM_DRAWS), None)
+    font_from = f"Fichero's bundled {font} (SIL OFL)" if font else "the system font draws it"
+    years = period_years(period)
+    if font is None and code in _SYSTEM_DRAWS and years and years[1] <= _MEDIEVAL_UNTIL:
+        font, font_from = "Junicode", "Fichero's bundled Junicode, for medieval Latin (MUFI letters, long s)"
+    if chosen:
+        font, font_from = chosen, "chosen for this project"
     return {
         "script": code,
         "direction": direction.language,
         "direction_from": direction.basis,
         "may_be_vertical": script_may_be_vertical(code),
         "font": font,
-        "font_from": f"Fichero's bundled {font} (SIL OFL)" if font else "the system font draws it",
+        "font_from": font_from,
     }
+
+
+def font_choice_problem(font: str | None) -> str | None:
+    """Why `font` cannot be chosen (only a bundled family can), or None."""
+    return None if font is None or font in FONT_SCRIPTS else f"{font} is not a font Fichero bundles"
 
 
 def _sysctl(name: str) -> str | None:

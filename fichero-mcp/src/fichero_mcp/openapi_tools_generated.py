@@ -6314,10 +6314,20 @@ def fichero_recipes_check(
 
 def fichero_recipes_derived_facts(
     *,
+    period: Annotated[Optional[str], Field(description='Period')] = None,
     scripts: Annotated[Optional[str], Field(description='Scripts')] = None,
 ) -> Any:
     "Derived Facts\n\nWhat setup works out instead of asking, each fact saying where it came from\n(`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical\nand its bundled font; this Mac's chip and memory; which providers have a key; where work\ncan run.\n\nRoute: GET /api/recipes/derived (toolset `recipes`; reads)."
-    return _rt.call("GET", "/api/recipes/derived", params={"scripts": scripts})
+    return _rt.call("GET", "/api/recipes/derived", params={"period": period, "scripts": scripts})
+
+
+def fichero_recipes_choose_font(
+    *,
+    font: Annotated[Optional[str], Field(description='a bundled family; null returns to the derived font.')] = None,
+    script: Annotated[str, Field(description='ISO 15924 code of the script the font draws.')],
+) -> Any:
+    "Choose Font\n\nRemember a pane's font choice for a script in this library's setup answers (`answers.fonts`),\nor clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it\n(`layers.text.font-from-script-and-period`).\n\nRoute: PUT /api/recipes/font (toolset `recipes`; changes data, as the agent account when one exists)."
+    return _rt.call("PUT", "/api/recipes/font", json=_rt.body({"font": font, "script": script}))
 
 
 def fichero_recipes_list_hands(
@@ -7581,12 +7591,13 @@ def fichero_segments_update(
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it.')] = None,
     language: Annotated[Optional[str], Field(description="The segment's language, a BCP 47 tag.")] = None,
     mark_state: Annotated[Optional[str], Field(description="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none.")] = None,
+    no_writing_model: Annotated[Optional[str], Field(description='The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).')] = None,
     parent_segment_id: Annotated[Optional[str], Field(description='The segment this one now sits inside.')] = None,
     script: Annotated[Optional[str], Field(description="The segment's script, an ISO 15924 code.")] = None,
     segment_id_2: Annotated[str, Field(description='The segment to change.')],
 ) -> Any:
     'Update Segment\n\nRoute: PUT /api/segments/{segment_id} (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "mark_state": mark_state, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
+    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "mark_state": mark_state, "no_writing_model": no_writing_model, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
 
 
 def fichero_segments_correct_line(
@@ -9567,6 +9578,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_model_candidates", "recipes", "GET", "/api/recipes/candidates", fichero_recipes_model_candidates),
     GeneratedTool("fichero_recipes_check", "recipes", "POST", "/api/recipes/check", fichero_recipes_check),
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
+    GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),

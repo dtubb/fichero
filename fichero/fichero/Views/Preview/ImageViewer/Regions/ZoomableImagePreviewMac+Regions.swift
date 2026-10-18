@@ -66,7 +66,7 @@ extension ZoomableImagePreview {
         let linkedFrameMatches = ocrGeometry.map { geometryFrameMatchesDisplay($0) } ?? false
         // Only the inline text reads a box's direction, so the page is indexed only when it is on.
         let direction: (String?) -> String? = inlineTextEnabled ? segmentDirections : { _ in nil }
-        return DocumentOverlay(
+        var overlay = DocumentOverlay(
             boxes: shown.map { (entry: (index: Int, box: OCRGeometryBox)) -> DocumentOverlay.Box in
                 .init(bbox: entry.box.bbox, confidence: entry.box.confidence, text: entry.box.text,
                       showsText: inlineTextEnabled && OCRBoxConfidence.drawsInlineText(entry.box.confidence),
@@ -93,6 +93,8 @@ extension ZoomableImagePreview {
             isFocusedPane: windowState?.focusedRegionSelection === regionSelection,
             documentId: documentId
         )
+        overlay.transcriptionFamily = transcriptionFont?.family
+        return overlay
     }
 
     /// Where the nudged shape point is now, for its filled handle (Edit Segments only).

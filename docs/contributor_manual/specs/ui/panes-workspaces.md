@@ -845,6 +845,13 @@ paired with the `panes.strip.fixed-extent-is-content-not-whole-pane` /
 `panes.split.peers-open-even` retags below, since both are the same "tested against sizing
 math, not a mounted pane" lesson.
 
+- `panes.visibility.hide-show-round-trip` — **[PARTIAL]** (#5027) hiding a kind keeps the
+  hidden leaves in `PaneList.hiddenPanes` (outside `nodes`, so counts and the renderer ignore
+  them); showing the kind puts the SAME pane back (id, size, kind, style) at its old top-level
+  index. A pane that sat inside a split returns at the end of the row, same id and config.
+  Pinned by `PaneHideShowRoundTripTests`. Left: restoring into the original split; any other
+  edit of the list (close, split) drops the stash.
+
 - `panes.model.per-pane-scope-and-kind-unread` — **[BROKEN]** (#4887) the pane MODEL already
   carries per-pane fields — `PaneScope` (`libraryId`, `documentId`, `folderId`) and
   `PaneConfig.libraryContentKind` (both `fichero/fichero/Models/PaneList.swift`) — but nothing
@@ -1040,7 +1047,7 @@ also show the path (`ContentView+RootLayout.swift:311-317`).
   capsule is retired. A footer that only repeats a head or menu entry (the PDF footer's close,
   title and pin) is removed. Prerequisite for `panes.chrome.head-and-footer-not-shared` (#4880),
   since less chrome leaves one component to tune.
-- `panes.chrome.breadcrumb-only-when-pinned` — **[GAP]** (#5437) the breadcrumb shows only on a
+- `panes.chrome.breadcrumb-only-when-pinned` — **[OK]** (#5437, macOS; iOS keeps the crumb, it has no toolbar path; pinned by `BreadcrumbOnlyWhenPinnedShapeTests`) the breadcrumb shows only on a
   pinned pane; on an unpinned pane it repeats the window toolbar and is hidden.
 - `panes.chrome.breadcrumb-opens-like-the-sidebar` — **[PARTIAL]** (#5633; implemented with unit
   tests, not yet built or seen in the app) clicking a folder (or library) crumb in any pane head
@@ -1702,7 +1709,7 @@ is the source for the manuals' workspace screenshots. (As of 2026-09-16 the buil
 - `shell.accessibility-labels` — **[GAP]** (#3691) every control and custom view has a meaningful accessibilityLabel, correct traits and grouping; icon-only buttons are labelled.
 - `shell.dynamic-type` — **[GAP]** (#3694) text scales with the system Larger Text setting using semantic styles, composing with the reader font-size override, without breaking layouts.
 - `shell.system-accessibility-settings` — **[GAP]** (#3695) Reduce Motion and Increase Contrast are honoured (only ImmersiveReaderView and SkeletonPlaceholder read reduce-motion today).
-- `panes.empty-state.names-itself-first` — **[GAP]** (#5273) every empty pane shows three lines, the pane's own name, then the state, then what to do (Reader / No Selection / Select a page in the Library to read it), never a bare 'No Selection'.
+- `panes.empty-state.blank` — **[PARTIAL]** (#5273) *Built 2026-10-17 (app), not yet seen:* an empty pane draws nothing a person reads (ruled 2026-10-11: empty panes blank, no text, no icon). `PaneEmptyStateView` and `PaneEmptyState.view` are clear views whose accessibility label says which pane it is and what would fill it, so VoiceOver still knows. *Test:* `PaneEmptyStateTests` (neither view draws a `Text`, `Label` or `ContentUnavailableView`). Supersedes `panes.empty-state.names-itself-first`.
 - `panes.island.path-of-icons-last-is-the-proxy` — **[GAP]** (#5274) the document island is a path of icon-plus-name segments with chevrons that collapses to an ellipsis and expands like Xcode's jump bar, and its last icon is the selection's draggable proxy (a count badge for several).
 - `panes.split-stack-scene-key-changes-only-with-the-pane-list` — **[BROKEN]** (#4994) WorkspaceSplitStack's SceneStorage key changes only when the pane list changes, so SwiftUI's 'may not change its key' warning does not flood the console.
 - `panes.no-multi-second-main-thread-stalls` — **[GAP]** (#4997) pane and workspace changes never stall the main thread for seconds in SwiftUI graph updates (ContentView.mainContent, ObservationCenter.invalidate), measured by the stall sampler.

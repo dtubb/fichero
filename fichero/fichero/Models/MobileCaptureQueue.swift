@@ -75,6 +75,10 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
     var requiresExplicitRetry: Bool
     var retryCount: Int
     var lastAttemptAt: Date?
+    /// Where this capture was meant to go (#3281): never the ambient global host.
+    /// nil only for items queued before this field existed.
+    var targetLibraryId: String?
+    var targetHost: String?
 
     init(
         id: String,
@@ -87,7 +91,9 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         lastError: String?,
         requiresExplicitRetry: Bool = false,
         retryCount: Int,
-        lastAttemptAt: Date?
+        lastAttemptAt: Date?,
+        targetLibraryId: String? = nil,
+        targetHost: String? = nil
     ) {
         self.id = id
         self.imageFileName = imageFileName
@@ -100,6 +106,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         self.requiresExplicitRetry = requiresExplicitRetry
         self.retryCount = retryCount
         self.lastAttemptAt = lastAttemptAt
+        self.targetLibraryId = targetLibraryId
+        self.targetHost = targetHost
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -114,6 +122,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         case requiresExplicitRetry
         case retryCount
         case lastAttemptAt
+        case targetLibraryId
+        case targetHost
     }
 
     init(from decoder: Decoder) throws {
@@ -129,6 +139,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         requiresExplicitRetry = try container.decodeIfPresent(Bool.self, forKey: .requiresExplicitRetry) ?? false
         retryCount = try container.decode(Int.self, forKey: .retryCount)
         lastAttemptAt = try container.decodeIfPresent(Date.self, forKey: .lastAttemptAt)
+        targetLibraryId = try container.decodeIfPresent(String.self, forKey: .targetLibraryId)
+        targetHost = try container.decodeIfPresent(String.self, forKey: .targetHost)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -144,6 +156,8 @@ struct MobileCaptureQueueItem: Identifiable, Codable, Hashable {
         try container.encode(requiresExplicitRetry, forKey: .requiresExplicitRetry)
         try container.encode(retryCount, forKey: .retryCount)
         try container.encodeIfPresent(lastAttemptAt, forKey: .lastAttemptAt)
+        try container.encodeIfPresent(targetLibraryId, forKey: .targetLibraryId)
+        try container.encodeIfPresent(targetHost, forKey: .targetHost)
     }
 }
 
@@ -154,6 +168,30 @@ struct MobileCaptureUploadSummary: Equatable {
 }
 
 enum MobileCaptureQueueRouting {
+    /// Whether two engine host strings name the same host: scheme and host compare case-insensitively, a trailing
+    /// dot on the host and trailing slashes on the path do not count (#3281). An exact string compare would hold
+    /// an item for "https://Mac.local./" forever when the current host reads "https://mac.local".
+    static func sameHost(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs, let rhs else { return lhs == nil && rhs == nil }
+        return normalisedHost(lhs) == normalisedHost(rhs)
+    }
+
+    static func normalisedHost(_ raw: String) -> String {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        func stripped(_ value: String, _ mark: Character) -> String {
+            var out = value
+            while out.last == mark { out.removeLast() }
+            return out
+        }
+        guard var parts = URLComponents(string: text), let host = parts.host else {
+            return stripped(stripped(text.lowercased(), "/"), ".")
+        }
+        parts.scheme = parts.scheme?.lowercased()
+        parts.host = stripped(host.lowercased(), ".")
+        parts.path = stripped(parts.path, "/")
+        return parts.string ?? text.lowercased()
+    }
+
     static func canResumeUploads(
         backendHost: URL?,
         hasPairedLibraryPath: Bool = RemoteAccessConfig.hasPairedLibraryPath
@@ -171,7 +209,13 @@ enum MobileCaptureQueueRouting {
 @MainActor
 protocol MobileCaptureQueueUploading {
     var backendHost: URL? { get }
+    /// The library this uploader writes into, as the string an item's `targetLibraryId` holds; nil = any.
+    var targetLibraryKey: String? { get }
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String
+}
+
+extension MobileCaptureQueueUploading {
+    var targetLibraryKey: String? { nil }
 }
 
 struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
@@ -182,6 +226,8 @@ struct MobileCaptureBackendUploadClient: MobileCaptureQueueUploading {
     var backendHost: URL? {
         EngineConfig.host
     }
+
+    var targetLibraryKey: String? { targetLibraryId?.uuidString }
 
     @MainActor
     func upload(fileURL: URL, catalog: MobileCaptureCatalogFields) async throws -> String {
@@ -234,6 +280,16 @@ final class MobileCaptureQueueStore {
 
     static let interruptedUploadError =
         "This upload was interrupted before it completed. Tap Retry to upload it again."
+
+    /// Outbox blobs and the manifest are file-protected on iOS (#3290): readable after the first unlock,
+    /// so a background upload still runs, but not from a locked, freshly booted phone.
+    static var writeOptions: Data.WritingOptions {
+        #if os(iOS)
+        [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+        #else
+        .atomic
+        #endif
+    }
 
     var items: [MobileCaptureQueueItem] = []
 

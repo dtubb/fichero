@@ -746,7 +746,7 @@ lives somewhere).
    person stays on it. This is what fixes the first-run 400 (#5477): there is always a project to
    save to.
 2. **Your material** (#5480). How material comes in, five ways, each with one sentence of what it
-   does to the originals: **Link** (default; read where they are, never changed), **Copy** (the
+   does to the originals: **Link** (read where they are, never changed), **Copy** (the default; the
    project keeps its own copy), **Move** (the files move into the project; the originals go),
    **Index** (the folder stays where it is; Fichero writes its changes back into it and takes in
    files added to it after a preview), and **Keep arranged** (as Index, and Fichero also keeps the
@@ -1322,9 +1322,9 @@ jobs, and the recipe keeps the registry's step order whatever order stages are c
 |---|---|---|
 | Clean Up Images | `split-pages`, `prepare-the-image` | Two pages per image? Straighten, crop, brighten? |
 | Find Lines | `find-regions`, `find-lines`, `put-in-order`, `refine-shapes` | Columns, margins and glosses? Tables on the pages? |
-| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Read line by line or the page at once? Correct with a second model? |
+| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Read line by line or the page at once? Have a second model check the reading? |
 | Organise | `find-documents-in-a-folder`, `split-into-entries` | Are several documents in one folder, or one document per folder? |
-| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which gazetteer? |
+| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which place list? |
 | Statements | `find-statements` | Which kinds (sales, gifts, marriages, letters sent…)? |
 | Dates & Times | `work-out-dates` | Which calendars (Gregorian, Julian, regnal years, the French Republican…)? |
 | Structured Data | `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` | Which fields to fill, and from what? |
@@ -3217,10 +3217,8 @@ Setup
 - `source.onboard.app.steps` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.appSteps`, `FirstRunWindow.flow(for:)`; pinned by `FirstRunStepSelectionTests`. setting up the app (a first launch, and Fichero › Set
   Up Fichero…) is Welcome → What Fichero runs → the hand-off, and no Permissions step: folder access is
   asked when a folder is added. *Test:* pure Swift, the app's steps are exactly those three.
-- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (the rows, and the two accounts added as providers); pinned by `SetupStagesTests`. What Fichero runs says what Fichero can do
-  and with what (reading pages: Kraken, Apple Vision, MLX vision models; regions and lines: YOLO, Kraken;
-  names and statements: spaCy; speech: Whisper; remote: OpenRouter, Anthropic, OpenAI, Google), and
-  takes a Hugging Face and an OpenRouter account in the step. *Test:* pure Swift, the step's rows and its
+- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (one sentence on what comes with Fichero, and the two accounts added as providers); pinned by `SetupStagesTests`. The step is titled "Where the work runs". It says in one line what Fichero comes with: "Fichero comes with readers for handwriting and print, a line finder and a name finder; it downloads others for your language when you need them." (no table of engine names), and
+  takes a Hugging Face and an OpenRouter account in the step; the OpenRouter row says pages leave the Mac. *Test:* pure Swift, the step's line and its
   two account fields.
 - `source.onboard.app.provider-sheet-in-step` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the sheet is the window's own (`FirstRunWindow.showsProviderSheet`), no longer deferred to finish. Choose a Provider opens its sheet
   while the step shows; it opened only after onboarding ended. *Test:* pure Swift, the sheet's presented
@@ -3404,9 +3402,9 @@ Setup
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
 - `source.onboard.five-ways-in` — **[PARTIAL]** (#5480) **Built 2026-10-05 (app), not yet seen:** Link, Copy, Move, Index and Keep arranged as radio buttons, each with its sentence; Keep arranged imports as Index and is saved as `ingest_mode: keep-arranged`, read back as Keep arranged (`SetupWayIn`; `fichero/Tests/Unit/general/Models/KeepArrangedTests.swift`). *Not built: the import menus and drops starting from the saved choice.* Your material offers five ways material comes in,
-  each with one sentence of what it does to the originals: Link (default), Copy, Move, Index and
+  each with one sentence of what it does to the originals: Copy (default), Link, Move, Index and
   Keep arranged; the choice is saved with the project and used by Add a Folder… and by the
-  project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup.
+  project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup. With Copy, the line after an add says what the copy takes and the room left ("The copy takes 1.2 GB; 112 GB free."), measured from the chosen files (`CopySpaceTests`).
 - `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). Keep arranged ties the folder the same way (built 2026-10-05, below). *Not built: the file count.* choosing Index or Keep arranged
   with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake
