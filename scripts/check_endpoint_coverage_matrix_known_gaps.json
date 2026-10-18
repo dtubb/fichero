@@ -300,6 +300,5 @@
   "POST /api/hpc/prompts/{prompt_id}": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
   "PUT /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
   "POST /api/hpc/clusters/{cluster_id}/check": "the app's Add-a-cluster check row (Swift) is not built yet; engine, CLI and MCP first (#5454)",
-  "GET /api/hpc/clusters/{cluster_id}/key/public": "read by the Add-a-cluster sheet through the generated client call getClusterPublicKey...; engine, CLI and MCP first (#5238)",
-  "GET /api/recipes/htr-united": "the HTR-United datasets for a project (#5571): engine, CLI and MCP; the app's store is the Swift half of #5571 (top of m-ios's list); remove this entry in the commit that adds it"
+  "GET /api/hpc/clusters/{cluster_id}/key/public": "read by the Add-a-cluster sheet through the generated client call getClusterPublicKey...; engine, CLI and MCP first (#5238)"
 }
