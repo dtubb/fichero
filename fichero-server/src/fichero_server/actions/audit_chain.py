@@ -42,7 +42,11 @@ _HASH_FIELDS: tuple[str, ...] = (
     "inverse_of",
     "prev_hash",
 )
-_HASH_WHEN_SET: tuple[str, ...] = ("client", "device")
+#: Rows written from review 93 on carry ``V2_PREFIX`` on ``row_hash`` and also hash the client and the paired device.
+#: Older rows stored a client or device without hashing it, so they verify the old way; the prefix, not a date, says
+#: which (an older engine can still write old-style rows).
+V2_FIELDS: tuple[str, ...] = ("client", "device")
+V2_PREFIX = "v2:"
 
 
 @dataclass(frozen=True)
@@ -59,8 +63,8 @@ class AuditChainVerificationResult:
     anchored: bool = False
 
 
-def _canonical_hash_bytes(audit: ActionAudit) -> bytes:
-    payload = action_audit_hash_payload(audit)
+def _canonical_hash_bytes(audit: ActionAudit, *, v2: bool = False) -> bytes:
+    payload = action_audit_hash_payload(audit, v2=v2)
     canonical = json.dumps(
         payload,
         sort_keys=True,
@@ -86,23 +90,20 @@ def _canonical_json_value(value: Any) -> Any:
     return value
 
 
-def action_audit_hash_payload(audit: ActionAudit) -> dict[str, Any]:
+def action_audit_hash_payload(audit: ActionAudit, *, v2: bool = False) -> dict[str, Any]:
     """Return the stable hash payload for an audit row.
 
     ``undone`` is deliberately excluded: undo mutates that bit in place after
     creation. The chain proves creation history is intact; ``undone`` remains a
-    separate mutable state flag for the undo stack.
+    separate mutable state flag for the undo stack. ``v2`` rows also hash the client and device.
     """
     payload = {
         field: _canonical_json_value(getattr(audit, field))
         for field in _HASH_FIELDS
     }
-    # The client and the paired device are hashed only when the row has them, so every row written before
-    # they were covered still verifies (review 85).
-    for field in _HASH_WHEN_SET:
-        value = getattr(audit, field, None)
-        if value is not None:
-            payload[field] = _canonical_json_value(value)
+    if v2:
+        for field in V2_FIELDS:
+            payload[field] = _canonical_json_value(getattr(audit, field, None))
     return payload
 
 
@@ -187,12 +188,13 @@ def _audit_chain_key(*, create: bool) -> bytes | None:
     return _write_secret_file(path, secrets.token_bytes(32))
 
 
-def compute_action_audit_hash(audit: ActionAudit, *, key: bytes | None = None) -> str:
+def compute_action_audit_hash(audit: ActionAudit, *, key: bytes | None = None, v2: bool = False) -> str:
     if key is None:
         key = _audit_chain_key(create=True)
     if key is None:  # pragma: no cover - create=True should prevent this
         raise RuntimeError("audit-chain secret unavailable")
-    return hmac.new(key, _canonical_hash_bytes(audit), hashlib.sha256).hexdigest()
+    digest = hmac.new(key, _canonical_hash_bytes(audit, v2=v2), hashlib.sha256).hexdigest()
+    return V2_PREFIX + digest if v2 else digest
 
 
 def _anchor_setting_key(db) -> str:
@@ -291,7 +293,7 @@ def save_chained_audit(db, audit: ActionAudit) -> None:
     head_hash = getattr(head, "row_hash", None) if head is not None else None
     audit.chain_seq = (head_seq + 1) if isinstance(head_seq, int) else 1
     audit.prev_hash = head_hash if isinstance(head_hash, str) and head_hash else None
-    audit.row_hash = compute_action_audit_hash(audit)
+    audit.row_hash = compute_action_audit_hash(audit, v2=True)
     db.save(audit)
     db.add_after_commit_hook(
         lambda: _store_chain_anchor(
@@ -327,7 +329,7 @@ def verify_audit_chain(db) -> AuditChainVerificationResult:
                     anchored=anchor is not None,
                 )
             expected_hmac = (
-                compute_action_audit_hash(audit, key=secret)
+                compute_action_audit_hash(audit, key=secret, v2=(audit.row_hash or "").startswith(V2_PREFIX))
                 if secret is not None
                 else None
             )
