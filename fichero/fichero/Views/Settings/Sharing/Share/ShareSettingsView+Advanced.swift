@@ -18,12 +18,34 @@ extension ShareSettingsView {
 
                 if let tailnet = detectedTailnetURL, tailnet != publicBaseURL {
                     LabeledContent("Tailscale address") {
-                        Button("Use \(tailnet)") {
-                            addressDraft = tailnet
-                            publicBaseURL = tailnet
-                            Task { await applySharing() }
+                        HStack {
+                            Text(tailnet)
+                                .font(.caption.monospaced())
+                                .textSelection(.enabled)
+                                .foregroundStyle(.secondary)
+                            Button("Use") {
+                                addressDraft = tailnet
+                                publicBaseURL = tailnet
+                                Task { await applySharing() }
+                            }
+                            .disabled(isApplyingChange)
                         }
-                        .disabled(isApplyingChange)
+                    }
+                }
+
+                if let command = sharingState?.tailnetServeCommand {
+                    // The sandboxed app cannot run the Tailscale CLI: one command to paste (#5317).
+                    Text("Fichero can't start the Tailscale connection itself. Paste this in Terminal once:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text(command)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(command, forType: .string)
+                        }
                     }
                 }
 

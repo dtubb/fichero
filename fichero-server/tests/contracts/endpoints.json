@@ -1103,6 +1103,16 @@
     ],
     "auth": [
       {
+        "method": "POST",
+        "path": "/auth/challenge",
+        "operation_id": "challenge_api_auth_challenge_post",
+        "summary": "Challenge",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "ChallengeRequest",
+        "response_model": "ChallengeResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/identity",
         "operation_id": "identity_api_auth_identity_get",
@@ -1205,6 +1215,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "StatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/sign-in",
+        "operation_id": "sign_in_api_auth_sign_in_post",
+        "summary": "Sign In",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "SignInRequest",
+        "response_model": "SignInResponse"
       }
     ],
     "authz": [
@@ -8376,6 +8396,26 @@
         "response_model": "PairResponse"
       },
       {
+        "method": "PUT",
+        "path": "/pair/multiuser",
+        "operation_id": "set_multiuser_api_pair_multiuser_put",
+        "summary": "Set Multiuser",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "MultiuserRequest",
+        "response_model": "SharingStateResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/pair/sharing",
+        "operation_id": "sharing_state_api_pair_sharing_get",
+        "summary": "Sharing State",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "SharingStateResponse"
+      },
+      {
         "method": "GET",
         "path": "/pair/tailnet",
         "operation_id": "detected_tailnet_api_pair_tailnet_get",
@@ -9135,6 +9175,27 @@
         ],
         "request_model": null,
         "response_model": "HandList"
+      },
+      {
+        "method": "GET",
+        "path": "/recipes/htr-united",
+        "operation_id": "htr_united_datasets_api_recipes_htr_united_get",
+        "summary": "Htr United Datasets",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "languages",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "scripts",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "HtrUnitedDatasets"
       },
       {
         "method": "GET",

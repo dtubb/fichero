@@ -311,9 +311,12 @@ extension EmbeddedBackendService {
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
         if RemoteAccessConfig.hostingEnabled {
             environment["FICHERO_TCP_TLS_ALSO"] = "1"
-            if let host = RemoteAccessConfig.publicBaseURL?.host,
-               host.hasSuffix(".local") {
+            if let host = RemoteAccessConfig.lanListenerHost(publicHost: RemoteAccessConfig.publicBaseURL?.host) {
                 environment["FICHERO_LAN_HOST"] = host
+            }
+            // Only an explicit choice is passed; unset, the engine keeps the listener while a device is paired.
+            if let choice = RemoteAccessConfig.thisNetworkChoice {
+                environment["FICHERO_THIS_NETWORK"] = choice ? "1" : "0"
             }
         }
         if let publicBaseURL {

@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from fichero_server.db.storage import settings
 from fichero_server.models import (
     ActionAudit,
+    AccountClient,
     AccountInvite,
     AccountSession,
     AccountUser,
@@ -286,6 +287,19 @@ class AppDatabase:
         """)
 
         self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS clients (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                kind VARCHAR NOT NULL,
+                name VARCHAR NOT NULL,
+                host VARCHAR DEFAULT '',
+                public_key_pem VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                revoked_at TIMESTAMP
+            )
+        """)
+
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS invites (
                 id VARCHAR PRIMARY KEY,
                 username VARCHAR NOT NULL,
@@ -349,6 +363,17 @@ class AppDatabase:
         # Revoke cascades (#5351): which paired device minted the code that paired this one.
         if "paired_by_device_id" not in _device_cols:
             self.conn.execute("ALTER TABLE devices ADD COLUMN paired_by_device_id VARCHAR")
+            self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
+        # Which route the device paired over ("lan" or "tailnet"); unset for devices paired before this existed.
+        if "paired_route" not in _device_cols:
+            self.conn.execute("ALTER TABLE devices ADD COLUMN paired_route VARCHAR")
+            self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
+        # The client a session was signed in through (multiuser-always-on); NULL for password and device sessions.
+        _session_cols = {row[1] for row in self.conn.execute("PRAGMA table_info(sessions)").fetchall()}
+        if "client_id" not in _session_cols:
+            self.conn.execute("ALTER TABLE sessions ADD COLUMN client_id VARCHAR")
             self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
 
         # Who made an account change, and from which paired device (review 76): the app audit rows kept neither.
@@ -1420,6 +1445,7 @@ class AppDatabase:
         token_hash: str,
         device_label: str | None,
         ttl: timedelta,
+        client_id: str | None = None,
     ) -> AccountSession:
         """Insert a new session row and return the typed record."""
         now = utc_now()
@@ -1436,9 +1462,9 @@ class AppDatabase:
                 """
                 INSERT INTO sessions (
                     id, user_id, token_hash, device_label,
-                    created_at, last_seen_at, expires_at, revoked
+                    created_at, last_seen_at, expires_at, revoked, client_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 [
                     session.id,
@@ -1449,6 +1475,7 @@ class AppDatabase:
                     session.last_seen_at,
                     session.expires_at,
                     session.revoked,
+                    client_id,
                 ],
             )
             self.conn.commit()
@@ -1769,6 +1796,61 @@ class AppDatabase:
     # Devices
     # =========================================================================
 
+    def create_client(
+        self, *, user_id: str, kind: str, name: str, host: str = "", public_key_pem: str
+    ) -> AccountClient:
+        """Register a client's public key for a person (multiuser-always-on)."""
+        client = AccountClient(
+            user_id=user_id, kind=kind, name=name.strip(), host=host.strip(), public_key_pem=public_key_pem
+        )
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO clients (id, user_id, kind, name, host, public_key_pem, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [client.id, client.user_id, client.kind, client.name, client.host,
+                 client.public_key_pem, client.created_at],
+            )
+            self.conn.commit()
+        return client
+
+    def get_client(self, client_id: str) -> AccountClient | None:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT id, user_id, kind, name, host, public_key_pem, created_at, revoked_at "
+                "FROM clients WHERE id = ?",
+                [client_id],
+            ).fetchone()
+        if row is None:
+            return None
+        return AccountClient(
+            id=row[0], user_id=row[1], kind=row[2], name=row[3], host=row[4] or "", public_key_pem=row[5],
+            created_at=ensure_utc(row[6]), revoked_at=ensure_utc(row[7]) if row[7] else None,
+        )
+
+    def revoke_client(self, client_id: str) -> None:
+        """End a client: it can no longer sign in and every session it opened stops working."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE clients SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", [utc_now(), client_id]
+            )
+            self.conn.execute("UPDATE sessions SET revoked = TRUE WHERE client_id = ?", [client_id])
+            self.conn.commit()
+
+    def session_client(self, token_hash: str) -> AccountClient | None:
+        """The client a session was signed in through, in one read (None for password and device sessions)."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT c.id, c.user_id, c.kind, c.name, c.host, c.public_key_pem, c.created_at, c.revoked_at "
+                "FROM sessions s JOIN clients c ON c.id = s.client_id WHERE s.token_hash = ?",
+                [token_hash],
+            ).fetchone()
+        if row is None:
+            return None
+        return AccountClient(
+            id=row[0], user_id=row[1], kind=row[2], name=row[3], host=row[4] or "", public_key_pem=row[5],
+            created_at=ensure_utc(row[6]), revoked_at=ensure_utc(row[7]) if row[7] else None,
+        )
+
     def create_device(
         self,
         *,
@@ -1885,6 +1967,25 @@ class AppDatabase:
                 "UPDATE devices SET paired_by_device_id = ? WHERE id = ?", [paired_by_device_id, device_id]
             )
             self.conn.commit()
+
+    def set_device_route(self, device_id: str, route: str | None) -> None:
+        """Record the route a device paired over: "lan" (direct, .local or the LAN) or "tailnet"."""
+        with self._lock:
+            self.conn.execute("UPDATE devices SET paired_route = ? WHERE id = ?", [route, device_id])
+            self.conn.commit()
+
+    def device_route(self, device_id: str) -> str | None:
+        with self._lock:
+            row = self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]).fetchone()
+        return row[0] if row else None
+
+    def has_lan_paired_device(self, legacy_is_lan: bool = True) -> bool:
+        """A live device paired over .local or the LAN. One paired before the route was recorded counts as LAN
+        only when `legacy_is_lan` (this Mac shares over .local); otherwise as Tailscale. A tailnet-paired never."""
+        routes = "paired_route = 'lan'" + (" OR paired_route IS NULL" if legacy_is_lan else "")
+        with self._lock:
+            row = self.conn.execute(f"SELECT 1 FROM devices WHERE NOT revoked AND ({routes}) LIMIT 1").fetchone()
+        return row is not None
 
     def device_paired_by(self) -> dict[str, str]:
         """device id -> the paired device that paired it (devices paired by the host are absent)."""
