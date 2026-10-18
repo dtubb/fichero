@@ -19,6 +19,8 @@ import pathlib
 import re
 import sys
 
+from _scan_files import scan_rglob
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BASELINE = ROOT / "scripts" / "ambient_owner_in_tests_baseline.json"
 PATTERN = re.compile(r"Bearer \{[^}]*(bootstrap|initialize_token)|\.host\(\)")
@@ -26,7 +28,7 @@ PATTERN = re.compile(r"Bearer \{[^}]*(bootstrap|initialize_token)|\.host\(\)")
 
 def count() -> int:
     total = 0
-    for path in (ROOT / "fichero-server" / "tests").rglob("*.py"):
+    for path in scan_rglob(ROOT / "fichero-server" / "tests", "*.py"):
         if path.name == "signed_in.py":
             continue
         total += sum(1 for line in path.read_text(errors="ignore").splitlines() if PATTERN.search(line))
