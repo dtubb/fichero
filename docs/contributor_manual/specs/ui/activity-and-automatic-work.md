@@ -1524,7 +1524,15 @@ code path.
   kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
   `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
-  run is done (a finished run's final state is still read, and a resume reads it, #5373).
+  run is done. **Done** means all of: the run's record says `completed` (written, with its log and timeline); the run's account
+  is `done` with no failed page and no page left (so Retry has nothing to read again); the checkpoint has no pending writes; and
+  the run's documents are settled. A paused, failed, cancelled, interrupted or partly failed run keeps its checkpoint (Resume and
+  Read Again read it). *Readers of a finished run's checkpoint that must read the record instead, first:* the run's account
+  (`run_account._checkpoint`: pages done, failures, peak), the status route's `current_state`
+  (`workflow_execution/core.py` `get_thread_status`), and the history's last step (`threads.py`). The finished account is therefore
+  kept on the run's record at completion, and those three read it when the checkpoint is gone; only then is the checkpoint deleted
+  (`AsyncDuckDBCheckpointer.adelete_thread`), after `finalize_run_documents`. Resume reads the last checkpoint of a paused run
+  and never of a completed one (#5373).
 - `activity.run.live-run-never-evicted` — **[BROKEN]** (#5376) a live run is never dropped from
   the engine's run registry. Today the registry cap evicts the first entry when none has finished
   (`execution/runner.py:273-284`), and the reopen sweep then fails the evicted run
