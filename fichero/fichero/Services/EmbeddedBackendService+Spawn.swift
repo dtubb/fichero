@@ -36,6 +36,13 @@ struct LaunchSecretHandover: @unchecked Sendable {
     }
 }
 
+/// The launch secret of the engine this app last spawned, for the one first-run call that needs it (#5797).
+/// In memory only; an adopted external engine leaves it nil.
+@MainActor
+enum EngineLaunchSecretStore {
+    static var current: String?
+}
+
 extension EmbeddedBackendService {
     /// The two places the nested engine can live, in the order we look (#3749).
     ///
@@ -185,7 +192,9 @@ extension EmbeddedBackendService {
         )
 
         // The first-run secret rides the stdin pipe, never the environment or argv (#5797).
-        launchSecretHandover = LaunchSecretHandover.attach(to: process, secret: Self.generateLaunchSecret())
+        let handover = LaunchSecretHandover.attach(to: process, secret: Self.generateLaunchSecret())
+        launchSecretHandover = handover
+        EngineLaunchSecretStore.current = handover.secret
 
         // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
         // in ~/Library/Logs/ so Release-build engine failures surface instead
