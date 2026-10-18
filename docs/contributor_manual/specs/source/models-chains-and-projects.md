@@ -4475,7 +4475,7 @@ Each is described in the paragraph named; the id lets a test cite it.
   corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
 - `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
   period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
-- `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
+- `source.train.on-the-persons-corrections` — **[PARTIAL]** (#5700; the teacher `person` builds the set from the lines a person made, counted and left out as the manifest says. The offer does not yet start it (train_offers.py is the recipes lane's); tests `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py`; not yet run live on the M4) a reader is fine-tuned on the person's corrected lines, not only distilled from a
   model's lines, and the readiness count matches what it trains on.
 - `source.train.noise-band-per-project` — **[GAP]** (#5692) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise.
