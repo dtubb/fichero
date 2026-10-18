@@ -551,16 +551,19 @@ def totals(per_page: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
 #: How many held-out splits the noise band is measured over (ruled Q6 2026-10-17, #5692).
 NOISE_SPLITS = 3
+#: The fewest read pages a band is measured from (review 70: three pages, one a split, measure nothing). Five a split.
+#: ponytail: a stated floor; a per-split line count if pages vary too much in length.
+NOISE_MIN_PAGES = 15
 
 
 def noise_band(per_page: list[dict[str, Any]], splits: int = NOISE_SPLITS) -> float | None:
     """The CER spread over `splits` held-out splits of the pages a reader read (page i in split i % splits): the
-    difference between the worst and the best split's CER. None when there are fewer read pages than splits."""
+    difference between the worst and the best split's CER. None with fewer than `NOISE_MIN_PAGES` read pages."""
     from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
 
     scored = [p["scores"][DEFAULT_POLICY_NAME] for p in per_page
               if p.get("read", True) and (p["scores"].get(DEFAULT_POLICY_NAME) or {}).get("cer") is not None]
-    if len(scored) < splits:
+    if len(scored) < max(splits, NOISE_MIN_PAGES):
         return None
     cers = []
     for k in range(splits):
