@@ -16,6 +16,15 @@ def test_rusage_reports_memory_and_energy_then_watts():
     assert bc.process_energy_watts() > 0
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="proc_pid_rusage is macOS")
+def test_the_buffer_is_the_whole_v6_struct():
+    """The kernel writes all of rusage_info_v6 (464 bytes, sys/resource.h); a shorter buffer is overwritten past its end."""
+    import ctypes
+
+    bc.process_rusage()
+    assert ctypes.sizeof(bc._libproc[1]) == 464 and len(bc._libproc) == 2
+
+
 def test_rusage_is_none_off_macos(monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     assert bc.process_rusage() is None and bc.process_energy_watts() is None

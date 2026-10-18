@@ -194,8 +194,12 @@ _RUSAGE_V6_FIELDS = (
     "ri_billed_energy ri_serviced_energy ri_interval_max_phys_footprint ri_runnable_time ri_flags "
     "ri_user_ptime ri_system_ptime ri_pinstructions ri_pcycles ri_energy_nj ri_penergy_nj "
     "ri_secure_time_in_system ri_secure_ptime_in_system ri_neural_footprint "
-    "ri_lifetime_max_neural_footprint ri_interval_max_neural_footprint"
+    "ri_lifetime_max_neural_footprint ri_interval_max_neural_footprint ri_conclave_footprint "
+    "ri_page_wait_time_mach ri_page_cache_hits"
 ).split()
+#: sys/resource.h ends v6 with `uint64_t ri_reserved[6]`: the kernel writes the whole struct, so a buffer one field
+#: short is overwritten past its end (464 bytes in all).
+_RUSAGE_V6_RESERVED = 6
 _energy_last_sample: tuple[float, int] | None = None
 _libproc: list = []  # [CDLL, struct class], built once
 
@@ -209,8 +213,11 @@ def process_rusage(pid: int | None = None) -> dict[str, int] | None:
         return None
     try:
         if not _libproc:
-            fields = [("ri_uuid", ctypes.c_uint8 * 16)] + [(n, ctypes.c_uint64) for n in _RUSAGE_V6_FIELDS]
-            _libproc.extend([ctypes.CDLL("/usr/lib/libproc.dylib"), type("rusage_info_v6", (ctypes.Structure,), {"_fields_": fields})])
+            fields = ([("ri_uuid", ctypes.c_uint8 * 16)] + [(n, ctypes.c_uint64) for n in _RUSAGE_V6_FIELDS]
+                      + [("ri_reserved", ctypes.c_uint64 * _RUSAGE_V6_RESERVED)])
+            # Slice assignment, not extend: two first polls at once still leave exactly [CDLL, struct class].
+            _libproc[:] = [ctypes.CDLL("/usr/lib/libproc.dylib"),
+                           type("rusage_info_v6", (ctypes.Structure,), {"_fields_": fields})]
         lib, info = _libproc[0], _libproc[1]()
         if lib.proc_pid_rusage(pid or os.getpid(), 6, ctypes.byref(info)) != 0:
             return None
