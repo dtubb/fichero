@@ -94,3 +94,12 @@ def test_the_key_goes_to_the_owner_never_to_another_person(harness, engine_secre
     _key, pem = new_key()
     client_id = _migrate(uds_client(harness), pem).json()["client"]["id"]
     assert harness.app_db.get_client(client_id).user_id == owner.id != alice.id
+
+
+def test_several_owner_rows_are_refused_not_guessed(harness, engine_secret):
+    _users(harness)
+    harness.app_db.create_user(
+        username="second", display_name="Second", password_hash=accounts.hash_password("x"), is_owner=True
+    )
+    _key, pem = new_key()
+    assert _migrate(uds_client(harness), pem).status_code == 409

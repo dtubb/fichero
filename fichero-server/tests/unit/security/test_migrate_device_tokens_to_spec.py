@@ -72,3 +72,21 @@ def test_revoking_the_device_revokes_its_client(harness, monkeypatch):
     harness.app_db.migrate_device_tokens_to_clients()
     harness.app_db.revoke_device(phone.id)
     assert harness.app_db.get_client(phone.id).revoked_at is not None
+
+
+def test_a_failing_migration_never_stops_the_db_opening_and_old_tokens_still_work(tmp_path, monkeypatch):
+    from fichero_server.db.app import AppDatabase
+
+    def boom(self):
+        raise RuntimeError("migration broke")
+
+    monkeypatch.setattr(AppDatabase, "migrate_device_tokens_to_clients", boom)
+    db = AppDatabase(tmp_path / "app.duckdb")  # must not raise
+    try:
+        user = db.create_user(
+            username="alice", display_name="Alice", password_hash=accounts.hash_password("x"), is_owner=False
+        )
+        db.create_device(name="Alice's iPhone", user_id=user.id, token_hash=accounts.hash_token("tok-phone"))
+        assert db.get_device_by_token_hash(accounts.hash_token("tok-phone")) is not None
+    finally:
+        db.close()
