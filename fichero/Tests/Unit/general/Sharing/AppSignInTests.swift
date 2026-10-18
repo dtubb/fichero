@@ -57,6 +57,32 @@ struct AppSignInTests {
     }
 }
 
+extension AppSignInTests {
+    @Test("when first-run says an owner exists, the key goes onto that owner through migrate-owner")
+    func bootstrapFallsBackToMigrateOwner() async throws {
+        let key = P256.Signing.PrivateKey()
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 5, engineID: "e"))
+        transport.firstRunRefusal = 409
+        let clients = MemoryClientID(nil)
+        let service = AppSignInService(transport: transport, keys: FixedKey(key), clients: clients)
+        _ = try await service.bootstrapOwner(launchSecret: "ab", displayName: "Daniel", clientName: "Fichero", host: "Mac")
+        #expect(transport.migrations.first?.publicKeyPEM == key.publicKey.pemRepresentation)
+        #expect(clients.clientID() == "migrated-client")
+        #expect(transport.signIns.first?.clientID == "migrated-client")
+    }
+
+    @Test("any other first-run refusal is not retried as a migration")
+    func otherRefusalsStop() async {
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 5, engineID: "e"))
+        transport.firstRunRefusal = 401
+        let service = AppSignInService(transport: transport, keys: FixedKey(P256.Signing.PrivateKey()), clients: MemoryClientID(nil))
+        await #expect(throws: SignInRefusal.refused(statusCode: 401)) {
+            try await service.bootstrapOwner(launchSecret: "ab", displayName: "D", clientName: "F", host: "M")
+        }
+        #expect(transport.migrations.isEmpty)
+    }
+}
+
 private final class FakeTransport: SignInTransport, @unchecked Sendable {
     struct SignIn { let clientID: String; let nonce: String; let signature: String }
     struct FirstRun { let launchSecret: String; let publicKeyPEM: String }
@@ -64,6 +90,8 @@ private final class FakeTransport: SignInTransport, @unchecked Sendable {
     private(set) var challengeCalls = 0
     private(set) var signIns: [SignIn] = []
     private(set) var firstRuns: [FirstRun] = []
+    private(set) var migrations: [FirstRun] = []
+    var firstRunRefusal: Int?
 
     init(challenge: SignInChallenge) { challengeToReturn = challenge }
 
@@ -81,7 +109,13 @@ private final class FakeTransport: SignInTransport, @unchecked Sendable {
         launchSecret: String, displayName: String, clientName: String, host: String, publicKeyPEM: String
     ) async throws -> String {
         firstRuns.append(FirstRun(launchSecret: launchSecret, publicKeyPEM: publicKeyPEM))
+        if let code = firstRunRefusal { throw SignInRefusal.refused(statusCode: code) }
         return "new-client"
+    }
+
+    func migrateOwner(launchSecret: String, clientName: String, host: String, publicKeyPEM: String) async throws -> String {
+        migrations.append(FirstRun(launchSecret: launchSecret, publicKeyPEM: publicKeyPEM))
+        return "migrated-client"
     }
 }
 
