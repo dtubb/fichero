@@ -64,3 +64,54 @@ def test_an_evaluation_with_no_trained_reader_adopts_nothing(db):
     result = _result(0.05, 0.08)
     result["models"] = result["models"][1:]
     assert adopt_trained(db, result) is None
+
+
+def test_a_reader_the_person_chose_survives_a_better_trained_one(db):
+    """Review 77: only a reader the rules chose is swapped; the person's choice is the one to beat, and a better
+    trained reader is offered, never switched to."""
+    library = _setup(db)
+    recipe = read_project_setup(library)["recipe"]
+    chosen = {"step": "read", "scope": "project", "folder_id": None, "model": {"zenodo": "10.5281/zenodo.13788177"},
+              "card": "kraken:zenodo/10.5281/zenodo.13788177@unpinned", "because": "chosen by you"}
+    write_project_setup(library, {"purposes": ["transcribe"]}, {**recipe, "overrides": [chosen]})
+    from fichero_server.recipes.cards import kraken_reader_for
+
+    result = _result(0.05, 0.08)
+    result["models"][1]["model"] = kraken_reader_for(chosen["model"])  # the person's reader was measured too
+    verdict = adopt_trained(db, result)
+    assert verdict["adopted"] is None and verdict["offered"] == TRAINED, verdict
+    assert "you chose" in verdict["why"]
+    assert read_project_setup(library)["recipe"]["overrides"] == [chosen]
+
+
+def test_a_reader_the_evaluation_adopted_is_replaced_by_a_better_one(db):
+    library = _setup(db)
+    adopt_trained(db, _result(0.05, 0.08))
+    result = _result(0.02, 0.08)
+    result["models"][0]["model"] = "kraken-trained-newer0000000"
+    assert adopt_trained(db, result)["adopted"] == "kraken-trained-newer0000000"
+    (override,) = read_project_setup(library)["recipe"]["overrides"]
+    assert override["model"] == {"trained": "kraken-trained-newer0000000"}
+
+
+def test_the_steps_current_reader_is_the_one_to_beat(db):
+    """Review 77: a rules-chosen reader that is not the best downloadable one is still what the trained one must beat."""
+    library = _setup(db)
+    from fichero_server.recipes.cards import kraken_reader_for
+
+    result = _result(0.05, 0.08)
+    result["models"][1]["model"] = "kraken-other-download"
+    current = dict(result["models"][1], model=kraken_reader_for(RECIPE["steps"][0]["model"]),
+                   scores={"diplomatic": {"cer": 0.055}})
+    result["models"].append(current)  # the step's reader, better than the other download, inside the band
+    verdict = adopt_trained(db, result)
+    assert verdict["adopted"] is None and current["model"] in verdict["why"], verdict
+    assert not read_project_setup(library)["recipe"].get("overrides")
+
+
+def test_too_few_held_out_pages_adopt_nothing(db):
+    _setup(db)
+    result = _result(0.01, 0.08)
+    result["models"][0]["pages_read"] = 5
+    verdict = adopt_trained(db, result)
+    assert verdict["adopted"] is None and "5 held-out pages" in verdict["why"]
