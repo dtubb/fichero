@@ -166,6 +166,40 @@ def _with_line_scripts(prior_text: Any, documents: list, files: list, library_pa
     return texts if isinstance(prior_text, list) else texts[0]
 
 
+def _within_budget(prior_text: Any, model: str) -> tuple[Any, list[str]]:
+    """Each page's listed lines, in reading order, up to the model's prefill budget (its card's `prefill_tokens`,
+    #5648); a page over it is told how many lines were left out, and the step's notes say so too. A model with no
+    stated budget is sent everything."""
+    import logging
+
+    from fichero_server.recipes import cards
+
+    budget = cards.prefill_tokens_for(model) if model else None
+    if not budget or not prior_text:
+        return prior_text, []
+    texts = list(prior_text) if isinstance(prior_text, list) else [prior_text]
+    said = []
+    for index, text in enumerate(texts):
+        rows = str(text or "").split("\n")
+        listed = [i for i, row in enumerate(rows) if _SHOWN_LINE.match(row)]
+        used, keep = 0, []
+        for i in listed:
+            used += len(rows[i]) // 4 + 1  # ponytail: ~4 characters a token; a tokenizer per model if this misjudges
+            if used > budget and keep:
+                break
+            keep.append(i)
+        if len(keep) == len(listed):
+            continue
+        left = len(listed) - len(keep)
+        message = (f"{left} of the page's {len(listed)} lines were left out to fit the model's budget of {budget} "
+                   "tokens; they are not reviewed in this pass")
+        dropped = set(listed[len(keep):])
+        texts[index] = "\n".join(row for i, row in enumerate(rows) if i not in dropped) + f"\n\n({message}.)"
+        logging.getLogger(__name__).warning("review context: %s", message)
+        said.append(message)
+    return (texts if isinstance(prior_text, list) else texts[0]), said
+
+
 def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
     """The prompt for `lens` built from the project's setup answers and the profile they choose
     (`source.job.review-is-built-from-the-project-and-a-profile`), and which profile that was."""
@@ -253,6 +287,7 @@ async def transcribe_review(
 
         prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
     prior_text = _with_line_scripts(prior_text, documents, files, state.get("library_path", ""))
+    prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""))
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", False)
@@ -303,6 +338,7 @@ async def transcribe_review(
     )
     if profile_said:
         result.setdefault("notes", []).append(profile_said)
+    result.setdefault("notes", []).extend(cut)
     library_path = state.get("library_path", "")
     if library_path and result.get("artifacts"):
         import asyncio
