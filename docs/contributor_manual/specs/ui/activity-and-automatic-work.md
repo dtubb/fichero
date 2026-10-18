@@ -1513,10 +1513,10 @@ code path.
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
   `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
   run is done (a finished run's final state is still read, and a resume reads it, #5373).
-- `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
-  the engine's run registry: the cap drops finished runs only (`execution/runner.py` `_cap_workflow_state_registry`),
-  so the reopen sweep never fails a run still going. Pinned by
-  `fichero-server/tests/unit/execution/test_live_run_never_evicted_5376.py`.
+- `activity.run.live-run-never-evicted` — **[BROKEN]** (#5376) a live run is never dropped from
+  the engine's run registry. Today the registry cap evicts the first entry when none has finished
+  (`execution/runner.py:273-284`), and the reopen sweep then fails the evicted run
+  (`workflows/activity.py:681-689`).
 - `activity.run.quit-pauses` — **[BROKEN]** (#5357) quitting pauses running runs at their next
   boundary, and they carry on at the next launch. Today engine shutdown only closes the SSE hubs
   (`api/main.py:1020-1022`), so quit is a crash, and on reopen every running, accepted and paused
