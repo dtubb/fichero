@@ -389,6 +389,7 @@ def main(argv: list[str] | None = None):
     uds_path = (os.environ.get("FICHERO_UDS_PATH") or "").strip()
     if uds_path:
         _stamp("importing FastAPI app (UDS)")
+        from fichero_server.api.uds_peer import peer_aware_http_protocol
         from fichero_server.api.uds_transport import app as uds_app
 
         _stamp("FastAPI app imported")
@@ -400,6 +401,8 @@ def main(argv: list[str] | None = None):
             log_level="info",
             loop="asyncio",
             ws="websockets-sansio",
+            # Reads the peer's credentials per connection for the local-client routes (multiuser, slice 6b).
+            http=peer_aware_http_protocol(),
             # The app's SSE clients (activity/change streams) hold their
             # connections open across shutdown, and uvicorn's default is to
             # wait for them INDEFINITELY — so every quit blew through the
