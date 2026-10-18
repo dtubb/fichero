@@ -516,6 +516,7 @@ async def resume_workflow(
             {
                 "workflow_id": workflow_id,
                 "workflow_name": workflow.name,
+                "db_path": str(db.path),
                 "status": "accepted",
                 "events": event_hub,
                 "error": None,

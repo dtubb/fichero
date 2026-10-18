@@ -278,6 +278,27 @@ def close_all_event_hubs_for_shutdown() -> int:
     return closed
 
 
+async def pause_live_runs_for_shutdown() -> int:
+    """Quit pauses the runs in flight, they do not fail (#5357, `activity.run.quit-pauses`): each live run that has a
+    checkpoint on disk is recorded `paused`, so the next open leaves it paused for Resume instead of failing it.
+    A run with no checkpoint yet has nothing to resume from and is left for the reopen sweep. Returns how many."""
+    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
+    paused = 0
+    for thread_id, state in list(_running_workflows.items()):
+        db_path = state.get("db_path")
+        if not db_path or state.get("status") not in ("accepted", "running"):
+            continue
+        saved = await AsyncDuckDBCheckpointer.from_db_path(db_path).aget_tuple(
+            {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
+        if saved is None:
+            continue
+        await get_activity_tracker(db_path).store.update_workflow_run(thread_id=thread_id, status="paused")
+        state["status"] = "paused"
+        paused += 1
+    return paused
+
+
 def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
     """Serialize the buffered SSE events for run replay."""
     timeline: list[dict[str, Any]] = []
@@ -932,6 +953,7 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
         {
             "workflow_id": request.workflow_id,
             "workflow_name": workflow.name,
+            "db_path": str(db.path),
             "status": "accepted",
             "events": event_hub,
             "error": None,
