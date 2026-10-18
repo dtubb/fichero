@@ -50797,7 +50797,7 @@
             },
             "type": "array",
             "title": "Automatic",
-            "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers)"
+            "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"
           },
           "gaps": {
             "items": {
