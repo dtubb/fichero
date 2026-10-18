@@ -7,8 +7,11 @@ shared-secret-only single-user app.
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import secrets
+import time
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from functools import cache
@@ -23,7 +26,14 @@ from pydantic import BaseModel, Field
 from fichero_server.security import accounts
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
-from fichero_server.models import AccountInvite, AccountUser, ActionAudit, AuthIdentityResponse, AuthIdentityUser
+from fichero_server.models import (
+    AccountInvite,
+    AccountUser,
+    ActionAudit,
+    AuthIdentityClient,
+    AuthIdentityResponse,
+    AuthIdentityUser,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -455,7 +465,7 @@ def me(request: Request) -> UserResponse:
 
 
 @auth_router.get("/identity", response_model=AuthIdentityResponse)
-def identity(request: Request) -> AuthIdentityResponse:
+def identity(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> AuthIdentityResponse:
     auth_kind = auth_kind_from_request(request)
     if auth_kind is None:
         raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
@@ -465,6 +475,7 @@ def identity(request: Request) -> AuthIdentityResponse:
         multiuser_enabled=_use_multiuser_auth(),
         auth_kind=auth_kind,
         user=_identity_user(user),
+        client=_identity_client(request, app_db),
         is_owner_access=auth_kind == "bootstrap" or bool(getattr(user, "is_owner", False)),
     )
 
@@ -762,3 +773,114 @@ def delete_user(
         raise HTTPException(status_code=409, detail="cannot delete the last owner")
     app_db.delete_user(user_id)
     return StatusResponse(status="ok")
+
+
+# --- Sign-in by challenge (multiuser-always-on, slice 1) -------------------------------------------------------------
+# A client proves it holds the private half of the public key registered for it. Single-process in-memory state, the
+# same invariant as the login rate limit above.
+
+CHALLENGE_TTL_SECONDS = 60
+SIGN_IN_FAILURES_PER_MINUTE = 10
+_REFUSED = HTTPException(status_code=401, detail="sign-in refused")
+_challenges: dict[str, tuple[str, float]] = {}  # nonce -> (client_id, expires_at)
+_sign_in_failures: dict[str, list[float]] = {}  # client_id -> failure times
+
+
+class ChallengeRequest(BaseModel):
+    client_id: str
+
+
+class ChallengeResponse(BaseModel):
+    nonce: str
+    expires_in: int
+
+
+class SignInRequest(BaseModel):
+    client_id: str
+    nonce: str
+    signature: str  # base64 ECDSA-P256-SHA256 over the nonce's UTF-8 bytes
+
+
+class SignInClient(BaseModel):
+    id: str
+    kind: str
+    name: str
+
+
+class SignInResponse(BaseModel):
+    session_token: str
+    user: UserResponse
+    client: SignInClient
+
+
+def _identity_client(request: Request, app_db: AppDatabase) -> AuthIdentityClient | None:
+    session = getattr(request.state, "session", None)
+    client_id = app_db.session_client_id(session.token_hash) if session is not None else None
+    client = app_db.get_client(client_id) if client_id else None
+    if client is None:
+        return None
+    return AuthIdentityClient(id=client.id, kind=client.kind, name=client.name)
+
+
+def _live_client(app_db: AppDatabase, client_id: str):
+    client = app_db.get_client(client_id)
+    return client if client is not None and client.revoked_at is None else None
+
+
+def _signature_is_valid(public_key_pem: str, nonce: str, signature: str) -> bool:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    try:
+        key = serialization.load_pem_public_key(public_key_pem.encode())
+        key.verify(base64.b64decode(signature, validate=True), nonce.encode(), ec.ECDSA(hashes.SHA256()))
+    except (InvalidSignature, ValueError, TypeError):
+        return False
+    return True
+
+
+@auth_router.post("/challenge", response_model=ChallengeResponse)
+def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_database)) -> ChallengeResponse:
+    # An unknown and a revoked client look the same, so ids cannot be probed.
+    if _live_client(app_db, body.client_id) is None:
+        raise _REFUSED
+    now = time.time()
+    for stale in [n for n, (_, exp) in _challenges.items() if exp <= now]:
+        del _challenges[stale]
+    nonce = secrets.token_urlsafe(32)
+    _challenges[nonce] = (body.client_id, now + CHALLENGE_TTL_SECONDS)
+    return ChallengeResponse(nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS)
+
+
+@auth_router.post("/sign-in", response_model=SignInResponse)
+def sign_in(body: SignInRequest, app_db: AppDatabase = Depends(get_app_database)) -> SignInResponse:
+    now = time.time()
+    recent = [t for t in _sign_in_failures.get(body.client_id, []) if now - t < 60]
+    if len(recent) >= SIGN_IN_FAILURES_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="too many failed sign-ins", headers={"Retry-After": "60"})
+    # Single use: the nonce is spent whether or not the signature is good.
+    issued = _challenges.pop(body.nonce, None)
+    client = _live_client(app_db, body.client_id)
+    ok = (
+        issued is not None
+        and issued[0] == body.client_id
+        and issued[1] > now
+        and client is not None
+        and _signature_is_valid(client.public_key_pem, body.nonce, body.signature)
+    )
+    if not ok:
+        _sign_in_failures[body.client_id] = [*recent, now]
+        raise _REFUSED
+    user = app_db.get_user(client.user_id)
+    if user is None or not user.active:
+        raise _REFUSED
+    raw_token = accounts.new_session_token()
+    token_hash = accounts.hash_token(raw_token)
+    app_db.create_session(user_id=user.id, token_hash=token_hash, device_label=client.name, ttl=SESSION_TTL)
+    app_db.set_session_client(token_hash, client.id)
+    return SignInResponse(
+        session_token=raw_token,
+        user=_to_public_user(user),
+        client=SignInClient(id=client.id, kind=client.kind, name=client.name),
+    )
