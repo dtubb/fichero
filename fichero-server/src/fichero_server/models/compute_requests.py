@@ -28,6 +28,8 @@ class TrainKrakenRequest(_TrainRequest):
     name: str = Field("reader", description="A short name for the trained reader's file.")
     flavor: str = Field("t4-small", description="Hugging Face hardware.")
     timeout: str = Field("4h", description="The Job's time limit; always sent (the service's default is 30 minutes).")
+    target: str = Field("huggingface-jobs", description="Where it trains: `huggingface-jobs`, or the id of a cluster "
+                        "set up here (one GPU job; `flavor` does not apply there).")
     batch_size: int | None = Field(None, ge=1, le=64, description="Lines per step, as on this Mac; none: the largest "
                                    "measured to fit the hardware's GPU (8 on a 16 GB T4), else ketos's 16.")
 

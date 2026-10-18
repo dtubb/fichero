@@ -878,7 +878,11 @@ person's Hugging Face account, and Fichero's trainer fine-tunes the `base` Krake
 chosen `flavor` with an explicit `timeout`. The answer carries the job id and the hardware's
 `price_per_hour_usd`. It is refused, with nothing queued, without `pages_may_leave: true` (403),
 without a Hugging Face token in Settings (412), or with a base reader that is not installed (422).
-Through the audited, non-undoable action `training.start`.
+Through the audited, non-undoable action `training.start`. `target` names where it trains: `huggingface-jobs`
+(the default), or a cluster set up here by its id, where the set goes to the run's folder, one GPU job runs the
+same trainer in the server image, `flavor` does not apply and `price_per_hour_usd` is null; a cluster with no
+key in the app is refused by name (422, #5238). The run's folder leaves the cluster when the reader is home
+unless the project said working copies may stay (#5769).
 
 `POST /api/training/vision-lora` is the same job on the vision-model card (`compute.tune.lora`): the
 same training set cut into line pictures with the line reader's own instruction and the teacher's
