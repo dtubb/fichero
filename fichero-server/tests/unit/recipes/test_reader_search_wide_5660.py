@@ -112,7 +112,7 @@ def test_a_language_with_no_kraken_reader_still_gets_hugging_face_and_remote_con
     chosen = bakeoff.candidates(a, [*all_seed_cards(), found_on_hub], volume=1000, sample_pages=10)
     kinds = {bakeoff._family(c) for c in [*all_seed_cards(), found_on_hub, *bakeoff.cloud_readers()]
              if c.id in {x["card"] for x in chosen}}
-    assert "kraken" not in kinds, [x["card"] for x in chosen]
+    # A Latin-script reader reads Fraktur (#5516), so a Kraken one may take part; the Hub and cloud readers do too.
     assert {"mlx", "cloud"} <= kinds
     cloud = next(x for x in chosen if not x["local"] and x["not_scored"] is None)
     assert "10 pages" in cloud["run_cost_usd"]["from"]  # priced on the sample, not the whole volume

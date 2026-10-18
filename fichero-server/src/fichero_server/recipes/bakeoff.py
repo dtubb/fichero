@@ -217,7 +217,7 @@ def candidates(a: Answers, cards: list[Card], *, volume: int, sample_pages: int 
     def fits(card: Card) -> bool:
         # Its script and language, whatever job its card names: a page reader reads the lines' pictures too.
         refused = _refusal(STEP, replace(card, jobs=frozenset({STEP})), a, material)
-        return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted", "no-reader-for-period")
+        return refused is None or refused[0] in ("cloud-not-allowed", "licence-not-accepted")
 
     pool = list({c.id: c for c in [*cards, *cloud_readers()]}.values())
     out, placed = [], set()
