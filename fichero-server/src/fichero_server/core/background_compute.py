@@ -232,10 +232,44 @@ def process_rusage(pid: int | None = None) -> dict[str, int] | None:
         return None
 
 
+def _descendant_pids(root: int) -> list[int]:
+    """The pids below ``root`` (children, their children, ...), from one `ps` listing; [] when it cannot be read."""
+    import subprocess
+
+    try:
+        listing = subprocess.run(["ps", "-axo", "pid=,ppid="], capture_output=True, text=True, timeout=2).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    children: dict[int, list[int]] = {}
+    for line in listing.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and all(p.isdigit() for p in parts):
+            children.setdefault(int(parts[1]), []).append(int(parts[0]))
+    found, queue = [], [root]
+    while queue:
+        for child in children.get(queue.pop(), []):
+            found.append(child)
+            queue.append(child)
+    return found
+
+
+def process_tree_rusage() -> dict[str, int] | None:
+    """`process_rusage` summed over this process and every process below it (its Kraken and line-extraction
+    helpers, #5358); a child that cannot be read adds nothing."""
+    total = process_rusage()
+    if total is None:
+        return None
+    for pid in _descendant_pids(os.getpid()):
+        child = process_rusage(pid)
+        if child:
+            total = {k: total[k] + child[k] for k in total}
+    return total
+
+
 def process_energy_watts() -> float | None:
     """Average power since the LAST call, in watts; the first call primes it and returns None."""
     global _energy_last_sample
-    usage = process_rusage()
+    usage = process_tree_rusage()
     if usage is None:
         return None
     now = time.monotonic()
@@ -244,4 +278,4 @@ def process_energy_watts() -> float | None:
         _energy_last_sample = (now, usage["energy_nj"])
     if prev is None or now <= prev[0]:
         return None
-    return round((usage["energy_nj"] - prev[1]) / 1e9 / (now - prev[0]), 2)
+    return round(max(0, usage["energy_nj"] - prev[1]) / 1e9 / (now - prev[0]), 2)  # a child that exited takes its total with it
