@@ -50,6 +50,10 @@ struct ChangeEvent: Decodable, Sendable {
     let runId: String?
     let actor: String
     let originWindow: String?
+    /// The account that made the change and the paired Mac it came from (nil for the host's own
+    /// edit), so a window can say who edited (`sharing.names-on-edits`, #5735).
+    let person: String?
+    let device: String?
     let timestamp: String?
 
     /// `"entity"` from `"entity.updated"`.
@@ -76,6 +80,8 @@ struct ChangeEvent: Decodable, Sendable {
         case runId = "run_id"
         case actor
         case originWindow = "origin_window"
+        case person
+        case device
         case timestamp = "ts"
     }
 
@@ -94,6 +100,8 @@ struct ChangeEvent: Decodable, Sendable {
         runId = try container.decodeIfPresent(String.self, forKey: .runId)
         actor = try container.decodeIfPresent(String.self, forKey: .actor) ?? "system"
         originWindow = try container.decodeIfPresent(String.self, forKey: .originWindow)
+        person = try container.decodeIfPresent(String.self, forKey: .person)
+        device = try container.decodeIfPresent(String.self, forKey: .device)
         timestamp = try container.decodeIfPresent(String.self, forKey: .timestamp)
     }
 
@@ -128,6 +136,8 @@ struct ChangeEvent: Decodable, Sendable {
         // self-echo de-dup (route) is a no-op here; the store-level own-write
         // guard (#2478) still drops a device's echo of its own writes.
         originWindow = nil
+        person = nil
+        device = nil
         timestamp = metadata["ts"]
     }
 }
