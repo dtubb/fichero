@@ -183,6 +183,7 @@ class RecipeRunSummary(BaseModel):
     pages_read: int = Field(description="of those, the pages that have a reading (lines read, or a page text), "
                             "not counting a page the run left out as blank (#5705)")
     lines_unread: int = Field(default=0, description="the lines found on those pages that have no reading (#5758)")
+    pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
     dates: int = Field(description="the dates named on those pages (the KG's Dates group)")
@@ -258,6 +259,13 @@ def lines_unread_why(db: Any, pages: list[str]) -> dict[str, int]:
         for why in unread_reasons(db, p).values():
             out[why] = out.get(why, 0) + 1
     return out
+
+
+def pages_read_nothing(db: Any, pages: list[str]) -> int:
+    """The pages whose reader returned empty for every line: failed reads, read again by a second Start."""
+    from fichero_server.recipes.done import NOTHING_FOR_PAGE, unread_reasons
+
+    return sum(1 for p in pages if (r := set(unread_reasons(db, p).values())) and r == {NOTHING_FOR_PAGE})
 
 
 def pages_fully_read(db: Any, pages: list[str]) -> list[str]:
@@ -361,6 +369,8 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
         said = " · ".join(shapes)
         lines.append(said[0].upper() + said[1:])
     lines.append(f"Read {s.pages_read} of {_plural(s.pages, 'page')}")
+    if s.pages_read_nothing:
+        lines.append(f"{_plural(s.pages_read_nothing, 'page')} the reader returned nothing for")
     if s.lines_unread:
         lines.append(f"{_plural(s.lines_unread, 'line')} {'has' if s.lines_unread == 1 else 'have'} no reading")
     if s.left_out:
@@ -424,6 +434,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         pages=len(pages), pages_read=len([p for p in pages_fully_read(db, pages) if p not in blank]),
         lines_unread=lines_unread(db, [p for p in pages if p not in blank]),
         lines_unread_why=lines_unread_why(db, [p for p in pages if p not in blank]),
+        pages_read_nothing=pages_read_nothing(db, [p for p in pages if p not in blank]),
         names=names, dates=dates, statements=statements, pages_dated=_pages_dated(db, pages),
         documents_proposed=proposed, documents_accepted=accepted, groups_proposed=groups, entries=entries,
         failed=failed, pages_failed=sum(f.pages_failed for f in failed),

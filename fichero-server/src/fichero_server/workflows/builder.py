@@ -116,10 +116,7 @@ def _get_vision_semaphore() -> asyncio.Semaphore:
     except RuntimeError:
         loop = None
     if _vision_fan_out_sem is None or _vision_fan_out_sem_loop is not loop:
-        from fichero_server.llm.kraken_runtime import page_fan_out
-
-        # A local reader holds memory per page read at once: the cap follows what this Mac has (#5758).
-        _vision_fan_out_sem = asyncio.Semaphore(page_fan_out(VISION_FAN_OUT_CONCURRENCY))
+        _vision_fan_out_sem = asyncio.Semaphore(VISION_FAN_OUT_CONCURRENCY)
         _vision_fan_out_sem_loop = loop
     return _vision_fan_out_sem
 
@@ -143,6 +140,20 @@ def _get_remote_vision_semaphore() -> asyncio.Semaphore:
 _vision_slot_held: ContextVar[bool] = ContextVar(
     "fichero_vision_slot_held", default=False
 )
+
+
+#: Local pages in flight now, and how often a page waits to re-read the Mac's memory (#5758).
+_local_in_flight = 0
+_GATE_POLL_SECONDS = 1.0
+
+
+async def _wait_for_memory() -> None:
+    """A local page starts only when the Mac's spare memory, read now, holds one more page in flight beside the
+    others; the first page always goes (`kraken_runtime.page_fan_out`). A hosted reader draws from its own pool."""
+    from fichero_server.llm.kraken_runtime import page_fan_out
+
+    while _local_in_flight and _local_in_flight >= page_fan_out(VISION_FAN_OUT_CONCURRENCY):
+        await asyncio.sleep(_GATE_POLL_SECONDS)
 
 
 @asynccontextmanager
@@ -173,10 +184,19 @@ async def vision_slot(remote: bool = False):
         return
     # A hosted model's branch draws from its own, wider pool (#5264).
     semaphore = _get_remote_vision_semaphore() if remote else _get_vision_semaphore()
+    global _local_in_flight
     token = _vision_slot_held.set(True)
     try:
         async with semaphore:
-            yield
+            if remote:
+                yield
+            else:
+                await _wait_for_memory()
+                _local_in_flight += 1
+                try:
+                    yield
+                finally:
+                    _local_in_flight -= 1
     finally:
         _vision_slot_held.reset(token)
 

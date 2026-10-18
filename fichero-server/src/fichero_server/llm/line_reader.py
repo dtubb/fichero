@@ -171,6 +171,8 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
             "source": "apple-lines" if apple else "kraken-lines+vision", "metadata": metadata,
         }))
         cursor += len(text) + 1
+    if no_writing and not texts:
+        no_writing = []  # every line came back empty: a failed read, not 'no writing' (review 64); read again
     read = len(boxes) - len(regions)
     logger.info("line reader %s: %d lines found, %d read, %d without writing, %d flagged",
                 config.model, len(found), read, len(found) - read, len(flagged))

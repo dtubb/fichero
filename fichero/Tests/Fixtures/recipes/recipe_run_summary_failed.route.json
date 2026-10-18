@@ -4,6 +4,7 @@
  "response": {
   "lines_unread": 0,
   "lines_unread_why": {},
+  "pages_read_nothing": 0,
   "job_id": "0eca2fca-4300-4d20-91c2-7627cf5d3d04",
   "state": "failed",
   "finished": true,
