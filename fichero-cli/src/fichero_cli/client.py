@@ -165,6 +165,25 @@ def _session_for(sessions: dict[str, Any], user: str, engine: str | None) -> dic
     return {}
 
 
+def _drop_unstamped_session(token: str) -> None:
+    """An engine refused a session saved before sessions were keyed by engine: forget it, so no other engine is
+    offered it either (review 76). A session stamped with its engine is left alone."""
+    try:
+        if (_CLI_SESSION_PATH.stat().st_mode & 0o777) != 0o600:
+            return
+        payload = json.loads(_CLI_SESSION_PATH.read_text(encoding="utf-8"))
+        sessions = payload.get("sessions")
+        stale = [k for k, v in sessions.items()
+                 if isinstance(v, dict) and not v.get("engine") and v.get("session_token") == token]
+        if not stale:
+            return
+        for key in stale:
+            del sessions[key]
+        _CLI_SESSION_PATH.write_text(json.dumps(payload), encoding="utf-8")
+    except (OSError, ValueError, AttributeError):
+        return
+
+
 def _read_cli_session_payload(as_user: str | None = None, engine: str | None = None) -> dict[str, Any]:
     """Read the selected CLI session payload from disk, if present, as made on `engine` when it is named."""
     try:
@@ -540,6 +559,7 @@ class FicheroClient:
         if self._discover_token:
             if refused and self.token:
                 self._refused.add(self.token)
+                _drop_unstamped_session(self.token)
             refreshed = _read_token(
                 base_url=self.base_url, as_user=self._as_user, refused=frozenset(self._refused),
                 engine=self.engine_key,

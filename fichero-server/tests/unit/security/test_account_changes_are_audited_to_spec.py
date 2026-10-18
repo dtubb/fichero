@@ -58,3 +58,42 @@ def test_bootstrap_changes_are_audited_as_bootstrap(app_db, monkeypatch):
         )
     row = next(a for a in app_db.list_action_audits() if a.action_name == "user.create")
     assert row.actor == "bootstrap"
+
+
+def test_account_audits_are_chained_and_keep_client_and_device(app_db, monkeypatch):
+    """review 76: account rows are tamper-evident like action audits, and the client survives the save."""
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="owner", display_name="Owner",
+        password_hash=accounts.hash_password("password"), is_owner=True,
+    )
+    with _client(app_db, monkeypatch) as client:
+        h = {**_bearer(initialize_token()), "X-Fichero-Client": "fichero-cli"}
+        for name in ("ann", "bob"):
+            client.post("/api/users", headers=h,
+                        json={"username": name, "display_name": name, "password": "password-1"})
+    rows = [a for a in app_db.list_action_audits() if a.action_name == "user.create"]
+    assert len(rows) == 2
+    assert [r.chain_seq for r in rows] == [1, 2]
+    assert rows[0].prev_hash is None and rows[1].prev_hash == rows[0].row_hash
+    assert all(r.row_hash for r in rows)
+    assert all(r.client == "fichero-cli" for r in rows)
+
+
+def test_a_failed_audit_write_stops_the_change(app_db, monkeypatch):
+    """review 76: the audit is written first, so no change can go unaudited."""
+    _enable_multiuser(monkeypatch)
+    app_db.create_user(
+        username="owner", display_name="Owner",
+        password_hash=accounts.hash_password("password"), is_owner=True,
+    )
+
+    def boom(*a, **k):
+        raise RuntimeError("audit store down")
+
+    monkeypatch.setattr(app_db, "save_chained_account_audit", boom)
+    with _client(app_db, monkeypatch) as client:
+        with pytest.raises(RuntimeError, match="audit store down"):
+            client.post("/api/users", headers=_bearer(initialize_token()),
+                        json={"username": "dee", "display_name": "Dee", "password": "password-1"})
+    assert app_db.get_user_by_username("dee") is None
