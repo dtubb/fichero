@@ -21,6 +21,13 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: bonjourEnabledKey)
     }
 
+    /// The one extra `.local` listener exists only while "This network" is checked and the address is a `.local`
+    /// one (`sharing.listener`, `sharing.share-on-choice`): unchecked, nothing listens on the network at work.
+    static func lanListenerHost(publicHost: String?, thisNetwork: Bool) -> String? {
+        guard thisNetwork, let publicHost, publicHost.hasSuffix(".local") else { return nil }
+        return publicHost
+    }
+
     static var publicBaseURLString: String {
         let stored = defaults.string(forKey: publicBaseURLKey) ?? ""
         return stored.trimmingCharacters(in: .whitespacesAndNewlines)
