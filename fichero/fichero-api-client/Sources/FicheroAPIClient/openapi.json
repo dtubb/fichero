@@ -2271,7 +2271,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/FirstRunRequest"
+                "$ref": "#/components/schemas/MigrateOwnerRequest"
               }
             }
           }
@@ -73940,6 +73940,26 @@
         ],
         "title": "MetricsResponse",
         "description": "Response for metrics recomputation."
+      },
+      "MigrateOwnerRequest": {
+        "properties": {
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/FirstRunClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key_pem",
+          "client"
+        ],
+        "title": "MigrateOwnerRequest",
+        "description": "The owner row already has a name; only the key and the client are new."
       },
       "MigrationCommand": {
         "type": "string",

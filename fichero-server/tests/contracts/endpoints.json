@@ -1273,7 +1273,7 @@
         "summary": "Migrate Owner",
         "path_params": [],
         "query_params": [],
-        "request_model": "FirstRunRequest",
+        "request_model": "MigrateOwnerRequest",
         "response_model": "FirstRunResponse"
       },
       {
