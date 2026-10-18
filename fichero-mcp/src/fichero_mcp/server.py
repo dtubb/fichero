@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 from typing import Any, Iterable, Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -421,19 +420,21 @@ def main() -> None:
     # every authenticated tool call will then fail with a 401. Flag it once at
     # startup; each authenticated call also still raises a clear FicheroError.
     with _client() as probe:
+        # Attach, never start (#5512): this launcher holds no engine of its own. With none running it
+        # says so in one sentence and still serves, so the client's first call answers in the same words.
+        try:
+            probe.health()
+        except Exception:
+            logger.error(
+                "No Fichero engine is running at %s. Open Fichero (the app starts the engine), then try again.",
+                _CONFIG["base_url"] or "the default address",
+            )
         if not probe.token:
             logger.warning(
                 "No Fichero auth token found. Set FICHERO_API_KEY, or start the "
                 "engine (it writes the key file). Authenticated tool calls will "
                 "be rejected until a token is available."
             )
-        # Attach, never start: this launcher dials the running app's engine and has no way to launch one (a second
-        # engine on one project is #5512). With none running it says so once, in words; the tools still list.
-        try:
-            probe.health()
-        except Exception:  # noqa: BLE001 - any failure to reach it means no engine answers
-            print("Fichero is not running: open the Fichero app, then ask again. "
-                  "This tool attaches to the running app and never starts an engine.", file=sys.stderr)
     mcp.run()
 
 

@@ -162,3 +162,28 @@ def test_regions_and_words_go_with_their_lines_and_keep_their_parents(db, tmp_pa
     assert all(w.parent_segment_id == by_kind["line"][0].id for w in by_kind["word"])
     assert not [s for p in db.query(SegmentPass, document_id=right.id) for s in db.query(Segment, pass_id=p.id)
                 if s.kind == "word"]
+
+
+def test_a_line_goes_by_its_own_centre_even_inside_a_region_that_crosses_the_gutter(db, tmp_path):
+    """A region drawn over the whole spread (its centre on the left page) holds a line on the right page: the line
+    goes to the right half, by its own centre, not the region's.
+    WHY: following the region moved a whole page of lines to the wrong half."""
+    import fichero_server.api.main  # noqa: F401  (registers every action)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.anchors import SourceAnchor
+
+    spread = _read_spread(db, tmp_path)
+    ctx = ActionContext(actor="kraken", run_id="run-1", library_path=None, is_bootstrap=True)
+    pass_id = registry.invoke(db, "segment.pass_create", {"document_id": spread.id, "name": "regions"}, ctx).result["id"]
+
+    def make(kind, rect, parent=None):
+        return registry.invoke(db, "segment.create", {
+            "document_id": spread.id, "pass_id": pass_id, "kind": kind, "parent_segment_id": parent,
+            "anchor": SourceAnchor(document_id=spread.id, rect=rect).model_dump(mode="json")}, ctx).result["segment_ids"][0]
+
+    region = make("region", [0.02, 0.6, 0.9, 0.3])  # centre 0.47: the left page
+    line = make("line", [0.6, 0.7, 0.3, 0.05], region)  # centre 0.75: the right page
+    left, right = _split(db, spread)
+    on = lambda doc: {s.metadata.get("carried_from_segment_id") for p in db.query(SegmentPass, document_id=doc.id)
+                      for s in db.query(Segment, pass_id=p.id)}
+    assert line in on(right) and line not in on(left)

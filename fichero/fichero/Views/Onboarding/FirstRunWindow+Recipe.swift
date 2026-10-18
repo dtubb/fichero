@@ -35,7 +35,7 @@ extension FirstRunWindow {
         case .train:
             stepPage(
                 title: "Train",
-                subtitle: "Offered later: a model of your own for a step, once the project has corrected pages.",
+                subtitle: "Teach Fichero your hand. Once you have corrected some pages, it can train a model of your own, here or elsewhere.",
                 systemImage: step.icon
             ) {
                 recipeCard { RecipeTrainOffersFields(store: store) }

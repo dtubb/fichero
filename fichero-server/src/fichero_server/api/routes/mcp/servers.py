@@ -79,6 +79,8 @@ class MCPServerResponse(BaseModel):
     enabled: bool
     created_at: str
     updated_at: str
+    last_load_error: str | None = None
+    """Why the saved servers' tools last failed to load (at start or after a save); None when the last load worked."""
 
 
 class MCPToolInfo(BaseModel):
@@ -130,6 +132,8 @@ class MCPServerResponseList(BaseModel):
 
 def _server_to_response(server: MCPServer) -> MCPServerResponse:
     """Convert MCPServer model to API response."""
+    from fichero_server.workflows.tools import mcp as _mcp_tools
+
     return MCPServerResponse(
         id=server.id,
         name=server.name,
@@ -144,6 +148,7 @@ def _server_to_response(server: MCPServer) -> MCPServerResponse:
         enabled=server.enabled,
         created_at=server.created_at.isoformat(),
         updated_at=server.updated_at.isoformat(),
+        last_load_error=_mcp_tools.last_load_error if server.enabled else None,
     )
 
 
@@ -176,6 +181,18 @@ def _server_to_config(server: MCPServer) -> "MCPServerConfig":
         tool_name_prefix=server.tool_name_prefix,
         enabled=server.enabled,
     )
+
+
+async def _resync_registry() -> None:
+    """The workflow registry follows the saved servers (#5760). A server that will not start is logged, not fatal."""
+    from fichero_server.workflows.tools.mcp import note_load_result, sync_mcp_tools_from_db
+
+    try:
+        await sync_mcp_tools_from_db(get_app_db())
+        note_load_result(None)
+    except Exception as exc:
+        note_load_result(exc)
+        logger.warning("MCP tools could not be reloaded after a server change: %r", exc)
 
 
 # =============================================================================
@@ -246,39 +263,6 @@ async def get_all_mcp_tools() -> MCPToolListResponse:
     except Exception as e:
         logger.exception(f"Failed to load all MCP tools: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-async def sync_mcp_tools() -> int:
-    """Make the engine's MCP client match the app database, then reload the workflow tool registry
-    (`mcp.client.tools-survive-a-restart`, #5760): enabled servers in, disabled and deleted ones out. Run by the
-    engine when it starts and after every save or delete; never raises, so a server that will not start cannot fail
-    a save or a launch."""
-    try:
-        manager = get_mcp_manager()
-        wanted = {server.name: server for server in get_app_db().query_mcp_servers(enabled=True)}
-        for existing in list(manager.list_servers()):
-            if existing.name not in wanted:
-                manager.remove_server(existing.name)
-        for server in wanted.values():
-            manager.add_server(_server_to_config(server))
-        from fichero_server.workflows.tools import mcp as workflow_mcp
-
-        return await workflow_mcp.reload_mcp_tools()
-    except Exception as exc:  # noqa: BLE001 - a bad server is logged, not raised
-        logger.warning("Could not load the MCP tools: %s", exc)
-        return 0
-
-
-def sync_mcp_tools_soon() -> None:
-    """Start `sync_mcp_tools` without making the caller wait for servers to connect."""
-    import asyncio
-
-    task = asyncio.get_running_loop().create_task(sync_mcp_tools())
-    _SYNCS.add(task)
-    task.add_done_callback(_SYNCS.discard)
-
-
-_SYNCS: set = set()  # strong references: a task nobody holds can be collected before it runs
 
 
 @router.post("/mcp-servers/tools/load-into-workflow-registry")
@@ -407,8 +391,8 @@ async def create_mcp_server(
         config = _server_to_config(server)
         manager.add_server(config)
 
+        await _resync_registry()
         logger.info(f"Created MCP server: {server.name}")
-        sync_mcp_tools_soon()
         return _server_to_response(server)
 
     except HTTPException:
@@ -465,8 +449,8 @@ async def update_mcp_server(
         config = _server_to_config(server)
         manager.add_server(config)
 
+        await _resync_registry()
         logger.info(f"Updated MCP server: {server.name}")
-        sync_mcp_tools_soon()
         return _server_to_response(server)
 
     except HTTPException:
@@ -501,8 +485,8 @@ async def delete_mcp_server(
         manager = get_mcp_manager()
         manager.remove_server(server_name)
 
+        await _resync_registry()
         logger.info(f"Deleted MCP server: {server_name}")
-        sync_mcp_tools_soon()
         return MCPServerDeletedResponse(message=f"Server '{server_name}' deleted successfully")
 
     except HTTPException:

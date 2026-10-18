@@ -865,6 +865,20 @@ def reader_batch_size() -> int:
     return max(1, min(_MAX_READER_BATCH, spare // _BATCH_LINE_BYTES))
 
 
+#: What each page read at once holds beyond the model: its image, the segmenter's maps, the lines' crops (measured
+#: loosely: 4 pages at once took the engine's footprint to 19 GB on a 16 GB Mac, #5758).
+_PAGE_BYTES = 1536 * 1024**2
+
+
+def page_fan_out(cap: int) -> int:
+    """How many pages may be read at once: `cap`, or fewer when this Mac's spare memory (beyond the model's own
+    need) holds fewer pages, never below one (#5758, `user-machine-always-useful`). Unknown memory reads one."""
+    available = _available_memory_bytes()
+    if available is None:
+        return 1
+    return max(1, min(cap, (available - _kraken_memory_need_bytes()) // _PAGE_BYTES))
+
+
 def _reader_config(config_cls: Callable[..., object]) -> object:
     """The reader's device, as the person chose (`torch_accelerator`: auto is the CPU, #5529). Kraken's
     "auto" was slower than either per page (measured 2026-10-03 on a Sergio notebook half-page:
@@ -1345,7 +1359,19 @@ def recognize_to_geometry(
             )
         )
 
-    if not texts:
+    lines_found = [b for b in boxes if b.level == OCRGeometryLevel.LINE]
+    # Whether the page was read at all: a blank line among read ones is 'no writing'; every line blank is a read
+    # that failed (review 64), so it is not marked and the page is read again.
+    flag = "page_has_readings" if texts else "page_read_nothing"
+    for b in lines_found:
+        b.metadata[flag] = True
+    if not texts and lines_found:
+        # Lines found and every one read as empty text: the lines are kept (each saved marked 'looked, no
+        # writing'), never thrown away with the page's reading (#5758: page 1 of the M4 run had 30 lines, a quick
+        # all-empty read, and then no lines stored anywhere).
+        logger.warning("Kraken found %d lines on %s and read every one as empty text; the lines are kept unread",
+                       len(lines_found), image_path)
+    elif not texts:
         return geometry_unavailable(
             status=OCRGeometryStatus.PRODUCED_NOTHING,
             provider=_PROVIDER,

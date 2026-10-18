@@ -13135,15 +13135,37 @@ def register_generated_openapi_commands(
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
+        period: Optional[str] = typer.Option(None, '--period', help='Period.'),
         scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
     ) -> None:
         """Derived Facts (GET /api/recipes/derived)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/derived"
             params = {
+                "period": period,
                 "scripts": scripts,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-font")
+    def recipes_choose_font_put(
+        ctx: typer.Context,
+        font: Optional[str] = typer.Option(None, '--font', help='a bundled family; null returns to the derived font.'),
+        script: str = typer.Option(..., '--script', help='ISO 15924 code of the script the font draws.'),
+    ) -> None:
+        """Choose Font (PUT /api/recipes/font)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/font"
+            params = None
+            payload = _build_json_payload({
+                "font": font,
+                "script": script,
+            }, {
+                "font": {'type': 'string', 'nullable': True, 'title': 'Font', 'description': 'a bundled family; null returns to the derived font', 'x-cli-required': False},
+                "script": {'type': 'string', 'title': 'Script', 'description': 'ISO 15924 code of the script the font draws', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-hands")

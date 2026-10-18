@@ -223,6 +223,8 @@ struct MailStyleRow: View {
                         Image(systemName: "arrow.up.right.square")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .accessibilityLabel("Linked")
+                            .help("Linked: the file stays where it is")
                     }
 
                     // #4514: the sidebar's trailing lock, on the same rows, in

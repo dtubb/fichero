@@ -39,6 +39,7 @@ struct SidebarTrashRow: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Self.name)
         .accessibilityValue(store.isEmpty ? "Empty" : "\(store.entries.count) items")
+        .accessibilityIdentifier(SidebarAccessibilityID.trash(libraryId))
     }
 }
 

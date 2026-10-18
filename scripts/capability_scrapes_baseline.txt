@@ -307,3 +307,25 @@ fichero/Tests/Unit/general/App/SaveLogsForSupportTests.swift
 # One code path for the shared menu verbs (#5652): only the shared Activity / model target calls the store for Stop,
 # Read Again and Make Available, and no Activity view draws its own: uniqueness and absence across the whole app tree.
 fichero/Tests/Unit/general/App/MenuVerbsOneCodePathGuardTests.swift
+fichero/Tests/Unit/general/App/IOSCommandsSharedTests.swift
+fichero/Tests/Unit/general/App/IOSImportCopyOnlyShapeTests.swift
+fichero/Tests/Unit/general/Models/MobileCaptureHostMatchTests.swift
+fichero/Tests/Unit/general/Models/MobileCaptureQueueFileProtectionTests.swift
+fichero/Tests/Unit/general/Models/PlatformSplitViewShapeTests.swift
+fichero/Tests/Unit/general/Models/SidebarLeafRowsTests.swift
+fichero/Tests/Unit/general/Models/TranscriptionFontWiringShapeTests.swift
+fichero/Tests/Unit/general/Services/IOSTargetMacOnlyTypesGuardrailTests.swift
+fichero/Tests/Unit/general/Transport/ForegroundTokenRenewalShapeTests.swift
+fichero/Tests/Unit/general/Views/ActivityClearFinishedShapeTests.swift
+fichero/Tests/Unit/general/Views/Inspector/KGBarHiddenWhenEmptyShapeTests.swift
+fichero/Tests/Unit/general/Views/LinkedGlyphLabelledShapeTests.swift
+fichero/Tests/Unit/general/Views/Onboarding/OnboardingTextTests.swift
+fichero/Tests/Unit/general/Views/PreviewMagnifierPerPaneShapeTests.swift
+fichero/Tests/Unit/general/Views/Shell/BreadcrumbOnlyWhenPinnedShapeTests.swift
+fichero/Tests/Unit/general/Views/Shell/IOSNoMeasuredCollapseTests.swift
+fichero/Tests/Unit/general/Views/Shell/IOSNoTierChromeTests.swift
+fichero/Tests/Unit/general/Views/Shell/NoTvOSBranchesTests.swift
+fichero/Tests/Unit/general/Views/Shell/PaneEmptyStateTests.swift
+fichero/Tests/Unit/general/Views/Shell/PaneMenuEntriesShapeTests.swift
+fichero/Tests/Unit/general/Views/SidebarAccessibilityIDTests.swift
+fichero/Tests/Unit/general/Views/SidebarChatNeedsBackendShapeTests.swift

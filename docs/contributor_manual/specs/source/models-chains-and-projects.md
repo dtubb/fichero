@@ -746,7 +746,7 @@ lives somewhere).
    person stays on it. This is what fixes the first-run 400 (#5477): there is always a project to
    save to.
 2. **Your material** (#5480). How material comes in, five ways, each with one sentence of what it
-   does to the originals: **Link** (default; read where they are, never changed), **Copy** (the
+   does to the originals: **Link** (read where they are, never changed), **Copy** (the default; the
    project keeps its own copy), **Move** (the files move into the project; the originals go),
    **Index** (the folder stays where it is; Fichero writes its changes back into it and takes in
    files added to it after a preview), and **Keep arranged** (as Index, and Fichero also keeps the
@@ -1035,7 +1035,7 @@ plan's peak memory across steps. Ready shows none of it.
   the unread lines and never counts a page with one as read (`N lines have no reading`). *Built:* the line reader
   and the Kraken reader name the lines they looked at without finding writing; they are marked on the segment
   (`read_no_writing`, naming the reader that looked), written through `segment.update` so it is versioned and audited; the page is done when none of its lines is unread (`recipes.done.lines_state`), and a different reader than the one that looked reads the line again. The reader's batch is bounded by the memory the Mac has now (`kraken_runtime.reader_batch_size`: one line when the memory is unknown, at most 16), and every line left without a reading is logged with why (`line left without a reading`). *Left:* a
-  "no writing" line is not yet drawn as such in the Reader. *Test:* `tests/unit/recipes/test_unread_lines_not_read_5758.py`.
+  "no writing" line is not yet drawn as such in the Reader. *Test:* `tests/unit/recipes/test_unread_lines_not_read_5758.py`. Also (live M4 run, 2026-10-17): a line a recognising reader (Kraken, segmenting and reading in one pass) gave no text for is saved carrying the mark and its reason (`models.segments.segment_from_box`); the run summary's `lines_unread_why` counts the unread lines by reason (`done.unread_reasons`), so no log is needed to say why a line is unread; pinned by `test_unread_lines_not_read_5758.py`. A page whose lines Kraken found but read every one as empty text is a FAILED read, not a page of blank lines: it keeps its lines, unmarked and unread, with the reason \"every line came back empty: the reader may not suit this hand\" (summary `pages_read_nothing`, a second Start reads it again); only a blank line on a page that also has lines with text is marked 'no writing'. It is not saved with no geometry (`recognize_to_geometry`; M4 run 2026-10-17, page 1: 30 lines found, none stored; `test_kraken_batch_bounded_5758.py`). The local pages read at once also follow the memory, read each time a page starts (`kraken_runtime.page_fan_out`, `builder._wait_for_memory`; a hosted reader keeps its own pool): 1.5 GB a page beyond the model, never above the cap of 4, one when memory is unknown (`test_kraken_batch_bounded_5758.py`); a run's `engine_peak_memory_bytes` is the physical footprint, which counts compressed and swapped pages and so can exceed the Mac's RAM.
 - `source.onboard.auto.results-summary` — **[PARTIAL]** (#5577) when a run ends, the project says what
   it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages
   failed (with Read Again) and steps skipped (with their fixes). Each figure opens what it counts.
@@ -1322,9 +1322,9 @@ jobs, and the recipe keeps the registry's step order whatever order stages are c
 |---|---|---|
 | Clean Up Images | `split-pages`, `prepare-the-image` | Two pages per image? Straighten, crop, brighten? |
 | Find Lines | `find-regions`, `find-lines`, `put-in-order`, `refine-shapes` | Columns, margins and glosses? Tables on the pages? |
-| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Read line by line or the page at once? Correct with a second model? |
+| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Read line by line or the page at once? Have a second model check the reading? |
 | Organise | `find-documents-in-a-folder`, `split-into-entries` | Are several documents in one folder, or one document per folder? |
-| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which gazetteer? |
+| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which place list? |
 | Statements | `find-statements` | Which kinds (sales, gifts, marriages, letters sent…)? |
 | Dates & Times | `work-out-dates` | Which calendars (Gregorian, Julian, regnal years, the French Republican…)? |
 | Structured Data | `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` | Which fields to fill, and from what? |
@@ -2570,7 +2570,7 @@ Jobs and chains
   half is flagged `metadata.crosses_gutter`, never cut; the spread keeps all of it. Tested in
   `fichero-server/tests/unit/api/test_split_carries_readings_5452.py` (`is_done` sees the halves).
   Regions and words go too (2026-10-17): every kind of segment is carried with its readings, a segment inside
-  another (a word in its line) with the one it sits in, still inside it
+  another (a word or character in its line) with the line it sits in, still inside it, while a region and a line go by their own centre (`test_a_line_goes_by_its_own_centre_even_inside_a_region_that_crosses_the_gutter`)
   (`test_regions_and_words_go_with_their_lines_and_keep_their_parents`).
   *Not built:* a real run on a read spread; the spread's page-level transcriptions and `page_content` stay on
   the spread only (so "read a page" still reads a half);
@@ -3217,10 +3217,8 @@ Setup
 - `source.onboard.app.steps` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.appSteps`, `FirstRunWindow.flow(for:)`; pinned by `FirstRunStepSelectionTests`. setting up the app (a first launch, and Fichero › Set
   Up Fichero…) is Welcome → What Fichero runs → the hand-off, and no Permissions step: folder access is
   asked when a folder is added. *Test:* pure Swift, the app's steps are exactly those three.
-- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (the rows, and the two accounts added as providers); pinned by `SetupStagesTests`. What Fichero runs says what Fichero can do
-  and with what (reading pages: Kraken, Apple Vision, MLX vision models; regions and lines: YOLO, Kraken;
-  names and statements: spaCy; speech: Whisper; remote: OpenRouter, Anthropic, OpenAI, Google), and
-  takes a Hugging Face and an OpenRouter account in the step. *Test:* pure Swift, the step's rows and its
+- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (one sentence on what comes with Fichero, and the two accounts added as providers); pinned by `SetupStagesTests`. The step is titled "Where the work runs". It says in one line what Fichero comes with: "Fichero comes with readers for handwriting and print, a line finder and a name finder; it downloads others for your language when you need them." (no table of engine names), and
+  takes a Hugging Face and an OpenRouter account in the step; the OpenRouter row says pages leave the Mac. *Test:* pure Swift, the step's line and its
   two account fields.
 - `source.onboard.app.provider-sheet-in-step` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the sheet is the window's own (`FirstRunWindow.showsProviderSheet`), no longer deferred to finish. Choose a Provider opens its sheet
   while the step shows; it opened only after onboarding ended. *Test:* pure Swift, the sheet's presented
@@ -3404,9 +3402,9 @@ Setup
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
 - `source.onboard.five-ways-in` — **[PARTIAL]** (#5480) **Built 2026-10-05 (app), not yet seen:** Link, Copy, Move, Index and Keep arranged as radio buttons, each with its sentence; Keep arranged imports as Index and is saved as `ingest_mode: keep-arranged`, read back as Keep arranged (`SetupWayIn`; `fichero/Tests/Unit/general/Models/KeepArrangedTests.swift`). *Not built: the import menus and drops starting from the saved choice.* Your material offers five ways material comes in,
-  each with one sentence of what it does to the originals: Link (default), Copy, Move, Index and
+  each with one sentence of what it does to the originals: Copy (default), Link, Move, Index and
   Keep arranged; the choice is saved with the project and used by Add a Folder… and by the
-  project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup.
+  project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup. With Copy, the line after an add says what the copy takes and the room left ("The copy takes 1.2 GB; 112 GB free."), measured from the chosen files (`CopySpaceTests`).
 - `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). Keep arranged ties the folder the same way (built 2026-10-05, below). *Not built: the file count.* choosing Index or Keep arranged
   with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake
@@ -3522,7 +3520,7 @@ Setup
   gone), the next one in the chain runs if it is another local model or the same cloud provider, and the plan says which and why; one that sends pages somewhere new (another provider, or off the Mac for a local step) is offered and never used without the person's press; a missing key never substitutes silently
   (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
   cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
-- `source.recipe.placement-by-scale` — **[PARTIAL]** (#4950, #5589; ruled 2026-10-17; the rule is `recipes/placement.py` `place_step`, tested in `fichero-server/tests/unit/recipes/test_placement.py`; not yet wired into the Start plan or the run) where the chosen reader runs depends on the project's scale: about 100 or
+- `source.recipe.placement-by-scale` — **[PARTIAL]** (#4950, #5589; ruled 2026-10-17; the rule is `recipes/placement.py` `place_step`, tested in `fichero-server/tests/unit/recipes/test_placement.py`; built 2026-10-17: the Start plan (`start.place_runs`) puts `place`, `target`, `why` and `sizing` (`remote_read.sizing.size_run`, or \"measured by a 1,000-page pilot\" with no rate) on each read run; not built: the run sending a `cluster` placement to read-at-scale, which waits on `source.recipe.runs-on-binds-to-a-target`, so every step places on this Mac and says \"No cluster is set up\") where the chosen reader runs depends on the project's scale: about 100 or
   about 1,000 pages run on this Mac; about 100,000 pages belong on ACENet or Hugging Face. Below a page threshold set in the plan the reader runs
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
@@ -3631,7 +3629,11 @@ The recipe and its format
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked.
 - `source.recipe.train-never-automatic` — **[PARTIAL]** (#4950, #5336, #5440; reworded 2026-10-17; *built: a train step is never among what Start runs and
-  the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`*) training runs by itself only per
+  the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`; under `here`, a ready offer starts by itself on this Mac when a recipe step finishes, once
+  (a training job waiting, running, paused or done stops another), never on Hugging Face, and a refusal never fails the
+  step: `train_offers.start_when_ready`, `fichero-server/tests/unit/recipes/test_training_starts_by_setting_5440.py`.
+  Not built: `huggingface` starting by itself (its pages leave only on the person's yes); training again on later
+  corrections (#5441)*) training runs by itself only per
   the onboarding setting (`answers.training`: here, huggingface or offered, defaulting by machine; see `source.onboard.auto.train-offer-comes`); with
   `offered` it is offered when its condition is met and runs only when the person starts it. Never an alert.
 - `source.recipe.train-offered-per-step` — **[PARTIAL]** (#5660 item 9) for each step a model can be trained

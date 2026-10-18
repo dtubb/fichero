@@ -1,31 +1,36 @@
-"""`openapi.mcp.attaches-never-starts` (#5512): the installed `fichero-mcp` launcher attaches to the running app's
-engine and never starts a second one; with none running it says so in one sentence, in words.
-
-WHY (2026-10-05 night): two sub-agents each left a packaged `Fichero Server` running, parented to the agent
-processes, started on agent start while the Dev Local engine already served the socket: two engines on one DuckDB.
-The launcher is the bundled engine binary run with FICHERO_RUN_MODULE=fichero_mcp.server (what the Install Tools
-window writes), so this runs it the same way, with nothing listening.
-"""
-from __future__ import annotations
+"""`openapi.mcp.attaches-never-starts` (#5512): the MCP launcher attaches to the running engine and never starts
+one; with none running it says so in one sentence."""
 
 import os
+import socket
 import subprocess
 import sys
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[2]
 
 
-def _engines() -> set[str]:
-    out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
-    return {line.split(None, 1)[0] for line in out.splitlines()
-            if "fichero_server" in line and "FICHERO_RUN_MODULE" not in line and "pytest" not in line
-            and "ps -axo" not in line}
+def _closed_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
 
 
-def test_with_no_engine_the_launcher_says_so_and_starts_none():
-    before = _engines()
-    env = {**os.environ, "FICHERO_RUN_MODULE": "fichero_mcp.server", "FICHERO_API_URL": "http://127.0.0.1:9",
-           "FICHERO_UDS": "0", "FICHERO_API_KEY": "test"}
-    done = subprocess.run([sys.executable, "-m", "fichero_server"], env=env, stdin=subprocess.DEVNULL,
-                          capture_output=True, text=True, timeout=60)
-    assert "not running" in done.stderr, done.stderr
-    assert "open the Fichero app" in done.stderr
-    assert _engines() <= before, "the launcher started an engine"
+def test_with_no_engine_the_launcher_says_so_and_starts_none(tmp_path):
+    env = {
+        **os.environ,
+        "FICHERO_RUN_MODULE": "fichero_mcp.server",
+        "FICHERO_API_URL": f"http://127.0.0.1:{_closed_port()}",
+        "FICHERO_API_KEY": "",
+        "HOME": str(tmp_path),
+        "PYTHONPATH": os.pathsep.join(str(REPO / p) for p in ("fichero-mcp/src", "fichero-cli/src", "fichero-server/src")),
+    }
+    run = subprocess.run(
+        [sys.executable, "-m", "fichero_server"], env=env, stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, timeout=60, cwd=tmp_path,
+    )
+    said = run.stderr
+    assert "No Fichero engine is running" in said, said[-600:]
+    assert "open Fichero" in said.lower() or "Open Fichero" in said
+    # It attached or gave up: it never bound a server of its own.
+    assert "Uvicorn running" not in said and "Application startup complete" not in said

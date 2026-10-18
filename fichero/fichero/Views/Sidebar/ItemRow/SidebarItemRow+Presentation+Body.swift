@@ -62,6 +62,7 @@ extension SidebarItemRow {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(accessibilityHint)
             .accessibilityValue(accessibilityValue)
+            .accessibilityIdentifier(SidebarAccessibilityID.row(item.id))
             // Grid-menu parity (#4121): the same picker sheets LibraryView
             // hosts, presented per-row so the clicked row's OWN library
             // services are injected (sidebar rows span libraries).

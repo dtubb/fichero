@@ -114,7 +114,11 @@ struct ModelFinderCard: View {
                     .foregroundStyle(.secondary)
                 if Self.asksForSettings(candidate), let appState {
                     Button("Open Settings › AI") { appState.openSettings(tab: .aiModels) }
+                        #if os(macOS)
                         .buttonStyle(.link)
+                        #else
+                        .buttonStyle(.borderless)
+                        #endif
                         .font(.caption)
                 }
             } else {
