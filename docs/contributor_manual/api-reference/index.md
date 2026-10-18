@@ -247,6 +247,11 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   questions (each a `job_answers` key, with options, its default and this project's answer), the stages it
   needs and why in words, and whether it can be tried on the sample pages (by the bake-off, or by its
   workflow). Without an open project every stage is off and every answer its default.
+- `money_and_place` (#5769): the project's Hugging Face cap (`hf_spend_cap_usd`), whether working copies may
+  stay on a cluster as it stands (`copies_may_stay_on_cluster`) and whether that still follows pages-may-leave
+  because the person has not answered it (`copies_follow_pages_may_leave`), and the clusters set up here
+  (`clusters`, by name; the copies question applies only where there is one). This month's spend against the cap
+  is on the Start plan (`hf_spend`).
 
 `GET /api/recipes/hands` · `GET`/`PUT /api/recipes/samples` · `POST`/`GET /api/recipes/stages/{stage}/try`
 
