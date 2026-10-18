@@ -1498,9 +1498,10 @@ code path.
   ("Stopped by you") and the step ends as stopped, not as a file error
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still broken: a page already running is waited for, and
   economy HTR's pages are not reached.
-- `activity.run.record-keeps-all-history` — **[BROKEN]** (#5376) a long run's record keeps every
-  step and page from the start. Today the saved timeline is the newest 2,000 events of the replay
-  buffer (`execution/runner.py:144-171`, `:257-264`), so a 200-page run loses its early history.
+- `activity.run.record-keeps-all-history` — **[OK]** (#5376) a long run's record keeps every
+  step and page from the start: the event hub keeps every event but the log lines for the saved timeline
+  (`WorkflowEventHub.record`), while a late viewer's replay stays the newest 2,000; pinned by
+  `fichero-server/tests/unit/execution/test_record_keeps_all_history_5376.py`.
 - `activity.run.log-is-bounded` — **[PARTIAL]** (#5376) a run's log is bounded in memory and
   appended, not rewritten. *Built 2026-10-18:* the log is a `BoundedLog` (`execution/run_log.py`: the first 200 and the latest
   1,800 lines held, the middle counted; a node boundary appends only the lines since its last flush; the final text says

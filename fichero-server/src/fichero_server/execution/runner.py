@@ -155,6 +155,12 @@ class WorkflowEventHub:
         self._lock = threading.Lock()
         self._subscribers: list["queue.Queue"] = []
         self._buffer: list[Any] = []
+        # The run's record (#5376, `activity.run.record-keeps-all-history`): every event but the log lines, in order, for
+        # the saved timeline; `_buffer_seq` numbers the replay window so the two merge. ponytail: no cap, an event is
+        # a few hundred bytes and a 10,000-page run emits tens of thousands; cap if a run ever outgrows memory.
+        self._seq = 0
+        self._buffer_seq: list[int] = []
+        self._record: list[tuple[int, Any]] = []
         self._closed = False
         self._replay_limit = (
             replay_limit if replay_limit is not None else self._REPLAY_LIMIT
@@ -171,10 +177,15 @@ class WorkflowEventHub:
             if event is None:
                 self._closed = True
             else:
+                self._seq += 1
                 self._buffer.append(event)
+                self._buffer_seq.append(self._seq)
+                if getattr(event, "event", None) != "log":
+                    self._record.append((self._seq, event))
                 if len(self._buffer) > self._replay_limit:
                     # Drop oldest; keep the most recent window.
                     del self._buffer[: -self._replay_limit]
+                    del self._buffer_seq[: -self._replay_limit]
             for subscriber in self._subscribers:
                 subscriber.put(event)
 
@@ -212,6 +223,14 @@ class WorkflowEventHub:
         """Return the currently buffered replay events."""
         with self._lock:
             return list(self._buffer)
+
+    def record(self) -> list[Any]:
+        """The run's whole record in order: every step and page event from the start, and the log lines still in the
+        replay window (#5376)."""
+        with self._lock:
+            merged = dict(self._record)
+            merged.update(zip(self._buffer_seq, self._buffer))
+            return [merged[k] for k in sorted(merged)]
 
 
 def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
@@ -262,7 +281,7 @@ def close_all_event_hubs_for_shutdown() -> int:
 def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
     """Serialize the buffered SSE events for run replay."""
     timeline: list[dict[str, Any]] = []
-    for event in events.snapshot():
+    for event in events.record():
         if event is None:
             continue
         timeline.append(event.model_dump(mode="json"))
