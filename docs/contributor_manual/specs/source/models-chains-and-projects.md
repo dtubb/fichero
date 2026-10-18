@@ -3553,9 +3553,13 @@ Setup
 - `source.recipe.loove-tokenizer-only` — **[GAP]** (#4948) LOOVE tokenizer coverage filters and
   ranks only language and vision-language models; Kraken and Tesseract are judged on their
   character-set coverage; a measurement on the project's pages outranks both.
-- `source.recipe.no-llm-correction-in-unknown-language` — **[GAP]** (#4950) a correction or
+- `source.recipe.no-llm-correction-in-unknown-language` — **[OK]** (#4950) a correction or
   normalising step by a language model is included only when the model's card lists the project's
-  language; otherwise it is left out and the recipe says why.
+  language; otherwise it is left out and the recipe says why. *Built: `assemble._refusal` refuses a
+  Correct or Normalise card that does not list the language, or lists none (`no-model-for-language`,
+  "No … here knows Arabic yet."); a frontier cloud model is the one exception, counted as multilingual and
+  only ever offered (#5718). Pinned by
+  `fichero-server/tests/unit/recipes/test_no_llm_correction_in_unknown_language_4950.py`.*
 - `source.onboard.assistant-proposal` — **[GAP]** (#4951) a language model may help: filling in a
   prose-only card (facts unconfirmed until a person confirms), explaining a choice, or suggesting
   answers from samples; it runs locally unless the project allows the cloud, and never decides the
