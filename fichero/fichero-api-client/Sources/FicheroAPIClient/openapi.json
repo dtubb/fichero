@@ -2479,7 +2479,7 @@
         }
       }
     },
-    "/api/auth/local-clients/requests/{request_id}/register": {
+    "/api/auth/local-clients/register": {
       "post": {
         "tags": [
           "auth",
@@ -2487,27 +2487,16 @@
         ],
         "summary": "Register Local Client",
         "description": "The allowed client registers its own public key, once, from the same program that asked. No secret crosses.",
-        "operationId": "register_local_client_api_auth_local_clients_requests__request_id__register_post",
-        "parameters": [
-          {
-            "name": "request_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Request Id"
-            }
-          }
-        ],
+        "operationId": "register_local_client_api_auth_local_clients_register_post",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LocalClientRegisterBody"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -72158,6 +72147,12 @@
       },
       "LocalClientRegisterBody": {
         "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Request Id"
+          },
           "public_key_pem": {
             "type": "string",
             "maxLength": 2000,
@@ -72167,6 +72162,7 @@
         },
         "type": "object",
         "required": [
+          "request_id",
           "public_key_pem"
         ],
         "title": "LocalClientRegisterBody"
