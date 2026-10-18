@@ -3539,9 +3539,13 @@ Setup
 - `source.recipe.reader-tiers` — **[GAP]** (#4948) with no measurement, readers are ordered by tier:
   specialist line readers, then small historical vision-language models, then general ones;
   Tesseract only for print and typescript; within a tier, by coverage.
-- `source.recipe.no-other-style-substitute` — **[GAP]** (#4951) a reader made for another style of
+- `source.recipe.no-other-style-substitute` — **[OK]** (#4951) a reader made for another style of
   the project's script (naskh for nastaliq) is never proposed in its place; the step is "needs a
-  model" and the gap is named.
+  model" and the gap is named. *Built: `assemble._refusal` refuses a reader whose card does not state the
+  project's script (`no-model-for-script`), and the step's problem names it only among the nearest, as "a
+  related script" (`_nearest`). The ruled exception is Latin: a Latin reader reads Fraktur and Gaelic type,
+  the exact one ranking first (#5516). Pinned by
+  `fichero-server/tests/unit/recipes/test_no_other_style_substitute_4951.py`.*
 - `source.onboard.sign-scripts-specialist-path` — **[GAP]** (#4951) for scripts read sign by sign
   (cuneiform, hieroglyphs, Linear B, Maya), setup names the gap, shows any specialist pipeline
   found as a card marked "not runnable in Fichero yet", offers the decipher or train paths, and
