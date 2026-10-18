@@ -363,7 +363,7 @@ very engine spawn those tests exist to exercise.
   in an allowed location") is unreportable at these sites — the user gets a generic failure. The
   issue's own guidance (fix the shared generator/helper seam, not a 216-site hand-sweep) still
   stands.
-  **Engine half, built (#5094):** every operation declares 400, 403, 404 and 409 as the one shared `ErrorDetail` body (`api/errors.py`, applied once at `register_tiered_routes`), so the generated client can decode the sentence a refusal sends. Pinned: `fichero-server/tests/unit/api/test_every_operation_declares_its_refusals_5094.py`. Still open: the Swift half (#3931: the 216 `.undocumented` sites) and ONE regeneration of the client and the checked-in `openapi.json` files, which the lead schedules for all pending changes.
+  **Engine half (#5094), WITHDRAWN as app-wide (review 112):** the one shared `ErrorDetail` body (`api/errors.py`; `detail` is a string or an object) is no longer declared on every operation. An app-wide 400/403/404/409 made each one a typed case in the generated client, which broke the Swift branches that read those statuses through `.undocumented(...)` (296 sites, e.g. Grant Access's 403 `code` in `ImportService+Ingest.swift`) and the build cannot catch it. The rule now: declare `responses={400: {"model": ErrorDetail}, ...}` per route where a client reads the body, as #5089 did. The app-wide assertions in `test_every_operation_declares_its_refusals_5094.py` are strict xfails until that per-route pass lands. Still open: the per-route declarations, and the Swift half (#3931: the 216 `.undocumented` sites).
 
 ### F. Distribution and bundle hygiene (P3, not urgent)
 
