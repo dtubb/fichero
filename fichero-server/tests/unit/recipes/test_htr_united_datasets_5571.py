@@ -133,3 +133,13 @@ def test_the_offers_route_lists_what_the_kept_catalogue_has_for_the_projects_lan
     monkeypatch.setattr(htr_united, "cached", lambda: {"fetched_at": "x", "records": _rows()})
     r = client.get("/api/recipes/htr-united", params={"languages": "la", "scripts": "Latn"})
     assert r.status_code == 200 and r.json()["datasets"] and all("as" in d for d in r.json()["datasets"])
+
+
+def test_a_licence_with_no_url_or_name_is_kept_whole_and_the_route_model_takes_it():
+    from fichero_server.api.routes.system.recipes import HtrUnitedLicence
+
+    entry = {"title": "t", "license": {"name": "CC0-1.0"}}
+    (row,) = htr_united.rows({"a": entry})
+    assert row["licence"] == {"name": "CC0-1.0", "url": ""}
+    (row,) = htr_united.rows({"a": {"title": "t", "license": {}}})
+    assert HtrUnitedLicence(**row["licence"]).name == ""
