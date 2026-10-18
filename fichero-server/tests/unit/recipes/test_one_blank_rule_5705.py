@@ -36,6 +36,7 @@ def test_the_recipe_leaves_out_exactly_the_pages_find_the_documents_calls_blank(
 
 
 def test_a_page_sorted_blank_by_an_older_rule_is_looked_at_again_and_read(db, tmp_path):
+    """source.sort.written-recto-is-read: a written page is never left sorted blank and out of every later run."""
     pages, ids = _box(db, tmp_path)
     written = next(ids[p.id] for p in pages if not p.blank)
     doc = db.get(Document, written)
