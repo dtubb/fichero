@@ -1,7 +1,7 @@
 """Tool registration and schema well-formedness for every MCP surface (#4227).
 
 `fichero-mcp` ships ONE FastMCP surface, `fichero_mcp.server`, whose tools are generated from the contract
-(`research.mcp-three-servers-not-collapsed`, #2896; the hand-kept `full`, `simple` and static catalogues are gone).
+(`research.mcp-one-generated-server`, #2896; the hand-kept `full`, `simple` and static catalogues are gone).
 
 A malformed `inputSchema` is not a crash; an MCP client just silently refuses
 to call the tool, or calls it with arguments the server cannot use. These tests
