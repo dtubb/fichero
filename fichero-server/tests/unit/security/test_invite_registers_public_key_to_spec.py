@@ -4,6 +4,8 @@
 no usable password; a client row holds the key and they sign in by challenge. Nothing existing changes.
 """
 
+import pytest
+
 from tests.signed_in import new_key, signature_for
 from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401
     _bearer,
@@ -11,6 +13,16 @@ from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401
     _multiuser_on,
     harness,
 )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_redeem_rate_limit():
+    # Redemption is rate limited per address; every test here redeems from the same one.
+    from fichero_server.api.routes.auth import accounts as routes
+
+    routes._INVITE_REDEEM_ATTEMPTS_BY_IP.clear()
+    yield
+    routes._INVITE_REDEEM_ATTEMPTS_BY_IP.clear()
 
 
 def _invite(harness, username="ann"):
@@ -81,3 +93,11 @@ def test_a_key_without_a_client_is_refused(harness, monkeypatch):
     _multiuser_on(harness, monkeypatch)
     _key, pem = new_key()
     assert _redeem(harness, _invite(harness), public_key_pem=pem).status_code == 422
+
+
+def test_the_redeem_session_is_the_new_client_s(harness, monkeypatch):
+    _multiuser_on(harness, monkeypatch)
+    _key, pem = new_key()
+    body = _redeem(harness, _invite(harness), public_key_pem=pem, client={"kind": "app", "name": "Ann's Mac"}).json()
+    who = harness.client().get("/api/auth/identity", headers=_bearer(body["session_token"])).json()
+    assert who["client"]["id"] == body["client"]["id"]

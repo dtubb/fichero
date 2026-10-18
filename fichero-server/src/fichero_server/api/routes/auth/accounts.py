@@ -630,19 +630,20 @@ def redeem_invite(
         app_db.set_password(user.id, password_hash)
         user = app_db.set_active(user.id, True) or user
 
-    raw_session_token = accounts.new_session_token()
-    app_db.create_session(
-        user_id=user.id,
-        token_hash=accounts.hash_token(raw_session_token),
-        device_label="Invite redemption",
-        ttl=SESSION_TTL,
-    )
     client = None
     if body.public_key_pem is not None and body.client is not None:
         client = app_db.create_client(
             user_id=user.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
             public_key_pem=body.public_key_pem,
         )
+    raw_session_token = accounts.new_session_token()
+    app_db.create_session(
+        user_id=user.id,
+        token_hash=accounts.hash_token(raw_session_token),
+        device_label="Invite redemption",
+        ttl=SESSION_TTL,
+        client_id=client.id if client else None,
+    )
     app_db.consume_invite(invite.id, when=now)
     app_db.save_action_audit(
         ActionAudit(
