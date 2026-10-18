@@ -305,14 +305,25 @@ struct EntityDigestContent: View {
         .task(id: entity.id) {
             await loadClaims()
             await loadAppearsIn()
-            if let id = entity.id { staleReason = try? await entityService.getEntityInspector(id).staleReason }
+            await loadStaleReason()
         }
         .onChange(of: claimStore?.changeToken) {
             // A claim mutation anywhere (edit/merge/delete/curation) bumped the
             // store — re-read this entity's statements without reselecting.
             // (spec: kg-entity-inspector, kg.entity.statements.resyncs-on-change — F3)
-            Task { await loadClaims() }
+            Task {
+                await loadClaims()
+                // A re-embed clears "Out of date" without reselecting.
+                await loadStaleReason()
+            }
         }
+    }
+
+    // ponytail: the whole inspector payload for one field; read it from the entity itself once the engine adds it.
+    private func loadStaleReason() async {
+        // Only an entity with an id has an inspector to read (fe13462d9: the call takes a String).
+        guard let id = entity.id else { return }
+        staleReason = try? await entityService.getEntityInspector(id).staleReason
     }
 
     private var headerSection: some View {
