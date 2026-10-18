@@ -29,6 +29,8 @@ struct ProjectInspector: View {
     @State private var stats: Components.Schemas.LibraryStatsResponse?
     @State private var statsError: String?
     @State private var showShareSheet = false
+    @State private var pairedDevices: [PairedDeviceRecord] = []
+    @State private var devicesError: String?
 
     var body: some View {
         Form {
@@ -88,6 +90,20 @@ struct ProjectInspector: View {
                 } else {
                     Text("Sharing is off.").foregroundStyle(.secondary)
                 }
+                if showsHostMark {
+                    Label(SharedMark.hostHelp, systemImage: SharedMark.symbol)
+                        .foregroundStyle(.secondary)
+                    PairedDevicesSectionView(
+                        devices: activePairedDevices(from: pairedDevices),
+                        isLoading: false,
+                        canHostRemoteAccess: EngineConfig.engineIsLocal,
+                        onRefresh: { Task { await loadDevices() } },
+                        onRevoke: { id in Task { await revokeDevice(id) } }
+                    )
+                    if let devicesError {
+                        Text(devicesError).font(.caption).foregroundStyle(.orange)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -97,7 +113,33 @@ struct ProjectInspector: View {
             }
         }
         .task(id: library.id) {
+            await loadDevices()
             await load()
+        }
+    }
+
+    private var showsHostMark: Bool {
+        SharedMark.showsOnHost(hostingEnabled: RemoteAccessConfig.hostingEnabled, isLocal: library.host.isLocal)
+    }
+
+    /// The devices paired with this Mac, listed while Sharing is on (`sharing.sidebar.host-mark`).
+    private func loadDevices() async {
+        guard showsHostMark, EngineConfig.engineIsLocal else { return }
+        do {
+            pairedDevices = try await PairingService(apiRoot: EngineConfig.host).listDevices()
+            devicesError = nil
+        } catch {
+            if error.isCancellationError { return }
+            devicesError = error.localizedDescription
+        }
+    }
+
+    private func revokeDevice(_ id: String) async {
+        do {
+            try await PairingService(apiRoot: EngineConfig.host).revokeDevice(id: id)
+            await loadDevices()
+        } catch {
+            devicesError = error.localizedDescription
         }
     }
 

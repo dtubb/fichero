@@ -148,6 +148,14 @@ struct LibrarySectionHeader: View {
                 .truncationMode(.middle)  // Finder's rule: keep the distinguishing tail (2026-09-28)
                 .foregroundStyle(isDropTargeted ? Color.white : Color.primary)
             locationBadge
+            if SharedMark.showsOnHost(hostingEnabled: RemoteAccessConfig.hostingEnabled,
+                              isLocal: library.host.isLocal) {
+                Image(systemName: SharedMark.symbol)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help(SharedMark.hostHelp)
+                    .accessibilityLabel(SharedMark.hostHelp)
+            }
             LibrarySharingBadge(library: library)
             Spacer()
             if itemCount > 0 {
