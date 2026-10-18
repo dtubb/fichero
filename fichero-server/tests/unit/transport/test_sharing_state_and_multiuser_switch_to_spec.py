@@ -95,3 +95,18 @@ def test_no_command_when_the_forward_is_in_place_or_not_sharing_over_tailscale(a
     monkeypatch.setattr(tailscale_serve, "serve_status", lambda cli: {"x": 1})
     monkeypatch.setattr(tailscale_serve, "forward_target", lambda status, port: "https+insecure://127.0.0.1:8765")
     assert pairing._sharing_state(app_db).tailnet_serve_command is None
+
+
+def test_the_multiuser_answer_names_the_audit_row_for_undo(test_package, app_db, monkeypatch):
+    from types import SimpleNamespace
+
+    from fichero_server.actions import ActionContext
+    from fichero_server.api.routes.auth import pairing
+    from fichero_server.db import db_manager
+
+    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
+    monkeypatch.setattr(pairing, "_pairing_user", lambda *_: SimpleNamespace(is_owner=True))
+    ctx = ActionContext(actor="owner", library_path=str(test_package), is_bootstrap=True)
+    answer = pairing.set_multiuser(SimpleNamespace(), pairing.MultiuserRequest(enabled=True), app_db,
+                                   db_manager.get_database(test_package), ctx)
+    assert answer.audit_id

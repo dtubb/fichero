@@ -16,7 +16,7 @@ extension ShareSettingsView {
                         .foregroundStyle(.secondary)
                 }
 
-                if let tailnet = sharingState?.tailnetURL, tailnet != publicBaseURL {
+                if let tailnet = detectedTailnetURL, tailnet != publicBaseURL {
                     LabeledContent("Tailscale address") {
                         Button("Use \(tailnet)") {
                             addressDraft = tailnet

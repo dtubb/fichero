@@ -47,6 +47,7 @@ struct ShareSettingsView: View {
     @State var copiedInvite = false
     @State var addressDraft = ""
     @State var sharingState: SharingStateRecord?
+    @State var detectedTailnetURL: String?
     @State var confirmRemoveAllDevices = false
 
     let qrContext = CIContext()

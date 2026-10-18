@@ -111,7 +111,7 @@ struct PairedDeviceRecord: Codable, Identifiable {
 
 @MainActor
 final class PairingService {
-    private let client: FicheroClient
+    let client: FicheroClient
 
     /// Uses the transport the app resolved at launch, like every other service.
     ///
@@ -148,7 +148,19 @@ final class PairingService {
         switch response {
         case .ok(let okResponse):
             let body = try okResponse.body.json
-            return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand)
+            return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
+                                      auditId: body.auditId)
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
+    /// This Mac's `.ts.net` address when Tailscale is running, else nil (#5318).
+    func detectedTailnetURL() async throws -> String? {
+        let response = try await client.api.detectedTailnetApiPairTailnetGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.tailnetUrl
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -299,4 +311,5 @@ struct ConnectedClientRecord: Identifiable, Equatable {
 struct SharingStateRecord: Equatable {
     let tailnetURL: String?
     let tailnetServeCommand: String?
+    let auditId: String?
 }
