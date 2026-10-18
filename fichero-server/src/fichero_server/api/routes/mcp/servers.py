@@ -79,6 +79,8 @@ class MCPServerResponse(BaseModel):
     enabled: bool
     created_at: str
     updated_at: str
+    last_load_error: str | None = None
+    """Why the saved servers' tools last failed to load (at start or after a save); None when the last load worked."""
 
 
 class MCPToolInfo(BaseModel):
@@ -130,6 +132,8 @@ class MCPServerResponseList(BaseModel):
 
 def _server_to_response(server: MCPServer) -> MCPServerResponse:
     """Convert MCPServer model to API response."""
+    from fichero_server.workflows.tools import mcp as _mcp_tools
+
     return MCPServerResponse(
         id=server.id,
         name=server.name,
@@ -144,6 +148,7 @@ def _server_to_response(server: MCPServer) -> MCPServerResponse:
         enabled=server.enabled,
         created_at=server.created_at.isoformat(),
         updated_at=server.updated_at.isoformat(),
+        last_load_error=_mcp_tools.last_load_error if server.enabled else None,
     )
 
 
@@ -180,11 +185,13 @@ def _server_to_config(server: MCPServer) -> "MCPServerConfig":
 
 async def _resync_registry() -> None:
     """The workflow registry follows the saved servers (#5760). A server that will not start is logged, not fatal."""
-    try:
-        from fichero_server.workflows.tools.mcp import sync_mcp_tools_from_db
+    from fichero_server.workflows.tools.mcp import note_load_result, sync_mcp_tools_from_db
 
+    try:
         await sync_mcp_tools_from_db(get_app_db())
+        note_load_result(None)
     except Exception as exc:
+        note_load_result(exc)
         logger.warning("MCP tools could not be reloaded after a server change: %r", exc)
 
 

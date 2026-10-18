@@ -73001,6 +73001,11 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "last_load_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Load Error"
           }
         },
         "type": "object",
@@ -74128,6 +74133,12 @@
             "nullable": true,
             "title": "Refused",
             "description": "the rules' first reason it cannot do the job here"
+          },
+          "needs_permission": {
+            "type": "boolean",
+            "title": "Needs Permission",
+            "description": "a cloud reader the project may not use until the person has said pages may leave this Mac: shown greyed, \"needs permission\" (`source.onboard.pages-may-leave`, #5768)",
+            "default": false
           },
           "installed": {
             "type": "boolean",
@@ -81405,6 +81416,20 @@
             "title": "Lines Unread",
             "description": "the lines found on those pages that have no reading (#5758)",
             "default": 0
+          },
+          "pages_read_nothing": {
+            "type": "integer",
+            "title": "Pages Read Nothing",
+            "description": "pages the reader returned nothing for, line by line: failed reads (#5758)",
+            "default": 0
+          },
+          "lines_unread_why": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Lines Unread Why",
+            "description": "why those lines have none: each reason with its count (#5758)"
           },
           "names": {
             "items": {
