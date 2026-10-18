@@ -929,6 +929,13 @@ class FirstRunClient(BaseModel):
     host: str = Field(default="", max_length=120)
 
 
+class MigrateOwnerRequest(BaseModel):
+    """The owner row already has a name; only the key and the client are new."""
+
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    client: FirstRunClient
+
+
 class FirstRunRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
     public_key_pem: str = Field(min_length=1, max_length=2000)
@@ -996,7 +1003,7 @@ def first_run(
 
 @auth_router.post("/migrate-owner", response_model=FirstRunResponse)
 def migrate_owner(
-    body: FirstRunRequest,
+    body: MigrateOwnerRequest,
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
     x_fichero_launch_secret: str | None = Header(default=None, alias="X-Fichero-Launch-Secret"),
