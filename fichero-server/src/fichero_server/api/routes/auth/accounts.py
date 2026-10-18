@@ -1068,6 +1068,7 @@ class LocalClientDecision(BaseModel):
 
 
 class LocalClientRegisterBody(BaseModel):
+    request_id: str = Field(min_length=1, max_length=64)
     public_key_pem: str = Field(min_length=1, max_length=2000)
 
 
@@ -1171,9 +1172,8 @@ def decide_local_client_request(
         return _request_view(request_id, entry)
 
 
-@auth_router.post("/local-clients/requests/{request_id}/register", response_model=SignInClient)
+@auth_router.post("/local-clients/register", response_model=SignInClient)
 def register_local_client(
-    request_id: str,
     body: LocalClientRegisterBody,
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
@@ -1183,6 +1183,7 @@ def register_local_client(
     if not _is_p256_public_key(body.public_key_pem):
         raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
     with _client_requests_lock:
+        request_id = body.request_id
         entry = _live_requests().get(request_id)
         if entry is None or (entry["peer"]["pid"], entry["peer"]["exe"]) != (peer["pid"], peer["exe"]):
             raise HTTPException(status_code=404, detail="no such request")

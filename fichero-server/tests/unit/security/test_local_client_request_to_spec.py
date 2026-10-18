@@ -77,13 +77,13 @@ def test_nothing_works_until_allow_then_the_client_registers_its_own_key_and_sig
     _switch_on(harness, owner, cli=True)
     request_id = _ask(harness).json()["id"]
     key, pem = new_key()
-    early = uds_client(harness, PEER).post(f"{BASE}/requests/{request_id}/register", json={"public_key_pem": pem})
+    early = uds_client(harness, PEER).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert early.status_code == 409
     decided = harness.client().post(
         f"{BASE}/requests/{request_id}/decision", json={"allow": True}, headers=owner.headers
     )
     assert decided.json()["state"] == "allowed"
-    done = uds_client(harness, PEER).post(f"{BASE}/requests/{request_id}/register", json={"public_key_pem": pem})
+    done = uds_client(harness, PEER).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert done.status_code == 200, done.text
     client_id = done.json()["id"]
     assert harness.app_db.get_client(client_id).user_id == users["owner"].id
@@ -94,7 +94,7 @@ def test_nothing_works_until_allow_then_the_client_registers_its_own_key_and_sig
         json={"client_id": client_id, "nonce": issued["nonce"], "signature": signature_for(key, client_id, issued)},
     )
     assert signed.status_code == 200 and signed.json()["client"]["kind"] == "cli"
-    again = uds_client(harness, PEER).post(f"{BASE}/requests/{request_id}/register", json={"public_key_pem": pem})
+    again = uds_client(harness, PEER).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert again.status_code == 404
 
 
@@ -104,7 +104,7 @@ def test_deny_means_no_client(harness, monkeypatch):
     request_id = _ask(harness).json()["id"]
     harness.client().post(f"{BASE}/requests/{request_id}/decision", json={"allow": False}, headers=owner.headers)
     _key, pem = new_key()
-    refused = uds_client(harness, PEER).post(f"{BASE}/requests/{request_id}/register", json={"public_key_pem": pem})
+    refused = uds_client(harness, PEER).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert refused.status_code == 403
 
 
@@ -115,7 +115,7 @@ def test_another_program_cannot_register_for_an_allowed_request(harness, monkeyp
     harness.client().post(f"{BASE}/requests/{request_id}/decision", json={"allow": True}, headers=owner.headers)
     _key, pem = new_key()
     thief = {**PEER, "pid": 9999, "exe": "/usr/bin/python3"}
-    stolen = uds_client(harness, thief).post(f"{BASE}/requests/{request_id}/register", json={"public_key_pem": pem})
+    stolen = uds_client(harness, thief).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert stolen.status_code == 404
 
 
