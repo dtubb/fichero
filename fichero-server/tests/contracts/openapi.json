@@ -80937,6 +80937,15 @@
             "nullable": true,
             "title": "Needed By",
             "description": "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they stay (source.onboard.plan-editable)"
+          },
+          "run_titles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Run Titles",
+            "description": "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the order Start makes them (#5795); null for every other step"
           }
         },
         "type": "object",
