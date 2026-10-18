@@ -260,6 +260,9 @@ class Answers:
     #: The model this engine's search embeds with (its one embedding space); the search step names it where its
     #: card fits (#5574). Empty: no preference.
     search_embedder: str = ""
+    #: The cloud providers with a key set here (`derived._providers_with_keys`): only their models are offered as a
+    #: way to turn a step on (#5677, ruled Q3 2026-10-17). Names only, never the keys.
+    cloud_keys: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         # In the order setup offers them, so the same purposes ticked in any order give the same recipe.
@@ -723,16 +726,20 @@ def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
                 f"({size_words(card.size_gb)})")
     else:
         cost = f"turning it on runs {_model_words(card)} at {card.runs_on.split(':', 1)[-1]}"
-    cloud = None
-    if not a.cloud_allowed:
-        allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
-        cloud = _choose(CORRECT, [c for c in cards if c.runs_on.startswith("cloud")], allowed).card
+    # Ruled Q3 (2026-10-17): a cloud corrector whose provider has a key set here is OFFERED at Ready with its cost,
+    # never turned on by itself; with no key, no cloud is named.
+    keyed = [c for c in cards if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys]
+    allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
+    cloud = _choose(CORRECT, keyed, allowed).card if keyed else None
+    offered = None
     if cloud is not None and cloud.cost_per_page:
         pages = max(a.pages, 1)
-        cost += (f"; or, letting pages leave this Mac, {cloud.runs_on.split(':', 1)[-1]} at about "
-                 f"${cloud.cost_per_page * pages:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
-    return {"job": CORRECT, "title": "Correct",
-            "sentence": f"Correct is off: {cost}."}
+        provider = cloud.runs_on.split(":", 1)[1]
+        offered = {"card": cloud.id, "runs_on": provider, "pages": pages,
+                   "cost_usd": round(cloud.cost_per_page * pages, 2)}
+        cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} at about "
+                 f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
+    return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 
 
 def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dict[str, str]]]:
