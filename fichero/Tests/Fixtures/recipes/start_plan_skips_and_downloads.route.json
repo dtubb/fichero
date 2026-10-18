@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-2833/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-2924/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -172,8 +172,8 @@
         "starts": "training.start_here",
         "params": {
          "scope_ids": [
-          "6b73c33131d7494887bf75dc51cf66f5",
-          "79ae894fd8c8496d88c9ea885067f346",
+          "78b53f2a236e4dbd8c1cf8220176b15b",
+          "e6d02c64c0b047e098ce8c2556b9f632",
           "system-workflows"
          ],
          "teacher": "person"
@@ -263,6 +263,14 @@
     }
    }
   ],
+  "hf_spend": {
+   "cap_usd": 0.0,
+   "spent_at_most_usd": 0.0,
+   "jobs": 0,
+   "unpriced": 0,
+   "month": "2026-10",
+   "sentence": "Hugging Face this month: at most $0.00 of $0.00, 0 Jobs."
+  },
   "bakeoff_offer": {
    "sentence": "Every reader compared runs on this Mac: the comparison costs nothing (1 readers).",
    "run_cost_usd": 0.0,
