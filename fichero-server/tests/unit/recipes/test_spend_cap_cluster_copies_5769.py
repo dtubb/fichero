@@ -159,3 +159,27 @@ def test_the_start_plan_carries_the_spend(client):
                                  "model": {"kraken": "blla", "kraken_version": "bundled"}}))
     spend = client.get("/api/recipes/project/start").json()["hf_spend"]
     assert spend["cap_usd"] == 0.0 and spend["spent_at_most_usd"] == 0.0 and "$0.00 of $0.00" in spend["sentence"]
+
+
+def test_setup_reads_the_money_and_place_settings_from_the_engine(client, monkeypatch):
+    """The setup screen shows the three settings as the engine holds them (on the stages it reads), and works none
+    out: the copies question's value follows pages-may-leave until the person answers it, and is asked only where a
+    cluster is set up."""
+    from fichero_server.api.routes.system import recipes as routes
+
+    monkeypatch.setattr(routes, "_cluster_names", lambda: ["Rorqual"])
+
+    def put(answers):
+        body = {"answers": {"purposes": ["transcribe"], **answers}, "recipe": None}
+        r = client.put("/api/recipes/project", json=body)
+        assert r.status_code == 200, r.text
+        r = client.get("/api/recipes/stages")
+        assert r.status_code == 200, r.text
+        return r.json()["money_and_place"]
+
+    shown = put({"cloud_allowed": True})
+    assert shown["hf_spend_cap_usd"] == 0.0 and shown["clusters"] == ["Rorqual"]
+    assert shown["copies_may_stay_on_cluster"] is True and shown["copies_follow_pages_may_leave"] is True
+    shown = put({"cloud_allowed": True, "copies_may_stay_on_cluster": False, "hf_spend_cap_usd": 20})
+    assert shown["copies_may_stay_on_cluster"] is False and shown["copies_follow_pages_may_leave"] is False
+    assert shown["hf_spend_cap_usd"] == 20.0
