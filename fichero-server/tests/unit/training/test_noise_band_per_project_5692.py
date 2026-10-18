@@ -40,3 +40,17 @@ def test_every_train_offer_carries_the_projects_band():
     band = {"value": 0.012, "measured": True, "basis": "measured"}
     (offer,) = train_offers(recipe, counts, stays_local=True, noise_band=band)
     assert offer["noise_band"] == band
+
+
+def test_the_reasons_ab_uses_the_projects_band_unless_one_is_given(db):
+    """A reasons A/B with no band named judges by the project's band; one named in the request wins."""
+    from pathlib import Path
+
+    from fichero_server.models.compute_requests import ReasonsABRequest
+    from fichero_server.training.reasons_job import band_for
+
+    library = Path(db.path).parent
+    assert ReasonsABRequest.model_fields["noise_band"].default is None
+    assert band_for(db, None) == NOISE_BAND
+    write_noise_band(library, 0.02, pages=12, model="kraken-x")
+    assert band_for(db, None) == 0.02 and band_for(db, 0.001) == 0.001

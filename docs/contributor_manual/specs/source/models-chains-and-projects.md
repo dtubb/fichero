@@ -4496,5 +4496,6 @@ Each is described in the paragraph named; the id lets a test cite it.
   measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
   the best reader's pages (`training.evaluation.noise_band`), the project keeps it (`recipe/noise-band.yaml`,
   `recipes.project.read_noise_band`, the ruled 0.5 CER points until then, said so), and every train offer carries it
-  (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. Not built: the reasons A/B
-  and a trained model's adoption reading the project's band instead of the constant.*
+  (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. The reasons A/B judges by it when its
+  request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). Not
+  built: a trained reader's adoption past the band (no adoption step exists yet).*

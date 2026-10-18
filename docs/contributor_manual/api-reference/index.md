@@ -923,7 +923,7 @@ of the `contenders` (`label`, `provider`, `model`, `arm`, `role`: student, teach
 held-out checked lines (`held_out_ids`, required) as it was trained, and a reasoning student also with
 its reasoning off; one CER and WER each, seconds a line, and for a `why` student how many of its errors
 fall on lines it called uncertain. A reasoning student is adopted only if it beats the answer-only
-student by more than `noise_band` (0.005); the result is written on every Fichero-trained contender's
+student by more than `noise_band` (the request's, else the project's noise band, 0.005 until measured, #5692); the result is written on every Fichero-trained contender's
 card either way. Through `training.measure_reasons_ab`; `GET /api/training/reasons-ab/{job_id}` gives the
 scores and verdicts.
 
