@@ -142,27 +142,34 @@ def footprint_bytes(pid: int) -> int | None:
     return int(info.ri_phys_footprint)
 
 
-def rss_bytes(pid: int) -> int | None:
-    """A process's resident set now, in bytes (`ps -o rss=`), or None when it cannot be read."""
-    import subprocess
+def peak_rss_bytes() -> int | None:
+    """This process's peak resident set so far, in bytes (`getrusage` ru_maxrss: bytes on macOS), or None."""
+    import resource
 
     try:
-        out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)], capture_output=True, text=True, timeout=2).stdout
-        return int(out.strip()) * 1024
-    except (OSError, ValueError, subprocess.SubprocessError):
+        return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    except (OSError, ValueError):
         return None
 
 
 def swap_used_bytes() -> int | None:
-    """The swap in use now (`vm.swapusage`), in bytes, or None when it cannot be read."""
-    import re
-    import subprocess
+    """The swap in use now, in bytes (`sysctlbyname("vm.swapusage")`'s xsw_usage, in-process via ctypes: no
+    subprocess per sample), or None when it cannot be read."""
+    import ctypes
+    import ctypes.util
+
+    class _SwapUsage(ctypes.Structure):  # <sys/sysctl.h> xsw_usage
+        _fields_ = [("total", ctypes.c_uint64), ("avail", ctypes.c_uint64), ("used", ctypes.c_uint64),
+                    ("pagesize", ctypes.c_uint32), ("encrypted", ctypes.c_bool)]
 
     try:
-        out = subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True, timeout=2).stdout
-        return int(float(re.search(r"used = ([\d.]+)M", out).group(1)) * 1024**2)  # type: ignore[union-attr]
-    except (OSError, ValueError, AttributeError, subprocess.SubprocessError):
+        usage, size = _SwapUsage(), ctypes.c_size_t(ctypes.sizeof(_SwapUsage))
+        libc = ctypes.CDLL(ctypes.util.find_library("System"))
+        if libc.sysctlbyname(b"vm.swapusage", ctypes.byref(usage), ctypes.byref(size), None, 0) != 0:
+            return None
+    except Exception:  # noqa: BLE001 -- not macOS
         return None
+    return int(usage.used)
 
 
 class PeakMemory:
@@ -179,11 +186,11 @@ class PeakMemory:
         self._engine = engine or (lambda: footprint_bytes(os.getpid()))
         self._servers = servers or _model_servers_footprint
         self._interval = interval
-        self._rss = rss or (lambda: rss_bytes(os.getpid()))
+        self._rss = rss or peak_rss_bytes
         self._swap = swap or swap_used_bytes
         self.rss_peak: int | None = None
         self.swap_start: int | None = self._safe(self._swap)
-        self.swap_peak: int | None = self.swap_start
+        self.swap_end: int | None = None
         self.engine_peak: int | None = None
         self.server_peak: int | None = None
         self._stop = None
@@ -197,11 +204,9 @@ class PeakMemory:
             return None
 
     def sample(self) -> None:
-        rss, swap = self._safe(self._rss), self._safe(self._swap)
+        rss = self._safe(self._rss)  # swap is read at start and end only: once per run, not once a second
         if rss is not None and rss > (self.rss_peak or 0):
             self.rss_peak = rss
-        if swap is not None and swap > (self.swap_peak or 0):
-            self.swap_peak = swap
         for attr, read in (("engine_peak", self._engine), ("server_peak", self._servers)):
             try:
                 value = read()
@@ -229,6 +234,7 @@ class PeakMemory:
         if self._stop is not None:
             self._stop.set()
         self.sample()
+        self.swap_end = self._safe(self._swap)
 
     def pressure(self) -> dict[str, int]:
         """What the run did to this Mac's memory: the engine's peak resident set and how far swap grew. The honest
@@ -237,8 +243,8 @@ class PeakMemory:
         out = {}
         if self.rss_peak is not None:
             out["engine_peak_rss_bytes"] = self.rss_peak
-        if self.swap_start is not None and self.swap_peak is not None:
-            out["swap_growth_bytes"] = max(0, self.swap_peak - self.swap_start)
+        if self.swap_start is not None and self.swap_end is not None:
+            out["swap_growth_bytes"] = max(0, self.swap_end - self.swap_start)
         return out
 
     def record(self) -> dict[str, int]:
