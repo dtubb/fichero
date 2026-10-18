@@ -19,6 +19,8 @@ struct NotesInspectorPane: View {
     @State private var staleSave: (noteId: String, body: String)?
     /// Why the last Keep mine did not save; shown in the dialog that comes back with the text still held.
     @State private var staleRetryError: String?
+    /// Both texts shown side by side while the person decides (#5348); the dialog returns when it closes.
+    @State private var comparing: NoteStaleComparison?
     /// A plain sentence above the list, e.g. the note was deleted elsewhere and the text was copied.
     @State private var notice: String?
 
@@ -108,9 +110,31 @@ struct NotesInspectorPane: View {
         ) {
             Button("Keep mine") { Task { await resolveStale(keepMine: true) } }
             Button("Take theirs") { Task { await resolveStale(keepMine: false) } }
+            Button("Compare") {
+                // The dialog clears `staleSave` as it closes, so hand the text over now.
+                if let pending = staleSave { Task { await compareStale(pending) } }
+            }
             Button("Cancel", role: .cancel) { staleSave = nil }
         } message: {
-            Text(staleRetryError ?? "Nothing was saved. Keep your text over theirs, or take theirs (your text is copied to the clipboard).")
+            Text(staleRetryError
+                ?? "Nothing was saved. Keep your text, compare the two, or take theirs (your text is copied to the clipboard).")
+        }
+        .sheet(item: $comparing) { comparison in
+            NoteStaleCompareView(comparison: comparison) { keepMine in
+                comparing = nil
+                Task { await resolveStale(keepMine: keepMine) }
+            }
+        }
+    }
+
+    private func compareStale(_ pending: (noteId: String, body: String)) async {
+        await noteStore.reload()
+        let theirs = noteStore.notes.first(where: { $0.id == pending.noteId })?.body ?? nil
+        comparing = NoteStaleResolution.comparison(mine: pending.body, theirs: theirs)
+        if comparing == nil {
+            notice = "This note was deleted on another Mac."
+        } else {
+            staleSave = pending
         }
     }
 
