@@ -3205,10 +3205,8 @@ Setup
 - `source.onboard.app.steps` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.appSteps`, `FirstRunWindow.flow(for:)`; pinned by `FirstRunStepSelectionTests`. setting up the app (a first launch, and Fichero › Set
   Up Fichero…) is Welcome → What Fichero runs → the hand-off, and no Permissions step: folder access is
   asked when a folder is added. *Test:* pure Swift, the app's steps are exactly those three.
-- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (the rows, and the two accounts added as providers); pinned by `SetupStagesTests`. What Fichero runs says what Fichero can do
-  and with what (reading pages: Kraken, Apple Vision, MLX vision models; regions and lines: YOLO, Kraken;
-  names and statements: spaCy; speech: Whisper; remote: OpenRouter, Anthropic, OpenAI, Google), and
-  takes a Hugging Face and an OpenRouter account in the step. *Test:* pure Swift, the step's rows and its
+- `source.onboard.app.what-fichero-runs` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `WhatFicheroRunsFields` (one sentence on what comes with Fichero, and the two accounts added as providers); pinned by `SetupStagesTests`. The step is titled "Where the work runs". It says in one line what Fichero comes with: "Fichero comes with readers for handwriting and print, a line finder and a name finder; it downloads others for your language when you need them." (no table of engine names), and
+  takes a Hugging Face and an OpenRouter account in the step; the OpenRouter row says pages leave the Mac. *Test:* pure Swift, the step's line and its
   two account fields.
 - `source.onboard.app.provider-sheet-in-step` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the sheet is the window's own (`FirstRunWindow.showsProviderSheet`), no longer deferred to finish. Choose a Provider opens its sheet
   while the step shows; it opened only after onboarding ended. *Test:* pure Swift, the sheet's presented
