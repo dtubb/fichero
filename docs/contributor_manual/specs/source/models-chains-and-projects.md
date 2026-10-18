@@ -707,7 +707,7 @@ engine's `assemble()` takes one purpose and one material (`Answers.purpose`, `An
 in `recipes/assemble.py`); the Purpose screen is a single choice and the material a single-choice
 menu. Languages and scripts are searched (`GET /api/recipes/languages`, `/scripts`) but a typed
 word is kept as typed, so "spanish" reached the rules and every reader was refused because cards
-list tags ("es") (#5479). Direction is shown, worked out from the script, never chosen. Each
+list tags ("es") (#5479). Direction is worked out from the script, never chosen (ruled 2026-10-18). Each
 step's topic sentence has its paragraph behind a disclosure, and a step with no model shows the
 rules' raw reason, model ids and all, twice (#5481). Setup offers Link, Copy, Move and Index; the
 engine's folder import with `mode: index` adopts the folder as a synced folder (#4952), but the
@@ -807,9 +807,7 @@ lives somewhere).
      **tag** (`es`, `la`, a private-use tag for a Glottolog-only language), never the typed word.
    - **Scripts**: the same, from ISO 15924 (type to find by name or code, as languages),
      tokens, the code saved (`Latn`, `Arab`).
-   - **Direction**: chosen, pre-filled from the scripts (the engine's derived fact, with where it
-     came from): left to right, right to left, top to bottom (columns right to left), top to bottom
-     (columns left to right). With several scripts, one direction per script.
+   - **Direction**: not asked (ruled 2026-10-18, #5788). It follows from the script (the engine's derived fact, `recipes/answers.default_direction`) and is saved with the answers; setup shows it only as a fact under the script ("Left to right"), and a project that must differ changes it afterwards on the source (`SourceDirectionMenu`). *Test:* a script with no chosen direction reads as the derived one (`SetupThreeWaysInTests`); the engine fills `answers.directions` from the script when none is sent (`recipes/answers.py`).
    - **Material**: checkboxes **Handwriting**, **Print**, **Typescript**, any mix (at least one,
      default Handwriting), with "roughly when" beside them. The recipe proposes a reader for each
      kind ticked, and a project with more than one kind gets one reader per kind (a folder or page
@@ -1324,7 +1322,7 @@ jobs, and the recipe keeps the registry's step order whatever order stages are c
 |---|---|---|
 | Clean Up Images | `split-pages`, `prepare-the-image` | Two pages per image? Straighten, crop, brighten? |
 | Find Lines | `find-regions`, `find-lines`, `put-in-order`, `refine-shapes` | Columns, margins and glosses? Tables on the pages? |
-| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Read line by line or the page at once? Have a second model check the reading? |
+| Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Have a second model check the reading? (Lines are read one by one; the page-at-once question was dropped 2026-10-18, #5788.) |
 | Organise | `find-documents-in-a-folder`, `split-into-entries` | Are several documents in one folder, or one document per folder? |
 | Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which place list? |
 | Statements | `find-statements` | Which kinds (sales, gifts, marriages, letters sent…)? |
@@ -3403,10 +3401,7 @@ Setup
   and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
-- `source.onboard.five-ways-in` — **[PARTIAL]** (#5480) **Built 2026-10-05 (app), not yet seen:** Link, Copy, Move, Index and Keep arranged as radio buttons, each with its sentence; Keep arranged imports as Index and is saved as `ingest_mode: keep-arranged`, read back as Keep arranged (`SetupWayIn`; `fichero/Tests/Unit/general/Models/KeepArrangedTests.swift`). *Not built: the import menus and drops starting from the saved choice.* Your material offers five ways material comes in,
-  each with one sentence of what it does to the originals: Copy (default), Link, Move, Index and
-  Keep arranged; the choice is saved with the project and used by Add a Folder… and by the
-  project's later imports. Supersedes the four of `source.sync.four-ways-in` for setup. With Copy, the line after an add says what the copy takes and the room left ("The copy takes 1.2 GB; 112 GB free."), measured from the chosen files (`CopySpaceTests`).
+- `source.onboard.five-ways-in` — **[GAP]** (#5788) *Superseded 2026-10-18 by the owner's ruling: setup offers three ways in, not five.* **Copy** (default; Fichero makes its own copy in the project, the originals are never touched), **Leave in place** (the engine's Link mode; Fichero reads the files where they are and never changes them) and **Move** (the files move into the project; the originals are removed, said plainly). **Index** and **Keep arranged** are not asked in setup: they are set on a synced folder in the Inspector (`source.onboard.index-ties-the-folder`, `source.onboard.keep-arranged`). The choice is saved with the project (`answers.ingest_mode`: `copy`, `link`, `move`) and used by Add a Folder… and later imports; a project saved earlier as `index` or `keep-arranged` still reads back (its folder keeps its mode in the Inspector) and setup shows it as Leave in place. With Copy, the line after an add says what the copy takes and the room left (`CopySpaceTests`). *Test:* `SetupWayIn.setupChoices` is Copy, Leave in place, Move in that order and Copy is the default (`SetupThreeWaysInTests`).
 - `source.onboard.index-ties-the-folder` — **[PARTIAL]** (#5480, #4952) **Built 2026-10-05 (app), not yet seen:** Add a Folder… with Index imports the folder as `index`, then ties it through `/api/sync-folders` (the folder the import adopted is used as it is; one not listed is tied with `POST`), reads its intake and shows the tied folder on the screen: its place, formats and intake with Take In and Leave (`RecipeSetupStore.addFolder`, `SyncFolderStore.tie`; `fichero/Tests/Unit/general/Models/SyncFolderStoreTests.swift`). Keep arranged ties the folder the same way (built 2026-10-05, below). *Not built: the file count.* choosing Index or Keep arranged
   with a folder ties it through `/api/sync-folders` (the engine half built for #4952; the app calls
   none of those routes today) and setup shows the tied folder: its path, its file count, and intake

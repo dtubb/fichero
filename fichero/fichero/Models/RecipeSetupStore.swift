@@ -19,11 +19,6 @@ import OpenAPIRuntime
 @Observable
 final class RecipeSetupStore {
     static let materialKinds = ["handwriting", "print", "typescript"]
-    /// The directions setup offers, as the engine names them (`recipes/answers.SETUP_DIRECTIONS`).
-    static let directionChoices: [(id: String, title: String)] = [
-        ("ltr", "Left to right"), ("rtl", "Right to left"),
-        ("ttb", "Top to bottom, columns right to left"), ("ttb-lr", "Top to bottom, columns left to right")
-    ]
 
     // MARK: Answers (a draft until Start; nothing runs before it)
 

@@ -29,6 +29,18 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
 
     var savedName: String { rawValue }
 
+    /// What setup asks (ruled 2026-10-18, #5788): Index and Keep arranged are set on a synced folder in the Inspector.
+    static let setupChoices: [SetupWayIn] = [.copy, .link, .move]
+
+    /// The choice a saved way in lights in setup: an earlier Index or Keep arranged reads as Leave in place
+    /// (its folder keeps its mode in the Inspector).
+    var shownInSetup: SetupWayIn {
+        switch self {
+        case .index, .keepArranged: .link
+        default: self
+        }
+    }
+
     /// The import's own mode: Keep arranged imports as Index.
     var ingestMode: IngestMode {
         switch self {
@@ -41,7 +53,7 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .link: "Link"
+        case .link: "Leave in place"
         case .copy: "Copy"
         case .move: "Move"
         case .index: "Index"
