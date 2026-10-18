@@ -122,4 +122,6 @@ def test_a_step_waits_for_its_download_then_runs_or_says_why_not(jobs_run_by_the
     _end(db, failed, "failed", "the network went away")
     detail = {"awaited": [{"steps": ["read"], "job_id": failed, "name": READER}]}
     why = runner._await_downloads(db, "recipe-run", detail, card)
-    assert why == f"its model {READER} did not download: the network went away"
+    # `source.recipe.download-failure-waits`: said as a failed download, with Retry and the next candidate offered.
+    assert why == (f"Model download failed: {READER} did not download (the network went away). "
+                   "Retry it in Activity, or choose the step's next candidate in Set Up")
