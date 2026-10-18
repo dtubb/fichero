@@ -13,12 +13,33 @@ struct RemoteClientPairingFields: Equatable {
     let libraryPath: String
 }
 
+/// The person a pairing device signs in as when the host has Multi-user on.
+struct PairingPerson: Equatable {
+    let username: String
+    let password: String
+
+    /// Nil unless both fields are filled, so a half-typed picker never sends a partial person.
+    init?(username: String, password: String) {
+        let name = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !password.isEmpty else { return nil }
+        self.username = name
+        self.password = password
+    }
+
+    /// The engine's answer to a no-person pairing while Multi-user is on (401, "person required: ...").
+    static func isRequiredRefusal(status: Int, detail: String?) -> Bool {
+        status == 401 && (detail ?? "").hasPrefix("person required")
+    }
+}
+
 enum RemoteClientPairingError: LocalizedError, Equatable {
     case missingPairCode
     case missingDeviceName
     case missingLibraryPath
     case invalidInviteLink
     case libraryPathNotConfirmed
+    /// The host uses Multi-user: the device must say which person it is (`sharing.device-chooses-person`).
+    case personRequired
     /// #5047: this app and the Mac were built from different API contracts, so
     /// the wire would be misread. Refuses rather than pairing into a connection
     /// that fails later in ways nobody could diagnose (design ruling 1). Carries
@@ -38,6 +59,8 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
         case .libraryPathNotConfirmed:
             return "The Mac did not confirm access to the project named in this QR code. "
                 + "Show a fresh QR code on the Mac and scan it again."
+        case .personRequired:
+            return "This library uses Multi-user. Enter the username and password you sign in with."
         case .contractMismatch(let headline, let detail):
             return headline + ". " + detail
         }

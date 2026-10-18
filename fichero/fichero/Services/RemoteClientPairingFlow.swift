@@ -176,7 +176,8 @@ enum RemoteClientPairing {
         remoteURL: String,
         pairCode: String,
         deviceName: String,
-        expectedSPKIPin: String?
+        expectedSPKIPin: String?,
+        person: PairingPerson? = nil
     ) async throws -> PairingExchangeResult {
         let code = pairCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -195,7 +196,7 @@ enum RemoteClientPairing {
         )
         let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
         let response = try await PairingService(apiRoot: url, expectedSPKIPin: normalizedSPKIPin)
-            .pairDeviceUnauthenticated(code: code, deviceName: name)
+            .pairDeviceUnauthenticated(code: code, deviceName: name, person: person)
         return PairingExchangeResult(
             apiRoot: url,
             deviceToken: response.deviceToken,
@@ -266,13 +267,15 @@ enum RemoteClientPairing {
         pairCode: String,
         deviceName: String,
         expectedSPKIPin: String?,
-        libraryPath: String? = nil
+        libraryPath: String? = nil,
+        person: PairingPerson? = nil
     ) async throws -> URL {
         let result = try await pairDevice(
             remoteURL: remoteURL,
             pairCode: pairCode,
             deviceName: deviceName,
-            expectedSPKIPin: expectedSPKIPin
+            expectedSPKIPin: expectedSPKIPin,
+            person: person
         )
         let normalizedSPKIPin = try expectedSPKIPin.map(RemoteCertificatePinning.validatedSPKIPin)
         // #3372: the QR/deep-link carries `libraryPath`, but that value is

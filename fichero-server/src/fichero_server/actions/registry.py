@@ -84,10 +84,14 @@ class ActionContext:
 
 
 def started_by_for(ctx: "ActionContext") -> str:
-    """Who a run says started it: the person, plus the paired device when it came from another Mac (#5732)."""
+    """Who a run says started it: "<client> for <person>" for a CLI or MCP client, "<person> on <device>" for a
+    device, else the person (#5732, #2403)."""
     person = ctx.actor or "owner"
-    name = (ctx.device or {}).get("name")
-    return f"{person} on {name}" if name else person
+    device = ctx.device or {}
+    name = device.get("name")
+    if not name:
+        return person
+    return f"{name} for {person}" if device.get("kind") in ("cli", "mcp") else f"{person} on {name}"
 
 
 @dataclass
@@ -375,6 +379,7 @@ class ActionRegistry:
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,
                 origin_user=ctx.actor,
+                device=(ctx.device or {}).get("name"),
                 **id_list_kwargs,
             )
         except Exception as exc:  # pragma: no cover - emit is already best-effort
