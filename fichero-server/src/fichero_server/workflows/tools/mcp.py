@@ -25,6 +25,17 @@ from fichero_server.llm import LLMConfig
 
 logger = logging.getLogger(__name__)
 
+# The last error from loading the saved servers' tools at start or after a save (#5760), or None once a load works.
+# GET /api/mcp-servers shows it on every enabled server, so a failed load is never only a log line.
+# ponytail: one error for the whole load, per-server errors when the manager reports them per server.
+last_load_error: str | None = None
+
+
+def note_load_result(exc: BaseException | None) -> None:
+    """Record how the last load of MCP tools went: the error, or None when it worked."""
+    global last_load_error
+    last_load_error = None if exc is None else f"{type(exc).__name__}: {exc}"
+
 
 async def load_mcp_tools_into_registry() -> int:
     """Load all MCP tools from enabled servers into the workflow registry.
