@@ -2199,15 +2199,27 @@
         "summary": "First Run",
         "description": "Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.",
         "operationId": "first_run_api_auth_first_run_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Launch-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Launch-Secret"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FirstRunRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
