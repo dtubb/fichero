@@ -1505,10 +1505,11 @@ code path.
   appended, not rewritten. Today `execution_log_lines` grows without limit and is rewritten in full
   at every step (`execution/runner.py:1984-1988`), and the `complete` frame ships the whole final
   state (`execution/runner.py:2161-2184`).
-- `activity.run.checkpoints-pruned` — **[BROKEN]** (#5376) only the last checkpoint per run is
-  kept, and all are deleted when the run is done. Today every superstep's full state is stored
-  (`workflows/checkpointer.py:39-57`) and rows go only when a thread is deleted
-  (`api/routes/workflow_execution/threads.py:1002`).
+- `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
+  kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
+  `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
+  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
+  run is done (a finished run's final state is still read, and a resume reads it, #5373).
 - `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
   the engine's run registry: the cap drops finished runs only (`execution/runner.py` `_cap_workflow_state_registry`),
   so the reopen sweep never fails a run still going. Pinned by
