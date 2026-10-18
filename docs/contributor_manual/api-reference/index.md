@@ -205,6 +205,25 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   them. The action (`document.relink_originals`, audited, undoable) repoints the matched pages and folders and
   their recorded source paths. Server paths: owner only, inside an allowed location.
 
+## Making a cluster's key (#5238)
+
+`POST /api/hpc/clusters/{cluster_id}/key/make` · `GET /api/hpc/clusters/{cluster_id}/key/public`
+
+- The engine makes the cluster's Ed25519 pair with the system `ssh-keygen`; the private half stays in the engine's
+  folder (mode 0600) and is never returned. `make` answers `{cluster_id, public_key}`, to add to the person's own
+  cluster account (CCDB on the Alliance); 409 if a key is already made (it would orphan the one already added).
+  `public` shows the same public half again (404 before one is made). Owner only. `DELETE .../key` removes both halves.
+
+## Remote runs in Activity (#5740)
+
+`POST /api/reading-at-scale/jobs/{job_id}/catch-up`
+
+- Look at the far side now, after the Mac slept: a live run skips its next wait once; a run the scheduler dropped
+  (paused or failed with shards still out) is queued again and carries on from its recorded shards. Answers
+  `{job_id, state}`; 404 for an unknown run; 409 for a run that has ended (completed, cancelled, or failed with no shard still out): a finished run is never resent. `parent_job_id` on a start must be an existing run or step job (422 otherwise). `GET /api/reading-at-scale/jobs/{job_id}` now also answers the
+  run's `target`, `far_state`, `shards_done`/`shards_total`, `pages_landed`, each shard, `estimate` and `actual`; a
+  run in `GET /api/activity/jobs` carries a `remote` summary and its `parent_id` (the step that sent it).
+
 ## Set Up, one page per stage (#5668)
 
 `GET /api/recipes/stages`
@@ -1490,7 +1509,8 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/iiif/iiif/lines/{document_id}`: a page's working-pass lines as a W3C AnnotationPage on its IIIF canvas, each the counting reading's text, language and maker, at line granularity, in canvas pixels.
 - `POST /api/iiif/import`: start a job in Activity that imports a IIIF manifest or collection (an https URL; Presentation 2 or 3) into a folder bound to it, each canvas a page by reference; a source already bound imports into its folder, adding only new canvases. Returns the job id.
 - `POST /api/iiif/folders/{folder_id}/refresh`: start the same job for a folder bound to a IIIF source; 404 when the folder has no source.
-- `GET /api/recipes/derived?scripts=`: what setup works out instead of asking, each fact with where it came from: per script its direction, whether it may be vertical and its bundled font; this Mac's chip and memory; providers with a key (names only); places work can run.
+- `GET /api/recipes/derived?scripts=&period=`: what setup works out instead of asking, each fact with where it came from: per script its direction, whether it may be vertical and its bundled font, chosen from the script and the period (the saved period when none is given, and a font the project chose); this Mac's chip and memory; providers with a key (names only); places work can run.
+- `PUT /api/recipes/font`: the transcription font the project chose for a script (`{script, font}`), saved in the project setup through the audited `project.save_setup` action; a font that does not cover the script is refused.
 - `GET /api/recipes/routes?teacher=&local_reader=&pages=&sample_pages=`: what can be done with this many pages: the cloud, this-Mac and distil routes, each cost and time marked `measured`, `estimate` or `unknown`.
 - `GET /api/recipes/scripts?q=`: search ISO 15924 scripts by name or code (the Unicode Consortium's table, shipped with the engine).
 - `GET /api/settings/compute`: how hard local model work may push this Mac (`priority`: `balanced`, the default, keeps the Mac usable; `fast` drops the throttle; `background` yields to everything) and on which processor (`device`: `auto`, `cpu`, `gpu`), plus `effective`, what applies now (`FICHERO_COMPUTE_PRIORITY` / `FICHERO_COMPUTE_DEVICE` override the saved choice for a test run).

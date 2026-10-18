@@ -68,10 +68,10 @@ struct SetupFooterTests {
                 "the page's own choice wins")
     }
 
-    @Test("the step list and the page say Models & Services, which never truncates")
+    @Test("the step list and the page say Where the work runs")
     func modelsAndServicesName() {
-        #expect(SetupStep.whatFicheroRuns.title() == "Models & Services")
-        #expect(WhatFicheroRuns.title == "Models & Services")
+        #expect(SetupStep.whatFicheroRuns.title() == "Where the work runs")
+        #expect(WhatFicheroRuns.title == "Where the work runs")
     }
 
     @Test("Models & Services explains local and cloud in Daniel's words, and lists only what runs on this Mac")
@@ -81,11 +81,9 @@ struct SetupFooterTests {
         #expect(WhatFicheroRuns.places.map(\.symbol) == ["laptopcomputer", "cloud"])
         #expect(WhatFicheroRuns.places[0].body.hasPrefix("Free and private: your pages never leave this Mac."))
         #expect(WhatFicheroRuns.places[1].body.hasSuffix("says what it will cost."))
-        #expect(WhatFicheroRuns.tableTitle == "What runs on this Mac")
-        #expect(!WhatFicheroRuns.rows.map(\.work).contains("Remote models"))
         #expect(WhatFicheroRuns.accounts.map(\.purpose) == [
             "A free account. Fichero uses it to find and download models for your material.",
-            "One account for many cloud models, paid as you go."
+            "One account for many cloud models, paid as you go. Pages leave this Mac."
         ])
         #expect(WhatFicheroRuns.addAnother == "Add Another Provider…")
         #expect(WhatFicheroRuns.accountsFootnote == "You can add accounts later in Settings › AI.")

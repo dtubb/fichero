@@ -22,6 +22,10 @@ from typing import Any
 #: Kept on a reading's page artifact (`Artifact.data`): the pass whose lines the reading was written onto.
 #: Its text is the lines' text joined, so it is never itself a page reading to tie to the lines (#5444).
 READ_ONTO_PASS = "read_onto_pass"
+#: The result's list of the lines a reader looked at and found no writing on (a ruled or blank line), and the
+#: mark it leaves on each segment so a second Start does not read it again (#5758).
+NO_WRITING_KEY = "lines_looked_no_writing"
+NO_WRITING_MARK = "read_no_writing"
 #: Where a line with no baseline of its own (Apple Vision's boxes give none) is read along: this far down its
 #: box, the usual place of a baseline in a line's box.
 BASELINE_AT = 0.75
@@ -143,6 +147,24 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
             "machine_confidence": certainty[0] if certainty else None,
             "derived_from_representation_id": (derived_from or {}).get(segment_id)}, ctx).result["id"])
     return made
+
+
+def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_id: str | None = None,
+                    library_path: str | None = None) -> None:
+    """Record 'looked, no writing' on each line, by the model that looked, through `segment.update` (versioned and
+    audited): the line counts as read for that reader and a different one looks again (#5758)."""
+    import fichero_server.api.routes.document.segments  # noqa: F401  (segment.update)
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.models.segments import Segment
+
+    ctx = ActionContext(actor="system", run_id=run_id, library_path=library_path, is_bootstrap=True)
+    for segment_id in segment_ids:
+        segment = db.get(Segment, segment_id)
+        if segment is None or segment.deleted_at is not None or (segment.metadata or {}).get(NO_WRITING_MARK) == {
+                "model": model or ""}:
+            continue
+        registry.invoke(db, "segment.update", {"segment_id": segment_id, "expected_version": segment.version,
+                                                "no_writing_model": model or ""}, ctx)
 
 
 #: What a correcting step's per-page result says when its text cannot be put onto the page's lines.

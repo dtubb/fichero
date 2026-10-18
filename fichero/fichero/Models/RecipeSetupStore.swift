@@ -28,11 +28,11 @@ final class RecipeSetupStore {
     // MARK: Answers (a draft until Start; nothing runs before it)
 
     /// How sources come into the project (ruled 2026-10-03,
-    /// `source.sync.four-ways-in`): link (the default: originals read in place,
-    /// never changed), copy (originals never touched), move (originals removed)
+    /// `source.sync.four-ways-in`; Copy the default, section 7d): copy (originals never touched),
+    /// link (originals read in place, never changed), move (originals removed)
     /// or index (the folder worked on in place and kept up to date), the
     /// engine's folder ingest modes. Setup's Add a Folder… imports with it.
-    var ingestMode: IngestMode = .link
+    var ingestMode: IngestMode = .copy
     /// Keep arranged (#5480, `source.onboard.keep-arranged`): Index, and Fichero also keeps the
     /// folder's files arranged by the project's folders. Only with `ingestMode == .index`.
     var keepsArranged = false

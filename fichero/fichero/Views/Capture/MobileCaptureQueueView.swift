@@ -1,4 +1,4 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -19,10 +19,7 @@ struct MobileCaptureQueueView: View {
         NavigationStack {
             List {
                 Section("Capture") {
-                    #if os(tvOS)
-                    Text("Capture is unavailable on Apple TV.")
-                        .foregroundStyle(.secondary)
-                    #elseif os(visionOS)
+                    #if os(visionOS)
                     Button {
                         pickerSource = .library
                     } label: {
@@ -105,7 +102,6 @@ struct MobileCaptureQueueView: View {
                     }
                 }
             }
-            #if !os(tvOS)
             .sheet(item: $pickerSource) { source in
                 MobileCaptureImagePicker(
                     sourceType: source.sourceType,
@@ -117,7 +113,6 @@ struct MobileCaptureQueueView: View {
                     }
                 )
             }
-            #endif
             #if canImport(VisionKit) && !os(visionOS)
             .fullScreenCover(isPresented: $showingDocumentScanner) {
                 MobileDocumentScanner(
@@ -332,7 +327,6 @@ enum CaptureSource: Identifiable {
         }
     }
 
-    #if !os(tvOS)
     var sourceType: UIImagePickerController.SourceType {
 #if os(visionOS)
         return .photoLibrary
@@ -345,7 +339,6 @@ enum CaptureSource: Identifiable {
         }
 #endif
     }
-    #endif
 
     var defaultSourceHint: String {
         switch self {

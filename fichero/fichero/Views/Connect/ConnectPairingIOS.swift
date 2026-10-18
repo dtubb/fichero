@@ -1,8 +1,8 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import AVFoundation
 import SwiftUI
 import UIKit
-#if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
+#if canImport(VisionKit) && !os(visionOS)
 import VisionKit
 #endif
 
@@ -128,7 +128,6 @@ struct RemoteConnectionSetupView: View {
                 onConnect: handleManualInvite
             )
         }
-        #if !os(tvOS)
         .sheet(item: $pickerSource) { source in
             MobileCaptureImagePicker(
                 sourceType: source.sourceType,
@@ -136,8 +135,7 @@ struct RemoteConnectionSetupView: View {
                 onCancel: { pickerSource = nil }
             )
         }
-        #endif
-        #if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
+        #if canImport(VisionKit) && !os(visionOS)
         .fullScreenCover(isPresented: $showingDocumentScanner) {
             MobileDocumentScanner(
                 onImages: handleScannedDocumentImages,
@@ -218,11 +216,7 @@ struct RemoteConnectionSetupView: View {
                     .buttonStyle(.bordered)
                     .disabled(isPairing)
 
-                    #if os(tvOS)
-                    Text("Capture is unavailable on Apple TV.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    #elseif os(visionOS)
+                    #if os(visionOS)
                     Button { pickerSource = .library } label: {
                         Label("Capture Document", systemImage: "photo.on.rectangle")
                             .frame(maxWidth: .infinity, minHeight: 46)
@@ -277,7 +271,7 @@ struct RemoteConnectionSetupView: View {
     // MARK: — Helpers
 
     private var supportsCameraScanner: Bool {
-        #if os(tvOS) || os(visionOS)
+        #if os(visionOS)
         return false
         #else
         return AVCaptureDevice.default(for: .video) != nil
@@ -285,7 +279,7 @@ struct RemoteConnectionSetupView: View {
     }
 
     private var supportsDocumentScanner: Bool {
-        #if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
+        #if canImport(VisionKit) && !os(visionOS)
         return VNDocumentCameraViewController.isSupported
         #else
         return false
@@ -331,7 +325,7 @@ struct RemoteConnectionSetupView: View {
     }
 
     private func handleScannedDocumentImages(_ images: [UIImage]) {
-        #if canImport(VisionKit) && !os(tvOS) && !os(visionOS)
+        #if canImport(VisionKit) && !os(visionOS)
         showingDocumentScanner = false
         #endif
         for image in images {

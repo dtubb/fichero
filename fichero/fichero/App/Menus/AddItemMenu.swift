@@ -42,20 +42,24 @@ struct AddItemMenu: View {
             }
 
             Menu("Import") {
+                #if os(macOS)  // a phone imports by copy only: no link, no move (#3282)
                 Button("Link Files...") {
                     importLinkAction?()
                 }
                 .disabled(importLinkAction == nil)
 
+                #endif
                 Button("Copy Files...") {
                     importCopyAction?()
                 }
                 .disabled(importCopyAction == nil)
 
+                #if os(macOS)
                 Button("Move Files...") {
                     importMoveAction?()
                 }
                 .disabled(importMoveAction == nil)
+                #endif
             }
             .disabled(importLinkAction == nil && importCopyAction == nil && importMoveAction == nil)
 

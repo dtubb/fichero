@@ -350,9 +350,16 @@ extension ContentView {
     /// #4848) before `Sizing.preferred` ever sees it.
     private func childExtents(_ nodes: [PaneNode], axis: SplitAxis) -> [WorkspaceSplitStack.Sizing] {
         let preferences: [WorkspaceSplitStack.Sizing?] = nodes.map { node in
-            guard case let .leaf(_, kind, _, config) = node else { return nil }
-            let extent = config.paneExtent.map { kind == .library ? Self.libraryStripExtent(iconStrip: $0) : $0 }
-            return WorkspaceSplitStack.Sizing.preferred(extent: extent, fraction: config.paneFraction)
+            switch node {
+            case let .leaf(_, kind, _, config):
+                let extent = config.paneExtent.map { kind == .library ? Self.libraryStripExtent(iconStrip: $0) : $0 }
+                return WorkspaceSplitStack.Sizing.preferred(extent: extent, fraction: config.paneFraction)
+            case .split:
+                // A split holds the share of the leaf it replaced (#5011), kept on its first leaf.
+                guard case let .leaf(_, kind, _, config)? = node.firstLeaf else { return nil }
+                let extent = config.splitExtent.map { kind == .library ? Self.libraryStripExtent(iconStrip: $0) : $0 }
+                return WorkspaceSplitStack.Sizing.preferred(extent: extent, fraction: config.splitFraction)
+            }
         }
         return Self.childSizings(preferences, fallbackFraction: 0.4)
     }

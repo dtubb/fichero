@@ -172,6 +172,7 @@ class AppState {
         baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode
     )
     let providerService: ProviderAPIService  // Public for @EnvironmentObject injection
+    let remoteRunService: RemoteRunService  // a cluster / HF run's Inspector (#5740)
     let hpcSignInService: HpcSignInService  // cluster sign-in: ssh's prompts answered in the app (#5238)
     let mcpService: MCPService  // Public for @EnvironmentObject injection
     let modelService: ModelService  // Public for @EnvironmentObject injection (HuggingFace browsing)
@@ -194,6 +195,7 @@ class AppState {
         // Initialize services with app-wide clients
         self.providerService = ProviderAPIService(ficheroClient: ficheroClient)
         self.hpcSignInService = HpcSignInService(ficheroClient: ficheroClient)
+        self.remoteRunService = RemoteRunService(ficheroClient: ficheroClient)
         self.mcpService = MCPService(apiClient: apiClient)
         self.modelService = ModelService(ficheroClient: ficheroClient)
         self.usersStore = UsersStore(client: ficheroClient)
