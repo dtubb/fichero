@@ -430,9 +430,9 @@ All under `/api/auth/local-clients`. Off until the owner turns a switch on (`mul
 
 - Purpose: Allow or Deny (`{allow}`). Signed-in owner only; audited. `404` unless pending.
 
-`POST /api/auth/local-clients/requests/{request_id}/register`
+`POST /api/auth/local-clients/register`
 
-- Purpose: the allowed program registers its OWN public key (`{public_key_pem}`, P-256), once. Unix socket only, from
+- Purpose: the allowed program registers its OWN public key (`{request_id, public_key_pem}`, P-256), once. Unix socket only, from
   the same program (pid and path) that asked. `409` while pending, `403` when denied or the switch went off, `404`
   for another program or a used request.
 - Response: `200` with the new client; it then signs in by challenge. The client acts for the owner who allowed it.
