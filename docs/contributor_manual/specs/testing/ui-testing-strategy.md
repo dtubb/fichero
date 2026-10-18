@@ -137,7 +137,9 @@ Each XCUITest cites a spec behavior id; the identifier in the SwiftUI view is th
 - `ui-testing.crossplatform-plan` [PARTIAL] (#4771) — one `.xctestplan` runs the same identifier-driven flows
   on macOS **and** an iOS sim **and** an iPad sim, so the iOS 1 MB-stack crash class is caught (sims
   auto-consent — no Aqua-session gate). Per-platform plans + canary smoke exist for all three; the
-  substantive flow (`InspectorFlowsUITests`) only runs on macOS today.
+  substantive flow (`InspectorFlowsUITests`) only runs on macOS today. iPhone and iPad now also launch
+  the app and check it is still foreground after 5 s (`IOSLaunchSmokeTests`, `IPadLaunchSmokeTests`,
+  written, not run), the launch-crash guard #4173 asks for.
 - `ui-testing.identifier-contract` [PARTIAL] (#4772) — every control a UI test drives has a stable,
   data-ID-anchored `.accessibilityIdentifier` matching this spec (never label/coordinate).
 - `ui-testing.xcuitest-thin` [PARTIAL] (#4773) — the full-app XCUITest set is capped (~a dozen flows) and
@@ -299,7 +301,7 @@ community: pointfreeco/swift-snapshot-testing, EmergeTools/SnapshotPreviews.
 - `uitest.drop-loader-chokepoint-guardrail` — **[GAP]** (#4543) scripts/check_drop_loader_chokepoint.py forbids NSItemProvider load calls outside ExternalFileDropLoader and SidebarDropProviderReader, with a firing fixture (script does not exist).
 - `ui-testing.restored-state-launch` — **[GAP]** (#4761) a UI test relaunches with saved window state and the app is still running with library.content.ready after 40 s.
 - `uitest.platform-lanes-mac-ipad-iphone` — **[GAP]** (#4173) real XCUITest suites for Mac, iPad and iPhone with a launch smoke test per platform and per-surface flows, run in a GUI session.
-- `uitest.ipad-cli-mcp-legs` — **[GAP]** (#4250) fichero-ipad.xctestplan runs the real unit target plus a simulator smoke leg (gate ios), and a CLI and MCP pytest leg round-trips list/import/search/export on a seeded library.
+- `uitest.ipad-cli-mcp-legs` — **[PARTIAL]** (#4250) fichero-ipad.xctestplan now selects the whole FicheroIPadTests target (not empty); still owed: the simulator smoke leg in gate ios and the CLI and MCP pytest leg. It runs the real unit target plus a simulator smoke leg (gate ios), and a CLI and MCP pytest leg round-trips list/import/search/export on a seeded library.
 
 ## Future (ideas, not scheduled)
 - (#4174) Measured pathway to 100% coverage: xccov and coverage.py in the gates, ratchet rule, deterministic seams for LangChain.

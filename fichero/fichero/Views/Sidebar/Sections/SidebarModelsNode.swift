@@ -42,6 +42,7 @@ struct SidebarModelsNode: View {
                 Label(Self.name, systemImage: "graduationcap")
             }
             .listRowInsets(SidebarRowMetrics.insets(.libraryItem))
+            .accessibilityIdentifier(SidebarAccessibilityID.models(libraryId))
         }
     }
 }

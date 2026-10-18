@@ -1,9 +1,9 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import AVFoundation
 import SwiftUI
 import UIKit
 
-#if !os(tvOS) && !os(visionOS)
+#if !os(visionOS)
 // Promoted private → internal: constructed by `QRCodeScannerSheet`
 // (IOSPairingViews.swift) after this type was split out of FicheroApp_iOS.swift
 // for file_length.

@@ -217,3 +217,6 @@ security/path_security.py::_load_owner_grants 1
 # #5608: closing a project stops its runs in flight best-effort; the project is going away and the
 # next open marks any run left behind interrupted (mark_interrupted_runs), so nothing downstream can act on it.
 db/manager.py::_stop_jobs 1
+# #5440: training under `here` starting by itself never fails the recipe step that asked; a refusal is a
+# warning in the log and the train offer stays on the Start plan for the person to start by hand.
+recipes/train_offers.py::start_when_ready 1

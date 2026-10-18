@@ -1,4 +1,4 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 import UIKit
 
@@ -33,7 +33,6 @@ struct ManualPairingEntrySheet: View {
                 }
 
                 Section {
-                    #if !os(tvOS)
                     Button {
                         if let pasted = UIPasteboard.general.string {
                             invite = pasted
@@ -42,7 +41,6 @@ struct ManualPairingEntrySheet: View {
                         Label("Paste from Clipboard", systemImage: "doc.on.clipboard")
                     }
                     .disabled(isPairing)
-                    #endif
 
                     Button {
                         onConnect(invite)
@@ -80,18 +78,7 @@ struct QRCodeScannerSheet: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
 
-                #if os(tvOS)
-                VStack(spacing: 12) {
-                    Image(systemName: "qrcode.viewfinder")
-                        .font(.largeTitle)
-                    Text("Camera QR scanning is unavailable on Apple TV. Use another Fichero device to scan the code.")
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 320)
-                .padding()
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
-                #elseif os(visionOS)
+                #if os(visionOS)
                 VStack(spacing: 12) {
                     Image(systemName: "qrcode.viewfinder")
                         .font(.largeTitle)

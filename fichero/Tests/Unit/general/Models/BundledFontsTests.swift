@@ -45,6 +45,16 @@ final class BundledFontsTests: XCTestCase {
         XCTAssertNotEqual(family(of: "a", in: font), "Junicode", "Latin keeps the system font")
     }
 
+    /// #5438: a chosen family is the base, so Latin the system draws comes out in it; an unloaded family is nil.
+    func testAChosenFamilyDrawsLatinInItself() throws {
+        let faces = try cascade()
+        let junicode = try XCTUnwrap(BundledFonts.face(family: "Junicode", in: faces))
+        XCTAssertEqual(family(of: "a", in: BundledFonts.ctFont(base: junicode, size: 12, cascade: faces)), "Junicode")
+        XCTAssertNil(BundledFonts.face(family: "Comic Sans", in: faces), "a family that is not loaded is not invented")
+        XCTAssertEqual(BundledFonts.font(size: 12, cascade: [], family: "Junicode"), Font.system(size: 12),
+                       "nothing fetched: the system font stands")
+    }
+
     func testWithNoEngineTheFontIsTheSystemsStyle() {
         XCTAssertEqual(BundledFonts.font(.body, cascade: []), Font.system(.body), "no faces fetched: nothing changes")
     }

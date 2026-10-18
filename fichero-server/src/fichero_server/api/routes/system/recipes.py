@@ -7,7 +7,6 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import asyncio
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -302,10 +301,9 @@ def _hf_token_set() -> bool:
 
 
 def _this_machine_memory_gb() -> float:
-    try:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
-    except (ValueError, OSError):
-        return 8.0
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
+
+    return this_mac_memory_gb()
 
 
 class PurposeJob(BaseModel):
@@ -666,7 +664,12 @@ class DerivedFacts(BaseModel):
 
 
 @router.get("/derived", response_model=DerivedFacts, response_model_by_alias=True)
-async def derived_facts(scripts: str = "", app_db=Depends(_app_database)) -> DerivedFacts:
+async def derived_facts(
+    scripts: str = "",
+    period: str = "",
+    app_db=Depends(_app_database),
+    library_path: Optional[str] = Depends(optional_library_path),
+) -> DerivedFacts:
     """What setup works out instead of asking, each fact saying where it came from
     (`source.onboard.derives-not-asks`): per script its direction, whether it may be vertical
     and its bundled font; this Mac's chip and memory; which providers have a key; where work
@@ -679,12 +682,54 @@ async def derived_facts(scripts: str = "", app_db=Depends(_app_database)) -> Der
     if unknown:
         raise HTTPException(status_code=422, detail=f"not ISO 15924 script codes: {', '.join(unknown)}")
     keys = derived._providers_with_keys()
+    # The period and a person's font choice come from the open project's saved setup (#5438).
+    saved = (read_project_setup(Path(library_path)).get("answers") or {}) if library_path else {}
+    when = period or str(saved.get("period") or "")
+    chosen = saved.get("fonts") or {}
     clusters = sorted(c.get("name") or cid for cid, c in _load_clusters(app_db).items())
     return DerivedFacts(
-        scripts=[ScriptFacts(**derived.script_facts(c)) for c in codes],
+        scripts=[ScriptFacts(**derived.script_facts(c, when, chosen.get(c))) for c in codes],
         mac=MacFacts(**derived.this_mac()), keys=keys,
         targets=[PlaceToRun(**t) for t in derived.targets(keys, clusters)],
     )
+
+
+class FontChoice(BaseModel):
+    script: str = Field(description="ISO 15924 code of the script the font draws")
+    font: Optional[str] = Field(default=None, description="a bundled family; null returns to the derived font")
+
+
+@router.put("/font", response_model=ScriptFacts)
+async def choose_font(
+    body: FontChoice,
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> ScriptFacts:
+    """Remember a pane's font choice for a script in this library's setup answers (`answers.fonts`),
+    or clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it
+    (`layers.text.font-from-script-and-period`)."""
+    from fichero_server.recipes import derived
+
+    problem = derived.font_choice_problem(body.font)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
+    if derived.unknown_scripts([body.script]):
+        raise HTTPException(status_code=422, detail=f"not an ISO 15924 script code: {body.script}")
+    answers = dict(read_project_setup(_library(db)).get("answers") or {})
+    fonts = dict(answers.get("fonts") or {})
+    if body.font:
+        fonts[body.script] = body.font
+    else:
+        fonts.pop(body.script, None)
+    if fonts:
+        answers["fonts"] = fonts
+    else:
+        answers.pop("fonts", None)
+    try:
+        registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return ScriptFacts(**derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script)))
 
 
 @router.get("/scripts", response_model=NamedCodeList)

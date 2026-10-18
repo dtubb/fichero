@@ -219,3 +219,32 @@ class TestMakeTheKey:
         assert again.status_code == 409  # never silently replace a key the person already put in CCDB
         client.delete(f"/api/hpc/clusters/{cid}/key")
         assert client.get(f"/api/hpc/clusters/{cid}/key/public").status_code == 404
+
+
+class TestThePrivateKeyStaysInTheEngineFolder:
+    """The ruling on `compute.secret.fichero-makes-the-key` (2026-10-17): the key is a plain 0600 file in the
+    engine's 0700 folder, so the key goes with its cluster and nothing else carries it out."""
+
+    def test_deleting_the_cluster_deletes_its_key(self, client, tmp_path, monkeypatch):
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+        from fichero_server.remote_read.ssh_prompts import cluster_key_path, store_cluster_key
+
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        store_cluster_key(cid, "-----BEGIN OPENSSH PRIVATE KEY-----\nk\n")
+        assert cluster_key_path(cid).exists()
+        assert client.delete(f"/api/hpc/clusters/{cid}").status_code == 200
+        assert not cluster_key_path(cid).exists() and not cluster_key_path(cid).parent.exists()
+
+    def test_only_the_key_module_and_its_routes_know_where_keys_live(self):
+        import pathlib
+
+        import fichero_server
+
+        root = pathlib.Path(fichero_server.__file__).parent
+        allowed = {"remote_read/ssh_prompts.py", "api/routes/ai/hpc.py"}
+        users = {
+            str(p.relative_to(root))
+            for p in root.rglob("*.py")
+            if any(w in p.read_text() for w in ("hpc-keys", "cluster_key_path", "store_cluster_key"))
+        }
+        assert users <= allowed, f"another module reaches the private keys (export, sync or backup?): {users - allowed}"

@@ -21,10 +21,14 @@ struct RecipeWhenWhereHandFields: View {
             Text("Which hand").font(.headline)
             FlowLayout(spacing: 10) {
                 ForEach(store.handOptions, id: \.id) { hand in
-                    Toggle(hand.title, isOn: Binding(get: { store.hands.contains(hand.id) },
-                                                     set: { _ in store.toggle(hand: hand.id) }))
-                        .setupCheckbox()
-                        .help("\(hand.centuries). \(hand.looks)")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Toggle(hand.title, isOn: Binding(get: { store.hands.contains(hand.id) },
+                                                         set: { _ in store.toggle(hand: hand.id) }))
+                            .setupCheckbox()
+                        // Shown, not hover-only: the century and look are how a person tells the hands apart.
+                        Text("\(hand.centuries). \(hand.looks)").font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: 220, alignment: .leading)
+                    }
                 }
                 Toggle("Not sure", isOn: Binding(get: { store.hands.contains(RecipeSetupStore.notSureHand) },
                                                  set: { _ in store.toggle(hand: RecipeSetupStore.notSureHand) }))

@@ -99,11 +99,19 @@ extension UIColor {
 }
 
 // iOS / iPadOS / visionOS shim: non-draggable stacks that preserve the same
-// child-layout order as macOS's HSplitView / VSplitView.
-// This is compile-clean; a draggable replacement belongs in the iPad UI pass.
+// child-layout order as macOS's HSplitView / VSplitView. At compact width the
+// horizontal split stacks vertically, so a phone never gets two 195pt columns.
+// ponytail: stack, not NavigationSplitView; swap to a push when a pane needs a real detail screen.
 struct PlatformHSplitView<Content: View>: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @ViewBuilder var content: () -> Content
-    var body: some View { HStack(spacing: 0, content: content) }
+    var body: some View {
+        if horizontalSizeClass == .compact {
+            VStack(spacing: 0, content: content)
+        } else {
+            HStack(spacing: 0, content: content)
+        }
+    }
 }
 
 struct PlatformVSplitView<Content: View>: View {
