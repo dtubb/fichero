@@ -103,6 +103,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         self,
         conn: duckdb.DuckDBPyConnection,
         serde: SerializerProtocol | None = None,
+        keep_last_only: bool = False,
     ):
         """
         Initialize checkpointer with DuckDB connection.
@@ -110,6 +111,8 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         Args:
             conn: DuckDB connection
             serde: Serializer for checkpoint data (defaults to JsonPlusSerializer)
+            keep_last_only: a save drops the thread's earlier checkpoints and their writes, so a run holds one
+                checkpoint, not one per superstep (#5376, `activity.run.checkpoints-pruned`)
         """
         super().__init__(serde=serde or JsonCheckpointSerializer())
         # ponytail: already locked / not a managed shared conn (#2508). This is
@@ -119,12 +122,13 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         # thread-safe; Database._lock and the locked execute() helpers do not
         # apply because this connection is not the managed shared one.
         self.conn = conn
+        self.keep_last_only = keep_last_only
         self._lock = threading.RLock()
         self._setup()
         logger.info("Initialized DuckDB checkpointer")
 
     @classmethod
-    def from_db_path(cls, db_path: str | Path) -> "AsyncDuckDBCheckpointer":
+    def from_db_path(cls, db_path: str | Path, *, keep_last_only: bool = False) -> "AsyncDuckDBCheckpointer":
         """
         Create checkpointer from database path.
 
@@ -138,7 +142,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         conn = connect_utc(str(db_path))
-        return cls(conn)
+        return cls(conn, keep_last_only=keep_last_only)
 
     def _setup(self) -> None:
         """Create checkpoint tables if they don't exist."""
@@ -274,6 +278,12 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
                 metadata_blob,
             ],
         )
+
+        if self.keep_last_only:
+            for table in ("checkpoint_writes", "checkpoints"):
+                await self._execute_locked(
+                    f"DELETE FROM {table} WHERE thread_id = ? AND checkpoint_ns = ? AND checkpoint_id != ?",
+                    [thread_id, checkpoint_ns, checkpoint_id])
 
         logger.debug(
             f"Saved checkpoint: thread_id={thread_id}, "

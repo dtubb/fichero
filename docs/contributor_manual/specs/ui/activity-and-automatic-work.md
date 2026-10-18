@@ -1470,9 +1470,10 @@ code path.
 - `activity.run.resume-default-workflow` — **[OK]** (#5373) a paused run of a shipped default
   workflow resumes: resume finds the workflow as `/execute` does, falling back to the default; pinned by
   `fichero-server/tests/unit/workflows/test_resume_default_workflow_5373.py`.
-- `activity.run.resume-from-snapshot` — **[BROKEN]** (#5373) a run resumes on the graph it started
-  with, built from its own snapshot. Today resume rebuilds the graph from the current definition,
-  so an edit made while paused changes the graph under the checkpoint.
+- `activity.run.resume-from-snapshot` — **[OK]** (#5373) a run resumes on the graph it started
+  with, built from its own snapshot (`workflows/resume_snapshot.as_started`: the snapshot's nodes and edges over the stored
+  workflow, so an edit made while paused changes nothing under the checkpoint); pinned by
+  `fichero-server/tests/unit/workflows/test_resume_from_snapshot_5373.py`.
 - `activity.run.resume-keeps-model` — **[OK]** (#5373) a resumed run uses the provider and model the person chose when it started, read from the run's own snapshot; pinned by
   `fichero-server/tests/unit/workflows/test_resume_keeps_model_5373.py`.
 - `activity.run.batch-off-the-request` — **[OK]** (#5374) *Built (2026-10-04): a batch runs on a worker
@@ -1498,17 +1499,20 @@ code path.
   ("Stopped by you") and the step ends as stopped, not as a file error
   (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still broken: a page already running is waited for, and
   economy HTR's pages are not reached.
-- `activity.run.record-keeps-all-history` — **[BROKEN]** (#5376) a long run's record keeps every
-  step and page from the start. Today the saved timeline is the newest 2,000 events of the replay
-  buffer (`execution/runner.py:144-171`, `:257-264`), so a 200-page run loses its early history.
-- `activity.run.log-is-bounded` — **[BROKEN]** (#5376) a run's log is bounded in memory and
-  appended, not rewritten. Today `execution_log_lines` grows without limit and is rewritten in full
-  at every step (`execution/runner.py:1984-1988`), and the `complete` frame ships the whole final
-  state (`execution/runner.py:2161-2184`).
-- `activity.run.checkpoints-pruned` — **[BROKEN]** (#5376) only the last checkpoint per run is
-  kept, and all are deleted when the run is done. Today every superstep's full state is stored
-  (`workflows/checkpointer.py:39-57`) and rows go only when a thread is deleted
-  (`api/routes/workflow_execution/threads.py:1002`).
+- `activity.run.record-keeps-all-history` — **[OK]** (#5376) a long run's record keeps every
+  step and page from the start: the event hub keeps every event but the log lines for the saved timeline
+  (`WorkflowEventHub.record`), while a late viewer's replay stays the newest 2,000; pinned by
+  `fichero-server/tests/unit/execution/test_record_keeps_all_history_5376.py`.
+- `activity.run.log-is-bounded` — **[PARTIAL]** (#5376) a run's log is bounded in memory and
+  appended, not rewritten. *Built 2026-10-18:* the log is a `BoundedLog` (`execution/run_log.py`: the first 200 and the latest
+  1,800 lines held, the middle counted; a node boundary appends only the lines since its last flush; the final text says
+  how many it leaves out); the node-boundary append was built in #5645; pinned by `test_run_log_bounded_5376.py`.
+  *Not built:* the `complete` frame still ships the whole final state (`execution/runner.py`).
+- `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
+  kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
+  `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
+  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
+  run is done (a finished run's final state is still read, and a resume reads it, #5373).
 - `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
   the engine's run registry: the cap evicts only runs that have exited (`execution/runner.py`
   `_cap_workflow_state_registry`); pinned by `fichero-server/tests/unit/workflows/test_live_run_never_evicted_5376.py`.

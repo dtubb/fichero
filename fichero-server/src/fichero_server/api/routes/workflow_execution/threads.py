@@ -431,6 +431,18 @@ async def _render_run_diagram_png(run: WorkflowRun) -> bytes:
     )
 
 
+def _steps_from_record(run: WorkflowRun | None, translate) -> list[CheckpointSnapshot]:
+    """One entry per finished step in the run's saved record (`activity.run.checkpoints-pruned`, #5376). A run keeps
+    only its last checkpoint, so the history reads the earlier steps from the record: which step, when, and the
+    node's name; the state at that step is not kept."""
+    timeline = run.progress_timeline if run and isinstance(run.progress_timeline, dict) else {}
+    ended = [e for e in timeline.get("events") or []
+             if isinstance(e, dict) and e.get("event") == "node_end" and e.get("node_id")]
+    return [CheckpointSnapshot(checkpoint_id=f"record-{i}", step=i, timestamp=e.get("timestamp"),
+                               node_name=translate(e["node_id"]) or e["node_id"])
+            for i, e in enumerate(ended)]
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -635,6 +647,10 @@ async def get_thread_history(
 
         # Reverse to get chronological order (oldest first)
         checkpoints.reverse()
+
+        # A run holds one checkpoint (`keep_last_only`): the earlier steps come from its saved record.
+        if len(checkpoints) <= 1:
+            checkpoints = [*_steps_from_record(run, _translate_node_name), *checkpoints]
 
         # Update step numbers to be chronological
         for i, cp in enumerate(checkpoints):

@@ -22,7 +22,7 @@ def test_create_compiled_app_forwards_interrupts_to_builder(monkeypatch, tmp_pat
     dummy_checkpointer = object()
     monkeypatch.setattr(
         "fichero_server.workflows.runtime.AsyncDuckDBCheckpointer.from_db_path",
-        lambda db_path: dummy_checkpointer,
+        lambda db_path, **_: dummy_checkpointer,
     )
     monkeypatch.setattr("fichero_server.workflows.runtime.build_graph", fake_build_graph)
 
