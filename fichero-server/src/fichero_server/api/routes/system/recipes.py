@@ -283,7 +283,8 @@ class AssembledRecipe(BaseModel):
     steps: list[RecipeStep]
     automatic: list[AutomaticStep] = Field(default_factory=list, description=(
         "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the "
-        "cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers)"))
+        "cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the "
+        "assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"))
     gaps: list[str]
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
