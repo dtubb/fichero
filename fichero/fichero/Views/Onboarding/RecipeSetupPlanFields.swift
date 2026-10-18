@@ -95,9 +95,9 @@ struct RecipeCloudQuestion: View {
     var body: some View {
         if store.asksCloudQuestion {
             VStack(alignment: .leading, spacing: 2) {
-                Toggle("Pages may leave this Mac", isOn: $store.cloudAllowed)
+                Toggle("Allow pages to be sent to a cloud service", isOn: $store.cloudAllowed)
                     .onChange(of: store.cloudAllowed) { Task { await store.assemble() } }
-                Text("Asked once for this project. Off means nothing is sent to a cloud service.")
+                Text("Cloud models often read difficult hands better and cost a few cents a page. Off: every page stays on this Mac. Change it any time in the Inspector.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         } else {
@@ -177,6 +177,7 @@ struct RecipeAutomaticFields: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
         Picker("After Start", selection: Binding(
             get: { store.automaticAnswer.runs },
             set: { store.setRunsByItself($0) }
@@ -185,7 +186,9 @@ struct RecipeAutomaticFields: View {
             Text("New material runs through these steps").tag(true)
         }
         .setupRadioGroup()
-        .help("Start runs the plan once over the material already in the project; this says what an import does after it.")
+        Text("Start runs these steps once on what is here now. This decides what happens to pages you add later.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
     }
 }
 
