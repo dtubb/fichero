@@ -48,3 +48,11 @@ def test_stale_reason_is_the_vector_reason_or_none():
     db.stale_reasons.return_value = {}
     assert inspector._stale_reason(db, entity) is None
     assert "stale_reason" in inspector.EntityInspectorResponse.model_fields
+
+
+def test_a_fresh_entity_reads_not_embedded_on_a_real_db(db):
+    """Review 121: through the real db, so a renamed helper on it fails here."""
+    entity = KnowledgeEntity(canonical_name="Alice", entity_type=EntityType.person)
+    db.save(entity)
+
+    assert inspector._stale_reason(db, entity) == "not-embedded"
