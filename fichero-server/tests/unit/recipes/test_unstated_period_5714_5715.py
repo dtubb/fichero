@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from fichero_server.recipes.assemble import Answers, _choose, _refusal
+from fichero_server.recipes.assemble import Answers, _choose, _period_rank, _refusal
 from fichero_server.recipes.cards import all_seed_cards
 
 APPLE = "apple:vision/recognize-text@os"
@@ -28,10 +28,10 @@ def test_apple_vision_states_a_modern_period_5715():
     assert _cards()[APPLE].period == (1900, 2100)
 
 
-def test_apple_vision_is_refused_for_a_sixteenth_century_hand_and_named_5715():
-    refused = _refusal("read-a-page", _cards()[APPLE], _a(), "handwriting")
-    assert refused is not None and refused[0] == "no-reader-for-period", refused
-    assert "1900" in refused[1] and "2100" in refused[1]
+def test_apple_vision_is_not_refused_for_a_sixteenth_century_hand_only_ranked_last_5715():
+    """Ruled 2026-10-17 (`candidates-filtered-then-ranked`): a period lowers the rank, it never refuses."""
+    assert _refusal("read-a-page", _cards()[APPLE], _a(), "handwriting") is None
+    assert _period_rank(_cards()[APPLE], _a())[0] == 2
 
 
 def test_apple_vision_is_not_refused_for_a_modern_hand_5715():
@@ -43,11 +43,11 @@ def test_apple_vision_reads_print_of_any_period_5715():
     assert _refusal("read-a-page", _cards()[APPLE], a, "print") is None
 
 
-def test_a_card_with_no_period_is_never_the_rules_choice_for_old_handwriting_5714():
+def test_a_card_with_no_period_is_not_refused_when_it_is_all_there_is_5714():
+    """Ruled 2026-10-17: rank only (`_period_rank`: none stated ranks below a match)."""
     unstated = replace(_cards()[APPLE], id="x:unstated", period=None, installed=True)
-    other = replace(unstated, id="x:other")
-    choice = _choose("read-a-page", [unstated, other], _a(), "handwriting")
-    assert choice.card is None and choice.gap, choice
+    choice = _choose("read-a-page", [unstated], _a(), "handwriting")
+    assert choice.card is not None and choice.card.id == "x:unstated" and choice.chain == []
 
 
 def test_the_period_matched_reader_is_chosen_over_an_unstated_one_5714():

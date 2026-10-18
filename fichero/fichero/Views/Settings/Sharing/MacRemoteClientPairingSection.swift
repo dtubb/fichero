@@ -39,6 +39,12 @@ struct MacRemoteClientPairingSection: View {
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
 
+                    if let host = inviteHost {
+                        Text("Connects to \(host)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     HStack {
                         Button("Paste Link") {
                             pasteInviteFromClipboard()
@@ -80,6 +86,12 @@ struct MacRemoteClientPairingSection: View {
                     .foregroundStyle(.red)
             }
         }
+    }
+
+    /// The host the pasted invite points at, shown read-only so the person sees where they are about to connect.
+    private var inviteHost: String? {
+        (try? RemoteClientPairing.pairingFields(fromInviteOrPayload: clientInvite))
+            .flatMap { URL(string: $0.remoteURL)?.host }
     }
 
     private func pasteInviteFromClipboard() {

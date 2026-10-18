@@ -4934,6 +4934,7 @@ def register_generated_openapi_commands(
         doc_type: Optional[str] = typer.Option(None, '--doc-type', help='Type of document node in the hierarchy. One of: folder, group, file, page, chunk.'),
         exclude_from_processing: Optional[bool] = typer.Option(None, '--exclude-from-processing/--no-exclude-from-processing', help='Leave it out of runs.'),
         exclude_from_search: Optional[bool] = typer.Option(None, '--exclude-from-search/--no-exclude-from-search', help='Leave it out of search.'),
+        expected_updated_at: Optional[str] = typer.Option(None, '--expected-updated-at', help="The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348)."),
         file_type: Optional[str] = typer.Option(None, '--file-type', help='Type of source file. One of: image, pdf, audio, video, text, word, docx, epub, spreadsheet, presentation, other.'),
         is_flagged: Optional[bool] = typer.Option(None, '--is-flagged/--no-is-flagged', help='Flag or unflag it.'),
         is_read: Optional[bool] = typer.Option(None, '--is-read/--no-is-read', help='Mark it read or unread.'),
@@ -4962,6 +4963,7 @@ def register_generated_openapi_commands(
                 "doc_type": doc_type,
                 "exclude_from_processing": exclude_from_processing,
                 "exclude_from_search": exclude_from_search,
+                "expected_updated_at": expected_updated_at,
                 "file_type": file_type,
                 "is_flagged": is_flagged,
                 "is_read": is_read,
@@ -4985,6 +4987,7 @@ def register_generated_openapi_commands(
                 "doc_type": {'type': 'string', 'enum': ['folder', 'group', 'file', 'page', 'chunk'], 'title': 'DocType', 'description': 'Type of document node in the hierarchy.', 'x-cli-required': False},
                 "exclude_from_processing": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Processing', 'description': 'Leave it out of runs.', 'x-cli-required': False},
                 "exclude_from_search": {'type': 'boolean', 'nullable': True, 'title': 'Exclude From Search', 'description': 'Leave it out of search.', 'x-cli-required': False},
+                "expected_updated_at": {'type': 'string', 'format': 'date-time', 'nullable': True, 'title': 'Expected Updated At', 'description': "The node's updated_at as the editor last read it. If it has changed since, nothing is written and the edit is refused 409 with the current text (#5348).", 'x-cli-required': False},
                 "file_type": {'type': 'string', 'enum': ['image', 'pdf', 'audio', 'video', 'text', 'word', 'docx', 'epub', 'spreadsheet', 'presentation', 'other'], 'title': 'FileType', 'description': 'Type of source file.', 'x-cli-required': False},
                 "is_flagged": {'type': 'boolean', 'nullable': True, 'title': 'Is Flagged', 'description': 'Flag or unflag it.', 'x-cli-required': False},
                 "is_read": {'type': 'boolean', 'nullable': True, 'title': 'Is Read', 'description': 'Mark it read or unread.', 'x-cli-required': False},
@@ -7439,7 +7442,7 @@ def register_generated_openapi_commands(
         cluster_id: Optional[str] = typer.Option(None, '--cluster-id', help='Cluster Id.'),
         host_alias: str = typer.Option(..., '--host-alias', help='Host Alias.'),
         name: str = typer.Option(..., '--name', help='Name.'),
-        partition: Optional[str] = typer.Option(None, '--partition', help='Partition. Default: "default".'),
+        partition: Optional[str] = typer.Option(None, '--partition', help='Partition. Default: "".'),
         remote_base_dir: str = typer.Option(..., '--remote-base-dir', help='Remote Base Dir.'),
         ssh_port: Optional[int] = typer.Option(None, '--ssh-port', help='Ssh Port. Default: 22.'),
         username: str = typer.Option(..., '--username', help='Username.'),
@@ -7460,12 +7463,12 @@ def register_generated_openapi_commands(
             }, {
                 "account": {'type': 'string', 'nullable': True, 'title': 'Account', 'x-cli-required': False},
                 "cluster_id": {'type': 'string', 'nullable': True, 'title': 'Cluster Id', 'x-cli-required': False},
-                "host_alias": {'type': 'string', 'title': 'Host Alias', 'x-cli-required': True},
+                "host_alias": {'type': 'string', 'pattern': '^[A-Za-z0-9][A-Za-z0-9._-]*$', 'title': 'Host Alias', 'x-cli-required': True},
                 "name": {'type': 'string', 'title': 'Name', 'x-cli-required': True},
-                "partition": {'type': 'string', 'title': 'Partition', 'default': 'default', 'x-cli-required': False},
+                "partition": {'type': 'string', 'title': 'Partition', 'default': '', 'x-cli-required': False},
                 "remote_base_dir": {'type': 'string', 'title': 'Remote Base Dir', 'x-cli-required': True},
                 "ssh_port": {'type': 'integer', 'title': 'Ssh Port', 'default': 22, 'x-cli-required': False},
-                "username": {'type': 'string', 'title': 'Username', 'x-cli-required': True},
+                "username": {'type': 'string', 'pattern': '^[A-Za-z0-9_][A-Za-z0-9._-]*$', 'title': 'Username', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -7495,6 +7498,18 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/hpc/clusters/{cluster_id}"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("check-cluster-live")
+    def hpc_check_cluster_live_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Check Cluster Live (POST /api/hpc/clusters/{cluster_id}/check)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/check"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("dry-run-submit")
@@ -7530,6 +7545,75 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("delete-cluster-key")
+    def hpc_delete_cluster_key_delete(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Delete Cluster Key (DELETE /api/hpc/clusters/{cluster_id}/key)."""
+        if not yes:
+            typer.confirm("Delete hpc?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-cluster-key")
+    def hpc_put_cluster_key_put(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+        private_key: str = typer.Option(..., '--private-key', help='The key the app holds in its Keychain.'),
+    ) -> None:
+        """Put Cluster Key (PUT /api/hpc/clusters/{cluster_id}/key)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key"
+            params = None
+            payload = _build_json_payload({
+                "private_key": private_key,
+            }, {
+                "private_key": {'type': 'string', 'maxLength': 20000, 'minLength': 1, 'title': 'Private Key', 'description': 'The key the app holds in its Keychain.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("make-cluster-key")
+    def hpc_make_cluster_key_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Make Cluster Key (POST /api/hpc/clusters/{cluster_id}/key/make)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key/make"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-cluster-public-key")
+    def hpc_get_cluster_public_key_get(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Get Cluster Public Key (GET /api/hpc/clusters/{cluster_id}/key/public)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/key/public"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("sign-in")
+    def hpc_sign_in_post(
+        ctx: typer.Context,
+        cluster_id: str = typer.Argument(..., help='Cluster Id'),
+    ) -> None:
+        """Sign In (POST /api/hpc/clusters/{cluster_id}/sign-in)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/clusters/{cluster_id}/sign-in"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("test-cluster")
     def hpc_test_cluster_post(
         ctx: typer.Context,
@@ -7540,6 +7624,35 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/hpc/clusters/{cluster_id}/test"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-prompts")
+    def hpc_list_prompts_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Prompts (GET /api/hpc/prompts)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/hpc/prompts"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("answer-prompt")
+    def hpc_answer_prompt_post(
+        ctx: typer.Context,
+        prompt_id: str = typer.Argument(..., help='Prompt Id'),
+        answer: str = typer.Option(..., '--answer', help='Passed to ssh and kept nowhere.'),
+    ) -> None:
+        """Answer Prompt (POST /api/hpc/prompts/{prompt_id})."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/hpc/prompts/{prompt_id}"
+            params = None
+            payload = _build_json_payload({
+                "answer": answer,
+            }, {
+                "answer": {'type': 'string', 'title': 'Answer', 'description': 'Passed to ssh and kept nowhere.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('iiif')
@@ -10762,6 +10875,22 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("forget-a-paired-remove-its-saved-token-on-this-mac", hidden=True)
+    @target_app.command("forget")
+    def machines_forget_delete(
+        ctx: typer.Context,
+        machine_id: str = typer.Argument(..., help='Machine Id'),
+        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
+    ) -> None:
+        """Forget a paired machine: remove its saved token on this Mac (DELETE /api/machines/{machine_id})."""
+        if not yes:
+            typer.confirm("Delete machines?", abort=True)
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/machines/{machine_id}"
+            params = None
+            return client.request("DELETE", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     target_app = existing_apps.get('mcp')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp endpoints.', no_args_is_help=True)
@@ -12066,6 +12195,8 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         code: str = typer.Option(..., '--code', help='Code.'),
         device_name: str = typer.Option(..., '--device-name', help='Device Name.'),
+        password: Optional[str] = typer.Option(None, '--password', help='Password.'),
+        username: Optional[str] = typer.Option(None, '--username', help='Username.'),
     ) -> None:
         """Pair Device (POST /api/pair)."""
         def op_call(client: FicheroClient) -> Any:
@@ -12074,9 +12205,13 @@ def register_generated_openapi_commands(
             payload = _build_json_payload({
                 "code": code,
                 "device_name": device_name,
+                "password": password,
+                "username": username,
             }, {
                 "code": {'type': 'string', 'minLength': 1, 'title': 'Code', 'x-cli-required': True},
                 "device_name": {'type': 'string', 'minLength': 1, 'title': 'Device Name', 'x-cli-required': True},
+                "password": {'type': 'string', 'nullable': True, 'title': 'Password', 'x-cli-required': False},
+                "username": {'type': 'string', 'nullable': True, 'title': 'Username', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -12144,6 +12279,17 @@ def register_generated_openapi_commands(
                 "enrollment_secret": {'type': 'string', 'minLength': 1, 'title': 'Enrollment Secret', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("detected-tailnet")
+    def pair_detected_tailnet_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Detected Tailnet (GET /api/pair/tailnet)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/tailnet"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('policies')
@@ -12825,15 +12971,18 @@ def register_generated_openapi_commands(
     def reading_at_scale_start_post(
         ctx: typer.Context,
         card: str = typer.Option(..., '--card', help='The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.'),
-        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard. Default: "t4-small".'),
+        expected_pages_per_second: Optional[float] = typer.Option(None, '--expected-pages-per-second', help="A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took."),
+        flavor: Optional[str] = typer.Option(None, '--flavor', help='Hugging Face hardware for each shard (ignored on a cluster). Default: "t4-small".'),
         language: Optional[str] = typer.Option(None, '--language', help='Language.'),
         longest: Optional[int] = typer.Option(None, '--longest', help='Pixels on the longer side each image is read at. Default: 2000.'),
         max_in_flight: Optional[int] = typer.Option(None, '--max-in-flight', help='Shards running at once. Default: 10.'),
         pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages (or their IIIF addresses) to go to Hugging Face. Default: false."),
+        parent_job_id: Optional[str] = typer.Option(None, '--parent-job-id', help='The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`).'),
         pass_name: Optional[str] = typer.Option(None, '--pass-name', help='Pass Name.'),
         reader: Optional[str] = typer.Option(None, '--reader', help='`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model). Default: "kraken".'),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages to read: images here, or pages imported by reference over IIIF. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         shard_size: Optional[int] = typer.Option(None, '--shard-size', help='Shard Size. Default: 50.'),
+        target: Optional[str] = typer.Option(None, '--target', help='Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute). Default: "huggingface-jobs".'),
         timeout: Optional[str] = typer.Option(None, '--timeout', help='Each shard\'s time limit; always sent. Default: "2h".'),
     ) -> None:
         """Read pages on Hugging Face Jobs, many shards as one job (POST /api/reading-at-scale)."""
@@ -12842,27 +12991,33 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "card": card,
+                "expected_pages_per_second": expected_pages_per_second,
                 "flavor": flavor,
                 "language": language,
                 "longest": longest,
                 "max_in_flight": max_in_flight,
                 "pages_may_leave": pages_may_leave,
+                "parent_job_id": parent_job_id,
                 "pass_name": pass_name,
                 "reader": reader,
                 "scope_ids": scope_ids,
                 "shard_size": shard_size,
+                "target": target,
                 "timeout": timeout,
             }, {
                 "card": {'type': 'string', 'title': 'Card', 'description': 'The reader: a Kraken reader id, a trained vision model (`fichero-trained/<name>`, its Hugging Face build), or a Hub repo.', 'x-cli-required': True},
-                "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard.', 'default': 't4-small', 'x-cli-required': False},
+                "expected_pages_per_second": {'type': 'number', 'exclusiveMinimum': True, 'nullable': True, 'title': 'Expected Pages Per Second', 'description': "A pilot's measured rate: the estimate of GPU-hours the Inspector sets beside what it took.", 'minimum': 0.0, 'x-cli-required': False},
+                "flavor": {'type': 'string', 'title': 'Flavor', 'description': 'Hugging Face hardware for each shard (ignored on a cluster).', 'default': 't4-small', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
                 "longest": {'type': 'integer', 'maximum': 10000.0, 'minimum': 256.0, 'title': 'Longest', 'description': 'Pixels on the longer side each image is read at.', 'default': 2000, 'x-cli-required': False},
                 "max_in_flight": {'type': 'integer', 'maximum': 500.0, 'minimum': 1.0, 'title': 'Max In Flight', 'description': 'Shards running at once.', 'default': 10, 'x-cli-required': False},
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages (or their IIIF addresses) to go to Hugging Face.", 'default': False, 'x-cli-required': False},
+                "parent_job_id": {'type': 'string', 'nullable': True, 'title': 'Parent Job Id', 'description': 'The recipe step that sends this run: the run shows under it in Activity (`activity.remote-under-its-step`).', 'x-cli-required': False},
                 "pass_name": {'type': 'string', 'nullable': True, 'title': 'Pass Name', 'x-cli-required': False},
                 "reader": {'type': 'string', 'title': 'Reader', 'description': '`kraken` (a Kraken reader on this Mac) or `vlm` (a vision model).', 'default': 'kraken', 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages to read: images here, or pages imported by reference over IIIF.', 'x-cli-required': True},
                 "shard_size": {'type': 'integer', 'maximum': 10000.0, 'minimum': 1.0, 'title': 'Shard Size', 'default': 50, 'x-cli-required': False},
+                "target": {'type': 'string', 'title': 'Target', 'description': 'Where the shards run: `huggingface-jobs`, or the id of a Slurm cluster set up in Settings (Compute).', 'default': 'huggingface-jobs', 'x-cli-required': False},
                 "timeout": {'type': 'string', 'title': 'Timeout', 'description': "Each shard's time limit; always sent.", 'default': '2h', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
@@ -12890,6 +13045,19 @@ def register_generated_openapi_commands(
         """Stop a reading run (cancels its running shards on Hugging Face) (POST /api/reading-at-scale/jobs/{job_id}/cancel)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/reading-at-scale/jobs/{job_id}/cancel"
+            params = None
+            return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("look-the-far-side-now-after-the-mac-slept-a-dropped-run-carries-on", hidden=True)
+    @target_app.command("catch-up-job")
+    def reading_at_scale_catch_up_job_post(
+        ctx: typer.Context,
+        job_id: str = typer.Argument(..., help='Job Id'),
+    ) -> None:
+        """Look at the far side now (after the Mac slept); a dropped run carries on (POST /api/reading-at-scale/jobs/{job_id}/catch-up)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/reading-at-scale/jobs/{job_id}/catch-up"
             params = None
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -13055,6 +13223,7 @@ def register_generated_openapi_commands(
         materials: Optional[list[str]] = typer.Option(None, '--materials', help="handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting. A list: repeat the flag, or give the values comma-separated, or as JSON."),
         pages: Optional[int] = typer.Option(None, '--pages', help='roughly how many pages. Default: 0.'),
         period: Optional[str] = typer.Option(None, '--period', help="when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)"),
+        photographs: Optional[bool] = typer.Option(None, '--photographs/--no-photographs', help='the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)'),
         place: Optional[str] = typer.Option(None, '--place', help='where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)'),
         purpose: Optional[str] = typer.Option(None, '--purpose', help='a single purpose, as before 2026-10-05: read as a list of one.'),
         purposes: Optional[list[str]] = typer.Option(None, '--purposes', help="the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers) A list: repeat the flag, or give the values comma-separated, or as JSON."),
@@ -13080,6 +13249,7 @@ def register_generated_openapi_commands(
                 "materials": materials,
                 "pages": pages,
                 "period": period,
+                "photographs": photographs,
                 "place": place,
                 "purpose": purpose,
                 "purposes": purposes,
@@ -13100,6 +13270,7 @@ def register_generated_openapi_commands(
                 "materials": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Materials', 'description': "handwriting, print, typescript and/or text, any mix; a reading step gets one reader per kind read (source.onboard.material-any-mix). text is material that is already text (Markdown, plain text, Word, a PDF with a text layer): a project of text alone gets no reading step (source.recipe.text-material-is-not-read). Unset: text when every page of the open project's sample is already text, else handwriting", 'x-cli-required': False},
                 "pages": {'type': 'integer', 'minimum': 0.0, 'title': 'Pages', 'description': 'roughly how many pages', 'default': 0, 'x-cli-required': False},
                 "period": {'type': 'string', 'nullable': True, 'title': 'Period', 'description': "when the material was written: a century or a range of years ('16th century', '1650–1700'), kept as typed (GET /api/recipes/hands reads it; source.onboard.material.when-written)", 'x-cli-required': False},
+                "photographs": {'type': 'boolean', 'nullable': True, 'title': 'Photographs', 'description': 'the pages are photographs (a book open on a table, two pages to a picture); setup asks, nothing guesses it, and unset is off: answered yes, a recipe that lines or reads them first splits the pages and prepares the images (source.onboard.photographed-pages-asked)', 'x-cli-required': False},
                 "place": {'type': 'string', 'nullable': True, 'title': 'Place', 'description': 'where the material was written, kept as typed (a town, a region or an archive; source.onboard.material.where-written)', 'x-cli-required': False},
                 "purpose": {'type': 'string', 'nullable': True, 'title': 'Purpose', 'description': 'a single purpose, as before 2026-10-05: read as a list of one', 'x-cli-required': False},
                 "purposes": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Purposes', 'description': "the ticked purposes, any combination, each one of: transcribe, entities, search, statements, knowledge-graph, map-places, translate-normalise, quotations, catalogue, tables, edit-corpus, decipher, not-sure; none is 'not-sure'. The recipe is the union of their jobs, each once, in step order (source.onboard.purpose-sets-layers)", 'x-cli-required': False},
@@ -13159,15 +13330,37 @@ def register_generated_openapi_commands(
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
+        period: Optional[str] = typer.Option(None, '--period', help='Period.'),
         scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
     ) -> None:
         """Derived Facts (GET /api/recipes/derived)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/derived"
             params = {
+                "period": period,
                 "scripts": scripts,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-font")
+    def recipes_choose_font_put(
+        ctx: typer.Context,
+        font: Optional[str] = typer.Option(None, '--font', help='a bundled family; null returns to the derived font.'),
+        script: str = typer.Option(..., '--script', help='ISO 15924 code of the script the font draws.'),
+    ) -> None:
+        """Choose Font (PUT /api/recipes/font)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/font"
+            params = None
+            payload = _build_json_payload({
+                "font": font,
+                "script": script,
+            }, {
+                "font": {'type': 'string', 'nullable': True, 'title': 'Font', 'description': 'a bundled family; null returns to the derived font', 'x-cli-required': False},
+                "script": {'type': 'string', 'title': 'Script', 'description': 'ISO 15924 code of the script the font draws', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-hands")
@@ -15819,6 +16012,8 @@ def register_generated_openapi_commands(
         kind: Optional[str] = typer.Option(None, '--kind', help="The segment's new kind."),
         kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it.'),
         language: Optional[str] = typer.Option(None, '--language', help="The segment's language, a BCP 47 tag."),
+        mark_state: Optional[str] = typer.Option(None, '--mark-state', help="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none."),
+        no_writing_model: Optional[str] = typer.Option(None, '--no-writing-model', help='The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).'),
         parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment this one now sits inside.'),
         script: Optional[str] = typer.Option(None, '--script', help="The segment's script, an ISO 15924 code."),
         segment_id_2: str = typer.Option(..., '--segment-id', help='The segment to change.'),
@@ -15836,6 +16031,8 @@ def register_generated_openapi_commands(
                 "kind": kind,
                 "kind_raw": kind_raw,
                 "language": language,
+                "mark_state": mark_state,
+                "no_writing_model": no_writing_model,
                 "parent_segment_id": parent_segment_id,
                 "script": script,
                 "segment_id": segment_id,
@@ -15848,6 +16045,8 @@ def register_generated_openapi_commands(
                 "kind": {'type': 'string', 'nullable': True, 'title': 'Kind', 'description': "The segment's new kind.", 'x-cli-required': False},
                 "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it.', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The segment's language, a BCP 47 tag.", 'x-cli-required': False},
+                "mark_state": {'type': 'string', 'enum': ['ticked', 'crossed', 'struck', 'none'], 'nullable': True, 'title': 'Mark State', 'description': "The segment's one mark: ticked, crossed, struck or none.", 'x-cli-required': False},
+                "no_writing_model": {'type': 'string', 'nullable': True, 'title': 'No Writing Model', 'description': 'The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).', 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment this one now sits inside.', 'x-cli-required': False},
                 "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'description': "The segment's script, an ISO 15924 code.", 'x-cli-required': False},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to change.', 'x-cli-required': True},
@@ -17383,7 +17582,7 @@ def register_generated_openapi_commands(
         contenders: str = typer.Option(..., '--contenders', help='The answer-only student, the reasoning students, the teacher and a cheap baseline. JSON.'),
         held_out_ids: list[str] = typer.Option(..., '--held-out-ids', help='The held-out checked pages: no arm trained on them. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         language: Optional[str] = typer.Option(None, '--language', help='Language.'),
-        noise_band: Optional[float] = typer.Option(None, '--noise-band', help='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.'),
+        noise_band: Optional[float] = typer.Option(None, '--noise-band', help="A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692)."),
     ) -> None:
         """Measure answer-only against reasoning students on held-out checked pages (POST /api/training/reasons-ab)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17400,7 +17599,7 @@ def register_generated_openapi_commands(
                 "contenders": {'items': {'$ref': '#/components/schemas/ContenderSpec'}, 'type': 'array', 'minItems': 2, 'title': 'Contenders', 'description': 'The answer-only student, the reasoning students, the teacher and a cheap baseline.', 'x-cli-required': True},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'The held-out checked pages: no arm trained on them.', 'x-cli-required': True},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Noise Band', 'description': 'A reasoning student is adopted only if it beats the answer-only one by more than this CER.', 'default': 0.005, 'x-cli-required': False},
+                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Noise Band', 'description': "A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692).", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

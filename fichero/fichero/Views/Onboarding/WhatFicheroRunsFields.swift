@@ -5,7 +5,7 @@ import SwiftUI
 /// on this Mac, and with what; then the accounts that add to it, each added through Settings' own add-provider sheet
 /// (`AddProviderSheet`), one code path. It replaces "AI is optional".
 enum WhatFicheroRuns {
-    static let title = "Models & Services"
+    static let title = "Where the work runs"
     /// The page's opening, under its title (Daniel's words, 2026-10-11).
     static let intro = "Fichero does its work with models: programs trained to read handwriting, find the lines on "
         + "a page, or recognise names. They run in one of two places."
@@ -28,18 +28,13 @@ enum WhatFicheroRuns {
                 + "what it will cost.")
     ]
 
-    static let tableTitle = "What runs on this Mac"
     static let accountsTitle = "Accounts"
     static let addAnother = "Add Another Provider…"
     static let accountsFootnote = "You can add accounts later in Settings › AI."
 
-    /// What Fichero runs on this Mac, and with what.
-    static let rows: [(work: String, with: String)] = [
-        ("Reading pages", "Kraken, Apple Vision, MLX vision models"),
-        ("Finding regions and lines", "YOLO, Kraken"),
-        ("Names and statements", "spaCy"),
-        ("Speech", "Whisper")
-    ]
+    /// What comes with Fichero, in one line (no table of engine names).
+    static let comesWith = "Fichero comes with readers for handwriting and print, a line finder and a name finder; "
+        + "it downloads others for your language when you need them."
 
     /// The two accounts it suggests, by the engine's provider type, each with what it is for.
     struct Account: Equatable {
@@ -52,7 +47,7 @@ enum WhatFicheroRuns {
         Account(providerType: "huggingface", title: "Hugging Face",
                 purpose: "A free account. Fichero uses it to find and download models for your material."),
         Account(providerType: "openrouter", title: "OpenRouter",
-                purpose: "One account for many cloud models, paid as you go.")
+                purpose: "One account for many cloud models, paid as you go. Pages leave this Mac.")
     ]
 
     /// One suggested account's row: added (with the account's name) or not.
@@ -84,8 +79,9 @@ struct WhatFicheroRunsFields: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+        // A grouped Form: the accounts are native rows, and the form scrolls itself (#5776).
+        Form {
+            Section {
                 Text(WhatFicheroRuns.intro)
                     .fixedSize(horizontal: false, vertical: true)
                 // Side by side, the same height; stacked at compact width. (ViewThatFits stacked them always: a
@@ -96,26 +92,22 @@ struct WhatFicheroRunsFields: View {
                     HStack(alignment: .top, spacing: 12) { places }
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Text(WhatFicheroRuns.tableTitle).font(.headline)
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                    ForEach(WhatFicheroRuns.rows, id: \.work) { row in
-                        GridRow {
-                            Text(row.work).font(.callout.weight(.medium))
-                            Text(row.with).font(.callout).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                Text(WhatFicheroRuns.accountsTitle).font(.headline)
+                Text(WhatFicheroRuns.comesWith)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
                 ForEach(WhatFicheroRuns.accountRows(providers: providers), id: \.account.providerType) { row in
                     accountRow(row)
                 }
                 Button(WhatFicheroRuns.addAnother) { add(nil) }
-                Text(WhatFicheroRuns.accountsFootnote).font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text(WhatFicheroRuns.accountsTitle)
+            } footer: {
+                Text(WhatFicheroRuns.accountsFootnote)
             }
-            .frame(maxWidth: 560, alignment: .leading)
-            // Clear of the scroller.
-            .padding(.trailing, 8)
         }
+        .formStyle(.grouped)
+        .frame(maxWidth: 560, alignment: .leading)
     }
 
     private var places: some View {

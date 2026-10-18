@@ -81,7 +81,7 @@ APPLE_LINES_MATERIALS = ("print", "typescript")
 READ_MATERIALS: tuple[str, ...] = tuple(m for m in MATERIALS if m != "text")
 #: The jobs that make a page's text from its picture: a project whose material is all text runs none of them, and
 #: its plan starts at what was ticked after reading (search, names, ...) (#5553).
-READING_THE_PICTURE = frozenset({"split-pages", "prepare-the-image", "find-regions", "find-lines", "put-in-order",
+READING_THE_PICTURE = frozenset({"split-pages", "prepare-the-image", "find-the-script", "find-regions", "find-lines", "put-in-order",
                                  "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
                                  "tie-text-to-lines", "correct", "find-where-readers-disagree", "train-a-model"})
 #: Jobs that read the material: they get one reader per kind of material ticked.
@@ -119,7 +119,7 @@ MEMORY_HEADROOM_GB = 2.0
 #: purpose's jobs, and any job ticked on its own, are sorted by it. A test pins that it covers the
 #: whole job registry, so a new job cannot be ticked without a place in the order.
 STEP_ORDER: tuple[str, ...] = (
-    "split-pages", "prepare-the-image", "find-regions", "find-lines",
+    "split-pages", "prepare-the-image", "find-the-script", "find-regions", "find-lines",
     "put-in-order", "refine-shapes", "find-signs", "find-a-tables-cells", "read-a-line", "read-a-page",
     "tie-text-to-lines", "transcribe-speech", "correct", "find-where-readers-disagree", "trace-a-drawing",
     "identify-signs",
@@ -204,6 +204,8 @@ class Card:
     #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
     #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
     offered_only: bool = False
+    #: A frontier cloud model counted as multilingual (#5718): not refused a rewrite for a language it does not list.
+    multilingual: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
     #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).
@@ -252,12 +254,17 @@ class Answers:
     #: The project's sample shows faded pages (`recipes/prepare.sample_shows_faded`): a recipe that lines or reads
     #: them prepares them first (#5580).
     faded_pages: bool = False
+    #: The person said the pages are photographs (#5390): split the pages and prepare the images first. Asked, never guessed.
+    photographs: bool = False
     #: The answers under a purpose (`answers.job_answers`): which kinds of names, which gazetteer, how far to
     #: normalise; each reaches the setting of the step it configures (`start.JOB_ANSWER_SETTINGS`, #5478).
     job_answers: dict[str, Any] = field(default_factory=dict, compare=False, hash=False)
     #: The model this engine's search embeds with (its one embedding space); the search step names it where its
     #: card fits (#5574). Empty: no preference.
     search_embedder: str = ""
+    #: The cloud providers with a key set here (`derived._providers_with_keys`): only their models are offered as a
+    #: way to turn a step on (#5677, ruled Q3 2026-10-17). Names only, never the keys.
+    cloud_keys: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         # In the order setup offers them, so the same purposes ticked in any order give the same recipe.
@@ -277,36 +284,45 @@ class Choice:
     reasons: list[str] = field(default_factory=list)
     gap: str | None = None
     problem: dict[str, Any] | None = None
+    #: The other candidates that fit, in rank order: what runs when `card` cannot (`candidates-fallback-chain`).
+    chain: list[Card] = field(default_factory=list)
 
 
 #: The hard constraints, in the order they are tried; a refused card names the first it fails. The
 #: code is what setup shows (in words, with a fix), the raw reason what the Inspector and log keep.
 _CONSTRAINTS = ("no-model-for-job", "no-model-for-script", "no-model-for-language", "no-model-for-language",
-                "no-reader-for-material", "no-reader-for-period", "licence-not-accepted", "cloud-not-allowed",
+                "no-reader-for-material", "licence-not-accepted", "cloud-not-allowed",
                 "not-enough-memory")
+
+
+def needs_permission(card: Card, a: Answers) -> bool:
+    """A cloud candidate the project may not use yet: shown greyed, "needs permission", until the person has said
+    pages may leave this Mac (`source.onboard.pages-may-leave`, #5768)."""
+    return not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed
 
 
 def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str] | None:
     """(code, raw reason) for why `card` cannot do `job` for this project, or None if it may."""
     if job not in card.jobs:
         return "no-model-for-job", "its card does not name this job"
-    if card.scripts is not None and not (a.scripts <= card.scripts):
+    # Fraktur and Gaelic type are Latin: a Latin reader fits them (#5516), the exact one ranking first. Han variants
+    # stay apart (`no-cross-script-reader`: a Japanese card never reads Traditional or Simplified Chinese).
+    if card.scripts is not None and not all(x in card.scripts or (x in _LATIN_VARIANTS and "Latn" in card.scripts)
+                                            for x in a.scripts):
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
-    if job in REWRITING_JOBS and card.languages is None:
+    if job in REWRITING_JOBS and card.languages is None and not card.multilingual:
         return "no-model-for-language", "a model that does not list the language would rewrite it into one it knows"
     if material == "handwriting" and card.material and "handwriting" not in card.material:
         return "no-reader-for-material", "it is made for print or typescript, never handwriting"
     if (material == "handwriting" and card.handwriting_scripts is not None
             and not (a.scripts <= card.handwriting_scripts)):
         return "no-reader-for-material", "it reads this script printed, never handwritten"
-    if job in READING_JOBS and material == "handwriting" and in_period(card, a) is False:
-        return "no-reader-for-period", (f"it was made for pages of {card.period[0]}–{card.period[1]}, "
-                                        "not the project's period")
+    # A period is never a refusal: another period, or none stated, only lowers the rank (`_period_rank`, ruled 2026-10-17).
     if not card.open_licence:
         return "licence-not-accepted", _licence_words(card.licence)
-    if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
+    if needs_permission(card, a):
         return "cloud-not-allowed", "it runs in the cloud and this project keeps pages on this Mac"
     if card.local and card.memory_gb > a.mac_memory_gb - MEMORY_HEADROOM_GB:
         return "not-enough-memory", "this Mac does not have the memory to run it alongside macOS and Fichero"
@@ -328,7 +344,6 @@ _FIXES = {
     "no-model-for-script": ["download", "choose-cloud", "choose-model"],
     "no-model-for-language": ["download", "choose-cloud", "choose-model"],
     "no-reader-for-material": ["download", "choose-model"],
-    "no-reader-for-period": ["download", "choose-model"],
     "licence-not-accepted": ["accept-licence", "choose-model"],
     "cloud-not-allowed": ["allow-cloud", "choose-model"],
     "not-enough-memory": ["choose-cloud", "choose-model"],
@@ -355,8 +370,6 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
         return f"No {noun} here knows {_and([language_name(t) for t in sorted(a.languages)])} yet."
     if code == "no-reader-for-material":
         return f"No {noun} here is made for {material}."
-    if code == "no-reader-for-period":
-        return f"No {noun} here was made for pages written in {a.period or 'this period'}."
     if code == "licence-not-accepted":
         return f"The {noun} that fits has a licence you have not accepted yet."
     if code == "cloud-not-allowed":
@@ -368,6 +381,7 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
 NEAREST = 3
 #: A script's parent: the script a variant of it is filed under (Fraktur and Gaelic are Latin; Simplified and
 #: Traditional Han are Han; the Syriac and Arabic styles their script). ISO 15924 data, not a model's name.
+_LATIN_VARIANTS = frozenset({"Latf", "Latg"})
 _PARENT = {"Latf": "Latn", "Latg": "Latn", "Hans": "Hani", "Hant": "Hani", "Syre": "Syrc", "Syrj": "Syrc",
            "Syrn": "Syrc", "Aran": "Arab", "Cyrs": "Cyrl"}
 #: A script's parts, where ISO 15924 names a whole made of others (Japanese is Han plus the kana).
@@ -576,17 +590,9 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         why = "; ".join(said(reason, ids) for reason, ids in sorted(by_reason.items())) or "no card names this job"
         gap = f"no model fits this step ({why})"
         return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
-    # Cheapest and local first: start with the best LOCAL candidate; a remote one only when no
-    # local one passes (the A/B, not the rules, decides any move to a costlier option).
-    pool = [c for c in kept if c.local] or kept
-    if job in READING_JOBS and material == "handwriting" and a.period:
-        # A reader that states no period is offered and measured, never the rules' choice, for handwriting of a
-        # stated period (#5714): nothing says it reads that hand, and its failure would show only as a poor score.
-        stated = [c for c in pool if c.period is not None] or [c for c in kept if c.period is not None]
-        if not stated:
-            gap = "no reader states that it reads pages of this period; the bake-off measures the ones that state none"
-            return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
-        pool = stated
+    # Best first (`source.recipe.candidates-fallback-chain`, ruled 2026-10-17): a cloud candidate is already out
+    # unless pages may leave; local and cheaper only break ties inside the accuracy band (`_rank_key`).
+    pool = kept
     if job == "find-lines" and material in APPLE_LINES_MATERIALS:
         # Print and typescript: Apple finds the lines and keeps no text; a hand is Kraken's (#5451, ruled 2026-10-17).
         pool = [c for c in pool if c.pin == APPLE_LINES_PIN] or pool
@@ -598,7 +604,8 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
         # The embedder: the one this engine's search embeds with, where its card covers all the project's
         # languages (vectors from another could not be searched beside them, #5574); else the smallest local one.
         pool = sorted(pool, key=lambda c: (other_space(c, a), c.size_gb, c.id))[:1]
-    best = sorted(pool, key=lambda c: _rank_key(c, material, a))[0]
+    ranked = sorted(pool, key=lambda c: _rank_key(c, material, a))
+    best, chain = ranked[0], ranked[1:]
     reasons = [f"its card names this job; covers {', '.join(sorted(a.scripts))}"]
     if made_for_script(best, a):
         reasons.append(f"made for {', '.join(sorted(a.scripts))}")
@@ -627,7 +634,7 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     reasons.append("runs on this Mac, free" if best.local else f"runs on {best.runs_on}")
     if best.trainable:
         reasons.append("trainable on your corrections")
-    return Choice(job, best, reasons=reasons)
+    return Choice(job, best, reasons=reasons, chain=chain)
 
 
 def _chosen(choice: Choice) -> dict[str, Any]:
@@ -643,6 +650,7 @@ def _chosen(choice: Choice) -> dict[str, Any]:
             "memory_gb": card.memory_gb, "cer_measured_here": card.cer_measured_here,
             "cer_published": card.cer_published, "trainable": card.trainable, "source": card.source,
         },
+        "chain": [{"id": c.id, "model": dict(c.pin), "runs_on": c.runs_on} for c in choice.chain],
     }
 
 
@@ -720,16 +728,20 @@ def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
                 f"({size_words(card.size_gb)})")
     else:
         cost = f"turning it on runs {_model_words(card)} at {card.runs_on.split(':', 1)[-1]}"
-    cloud = None
-    if not a.cloud_allowed:
-        allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
-        cloud = _choose(CORRECT, [c for c in cards if c.runs_on.startswith("cloud")], allowed).card
+    # Ruled Q3 (2026-10-17): a cloud corrector whose provider has a key set here is OFFERED at Ready with its cost,
+    # never turned on by itself; with no key, no cloud is named.
+    keyed = [c for c in cards if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys]
+    allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
+    cloud = _choose(CORRECT, keyed, allowed).card if keyed else None
+    offered = None
     if cloud is not None and cloud.cost_per_page:
         pages = max(a.pages, 1)
-        cost += (f"; or, letting pages leave this Mac, {cloud.runs_on.split(':', 1)[-1]} at about "
-                 f"${cloud.cost_per_page * pages:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
-    return {"job": CORRECT, "title": "Correct",
-            "sentence": f"Correct is off: {cost}."}
+        provider = cloud.runs_on.split(":", 1)[1]
+        offered = {"card": cloud.id, "runs_on": provider, "pages": pages,
+                   "cost_usd": round(cloud.cost_per_page * pages, 2)}
+        cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} at about "
+                 f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
+    return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 
 
 def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dict[str, str]]]:
@@ -763,6 +775,8 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         jobs -= READING_THE_PICTURE
     if a.loose_pages and jobs & READING_JOBS:
         jobs.add(FIND_DOCUMENTS)
+    if a.photographs and jobs & (READING_JOBS | {"find-lines"}):
+        jobs |= {"split-pages", PREPARE}
     if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
         jobs.add(PREPARE)
     left_by_hand = [by_hand(j) for j in sorted(jobs, key=STEP_ORDER.index) if not start_runs(j)]
@@ -809,7 +823,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             continue
         if job == PREPARE:
             # Fichero's own measure and contrast, no model to choose (`recipes/prepare.py`).
-            why = ("the sample pages show faded ink" if a.faded_pages else "you ticked it")
+            why = ("the sample pages show faded ink" if a.faded_pages else "you said the pages are photographs" if a.photographs else "you ticked it")
             steps.append({"id": job, "job": job, **_topic(job), "model": {"builtin": "image-preparer"},
                           "runs_on": "this-mac", "uses_cloud": False,
                           "reasons": [why, "raises the contrast of each faded page on a new copy, on this Mac, free, "

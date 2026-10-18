@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import (
     get_library_database,
@@ -80,7 +80,7 @@ def _action_run(db: Database, params: FindDocumentsRequest, ctx: ActionContext) 
 
         pages = [p.id for pages in _job().scopes(db, params.scope_ids).values() for p in pages]
         authz.assert_can_read_every(ctx.actor, ctx.library_path, pages, bootstrap=False)
-    job_id = _job().start(db, params, started_by=ctx.actor or "owner")
+    job_id = _job().start(db, params, started_by=started_by_for(ctx))
     return {"job_id": job_id}, ChangeSpec(domains=["job"], target_ids=[job_id],
                                           after={"job_id": job_id, "kind": _job().KIND}, emit_type="job.created")
 

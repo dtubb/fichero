@@ -4,7 +4,7 @@
 
 > 🤖 *AI Drafted (Not reviewed)*
 
-This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 60 shipped workflows and 128 tools.
+This part of the manual is generated from the app itself, so it says what Fichero actually does rather than what someone remembered it doing. It covers 61 shipped workflows and 128 tools.
 
 - [Every workflow](workflows/index.md) — the presets, step by step.
 - [Every tool](tools/index.md) — the single steps a workflow is built from.
@@ -26,6 +26,7 @@ Workflows are grouped into folders that follow the route work takes: prepare the
 
 - [Backfill Text Geometry](workflows/backfill-text-geometry.md) — Use this when: pages already have a transcription but no word boxes. Apple Vision detects regions on the page (free, on-device), then the existing text is aligned onto those boxes, so every word in the transcript gets a position — measured where Vision read the same word, interpolated between anchors where it did not. Boxes are saved as provider aligned:apple_vision, never as a measured OCR pass, and a page whose alignment cannot be trusted is refused rather than given a wrong overlay.
 - [Detect Segments (Apple Vision)](workflows/detect-segments-apple-vision.md) — Use this when: you want text bounding boxes on pages before (or without) transcription. On-device Apple Vision detects line and word regions and saves them per page — fast, local, free. For hard hands Apple can miss regions; try Detect Segments (VLM) with a vision model of your choice.
+- [Detect Segments (Apple Vision, lines only)](workflows/detect-segments-apple-vision-lines-only.md) — Use this when: a print or typescript page needs its lines found and no reading from Apple. On-device Apple Vision finds the line boxes and keeps no text, so the text comes from the reader a recipe names. Free and local. For handwriting use Detect Segments (Kraken).
 - [Detect Segments (Kraken)](workflows/detect-segments-kraken.md) — Use this when: you want on-device baseline + line regions from Kraken's neural segmenter (blla) instead of Apple Vision — often better on archaic hands and dense layouts. The blla segmenter is built into the Kraken runtime, so this runs with no model download once the Kraken runtime is installed (Settings → AI → Local Inference). Free and local. Pair with Transcribe (Kraken) to recognise the text.
 - [Detect Segments (VLM)](workflows/detect-segments-vlm.md) — Use this when: Apple Vision misses regions on hard material (archaic hands, damaged pages) and you want a vision LLM to find the text regions instead. Uses whatever model you pick at run time — compare providers by running this next to the Apple Vision preset.
 

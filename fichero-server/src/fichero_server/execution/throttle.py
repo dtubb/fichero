@@ -13,6 +13,7 @@ Every probe degrades to "no reason" when it cannot read its signal (not macOS, a
 missing, a sandbox refusal): an unreadable signal must never park the queue for good.
 """
 from __future__ import annotations
+from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
 
 import logging
 import os
@@ -141,6 +142,36 @@ def footprint_bytes(pid: int) -> int | None:
     return int(info.ri_phys_footprint)
 
 
+def peak_rss_bytes() -> int | None:
+    """This process's peak resident set so far, in bytes (`getrusage` ru_maxrss: bytes on macOS), or None."""
+    import resource
+
+    try:
+        return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    except (OSError, ValueError):
+        return None
+
+
+def swap_used_bytes() -> int | None:
+    """The swap in use now, in bytes (`sysctlbyname("vm.swapusage")`'s xsw_usage, in-process via ctypes: no
+    subprocess per sample), or None when it cannot be read."""
+    import ctypes
+    import ctypes.util
+
+    class _SwapUsage(ctypes.Structure):  # <sys/sysctl.h> xsw_usage
+        _fields_ = [("total", ctypes.c_uint64), ("avail", ctypes.c_uint64), ("used", ctypes.c_uint64),
+                    ("pagesize", ctypes.c_uint32), ("encrypted", ctypes.c_bool)]
+
+    try:
+        usage, size = _SwapUsage(), ctypes.c_size_t(ctypes.sizeof(_SwapUsage))
+        libc = ctypes.CDLL(ctypes.util.find_library("System"))
+        if libc.sysctlbyname(b"vm.swapusage", ctypes.byref(usage), ctypes.byref(size), None, 0) != 0:
+            return None
+    except Exception:  # noqa: BLE001 -- not macOS
+        return None
+    return int(usage.used)
+
+
 class PeakMemory:
     """The peak memory of the engine and of the model servers it started, over one run (#5537): the
     run's account says what the run took, which is how the need of a model is re-measured
@@ -150,16 +181,32 @@ class PeakMemory:
     a page's read. The readers are injectable so a test never reads the real machine."""
 
     def __init__(self, *, engine: Callable[[], int | None] | None = None,
-                 servers: Callable[[], int | None] | None = None, interval: float = 1.0) -> None:
+                 servers: Callable[[], int | None] | None = None, interval: float = 1.0,
+                 rss: Callable[[], int | None] | None = None, swap: Callable[[], int | None] | None = None) -> None:
         self._engine = engine or (lambda: footprint_bytes(os.getpid()))
         self._servers = servers or _model_servers_footprint
         self._interval = interval
+        self._rss = rss or peak_rss_bytes
+        self._swap = swap or swap_used_bytes
+        self.rss_peak: int | None = None
+        self.swap_start: int | None = self._safe(self._swap)
+        self.swap_end: int | None = None
         self.engine_peak: int | None = None
         self.server_peak: int | None = None
         self._stop = None
         self._thread = None
 
+    @staticmethod
+    def _safe(read: Callable[[], int | None]) -> int | None:
+        try:
+            return read()
+        except Exception:  # noqa: BLE001 -- a reading must never fail the run
+            return None
+
     def sample(self) -> None:
+        rss = self._safe(self._rss)  # swap is read at start and end only: once per run, not once a second
+        if rss is not None and rss > (self.rss_peak or 0):
+            self.rss_peak = rss
         for attr, read in (("engine_peak", self._engine), ("server_peak", self._servers)):
             try:
                 value = read()
@@ -187,6 +234,18 @@ class PeakMemory:
         if self._stop is not None:
             self._stop.set()
         self.sample()
+        self.swap_end = self._safe(self._swap)
+
+    def pressure(self) -> dict[str, int]:
+        """What the run did to this Mac's memory: the engine's peak resident set SINCE THE ENGINE STARTED (getrusage keeps a lifetime peak, not this run's) and how far swap grew during the run. The honest
+        load: the physical footprint in `record` counts pages in the compressor and overstates it (M4 2026-10-17:
+        19.7 GB footprint, 6.9 GB resident, swap flat). Only what was read."""
+        out = {}
+        if self.rss_peak is not None:
+            out["engine_peak_rss_since_start_bytes"] = self.rss_peak
+        if self.swap_start is not None and self.swap_end is not None:
+            out["swap_growth_bytes"] = max(0, self.swap_end - self.swap_start)
+        return out
 
     def record(self) -> dict[str, int]:
         """The peaks for the run's account (`run_usage`), only those read."""

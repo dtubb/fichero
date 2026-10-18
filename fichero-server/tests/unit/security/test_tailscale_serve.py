@@ -121,3 +121,36 @@ def test_any_engine_with_a_tls_listener_forwards_and_a_socket_only_one_does_not(
     sharing = {"FICHERO_PUBLIC_BASE_URL": "https://m.tail.ts.net:8765"}
     assert ts.start_for_engine(sharing, log=log) is None  # socket only: nothing to publish
     assert ts.start_for_engine({**sharing, "FICHERO_TLS_CERTFILE": "/c.pem"}, log=log) == ("tailscale", 8765)
+
+
+def _status_cli(payload: dict):
+    return lambda args: subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+
+def test_detected_tailnet_url_is_the_hosts_ts_net_name_when_tailscale_is_running():
+    """#5318: the share sheet offers this address; stopped, logged out or missing offers nothing."""
+    running = {"BackendState": "Running", "Self": {"DNSName": "Studio.tail1234.ts.net."}}
+    assert ts.detected_tailnet_url("tailscale", run=_status_cli(running)) == "https://studio.tail1234.ts.net"
+    stopped = {"BackendState": "Stopped", "Self": {"DNSName": "studio.tail1234.ts.net."}}
+    assert ts.detected_tailnet_url("tailscale", run=_status_cli(stopped)) == ""
+    assert ts.detected_tailnet_url("tailscale", run=_status_cli({"BackendState": "Running", "Self": {}})) == ""
+
+    def broken(args):
+        raise subprocess.CalledProcessError(1, args)
+
+    assert ts.detected_tailnet_url("tailscale", run=broken) == ""
+
+
+def test_a_uds_only_engine_never_forwards_to_a_port_it_does_not_bind(cli) -> None:
+    """#5752: an engine on a socket without FICHERO_TCP_TLS_ALSO=1 binds no TCP port, so a forward
+    to it gives every guest a 502. With the flag the TCP listener exists and the forward is made."""
+    import logging
+
+    log = logging.getLogger("test")
+    sharing = {
+        "FICHERO_PUBLIC_BASE_URL": "https://m.tail.ts.net:8765",
+        "FICHERO_TLS_CERTFILE": "/c.pem",
+        "FICHERO_UDS_PATH": "/tmp/f.sock",
+    }
+    assert ts.start_for_engine(sharing, log=log) is None
+    assert ts.start_for_engine({**sharing, "FICHERO_TCP_TLS_ALSO": "1"}, log=log) == ("tailscale", 8765)

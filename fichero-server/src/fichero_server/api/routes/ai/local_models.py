@@ -7,7 +7,7 @@ Models are stored in ~/Library/Application Support/Fichero/models/
 
 from fastapi import APIRouter, HTTPException, Request
 
-from fichero_server.actions.registry import ChangeSpec, action
+from fichero_server.actions.registry import ChangeSpec, action, started_by_for
 from pydantic import BaseModel
 
 from fichero_server.models import (
@@ -300,6 +300,6 @@ def _action_model_download(db, params: ModelDownloadParams, ctx):
     (`source.find.one-download-path`, #5620). A model this Mac cannot run is refused here, never queued."""
     from fichero_server.llm.local_models import enqueue_download
 
-    job_id = enqueue_download(db, params.runtime, params.model, started_by=ctx.actor or "owner")
+    job_id = enqueue_download(db, params.runtime, params.model, started_by=started_by_for(ctx))
     return {"job_id": job_id, "runtime": params.runtime, "model": params.model}, ChangeSpec(
         domains=["models"], target_ids=[job_id], after={"job_id": job_id})

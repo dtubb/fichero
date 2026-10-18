@@ -23,6 +23,7 @@ from fichero_server.workflows.validation import KRAKEN_READER_PROVIDER
 WORKFLOW_FOR_JOB = {
     "split-pages": "split_pages",
     "find-lines": "detect_regions_kraken",
+    "find-the-script": "classify_script",
     "read-a-line": "transcribe_kraken",
     "read-a-page": "transcribe_htr",
     "transcribe-speech": "transcribe_audio",
@@ -54,7 +55,7 @@ READ_LINES_WITH_A_MODEL = "read_lines_kraken_vision"
 #: Apple Vision as a line finder only, for print and typescript: its lines, none of its text (#5451).
 APPLE_LINES_WORKFLOW = "detect_regions_apple_lines"
 #: Jobs whose workflow takes the step's model as a run-level provider/model override.
-_OVERRIDE_JOBS = frozenset({"read-a-page", "correct", "find-names-tag-words", "find-statements",
+_OVERRIDE_JOBS = frozenset({"read-a-page", "find-the-script", "correct", "find-names-tag-words", "find-statements",
                             "translate-transliterate-normalise"})
 #: Jobs carried out by a card that is not a workflow: the check job (`source.check.*`), the page text tied to
 #: its lines (a check run of kind `tie-text-to-lines`, #5444: free, on this Mac, with a Kraken reader) and the
@@ -282,11 +283,13 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     from fichero_server.recipes.recipe import check_recipe
 
     if not recipe:
-        return {"runs": [], "workflows": [], "skipped": [], "offered": [], "waiting": [],
+        return {"runs": [], "workflows": [], "skipped": [], "offered": [], "waiting": [], "fallbacks": [],
                 "refusals": ["this project has no recipe yet: run setup first"]}
     runs: list[dict[str, Any]] = []
     skipped: list[dict[str, str | None]] = []
     offered: list[str] = []
+    #: Steps that run their next candidate because the first cannot (a missing key), each saying which and why.
+    fallbacks: list[dict[str, Any]] = []
     #: Steps kept in the recipe with no model (`source.onboard.no-model-step-kept`): skipped, never refusing Start.
     needs_a_model: list[dict[str, Any]] = []
 
@@ -331,12 +334,31 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here", "allow-cloud")
             continue
         if (keyless := provider_without_key(step)) is not None:
-            # waits; no other model is used in its place unless the person chooses one (`source.recipe.missing-key-never-substitutes`)
-            # Not a `_FIX_BUTTONS` token: the app has no Add Key button yet (`RecipeSetupStore` maps allow-cloud and
-            # choose-model only), so `skip` folds this into the why and `fix` is None. When the app grows the button,
-            # add "add-key" to `_FIX_BUTTONS` and pass it here.
-            skip(sid, f"{label}: Needs a key for {keyless}", "Add Key… in Settings")
-            continue
+            # The next LOCAL candidate in the step's chain takes its place, and the plan says so
+            # (`source.recipe.candidates-fallback-chain`); with none, the step waits and no other model is used
+            # (`source.recipe.missing-key-never-substitutes`).
+            rest = list(step.get("chain") or [])
+            runnable = [c for c in rest if not (stays_local and _uses_cloud(c))
+                        and provider_without_key({"model": c.get("model")}) is None]
+            # Only a local model runs on its own; any other provider sends pages somewhere new (the same provider has
+            # the same missing key), so it is offered and never used without the person's press.
+            nxt = next((c for c in runnable if not _uses_cloud(c)), None)
+            offer = next(iter(runnable), None) if nxt is None else None
+            if offer is not None:
+                fallbacks.append({"step": sid, "from": keyless, "to": offer["id"], "used": False,
+                                  "why": f"Needs a key for {keyless}: {offer['id']} would send pages to another "
+                                         "provider, so it is offered, not used until you choose it"})
+            if nxt is not None:
+                fallbacks.append({"step": sid, "from": keyless, "to": nxt["id"], "used": True,
+                                  "why": f"Needs a key for {keyless}: {nxt['id']} runs instead"})
+                step = {**step, "model": nxt["model"], "runs_on": nxt.get("runs_on", "this-mac"),
+                        "chain": rest[rest.index(nxt) + 1:]}
+            else:
+                # Not a `_FIX_BUTTONS` token: the app has no Add Key button yet (`RecipeSetupStore` maps allow-cloud
+                # and choose-model only), so `skip` folds this into the why and `fix` is None. When the app grows
+                # the button, add "add-key" to `_FIX_BUTTONS` and pass it here.
+                skip(sid, f"{label}: Needs a key for {keyless}", "Add Key… in Settings")
+                continue
         if step.get("when"):
             skip(sid, f"{label} runs only {sorted(step['when'])}; Start cannot honour a condition yet",
                  "remove the condition from the step, or run it by hand")
@@ -453,6 +475,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                           f"{label}: {name} cannot run the model {pin}", "choose-model")
                 continue
             entry.update(reading)
+            if job == "read-a-line" and step.get("granularity") in ("lines", "region", "page"):
+                # How the bake-off measured this reader is how it reads (#5722).
+                entry["tool_config"] = {"transcribe": {"read_granularity": step["granularity"]}}
             if step.get("readers"):
                 # One reader per kind of page (#5578). A kind whose reader cannot run here, or would send pages
                 # off a Mac that keeps them, is read by the step's own reader.
@@ -531,7 +556,26 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                         if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
             "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
-            "waiting": waiting, "start_downloads": start_downloads(downloads)}
+            "waiting": waiting, "start_downloads": start_downloads(downloads), "fallbacks": fallbacks}
+
+
+def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, bound_cluster: str | None = None,
+               pages_per_second: float | None = None) -> list[dict[str, Any]]:
+    """Each read run says where it runs (`place`, `target`, `why`) and what a run that size costs (`sizing`), for
+    its step row (`source.recipe.placement-by-scale`, #5589). With no measured rate the sizing says a pilot measures
+    it. A cluster is bound to a step by nothing yet (`runs-on-binds-to-a-target`), so `bound_cluster` is None."""
+    from fichero_server.recipes.placement import place_step
+    from fichero_server.remote_read.sizing import size_run
+
+    for run in runs:
+        if run.get("job") != "read-a-line":
+            continue
+        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster))
+        try:
+            run["sizing"] = size_run(pages, pages_per_second=pages_per_second or 0)
+        except ValueError:
+            run["sizing"] = "measured by a 1,000-page pilot"
+    return runs
 
 
 def _size_words(size_mb: int | None) -> str:
@@ -1020,11 +1064,19 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
 
     rows, total = [], 0.0
     for w in workflows:
-        cloud = str(w["runs_on"]).startswith("cloud")
-        cost = (estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
-                              provider=w["provider_override"] or "") if cloud else 0.0)
+        runs_on = str(w["runs_on"])
+        # Only this Mac is free by its own word; a cloud call is priced by the model's listed rate; any
+        # other place (a cluster, a person's other machine) is unpriced, never $0 (#5590).
+        if runs_on.startswith("cloud"):
+            cost = estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
+                                 provider=w["provider_override"] or "")
+        elif runs_on in ("this-mac", ""):
+            cost = 0.0
+        else:
+            cost = None
+        basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
-                     "pages": pages, "cost_usd": cost, "memory": _local_memory(w)})
+                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w)})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
 

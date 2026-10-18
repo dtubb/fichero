@@ -7,6 +7,12 @@ import VisionKit
 #endif
 
 enum LibraryWorkspaceSelection {
+    /// The app-wide current library applies only to a scene that has not chosen its own: once a
+    /// scene's `WindowState` points at a library, another window switching project must not move it.
+    static func appDefaultLibraryId(windowLibraryId: UUID, currentLibraryId: UUID?) -> UUID? {
+        windowLibraryId == LibraryManager.globalLibraryId ? currentLibraryId : nil
+    }
+
     @MainActor
     static func activeLibrary(
         currentLibraryId: UUID?,
@@ -52,8 +58,7 @@ struct LibraryWorkspaceRoot: View {
     let executionObserver: WorkflowExecutionObserver
 
     var body: some View {
-        AdaptiveAppleShellHost {
-            DocumentTabView(
+        DocumentTabView(
                 libraryId: library.id,
                 document: Binding(
                     get: { library.document },
@@ -88,24 +93,20 @@ struct LibraryWorkspaceRoot: View {
                 }
                 // The engine's bundled fonts, for text the system cannot draw (MUFI, #5210): once per app.
                 await BundledFonts.shared.load(from: library.ficheroClient)
+                await library.transcriptionFontStore.load()
             }
-        }
         .environment(library.documentStore)
+        .environment(library.transcriptionFontStore)
         #if canImport(UIKit) && !os(macOS)
         .toolbar {
             // Library switcher (#2394) — the registry of libraries the paired Mac
             // has, surfaced first so a phone can open more than the default library.
-            // `.topBarLeading` is unavailable on tvOS, so guard it there.
-            #if !os(tvOS)
             ToolbarItem(placement: .topBarLeading) {
                 IOSLibraryPickerMenu()
             }
-            #endif
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    #if os(tvOS)
-                    Text("Capture is unavailable on Apple TV.")
-                    #elseif os(visionOS)
+                    #if os(visionOS)
                     Button { capturePickerSource = .library } label: {
                         Label("Choose from Photos", systemImage: "photo.on.rectangle")
                     }
@@ -150,7 +151,6 @@ struct LibraryWorkspaceRoot: View {
                 }
             )
         }
-        #if !os(tvOS)
         .sheet(item: $capturePickerSource) { source in
             MobileCaptureImagePicker(
                 sourceType: source.sourceType,
@@ -158,7 +158,6 @@ struct LibraryWorkspaceRoot: View {
                 onCancel: { capturePickerSource = nil }
             )
         }
-        #endif
         #if canImport(VisionKit) && !os(visionOS)
         .fullScreenCover(isPresented: $showingDirectDocumentScanner) {
             MobileDocumentScanner(
@@ -190,7 +189,8 @@ struct LibraryWorkspaceRoot: View {
         guard (try? captureQueue.enqueueCapturedImage(
             data,
             catalog: catalog,
-            fileExtension: imageData == nil ? "png" : "jpg"
+            fileExtension: imageData == nil ? "png" : "jpg",
+            targetLibraryId: library.id.uuidString
         )) != nil else { return }
         startUploadToActiveLibrary()
     }
@@ -206,7 +206,8 @@ struct LibraryWorkspaceRoot: View {
             _ = try? captureQueue.enqueueCapturedImage(
                 data,
                 catalog: catalog,
-                fileExtension: imageData == nil ? "png" : "jpg"
+                fileExtension: imageData == nil ? "png" : "jpg",
+                targetLibraryId: library.id.uuidString
             )
         }
         startUploadToActiveLibrary()

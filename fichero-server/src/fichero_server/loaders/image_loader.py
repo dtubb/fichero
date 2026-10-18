@@ -6,6 +6,7 @@ Special handling: HEIC (pillow-heif), JXL (macOS ImageIO), RAW (rawpy), all bund
 """
 
 import logging
+from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
 import tempfile
 import warnings
 from pathlib import Path

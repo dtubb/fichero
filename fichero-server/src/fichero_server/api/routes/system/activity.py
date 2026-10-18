@@ -126,6 +126,14 @@ def _change_event_to_activity_response(event: ChangeEvent) -> ActivityResponse:
     )
 
 
+class RemoteRunRow(BaseModel):
+    target: Optional[str] = None
+    far_state: str
+    shards: str
+    pages_landed: int = 0
+    offers: list[str] = Field(default_factory=list)
+
+
 class BackgroundJob(BaseModel):
     """One live background job (a running derivative/embed queue, …).
 
@@ -159,6 +167,23 @@ class BackgroundJob(BaseModel):
     # When a failed job failed (ISO 8601, UTC), so a list of errors can say when each happened rather than guess;
     # null for any job that has not failed, and cleared when it is retried.
     failed_at: Optional[datetime] = None
+    # A run sent to another place (a cluster, Hugging Face Jobs), under the recipe step that sent it
+    # (`activity.remote-under-its-step`): target, far-side state, shards done of total, pages landed, and what the
+    # row offers (Cancel, Retry failed shards, Catch up). Null for any other row.
+    remote: Optional[RemoteRunRow] = None
+
+
+def _remote_row(db, row: dict) -> "RemoteRunRow | None":
+    """The summary a remote run's row shows; nothing for any other kind of job."""
+    from fichero_server.remote_read import job as read_job
+
+    if row["kind"] != read_job.KIND:
+        return None
+    try:
+        return RemoteRunRow(**read_job.remote_row(read_job.status(db, row["id"])))
+    except Exception as exc:  # noqa: BLE001 -- the row still shows, without its summary
+        logger.warning("list_background_jobs: no remote summary for %s: %s", row["id"], exc)
+        return None
 
 
 class MachineState(BaseModel):
@@ -235,6 +260,9 @@ class JobTree(BaseModel):
     cost_usd: Optional[float] = Field(
         None, description="what its model calls cost, from the vendored price list; null unless every one is priced")
     unpriced_models: list[str] = Field(default_factory=list, description="models under it the price list does not know")
+    places: dict[str, int] = Field(default_factory=dict, description=(
+        "where the model calls under this one ran, and how many went to each place: this_mac, own_machine, "
+        "provider (`ai.where.row-names-the-place`, #5582)"))
     # A workflow run's account (#5555): its status shows the same one. Its pages are what `done`,
     # `total` and `failed` count on the run's own node.
     account: Optional[RunAccount] = None
@@ -534,6 +562,7 @@ async def list_background_jobs(
                 run_id=row.get("run_id"),
                 offer=job_queue.offer_for(row["kind"], state, reason),
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
+                remote=_remote_row(db, row),
             )
         )
 

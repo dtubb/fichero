@@ -261,3 +261,158 @@ def test_a_reading_run_waits_on_the_remote_lane(db):
     read_job.register_job_kinds()
     kind = jobs.KINDS[read_job.KIND]
     assert kind.lane == "remote" and kind.model is None
+
+
+class FakeClusterShell:
+    """A login node: files `put` land under a temp folder, `sbatch` numbers jobs, `sacct` says they are
+    done, and `get` of a shard's tar runs the real runner (with a fake reader) on the package that was sent."""
+
+    def __init__(self, root):
+        self.root, self.sbatched = root, []
+
+    def _at(self, remote):
+        return self.root / remote.lstrip("/")
+
+    def run(self, argv):
+        if argv[0] == "sbatch":
+            self.sbatched.append(argv[-1])
+            return 0, f"{100 + len(self.sbatched)};c\n", ""
+        if argv[0] == "sacct":
+            rows = [f"{100 + n}_{p.split('read-')[1].split('.')[0]}|COMPLETED" for n, p in enumerate(self.sbatched, 1)]
+            return 0, "\n".join(rows) + "\n", ""
+        if argv[0] == "mkdir":
+            for d in argv[2:]:
+                self._at(d).mkdir(parents=True, exist_ok=True)
+        return 0, "", ""
+
+    def put(self, local, remote):
+        self._at(remote).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(local, self._at(remote))
+
+    def put_text(self, text, remote):
+        self._at(remote).parent.mkdir(parents=True, exist_ok=True)
+        self._at(remote).write_text(text)
+
+    def get(self, remote, local):
+        import tarfile
+
+        workdir = self._at(remote).parent.parent
+        shard = int(remote.rsplit("shard-", 1)[1].split(".")[0])
+        runner.run_shard(workdir, shard, workdir / "out", reader=fake_reader, get=fake_iiif)
+        with tarfile.open(local, "w") as tar:
+            tar.add(workdir / "out" / f"shard-{shard:05d}", arcname=".")
+
+
+def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
+    """WHY (`compute.hpc.slurm-target`, `source.recipe.placement-by-scale`): `target` names a cluster and the
+    read-at-scale loop sends, submits a single-task sbatch per shard, polls Slurm and lands every page, with
+    nothing Hugging Face about it."""
+    from fichero_server.remote_read.slurm_target import SlurmReadTarget
+    from fichero_server.workflows.remote_jobs import HpcClusterConfig
+
+    cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                               remote_base_dir="/project/def-lab/u", account="def-lab")
+    shell = FakeClusterShell(tmp_path / "login")
+    target = SlurmReadTarget(cluster, shell)
+    request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
+                                 pages_may_leave=True, target="r")
+    started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [started["job_id"]])[0]
+    assert json.loads(jobs.read_job(db, started["job_id"])["detail"])["yes"]["to"] == "r"
+    assert started["price_per_hour_usd"] is None  # an allocation is not bought by the hour
+    counts = read_job.run(db, subject, target=target, sleep=lambda s: None)
+    assert counts == {"pending": 0, "submitted": 0, "landed": 4, "failed": 0}
+    assert len(shell.sbatched) == 4
+    assert read_job.status(db, started["job_id"])["landing"]["landed"] == 7
+
+
+# --- remote runs in Activity (`activity.remote-under-its-step`, #5740) -------------------------------------
+
+def _cluster_run(db, archive, tmp_path, **kw):
+    from fichero_server.remote_read.slurm_target import SlurmReadTarget
+    from fichero_server.workflows.remote_jobs import HpcClusterConfig
+
+    cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                               remote_base_dir="/project/def-lab/u", account="def-lab")
+    target = SlurmReadTarget(cluster, FakeClusterShell(tmp_path / "login"))
+    request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
+                                 pages_may_leave=True, target="r", **kw)
+    started = read_job.start(db, request, started_by="owner", target_factory=lambda: target)
+    subject = db.execute_fetchone("SELECT subject FROM jobs WHERE id = ?", [started["job_id"]])[0]
+    return started["job_id"], subject, target
+
+
+def test_a_remote_run_hangs_under_the_step_that_sent_it(db, archive, tmp_path):
+    """WHY (`activity.remote-under-its-step`): the run is a child of its recipe step on the one job model."""
+    step = jobs.enqueue_remote(db, "recipe", "step-1", target="this-mac", detail="{}", reason="r", started_by="owner")
+    job_id, _s, _t = _cluster_run(db, archive, tmp_path, parent_job_id=step)
+    assert db.execute_fetchone("SELECT parent_id FROM jobs WHERE id = ?", [job_id])[0] == step
+
+
+def test_the_row_and_inspector_say_where_it_runs_how_far_and_estimate_against_actual(db, archive, tmp_path):
+    """WHY: Row: target, far-side state, shards done of total, pages landed. Inspector: each shard, estimate vs actual."""
+    job_id, subject, target = _cluster_run(db, archive, tmp_path, expected_pages_per_second=2.0)
+    assert read_job.status(db, job_id)["far_state"] == "queued"
+    read_job.run(db, subject, target=target, sleep=lambda s: None)
+    status = read_job.status(db, job_id)
+    assert status["target"] == "r" and status["far_state"] == "done"
+    assert (status["shards_done"], status["shards_total"], status["pages_landed"]) == (4, 4, 7)
+    assert [s["state"] for s in status["shards"]] == ["landed"] * 4 and all("seconds" in s for s in status["shards"])
+    assert status["estimate"]["pages"] == 7 and status["estimate"]["gpu_hours"] == pytest.approx(7 / 2.0 / 3600, rel=0.01)
+    assert status["actual"]["seconds_per_shard"] >= 0
+    row = read_job.remote_row(status)
+    assert row["far_state"] == "done" and row["shards"] == "4 of 4 shards" and row["pages_landed"] == 7
+    assert row["offers"] == []  # nothing to cancel, retry or catch up on a finished run
+
+
+def test_far_state_in_words_and_the_offers_follow_it():
+    base = {"counts": {"pending": 0, "submitted": 0, "landed": 0, "failed": 0}, "state": "running"}
+    f = read_job.far_state
+    assert f({**base, "counts": {**base["counts"], "pending": 4}, "state": "waiting"}) == "queued"
+    assert f({**base, "counts": {**base["counts"], "submitted": 2, "pending": 2}}) == "running"
+    assert f({**base, "counts": {**base["counts"], "landed": 3, "failed": 1}, "state": "failed"}) == "failed"
+    assert f({**base, "counts": {**base["counts"], "landed": 4}, "state": "done"}) == "done"
+    running = read_job.remote_row({**base, "target": "r", "pages_landed": 0, "shards_done": 0, "shards_total": 4,
+                                   "counts": {**base["counts"], "submitted": 2, "pending": 2}})
+    assert running["offers"] == ["Cancel", "Catch up"]
+    failed = read_job.remote_row({**base, "target": "r", "state": "failed", "pages_landed": 4, "shards_done": 3,
+                                  "shards_total": 4, "counts": {**base["counts"], "landed": 3, "failed": 1}})
+    assert failed["offers"] == ["Retry failed shards"]
+
+
+def test_catch_up_skips_the_wait_once_and_brings_a_dropped_run_back(db, archive):
+    """WHY: after the Mac slept the loop is asked to look now, not after its sleep; a run the scheduler dropped
+    is queued again, carrying on from its recorded shards."""
+    job_id, subject = _start(db, archive)
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [job_id])
+    assert read_job.catch_up(db, job_id) == "running"
+    slept = []
+    read_job.run(db, subject, target=FakeHub(), sleep=slept.append)
+    assert "catch_up" not in json.loads(db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])[0])
+    plain_id, plain_subject = _start(db, archive)
+    plain_sleeps = []
+    read_job.run(db, plain_subject, target=FakeHub(), sleep=plain_sleeps.append)
+    assert plain_sleeps and len(slept) == len(plain_sleeps) - 1
+    db.execute("UPDATE jobs SET state = 'paused' WHERE id = ?", [plain_id])
+    assert read_job.catch_up(db, plain_id) == "waiting"
+
+
+def test_catch_up_never_brings_back_a_finished_run_and_a_parent_must_be_a_real_step(db, archive, tmp_path):
+    """WHY (review 53): through a route, the CLI or MCP a finished run could be resent and billed again; and a made-up
+    parent would hang the run under nothing."""
+    import pytest
+
+    job_id, _subject = _start(db, archive)
+    for state in ("completed", "cancelled", "failed"):  # failed with no shard still out: nothing to catch up with
+        db.execute("UPDATE jobs SET state = ? WHERE id = ?", [state, job_id])
+        with pytest.raises(ValueError, match="nothing to catch up"):
+            read_job.catch_up(db, job_id)
+    detail = {"request": {}, "shards": {"0": {"state": "submitted", "far_id": "9_0"}}}
+    db.execute("UPDATE jobs SET state = 'failed', detail = ? WHERE id = ?", [json.dumps(detail), job_id])
+    assert read_job.catch_up(db, job_id) == "waiting"  # failed with a shard still out: carries on
+
+    request = ReadAtScaleRequest(scope_ids=[archive.id], reader="vlm", card="fichero-trained/sergio", shard_size=2,
+                                 pages_may_leave=True, parent_job_id="no-such-job")
+    with pytest.raises(ValueError, match="parent"):
+        read_job.start(db, request, started_by="owner", target_factory=FakeHub)
+    assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ? AND parent_id = 'no-such-job'", [read_job.KIND])[0] == 0

@@ -124,7 +124,7 @@ struct SetupStagePage: View {
     @ViewBuilder
     private var whoRunsIt: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Who runs it").font(.headline)
+            Text("Which model does it").font(.headline)
             if let recipe = store.recipe {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, bakeoff: bakeoff, finder: project,
                                 onlyJobs: Set(stage.jobs), candidatesOf: stepCandidates)

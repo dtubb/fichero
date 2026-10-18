@@ -9,20 +9,15 @@ exists in the current SwiftUI codebase. "Current" means merged code in
 ## Current Architecture
 
 The shared non-macOS library surface is `LibraryWorkspaceRoot`, which wraps the
-workspace in `AdaptiveAppleShellHost` and then mounts `DocumentTabView`
+workspace and mounts `DocumentTabView`
 (`fichero/fichero/Views/Library/LibraryWorkspaceRoot.swift:34-37`,
 `52-103`). macOS does not use this direct path; `LibraryWindow` is fenced by
 `#if os(macOS)` and wraps the same workspace separately
 (`fichero/fichero/App/LibraryWindow.swift:1-14`, `78-107`).
 
-On compact width, `AdaptiveAppleShellHost` adds an outer `NavigationStack`
-around the entire content tree. On regular width, it leaves the content alone
-(`fichero/fichero/Views/AdaptiveAppleShellHost.swift:29-38`). Inside that host,
-`ContentView` still builds a `NavigationSplitView` with a sidebar column and a
-detail column, plus `preferredCompactColumn`
-(`fichero/fichero/Views/Shell/ContentView/ContentView.swift:31-35`, `93`,
-`461-489`). The compact path therefore does not replace the split shell; it
-wraps it.
+`ContentView` builds a `NavigationSplitView` with a sidebar column and a detail column, plus `preferredCompactColumn`
+(`fichero/fichero/Views/Shell/ContentView/ContentView.swift`). At compact width the split view collapses itself into a stack; the
+former `AdaptiveAppleShellHost` that wrapped it in a second `NavigationStack` was deleted (iOS I1, 2026-10-17).
 
 The detail column still carries desktop-style chrome. `detailShellColumn` always
 stacks `detailTabStrip`, `detailLocationPathBar`, `centerContent`, and

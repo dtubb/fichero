@@ -13,6 +13,7 @@ Provides:
 """
 
 from __future__ import annotations
+from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
 
 import asyncio
 import concurrent.futures
@@ -3751,6 +3752,7 @@ async def process_vision(
     # vision_mode="kraken" with no recognition model: "model" has the run's vision model read
     # each line Kraken found (the teacher labelling lines for a Kraken reader to learn from).
     lines_read_by: str = "kraken",
+    read_granularity: str | None = None,  # how the model is asked per call, as a bake-off measured it (#5722)
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4656,6 +4658,7 @@ async def process_vision(
                                             model=effective_config.model),
                             effective_config, language=language,
                             **({"apple": True} if lines_read_by == "apple" else {}),
+                            granularity=read_granularity,
                         )
                     from fichero_server.llm import kraken_runtime as _kr
 
@@ -4667,9 +4670,12 @@ async def process_vision(
                         library_path, "read-a-line", subject, model=f"kraken:{_stamp}", run_id=task_id,
                         fn=lambda: _kr.read_given_lines(image_path, _model_path, _px),
                     )
-                    _boxes, _joined, _cursor = [], [], 0
+                    _boxes, _joined, _cursor, _blank = [], [], 0, []
                     for _box, _text in zip(geometry.boxes, _texts):
                         if not _text:
+                            _blank.append(_box.metadata["segment_id"])  # looked at, no writing (#5758)
+                            logger.debug("line left without a reading: %s on %s — Kraken read it as empty text",
+                                        _box.metadata["segment_id"], image_path)
                             continue
                         _boxes.append(_box.model_copy(update={
                             "text": _text, "char_start": _cursor, "char_end": _cursor + len(_text),
@@ -4678,8 +4684,17 @@ async def process_vision(
                             "confidence": getattr(_text, "confidence", None)}))
                         _joined.append(_text)
                         _cursor += len(_text) + 1
+                    if _blank and len(_blank) == len(geometry.boxes):
+                        # Every line came back empty: a failed read, not 'no writing' (review 64). Unmarked, so
+                        # the lines stay unread and a second Start reads the page again.
+                        logger.warning("kraken reader: every one of %d lines on %s came back empty", len(_blank), image_path)
+                        _blank = []
+                    elif _blank:
+                        logger.info("kraken reader: %d of %d lines on %s left without a reading",
+                                    len(_blank), len(geometry.boxes), image_path)
                     return geometry.model_copy(update={
-                        "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr"})
+                        "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr",
+                        "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank}})
 
                 def _working_lines_of(doc_id: str) -> Any:
                     from fichero_server.db import db_manager as _dbm
@@ -4750,6 +4765,7 @@ async def process_vision(
                             result = await read_lines(
                                 image_path, result, effective_config, language=language,
                                 **({"apple": True} if lines_read_by == "apple" else {}),
+                                granularity=read_granularity,
                             )
                     if page_index is not None:
                         result = result.model_copy(
@@ -5520,7 +5536,17 @@ async def process_vision(
 
                 def _write_onto_lines(saved_artifact_id: str) -> None:
                     from fichero_server.db import db_manager as _dbm
-                    from fichero_server.llm.working_lines import write_readings
+                    from fichero_server.llm.working_lines import NO_WRITING_KEY, mark_no_writing, write_readings
+
+                    _flagged = [b for b in page_geometry.boxes
+                                if b.metadata.get("segment_id") and READ_FLAG_KEY in b.metadata]
+                    if _flagged:
+                        logger.info("%d lines on %s flagged by the check", len(_flagged), doc_id_for_file)
+                    for b in _flagged:
+                        logger.debug("line left without a reading: %s on %s — the check flagged its reading (%s)",
+                                     b.metadata["segment_id"], doc_id_for_file, b.metadata[READ_FLAG_KEY].get("kind"))
+                    mark_no_writing(_dbm.get_database(library_path), page_geometry.metadata.get(NO_WRITING_KEY) or [],
+                                    model=page_geometry.model, run_id=task_id, library_path=library_path)
 
                     # A line whose read the checker flagged (#5522) gets no reading: it
                     # would otherwise count over a better one.

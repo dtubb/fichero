@@ -67,8 +67,8 @@ def control_points(
         raise ValueError("the page's pixel size is not recorded, so a GCP's pixel end cannot be measured")
     gcps = [s for s in db.query(Segment, pass_id=pass_row.id) if s.kind == GCP_KIND and s.deleted_at is None]
     if mask_id is not None:
-        controlling = {link.from_id for link in db.query(TypedLink, to_id=mask_id)
-                       if link.link_type == "controls" and link.deleted_at is None}
+        controlling = {lk.from_id for lk in db.query(TypedLink, to_id=mask_id)
+                       if lk.link_type == "controls" and lk.deleted_at is None}
         gcps = [g for g in gcps if g.id in controlling]
     usable, not_used, fingerprint = [], [], []
     for gcp in sorted(gcps, key=lambda s: s.id):

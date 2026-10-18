@@ -30,6 +30,9 @@ from fichero_server.security import authz
 #: The 403 code for a path outside every allowed root and grant (#5219).
 INGEST_PATH_OUTSIDE_ALLOWED = "library_outside_allowed_locations"
 
+#: The 403 code for a path outside every allowed root and grant (#5219).
+INGEST_PATH_OUTSIDE_ALLOWED = "library_outside_allowed_locations"
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 

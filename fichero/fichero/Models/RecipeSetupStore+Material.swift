@@ -47,6 +47,12 @@ extension RecipeSetupStore {
         guard !urls.isEmpty else { return }
         isAddingMaterial = true
         defer { isAddingMaterial = false }
+        // Before the copy starts, off the main actor: a big folder is walked without stalling the window.
+        copySpace = nil
+        if ingestMode == .copy {
+            let bytes = await Self.byteSize(of: urls)
+            copySpace = Self.copySpaceSentence(bytes: bytes, free: RecipeDownloadRows.freeDiskBytes())
+        }
         let folders = urls.filter(ImportService.isDirectory)
         let files = urls.filter { !folders.contains($0) }
         var said: [String] = []
@@ -64,5 +70,28 @@ extension RecipeSetupStore {
             }
         }
         materialAdded = said.isEmpty ? nil : said.joined(separator: " ")
+    }
+
+    /// The bytes a Copy takes: every regular file under the chosen files and folders (what the copy duplicates).
+    @concurrent static func byteSize(of urls: [URL]) async -> Int64 {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+        var total: Int64 = 0
+        for url in urls {
+            let values = try? url.resourceValues(forKeys: keys)
+            if values?.isRegularFile == true { total += Int64(values?.fileSize ?? 0); continue }
+            guard let walk = FileManager.default.enumerator(at: url, includingPropertiesForKeys: Array(keys)) else { continue }
+            for case let file as URL in walk.allObjects {
+                let inner = try? file.resourceValues(forKeys: keys)
+                if inner?.isRegularFile == true { total += Int64(inner?.fileSize ?? 0) }
+            }
+        }
+        return total
+    }
+
+    /// "The copy takes 1.2 GB; 112 GB free." (the free room when known), said before Start.
+    nonisolated static func copySpaceSentence(bytes: Int64, free: Int64?) -> String {
+        let size = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        guard let free else { return "The copy takes \(size)." }
+        return "The copy takes \(size); \(ByteCountFormatter.string(fromByteCount: free, countStyle: .file)) free."
     }
 }

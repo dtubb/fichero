@@ -476,7 +476,7 @@ All [GAP]: designed, not built.
   the workflow's model cards. *Test:* a workflow needing an MLX-only model offers only this Mac,
   and says why the others are absent. The time, cost and greenhouse gas shown beside each
   target are owned by `activity.run.where-and-estimate`; this line is the chooser.
-- `compute.job.one-runner` — **[GAP]** (#5240) a `workflow` job runs the same workflow code, with the same step
+- `compute.job.one-runner` — **[BROKEN]** (#5240; `remote_read/runner.py` is a second runner, its crop and parsing mirrored from `llm/line_reader.py`) a `workflow` job runs the same workflow code, with the same step
   semantics, as a run on the Mac. No separate runner exists. The rule for runs on the Mac (every way a run starts goes through the
   runner) is owned by `activity.run.one-way-to-run`; this line adds only that the image runs the
   same runner. *Existing data:* the default
@@ -741,7 +741,7 @@ needs them.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
   loads; the full path is a named-machine test. The base is the recipe's pick from the catalogue (`source.recipe.picks-the-tuning-base`, about 3B, #5442); today the request defaults to `Qwen/Qwen3-VL-8B-Instruct`.
-- `compute.tune.survives-the-time-limit` — **[GAP]** (#5240) a training job longer than its time limit saves a
+- `compute.tune.survives-the-time-limit` — **[PARTIAL]** (#5240; the wrapper and sbatch are `training/resumable.py`, tested with a stub trainer that checkpoints on SIGUSR1 in `fichero-server/tests/unit/training/test_resumable_training.py`: two parts, steps 1..12 once each, `scontrol requeue` once; not yet wired to a real `ketos train` run or a cluster, and the Activity row's "running (part 2)" is `part_words`, not yet shown) a training job longer than its time limit saves a
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a
   two-minute limit and a trainer stub: the run completes across two parts with no repeated
@@ -823,10 +823,10 @@ needs them.
 ## Accessibility identifiers
 
 - `compute.run.where` — **[GAP]** (#5240) the target chooser where a workflow is run; `compute.run.where.<id>`
-- `compute.jobs.list`, `compute.job.row.<id>`, `compute.job.<id>.state`
+- `compute.jobs.list` — **[GAP]** (#5240) `compute.job.row.<id>`, `compute.job.<id>.state`
 - `compute.job.<id>.cancel`, `.resend-failed`, `.show-output`, `.undo`
-- `compute.tune.start`, `compute.tune.recipe`, `compute.tune.base-model`
-- `compute.publish.start`, `compute.publish.visibility.<private|gated|public>`
+- `compute.tune.start` — **[GAP]** (#5240) `compute.tune.recipe`, `compute.tune.base-model`
+- `compute.publish.start` — **[GAP]** (#5240) `compute.publish.visibility.<private|gated|public>`
 
 ## Test matrix
 

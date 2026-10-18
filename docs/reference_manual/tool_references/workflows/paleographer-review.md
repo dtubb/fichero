@@ -103,7 +103,7 @@ Settings this step uses:
 | `language` | auto |
 | `lens` | names-and-dates |
 | `thinking_mode` | medium |
-| `update_page_content` | yes |
+| `update_page_content` | no |
 | `vision_mode` | llm |
 
 What this step asks the model:

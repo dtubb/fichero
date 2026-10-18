@@ -401,3 +401,8 @@ finding was posted as GitHub-comment evidence with "Left OPEN; not closing mysel
 - `search.one-toolbar-button-with-the-kind-menu` **[PARTIAL]** (#5024; built 12c8096f8, OneToolbarSearchItemTests; not yet seen in the app): the toolbar has one search button; its menu holds Ask and Keyword with a checkmark and whatever the second button offered, and the Ask/Keyword bar under the toolbar is gone (this replaces `search.ask-keyword-native-scopes`).
 - `search.results-load-as-you-scroll` **[GAP]** (#5028): search results have no 'Load 50 more' button; the next page loads as the end of the list comes into view, with a quiet Loading row, and the header gives the total.
 - `search.index-build-failure-is-a-failed-job` **[GAP]** (#5315): when building a project's full-text index fails, the build shows as a failed job in Activity, with its reason and Retry, and the project's health shows the index as failed with the same Retry; a failure is never only written to the log. (Ruled 2026-10-04.)
+
+## Triaged from the August search plan (2026-10-17)
+Built: KG fusion (#1833), min_score and streaming (#4236, #4604), batch regions. The residue is below.
+- `search.anchor-carries-page-id` — **[GAP]** (#5744, #4604) `SearchAnchor` (`db/__init__.py`) has no `page_id`, so a hit cannot open its page or draw the passage heat map; passage vectors already carry page_id and character offsets. Test: a new test_search_anchor_page_id.py in `fichero-server/tests/unit/search/` (to write).
+- `search.residue-issues-stay-open` — **[PARTIAL]** (#4604, #4236, #4118, #4119, #4114) each is cited by its own entry above; none closes until a real archive search (Andagoya, Istmina) is seen in the app. Test: `fichero-server/tests/unit/api/test_routes_search.py`.
