@@ -110,14 +110,15 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
     from fichero_server.training.hf_jobs import LORA_FLAVORS, kraken_batch
 
+    place = _place_of(request)
     if not request.pages_may_leave:
-        raise PagesMayNotLeave("Training on Hugging Face sends this project's pages there. "
+        where = "Hugging Face" if place == TARGET else f"the cluster {place}"
+        raise PagesMayNotLeave(f"Training on {where} sends this project's pages there. "
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to train on")
     if isinstance(request, TrainKrakenRequest) and request.base:
         resolve_recognition_model(request.base)  # not installed: refused here, by name
-    place = _place_of(request)
     target = (target_factory or _target_for(place))()  # no token (or key): refused here, by name
     target.check_token()  # a token that can't run Jobs: refused here, in words (#5526)
     from fichero_server.training.kraken_set import refuse_an_empty_set
@@ -130,7 +131,7 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
               "price_per_hour_usd": price, "yes": {"by": started_by, "at": _now(), "to": place},
               "phase": "waiting", "history": [{"phase": "waiting", "at": _now()}],
               **({"batch_size": batch} if batch else {})}
-    job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
+    job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=place, detail=json.dumps(detail),
                                  reason=f"Waiting to send to {_place_words(target, place)}", started_by=started_by)
     return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price,
             "batch_size": batch}
