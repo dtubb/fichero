@@ -2022,7 +2022,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/InviteRedeemResponse"
                 }
               }
             }
@@ -68732,6 +68732,36 @@
         ],
         "title": "InviteMintResponse"
       },
+      "InviteRedeemClient": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "app",
+              "device"
+            ],
+            "title": "Kind",
+            "default": "app"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "InviteRedeemClient"
+      },
       "InviteRedeemRequest": {
         "properties": {
           "invite_token": {
@@ -68742,15 +68772,48 @@
           "new_password": {
             "type": "string",
             "minLength": 1,
+            "nullable": true,
             "title": "New Password"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/InviteRedeemClient",
+            "nullable": true
           }
         },
         "type": "object",
         "required": [
-          "invite_token",
-          "new_password"
+          "invite_token"
         ],
-        "title": "InviteRedeemRequest"
+        "title": "InviteRedeemRequest",
+        "description": "Accept an invite with a password, or with the person's public key (multiuser.invite-registers-public-key).\n\nWith a key and no password the person has no password at all: they sign in by challenge."
+      },
+      "InviteRedeemResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/RedeemedClient",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user"
+        ],
+        "title": "InviteRedeemResponse"
       },
       "InviteRequest": {
         "properties": {
@@ -81984,6 +82047,29 @@
         ],
         "title": "RecomputeResponse",
         "description": "Result of a triangulation recompute run."
+      },
+      "RedeemedClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "RedeemedClient"
       },
       "Reference": {
         "properties": {

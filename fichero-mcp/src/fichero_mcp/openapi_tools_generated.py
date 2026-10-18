@@ -762,11 +762,13 @@ def fichero_auth_create_invite(
 
 def fichero_auth_redeem_invite(
     *,
+    client: Annotated[Optional[dict[str, Any]], Field(description='InviteRedeemClient.')] = None,
     invite_token: Annotated[str, Field(description='Invite Token.')],
-    new_password: Annotated[str, Field(description='New Password.')],
+    new_password: Annotated[Optional[str], Field(description='New Password.')] = None,
+    public_key_pem: Annotated[Optional[str], Field(description='Public Key Pem.')] = None,
 ) -> Any:
     'Redeem Invite\n\nRoute: POST /api/auth/invites/redeem (toolset `auth`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/auth/invites/redeem", json=_rt.body({"invite_token": invite_token, "new_password": new_password}))
+    return _rt.call("POST", "/api/auth/invites/redeem", json=_rt.body({"client": client, "invite_token": invite_token, "new_password": new_password, "public_key_pem": public_key_pem}))
 
 
 def fichero_auth_revoke_invite(

@@ -1160,7 +1160,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "InviteRedeemRequest",
-        "response_model": "LoginResponse"
+        "response_model": "InviteRedeemResponse"
       },
       {
         "method": "POST",
