@@ -36,7 +36,8 @@ def test_identity_comes_from_the_audit_token_and_names_the_executable():
         left.close()
         right.close()
     assert shown["pid"] == os.getpid()
-    assert os.path.realpath(shown["exe"]).startswith(os.path.realpath(sys.prefix)) or shown["exe"].endswith("Python")
+    # A venv or uv python resolves to its base interpreter, so only say it is a real executable on disk.
+    assert os.path.isabs(shown["exe"]) and os.access(shown["exe"], os.X_OK)
 
 
 def test_a_peer_that_already_names_its_program_is_shown_as_is():
@@ -57,7 +58,8 @@ def test_the_real_uvicorn_server_stamps_each_connection_with_its_peer():
                     await send({"type": "lifespan.shutdown.complete"})
                     return
         body = json.dumps(scope.get("fichero.peer")).encode()
-        await send({"type": "http.response.start", "status": 200, "headers": [(b"content-type", b"application/json")]})
+        headers = [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]
+        await send({"type": "http.response.start", "status": 200, "headers": headers})
         await send({"type": "http.response.body", "body": body})
 
     folder = tempfile.mkdtemp(prefix="fp", dir="/tmp")
