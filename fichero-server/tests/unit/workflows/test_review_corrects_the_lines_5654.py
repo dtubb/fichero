@@ -461,3 +461,26 @@ async def test_a_note_without_a_flag_is_never_the_lines_text_5724(page, monkeypa
     (new,) = [r for r in _readings(page, second) if r.content == "vezino de la ciudad"]
     artifact = page["db"].get(Artifact, page["db"].get(ContentRepresentation, new.id).derived_from_artifact_id)
     assert artifact.data["line_notes"] == {second.id: "z for c"}
+
+
+@pytest.mark.asyncio
+async def test_a_page_over_the_models_budget_is_sent_the_lines_that_fit_and_told_what_was_left_out_5648(page, monkeypatch):
+    """A model whose card states a prefill budget is sent the page's lines in reading order up to it; the prompt
+    says how many lines were left out, and the lines it was sent still land.
+    WHY: 656 rows (43k tokens) to a local 3B model never reached its first token before the engine's wait ran out."""
+    from fichero_server.recipes import cards
+
+    first, second, third = _lines(page)
+    monkeypatch.setattr(cards, "prefill_tokens_for", lambda model: 1)  # room for the first line only
+    result = await _review(page, monkeypatch, f"{first.id} | certain | el dicho escriuano")
+    assert first.id in result["prompt"] and third.id not in result["prompt"]
+    assert "2 of the page's 3 lines were left out" in result["prompt"]
+    assert _counting(page)[0] == "el dicho escriuano"
+    assert any("left out" in note for note in result.get("notes") or [])
+
+
+def test_the_3b_mlx_reader_states_its_prefill_budget_5648():
+    from fichero_server.recipes.cards import prefill_tokens_for
+
+    assert prefill_tokens_for("mlx-community/Qwen2.5-VL-3B-Instruct-4bit")
+    assert prefill_tokens_for("gemini-2.5-pro") is None
