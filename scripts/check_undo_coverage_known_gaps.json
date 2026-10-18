@@ -480,5 +480,6 @@
   "POST /api/hpc/clusters/{cluster_id}/key/make": "not undoable by design: makes the cluster's key pair in the engine's folder; removing the key (DELETE .../key) is its inverse (#5238)",
   "POST /api/auth/challenge": "sign-in handshake: issues a one-time nonce, changes no library data - nothing to undo (multiuser-always-on, #2403)",
   "POST /api/auth/sign-in": "signs a client in (a session, like POST /api/auth/login); not undoable, the session is ended by revoking the client (multiuser-always-on, #2403)",
-  "POST /api/auth/first-run": "creates the owner once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)"
+  "POST /api/auth/first-run": "creates the owner once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)",
+  "POST /api/auth/migrate-owner": "gives the owner row its first key once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)"
 }
