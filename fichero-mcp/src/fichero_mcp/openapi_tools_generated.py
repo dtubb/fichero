@@ -6282,6 +6282,15 @@ def fichero_recipes_list_hands(
     return _rt.call("GET", "/api/recipes/hands", params={"languages": languages, "period": period, "script": script})
 
 
+def fichero_recipes_htr_united_datasets(
+    *,
+    languages: Annotated[str, Field(description='Languages')],
+    scripts: Annotated[Optional[str], Field(description='Scripts')] = None,
+) -> Any:
+    "Htr United Datasets\n\nHTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as\n(a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job\nkeeps the catalogue.\n\nRoute: GET /api/recipes/htr-united (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/htr-united", params={"languages": languages, "scripts": scripts})
+
+
 def fichero_recipes_list_jobs(
 ) -> Any:
     'List Jobs\n\nEvery job a recipe can name, with the plain description setup and the manual show.\n\nRoute: GET /api/recipes/jobs (toolset `recipes`; reads).'
@@ -8202,11 +8211,12 @@ def fichero_training_start_kraken(
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to Hugging Face. Default: false.")] = None,
     release_note: Annotated[Optional[str], Field(description='Release Note.')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
+    target: Annotated[Optional[str], Field(description='Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there). Default: "huggingface-jobs".')] = None,
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.')],
     timeout: Annotated[Optional[str], Field(description='The Job\'s time limit; always sent (the service\'s default is 30 minutes). Default: "4h".')] = None,
 ) -> Any:
     "Train a Kraken reader on Hugging Face Jobs\n\nQueue a `train-a-model` job: the pages in scope whose lines the teacher read go to a private\nbucket of the person's Hugging Face account, Fichero's trainer fine-tunes the base reader there,\nand the trained reader comes home as a reader card. Refused (and nothing queued) without the\nperson's yes for the pages to leave, without a Hugging Face token, or with a base reader that is\nnot installed.\n\nRoute: POST /api/training/kraken (toolset `training`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/training/kraken", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "flavor": flavor, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
+    return _rt.call("POST", "/api/training/kraken", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "flavor": flavor, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "target": target, "teacher": teacher, "timeout": timeout}))
 
 
 def fichero_training_start_kraken_here(
@@ -9518,6 +9528,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
+    GeneratedTool("fichero_recipes_htr_united_datasets", "recipes", "GET", "/api/recipes/htr-united", fichero_recipes_htr_united_datasets),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),

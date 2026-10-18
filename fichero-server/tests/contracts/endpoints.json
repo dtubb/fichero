@@ -9178,6 +9178,27 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/htr-united",
+        "operation_id": "htr_united_datasets_api_recipes_htr_united_get",
+        "summary": "Htr United Datasets",
+        "path_params": [],
+        "query_params": [
+          {
+            "name": "languages",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "scripts",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "request_model": null,
+        "response_model": "HtrUnitedDatasets"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/jobs",
         "operation_id": "list_jobs_api_recipes_jobs_get",
         "summary": "List Jobs",
