@@ -1374,9 +1374,12 @@ and node, not by job); a retry action for failed pages.
   search entries, vectors and word analysis name what they were made from (`source.derived.recomputable`);
   claims name their page and offsets but not the text version; entity mentions and NLP drafts name
   nothing.
-- `activity.derived.stale-is-marked` — **[GAP]** (#5360) a change marks exactly
+- `activity.derived.stale-is-marked` — **[PARTIAL]** (#5360) a change marks exactly
   the rows derived from it stale, with the reason, and the Inspector shows "out of date" on them
-  until they are remade.
+  until they are remade. Built: the engine reports which stored vectors are stale and why
+  (`text-changed`, `model-changed`, `not-embedded`) from the stored text and model
+  (`fichero-server/tests/unit/db/test_stale_vectors_marked_5360.py`). Still a gap: no API field
+  carries it to the Inspector, and other derived rows (claims, mentions) have no marker.
 - `activity.derived.coalesced` — **[PARTIAL]** (#5360) many corrections to one page
   make one recompute job after a short quiet period. Built: one waiting job per kind and page
   (`fichero-server/tests/unit/jobs/test_job_queue.py`); the page's re-embed waits QUIET_SECONDS and each correction pushes it later
