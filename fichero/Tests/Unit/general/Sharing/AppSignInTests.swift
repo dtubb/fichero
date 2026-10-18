@@ -58,6 +58,35 @@ struct AppSignInTests {
 }
 
 extension AppSignInTests {
+    @Test("a second launch signs in with the remembered client and registers nothing")
+    func secondLaunchSignsInOnly() async throws {
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 5, engineID: "e"))
+        let service = AppSignInService(transport: transport, keys: FixedKey(P256.Signing.PrivateKey()), clients: MemoryClientID("client-1"))
+        _ = try await service.signIn()
+        _ = try await service.signIn()  // an engine restart signs in again
+        #expect(transport.firstRuns.isEmpty && transport.migrations.isEmpty && transport.signIns.count == 2)
+    }
+
+    @Test("a client the engine no longer knows is forgotten, so the launch registers afresh")
+    func staleClientIsForgotten() async {
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 5, engineID: "e"))
+        transport.challengeRefusal = 401
+        let clients = MemoryClientID("gone")
+        let service = AppSignInService(transport: transport, keys: FixedKey(P256.Signing.PrivateKey()), clients: clients)
+        await #expect(throws: AppSignInService.Failure.notRegistered) { try await service.signIn() }
+        #expect(clients.clientID() == nil)
+    }
+
+    @Test("a transient engine failure does not forget the client")
+    func transientFailureKeepsClient() async {
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 5, engineID: "e"))
+        transport.challengeRefusal = 503
+        let clients = MemoryClientID("client-1")
+        let service = AppSignInService(transport: transport, keys: FixedKey(P256.Signing.PrivateKey()), clients: clients)
+        await #expect(throws: SignInRefusal.refused(statusCode: 503)) { try await service.signIn() }
+        #expect(clients.clientID() == "client-1")
+    }
+
     @Test("when first-run says an owner exists, the key goes onto that owner through migrate-owner")
     func bootstrapFallsBackToMigrateOwner() async throws {
         let key = P256.Signing.PrivateKey()
@@ -92,11 +121,13 @@ private final class FakeTransport: SignInTransport, @unchecked Sendable {
     private(set) var firstRuns: [FirstRun] = []
     private(set) var migrations: [FirstRun] = []
     var firstRunRefusal: Int?
+    var challengeRefusal: Int?
 
     init(challenge: SignInChallenge) { challengeToReturn = challenge }
 
     func challenge(clientID: String) async throws -> SignInChallenge {
         challengeCalls += 1
+        if let code = challengeRefusal { throw SignInRefusal.refused(statusCode: code) }
         return challengeToReturn
     }
 
@@ -130,4 +161,5 @@ private final class MemoryClientID: ClientIDStoring, @unchecked Sendable {
     init(_ value: String?) { self.value = value }
     func clientID() -> String? { value }
     func save(clientID: String) { value = clientID }
+    func forget() { value = nil }
 }
