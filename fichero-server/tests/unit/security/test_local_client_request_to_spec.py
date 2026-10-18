@@ -58,7 +58,7 @@ def test_off_means_refused(harness, monkeypatch):
     assert refused.status_code == 403 and "not allowed on this Mac" in refused.text
 
 
-def test_tcp_listener_has_no_client_routes(harness, monkeypatch):
+def test_tcp_listener_refuses_client_routes(harness, monkeypatch):
     _users, owner = _owner(harness, monkeypatch)
     _switch_on(harness, owner, cli=True)
     assert harness.client().post(BASE + "/request", json=ASK).status_code == 403
