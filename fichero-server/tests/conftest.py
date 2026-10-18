@@ -600,6 +600,16 @@ def _no_zenodo_in_tests() -> dict:
 
 
 _kraken_runtime.repository_listing = _no_zenodo_in_tests
+
+# Nor HTR-United's catalogue (#5571): a test that wants one records it (`htr_united._harvest`).
+import fichero_server.recipes.htr_united as _htr_united  # noqa: E402
+
+
+def _no_htr_united_in_tests() -> dict:
+    raise OSError("tests never read HTR-United's catalogue; record one with htr_united._harvest")
+
+
+_htr_united._harvest = _no_htr_united_in_tests
 # The library dependencies the routes were built with, taken with `app` (#5407). A test that
 # reloads `fichero_server.api.main` (the multi-user and auth tests do, to re-read their env) makes
 # NEW function objects that no route uses; the `client` fixture importing them at its own time
