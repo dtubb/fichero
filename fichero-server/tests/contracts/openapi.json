@@ -92393,6 +92393,13 @@
             "type": "string",
             "title": "Does",
             "description": "what the setting does once the corrected lines reach the threshold, in a sentence"
+          },
+          "noise_band": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Noise Band",
+            "description": "the project's noise band (#5692): `value`, the CER difference a trained model must beat its base by; `measured`, whether this project's pages measured it (CER spread over 3 held-out splits) or it is the ruled 0.5 CER points; `basis` in words"
           }
         },
         "type": "object",
