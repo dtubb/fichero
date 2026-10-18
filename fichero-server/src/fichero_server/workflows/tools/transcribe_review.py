@@ -131,6 +131,14 @@ def line_notes(answer: str) -> dict[str, str]:
     return notes
 
 
+def unreadable_lines(answer: str) -> list[str]:
+    """The lines the review flagged `unreadable`, by segment id: marked as lines the model could not read (#5724)."""
+    from fichero_server.llm.working_lines import answer_line
+
+    return [segment_id for segment_id, flag, _t, _n in map(answer_line, answer.splitlines())
+            if flag == "unreadable" and _SHOWN_LINE.match(segment_id + " | ")]
+
+
 def build_transcribe_review_prompt(config: dict) -> str:
     """Expose the prompt to the workflow editor UI. A node with a `lens` and no prompt is built at run time from
     the project; the editor shows what the generic profile would send."""
@@ -166,10 +174,25 @@ def _with_line_scripts(prior_text: Any, documents: list, files: list, library_pa
     return texts if isinstance(prior_text, list) else texts[0]
 
 
-def _within_budget(prior_text: Any, model: str) -> tuple[Any, list[str]]:
+#: ponytail: the image's share of the prefill, as a Qwen2.5-VL processor counts it (one token per 28x28 patch, at most
+#: its default max_pixels' 1280); a card field per model if another family counts differently.
+_PATCH, _MOST_IMAGE_TOKENS = 28 * 28, 1280
+
+
+def _image_tokens(path: Any) -> int:
+    from PIL import Image
+
+    try:
+        with Image.open(path) as img:
+            return min(_MOST_IMAGE_TOKENS, img.width * img.height // _PATCH + 1)
+    except (OSError, ValueError, TypeError):
+        return _MOST_IMAGE_TOKENS  # not readable here: count the most an image can take
+
+
+def _within_budget(prior_text: Any, model: str, prompt: str = "", files: list | None = None) -> tuple[Any, list[str]]:
     """Each page's listed lines, in reading order, up to the model's prefill budget (its card's `prefill_tokens`,
-    #5648); a page over it is told how many lines were left out, and the step's notes say so too. A model with no
-    stated budget is sent everything."""
+    #5648), after the prompt and the page image are counted; a page over it is told how many lines were left out,
+    and the step's notes say so too. A model with no stated budget is sent everything."""
     import logging
 
     from fichero_server.recipes import cards
@@ -182,7 +205,11 @@ def _within_budget(prior_text: Any, model: str) -> tuple[Any, list[str]]:
     for index, text in enumerate(texts):
         rows = str(text or "").split("\n")
         listed = [i for i, row in enumerate(rows) if _SHOWN_LINE.match(row)]
-        used, keep = 0, []
+        image = files[index] if files and index < len(files) else None
+        # the prompt, the context's own words and the image come first; the lines fill what is left
+        used = (len(prompt) + sum(len(r) for i, r in enumerate(rows) if i not in set(listed))) // 4 + (
+            _image_tokens(image) if image else 0)
+        keep: list[int] = []
         for i in listed:
             used += len(rows[i]) // 4 + 1  # ponytail: ~4 characters a token; a tokenizer per model if this misjudges
             if used > budget and keep:
@@ -287,7 +314,6 @@ async def transcribe_review(
 
         prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
     prior_text = _with_line_scripts(prior_text, documents, files, state.get("library_path", ""))
-    prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""))
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", False)
@@ -309,6 +335,7 @@ async def transcribe_review(
         if names:
             prompt = f"{prompt}\n\n{names}"
 
+    prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""), prompt, files)
     tool_config = VisionToolConfig(
         artifact_type="transcription_review",
         update_page_content=update_page_content,
@@ -369,10 +396,11 @@ def _onto_lines(result: dict[str, Any], library_path: str, run_id: str | None, l
         if artifact is None or artifact.artifact_type != "transcription_review":
             continue  # a review of a segment is already a reading of it (`segment.<type>`)
         # the corrections name this artifact, so it is where the lens that made them and each line's note are kept
-        notes_by_line = line_notes(artifact.content or "")
-        if lens or notes_by_line:
+        notes_by_line, unread = line_notes(artifact.content or ""), unreadable_lines(artifact.content or "")
+        if lens or notes_by_line or unread:
             artifact.data = {**(artifact.data or {}), **({"lens": lens} if lens else {}),
-                             **({"line_notes": notes_by_line} if notes_by_line else {})}
+                             **({"line_notes": notes_by_line} if notes_by_line else {}),
+                             **({"unreadable_lines": unread} if unread else {})}
             db.save(artifact)
         _made, said = correct_lines(db, document_id=artifact.document_id, text=artifact.content or "",
                                     artifact_id=artifact.id, run_id=run_id, library_path=library_path)
