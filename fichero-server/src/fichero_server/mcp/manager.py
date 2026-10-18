@@ -241,6 +241,9 @@ class MCPManager:
         connection = config.to_connection()
 
         async with create_session(connection) as session:
+            # The adapters' session is not initialized for us: listing tools before the handshake is refused by
+            # the server ("request before initialization"), so no external tool ever loaded (#5760).
+            await session.initialize()
             logger.info(f"Connected to MCP server: {config.name}")
             yield session
 
@@ -274,20 +277,22 @@ class MCPManager:
 
         from langchain_mcp_adapters.tools import load_mcp_tools  # noqa: PLC0415
 
-        # Connect and load tools
-        async with self._connect_server(config) as session:
-            tools = await load_mcp_tools(
-                session=session,
-                server_name=config.name,
-                tool_name_prefix=config.tool_name_prefix,
-            )
+        # Hand the adapters the CONNECTION, not an open session: each tool then opens its own session when it is
+        # called. Tools bound to a session that this block closed failed on every call with ClosedResourceError, and
+        # an un-initialized session was refused at the first request, so no external tool ever ran (#5760).
+        tools = await load_mcp_tools(
+            None,
+            connection=config.to_connection(),
+            server_name=config.name,
+            tool_name_prefix=config.tool_name_prefix,
+        )
 
-            logger.info(f"Loaded {len(tools)} tools from server: {server_name}")
+        logger.info(f"Loaded {len(tools)} tools from server: {server_name}")
 
-            # Cache tools
-            self._tool_cache[server_name] = tools
+        # Cache tools
+        self._tool_cache[server_name] = tools
 
-            return tools
+        return tools
 
     async def load_all_tools(self, force_reload: bool = False) -> list[BaseTool]:
         """Load tools from all enabled servers.
