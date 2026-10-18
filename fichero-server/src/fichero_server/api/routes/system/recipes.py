@@ -1505,6 +1505,16 @@ class TrainOffer(BaseModel):
     does: str = Field(description="what the setting does once the corrected lines reach the threshold, in a sentence")
 
 
+class BakeoffOffer(BaseModel):
+    """The bake-off offered on the Start plan: its cost said first, then whether the project can run it now."""
+
+    sentence: str = Field(description="what the comparison costs, first")
+    run_cost_usd: float
+    pages: int = Field(description="the corrected sample pages it would read")
+    ready: bool = Field(description="false until the project holds enough corrected lines")
+    readiness_sentence: Optional[str] = Field(default=None, description="when not ready, what to correct")
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -1518,6 +1528,9 @@ class StartPlan(BaseModel):
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
+    bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
+        "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
+        "recipe has no reading step (#5660 item 7)"))
     refusals: list[str] = Field(description="Start is refused while this is not empty")
     waiting: list[str] = Field(default_factory=list, description=(
         "steps that wait for a model already downloading, in words; Start is not refused for them, and they run "
@@ -1593,6 +1606,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
                                hf_configured=_hf_token_set(), stays_local=stays_local)
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
+    plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     elif within is None and not pages["pages"]:
@@ -1621,6 +1635,20 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     plan["estimate"] = {**estimate(plan["workflows"], plan["estimate"]["pages"]), "counted": counted}
     within = runner.folder_scope(db, plan["folder_id"]) if plan.get("folder_id") else None
     return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
+
+
+def _bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
+    """The comparison of readers, offered on the plan with its cost first (`reader-measured-before-bulk`): only for a
+    recipe that has a reading step and answers; Start never runs it."""
+    answers = setup["answers"]
+    if not answers or not any(s.get("job") == "read-a-line" for s in (setup["recipe"] or {}).get("steps") or []):
+        return None
+    bakeoff = _bakeoff()
+    a = _answers(answers)
+    run = bakeoff.next_run(db, a, known_cards(a, include_not_built=True), volume=a.pages or volume)
+    ready = bakeoff.readiness(*[bakeoff.ground_truth(db, None)[0], bakeoff.unmarked_import_pages(db)])
+    return {"sentence": run["sentence"], "run_cost_usd": run["run_cost_usd"], "pages": run["pages"],
+            "ready": ready["ready"], "readiness_sentence": ready.get("sentence")}
 
 
 @router.get("/project/start", response_model=StartPlan)
