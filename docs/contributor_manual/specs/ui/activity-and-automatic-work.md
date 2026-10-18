@@ -1223,10 +1223,12 @@ and node, not by job); a retry action for failed pages.
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
   step can run at the same time when memory allows; two steps on the same processor do not.
-- `activity.lane.idle-unload` — **[PARTIAL]** (#5358, #5529) a resident model with no work is unloaded after a short idle
-  time. Built for Kraken: its line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
-  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`; `fichero-server/tests/unit/jobs/test_engine_memory.py`).
-  Still a gap: the other resident models (the embedder, a local model server).
+- `activity.lane.idle-unload` — **[OK]** (#5358, #5529) a resident model with no work is unloaded after a short idle
+  time. Kraken's line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
+  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`); an embedding model no embed holds after
+  600 s (`db/embeddings.py` `EMBEDDER_IDLE_SECONDS`, `release_idle_embedders`); an engine-started local model server
+  after 600 s (`api/routes/ai/local_inference.py` `IDLE_STOP_SECONDS`). Tests: `fichero-server/tests/unit/jobs/test_engine_memory.py`,
+  `fichero-server/tests/unit/db/test_embedding_model_only_while_needed.py`.
 - `activity.throttle.watched-first` — **[PARTIAL]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS. Built (2026-10-04): handed-in work (a page of a run a
   person started) is ordered first on the local-model lane, and a long background job (training)
@@ -1523,8 +1525,13 @@ code path.
 - `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
   kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
-  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
-  run is done (a finished run's final state is still read, and a resume reads it, #5373).
+  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built, and not safe to build yet:*
+  deleting the last one when the run is done. Tried and reverted 2026-10-18: the last checkpoint is the run's final state, and
+  it is read after the run is done, by the status route's `current_state` (the review-step test checks the answer reached the
+  tool through it, `test_review_step_pauses_through_the_routes_5429.py`), by the run's account (pages done, failures) and by a
+  group run's member pages (`test_run_on_any_level_5604.py`). Deleting it needs each of those to read the saved final state
+  instead; until then one checkpoint per run is what is kept (it is what bounds the growth). Resume reads the last checkpoint
+  of a paused run (#5373).
 - `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
   the engine's run registry: the cap evicts only runs that have exited (`execution/runner.py`
   `_cap_workflow_state_registry`); pinned by `fichero-server/tests/unit/workflows/test_live_run_never_evicted_5376.py`.
