@@ -4668,9 +4668,10 @@ async def process_vision(
                         library_path, "read-a-line", subject, model=f"kraken:{_stamp}", run_id=task_id,
                         fn=lambda: _kr.read_given_lines(image_path, _model_path, _px),
                     )
-                    _boxes, _joined, _cursor = [], [], 0
+                    _boxes, _joined, _cursor, _blank = [], [], 0, []
                     for _box, _text in zip(geometry.boxes, _texts):
                         if not _text:
+                            _blank.append(_box.metadata["segment_id"])  # looked at, no writing (#5758)
                             continue
                         _boxes.append(_box.model_copy(update={
                             "text": _text, "char_start": _cursor, "char_end": _cursor + len(_text),
@@ -4680,7 +4681,8 @@ async def process_vision(
                         _joined.append(_text)
                         _cursor += len(_text) + 1
                     return geometry.model_copy(update={
-                        "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr"})
+                        "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr",
+                        "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank}})
 
                 def _working_lines_of(doc_id: str) -> Any:
                     from fichero_server.db import db_manager as _dbm
@@ -5521,7 +5523,9 @@ async def process_vision(
 
                 def _write_onto_lines(saved_artifact_id: str) -> None:
                     from fichero_server.db import db_manager as _dbm
-                    from fichero_server.llm.working_lines import write_readings
+                    from fichero_server.llm.working_lines import NO_WRITING_KEY, mark_no_writing, write_readings
+
+                    mark_no_writing(_dbm.get_database(library_path), page_geometry.metadata.get(NO_WRITING_KEY) or [])
 
                     # A line whose read the checker flagged (#5522) gets no reading: it
                     # would otherwise count over a better one.

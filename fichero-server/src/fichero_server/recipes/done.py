@@ -179,6 +179,27 @@ def _has_line_readings(db: Any, doc_id: str, model: str | None) -> bool:
                                   for r in db.query(ContentRepresentation, document_id=doc_id))
 
 
+def lines_state(db: Any, doc_id: str) -> tuple[int, int, int]:
+    """(lines found, lines with no reading and not looked at, lines looked at with no writing) on the page, from
+    one scan of its segments and readings (#5758). A ruled or blank line the reader looked at is read: it has
+    no reading to show, and reading it again would only cost the same answer."""
+    from fichero_server.llm.working_lines import NO_WRITING_MARK
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    lines = [x for x in db.query(Segment, document_id=doc_id) if x.kind == "line" and x.deleted_at is None]
+    if not lines:
+        return 0, 0, 0
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id}
+    blank = [x for x in lines if x.id not in read and (x.metadata or {}).get(NO_WRITING_MARK)]
+    return len(lines), sum(1 for x in lines if x.id not in read) - len(blank), len(blank)
+
+
+def unread_on(db: Any, doc_id: str) -> int:
+    """The page's found lines that have no reading and were not looked at (#5758)."""
+    return lines_state(db, doc_id)[1]
+
+
 def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
     """A transcription the model saved (a read that came back empty saves none)."""
     from fichero_server.models import Artifact
@@ -252,7 +273,9 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
     if job == "find-lines":
         return _has_lines(db, doc_id, None)
     if job == "read-a-line":
-        return _has_line_readings(db, doc_id, card.get("model_override"))
+        # Lines found are not lines read (#5758): a page with any line left without a reading is read again.
+        found, unread, blank = lines_state(db, doc_id)
+        return found > 0 and not unread and (blank == found or _has_line_readings(db, doc_id, card.get("model_override")))
     if job == "read-a-page":
         return _has_page_reading(db, doc_id, card.get("model_override"))
     if job == "prepare-the-image":
