@@ -2,7 +2,7 @@
 
 `source/models-chains-and-projects.md` sections 6, 7b and 8: `source.onboard.deterministic-recipe`,
 `source.onboard.purpose-sets-layers`, `source.onboard.material-any-mix`, `source.onboard.says-no-model`,
-`source.recipe.cheapest-local-first`, `source.recipe.volume-rule`, `source.recipe.embedder-by-language`.
+`source.recipe.volume-rule`, `source.recipe.embedder-by-language`.
 A pure function: the same answers and the same cards always give the same recipe, and every choice
 names the facts it rests on. A language model never decides anything here; it may only have filled
 in a card earlier, for a person to confirm.

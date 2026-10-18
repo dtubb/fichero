@@ -1081,10 +1081,10 @@ plan's peak memory across steps. Ready shows none of it.
   and hand, labelled "suggested from your pages", along with the pages that are blank or duplicates. The
   person confirms them; they do not type them.
 - `source.onboard.auto.reader-measured-before-bulk` — **[GAP]** (#5533, #5519, #4951) no reader reads
-  the whole material on the strength of a published figure alone. Before the bulk read, a strong reader
-  reads the sample, the teacher-line check (#5446) removes its misreads, the candidates are compared on
-  it, and the winner reads the rest. All of this is jobs in the run. The person's yes for the winner is
-  one question, asked where the run waits (the ruling of section 12, "Use the winner").
+  the whole material on the strength of a published figure alone. The Start plan OFFERS a comparison on the sample,
+  cost first, and never runs it by itself (ruled 2026-10-17, #5660 item 7); once run, its winner is the step's model
+  and the bulk read waits for the person's Use This (the ruling of section 12, "Use the winner"). The teacher-line
+  check (#5446) removes a strong reader's misreads from the sample.
 - `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578; tested in
   `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
   each page is read by the reader for its kind. A cheap first job sorts the pages (handwriting, print,
@@ -2604,7 +2604,7 @@ Jobs and chains
   and the page's text stays what the chosen reading was. *Test:* the correcting step does not write the page text
   by default; with the corrected readings on the lines, the page's text is the lines' text.
 - `source.job.check` — **[PARTIAL]** (#5404) *Built: `check` is in the job registry (`recipes/jobs.py`), its layer a setting, so a recipe can name it after any layer; pinned by `fichero-server/tests/unit/recipes/test_job_registry.py`. Not built: a tool that runs it and stores each verdict at the checker's trust level.* checking a layer's proposals (readings, names, statements, links) is a job a recipe can name, run by a person or a checker model; each verdict (confirm, correct, reject) keeps its reasons and the checker's trust level, a model's check is never recorded as a person's, and a corrected proposal names the one it replaces.
-- `source.job.find-statements` — **[GAP]** (#4949) finding statements (subject, relation, object),
+- `source.job.find-statements` — **[PARTIAL]** (#4949, #5637; built: spaCy triples and an installed text model as candidates, `assemble.py`, pinned by `test_find_statements_candidates_5637.py`; not built: Apple Intelligence and cloud text models as bake-off candidates) finding statements (subject, relation, object),
   each naming the stretch of text it came from, is a job a recipe can name.
 - `source.job.find-statements.parser-tier` — **[PARTIAL]** (#5637) a free tier for Find statements: the bundled
   spaCy pipelines (`es_core_news_sm`, `en_core_web_sm`) are offered for the step (`spacy:svo/<pipeline>`, the
@@ -3262,7 +3262,7 @@ Setup
 - `source.onboard.ready.will-not-run-when-chosen` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeSetupStore.skippedStepsOfChosenStages`; and an unchosen stage's jobs are taken out of the answers. a step that will not run is
   listed on Ready only when its stage was chosen. *Test:* pure Swift, an unchosen stage's refusal is not
   listed.
-- `source.onboard.models.chooser-per-step` — **[BROKEN]** (#5668) a step's model candidates and online
+- `source.onboard.models.chooser-per-step` — **[PARTIAL]** (#5668; the engine is pinned by `test_model_chooser_per_step_5668.py`; the Swift search label naming the step is unseen) a step's model candidates and online
   search are that step's own: Find statements never lists page readers or says it searched for readers.
   *Test:* engine, the candidates for `find-statements` carry that job; pure Swift, the search label
   names the step.
@@ -3507,7 +3507,7 @@ Setup
   are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
   coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
   card id.
-- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; SUPERSEDED 2026-10-17, the code still follows it until the fallback-chain change lands; replaced by `source.recipe.candidates-fallback-chain` and
+- `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; RETIRED 2026-10-17, the code changed in 4ffd86b01 and `assemble._choose` now ranks every passing candidate best first; replaced by `source.recipe.candidates-fallback-chain` and
   `source.recipe.placement-by-scale` below, ruled by the maintainer) the bulk reader is the BEST MEASURED candidate, not the cheapest local one.
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
   one only when none passes) is the behaviour the next code change replaces; cost and carbon still show beside accuracy, and distilling and
@@ -3524,7 +3524,7 @@ Setup
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
   Also (#5589): each step declares where it can run (Mac / GPU cluster / CPU cluster / cloud); the plan places a step by scale and by GPU saturation. A step reaches a `cluster` target only through its bound target (`source.recipe.runs-on-binds-to-a-target`). Supersedes `source.recipe.cheapest-local-first` (cheapest only within the noise band). *Test:* a 1,000-page step places local; a 100,000-page step places on the bound `cluster` target; a recipe with no bound cluster never places there.
-- `source.onboard.pages-may-leave` — **[GAP]** (#4951; ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
+- `source.onboard.pages-may-leave` — **[PARTIAL]** (#4951, #5768; built: the toggle `RecipeSetupStore.cloudAllowed` and the hard constraint in `assemble.py`; not built: the greyed "needs permission" cards; ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
   answer is yes (`answers.cloud_allowed`), and cloud candidates show greyed with "needs permission" until then.
 - `source.recipe.volume-rule` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** training offered from 5,000 pages in `assemble()`; cost and time limits not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
