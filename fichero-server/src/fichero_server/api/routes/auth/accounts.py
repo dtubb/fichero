@@ -8,6 +8,7 @@ shared-secret-only single-user app.
 from __future__ import annotations
 
 import base64
+import hmac
 import logging
 import os
 import secrets
@@ -24,6 +25,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from fichero_server.api import uds_peer
 from fichero_server.security import accounts, launch_secret
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
@@ -1035,6 +1037,7 @@ def migrate_owner(
 
 REQUEST_TTL_SECONDS = 300
 MAX_PENDING_REQUESTS = 20
+MAX_PENDING_PER_PROGRAM = 3  # one program cannot fill the owner's list
 _client_requests: dict[str, dict] = {}
 _client_requests_lock = threading.Lock()
 _SWITCH_KEYS = {"mcp": "local_clients_allow_mcp", "cli": "local_clients_allow_cli"}
@@ -1145,13 +1148,16 @@ def request_local_client(
     peer = _verified_peer(request)
     if not _switch_on(app_db, body.kind):
         raise HTTPException(status_code=403, detail="not allowed on this Mac")
+    shown = uds_peer.identify(peer)
     with _client_requests_lock:
         live = _live_requests()
-        if len(live) >= MAX_PENDING_REQUESTS:
+        if len(live) >= MAX_PENDING_REQUESTS or sum(
+            1 for entry in live.values() if entry["peer"]["exe"] == shown["exe"]
+        ) >= MAX_PENDING_PER_PROGRAM:
             raise HTTPException(status_code=429, detail="too many pending requests")
         request_id = secrets.token_urlsafe(16)
         live[request_id] = {
-            "kind": body.kind, "name": body.name.strip(), "host": body.host.strip(), "peer": dict(peer),
+            "kind": body.kind, "name": body.name.strip(), "host": body.host.strip(), "peer": shown, "token": peer["token"],
             "state": "pending", "user_id": None, "expires_at": time.time() + REQUEST_TTL_SECONDS,
         }
         return _request_view(request_id, live[request_id])
@@ -1192,7 +1198,8 @@ def register_local_client(
     with _client_requests_lock:
         request_id = body.request_id
         entry = _live_requests().get(request_id)
-        if entry is None or (entry["peer"]["pid"], entry["peer"]["exe"]) != (peer["pid"], peer["exe"]):
+        # The audit token carries the pid version: the same program that asked, not a process that reused its pid.
+        if entry is None or not hmac.compare_digest(entry["token"], peer["token"]):
             raise HTTPException(status_code=404, detail="no such request")
         if entry["state"] == "pending":
             raise HTTPException(status_code=409, detail="not allowed yet")
