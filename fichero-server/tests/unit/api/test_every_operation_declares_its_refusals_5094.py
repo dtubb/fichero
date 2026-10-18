@@ -1,23 +1,10 @@
-"""`engine.error-detail-reaches-the-caller`, engine half (#5094): every operation declares its refusals.
+"""`engine.error-detail-reaches-the-caller`, engine half (#5094): refusals share one error body.
 
-WHY: 377 of 416 operations declared only 200/422 while raising 766 4xx refusals, so the generated Swift client could
-not decode the sentence a refusal sends (`{"detail": "<a sentence>"}`). 422 is FastAPI's own and stays as it is.
+The app-wide declaration of 400/403/404/409 on every operation was WITHDRAWN (review 112): it turned each into a typed
+case and broke the Swift branches that read those statuses through `.undocumented(...)`. Routes whose clients read the
+body declare it themselves, as #5089 did (`test_structured_refusals_declared_5094.py`).
 """
 from __future__ import annotations
-
-import pytest
-
-from fichero_server.api.main import app
-
-REFUSALS = ("400", "403", "404", "409")
-HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
-
-
-def _operations():
-    for path, item in app.openapi()["paths"].items():
-        for method, op in item.items():
-            if method in HTTP_METHODS:
-                yield f"{method.upper()} {path}", op
 
 
 def test_one_shared_error_body_class():
@@ -25,29 +12,3 @@ def test_one_shared_error_body_class():
     from fichero_server.api.routes.document.format_import import ErrorDetail as imported
 
     assert imported is ErrorDetail
-
-
-# The app-wide declaration is WITHDRAWN (review 112): it made every 400/403/404/409 a typed case and broke the Swift
-# branches that read those statuses through `.undocumented(...)`. Declaring per route where a client reads the body
-# is the way forward; these two assert the withdrawn default and are strict xfails until a route-level pass lands.
-@pytest.mark.xfail(strict=True, reason="#5094 review 112: app-wide refusal declaration withdrawn; per-route instead")
-def test_the_default_is_the_shared_body():
-    """Most operations carry ErrorDetail; only a route that names its own model differs."""
-    ops = list(_operations())
-    shared = sum(
-        1 for _, op in ops
-        if any(m.get("schema", {}).get("$ref", "").endswith("/ErrorDetail") for m in op["responses"]["404"]["content"].values())
-    )
-    assert shared > len(ops) * 0.9
-
-
-@pytest.mark.xfail(strict=True, reason="#5094 review 112: app-wide refusal declaration withdrawn; per-route instead")
-@pytest.mark.parametrize("status", REFUSALS)
-def test_every_operation_declares_a_body_for_the_refusal(status):
-    bad = []
-    for name, op in _operations():
-        content = (op["responses"].get(status) or {}).get("content", {})
-        # a body schema under any media type: the shared ErrorDetail by default, or the route's own deliberate model
-        if not any(m.get("schema") for m in content.values()):
-            bad.append(name)
-    assert not bad, f"{len(bad)} operations do not declare a body for {status}, e.g. {bad[:3]}"
