@@ -163,11 +163,13 @@ def answer_line(line: str) -> tuple[str, str, str, str]:
         return line.strip(), "", "", ""
     flag, bar, tail = rest.partition("|")
     flag = flag.strip().lower()
+    if not bar and flag in LINE_FLAGS:  # a bare `<id> | unreadable`: a flag with no text, never the text (#5724)
+        return head.strip(), flag, "", ""
     text = tail if bar and flag in LINE_FLAGS else rest
     if bar and _BOX.match(flag):  # the lines echoed as shown, `id | x y w h | maker | [confidence |] text`
         text = rest.rpartition("|")[2]
     note = _NOTE.search(text)
-    return (head.strip(), flag if text is tail else "", (text[:note.start()] if note else text).strip(),
+    return (head.strip(), flag if text is tail and bar else "", (text[:note.start()] if note else text).strip(),
             note.group(1).strip() if note else "")
 
 
