@@ -50791,6 +50791,14 @@
             "type": "array",
             "title": "Steps"
           },
+          "automatic": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticStep"
+            },
+            "type": "array",
+            "title": "Automatic",
+            "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers)"
+          },
           "gaps": {
             "items": {
               "type": "string"
@@ -51233,6 +51241,31 @@
           "query"
         ],
         "title": "AuthorityRefreshRequest"
+      },
+      "AutomaticStep": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "layer": {
+            "type": "string",
+            "title": "Layer"
+          },
+          "uses_cloud": {
+            "type": "boolean",
+            "title": "Uses Cloud",
+            "description": "whether the step may use a cloud model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "layer",
+          "uses_cloud"
+        ],
+        "title": "AutomaticStep",
+        "description": "A step the purpose (or an added layer) turns on by itself (`source.recipe.steps-name-layers`)."
       },
       "AutomaticWork": {
         "properties": {
