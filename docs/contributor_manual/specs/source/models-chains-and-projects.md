@@ -1034,7 +1034,7 @@ plan's peak memory across steps. Ready shows none of it.
   answer for (a failed call, a refused or flagged reading) stays unread and is read again. The run summary counts
   the unread lines and never counts a page with one as read (`N lines have no reading`). *Built:* the line reader
   and the Kraken reader name the lines they looked at without finding writing; they are marked on the segment
-  (`read_no_writing`); the page is done when none of its lines is unread (`recipes.done.lines_state`). *Left:* a
+  (`read_no_writing`, naming the reader that looked), written through `segment.update` so it is versioned and audited; the page is done when none of its lines is unread (`recipes.done.lines_state`), and a different reader than the one that looked reads the line again. The reader's batch is bounded by the memory the Mac has now (`kraken_runtime.reader_batch_size`: one line when the memory is unknown, at most 16), and every line left without a reading is logged with why (`line left without a reading`). *Left:* a
   "no writing" line is not yet drawn as such in the Reader. *Test:* `tests/unit/recipes/test_unread_lines_not_read_5758.py`.
 - `source.onboard.auto.results-summary` — **[PARTIAL]** (#5577) when a run ends, the project says what
   it made: pages read, lines, names by kind, dates, statements, documents and groups proposed, pages
