@@ -160,7 +160,7 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
 
 - `openapi.mcp.installed-from-the-app` **[PARTIAL]** (#509) Fichero › Install Command-Line & MCP Tools… writes `~/.local/bin/fichero-mcp`, a two-line script that execs the signed bundled engine binary with `FICHERO_RUN_MODULE=fichero_mcp.server`, and shows the Claude Code, Claude Desktop and Codex registration snippets. Built; no test pins the script text yet (`InstallToolsWindowTests`: the script names the module and the launcher path).
 - `openapi.mcp.attaches-never-starts` **[OK]** (#5512; `fichero-mcp/tests/test_launcher_attaches.py`) the launcher attaches to the running app engine over its Unix socket (or TLS :8765) and never starts a second engine; with none running it says so in words. *Test:* `fichero-mcp/tests/test_launcher_attaches.py`.
-- `openapi.mcp.live-round-trip` **[GAP]** (#4465) a gate-run test starts `fichero-mcp` over stdio against a seeded engine and gets `tools/list` and one `fichero_health` call back. Extends `harness.cli-mcp-live-verified`.
+- `openapi.mcp.live-round-trip` **[OK]** (#4465; `fichero-server/tests/integration/test_mcp_live_round_trip.py`) a gate-run test starts `fichero-mcp` over stdio against a seeded engine and gets `tools/list` and one `fichero_health` call back. Extends `harness.cli-mcp-live-verified`.
 
 ### B. CLI (already generated)
 
