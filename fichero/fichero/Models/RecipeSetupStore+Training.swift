@@ -28,10 +28,11 @@ extension RecipeSetupStore {
         return readiness["sentence"] as? String ?? "Needs more corrected pages."
     }
 
-    /// Whether the app can post this place's action: the engine filled its params. Null params: it cannot yet
+    /// Whether the app can post this place's action: the engine named the action (`starts` is null for a cluster, which
+    /// has no start action yet) and filled its params. Null params: it cannot yet
     /// (no reader has read this project's lines, so a distillation has no teacher).
     nonisolated static func canPost(_ target: TrainTarget) -> Bool {
-        target.params != nil
+        target.params != nil && target.starts != nil
     }
 
     /// Whether this place sends the pages away (Hugging Face Jobs): the person's yes is asked before posting, and
@@ -53,13 +54,13 @@ extension RecipeSetupStore {
     /// that sends the pages away. The job id, or nil with the engine's words in `errorMessage`.
     func startTraining(_ offer: TrainOffer, way: TrainWay, at target: TrainTarget,
                        pagesMayLeave: Bool = false) async -> String? {
-        guard Self.trainDisabledReason(offer, way) == nil, let params = target.params,
+        guard Self.trainDisabledReason(offer, way) == nil, let params = target.params, let starts = target.starts,
               !Self.sendsPagesAway(target) || pagesMayLeave else { return nil }
         do {
             var value = params.additionalProperties.value
             if Self.sendsPagesAway(target) { value["pages_may_leave"] = true }
             let request = Components.Schemas.InvokeActionRequest(
-                name: target.starts, params: .init(additionalProperties: try OpenAPIObjectContainer(unvalidatedValue: value)))
+                name: starts, params: .init(additionalProperties: try OpenAPIObjectContainer(unvalidatedValue: value)))
             switch try await client.api.invokeActionApiActionsInvokePost(body: .json(request)) {
             case .ok(let done):
                 let result = try done.body.json.result.value as? [String: (any Sendable)?]
