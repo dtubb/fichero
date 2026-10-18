@@ -8,6 +8,8 @@ struct HostGoneRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(row.name)
+                .lineLimit(1)
+                .truncationMode(.middle)
             Text(row.sentence)
                 .font(.caption)
         }
