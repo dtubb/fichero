@@ -148,6 +148,9 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         if text is None:
             if n in looked and box.metadata.get("segment_id"):
                 no_writing.append(box.metadata["segment_id"])
+            # Every line left without a reading, and why (#5758): the reader said no writing, or never answered.
+            logger.info("line left without a reading: %s on %s — %s", box.metadata.get("segment_id"), image_path,
+                        "the reader found no writing" if n in looked else "the reader gave no answer for it")
             continue
         texts.append(text)
         # Each line's reading is checked as it lands (#5522): one picture is one line, so a reading
