@@ -1520,13 +1520,11 @@ code path.
   The `complete` frame carries each final-state value only when its JSON is within 2,000 characters, else its size
   (`run_log.bounded_final_state`; the same test file). The full state stays on the run's checkpoint. **[OK]** once the
   M4 run is green.
-- `activity.run.checkpoints-pruned` — **[OK]** (#5376) only the last checkpoint per run is
+- `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
   kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
-  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Built 2026-10-18:* deleting the last one when the
-  run is done, per the definition below (`run_account.drop_finished_checkpoint`, called at the end of the success path; the status
-  and history routes and the run's account read the record when the checkpoint is gone;
-  `fichero-server/tests/unit/workflows/test_checkpoint_dropped_when_done_5376.py`). **Done** means all of: the run's record says `completed` (written, with its log and timeline); the run's account
+  `test_checkpoints_pruned_5376.py`); thread history then lists one checkpoint. *Not built:* deleting the last one when the
+  run is done. **Done** means all of: the run's record says `completed` (written, with its log and timeline); the run's account
   is `done` with no failed page and no page left (so Retry has nothing to read again), built from the state and the checkpoint's
   writes before they go; and the run's documents are settled. A paused, failed, cancelled, interrupted or partly failed run keeps its checkpoint (Resume and
   Read Again read it). *Readers of a finished run's checkpoint that must read the record instead, first:* the run's account

@@ -616,18 +616,9 @@ async def get_thread_status(
         checkpoint_tuple = await checkpointer.aget_tuple(config)
 
         if not checkpoint_tuple:
-            # A run that finished clean has no checkpoint: its account is on its record (#5376).
-            record = await get_activity_tracker(str(db.path)).store.get_workflow_run(thread_id)
-            if record is None or record.status != "completed":
-                raise HTTPException(
-                    status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
-                )
-            from fichero_server.workflows.run_account import run_account  # noqa: PLC0415
-
-            return ExecutionStatusResponse(
-                thread_id=thread_id, workflow_id=record.workflow_id, workflow_name=record.workflow_name,
-                status="completed", error=record.error,
-                account=await run_account(db, thread_id, run=record))
+            raise HTTPException(
+                status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
+            )
 
         # Extract workflow info. CheckpointMetadata is LangGraph-internal
         # (source/step/parents/run_id) — workflow_id is stored in the graph

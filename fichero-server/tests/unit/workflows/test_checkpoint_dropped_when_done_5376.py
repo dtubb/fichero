@@ -48,9 +48,7 @@ def test_a_clean_finish_keeps_its_account_and_drops_the_checkpoint(tmp_path):
 
 def test_a_run_that_is_not_done_keeps_its_checkpoint(tmp_path):
     for status in ("paused", "failed", "running"):
-        sub = tmp_path / status
-        sub.mkdir()
-        db_path, _, _ = _run(sub, status)
+        db_path, _, _ = _run(tmp_path / status if (tmp_path / status).mkdir() is None else tmp_path, status)
         assert asyncio.run(accounts.drop_finished_checkpoint(SimpleNamespace(path=db_path), "t")) is False
         assert _left(db_path) is not None
 
@@ -64,21 +62,3 @@ def test_a_finish_with_a_failed_page_keeps_its_checkpoint(tmp_path, monkeypatch)
     monkeypatch.setattr(accounts, "run_account", with_a_failure)
     assert asyncio.run(accounts.drop_finished_checkpoint(SimpleNamespace(path=db_path), "t")) is False
     assert _left(db_path) is not None
-
-
-def test_status_and_history_of_a_finished_run_read_the_record(tmp_path, monkeypatch):
-    """The two routes that read a run's checkpoint do not 404 once a clean finish dropped it."""
-    from fichero_server.api.routes.workflow_execution import core, threads
-    from fichero_server.workflows import activity
-
-    db_path, store, _ = _run(tmp_path, "completed")
-    db = SimpleNamespace(path=db_path)
-    assert asyncio.run(accounts.drop_finished_checkpoint(db, "t"))
-    accounts._FINISHED.clear()
-    monkeypatch.setattr(core, "get_activity_tracker", lambda p: SimpleNamespace(store=store))
-    monkeypatch.setattr(threads, "get_activity_tracker", lambda p: SimpleNamespace(store=store))
-    status = asyncio.run(core.get_thread_status("t", view="full", db=db))
-    assert status.status == "completed" and status.account.state == "done" and status.checkpoint_id is None
-    monkeypatch.setattr(threads, "WorkflowStore", lambda d: SimpleNamespace(get=lambda i: None))
-    history = asyncio.run(threads.get_thread_history("t", db=db))
-    assert history.thread_id == "t" and history.workflow_id == "w"
