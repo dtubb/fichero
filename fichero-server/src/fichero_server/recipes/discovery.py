@@ -763,8 +763,9 @@ _LANGUAGE_WORDS = {"es": "spanish", "la": "latin", "fr": "french", "it": "italia
 #: Script words a reader's tags or name may state, as ISO 15924 codes: these two, then any one-word script name
 #: ISO 15924 lists (`script_words`).
 _SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
-#: Not read from a listing: "latin" in a model's name is the language, and the codes for no script in particular.
-_NOT_SCRIPT_WORDS = frozenset({"Latn", "Zyyy", "Zinh", "Zzzz", "Zsym", "Zmth", "Zxxx", "Zsye"})
+#: Not read from a listing: "latin" in a model's name is the language, "gothic" the blackletter hand of Latin script
+#: (not Wulfila's Gothic alphabet, Goth), and the codes for no script in particular.
+_NOT_SCRIPT_WORDS = frozenset({"Latn", "Goth", "Zyyy", "Zinh", "Zzzz", "Zsym", "Zmth", "Zxxx", "Zsye"})
 
 
 @lru_cache(maxsize=1)

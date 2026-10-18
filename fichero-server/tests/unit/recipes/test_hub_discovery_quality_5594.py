@@ -221,3 +221,16 @@ def test_latin_in_a_listing_is_the_language_not_the_script():
     latin = {"modelId": "someone/trocr-latin-htr", "pipeline_tag": "image-to-text", "tags": ["ocr", "la"]}
     card = discovery._hf_card(latin, "an OCR model", "runs on this Mac", frozenset({"la"}))
     assert "Latn" not in (card.scripts or ()) and "made for" not in card.offered_because
+
+
+def test_a_gothic_hand_reader_stays_visible_to_a_latin_project():
+    """Review 83: "gothic" in a listing is Latin blackletter, not Wulfila's Gothic alphabet (Goth): stating Goth hid the
+    reader from a Latin project under the no-cross-script rule (#5593)."""
+    from fichero_server.recipes.assemble import Answers, _refusal
+
+    gothic = {"modelId": "someone/gothic-htr-mlx", "pipeline_tag": "image-to-text", "tags": ["htr", "de"]}
+    card = discovery._hf_card(gothic, "an OCR model", "runs on this Mac", frozenset({"de"}))
+    assert card.scripts is None
+    a = Answers(purposes=("transcribe",), languages=frozenset({"de"}), scripts=frozenset({"Latn"}),
+                materials=("handwriting",))
+    assert (_refusal("read-a-line", card, a, "handwriting") or ("",))[0] != "no-model-for-script"
