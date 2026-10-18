@@ -210,15 +210,6 @@ struct RecipeSetupAnswers: Codable, Equatable {
             normaliseHowFar = ordered + normaliseHowFar.filter { $0.hasPrefix(Self.translationPrefix) }
         }
 
-        /// What Start will run for "Into what", one entry per ticked level and one for a translation (the engine
-        /// makes one run for each, `recipes/start.py`).
-        var runTitles: [String] {
-            let levels = Self.normaliseLevels.filter { writes(level: $0.id) }.map(\.title)
-            guard let tag = translation else { return levels }
-            let name = JobQuestionFields.translationLanguages.first { $0.tag == tag }?.name ?? tag
-            return levels + ["Translation into \(name)"]
-        }
-
         /// The language a translation is asked into (its tag), or nil for none.
         var translation: String? {
             get {
