@@ -142,6 +142,9 @@ struct RecipeMaterialSourceFields: View {
                 }
             }
             if let icloud { ICloudPagesNotice(store: icloud, actionsService: actionsService) }
+            if let space = store.copySpace {
+                Label(space, systemImage: "internaldrive").font(.body)
+            }
             if let added = store.materialAdded {
                 Label(added, systemImage: "checkmark.circle").font(.body)
             }

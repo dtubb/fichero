@@ -110,6 +110,8 @@ final class RecipeSetupStore {
     private(set) var jobOrder: [String] = []
     /// What setup's Add a Folder… brought in, said back to the person.
     var materialAdded: String?
+    /// What a Copy will take, said as soon as the material is chosen and before the copy starts.
+    var copySpace: String?
     /// The folder Add a Folder… tied as a synced folder (Index), shown on the screen with its intake.
     var tiedFolderPath: String?
     private(set) var isAssembling = false
