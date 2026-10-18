@@ -123,9 +123,31 @@ class InviteRequest(BaseModel):
     channel: Literal["qr", "messages", "email"] = "qr"
 
 
+class InviteRedeemClient(BaseModel):
+    kind: Literal["app", "device"] = "app"
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
 class InviteRedeemRequest(BaseModel):
+    """Accept an invite with a password, or with the person's public key (multiuser.invite-registers-public-key).
+
+    With a key and no password the person has no password at all: they sign in by challenge."""
+
     invite_token: str = Field(min_length=1)
-    new_password: str = Field(min_length=1)
+    new_password: str | None = Field(default=None, min_length=1)
+    public_key_pem: str | None = Field(default=None, min_length=1, max_length=2000)
+    client: InviteRedeemClient | None = None
+
+
+class RedeemedClient(BaseModel):
+    id: str
+    kind: str
+    name: str
+
+
+class InviteRedeemResponse(LoginResponse):
+    client: RedeemedClient | None = None
 
 
 class InviteResponse(BaseModel):
@@ -565,13 +587,17 @@ def create_invite(
     )
 
 
-@auth_router.post("/invites/redeem", response_model=LoginResponse)
+@auth_router.post("/invites/redeem", response_model=InviteRedeemResponse)
 def redeem_invite(
     body: InviteRedeemRequest,
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
-) -> LoginResponse | JSONResponse:
+) -> InviteRedeemResponse | JSONResponse:
     _multiuser_disabled()
+    if body.public_key_pem is None and body.new_password is None:
+        raise HTTPException(status_code=422, detail="a password or a public key is required")
+    if body.public_key_pem is not None and (body.client is None or not _is_p256_public_key(body.public_key_pem)):
+        raise HTTPException(status_code=422, detail="a P-256 public_key_pem needs a client")
 
     now = utc_now()
     _check_invite_rate_limit(_INVITE_REDEEM_ATTEMPTS_BY_IP, request, now)
@@ -590,7 +616,8 @@ def redeem_invite(
     if user is not None and user.active:
         raise HTTPException(status_code=409, detail="username already exists")
 
-    password_hash = accounts.hash_password(body.new_password)
+    # A key and no password: the person gets an unusable password and signs in by challenge.
+    password_hash = accounts.hash_password(body.new_password or secrets.token_urlsafe(32))
     if user is None:
         user = app_db.create_user(
             username=invite.username,
@@ -610,6 +637,12 @@ def redeem_invite(
         device_label="Invite redemption",
         ttl=SESSION_TTL,
     )
+    client = None
+    if body.public_key_pem is not None and body.client is not None:
+        client = app_db.create_client(
+            user_id=user.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
     app_db.consume_invite(invite.id, when=now)
     app_db.save_action_audit(
         ActionAudit(
@@ -621,7 +654,11 @@ def redeem_invite(
         )
     )
     logger.warning("Invite redeemed for %s via %s", invite.username, invite.channel)
-    return LoginResponse(session_token=raw_session_token, user=_to_public_user(user))
+    return InviteRedeemResponse(
+        session_token=raw_session_token,
+        user=_to_public_user(user),
+        client=RedeemedClient(id=client.id, kind=client.kind, name=client.name) if client else None,
+    )
 
 
 @auth_router.post("/invites/{invite_id}/revoke", response_model=StatusResponse)

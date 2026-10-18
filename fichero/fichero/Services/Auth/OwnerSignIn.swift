@@ -24,7 +24,12 @@ nonisolated struct SignInChallenge: Equatable, Sendable {
     let engineID: String
 }
 
-/// The three engine calls app sign-in needs. The generated client backs the real one; tests fake it.
+/// The engine answered a sign-in call with a refusal (its HTTP status).
+nonisolated enum SignInRefusal: Error, Equatable {
+    case refused(statusCode: Int)
+}
+
+/// The engine calls app sign-in needs. The generated client backs the real one; tests fake it.
 nonisolated protocol SignInTransport: Sendable {
     func challenge(clientID: String) async throws -> SignInChallenge
     /// Returns the session token.
@@ -33,6 +38,9 @@ nonisolated protocol SignInTransport: Sendable {
     func firstRun(
         launchSecret: String, displayName: String, clientName: String, host: String, publicKeyPEM: String
     ) async throws -> String
+    /// An owner row already exists without a key (the engine makes one for the first loopback request, before this
+    /// app has asked): give that row its first key. Returns the new client's id.
+    func migrateOwner(launchSecret: String, clientName: String, host: String, publicKeyPEM: String) async throws -> String
 }
 
 nonisolated protocol OwnerKeyProviding: Sendable {
@@ -80,10 +88,19 @@ actor AppSignInService {
         launchSecret: String, displayName: String, clientName: String, host: String
     ) async throws -> String {
         let key = try keys.loadOrCreate()
-        let clientID = try await transport.firstRun(
-            launchSecret: launchSecret, displayName: displayName, clientName: clientName, host: host,
-            publicKeyPEM: key.publicKey.pemRepresentation
-        )
+        let pem = key.publicKey.pemRepresentation
+        let clientID: String
+        do {
+            clientID = try await transport.firstRun(
+                launchSecret: launchSecret, displayName: displayName, clientName: clientName, host: host,
+                publicKeyPEM: pem
+            )
+        } catch SignInRefusal.refused(statusCode: 409) {
+            // The engine's first authenticated request already made the (keyless) owner row: add the key to it.
+            clientID = try await transport.migrateOwner(
+                launchSecret: launchSecret, clientName: clientName, host: host, publicKeyPEM: pem
+            )
+        }
         clients.save(clientID: clientID)
         return try await signIn()
     }
