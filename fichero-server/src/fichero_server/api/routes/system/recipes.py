@@ -792,7 +792,7 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         if sample_is_text(db_manager.get_database(str(library))):
             answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
-    recipe = assemble(a, known_cards(a))
+    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     if saved.get("overrides"):
         from fichero_server.recipes.bakeoff import apply_project_overrides
@@ -833,6 +833,25 @@ def _providers_with_keys() -> list[str]:
     from fichero_server.recipes.derived import _providers_with_keys as keyed
 
     return keyed()
+
+
+def _cloud_correctors(keys: tuple[str, ...] | list[str]) -> list[Any]:
+    """The person's cloud vision readers whose provider has a key here, as correctors priced per page from the price
+    list (#5677): what Correct is offered with at Ready, never the rules' choice. A reader with no known price is
+    left out: the offer states its cost. ponytail: a vision reader is assumed to correct; a card of its own when not."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.bakeoff import cloud_readers
+    from fichero_server.recipes.routes import _cloud_cost
+
+    out = []
+    for card in cloud_readers():
+        if not card.runs_here or card.runs_on.split(":", 1)[-1] not in keys:
+            continue
+        price = _cloud_cost(f"{card.pin['cloud']}/{card.pin['model']}", 1)
+        if price:
+            out.append(replace(card, jobs=card.jobs | {"correct"}, cost_per_page=price))
+    return out
 
 
 def _answers(answers: dict[str, Any]) -> Answers:
@@ -1556,6 +1575,18 @@ class BakeoffOffer(BaseModel):
     readiness_sentence: Optional[str] = Field(default=None, description="when not ready, what to correct")
 
 
+class HfSpend(BaseModel):
+    """This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."""
+
+    cap_usd: float = Field(description="the project's monthly cap (`answers.hf_spend_cap_usd`); $0 offers only")
+    spent_at_most_usd: float = Field(description=(
+        "this calendar month's Jobs at their most: each one's hardware price an hour times its time limit"))
+    jobs: int = Field(description="the Jobs sent to Hugging Face this month (training and reading at scale)")
+    unpriced: int = Field(description="of them, the Jobs with no listed price: not counted in the spend, said so")
+    month: str = Field(description="the month, YYYY-MM (UTC)")
+    sentence: str
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -1569,6 +1600,8 @@ class StartPlan(BaseModel):
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
+    hf_spend: Optional[HfSpend] = Field(default=None, description=(
+        "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"))
     bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
         "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
         "recipe has no reading step (#5660 item 7)"))
@@ -1658,6 +1691,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
                                         spend_cap=cap, clusters=_cluster_names(),
                                         noise_band=read_noise_band(library))
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    plan["hf_spend"] = spend_this_month(db, cap=cap)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
@@ -1864,8 +1900,13 @@ async def use_candidate_for_step(
     from fichero_server.recipes.discovery import other_text_cards
 
     # The rules' cards, and the text models the finder offers a person beyond them (#5660 item 4) that can run.
-    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here)]
-    card = next((c for c in offered if c.id == request.card), None)
+    # And the keyed cloud correctors: Correct's offer at Ready is taken here (#5677). A text card shares a corrector's
+    # id, so the card that does the step's job is the one taken.
+    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here),
+               *_cloud_correctors(a.cloud_keys if a else ())]
+    job = next((s.get("job") for s in (setup["recipe"] or {}).get("steps") or [] if s.get("id") == request.step), None)
+    named = [c for c in offered if c.id == request.card]
+    card = next((c for c in named if job in c.jobs), named[0] if named else None)
     if card is None:
         raise HTTPException(status_code=422, detail=f"{request.card} is not a model Fichero has found here: list "
                                                     "the candidates (online, to search) and choose one of them")

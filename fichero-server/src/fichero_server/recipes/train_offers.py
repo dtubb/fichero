@@ -364,3 +364,53 @@ def start_when_ready(db: Any, *, mac_memory_gb: float | None = None) -> list[str
         jobs.save_detail(db, job_id, json.dumps(detail))
         started.append(action)
     return started
+
+
+#: The Job kinds that run on Hugging Face and are paid for there: training and reading at scale.
+HF_PAID_KINDS = ("train-a-model", "read-at-scale")
+
+
+def _hours(limit: str | None) -> float | None:
+    """A Job's time limit (`4h`, `90m`, `1h30m`, `3600s`, `1d`) in hours, or None when it says none."""
+    import re
+
+    parts = re.findall(r"(\d+(?:\.\d+)?)\s*([smhd])", str(limit or ""))
+    per = {"s": 1 / 3600, "m": 1 / 60, "h": 1.0, "d": 24.0}
+    return sum(float(n) * per[u] for n, u in parts) if parts else None
+
+
+def spend_this_month(db: Any, *, cap: float, now: Any = None) -> dict[str, Any]:
+    """This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769): each Job sent this
+    calendar month at its most, its hardware's price an hour (as listed when it was sent) times its time limit, where
+    the service ends it. A Job not yet sent costs nothing yet; one with no listed price is counted as unknown, never $0.
+    ponytail: an upper bound; the time a Job actually ran, when the service reports it."""
+    from datetime import datetime, timezone
+
+    from fichero_server.core.timeutil import ensure_utc
+    from fichero_server.execution import jobs
+
+    month = ensure_utc(now or datetime.now(timezone.utc)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    spent, counted_jobs, unpriced = 0.0, 0, 0
+    for at, detail in jobs.details_of_kinds(db, HF_PAID_KINDS):
+        if at < month:  # both in UTC: the month turns at midnight UTC
+            continue
+        request = detail.get("request") or {}
+        if request.get("target", "huggingface-jobs") != "huggingface-jobs":
+            continue  # a read on a cluster: an allocation, not bought by the hour
+        # a reading run is one row of many Jobs, a Job for each shard sent (each try); a training run is one Job
+        sent = (sum(s.get("tries", 0) for s in detail["shards"].values()) if detail.get("shards")
+                else int(bool(detail.get("far_id"))))
+        if not sent:
+            continue
+        counted_jobs += sent
+        price, hours = detail.get("price_per_hour_usd"), _hours(request.get("timeout"))
+        if price is None or hours is None:
+            unpriced += sent
+            continue
+        spent += float(price) * hours * sent
+    spent = round(spent, 2)
+    sentence = (f"Hugging Face this month: at most ${spent:.2f} of ${cap:.2f}, "
+                f"{counted_jobs} {'Job' if counted_jobs == 1 else 'Jobs'}"
+                + (f", {unpriced} with no listed price" if unpriced else ""))
+    return {"cap_usd": cap, "spent_at_most_usd": spent, "jobs": counted_jobs, "unpriced": unpriced,
+            "month": month.strftime("%Y-%m"), "sentence": sentence + "."}

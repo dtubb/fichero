@@ -722,7 +722,8 @@ def _model_words(card: Card) -> str:
     return named or card.note or card.id
 
 
-def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
+def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple[Card, ...] = ()
+                      ) -> dict[str, str] | None:
     """Why Correct is off, in one line with what turning it on would cost, or None when it stays in (#5677): it stays
     when the person asked for it (ticked it, or said yes to the question) or when a corrector is already at hand."""
     from fichero_server.recipes.discovery import size_words
@@ -746,9 +747,15 @@ def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
         cost = f"turning it on runs {_model_words(card)} at {card.runs_on.split(':', 1)[-1]}"
     # Ruled Q3 (2026-10-17): a cloud corrector whose provider has a key set here is OFFERED at Ready with its cost,
     # never turned on by itself; with no key, no cloud is named.
-    keyed = [c for c in cards if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys]
+    def keyed(among: list[Card] | tuple[Card, ...]) -> list[Card]:
+        return [c for c in among if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys]
+
     allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
-    cloud = _choose(CORRECT, keyed, allowed).card if keyed else None
+    cloud = _choose(CORRECT, keyed(cards), allowed).card if keyed(cards) else None
+    unlisted = None
+    if cloud is None and keyed(offered):  # the person's own cloud models list no languages: the cheapest, said so
+        cloud = min(keyed(offered), key=lambda c: c.cost_per_page)
+        unlisted = f"{cloud.note or cloud.id} does not list {', '.join(sorted(a.languages))}: try it on a few pages first"
     offered = None
     if cloud is not None and cloud.cost_per_page:
         pages = max(a.pages, 1)
@@ -756,7 +763,8 @@ def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
         offered = {"card": cloud.id, "runs_on": provider, "pages": pages,
                    "cost_usd": round(cloud.cost_per_page * pages, 2)}
         cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} at about "
-                 f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
+                 f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}"
+                 + (f" ({unlisted})" if unlisted else ""))
     return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 
 
@@ -776,8 +784,9 @@ def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dic
     return jobs_in_order, sorted(taken_out, key=lambda t: STEP_ORDER.index(t["job"]))
 
 
-def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
-    """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. A job Start
+def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
+    """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. `offered`: cards a
+    step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). A job Start
     cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
     (`source.onboard.auto.every-proposed-step-runs`, #5574)."""
     from fichero_server.recipes.start import JOB_ANSWER_SETTINGS, by_hand, start_runs
@@ -807,7 +816,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     jobs_in_order, taken_out = _take_out(jobs_in_order, a)
     left_off: list[dict[str, str]] = []
     if CORRECT in jobs_in_order:
-        off = _correct_left_off(cards, a)
+        off = _correct_left_off(cards, a, offered)
         if off is not None:  # `source.onboard.correct-off-unless-a-corrector-is-here` (#5677)
             jobs_in_order.remove(CORRECT)
             left_off.append(off)

@@ -65993,6 +65993,50 @@
         "type": "object",
         "title": "HeuristicRequest"
       },
+      "HfSpend": {
+        "properties": {
+          "cap_usd": {
+            "type": "number",
+            "title": "Cap Usd",
+            "description": "the project's monthly cap (`answers.hf_spend_cap_usd`); $0 offers only"
+          },
+          "spent_at_most_usd": {
+            "type": "number",
+            "title": "Spent At Most Usd",
+            "description": "this calendar month's Jobs at their most: each one's hardware price an hour times its time limit"
+          },
+          "jobs": {
+            "type": "integer",
+            "title": "Jobs",
+            "description": "the Jobs sent to Hugging Face this month (training and reading at scale)"
+          },
+          "unpriced": {
+            "type": "integer",
+            "title": "Unpriced",
+            "description": "of them, the Jobs with no listed price: not counted in the spend, said so"
+          },
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "the month, YYYY-MM (UTC)"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cap_usd",
+          "spent_at_most_usd",
+          "jobs",
+          "unpriced",
+          "month",
+          "sentence"
+        ],
+        "title": "HfSpend",
+        "description": "This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."
+      },
       "HpcCheckResponse": {
         "properties": {
           "cluster_id": {
@@ -79735,6 +79779,10 @@
             "type": "object",
             "nullable": true,
             "title": "Actual"
+          },
+          "hf_spend": {
+            "$ref": "#/components/schemas/HfSpend",
+            "nullable": true
           }
         },
         "type": "object",
@@ -89442,6 +89490,11 @@
             "type": "array",
             "title": "Train Offers",
             "description": "for each step a model can be trained for, how to train it on the corrected pages and where; offered later, never run at Start (#5660 item 9)"
+          },
+          "hf_spend": {
+            "$ref": "#/components/schemas/HfSpend",
+            "nullable": true,
+            "description": "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"
           },
           "bakeoff_offer": {
             "$ref": "#/components/schemas/BakeoffOffer",
