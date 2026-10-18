@@ -324,6 +324,16 @@ def _parser_statement_cards() -> list[Card]:
             for c in seed_cards() if c.id.startswith("spacy:pkg/")]
 
 
+FRONTIER_PROVIDERS_FILE = Path(__file__).parent / "seed" / "frontier-cloud-providers.txt"
+
+
+@lru_cache(maxsize=1)
+def frontier_providers() -> frozenset[str]:
+    """The cloud provider types whose models count as multilingual (a default the owner can change)."""
+    lines = FRONTIER_PROVIDERS_FILE.read_text(encoding="utf-8").splitlines()
+    return frozenset(line.strip() for line in lines if line.strip() and not line.startswith("#"))
+
+
 def _cloud_text_cards() -> list[Card]:
     """The enabled models of the person's cloud provider rows, as cards for `TEXT_MODEL_JOBS`: they run through the
     provider settings already there, and the rules take one only where the project lets pages leave this Mac. With no
@@ -348,9 +358,11 @@ def _cloud_text_cards() -> list[Card]:
         for model in app_db.list_models(row.id):
             if not model.enabled or _is_embedder(model):
                 continue
+            frontier = ptype in frontier_providers()
             out.append(Card(
                 id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
-                jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+                jobs=TEXT_MODEL_JOBS | {"correct"} if frontier else TEXT_MODEL_JOBS, multilingual=frontier,
+                scripts=None, languages=None, material=frozenset(),
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
