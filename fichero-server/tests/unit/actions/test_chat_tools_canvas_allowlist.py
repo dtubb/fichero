@@ -2,7 +2,8 @@
 
 The five canvas.* audited actions should be agent-operable through the chat-tools
 write allowlist, the same way entity.create and claim.create already are. Today
-none of them is on CHAT_WRITE_ALLOWLIST, so this fails until #3093 lands.
+none of them is on CHAT_WRITE_ALLOWLIST: a strict xfail, so it turns red the day #3093 lands and the
+mark must come off.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ CANVAS_WRITE_ACTIONS = [
 ]
 
 
-@pytest.mark.research
+@pytest.mark.xfail(strict=True, reason="#3093: canvas actions are not on the chat write allowlist yet")
 @pytest.mark.parametrize("action", CANVAS_WRITE_ACTIONS)
 def test_canvas_write_action_is_on_chat_allowlist(action: str) -> None:
     assert action in CHAT_WRITE_ALLOWLIST
