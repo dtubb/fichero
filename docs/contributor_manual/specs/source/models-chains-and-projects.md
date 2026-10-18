@@ -4494,12 +4494,12 @@ Each is described in the paragraph named; the id lets a test cite it.
   corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
 - `source.find.htr-united-and-tessdata` — **[PARTIAL]** (#5571; built 2026-10-18, HTR-United half: `recipes/htr_united.py` reads the catalogue (`catalog.json`), keeps it in `discovery/`, and `matching` finds datasets by language, script and hand, most lines first, with licence, format and size; `search_online` fetches it when a day old and the finder counts the kept datasets for the project's languages; pinned by `fichero-server/tests/unit/recipes/test_htr_united_datasets_5571.py`. NOT built: offering a dataset as the bake-off's test set or as training data (the app and the import of its PAGE/ALTO), Tesseract's tessdata) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
   period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
-- `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
+- `source.train.on-the-persons-corrections` — **[OK]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
   model's lines, and the readiness count matches what it trains on. *Offer built (#5700, m-recipes-r3): the line reader's
   first way is "Fine-tune a Kraken reader on the lines you corrected" (teacher `person`, this Mac or Hugging Face Jobs),
   the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
   lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). The set's teacher `person` is built and pinned by
-  `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py`.*
+  `fichero-server/tests/unit/training/test_train_on_the_persons_corrections_5700.py`. The readiness count is the set's line count (`test_the_readiness_count_is_the_set_it_trains_on_5700`), and the trained reader's card says it was trained on the lines you corrected, never "none checked by a person" (`test_a_reader_taught_by_the_persons_corrections_says_so_on_its_card_5700`).*
 - `source.train.noise-band-per-project` — **[OK]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
   the best reader's pages, from 15 read pages up (`training.evaluation.noise_band`, `NOISE_MIN_PAGES`), the project keeps it (`recipe/noise-band.yaml`,

@@ -53,6 +53,23 @@ def counted(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
+def taught_by(teacher: str) -> str:
+    """Who taught a reader, in the card's words: a model by its name, the person as their corrections (#5700)."""
+    from fichero_server.training.kraken_set import PERSON
+
+    return "your corrections" if teacher == PERSON else teacher
+
+
+def lessons(teacher: str, ts: dict[str, Any]) -> str:
+    """What a reader learned from: the person's corrected lines, or a model's lines no person checked (#5700)."""
+    from fichero_server.training.kraken_set import PERSON
+
+    pages, lines = counted(ts["pages"], "page"), counted(ts["lines"], "line")
+    if teacher == PERSON:
+        return f"Trained on {pages} ({lines} you corrected)"
+    return f"Taught by {teacher} on {pages} ({lines}, none checked by a person)"
+
+
 def _card_of(request: _TrainRequest) -> str:
     return next(name for name, model in CARDS.items() if type(request) is model)
 
@@ -309,9 +326,8 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     out = target.fetch(job_id, work / "out")
     ts = detail["training_set"]
     card = {
-        "display_name": request.display_name or f"{request.name} (taught by {request.teacher})",
-        "summary": (f"Taught by {request.teacher} on {counted(ts['pages'], 'page')} ({counted(ts['lines'], 'line')}, "
-                    f"none checked by a person); {counted(len(request.held_out_ids), 'page')} held out as the test; "
+        "display_name": request.display_name or f"{request.name} (taught by {taught_by(request.teacher)})",
+        "summary": (f"{lessons(request.teacher, ts)}; {counted(len(request.held_out_ids), 'page')} held out as the test; "
                     f"{counted(ts.get('lines_left_out', 0), 'flagged line')} left out."),
         "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []),
         "target": place, "far_id": far_id, "flavor": flavor,
