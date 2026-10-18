@@ -62919,6 +62919,11 @@
             },
             "type": "array",
             "title": "Triangulated Facts"
+          },
+          "stale_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stale Reason"
           }
         },
         "type": "object",
