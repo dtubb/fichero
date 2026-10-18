@@ -8,10 +8,21 @@ signed in), register (the same program, once, after Allow). Nothing is on until 
 
 import os
 
+import pytest
+
 from tests.signed_in import new_key, signature_for, signed_in_client, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, harness  # noqa: F401
 
 BASE = "/api/auth/local-clients"
+
+
+@pytest.fixture(autouse=True)
+def _no_requests_left_over_from_another_test():
+    from fichero_server.api.routes.auth import accounts as routes
+
+    routes._client_requests.clear()
+    yield
+    routes._client_requests.clear()
 PEER = {"uid": os.getuid(), "pid": 4242, "token": "aa" * 32, "exe": "/usr/local/bin/fichero", "signer": "Fichero"}
 ASK = {"kind": "cli", "name": "fichero CLI", "host": "MacBook Pro"}
 
