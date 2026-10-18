@@ -37,6 +37,8 @@ class PromptBroker:
         self._lock = threading.Lock()
         self._ids = itertools.count(1)
         self._open: dict[str, dict] = {}
+        self._ended: dict[str, str] = {}  # id → "expired" | "refused": why a prompt is gone, for the person to be told
+        self.log: list[tuple[str, str]] = []  # (id, reason) in order, so a sign-in can tell what happened to it
 
     def ask(self, prompt: str, *, timeout: float = 300.0) -> str:
         done = threading.Event()
@@ -46,13 +48,25 @@ class PromptBroker:
             self._open[key] = entry
         try:
             if not done.wait(timeout):
+                self._end(key, "expired")
                 raise SecondFactorRefused("no answer to the sign-in prompt in time")
             if entry["answer"] is None:
+                self._end(key, "refused")
                 raise SecondFactorRefused("the sign-in prompt was refused")
             return entry["answer"]
         finally:
             with self._lock:
                 self._open.pop(key, None)
+
+    def _end(self, key: str, reason: str) -> None:
+        with self._lock:
+            self._ended[key] = reason
+            self.log.append((key, reason))
+
+    def ended(self, prompt_id: str) -> str | None:
+        """Why a prompt is gone (`expired` or `refused`), or None if it never existed or was answered."""
+        with self._lock:
+            return self._ended.get(prompt_id)
 
     def pending(self) -> list[dict]:
         with self._lock:

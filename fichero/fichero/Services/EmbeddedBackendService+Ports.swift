@@ -220,6 +220,10 @@ extension EmbeddedBackendService {
         if pid <= 0 { return false }
         return kill(pid, 0) == 0 || errno == EPERM
     }
+    #else
+    /// App Sandbox: no orphan sweep (see `resolvePortConflict`). Kept only so
+    /// that function's default argument compiles in the App Store build.
+    nonisolated static func awaitedOrphanSweep() async {}
     #endif  // !FICHERO_APP_STORE — end of the non-child process machinery
 
     /// Whether this build starts its engine ahead of the first window (#5228). Not the App Store
