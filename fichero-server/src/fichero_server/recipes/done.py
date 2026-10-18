@@ -201,6 +201,21 @@ def unread_on(db: Any, doc_id: str) -> int:
     return lines_state(db, doc_id)[1]
 
 
+NOT_ANSWERED = "no reader has answered for the line: the read step did not reach it, or ended before it did"
+
+
+def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
+    """Each found line with no reading and no 'looked, no writing' mark, with why it has none (#5758): the line
+    record carries every reason a reader gave; a line no reader answered for says so."""
+    from fichero_server.models import ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id}
+    return {x.id: NOT_ANSWERED for x in db.query(Segment, document_id=doc_id)
+            if x.kind == "line" and x.deleted_at is None and x.id not in read
+            and not isinstance((x.metadata or {}).get("read_no_writing"), dict)}
+
+
 def _has_page_reading(db: Any, doc_id: str, model: str | None) -> bool:
     """A transcription the model saved (a read that came back empty saves none)."""
     from fichero_server.models import Artifact
