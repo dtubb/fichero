@@ -100274,7 +100274,15 @@
       "ErrorDetail": {
         "properties": {
           "detail": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
             "title": "Detail"
           }
         },
@@ -100283,7 +100291,7 @@
           "detail"
         ],
         "title": "ErrorDetail",
-        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way."
+        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way.\n\nSome refusals carry a STRUCTURED detail instead of a sentence (a stale note's\n`current_body`, an ingest 403's `code`), so `detail` is a string or an object."
       },
       "EvaluationCandidate": {
         "properties": {

@@ -331,7 +331,7 @@ class WorkflowService {
         switch response {
         case .ok(let okResponse):
             return try convertToWorkflowResponse(okResponse.body.json)
-        case .undocumented(statusCode: 403, _):
+        case .forbidden:
             // Locked system preset: PUT is refused by design (#4514).
             throw WorkflowServiceError.readOnlyWorkflow
         default:
@@ -350,7 +350,7 @@ class WorkflowService {
         case .ok:
             logger.info("deleteWorkflow: success")
             return
-        case .undocumented(statusCode: 403, _):
+        case .forbidden:
             // Locked system preset: DELETE is refused by design (#4514).
             throw WorkflowServiceError.readOnlyWorkflow
         default:
@@ -387,7 +387,7 @@ class WorkflowService {
         case .ok(let okResponse):
             logger.info("renameWorkflow: success")
             return try convertToWorkflowResponse(okResponse.body.json)
-        case .undocumented(statusCode: 403, _):
+        case .forbidden:
             // Locked system preset: rename is refused by design (#4514).
             throw WorkflowServiceError.readOnlyWorkflow
         default:
@@ -418,7 +418,7 @@ class WorkflowService {
         switch response {
         case .ok(let okResponse):
             return try convertToWorkflowResponse(okResponse.body.json)
-        case .undocumented(statusCode: 403, _):
+        case .forbidden:
             // Locked system preset: PATCH is refused by design (#4514).
             throw WorkflowServiceError.readOnlyWorkflow
         default:

@@ -84,7 +84,7 @@ async def list_renditions(
     responses={
         200: {"content": {"image/*": {}}, "description": "The rendition's bytes"},
         404: {
-            "model": _RefusalBody, 
+            "model": _RefusalBody,
             "description": (
                 "No such document or rendition, the rendition belongs to a "
                 "different document, its bytes were never materialised, or its "

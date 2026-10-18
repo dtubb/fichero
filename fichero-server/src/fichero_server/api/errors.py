@@ -5,6 +5,8 @@ sentence a refusal sends. Declared once, on the app, so a new route is correct w
 """
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -21,9 +23,12 @@ class ErrorDetail(BaseModel):
 
     The 409 is declared for the same reason even though it works today: it works only
     because nothing declared it, which is the same accident facing the other way.
+
+    Some refusals carry a STRUCTURED detail instead of a sentence (a stale note's
+    `current_body`, an ingest 403's `code`), so `detail` is a string or an object.
     """
 
-    detail: str
+    detail: str | dict[str, Any]
 
 
 #: Applied as `FastAPI(responses=...)`. 422 is FastAPI's own validation error and is left alone; a route's own
