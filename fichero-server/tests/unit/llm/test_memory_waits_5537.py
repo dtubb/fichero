@@ -349,7 +349,7 @@ def test_peak_memory_reports_the_resident_set_and_swap_growth_not_only_the_footp
     for _ in range(3):
         peak.sample()
     peak.stop()  # swap is read at start and at stop only
-    assert peak.pressure() == {"engine_peak_rss_bytes": 7 * GB, "swap_growth_bytes": 2 * GB}
+    assert peak.pressure() == {"engine_peak_rss_since_start_bytes": 7 * GB, "swap_growth_bytes": 2 * GB}
     assert peak.record()["engine_peak_memory_bytes"] == 19 * GB, "the footprint stays, as a detail"
 
 
@@ -367,4 +367,4 @@ def test_the_default_readings_spawn_no_process(monkeypatch):
     assert throttle.peak_rss_bytes() > 0
     peak = PeakMemory(engine=lambda: None, servers=lambda: None)
     peak.sample()
-    assert peak.pressure()["engine_peak_rss_bytes"] > 0
+    assert peak.pressure()["engine_peak_rss_since_start_bytes"] > 0
