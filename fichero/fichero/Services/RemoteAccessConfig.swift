@@ -17,8 +17,23 @@ enum RemoteAccessConfig {
         defaults.bool(forKey: hostingEnabledKey)
     }
 
+    /// "This network": the stored choice, else (a setup made before the choice existed) on when it already
+    /// shares over a `.local` address, so an update never cuts off a paired phone; off on a fresh setup.
     static var bonjourEnabled: Bool {
-        defaults.bool(forKey: bonjourEnabledKey)
+        thisNetworkOn(
+            stored: defaults.object(forKey: bonjourEnabledKey) as? Bool,
+            hostingEnabled: hostingEnabled, publicHost: publicBaseURL?.host
+        )
+    }
+
+    static func thisNetworkOn(stored: Bool?, hostingEnabled: Bool, publicHost: String?) -> Bool {
+        stored ?? (hostingEnabled && publicHost?.hasSuffix(".local") == true)
+    }
+
+    /// Why a device paired over `.local` cannot connect, shown on the devices list while "This network" is off.
+    static func thisNetworkOffNote(thisNetwork: Bool, publicHost: String?) -> String? {
+        guard !thisNetwork, publicHost?.hasSuffix(".local") == true else { return nil }
+        return "This network is off, so devices paired over the local network can't connect. Turn it on to let them in."
     }
 
     /// The one extra `.local` listener exists only while "This network" is checked and the address is a `.local`
