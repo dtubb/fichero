@@ -1635,7 +1635,28 @@ def _as_started(db: Database, plan: dict[str, Any]) -> dict[str, Any]:
     return annotate(db, plan, within=within, redo=set(started["redo"]))  # its notes say what it redoes (#5689)
 
 
+_OFFER_SECONDS = 5.0
+_offers: dict[tuple, tuple[float, dict | None]] = {}
+
+
 def _bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
+    """`_compute_bakeoff_offer`, kept five seconds: it scans every pass of the project, and the Start sheet polls
+    the plan. ponytail: a timed keep, not a change token (none exists); a correction shows within five seconds."""
+    import json
+    import time
+
+    key = (id(db), json.dumps(setup["answers"], sort_keys=True, default=str), volume)
+    kept = _offers.get(key)
+    if kept and time.monotonic() - kept[0] < _OFFER_SECONDS:
+        return kept[1]
+    if len(_offers) > 32:
+        _offers.clear()
+    offer = _compute_bakeoff_offer(db, setup, volume)
+    _offers[key] = (time.monotonic(), offer)
+    return offer
+
+
+def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | None:
     """The comparison of readers, offered on the plan with its cost first (`reader-measured-before-bulk`): only for a
     recipe that has a reading step and answers; Start never runs it."""
     answers = setup["answers"]
