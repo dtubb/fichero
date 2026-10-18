@@ -92,7 +92,7 @@ class SecurityScopedAccessResponse(BaseModel):
     summary="Grant the running engine access to a security-scoped library folder",
     responses={
         400: {
-            "model": _RefusalBody, 
+            "model": _RefusalBody,
             "description": (
                 "The bookmark could not be turned into access — malformed, or "
                 "startAccessingSecurityScopedResource() refused. The engine cannot read this "
