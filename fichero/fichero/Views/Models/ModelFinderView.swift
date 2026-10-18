@@ -107,7 +107,21 @@ struct ModelFinderCard: View {
             if let why = Self.whyOffered(candidate) {
                 Text(why).font(.callout)
             }
-            if Self.cannotRunHere(candidate) {
+            if Self.needsPermission(candidate) {
+                Label(Self.permissionWords, systemImage: "lock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                // Beside a Set Up step the answer is one press away: the same fix as the toggle's.
+                if let step {
+                    Button("Allow Cloud Models") { Task { await step.setup.allowCloud() } }
+                        #if os(macOS)
+                        .buttonStyle(.link)
+                        #else
+                        .buttonStyle(.borderless)
+                        #endif
+                        .font(.caption)
+                }
+            } else if Self.cannotRunHere(candidate) {
                 // Why, once, in the engine's words ("Fichero cannot run it yet (…)"), with the one way on.
                 Label(candidate.availabilityWords, systemImage: "xmark.circle")
                     .font(.caption)
@@ -146,7 +160,7 @@ struct ModelFinderCard: View {
         .padding(8)
         .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
         // A model that won't fit is greyed out with its reason, never hidden (#5641).
-        .foregroundStyle(Self.wontFit(candidate, in: store.candidates) ? .secondary : .primary)
+        .foregroundStyle(Self.wontFit(candidate, in: store.candidates) || Self.needsPermission(candidate) ? .secondary : .primary)
     }
 
     /// Use <name> instead, beside a Set Up step only: the smaller build through the use-candidate route.
@@ -210,6 +224,13 @@ struct ModelFinderCard: View {
 
     /// Fichero cannot run it yet (`availability` not_here: Apple Intelligence missing from this build, a cloud
     /// model with no provider set up): no Download, no Use for This Step (#5660 item 4).
+    /// A cloud reader the person has not yet allowed (`needs_permission`, #5768): shown greyed, never pressed.
+    static func needsPermission(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        candidate.needsPermission == true
+    }
+
+    static let permissionWords = "Needs permission: pages would leave this Mac."
+
     static func cannotRunHere(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
         candidate.availability == .notHere
     }
@@ -218,6 +239,7 @@ struct ModelFinderCard: View {
     /// pages stay here): nothing offers to use it, so a card never says "cannot" beside a button that does. A licence
     /// that is not open is the one refusal a press answers (choosing it accepts the licence, #5660 item 2).
     static func offersUse(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        guard !needsPermission(candidate) else { return false }
         guard !cannotRunHere(candidate), let refused = candidate.refused else { return !cannotRunHere(candidate) }
         return refused.contains("licence")
     }
@@ -225,6 +247,7 @@ struct ModelFinderCard: View {
     /// A refused card is not offered for download either, unless the engine says it runs elsewhere (a machine of the
     /// person's own), where the download is still the way to it.
     static func offersDownload(_ candidate: Components.Schemas.ModelCandidate) -> Bool {
+        guard !needsPermission(candidate) else { return false }
         offersUse(candidate) || candidate.availability == .elsewhere
     }
 
