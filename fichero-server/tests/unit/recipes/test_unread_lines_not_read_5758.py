@@ -68,7 +68,7 @@ def test_a_line_looked_at_with_no_writing_is_read_and_a_second_start_leaves_it(d
     assert is_done(db, card, page) is False
     unread = [s.id for s in db.query(Segment, document_id=page) if s.kind == "line"
               and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page))]
-    mark_no_writing(db, unread)
+    mark_no_writing(db, unread, model="weak")
 
     assert is_done(db, card, page) is True
     assert run_view.lines_unread(db, [page]) == 0
@@ -105,3 +105,19 @@ def test_the_line_reader_names_the_lines_it_looked_at_and_found_blank(tmp_path, 
 
     assert out.metadata[NO_WRITING_KEY] == ["a"]
     assert [b.metadata["segment_id"] for b in out.boxes if b.text] == ["b"]
+
+
+def test_the_mark_is_a_versioned_audited_segment_update_keyed_by_the_model_that_looked(db):
+    from fichero_server.llm.working_lines import mark_no_writing
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import is_done
+
+    page = _page(db, 2, 1)
+    blank = next(s for s in db.query(Segment, document_id=page) if s.kind == "line"
+                 and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page)))
+    before = blank.version
+    mark_no_writing(db, [blank.id], model="weak")
+
+    assert db.get(Segment, blank.id).version == before + 1, "saved through segment.update: versioned"
+    assert is_done(db, {"job": "read-a-line", "model_override": "weak"}, page) is True
+    assert is_done(db, {"job": "read-a-line", "model_override": "better"}, page) is False, "a better reader looks again"

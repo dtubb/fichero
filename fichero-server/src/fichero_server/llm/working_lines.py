@@ -147,15 +147,22 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
     return made
 
 
-def mark_no_writing(db: Any, segment_ids: list[str]) -> None:
-    """Record 'looked, no writing' on each line: it counts as read, with no reading to show."""
+def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_id: str | None = None,
+                    library_path: str | None = None) -> None:
+    """Record 'looked, no writing' on each line, by the model that looked, through `segment.update` (versioned and
+    audited): the line counts as read for that reader and a different one looks again (#5758)."""
+    import fichero_server.api.routes.document.segments  # noqa: F401  (segment.update)
+    from fichero_server.actions.registry import ActionContext, registry
     from fichero_server.models.segments import Segment
 
+    ctx = ActionContext(actor="system", run_id=run_id, library_path=library_path, is_bootstrap=True)
     for segment_id in segment_ids:
         segment = db.get(Segment, segment_id)
-        if segment is not None and not (segment.metadata or {}).get(NO_WRITING_MARK):
-            segment.metadata = {**(segment.metadata or {}), NO_WRITING_MARK: True}
-            db.save(segment)
+        if segment is None or segment.deleted_at is not None or (segment.metadata or {}).get(NO_WRITING_MARK) == {
+                "model": model or ""}:
+            continue
+        registry.invoke(db, "segment.update", {"segment_id": segment_id, "expected_version": segment.version,
+                                                "no_writing_model": model or ""}, ctx)
 
 
 #: What a correcting step's per-page result says when its text cannot be put onto the page's lines.
