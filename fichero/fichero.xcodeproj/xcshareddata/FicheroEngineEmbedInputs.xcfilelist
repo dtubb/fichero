@@ -256,6 +256,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/cancellation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/chaining.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/ghg.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
+$(SRCROOT)/../fichero-server/src/fichero_server/execution/run_log.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
 $(SRCROOT)/../fichero-server/src/fichero_server/export_service.py
@@ -684,6 +685,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/registry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/registry_builtins.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/remote_jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/resolver.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/resume_snapshot.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_account.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_comparison.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_log_tidy.py

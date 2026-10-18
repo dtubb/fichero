@@ -277,13 +277,13 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     if counts["failed"]:
         words += f"; {counts['failed']} shards failed (re-send them)"
     elif hasattr(target, "remove"):  # a cluster; Hugging Face keeps nothing of a finished Job
-        words += _copies_left(db, target, job_id)
+        words += copies_left(db, target, job_id)
     detail.pop("catch_up", None)  # a request made as the run ended has nothing left to hurry
     _save(db, job_id, detail, reason=words, keep_catch_up=False)
     return counts
 
 
-def _copies_left(db: Any, target: Any, job_id: str) -> str:
+def copies_left(db: Any, target: Any, job_id: str) -> str:
     """`source.onboard.copies-may-stay-on-cluster`: the run's working copies stay for re-runs only when the project
     said so; otherwise they leave once every shard has landed (with failed shards they wait for the re-send)."""
     from fichero_server.recipes.answers import copies_may_stay

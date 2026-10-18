@@ -13254,6 +13254,22 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("htr-united-datasets")
+    def recipes_htr_united_datasets_get(
+        ctx: typer.Context,
+        languages: str = typer.Option(..., '--languages', help='Languages.'),
+        scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
+    ) -> None:
+        """Htr United Datasets (GET /api/recipes/htr-united)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/htr-united"
+            params = {
+                "languages": languages,
+                "scripts": scripts,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-jobs")
     def recipes_list_jobs_get(
         ctx: typer.Context,
@@ -17281,6 +17297,7 @@ def register_generated_openapi_commands(
         pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to Hugging Face. Default: false."),
         release_note: Optional[str] = typer.Option(None, '--release-note', help='Release Note.'),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        target: Optional[str] = typer.Option(None, '--target', help='Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there). Default: "huggingface-jobs".'),
         teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.'),
         timeout: Optional[str] = typer.Option(None, '--timeout', help='The Job\'s time limit; always sent (the service\'s default is 30 minutes). Default: "4h".'),
     ) -> None:
@@ -17299,6 +17316,7 @@ def register_generated_openapi_commands(
                 "pages_may_leave": pages_may_leave,
                 "release_note": release_note,
                 "scope_ids": scope_ids,
+                "target": target,
                 "teacher": teacher,
                 "timeout": timeout,
             }, {
@@ -17312,6 +17330,7 @@ def register_generated_openapi_commands(
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
                 "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines are the lessons.', 'x-cli-required': True},
+                "target": {'type': 'string', 'title': 'Target', 'description': 'Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there).', 'default': 'huggingface-jobs', 'x-cli-required': False},
                 "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},
                 "timeout": {'type': 'string', 'title': 'Timeout', 'description': "The Job's time limit; always sent (the service's default is 30 minutes).", 'default': '4h', 'x-cli-required': False},
             }, required=True)
