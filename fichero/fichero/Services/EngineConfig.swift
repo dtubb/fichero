@@ -414,7 +414,7 @@ extension EngineConfig {
 struct LibraryLocationDescriptor: Equatable {
     /// True when the engine runs on the same machine as the app.
     let isLocal: Bool
-    /// Short human label, e.g. "On this Mac" or "On studio.local".
+    /// Short human label, e.g. "On this Mac" or "Shared from studio.local".
     let label: String
     /// SF Symbol for the badge.
     let systemImage: String
@@ -448,8 +448,9 @@ struct LibraryLocationDescriptor: Equatable {
         let hostName = host.url.host ?? host.url.absoluteString
         return LibraryLocationDescriptor(
             isLocal: false,
-            label: "On \(hostName)",
-            systemImage: "network"
+            // A shared project: a small mark on its row, the host named in the Inspector (sharing.sidebar.guest-row).
+            label: "Shared from \(hostName)",
+            systemImage: "person.2"
         )
     }
 }
