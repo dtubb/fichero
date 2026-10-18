@@ -249,34 +249,80 @@ def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str
     return train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
 
 
-def _start(db: Any, action: str, params: dict[str, Any]) -> Any:
+def _start(db: Any, action: str, params: dict[str, Any]) -> str:
+    """Start `action` as the recipe; its job's id."""
     from pathlib import Path
 
     import fichero_server.api.routes.training  # noqa: F401  (registers the training actions)
     from fichero_server.actions.registry import ActionContext, registry
 
     ctx = ActionContext(actor="recipe", library_path=str(Path(db.path).parent), is_bootstrap=True)
-    return registry.invoke(db, action, params, ctx)
+    return registry.invoke(db, action, params, ctx).result["job_id"]
+
+
+def _corrected_lines(db: Any) -> int:
+    """The corrected lines the offers count (the bake-off's one rule)."""
+    from fichero_server.recipes.bakeoff import ground_truth
+
+    pages, _ = ground_truth(db, None)
+    return sum(p["lines"] for p in pages)
+
+
+def _newest_here_job(db: Any) -> dict[str, Any] | None:
+    from fichero_server.execution import jobs
+
+    jobs._ensure(db)
+    row = db.execute_fetchone(f"SELECT id FROM jobs WHERE kind IN ({', '.join('?' for _ in _HERE_KINDS)}) "
+                              "ORDER BY created_at DESC LIMIT 1", list(_HERE_KINDS))
+    return jobs.read_job(db, row[0]) if row else None
+
+
+def held_after_failure(db: Any) -> str | None:
+    """Why training does not start again by itself, or None: the newest training on this Mac failed or was stopped,
+    and there are no more corrected lines than it was started on. It starts again on more corrections, or when the
+    person starts it."""
+    import json
+
+    job = _newest_here_job(db)
+    if job is None or job["state"] not in ("failed", "cancelled"):
+        return None
+    then = json.loads(job.get("detail") or "{}").get("started_at_lines")
+    now = _corrected_lines(db)
+    if then is not None and now > then:
+        return None
+    ended = "failed" if job["state"] == "failed" else "was stopped"
+    return (f"Training on this Mac {ended} ({job.get('reason') or 'no reason given'}) on {then or now:,} corrected "
+            "lines; it starts again by itself when there are more, or when you start it.")
 
 
 def start_when_ready(db: Any, *, mac_memory_gb: float | None = None) -> list[str]:
     """Start each training due under `here` (#5440), unless training has already started on this Mac (a job
-    waiting, running, paused or done). Returns the actions started. A refusal (nothing to train on) is logged, never
-    fails the step that asked.
+    waiting, running, paused or done) or the last one failed and nothing new has come since (`held_after_failure`).
+    Each start records the corrected lines it began on. Returns the actions started. A refusal (nothing to train
+    on) is logged, never fails the step that asked.
     ponytail: once per project; training again on later corrections waits for the evaluation that adopts (#5441)."""
+    import json
     import logging
 
     from fichero_server.execution import jobs
 
-    jobs._ensure(db)
-    if db.execute_fetchone(f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in _HERE_KINDS)}) "
-                           "AND state NOT IN ('failed', 'cancelled') LIMIT 1", list(_HERE_KINDS)):
+    log = logging.getLogger(__name__)
+    newest = _newest_here_job(db)
+    if newest is not None and newest["state"] not in ("failed", "cancelled"):
+        return []
+    held = held_after_failure(db)
+    if held:
+        log.info("training not started by itself: %s", held)
         return []
     started = []
     for action, params in due_starts(_offers_now(db, mac_memory_gb=mac_memory_gb)):
         try:
-            _start(db, action, params)
-            started.append(action)
+            job_id = _start(db, action, params)
         except Exception as exc:  # noqa: BLE001 -- training not starting never fails the recipe step
-            logging.getLogger(__name__).warning("training did not start by itself (%s): %s", action, exc)
+            log.warning("training did not start by itself (%s): %s", action, exc)
+            continue
+        job = jobs.read_job(db, job_id) or {}
+        detail = {**json.loads(job.get("detail") or "{}"), "started_at_lines": _corrected_lines(db)}
+        jobs.save_detail(db, job_id, json.dumps(detail))
+        started.append(action)
     return started
