@@ -1,7 +1,9 @@
-"""The one body every refusal sends, and the statuses every operation declares it for (#5094).
+"""The body a refusal sends (#5094).
 
 `engine.error-detail-reaches-the-caller`: an undeclared status leaves the generated client unable to decode the
-sentence a refusal sends. Declared once, on the app, so a new route is correct without remembering to.
+sentence a refusal sends. The app-wide declaration of these statuses was withdrawn (review 112): it made every
+operation's 400/403/404/409 a typed case, which broke the Swift branches that read those statuses through
+`.undocumented(...)`. Declare `responses={400: {"model": ErrorDetail}, ...}` per route where a client reads the body.
 """
 from __future__ import annotations
 
@@ -29,16 +31,3 @@ class ErrorDetail(BaseModel):
     """
 
     detail: str | dict[str, Any]
-
-
-#: Applied as `FastAPI(responses=...)`. 422 is FastAPI's own validation error and is left alone; a route's own
-#: `responses=` entry wins over these.
-REFUSAL_RESPONSES: dict[int | str, dict] = {
-    status: {"model": ErrorDetail, "description": description}
-    for status, description in (
-        (400, "The request was refused; `detail` says why."),
-        (403, "Not permitted; `detail` says why."),
-        (404, "Not found; `detail` says what."),
-        (409, "Conflicts with the current state; `detail` says how."),
-    )
-}

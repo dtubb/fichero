@@ -264,8 +264,7 @@ final class NoteService {
             path: .init(noteId: noteId),
             body: .json(.init(body: body, expectedUpdatedAt: expectedUpdatedAt))
         ))
-        // The engine's 409 carries {reason: "stale", current_body, ...} (#5094); the Compare reads the note fresh, so the case is enough.
-        if case .conflict = response { throw NoteServiceError.stale }
+        if case .undocumented(statusCode: 409, _) = response { throw NoteServiceError.stale }
         guard case .ok(let okResponse) = response else { throw NoteServiceError.unexpectedResponse }
         let updated = try note(from: try okResponse.body.json)
         if let idx = notes.firstIndex(where: { $0.id == noteId }) {

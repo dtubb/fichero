@@ -27,6 +27,10 @@ def test_one_shared_error_body_class():
     assert imported is ErrorDetail
 
 
+# The app-wide declaration is WITHDRAWN (review 112): it made every 400/403/404/409 a typed case and broke the Swift
+# branches that read those statuses through `.undocumented(...)`. Declaring per route where a client reads the body
+# is the way forward; these two assert the withdrawn default and are strict xfails until a route-level pass lands.
+@pytest.mark.xfail(strict=True, reason="#5094 review 112: app-wide refusal declaration withdrawn; per-route instead")
 def test_the_default_is_the_shared_body():
     """Most operations carry ErrorDetail; only a route that names its own model differs."""
     ops = list(_operations())
@@ -37,6 +41,7 @@ def test_the_default_is_the_shared_body():
     assert shared > len(ops) * 0.9
 
 
+@pytest.mark.xfail(strict=True, reason="#5094 review 112: app-wide refusal declaration withdrawn; per-route instead")
 @pytest.mark.parametrize("status", REFUSALS)
 def test_every_operation_declares_a_body_for_the_refusal(status):
     bad = []

@@ -42,7 +42,7 @@ extension ChainService {
             throw ChainServiceError.validationError(
                 (try? error.body.json)?.detail?.description ?? "Validation error"
             )
-        case .notFound:
+        case .undocumented(statusCode: 404, _):
             throw ChainServiceError.stepExecutionUnavailable
         default:
             throw ChainServiceError.unexpectedResponse
