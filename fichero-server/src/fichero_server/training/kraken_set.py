@@ -38,6 +38,11 @@ MANIFEST = "manifest.json"
 FORMAT = "fichero-kraken-training-set-v1"
 #: Why a line is left out of a set, in the order they are tested (`compute.tune.set-excludes-flagged-lines`).
 FLAGS = ("empty", "null", "rejected")
+#: The one flag a person's set adds (`PERSON`): a line whose counting reading no person made.
+PERSON_FLAGS = (*FLAGS, "not_by_a_person")
+#: The teacher that means "the person": the lessons are the lines whose counting reading a person made (a correction,
+#: `source.reading.correct-a-line`), not a model's readings (#5700). Any other value is a model id.
+PERSON = "person"
 
 
 @dataclass
@@ -67,7 +72,10 @@ class TrainingSet:
 
     def left_out(self) -> dict[str, int]:
         counts = Counter(line["flag"] for line in self.left_out_lines)
-        return {flag: counts[flag] for flag in FLAGS}
+        return {flag: counts[flag] for flag in self.flags()}
+
+    def flags(self) -> tuple[str, ...]:
+        return PERSON_FLAGS if self.teacher == PERSON else FLAGS
 
     def summary(self) -> dict[str, Any]:
         """The set in numbers, without its page list: what a job's card and a preview carry."""
@@ -94,15 +102,16 @@ class TrainingSet:
             "held_out": self.held_out,
             "missing": self.missing,
             "lines": self.lines,
-            # Every line here was read by the teacher, none checked by a person.
-            "lines_read_by_a_model": self.lines,
-            "lines_checked_by_a_person": 0,
+            # A model's teacher set: every line was read by the teacher, none checked by a person. The person's
+            # set (`PERSON`): every line is one a person made.
+            "lines_read_by_a_model": 0 if self.teacher == PERSON else self.lines,
+            "lines_checked_by_a_person": self.lines if self.teacher == PERSON else 0,
             "lines_left_out": len(self.left_out_lines),
             "left_out": self.left_out(),
             "left_out_lines": self.left_out_lines,
             "lines_with_a_verdict": self.lines_with_a_verdict,
             "check_ran": self.lines_with_a_verdict > 0,
-            "flags_checked": list(FLAGS),
+            "flags_checked": list(self.flags()),
         }
 
 
@@ -154,6 +163,38 @@ def teacher_pass(db: Any, document_id: str, teacher: str) -> Any | None:
     return max((passes[pid] for pid in chosen), key=lambda p: p.created_at, default=None)
 
 
+def lines_not_by_a_person(db: Any, pass_row: Any) -> set[str]:
+    """The PAGE ids of the pass's lines whose counting transcription a person did not make. A pass a person made or
+    vouched for (`made_by_a_person`) is all theirs. One batched lookup for the whole pass (`counting_readings`), not a
+    query per line."""
+    from fichero_server.api.routes.document.segment_readings import counting_readings
+    from fichero_server.formats.harness import xml_id
+    from fichero_server.models import Segment
+    from fichero_server.models.segments import made_by_a_person
+
+    if made_by_a_person(pass_row):
+        return set()
+    lines = [s for s in db.query(Segment, pass_id=pass_row.id) if s.kind == "line" and not s.deleted_at]
+    counted = counting_readings(db, lines)
+    return {xml_id(line.id) for line in lines
+            if (reading := counted.get(line.id)) is None or reading.provenance_kind.value != "human"}
+
+
+def person_pass(db: Any, document_id: str) -> tuple[Any, set[str]] | None:
+    """The newest live line pass on the page with at least one line a person made, and the PAGE ids of its lines a
+    person did not make; None when no pass has one. Each pass is looked at once."""
+    from fichero_server.models import Segment
+    from fichero_server.models.segments import SegmentPass
+
+    for candidate in sorted((p for p in db.query(SegmentPass, document_id=document_id) if not p.deleted_at),
+                            key=lambda p: p.created_at, reverse=True):
+        total = sum(1 for s in db.query(Segment, pass_id=candidate.id) if s.kind == "line" and not s.deleted_at)
+        others = lines_not_by_a_person(db, candidate)
+        if total and len(others) < total:
+            return candidate, others
+    return None
+
+
 def read_lines(page_xml: str) -> int:
     """TextLines with a baseline and some text: what `ketos train -f page` can learn from."""
     # Imported here: the training route imports this module at app start, and the format modules and
@@ -171,14 +212,16 @@ def read_lines(page_xml: str) -> int:
     return count
 
 
-def line_flag(text: str, rejected: bool) -> str | None:
+def line_flag(text: str, rejected: bool, not_by_a_person: bool = False) -> str | None:
     """Why this line stays out of a training set, or None when it may teach."""
     words = text.strip()
     if not words:
         return "empty"
     if words.casefold() == "null":
         return "null"
-    return "rejected" if rejected else None
+    if rejected:
+        return "rejected"
+    return "not_by_a_person" if not_by_a_person else None
 
 
 def newest_reading_verdicts(db: Any) -> dict[str, Any]:
@@ -213,7 +256,7 @@ def lines_of_pass(db: Any, pass_id: str, verdicts: dict[str, Any]) -> tuple[dict
     return segments, rejected, with_verdict
 
 
-def drop_flagged_lines(page_xml: str, rejected: set[str]) -> tuple[str, list[tuple[str, str]]]:
+def drop_flagged_lines(page_xml: str, rejected: set[str], not_by_a_person: set[str] = frozenset()) -> tuple[str, list[tuple[str, str]]]:
     """The PAGE file without its flagged TextLines, and (PAGE id, flag) for each line taken out. A file
     with nothing flagged comes back exactly as it was.
 
@@ -235,7 +278,7 @@ def drop_flagged_lines(page_xml: str, rejected: set[str]) -> tuple[str, list[tup
     for line in list(root.iter(f"{ns}TextLine")):
         line_id = line.get("id") or ""
         text = "".join(u.text or "" for u in line.iter(f"{ns}Unicode"))
-        flag = line_flag(text, line_id in rejected)
+        flag = line_flag(text, line_id in rejected, line_id in not_by_a_person)
         if flag:
             line.getparent().remove(line)
             dropped.append((line_id, flag))
@@ -263,10 +306,16 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
         if page.id in held:
             result.held_out.append({"document_id": page.id, "name": page.name})
             continue
-        chosen = teacher_pass(db, page.id, teacher)
+        not_person: set[str] = set()
+        if teacher == PERSON:
+            found = person_pass(db, page.id)
+            chosen, not_person = found if found else (None, set())
+        else:
+            chosen = teacher_pass(db, page.id, teacher)
         if chosen is None:
             result.missing.append({"document_id": page.id, "name": page.name,
-                                   "why": f"no pass read by {teacher}"})
+                                   "why": "no line corrected by a person" if teacher == PERSON
+                                   else f"no pass read by {teacher}"})
             continue
         try:
             exported = export_page(db, page.id, "pagexml", pass_id=chosen.id, reading_level="as_written")
@@ -275,7 +324,7 @@ def build_training_set(db: Any, *, scope_ids: list[str], teacher: str, held_out_
             continue
         segments, rejected, with_verdict = lines_of_pass(db, chosen.id, verdicts)
         result.lines_with_a_verdict += with_verdict
-        content, dropped = drop_flagged_lines(exported.data.decode("utf-8"), rejected)
+        content, dropped = drop_flagged_lines(exported.data.decode("utf-8"), rejected, not_person)
         result.left_out_lines.extend({"document_id": page.id, "segment_id": segments.get(line_id, line_id),
                                       "flag": flag} for line_id, flag in dropped)
         lines = read_lines(content)

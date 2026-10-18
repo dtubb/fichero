@@ -161,6 +161,10 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
 - `openapi.mcp.attaches-never-starts` — **[BROKEN]** (#5512) the launcher attaches to the running app engine over its Unix socket (or TLS :8765) and never starts a second engine; with none running it says so in words. *Test:* `fichero-mcp/tests/test_launcher_attaches.py`.
 - `openapi.mcp.live-round-trip` — **[GAP]** (#4465) a gate-run test starts `fichero-mcp` over stdio against a seeded engine and gets `tools/list` and one `fichero_health` call back. Extends `harness.cli-mcp-live-verified`.
 
+- `openapi.mcp.installed-from-the-app` **[PARTIAL]** (#509) Fichero › Install Command-Line & MCP Tools… writes `~/.local/bin/fichero-mcp`, a two-line script that execs the signed bundled engine binary with `FICHERO_RUN_MODULE=fichero_mcp.server`, and shows the Claude Code, Claude Desktop and Codex registration snippets. Built; no test pins the script text yet (`InstallToolsWindowTests`: the script names the module and the launcher path).
+- `openapi.mcp.attaches-never-starts` **[OK]** (#5512; `fichero-mcp/tests/test_launcher_attaches.py`) the launcher attaches to the running app engine over its Unix socket (or TLS :8765) and never starts a second engine; with none running it says so in words. *Test:* `fichero-mcp/tests/test_launcher_attaches.py`.
+- `openapi.mcp.live-round-trip` **[OK]** (#4465; `fichero-server/tests/integration/test_mcp_live_round_trip.py`) a gate-run test starts `fichero-mcp` over stdio against a seeded engine and gets `tools/list` and one `fichero_health` call back. Extends `harness.cli-mcp-live-verified`.
+
 ### B. CLI (already generated)
 
 - `openapi.cli.one-command-per-operation` **[OK]** `generate_openapi_cli.py` writes one command per
@@ -239,7 +243,7 @@ a person would see. This is the only way to drive iPhone and iPad from outside.
   own window on the Mac. Pinned by `UIVerbsTests` (a test window's PNG at its pixel size; a pane's
   crop is that pane's pixels; a pane not shown is refused, naming those shown). Still partial: the
   live panes' recorded frames are not yet checked in the running app.
-- `openapi.ui.agents-connect-as-accounts` **[GAP]** (#5453) with Multi-user on, an agent connects to
+- `openapi.ui.agents-connect-as-accounts` **[GAP]** (#5453; the owner adds the agent account in Settings › Sharing › Accounts, and `fichero auth login agent` keeps its session per engine, `sharing.cli-session-per-engine`) with Multi-user on, an agent connects to
   the engine as its own account, which the owner adds in Settings' accounts list like a person's;
   its MCP writes are audited under that account and its device. No new switch: sharing and
   Multi-user stay the only two. With Multi-user off the MCP acts as the owner, labelled

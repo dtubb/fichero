@@ -1271,11 +1271,18 @@ async def save_project_setup(
     (`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`
     and `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,
     or refused), and one direction per script. Refused with 422 when either holds code or
-    credentials, or an answer Fichero does not know."""
+    credentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet
+    also store the recipe the rules assemble from them (#5747); a recipe already stored is kept."""
     try:
         params = request.model_dump(mode="json", exclude_unset=True)
         if "answers" in params:
             params["answers"] = normalise_answers(params["answers"], strict=True)
+            if params["answers"] and "recipe" not in params:
+                # Answers alone to a project with no recipe yet: Start needs one, so the rules assemble it (#5747).
+                # A recipe already stored is kept: the person's own choices of model stay.
+                library = _library(db)
+                if read_project_setup(library).get("recipe") is None:
+                    params["recipe"] = _assemble(params["answers"], library)
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

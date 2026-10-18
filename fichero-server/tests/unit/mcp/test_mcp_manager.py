@@ -370,7 +370,9 @@ class TestMCPManager:
                 # Verify load_mcp_tools called correctly
                 mock_load.assert_called_once()
                 call_kwargs = mock_load.call_args[1]
-                assert call_kwargs["session"] == mock_session
+                # The CONNECTION is handed over, not an open session: each tool opens its own when called (#5760).
+                assert mock_load.call_args[0][0] is None
+                assert call_kwargs["connection"]["transport"] == "stdio"
                 assert call_kwargs["server_name"] == "test-server"
                 assert call_kwargs["tool_name_prefix"] is True
 
@@ -478,7 +480,7 @@ class TestMCPManager:
         async def mock_create_session(connection):
             yield mock_session
 
-        async def mock_load_mcp_tools(session, server_name, tool_name_prefix):
+        async def mock_load_mcp_tools(session, *, connection=None, server_name=None, tool_name_prefix=False):
             if server_name == "server1":
                 return tools1
             elif server_name == "server2":
@@ -512,7 +514,7 @@ class TestMCPManager:
         async def mock_create_session(connection):
             yield mock_session
 
-        async def mock_load_mcp_tools(session, server_name, tool_name_prefix):
+        async def mock_load_mcp_tools(session, *, connection=None, server_name=None, tool_name_prefix=False):
             if server_name == "server1":
                 raise Exception("Server 1 failed")
             elif server_name == "server2":

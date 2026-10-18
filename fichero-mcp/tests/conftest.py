@@ -37,9 +37,7 @@ _CONNECTION_ENV_VARS = (
 def isolated_mcp_env(monkeypatch, tmp_path):
     """Clear connection env vars, redirect credential files, reset _CONFIG."""
     from fichero_cli import client as client_module
-    from fichero_mcp import full as mcp_full
     from fichero_mcp import server as mcp_server
-    from fichero_mcp import simple as mcp_simple
 
     for name in _CONNECTION_ENV_VARS:
         monkeypatch.delenv(name, raising=False)
@@ -63,7 +61,7 @@ def isolated_mcp_env(monkeypatch, tmp_path):
     )
     # _CONFIG is module-global and mutated by each surface's main(); restore it
     # so test order cannot leak a base URL from one module into another.
-    for module in (mcp_server, mcp_simple, mcp_full):
+    for module in (mcp_server,):
         monkeypatch.setitem(module._CONFIG, "base_url", None)
         monkeypatch.setitem(module._CONFIG, "library_path", None)
     return token_path

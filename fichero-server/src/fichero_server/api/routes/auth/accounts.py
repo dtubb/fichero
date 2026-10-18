@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from fichero_server.security import accounts
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
+from fichero_server.models import _new_id as new_id
 from fichero_server.models import AccountInvite, AccountUser, ActionAudit, AuthIdentityResponse, AuthIdentityUser
 
 logger = logging.getLogger(__name__)
@@ -340,6 +341,36 @@ def _require_owner_or_bootstrap(request: Request) -> None:
     raise HTTPException(status_code=403, detail="owner access required")
 
 
+def _audit(
+    request: Request,
+    app_db: AppDatabase,
+    name: str,
+    target_id: str,
+    **params: object,
+) -> None:
+    """Record who is changing an account, invite or session (#5765), chained, BEFORE the change.
+
+    Written first so a failed audit write stops the change: nothing goes unaudited (review 76). A change
+    that then fails leaves a row for the attempt. Never takes a password or token.
+    """
+    if getattr(request.state, "bootstrap_auth", False):
+        actor = "bootstrap"
+    else:
+        user = _current_session_user(request)
+        actor = f"user:{user.id}" if user is not None else "system"
+    device = getattr(request.state, "device", None)
+    app_db.save_chained_account_audit(
+        ActionAudit(
+            action_name=name,
+            actor=actor,
+            client=request.headers.get("x-fichero-client"),
+            device={"id": device.id, "name": getattr(device, "name", None)} if device is not None else None,
+            target_ids=[target_id],
+            params=params,
+        )
+    )
+
+
 def _require_authenticated_or_bootstrap(request: Request) -> None:
     if not _use_multiuser_auth():
         return
@@ -504,7 +535,10 @@ def create_invite(
         raise HTTPException(status_code=409, detail="pending invite already exists")
 
     raw_token = accounts.new_session_token()
+    invite_id = new_id()
+    _audit(request, app_db, "invite.create", invite_id, username=username, channel=body.channel)
     invite = app_db.create_invite(
+        id=invite_id,
         username=username,
         display_name=display_name,
         token_hash=accounts.hash_token(raw_token),
@@ -589,6 +623,7 @@ def revoke_invite(
     invite = app_db.get_invite(invite_id)
     if invite is None:
         raise HTTPException(status_code=404, detail="invite not found")
+    _audit(request, app_db, "invite.revoke", invite_id, username=invite.username)
     app_db.revoke_invite(invite_id)
     return StatusResponse(status="ok")
 
@@ -646,6 +681,7 @@ def revoke_session(
     ):
         raise HTTPException(status_code=403, detail="owner or matching session required")
 
+    _audit(request, app_db, "session.revoke", session_id, user_id=target.user_id)
     app_db.revoke_session_by_id(session_id)
     return StatusResponse(status="ok")
 
@@ -678,7 +714,10 @@ def create_user(
     if app_db.get_user_by_username(username) is not None:
         raise HTTPException(status_code=409, detail="username already exists")
 
+    user_id = new_id()
+    _audit(request, app_db, "user.create", user_id, username=username, is_owner=is_owner)
     user = app_db.create_user(
+        id=user_id,
         username=username,
         display_name=display_name,
         password_hash=accounts.hash_password(body.password),
@@ -715,25 +754,29 @@ def update_user(
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
 
+    display_name = None
+    if body.display_name is not None:
+        display_name = body.display_name.strip()
+        if not display_name:
+            raise HTTPException(status_code=422, detail="display_name is required")
+    if body.is_owner is False and user.is_owner and len([c for c in app_db.list_users() if c.is_owner]) == 1:
+        raise HTTPException(status_code=409, detail="cannot demote the last owner")
+
+    changed = sorted(k for k in body.model_fields_set if getattr(body, k) is not None)
+    _audit(request, app_db, "user.update", user_id, changed=changed,
+           **{k: getattr(body, k) for k in ("active", "is_owner", "display_name") if k in changed})
+
     if body.password is not None:
         app_db.set_password(user_id, accounts.hash_password(body.password))
         app_db.revoke_all_for_user(user_id)
-
     if body.active is not None:
         if not body.active:
             app_db.revoke_all_for_user(user_id)
             app_db.revoke_all_devices_for_user(user_id)
         app_db.set_active(user_id, body.active)
-
-    if body.display_name is not None:
-        display_name = body.display_name.strip()
-        if not display_name:
-            raise HTTPException(status_code=422, detail="display_name is required")
+    if display_name is not None:
         app_db.set_display_name(user_id, display_name)
-
     if body.is_owner is not None and body.is_owner != user.is_owner:
-        if not body.is_owner and len([candidate for candidate in app_db.list_users() if candidate.is_owner]) == 1:
-            raise HTTPException(status_code=409, detail="cannot demote the last owner")
         app_db.set_is_owner(user_id, body.is_owner)
 
     updated = app_db.get_user(user_id)
@@ -760,5 +803,6 @@ def delete_user(
         raise HTTPException(status_code=409, detail="cannot delete your own account")
     if user.is_owner and len([candidate for candidate in app_db.list_users() if candidate.is_owner]) == 1:
         raise HTTPException(status_code=409, detail="cannot delete the last owner")
+    _audit(request, app_db, "user.delete", user_id, username=user.username)
     app_db.delete_user(user_id)
     return StatusResponse(status="ok")
