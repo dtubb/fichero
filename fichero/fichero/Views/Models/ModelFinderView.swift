@@ -29,6 +29,9 @@ struct ModelFinderView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            ForEach(store.htrUnited.datasets, id: \.url) { dataset in
+                HtrUnitedDatasetRow(dataset: dataset)
+            }
             if let failure = store.searchFailure {
                 Label(failure, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -348,4 +351,25 @@ extension ModelFinderStore {
         .formStyle(.grouped)
     )
     .frame(width: 320, height: 200)
+}
+
+/// One HTR-United ground-truth dataset the engine kept for the project (#5571): what it may be used as, or the
+/// licence to accept first. Taking one into the project is not built (`source.find.htr-united-and-tessdata`).
+private struct HtrUnitedDatasetRow: View {
+    let dataset: Components.Schemas.HtrUnitedDataset
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(dataset.title).font(.callout)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var detail: String {
+        let uses = dataset._as.map { $0 == "test-set" ? "test set" : $0 }
+        let says = uses.isEmpty
+            ? "Accept \(dataset.accept ?? dataset.licence.name) to use it"
+            : "Can be used as " + uses.formatted(.list(type: .and))
+        return "HTR-United · \(says)"
+    }
 }
