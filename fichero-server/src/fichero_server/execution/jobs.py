@@ -761,6 +761,13 @@ def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
     return row[0] if row else None
 
 
+def newest_job_id_of_kinds(db: "Database", kinds: tuple[str, ...]) -> str | None:
+    """The newest job of any of these kinds, on any subject."""
+    row = db.execute_fetchone(f"SELECT id FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+                              "ORDER BY created_at DESC LIMIT 1", list(kinds))
+    return row[0] if row else None
+
+
 def end_cancelled(db: "Database", job_id: str, reason: str) -> None:
     """End a job whose work elsewhere was cancelled from here while nothing here was following it
     (an adopted job this engine could not reach, #5449): `cancelled`, with the reason."""
@@ -1554,7 +1561,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
         " AND cleared_at IS NULL ORDER BY finished_at DESC LIMIT ?)"
         ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
-        "CASE WHEN state = 'failed' THEN -epoch_ms(created_at) ELSE epoch_ms(created_at) END",  # finished: newest first
+        "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
     )
     out: list[dict[str, Any]] = []

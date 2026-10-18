@@ -311,9 +311,8 @@ def _newest_here_job(db: Any) -> dict[str, Any] | None:
     from fichero_server.execution import jobs
 
     jobs._ensure(db)
-    row = db.execute_fetchone(f"SELECT id FROM jobs WHERE kind IN ({', '.join('?' for _ in _HERE_KINDS)}) "
-                              "ORDER BY created_at DESC LIMIT 1", list(_HERE_KINDS))
-    return jobs.read_job(db, row[0]) if row else None
+    job_id = jobs.newest_job_id_of_kinds(db, _HERE_KINDS)
+    return jobs.read_job(db, job_id) if job_id else None
 
 
 def held_after_failure(db: Any) -> str | None:

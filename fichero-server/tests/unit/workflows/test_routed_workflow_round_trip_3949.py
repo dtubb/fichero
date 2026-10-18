@@ -7,6 +7,7 @@ Through the real store and a real temporary database.
 """
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -15,6 +16,13 @@ import pytest
 from fichero_server.db import Database
 from fichero_server.models import Workflow
 from fichero_server.workflows.workflow_store import WorkflowStore
+
+# scripts/ is not a package: load the repo's scan helper by path (see test_scan_files_skips_nested_worktrees).
+_SCAN = Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py"
+_spec = importlib.util.spec_from_file_location("_scan_files", _SCAN)
+assert _spec and _spec.loader
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
 
 _ROUTE_EDGE = {
     "id": "edge-route",
@@ -62,7 +70,7 @@ def test_a_routed_workflow_is_listed_without_a_validation_error(store):
 
 
 def test_the_shipped_auto_detect_default_round_trips(store):
-    preset = next(Path(__file__).resolve().parents[3].rglob("transcribe_auto_detect.json"))
+    preset = next(scan_files.scan_rglob(Path(__file__).resolve().parents[3], "transcribe_auto_detect.json"))
     data = json.loads(preset.read_text(encoding="utf-8"))
     workflow = Workflow(
         name=data["name"], format="nodes", nodes=data["nodes"], edges=data["edges"]
