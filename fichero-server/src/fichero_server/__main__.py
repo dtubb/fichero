@@ -73,7 +73,9 @@ def _this_network_on(app_db) -> bool:
     if app_db is None:
         return True
     try:
-        return app_db.has_lan_paired_device()
+        # The app sets FICHERO_LAN_HOST to the sharing address only for a .local one.
+        shares_over_local = (os.environ.get("FICHERO_LAN_HOST") or "").strip().lower().endswith(".local")
+        return app_db.has_lan_paired_device(legacy_is_lan=shares_over_local)
     except Exception:  # an unreadable device list must not silently drop an owner's paired phone
         logger.warning("Could not read paired devices for the .local listener; keeping it.", exc_info=True)
         return True

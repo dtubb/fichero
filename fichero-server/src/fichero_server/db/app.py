@@ -1891,13 +1891,12 @@ class AppDatabase:
             row = self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]).fetchone()
         return row[0] if row else None
 
-    def has_lan_paired_device(self) -> bool:
-        """A live device paired over .local or the LAN; one paired before the route was recorded counts as LAN
-        (the app only offers the .local address then), a tailnet-paired one never does."""
+    def has_lan_paired_device(self, legacy_is_lan: bool = True) -> bool:
+        """A live device paired over .local or the LAN. One paired before the route was recorded counts as LAN
+        only when `legacy_is_lan` (this Mac shares over .local); otherwise as Tailscale. A tailnet-paired never."""
+        routes = "paired_route = 'lan'" + (" OR paired_route IS NULL" if legacy_is_lan else "")
         with self._lock:
-            row = self.conn.execute(
-                "SELECT 1 FROM devices WHERE NOT revoked AND (paired_route IS NULL OR paired_route = 'lan') LIMIT 1"
-            ).fetchone()
+            row = self.conn.execute(f"SELECT 1 FROM devices WHERE NOT revoked AND ({routes}) LIMIT 1").fetchone()
         return row is not None
 
     def device_paired_by(self) -> dict[str, str]:
