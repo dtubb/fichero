@@ -182,7 +182,7 @@ Order: this spec → SPEC READY → review → red tests → code, **one slice a
 Rule of the order (review 94): add every way to sign in FIRST, remove the ambient owner LAST, so the app, Dev Local,
 the CLI and the MCP operator keep working after every slice.
 
-1. **Slice 1: tables + challenge**: `clients` + `credentials` tables, the challenge and sign-in routes, sessions carry `(person, client)`. Additive; nothing removed. Contract regen.
+1. **Slice 1: tables + challenge**: the `clients` table (the person-level `credentials` table arrives with the slice that registers person keys: slice 4 and 8), the challenge and sign-in routes, sessions carry `(person, client)`. Additive; nothing removed. Contract regen.
 2. **Slice 2: audit columns**: person AND client on audit rows, change events, background jobs, Activity.
 3. **Slice 3: test-fixture migration**: the `signed_in_client` helper; every existing test moves to it and the new guard `check_no_ambient_owner_in_tests` lands in warn mode.
 4. **Slice 4: App sign-in**: first-run route (UDS + launch secret), the Keychain owner key, silent sign-in, the launch-secret pipe in the embedded, Dev Local and test engines.
