@@ -212,6 +212,33 @@ def get_mcp_tools_by_server(server_name: str) -> list[str]:
     return [name for name in TOOL_DEFS.keys() if TOOL_DEFS[name].category == category]
 
 
+async def sync_mcp_tools_from_db(app_db: Any = None) -> int:
+    """Make the manager and the workflow registry match the saved, enabled servers (#5760).
+
+    Run by the engine at start and after every save or delete of a server, so a person never presses a
+    button to get the tools back after a restart. A server no longer saved (or no longer enabled) leaves
+    the manager first, so its tools leave the registry with it.
+    """
+    from fichero_server.db.app import get_app_db
+    from fichero_server.mcp.manager import MCPServerConfig
+
+    app_db = app_db or get_app_db()
+    manager = get_mcp_manager()
+    wanted = {server.name: server for server in app_db.query_mcp_servers(enabled=True)}
+    for config in list(manager.list_servers()):
+        if config.name not in wanted:
+            manager.remove_server(config.name)
+    for server in wanted.values():
+        manager.add_server(
+            MCPServerConfig(
+                name=server.name, transport=server.transport, command=server.command, args=server.args,
+                env=server.env, url=server.url, headers=server.headers,
+                tool_name_prefix=server.tool_name_prefix, enabled=server.enabled,
+            )
+        )
+    return await reload_mcp_tools()
+
+
 async def reload_mcp_tools() -> int:
     """Reload MCP tools from all servers.
 

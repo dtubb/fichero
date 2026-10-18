@@ -178,6 +178,16 @@ def _server_to_config(server: MCPServer) -> "MCPServerConfig":
     )
 
 
+async def _resync_registry() -> None:
+    """The workflow registry follows the saved servers (#5760). A server that will not start is logged, not fatal."""
+    try:
+        from fichero_server.workflows.tools.mcp import sync_mcp_tools_from_db
+
+        await sync_mcp_tools_from_db(get_app_db())
+    except Exception as exc:
+        logger.warning("MCP tools could not be reloaded after a server change: %r", exc)
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
@@ -374,6 +384,7 @@ async def create_mcp_server(
         config = _server_to_config(server)
         manager.add_server(config)
 
+        await _resync_registry()
         logger.info(f"Created MCP server: {server.name}")
         return _server_to_response(server)
 
@@ -431,6 +442,7 @@ async def update_mcp_server(
         config = _server_to_config(server)
         manager.add_server(config)
 
+        await _resync_registry()
         logger.info(f"Updated MCP server: {server.name}")
         return _server_to_response(server)
 
@@ -466,6 +478,7 @@ async def delete_mcp_server(
         manager = get_mcp_manager()
         manager.remove_server(server_name)
 
+        await _resync_registry()
         logger.info(f"Deleted MCP server: {server_name}")
         return MCPServerDeletedResponse(message=f"Server '{server_name}' deleted successfully")
 
