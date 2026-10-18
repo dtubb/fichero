@@ -31,6 +31,11 @@ extension MobileCaptureQueueStore {
                !MobileCaptureQueueRouting.sameHost(target, uploader.backendHost?.absoluteString) {
                 return false
             }
+            // Likewise an item captured for one project waits for an uploader aimed at that project.
+            if let library = items[index].targetLibraryId, let current = uploader.targetLibraryKey,
+               library != current {
+                return false
+            }
             switch items[index].uploadState {
             case .queued, .failed, .waitingForBackend:
                 if items[index].requiresExplicitRetry && !retryInterruptedUploads {
