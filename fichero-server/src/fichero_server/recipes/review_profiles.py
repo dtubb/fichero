@@ -144,6 +144,21 @@ def facts(answers: dict[str, Any] | None) -> str:
     return ("The project states: " + "; ".join(parts) + ".") if parts else ""
 
 
+def line_scripts(lines: list[tuple[str, str | None, str | None]]) -> str:
+    """For a page whose lines state different scripts or directions, each line's own, from its segment
+    (`source.recipe.nothing-assumes-spaces-direction-or-an-alphabet`, #5728): `lines` is (segment id, script,
+    direction) in reading order. '' for a page of one script, which the project's facts already say."""
+    from fichero_server.recipes.names import script_name
+
+    if len({(script, direction) for _id, script, direction in lines if script}) < 2:
+        return ""
+    words = frame()["directions"]
+    said = [f"- {segment_id}: {script_name(script) if script else 'script not stated'}"
+            + (f", {words[direction]}" if direction in words else "") for segment_id, script, direction in lines]
+    return ("This page mixes scripts: read each line in its own script and direction, as listed, never the project's "
+            "one script for the whole page:\n" + "\n".join(said))
+
+
 def review_prompt(lens: str, answers: dict[str, Any] | None) -> tuple[str, str]:
     """(the prompt a review node sends through `lens`, the sentence saying which profile it was built from).
     Raises for a lens no profile has."""
