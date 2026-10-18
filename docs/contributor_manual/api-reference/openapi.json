@@ -75001,6 +75001,42 @@
         "type": "object",
         "title": "ModelsByTierResponse"
       },
+      "MoneyAndPlace": {
+        "properties": {
+          "hf_spend_cap_usd": {
+            "type": "number",
+            "title": "Hf Spend Cap Usd",
+            "description": "the monthly Hugging Face cap (`answers.hf_spend_cap_usd`); $0 offers only"
+          },
+          "copies_may_stay_on_cluster": {
+            "type": "boolean",
+            "title": "Copies May Stay On Cluster",
+            "description": "whether working copies stay on a cluster for re-runs, as it stands: the person's answer, else what they said about pages leaving"
+          },
+          "copies_follow_pages_may_leave": {
+            "type": "boolean",
+            "title": "Copies Follow Pages May Leave",
+            "description": "true while the person has not answered the copies question, so its value follows pages-may-leave"
+          },
+          "clusters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Clusters",
+            "description": "the clusters set up here, by name: the copies question and the cluster offer apply only where there is one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hf_spend_cap_usd",
+          "copies_may_stay_on_cluster",
+          "copies_follow_pages_may_leave",
+          "clusters"
+        ],
+        "title": "MoneyAndPlace",
+        "description": "The three ruled money-and-place settings as the engine holds them (#5769), for the setup screen to show; this\nmonth's spend against the cap is on the Start plan (`hf_spend`)."
+      },
       "MoveItemsRequest": {
         "properties": {
           "item_ids": {
@@ -88016,6 +88052,10 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "money_and_place": {
+            "$ref": "#/components/schemas/MoneyAndPlace",
+            "nullable": true
           }
         },
         "type": "object",
