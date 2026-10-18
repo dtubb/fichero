@@ -242,6 +242,14 @@ class RecipeStep(BaseModel):
         "order Start makes them (#5795); null for every other step"))
 
 
+class AutomaticStep(BaseModel):
+    """A step the purpose (or an added layer) turns on by itself (`source.recipe.steps-name-layers`)."""
+
+    id: str
+    layer: str
+    uses_cloud: bool = Field(description="whether the step may use a cloud model")
+
+
 class TakenOutStep(BaseModel):
     """A step the person took out of the plan on Ready (`answers.removed_jobs`), offered to be put back."""
 
@@ -279,6 +287,9 @@ class AssembledRecipe(BaseModel):
     suits: Optional[dict[str, Any]] = Field(default=None, description="scripts, languages and material it suits")
     purposes: list[str]
     steps: list[RecipeStep]
+    automatic: list[AutomaticStep] = Field(default_factory=list, description=(
+        "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the "
+        "cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers)"))
     gaps: list[str]
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
@@ -934,8 +945,8 @@ async def assemble_recipe(
     return AssembledRecipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
-        steps=[RecipeStep(**s, **_run_titles(s)) for s in recipe["steps"]], gaps=recipe["gaps"],
-        by_hand=recipe.get("by_hand") or [],
+        steps=[RecipeStep(**s, **_run_titles(s)) for s in recipe["steps"]], automatic=recipe.get("automatic") or [],
+        gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"),
