@@ -1381,8 +1381,9 @@ and node, not by job); a retry action for failed pages.
   the rows derived from it stale, with the reason, and the Inspector shows "out of date" on them
   until they are remade. Built: the engine reports which stored vectors are stale and why
   (`text-changed`, `model-changed`, `not-embedded`) from the stored text and model
-  (`fichero-server/tests/unit/db/test_stale_vectors_marked_5360.py`). Still a gap: no API field
-  carries it to the Inspector, and other derived rows (claims, mentions) have no marker.
+  (`fichero-server/tests/unit/db/test_stale_vectors_marked_5360.py`). The entity Inspector response carries it as `stale_reason`
+  (`fichero-server/tests/unit/api/test_routes_entity_inspector.py`). Still a gap: the Mac Inspector does not show
+  "out of date" yet, and other derived rows (claims, mentions) have no marker.
 - `activity.derived.coalesced` — **[PARTIAL]** (#5360) many corrections to one page
   make one recompute job after a short quiet period. Built: one waiting job per kind and page
   (`fichero-server/tests/unit/jobs/test_job_queue.py`); the page's re-embed waits QUIET_SECONDS and each correction pushes it later
