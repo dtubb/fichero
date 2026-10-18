@@ -20,6 +20,10 @@ from typing import Any
 #: Kept on a reading's page artifact (`Artifact.data`): the pass whose lines the reading was written onto.
 #: Its text is the lines' text joined, so it is never itself a page reading to tie to the lines (#5444).
 READ_ONTO_PASS = "read_onto_pass"
+#: The result's list of the lines a reader looked at and found no writing on (a ruled or blank line), and the
+#: mark it leaves on each segment so a second Start does not read it again (#5758).
+NO_WRITING_KEY = "lines_looked_no_writing"
+NO_WRITING_MARK = "read_no_writing"
 #: Where a line with no baseline of its own (Apple Vision's boxes give none) is read along: this far down its
 #: box, the usual place of a baseline in a line's box.
 BASELINE_AT = 0.75
@@ -141,6 +145,17 @@ value, where given, is the reader's certainty about it (`machine_confidence`, #5
             "machine_confidence": certainty[0] if certainty else None,
             "derived_from_representation_id": (derived_from or {}).get(segment_id)}, ctx).result["id"])
     return made
+
+
+def mark_no_writing(db: Any, segment_ids: list[str]) -> None:
+    """Record 'looked, no writing' on each line: it counts as read, with no reading to show."""
+    from fichero_server.models.segments import Segment
+
+    for segment_id in segment_ids:
+        segment = db.get(Segment, segment_id)
+        if segment is not None and not (segment.metadata or {}).get(NO_WRITING_MARK):
+            segment.metadata = {**(segment.metadata or {}), NO_WRITING_MARK: True}
+            db.save(segment)
 
 
 #: What a correcting step's per-page result says when its text cannot be put onto the page's lines.

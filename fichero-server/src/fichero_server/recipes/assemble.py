@@ -286,7 +286,7 @@ class Choice:
 #: The hard constraints, in the order they are tried; a refused card names the first it fails. The
 #: code is what setup shows (in words, with a fix), the raw reason what the Inspector and log keep.
 _CONSTRAINTS = ("no-model-for-job", "no-model-for-script", "no-model-for-language", "no-model-for-language",
-                "no-reader-for-material", "no-reader-for-period", "licence-not-accepted", "cloud-not-allowed",
+                "no-reader-for-material", "licence-not-accepted", "cloud-not-allowed",
                 "not-enough-memory")
 
 
@@ -333,7 +333,6 @@ _FIXES = {
     "no-model-for-script": ["download", "choose-cloud", "choose-model"],
     "no-model-for-language": ["download", "choose-cloud", "choose-model"],
     "no-reader-for-material": ["download", "choose-model"],
-    "no-reader-for-period": ["download", "choose-model"],
     "licence-not-accepted": ["accept-licence", "choose-model"],
     "cloud-not-allowed": ["allow-cloud", "choose-model"],
     "not-enough-memory": ["choose-cloud", "choose-model"],
@@ -360,8 +359,6 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
         return f"No {noun} here knows {_and([language_name(t) for t in sorted(a.languages)])} yet."
     if code == "no-reader-for-material":
         return f"No {noun} here is made for {material}."
-    if code == "no-reader-for-period":
-        return f"No {noun} here was made for pages written in {a.period or 'this period'}."
     if code == "licence-not-accepted":
         return f"The {noun} that fits has a licence you have not accepted yet."
     if code == "cloud-not-allowed":
