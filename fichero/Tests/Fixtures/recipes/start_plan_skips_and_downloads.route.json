@@ -86,7 +86,7 @@
     "provider": null,
     "model": null,
     "prompt": null,
-    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-2393/test_source_onboard_auto_plan_0/edition",
+    "folder": "/private/var/folders/mw/xbc46_p565j0t1msw963wlk80000gp/T/pytest-of-danieltubb/pytest-2833/test_source_onboard_auto_plan_0/edition",
     "formats": [
      "pagexml"
     ],
@@ -162,6 +162,30 @@
     "ways": [
      {
       "method": "kraken",
+      "how": "fine-tune",
+      "says": "Fine-tune a Kraken reader on the lines you corrected",
+      "targets": [
+       {
+        "place": "this-mac",
+        "name": "this Mac",
+        "starts": "training.start_here",
+        "params": {
+         "scope_ids": [
+          "6b73c33131d7494887bf75dc51cf66f5",
+          "79ae894fd8c8496d88c9ea885067f346",
+          "system-workflows"
+         ],
+         "teacher": "person"
+        },
+        "held": null,
+        "first_run": null
+       }
+      ],
+      "available": true,
+      "why": null
+     },
+     {
+      "method": "kraken",
       "how": "distil",
       "says": "Train a reader on the lines you have corrected",
       "targets": [
@@ -169,7 +193,9 @@
         "place": "this-mac",
         "name": "this Mac",
         "starts": "training.start_here",
-        "params": null
+        "params": null,
+        "held": null,
+        "first_run": null
        }
       ],
       "available": true,
@@ -199,7 +225,12 @@
      "mode": "here",
      "why": "this Mac has the memory to train a reader itself"
     },
-    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold."
+    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold.",
+    "noise_band": {
+     "value": 0.005,
+     "measured": false,
+     "basis": "0.5 CER points, the ruled band until this project's pages measure one"
+    }
    },
    {
     "step": "names",
@@ -223,9 +254,21 @@
      "mode": "here",
      "why": "this Mac has the memory to train a reader itself"
     },
-    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold."
+    "does": "Training runs by itself on this Mac once the corrected lines reach the threshold.",
+    "noise_band": {
+     "value": 0.005,
+     "measured": false,
+     "basis": "0.5 CER points, the ruled band until this project's pages measure one"
+    }
    }
   ],
+  "bakeoff_offer": {
+   "sentence": "Every reader compared runs on this Mac: the comparison costs nothing (1 readers).",
+   "run_cost_usd": 0.0,
+   "pages": 0,
+   "ready": false,
+   "readiness_sentence": "Needs 100 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 100 more lines, on at least 2 more pages."
+  },
   "refusals": [],
   "waiting": [],
   "downloads": [
