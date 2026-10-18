@@ -742,6 +742,58 @@ def words(result: dict[str, Any], pages: int) -> str:
     return said
 
 
+def adopt_trained(db: Any, result: dict[str, Any]) -> dict[str, Any] | None:
+    """Set the best trained Kraken reader measured as the project's read-a-line reader, only when its CER beats
+    the best downloadable reader's by more than the project's noise band (#5700, #5441,
+    `source.train.adopt-only-past-the-noise-band`); kept through `project.save_setup` (audited, undoable), as a
+    person's Use This is. None when the evaluation measured no trained reader, else what was decided and why.
+    ponytail: Kraken readers only; a trained vision model is measured and carded but not set on the step yet."""
+    from fichero_server.recipes.project import read_noise_band, read_project_setup
+
+    policy = result["ranked_by"]
+
+    def best(role: str) -> dict[str, Any] | None:
+        rows = [m for m in result["models"] if m["role"] == role and m["reader"] == "kraken" and m["measured"]
+                and m["scores"][policy]["cer"] is not None]
+        return min(rows, key=lambda m: m["scores"][policy]["cer"], default=None)
+
+    trained, base = best("trained"), best("out of the box")
+    if trained is None:
+        return None
+    library = Path(db.path).parent
+    band = read_noise_band(library)["value"]
+    cer = trained["scores"][policy]["cer"]
+    if base is None:
+        return {"adopted": None, "why": f"{trained['model']} was not compared with a downloadable reader, so the "
+                                        "project keeps its reader"}
+    gain = base["scores"][policy]["cer"] - cer
+    said = (f"{trained['model']} CER {cer:.3f} against {base['model']} {base['scores'][policy]['cer']:.3f} "
+            f"({policy}, {trained['pages_read']} held-out pages)")
+    if gain <= band:
+        return {"adopted": None, "gain": round(gain, 6), "noise_band": band,
+                "why": (f"{said}: not adopted, the gain {gain:+.4f} is within the project's noise band ({band})"
+                        if gain > 0 else f"{said}: not adopted, {base['model']} reads these pages as well or better")}
+    recipe = read_project_setup(library).get("recipe")
+    step = next((s for s in (recipe or {}).get("steps") or [] if s.get("job") == "read-a-line"), None)
+    if step is None:
+        return {"adopted": None, "gain": round(gain, 6), "noise_band": band,
+                "why": f"{said}: beyond the noise band, but this project's recipe has no read-a-line step"}
+    from fichero_server.actions.registry import ActionContext, registry
+
+    because = f"trained on your corrections: {said}, beyond the project's noise band ({band})"
+    recipe["overrides"] = [o for o in recipe.get("overrides") or []
+                           if (o.get("step"), o.get("scope"), o.get("folder_id")) != (step["id"], "project", None)]
+    recipe["overrides"].append({"step": step["id"], "scope": "project", "folder_id": None,
+                                "model": {"trained": trained["model"]}, "card": trained["model"],
+                                "runs_on": "this-mac", "cer": cer, "policy": policy, "because": because,
+                                "at": datetime.now(timezone.utc).isoformat()})
+    step["model"] = {"trained": trained["model"]}
+    ctx = ActionContext(actor="evaluation", library_path=str(library), is_bootstrap=True)
+    registry.invoke(db, "project.save_setup", {"recipe": recipe}, ctx)
+    return {"adopted": trained["model"], "step": step["id"], "gain": round(gain, 6), "noise_band": band,
+            "why": because}
+
+
 def run(db: Any, subject: str) -> dict[str, Any]:
     job_id = jobs.job_id_for(db, KIND, subject)
     detail = json.loads(jobs.read_job(db, job_id)["detail"] or "{}")
@@ -756,7 +808,10 @@ def run(db: Any, subject: str) -> dict[str, Any]:
     if result["stopped"]:
         jobs.save_detail(db, job_id, json.dumps(detail), reason="Stopped by you; nothing written on the cards")
         raise jobs.JobCancelled("Stopped by you; nothing written on the cards")
-    jobs.save_detail(db, job_id, json.dumps(detail), reason=words(result, len(planned["pages"])))
+    result["adoption"] = adopt_trained(db, result)
+    detail["result"] = result
+    said = words(result, len(planned["pages"])) + (f". {result['adoption']['why']}" if result["adoption"] else "")
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=said)
     return result
 
 

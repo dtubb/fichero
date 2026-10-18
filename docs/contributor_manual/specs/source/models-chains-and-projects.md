@@ -4494,10 +4494,18 @@ Each is described in the paragraph named; the id lets a test cite it.
   the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
   lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). Needs the set's
   teacher `person` (51d6dde8e, m-acenet) on integration to run.*
-- `source.train.noise-band-per-project` — **[PARTIAL]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
+- `source.train.noise-band-per-project` — **[OK]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
   the best reader's pages, from 15 read pages up (`training.evaluation.noise_band`, `NOISE_MIN_PAGES`), the project keeps it (`recipe/noise-band.yaml`,
   `recipes.project.read_noise_band`, the ruled 0.5 CER points until then, said so), and every train offer carries it
   (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. The reasons A/B judges by it when its
-  request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). Not
-  built: a trained reader's adoption past the band (no adoption step exists yet).*
+  request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). A
+  trained reader is adopted only past it (`source.train.adopt-only-past-the-noise-band`).*
+- `source.train.adopt-only-past-the-noise-band` — **[PARTIAL]** (#5700, #5441, R4 exit) after an evaluation, the best trained Kraken
+  reader measured becomes the project's read-a-line reader only when its CER on the held-out pages beats the best downloadable
+  reader's by more than the project's noise band; it is kept as the step's project-scope override (`model: {trained: <reader id>}`,
+  its CER, and why, naming both CERs and the band) through `project.save_setup`, audited and undoable. Within the band, or worse,
+  the downloadable reader is kept and the evaluation's reason says why. *Built: `training.evaluation.adopt_trained`, called by
+  the evaluation job (`result.adoption`); `recipes.cards.kraken_reader_for` reads a `trained` pin;
+  `fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py`. Not built: a trained vision model set on the
+  step (it is measured and carded only).*
