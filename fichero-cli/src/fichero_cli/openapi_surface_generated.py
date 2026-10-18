@@ -1710,19 +1710,25 @@ def register_generated_openapi_commands(
     @target_app.command("redeem-invite")
     def auth_redeem_invite_post(
         ctx: typer.Context,
+        client: Optional[str] = typer.Option(None, '--client', help='InviteRedeemClient. JSON.'),
         invite_token: str = typer.Option(..., '--invite-token', help='Invite Token.'),
-        new_password: str = typer.Option(..., '--new-password', help='New Password.'),
+        new_password: Optional[str] = typer.Option(None, '--new-password', help='New Password.'),
+        public_key_pem: Optional[str] = typer.Option(None, '--public-key-pem', help='Public Key Pem.'),
     ) -> None:
         """Redeem Invite (POST /api/auth/invites/redeem)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/auth/invites/redeem"
             params = None
             payload = _build_json_payload({
+                "client": client,
                 "invite_token": invite_token,
                 "new_password": new_password,
+                "public_key_pem": public_key_pem,
             }, {
+                "client": {'properties': {'kind': {'type': 'string', 'enum': ['app', 'device'], 'title': 'Kind', 'default': 'app'}, 'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'InviteRedeemClient', 'x-cli-required': False},
                 "invite_token": {'type': 'string', 'minLength': 1, 'title': 'Invite Token', 'x-cli-required': True},
-                "new_password": {'type': 'string', 'minLength': 1, 'title': 'New Password', 'x-cli-required': True},
+                "new_password": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'New Password', 'x-cli-required': False},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'nullable': True, 'title': 'Public Key Pem', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

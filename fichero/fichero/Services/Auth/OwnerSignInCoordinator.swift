@@ -6,9 +6,7 @@ import OSLog
 nonisolated struct GeneratedSignInTransport: SignInTransport, @unchecked Sendable {
     let client: FicheroClient
 
-    enum Failure: Error, Equatable {
-        case refused(statusCode: Int)
-    }
+    typealias Failure = SignInRefusal
 
     func challenge(clientID: String) async throws -> SignInChallenge {
         let response = try await client.api.challengeApiAuthChallengePost(body: .json(.init(clientId: clientID)))
@@ -54,13 +52,31 @@ nonisolated struct GeneratedSignInTransport: SignInTransport, @unchecked Sendabl
             throw Failure.refused(statusCode: statusCode)
         }
     }
+
+    func migrateOwner(launchSecret: String, clientName: String, host: String, publicKeyPEM: String) async throws -> String {
+        let request = Components.Schemas.MigrateOwnerRequest(
+            publicKeyPem: publicKeyPEM, client: .init(name: clientName, host: host)
+        )
+        let response = try await client.api.migrateOwnerApiAuthMigrateOwnerPost(
+            headers: .init(xFicheroLaunchSecret: launchSecret), body: .json(request)
+        )
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.client.id
+        case .unprocessableContent:
+            throw Failure.refused(statusCode: 422)
+        case .undocumented(let statusCode, _):
+            throw Failure.refused(statusCode: statusCode)
+        }
+    }
 }
 
 /// Signs the app in to its engine by the owner's key, once per launch, before the library warms up.
 ///
 /// Registered client on this engine: challenge, sign, and keep the session token where login keeps it (the Keychain,
-/// per host). No client yet and a launch secret in hand (the one the app gave its own engine on stdin, or Debug Dev Local's 0600 file): first-run makes the owner and
-/// registers the key. Neither: nothing to do. A failure is logged and never blocks launch (unknown is not signed out):
+/// per host). No client yet and a launch secret in hand (the one the app gave its own engine on stdin, or Debug Dev
+/// Local's 0600 file): first-run makes the owner and registers the key; if the engine already made a keyless owner
+/// for the first loopback request (it does, before this runs), migrate-owner gives that row the key. Neither: nothing to do. A failure is logged and never blocks launch (unknown is not signed out):
 /// until the ambient owner leaves in slice 10, local requests still carry the bootstrap token, so a sign-in that
 /// cannot happen costs the audit its client name, not the user their library.
 @MainActor
