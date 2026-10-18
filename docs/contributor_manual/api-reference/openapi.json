@@ -70912,6 +70912,13 @@
           "sentence": {
             "type": "string",
             "title": "Sentence"
+          },
+          "offered": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Offered",
+            "description": "Correct offered at Ready (ruled Q3 2026-10-17, #5677): a cloud corrector whose provider has a key set here, `card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"
           }
         },
         "type": "object",
