@@ -35,6 +35,20 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   header recorded during auth enforcement, so an unnamed caller is attributed
   by transport rather than rejected.
 
+## Signing in by a client's key (#2403)
+
+`POST /api/auth/challenge` and `POST /api/auth/sign-in` sign a registered client (a paired device or the app) in
+with its own key instead of a password.
+
+- `POST /api/auth/challenge` `{client_id}` answers a single-use `nonce`, `expires_in` (60 seconds), `expires_at` and
+  this engine's `engine_id`. At most 5 challenges are outstanding per client; an older one is dropped. An unknown and a
+  revoked client get the same 401, so client ids cannot be probed.
+- `POST /api/auth/sign-in` `{client_id, nonce, signature}`: the signature is ECDSA P-256 / SHA-256 over
+  `fichero-sign-in-v1`, the engine id, the client id, the nonce and its expiry, NUL-separated, so a signature made for
+  another engine, client or expiry never verifies. The nonce is spent whether or not the signature is good. A good
+  one answers `session_token`, the `user` and the `client`; anything else is 401 "sign-in refused", and more than 10
+  failed sign-ins a minute for one client is 429 with `Retry-After: 60`.
+
 ## W3C annotation export
 
 `GET /api/documents/{doc_id}/annotations.jsonld`
