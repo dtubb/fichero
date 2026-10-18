@@ -381,8 +381,9 @@ exposes them.
 
 `POST /api/auth/migrate-owner`
 
-- Purpose: give an existing owner row its first key, once (`multiuser.migrate-owner`, #2403). Same guards and body as
-  first-run; the key goes to the owner row only.
+- Purpose: give an existing owner row its first key, once (`multiuser.migrate-owner`, #2403). Same guards as
+  first-run; the body is `public_key_pem` and `client` (no `display_name`: the owner row has its name). The key goes
+  to the owner row only.
 - Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
   over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
 
