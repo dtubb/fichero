@@ -85337,6 +85337,12 @@
           "font_from": {
             "type": "string",
             "title": "Font From"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id",
+            "description": "the audit row of a choice just made; Undo reverses it"
           }
         },
         "type": "object",

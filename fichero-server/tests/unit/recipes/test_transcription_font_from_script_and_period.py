@@ -53,3 +53,10 @@ def test_choosing_a_font_is_audited_and_one_undo_restores_it(client):
     assert audit["action_name"] == "project.save_setup"
     assert client.post(f"/api/actions/audit/{audit['id']}/undo").status_code == 200
     assert _font(client, period="12th century")["font"] == "Junicode"
+
+
+def test_the_choice_answers_with_the_audit_row_the_app_registers_undo_with(client):
+    """#5777: Edit > Undo reverses the choice through the audit row the answer names."""
+    r = client.put("/api/recipes/font", json={"script": "Latn", "font": "Noto Sans Coptic"})
+    audit = client.get("/api/actions/audit").json()["items"][0]
+    assert r.json()["audit_id"] == audit["id"]
