@@ -21,31 +21,49 @@ struct AddClusterSheet: View {
     @State private var checkResult: (ok: Bool, steps: [HpcSignInService.CheckStep])?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Add a cluster").font(.title3)
-            if cluster == nil {
-                Form {
-                    TextField("Name", text: $name, prompt: Text("Rorqual"))
-                    TextField("Host", text: $hostAlias, prompt: Text("rorqual.alliancecan.ca"))
-                    TextField("User name", text: $username)
-                    TextField("Project folder", text: $remoteBaseDir, prompt: Text("/project/def-yourgroup/you"))
-                    TextField("Account", text: $account, prompt: Text("def-yourgroup"))
-                    TextField("Partition (leave empty for the site's own)", text: $partition)
+        VStack(spacing: 0) {
+            Text("Add a Cluster")
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+            Divider()
+            Form {
+                if cluster == nil {
+                    Section {
+                        TextField("Name", text: $name, prompt: Text("Rorqual"))
+                        TextField("Host", text: $hostAlias, prompt: Text("rorqual.alliancecan.ca"))
+                        TextField("User Name", text: $username)
+                        TextField("Project Folder", text: $remoteBaseDir, prompt: Text("/project/def-yourgroup/you"))
+                        TextField("Account", text: $account, prompt: Text("def-yourgroup"))
+                        TextField("Partition", text: $partition, prompt: Text("Optional"))
+                            .help("Leave empty to use the site's own partition.")
+                    }
+                    if let problem {
+                        Section { Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                    }
+                } else if let cluster {
+                    keySteps(cluster)
                 }
-                if let problem { Text(problem).foregroundStyle(.red) }
-                HStack {
-                    Spacer()
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+            }
+            .formStyle(.grouped)
+            Divider()
+            HStack {
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                if cluster == nil {
                     Button("Save") { Task { await save() } }
+                        .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                         .disabled(name.isEmpty || hostAlias.isEmpty || username.isEmpty || remoteBaseDir.isEmpty)
+                } else {
+                    Button("Done") { onDone(); dismiss() }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
                 }
-            } else if let cluster {
-                keySteps(cluster)
             }
+            .padding()
         }
-        .padding(20)
-        .frame(minWidth: 460)
+        .frame(width: 460, height: 420)
         .sheet(isPresented: $signingIn) {
             if let cluster {
                 HpcSignInSheet(clusterId: cluster.id, clusterName: cluster.name, service: service)
@@ -55,33 +73,76 @@ struct AddClusterSheet: View {
 
     @ViewBuilder
     private func keySteps(_ cluster: HpcSignInService.Cluster) -> some View {
-        Text("\(cluster.name) is saved. Its key is made here and never leaves this Mac.").font(.callout)
+        Section {
+            Text("\(cluster.name) is saved. Its key is made here and never leaves this Mac.").font(.callout)
+        }
         if let publicKey {
-            Text("1. Add this public key to your account on the cluster (on the Alliance: My Account › SSH Keys). "
-                + "A new key can take a few minutes to reach the clusters.").font(.callout)
-            Text(publicKey).font(.caption.monospaced()).textSelection(.enabled).lineLimit(3)
-            HStack {
-                Button("Copy") { PlatformPasteboard.writeString(publicKey) }
-                Link("Open the account page", destination: URL(string: "https://ccdb.alliancecan.ca/ssh_authorized_keys")!)
+            Section("1. Add the Key to Your Account") {
+                Text("Add this public key to your account on the cluster. A new key can take a few minutes to reach the clusters.")
+                    .font(.callout)
+                    .help("On the Alliance: My Account › SSH Keys.")
+                Text(publicKey)
+                    .font(.caption.monospaced())
+                    .textSelection(.enabled)
+                    .lineLimit(3)
+                    .accessibilityLabel("Public key")
+                HStack {
+                    Button("Copy") { PlatformPasteboard.writeString(publicKey) }
+                        .accessibilityLabel("Copy the public key")
+                    Link("Open the Account Page", destination: URL(string: "https://ccdb.alliancecan.ca/ssh_authorized_keys")!)
+                }
             }
-            Text("2. Then sign in. You will be asked for your second factor; approve the push on your phone.")
-                .font(.callout)
-            HStack {
-                Button("Sign in…") { signingIn = true }
-                Button("Check") { Task { checkResult = await service.check(clusterId: cluster.id) } }
-            }
-            if let checkResult {
-                Text(checkResult.ok ? "Everything answered." : "Something did not answer:").font(.callout)
-                ForEach(checkResult.steps) { step in
-                    Text("\(step.name): \(step.state)\(step.state == "failed" ? " — \(step.answer)" : "")").font(.caption)
+            Section("2. Sign In") {
+                Text("You will be asked for your second factor.").font(.callout)
+                HStack {
+                    Button("Sign In…") { signingIn = true }
+                    Button("Check") { Task { checkResult = await service.check(clusterId: cluster.id) } }
+                }
+                if let checkResult {
+                    Label(checkResult.ok ? "Everything answered" : "Something did not answer",
+                          systemImage: checkResult.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(checkResult.ok ? .green : .orange)
+                    ForEach(checkResult.steps) { step in
+                        HStack(alignment: .firstTextBaseline) {
+                            Image(systemName: Self.symbol(step.state)).foregroundStyle(Self.tint(step.state))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(step.name).font(.callout.weight(.semibold))
+                                if step.state == "failed", !step.answer.isEmpty {
+                                    Text(step.answer).font(.callout).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Text(Self.words(step.state)).font(.caption.weight(.medium)).foregroundStyle(Self.tint(step.state))
+                        }
+                    }
                 }
             }
         } else {
-            ProgressView("Making the key…")
+            Section { ProgressView("Making the key…") }
         }
-        HStack {
-            Spacer()
-            Button("Done") { onDone(); dismiss() }.keyboardShortcut(.defaultAction)
+    }
+
+    static func words(_ state: String) -> String {
+        switch state {
+        case "passed": "Answered"
+        case "failed": "Did not answer"
+        default: "Not tried"
+        }
+    }
+
+    static func symbol(_ state: String) -> String {
+        switch state {
+        case "passed": "checkmark.circle.fill"
+        case "failed": "exclamationmark.triangle.fill"
+        default: "minus.circle"
+        }
+    }
+
+    static func tint(_ state: String) -> Color {
+        switch state {
+        case "passed": .green
+        case "failed": .orange
+        default: .secondary
         }
     }
 
