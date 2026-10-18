@@ -575,12 +575,13 @@ async def list_background_jobs(
             )
         )
 
+    usage = process_tree_rusage()  # once per poll, shared by memory and energy (#5358)
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),
         process_cpu_percent=process_cpu_percent(),
-        process_memory_bytes=(process_tree_rusage() or {}).get("memory_bytes"),
-        process_energy_watts=process_energy_watts(),
+        process_memory_bytes=(usage or {}).get("memory_bytes"),
+        process_energy_watts=process_energy_watts(usage),
         cpu_count=cpu_count(),
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),

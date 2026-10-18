@@ -31,7 +31,7 @@ def test_rusage_is_none_off_macos(monkeypatch):
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="proc_pid_rusage is macOS")
-def test_the_tree_includes_a_running_child():
+def test_the_tree_includes_a_running_child(monkeypatch):
     """A child that works counts: the tree's memory is more than this process alone, and the child is found."""
     import subprocess
 
@@ -40,6 +40,13 @@ def test_the_tree_includes_a_running_child():
         import time
 
         time.sleep(1)
+        import subprocess
+
+        def no_subprocess(*a, **k):
+            raise AssertionError("the tree is read without a subprocess")
+
+        monkeypatch.setattr(subprocess, "run", no_subprocess)
+        monkeypatch.setattr(subprocess, "Popen", no_subprocess)
         assert child.pid in bc._descendant_pids(__import__("os").getpid())
         assert bc.process_tree_rusage()["memory_bytes"] >= bc.process_rusage()["memory_bytes"] + 50_000_000
     finally:
