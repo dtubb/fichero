@@ -154,6 +154,7 @@
   ],
   "offered": [],
   "left_off": [],
+  "bakeoff_offer": null,
   "train_offers": [
    {
     "step": "read",
