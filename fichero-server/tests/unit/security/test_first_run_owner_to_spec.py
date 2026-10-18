@@ -76,7 +76,7 @@ def test_first_run_needs_the_launch_secret(harness, engine_secret):
 def test_the_bootstrap_token_is_not_the_launch_secret(harness, engine_secret):
     _key, pem = new_key()
     as_header = _first_run(uds_client(harness), pem, secret=harness.bootstrap)
-    as_bearer = _first_run(uds_client(harness), pem, secret=None, headers={"Authorization": f"Bearer {harness.bootstrap}"})
+    as_bearer = _first_run(uds_client(harness), pem, secret=None, headers={"Authorization": "Bearer " + harness.bootstrap})
     assert (as_header.status_code, as_bearer.status_code) == (401, 401)
 
 
