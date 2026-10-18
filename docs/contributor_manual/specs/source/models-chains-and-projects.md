@@ -3269,6 +3269,9 @@ Setup
   search are that step's own: Find statements never lists page readers or says it searched for readers.
   *Test:* engine, the candidates for `find-statements` carry that job; pure Swift, the search label
   names the step.
+- `source.recipe.into-what-is-a-multi-select` — **[GAP]** (#5789, split from #5660 item 1) Set Up shows "Into what" as a multi-select of reading levels (as written, abbreviations expanded, normalised spelling, translations); each ticked level turns on its step and the plan names one run per level. The engine takes the list (`test_set_up_steps_5660.py`); the page does not yet offer it.
+- `source.onboard.every-setup-button-acts-or-says-why` — **[GAP]** (#5790, split from #5660 item 2) "Review the licence…" opens the licence to accept; every button in Set Up either acts or is disabled with its reason, and a test fails on a button with no effect.
+- `source.onboard.setup-says-what-is-happening` — **[GAP]** (#5791, split from #5660 items 3, 5, 6) the Find a Reader sheet says briefly what is happening and which cards ship with Fichero and which download; the Work out dates card says what it uses and which engine; while a model downloads its warning says downloading and Start is pressable, each step waiting for its model.
 - `source.onboard.models.licence-accepted-once` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** one tick accepts the licence, then Accept and Use works (`LicenceReviewSheet.canAccept`), and the sheet no longer inherits a disabled presenter; pinned by `SetUpButtonsActTests`. *Not built: an open-licence default for Find Regions (engine).* Find Regions has a default under an
   open licence, and a model under a licence that needs accepting is accepted once, after which Accept and
   Use for This Step works. *Test:* pure Swift, accepting enables the button.
