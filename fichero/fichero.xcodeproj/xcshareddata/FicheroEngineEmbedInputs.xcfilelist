@@ -32,6 +32,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/auth.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/change_stream.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/client_presence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/contract_identity_generated.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/errors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/feature_tiers_generated.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/library_header.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/main.py

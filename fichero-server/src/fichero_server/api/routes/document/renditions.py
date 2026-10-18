@@ -25,6 +25,7 @@ from fichero_server.db.storage import settings as storage_settings
 from fichero_server.media.rendition_order import order_renditions
 from fichero_server.models import Document, Rendition, RenditionListResponse
 from fichero_server.security.path_security import resolve_document_source_path
+from fichero_server.api.errors import ErrorDetail as _RefusalBody
 
 router = APIRouter(prefix="/documents")
 
@@ -55,7 +56,7 @@ IMAGE_MEDIA_TYPES = {
     # route is that "no renditions" and "no such document" are different
     # answers. A distinction the contract does not state is one clients cannot
     # be expected to honour.
-    responses={404: {"description": "No document with this id exists"}},
+    responses={404: {"model": _RefusalBody, "description": "No document with this id exists"}},
 )
 async def list_renditions(
     document_id: str,
@@ -83,6 +84,7 @@ async def list_renditions(
     responses={
         200: {"content": {"image/*": {}}, "description": "The rendition's bytes"},
         404: {
+            "model": _RefusalBody,
             "description": (
                 "No such document or rendition, the rendition belongs to a "
                 "different document, its bytes were never materialised, or its "
