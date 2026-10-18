@@ -247,6 +247,9 @@ async def delete_cluster(
         raise HTTPException(status_code=404, detail=f"HPC cluster not found: {cluster_id}")
     del clusters[cluster_id]
     _save_clusters(app_db, clusters)
+    from fichero_server.remote_read.ssh_prompts import remove_cluster_key
+
+    remove_cluster_key(cluster_id)  # the key goes with its cluster (compute.secret.fichero-makes-the-key)
     _broadcast_hpc_change()
     return DeletedResponse(status="deleted")
 

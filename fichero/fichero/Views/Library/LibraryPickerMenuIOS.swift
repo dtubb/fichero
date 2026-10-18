@@ -1,4 +1,4 @@
-#if os(iOS) || os(tvOS) || os(visionOS)
+#if os(iOS) || os(visionOS)
 import SwiftUI
 
 /// iOS/iPadOS library switcher (#2394). Surfaces the known-library registry — the

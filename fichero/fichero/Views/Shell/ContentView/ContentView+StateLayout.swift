@@ -138,9 +138,20 @@ extension ContentView {
         }
     }
 
+    /// The width the sidebar/inspector collapse policy sees. iOS passes 0 (unknown, so no forced
+    /// collapse): the user and the system own `columnVisibility` there, and `.inspector` collapses
+    /// itself. The measured-width feedback loop is Mac window behavior only (iOS I1).
+    var shellCollapseWidth: Double {
+        #if os(macOS)
+        measuredWindowWidth
+        #else
+        0
+        #endif
+    }
+
     var shellCollapsePolicy: ShellCollapsePolicy {
         Self.shellCollapsePolicy(
-            windowWidth: measuredWindowWidth,
+            windowWidth: shellCollapseWidth,
             horizontalSizeClass: horizontalSizeClass,
             sidebarVisible: showSidebar,
             inspectorVisible: showInspectorSidebar,
@@ -228,13 +239,18 @@ extension ContentView {
     }
 
     var shellWindowMinWidth: Double {
-        Self.shellWindowMinWidth(
+        #if !os(macOS)
+        // No hard minimum on iOS: Stage Manager and Split View size the window, not this floor.
+        return 0
+        #else
+        return Self.shellWindowMinWidth(
             windowWidth: measuredWindowWidth,
             horizontalSizeClass: horizontalSizeClass,
             sidebarVisible: showSidebar,
             inspectorVisible: showInspectorSidebar,
             detailMinWidth: paneAwareDetailMinWidth
         )
+        #endif
     }
 
     static func windowMinWidth(

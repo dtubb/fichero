@@ -47,6 +47,16 @@ def lines_per_request_for(model: str) -> int | None:
                  if c.pin.get("hf") == model and c.lines_per_request), None)
 
 
+def prefill_tokens_for(model: str) -> int | None:
+    """The `prefill_tokens` a seed card states for this model id (a Hugging Face pin): how many prompt tokens it
+    takes in before the engine's first-token wait runs out (#5648). None: no budget stated, nothing is capped."""
+    import yaml
+
+    rows = yaml.safe_load(SEED.read_text(encoding="utf-8"))["cards"]
+    return next((int(r["prefill_tokens"]) for r in rows
+                 if (r.get("pin") or {}).get("hf") == model and r.get("prefill_tokens")), None)
+
+
 def _set(value) -> frozenset[str] | None:
     return None if value in (None, "any") else frozenset(value)
 

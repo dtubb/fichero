@@ -150,3 +150,40 @@ async def test_each_scripts_review_lands_on_its_segments_in_their_reading_order_
         read = counting_texts(page["db"], after)
         assert [read[r.id] for r in after] == texts, name
         assert all((r.script, r.direction) == (script, direction) for r in after), name  # a reading, not a setting
+
+
+@pytest.mark.asyncio
+async def test_a_page_that_mixes_scripts_is_read_line_by_line_in_each_lines_own_script_5728(page, monkeypatch):  # noqa: F811
+    """A page whose lines carry different scripts (a Hebrew line among Latin ones) tells the review each line's script
+    and direction from its segment, never the project's one script for the whole page; a page of one script is told
+    nothing more."""
+    from fichero_server import llm
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.tools.transcribe_review import transcribe_review
+
+    answers, script, direction, _texts = MATRIX["es-colonial"]
+    await _set_up_page(page, answers, script, direction)
+    sent = []
+
+    async def reviewer(images, prompt, config, **kw):
+        sent.append(prompt)
+        return ""
+
+    monkeypatch.setattr(llm, "vision", reviewer)
+
+    async def review(run):
+        await transcribe_review(
+            inputs={"lens": "orthography", "files": page["src"]["files"], "documents": page["src"]["documents"],
+                    "skip_if_artifact_exists": False},
+            state={"library_path": page["library"], "task_id": run},
+            llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
+        return sent[-1]
+
+    assert "mixes scripts" not in await review("run-one-script")
+    hebrew = _lines(page)[1]
+    hebrew.script, hebrew.direction = "Hebr", "rtl"
+    page["db"].save(hebrew)
+    prompt = await review("run-mixed")
+    assert "mixes scripts" in prompt
+    said = next(line for line in prompt.splitlines() if line.startswith(f"- {hebrew.id}"))
+    assert "Hebrew" in said and "right to left" in said

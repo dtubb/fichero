@@ -25,6 +25,17 @@ extension MobileCaptureQueueStore {
 
         var summary = MobileCaptureUploadSummary()
         let retryableIndices = items.indices.filter { index in
+            // An item aimed at a different host waits for that host; it is never
+            // uploaded to whichever host happens to be current (#3281).
+            if let target = items[index].targetHost,
+               !MobileCaptureQueueRouting.sameHost(target, uploader.backendHost?.absoluteString) {
+                return false
+            }
+            // Likewise an item captured for one project waits for an uploader aimed at that project.
+            if let library = items[index].targetLibraryId, let current = uploader.targetLibraryKey,
+               library != current {
+                return false
+            }
             switch items[index].uploadState {
             case .queued, .failed, .waitingForBackend:
                 if items[index].requiresExplicitRetry && !retryInterruptedUploads {

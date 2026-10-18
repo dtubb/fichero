@@ -109,6 +109,12 @@ struct PaneConfig: Codable, Sendable, Hashable {
     /// workspaces"). Seeds a resizable column in `WorkspaceSplitStack`; a drag persists over it the
     /// same way an absolute default used to. Ignored when `paneExtent` is also set.
     var paneFraction: Double?
+    /// The share a SPLIT of this leaf holds in ITS parent, kept on the split's first leaf (`PaneNode.split`
+    /// carries no sizing of its own): when a leaf that carried `paneExtent` / `paneFraction` is split, the
+    /// preference moves here and both halves open as even peers (#5011, `panes.split.peers-open-even`).
+    /// Read by `PaneSpec.childExtents` for a split child; absent in older saved workspaces.
+    var splitExtent: Double?
+    var splitFraction: Double?
 
     init(
         libraryContentKind: String? = nil,
@@ -117,7 +123,9 @@ struct PaneConfig: Codable, Sendable, Hashable {
         previewWordBoxes: Bool? = nil,
         previewImage: Bool? = nil,
         paneExtent: Double? = nil,
-        paneFraction: Double? = nil
+        paneFraction: Double? = nil,
+        splitExtent: Double? = nil,
+        splitFraction: Double? = nil
     ) {
         self.libraryContentKind = libraryContentKind
         self.libraryLayout = libraryLayout
@@ -126,6 +134,8 @@ struct PaneConfig: Codable, Sendable, Hashable {
         self.previewImage = previewImage
         self.paneExtent = paneExtent
         self.paneFraction = paneFraction
+        self.splitExtent = splitExtent
+        self.splitFraction = splitFraction
     }
 
     /// Follow the window default on every axis (an unconfigured pane).
@@ -135,6 +145,7 @@ struct PaneConfig: Codable, Sendable, Hashable {
     var isConfigured: Bool {
         libraryContentKind != nil || libraryLayout != nil || previewLens != nil
             || previewWordBoxes != nil || previewImage != nil || paneExtent != nil || paneFraction != nil
+            || splitExtent != nil || splitFraction != nil
     }
 }
 
@@ -225,6 +236,22 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
         }
     }
 
+    /// The leaf with `id` anywhere under this node, or nil.
+    func leafNode(withID id: UUID) -> PaneNode? {
+        switch self {
+        case let .leaf(leafID, _, _, _): return leafID == id ? self : nil
+        case let .split(_, _, children): return children.lazy.compactMap { $0.leafNode(withID: id) }.first
+        }
+    }
+
+    /// The first leaf in reading order (this node itself when it is one).
+    var firstLeaf: PaneNode? {
+        switch self {
+        case .leaf: return self
+        case let .split(_, _, children): return children.first?.firstLeaf
+        }
+    }
+
     /// This node with the leaf `id` replaced by a split of [that leaf, a fresh duplicate] along
     /// `axis` (spec panes.split.focused-only). Every OTHER pane is untouched — the fix for
     /// "splitting one pane splits them all". A no-op if `id` isn't a leaf in this node.
@@ -232,9 +259,23 @@ indirect enum PaneNode: Codable, Sendable, Hashable, Identifiable {
         switch self {
         case let .leaf(id, kind, scope, config):
             guard id == target else { return self }
+            // The split takes the leaf's PLACE, size included: its share in the parent moves to the first
+            // half's `split*` fields, and both halves open as even peers with no sizing of their own (a
+            // copied preference left the split with nothing to flex, and a width share reused as a height
+            // share is the wrong axis; #5011).
+            var first = config
+            first.splitExtent = config.paneExtent ?? config.splitExtent
+            first.splitFraction = config.paneFraction ?? config.splitFraction
+            first.paneExtent = nil
+            first.paneFraction = nil
+            var second = config
+            second.paneExtent = nil
+            second.paneFraction = nil
+            second.splitExtent = nil
+            second.splitFraction = nil
             return .split(axis, [
-                .leaf(id: id, kind: kind, scope: scope, config: config),
-                .leaf(kind, scope: scope, config: config)  // the duplicate gets a fresh id
+                .leaf(id: id, kind: kind, scope: scope, config: first),
+                .leaf(kind, scope: scope, config: second)  // the duplicate gets a fresh id
             ])
         case let .split(id, axis: splitAxis, children):
             return .split(id: id, axis: splitAxis, children: children.map { $0.splittingLeaf(target, axis: axis) })

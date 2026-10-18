@@ -227,7 +227,7 @@
   "Shell/Toolbar/WorkflowStepsDisclosure.swift": "declares a View, no #Preview",
   "Shell/Toolbar/WorkflowToolsPopover.swift": "declares a View, no #Preview",
   "Shell/Toolbar/WorkflowVerbPopover.swift": "declares a View, no #Preview",
-  "Shell/iOSLibraryPickerMenu.swift": "declares a View, no #Preview",
+  "Library/LibraryPickerMenuIOS.swift": "declares a View, no #Preview",
   "Sidebar/ItemRow/SidebarDeferredMenuContent.swift": "declares a View, no #Preview",
   "Sidebar/ItemRow/SidebarItemContextMenu.swift": "declares a View, no #Preview",
   "Sidebar/ItemRow/SidebarItemRow.swift": "declares a View, no #Preview",

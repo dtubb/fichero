@@ -10,37 +10,58 @@ struct HpcSignInSheet: View {
     @State private var answers: [String: String] = [:]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Sign in to \(clusterName)").font(.title3)
-            switch service.phase {
-            case .idle, .signingIn:
-                if service.prompts.isEmpty {
-                    ProgressView("Connecting…")
-                } else {
-                    ForEach(service.prompts) { prompt in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(prompt.text).font(.body)
-                            SecureField("Answer", text: binding(for: prompt))
-                                .onSubmit { send(prompt) }
-                            Text("For a push, approve it on your phone.").font(.caption).foregroundStyle(.secondary)
-                            Button("Send") { send(prompt) }
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Sign In to \(clusterName)")
+                .font(.headline)
+                .padding()
+            Divider()
+            VStack(alignment: .leading, spacing: 12) {
+                switch service.phase {
+                case .idle, .signingIn:
+                    if service.prompts.isEmpty {
+                        ProgressView("Connecting…")
+                    } else {
+                        ForEach(service.prompts) { prompt in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(prompt.text).font(.body)
+                                SecureField("Answer", text: binding(for: prompt))
+                                    .onSubmit { send(prompt) }
+                                if Self.asksForAPush(prompt.text) {
+                                    Text("For a push, approve it on your phone.").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
+                case .signedIn:
+                    Label("Signed in. The connection stays open while you work.", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .failed(let why):
+                    Label(why, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 }
-            case .signedIn:
-                Text("Signed in. The connection stays open while you work.")
-            case .failed(let why):
-                Text(why).foregroundStyle(.red)
             }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            Divider()
             HStack {
-                Spacer()
                 Button(service.phase == .signedIn ? "Done" : "Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
+                Spacer()
+                if service.phase != .signedIn, let prompt = service.prompts.first {
+                    Button("Send") { send(prompt) }
+                        .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                }
             }
+            .padding()
         }
-        .padding(20)
-        .frame(minWidth: 380)
+        .frame(width: 400)
         .task { await service.signIn(clusterId: clusterId) }
+    }
+
+    /// Only a Duo-style prompt offers the phone; a passphrase or a one-time code does not.
+    static func asksForAPush(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return lower.contains("duo") || lower.contains("push")
     }
 
     private func binding(for prompt: HpcSignInService.Prompt) -> Binding<String> {
@@ -54,6 +75,7 @@ struct HpcSignInSheet: View {
     }
 }
 
+#if DEBUG
 #Preview("Waiting for the second factor") {
     let appState = AppState()
     let prompt = HpcSignInService.Prompt(id: "1", text: "Duo passcode or option (1-3): ")
@@ -61,3 +83,4 @@ struct HpcSignInSheet: View {
         clusterId: "rorqual", clusterName: "Rorqual",
         service: HpcSignInService.previewing(prompts: [prompt], phase: .signingIn, in: appState))
 }
+#endif

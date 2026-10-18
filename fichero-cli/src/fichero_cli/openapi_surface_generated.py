@@ -13330,15 +13330,37 @@ def register_generated_openapi_commands(
     @target_app.command("derived-facts")
     def recipes_derived_facts_get(
         ctx: typer.Context,
+        period: Optional[str] = typer.Option(None, '--period', help='Period.'),
         scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
     ) -> None:
         """Derived Facts (GET /api/recipes/derived)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/recipes/derived"
             params = {
+                "period": period,
                 "scripts": scripts,
             }
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("choose-font")
+    def recipes_choose_font_put(
+        ctx: typer.Context,
+        font: Optional[str] = typer.Option(None, '--font', help='a bundled family; null returns to the derived font.'),
+        script: str = typer.Option(..., '--script', help='ISO 15924 code of the script the font draws.'),
+    ) -> None:
+        """Choose Font (PUT /api/recipes/font)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/font"
+            params = None
+            payload = _build_json_payload({
+                "font": font,
+                "script": script,
+            }, {
+                "font": {'type': 'string', 'nullable': True, 'title': 'Font', 'description': 'a bundled family; null returns to the derived font', 'x-cli-required': False},
+                "script": {'type': 'string', 'title': 'Script', 'description': 'ISO 15924 code of the script the font draws', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-hands")
@@ -15991,6 +16013,7 @@ def register_generated_openapi_commands(
         kind_raw: Optional[str] = typer.Option(None, '--kind-raw', help='The kind as the source format named it.'),
         language: Optional[str] = typer.Option(None, '--language', help="The segment's language, a BCP 47 tag."),
         mark_state: Optional[str] = typer.Option(None, '--mark-state', help="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none."),
+        no_writing_model: Optional[str] = typer.Option(None, '--no-writing-model', help='The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).'),
         parent_segment_id: Optional[str] = typer.Option(None, '--parent-segment-id', help='The segment this one now sits inside.'),
         script: Optional[str] = typer.Option(None, '--script', help="The segment's script, an ISO 15924 code."),
         segment_id_2: str = typer.Option(..., '--segment-id', help='The segment to change.'),
@@ -16009,6 +16032,7 @@ def register_generated_openapi_commands(
                 "kind_raw": kind_raw,
                 "language": language,
                 "mark_state": mark_state,
+                "no_writing_model": no_writing_model,
                 "parent_segment_id": parent_segment_id,
                 "script": script,
                 "segment_id": segment_id,
@@ -16022,6 +16046,7 @@ def register_generated_openapi_commands(
                 "kind_raw": {'type': 'string', 'nullable': True, 'title': 'Kind Raw', 'description': 'The kind as the source format named it.', 'x-cli-required': False},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'description': "The segment's language, a BCP 47 tag.", 'x-cli-required': False},
                 "mark_state": {'type': 'string', 'enum': ['ticked', 'crossed', 'struck', 'none'], 'nullable': True, 'title': 'Mark State', 'description': "The segment's one mark: ticked, crossed, struck or none.", 'x-cli-required': False},
+                "no_writing_model": {'type': 'string', 'nullable': True, 'title': 'No Writing Model', 'description': 'The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).', 'x-cli-required': False},
                 "parent_segment_id": {'type': 'string', 'nullable': True, 'title': 'Parent Segment Id', 'description': 'The segment this one now sits inside.', 'x-cli-required': False},
                 "script": {'type': 'string', 'nullable': True, 'title': 'Script', 'description': "The segment's script, an ISO 15924 code.", 'x-cli-required': False},
                 "segment_id": {'type': 'string', 'title': 'Segment Id', 'description': 'The segment to change.', 'x-cli-required': True},
