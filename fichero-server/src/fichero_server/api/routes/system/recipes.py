@@ -1021,8 +1021,8 @@ class ModelCandidate(BaseModel):
 
 
 class HtrUnitedLicence(BaseModel):
-    name: str
-    url: str
+    name: str = ""
+    url: str = ""
 
 
 class HtrUnitedDataset(BaseModel):

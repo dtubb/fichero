@@ -60,7 +60,8 @@ def rows(catalog: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
             "scripts": [str(s["iso"]) for s in entry.get("script") or [] if isinstance(s, dict) and s.get("iso")],
             "handwriting": entry.get("script-type") not in _PRINT_ONLY,
             "format": str(entry.get("format") or ""),
-            "licence": licence if isinstance(licence, dict) else {"name": str(licence or ""), "url": ""},
+            "licence": ({"name": str(licence.get("name") or ""), "url": str(licence.get("url") or "")}
+                        if isinstance(licence, dict) else {"name": str(licence or ""), "url": ""}),
             "lines": _count(entry, "lines"), "pages": _count(entry, "pages"),
         })
     return out
