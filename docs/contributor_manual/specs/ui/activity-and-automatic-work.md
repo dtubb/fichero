@@ -1293,12 +1293,14 @@ and node, not by job); a retry action for failed pages.
   implies is written in the change's own transaction. Built for the correction re-embed
   (`ActionRegistry.invoke`, `fichero-server/tests/unit/jobs/test_job_queue.py`) and an import's derivative stages, which commit or roll
   back with the documents (`fichero-server/tests/unit/jobs/test_derivatives_on_the_lane.py`).
-- `activity.durable.lease-not-fail` — **[BROKEN]** (#5357) after a crash or quit, an
-  interrupted job goes back to waiting and resumes; today every running, accepted **and paused**
-  workflow run is flipped to `failed` on reopen (`workflows/activity.py:658-707`), although its
-  checkpoints are on disk (`workflows/checkpointer.py`). Since #5555 the flip is on every open and says
-  so — "Interrupted: the engine stopped at HH:MM" — and the run offers to read its pages not done as a new
-  run (`compute.run.interrupted-on-start`); it is still not resumed in place.
+- `activity.durable.lease-not-fail` — **[PARTIAL]** (#5357) after a crash or quit, an
+  interrupted job goes back to waiting and resumes. *Quit — built 2026-10-18:* a quit records each live run that has a checkpoint
+  `paused` and the next open resumes it (`activity.run.quit-pauses`); a paused run is not swept on reopen
+  (`activity.durable.paused-stays-paused`). *Crash — not built:* a run that was `running` or `accepted` when the engine died
+  (no quit to pause it) is still flipped to `failed` on the next open (`workflows/activity.py` `_recover_stale_runs_bg`),
+  although its checkpoints are on disk (`workflows/checkpointer.py`). The flip says so — "Interrupted: the engine stopped at HH:MM" —
+  and the run offers to read its pages not done as a new run (`compute.run.interrupted-on-start`, #5555); it is not resumed in
+  place.
 - `activity.durable.dies-with-the-engine` — **[OK]** (2026-10-11) when the engine dies mid-job (killed, not closed),
   nothing reads "running" after it starts again: on the project's open a queued job (an import's page, a model
   download, a recipe run) goes back to waiting, "Interrupted; carries on", and is taken up again from its own
