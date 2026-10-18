@@ -76,7 +76,8 @@ nonisolated struct GeneratedSignInTransport: SignInTransport, @unchecked Sendabl
 /// Registered client on this engine: challenge, sign, and keep the session token where login keeps it (the Keychain,
 /// per host). No client yet and a launch secret in hand (the one the app gave its own engine on stdin, or Debug Dev
 /// Local's 0600 file): first-run makes the owner and registers the key; if the engine already made a keyless owner
-/// for the first loopback request (it does, before this runs), migrate-owner gives that row the key. Neither: nothing to do. A failure is logged and never blocks launch (unknown is not signed out):
+/// for the first loopback request (it does, before this runs), migrate-owner gives that row the key.
+/// Neither: nothing to do. A failure is logged and never blocks launch (unknown is not signed out):
 /// until the ambient owner leaves in slice 10, local requests still carry the bootstrap token, so a sign-in that
 /// cannot happen costs the audit its client name, not the user their library.
 @MainActor

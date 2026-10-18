@@ -73,6 +73,7 @@ nonisolated struct UserDefaultsClientIDStore: ClientIDStoring {
     private var key: String { "app.fichero.signin.clientID." + engineKey }
     func clientID() -> String? { UserDefaults.standard.string(forKey: key) }
     func save(clientID: String) { UserDefaults.standard.set(clientID, forKey: key) }
+    func forget() { UserDefaults.standard.removeObject(forKey: key) }
 }
 
 /// Debug Dev Local only: the launch secret `dev-uds-engine.sh` left as a 0600 file next to the socket.
