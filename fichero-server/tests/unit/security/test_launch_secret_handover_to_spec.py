@@ -96,3 +96,31 @@ def test_a_symlinked_secret_file_is_refused(tmp_path):
     with pytest.raises(OSError):
         launch_secret.read_from_file(str(link))
     assert not launch_secret.matches(SECRET)
+
+
+@pytest.mark.parametrize("line", ["", "\n", "not-a-secret\n"])
+def test_a_missing_or_malformed_stdin_secret_never_stops_start_up(line):
+    """#5797: the embedded app's engine must start even when the pipe write failed (EOF) or carried junk."""
+    launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, io.StringIO(line))
+    assert not launch_secret.matches(line.strip())
+
+
+def test_a_pipe_nobody_writes_to_never_blocks_start_up():
+    """#5797: an open pipe with nothing on it (the app never delivered) gives up after the timeout."""
+    import time
+
+    read_fd, write_fd = os.pipe()
+    try:
+        with os.fdopen(read_fd) as stream:
+            started = time.monotonic()
+            launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, stream, timeout=0.2)
+            assert time.monotonic() - started < 2
+    finally:
+        os.close(write_fd)
+    assert not launch_secret.matches(SECRET)
+
+
+def test_an_unreadable_dev_file_never_stops_start_up(tmp_path):
+    env = {"FICHERO_DEV_LAUNCH_SECRET_FILE": str(tmp_path / "missing"), "FICHERO_ENV": "development"}
+    launch_secret.load_at_startup(env, io.StringIO(""))
+    assert not launch_secret.matches(SECRET)
