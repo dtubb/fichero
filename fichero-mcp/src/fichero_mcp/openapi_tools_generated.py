@@ -6250,6 +6250,15 @@ def fichero_recipes_list_hands(
     return _rt.call("GET", "/api/recipes/hands", params={"languages": languages, "period": period, "script": script})
 
 
+def fichero_recipes_htr_united_datasets(
+    *,
+    languages: Annotated[str, Field(description='Languages')],
+    scripts: Annotated[Optional[str], Field(description='Scripts')] = None,
+) -> Any:
+    "Htr United Datasets\n\nHTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as\n(a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job\nkeeps the catalogue.\n\nRoute: GET /api/recipes/htr-united (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/htr-united", params={"languages": languages, "scripts": scripts})
+
+
 def fichero_recipes_list_jobs(
 ) -> Any:
     'List Jobs\n\nEvery job a recipe can name, with the plain description setup and the manual show.\n\nRoute: GET /api/recipes/jobs (toolset `recipes`; reads).'
@@ -9483,6 +9492,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
+    GeneratedTool("fichero_recipes_htr_united_datasets", "recipes", "GET", "/api/recipes/htr-united", fichero_recipes_htr_united_datasets),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),

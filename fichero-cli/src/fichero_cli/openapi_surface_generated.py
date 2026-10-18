@@ -13186,6 +13186,22 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("htr-united-datasets")
+    def recipes_htr_united_datasets_get(
+        ctx: typer.Context,
+        languages: str = typer.Option(..., '--languages', help='Languages.'),
+        scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
+    ) -> None:
+        """Htr United Datasets (GET /api/recipes/htr-united)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/htr-united"
+            params = {
+                "languages": languages,
+                "scripts": scripts,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("list-jobs")
     def recipes_list_jobs_get(
         ctx: typer.Context,
