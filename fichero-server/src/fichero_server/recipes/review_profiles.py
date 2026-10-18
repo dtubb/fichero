@@ -144,15 +144,33 @@ def facts(answers: dict[str, Any] | None) -> str:
     return ("The project states: " + "; ".join(parts) + ".") if parts else ""
 
 
+def line_scripts(lines: list[tuple[str, str | None, str | None]]) -> str:
+    """For a page whose lines state different scripts or directions, each line's own, from its segment
+    (`source.recipe.nothing-assumes-spaces-direction-or-an-alphabet`, #5728): `lines` is (segment id, script,
+    direction) in reading order. '' for a page of one script, which the project's facts already say."""
+    from fichero_server.recipes.names import script_name
+
+    if len({(script, direction) for _id, script, direction in lines if script}) < 2:
+        return ""
+    words = frame()["directions"]
+    said = [f"- {segment_id}: {script_name(script) if script else 'script not stated'}"
+            + (f", {words[direction]}" if direction in words else "") for segment_id, script, direction in lines]
+    return ("This page mixes scripts: read each line in its own script and direction, as listed, never the project's "
+            "one script for the whole page:\n" + "\n".join(said))
+
+
 def review_prompt(lens: str, answers: dict[str, Any] | None) -> tuple[str, str]:
     """(the prompt a review node sends through `lens`, the sentence saying which profile it was built from).
     Raises for a lens no profile has."""
     profile, said = choose(answers)
-    if lens not in profile.lenses:
-        raise ValueError(f"there is no review lens {lens!r}; the lenses are {', '.join(lens_ids())}")
-    chosen = profile.lenses[lens]
+    names = [name.strip() for name in lens.split(",") if name.strip()]  # "a,b": one pass through several lenses
+    for name in names or [lens]:
+        if name not in profile.lenses:
+            raise ValueError(f"there is no review lens {name!r}; the lenses are {', '.join(lens_ids())}")
+    chosen = [profile.lenses[name] for name in names]
     shared = frame()
     parts = [_one(shared["intro"]), facts(answers), profile.context,
-             f"**This pass: {chosen['title']}.**\n{chosen['text'].rstrip()}", _one(shared["closing"]),
+             f"**This pass: {'; '.join(c['title'] for c in chosen)}.**\n"
+             + "\n".join(c["text"].rstrip() for c in chosen), _one(shared["closing"]),
              "Output the COMPLETE corrected transcription (same line breaks), nothing else."]
     return "\n\n".join(p for p in parts if p), said

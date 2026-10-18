@@ -79,3 +79,28 @@ def test_each_script_gets_its_profile_and_its_direction_is_said(answers, profile
 def test_a_lens_no_profile_has_is_refused_naming_the_lenses():
     with pytest.raises(ValueError, match="abbreviations"):
         review_prompt("no-such-lens", SPANISH)
+
+
+def test_no_shipped_review_carries_the_spanish_colonial_prompt_5723():
+    """Every shipped preset's review node is built from the project and its profile: none carries the Spanish colonial
+    genres and expansions as its own prompt (Transcribe (Auto-Detect) did, for every project it routed to review).
+    WHY: an English or German project sent "carta de poder" and "mer[ce]d" is reviewed against the wrong hand."""
+    import json
+    from pathlib import Path
+
+    import fichero_server
+
+    presets = Path(fichero_server.__file__).parent / "resources" / "default_workflows"
+    carrying = [f"{path.name}:{node['id']}" for path in sorted(presets.glob("*.json"))
+                for node in json.loads(path.read_text()).get("nodes", []) if node.get("tool") == "transcribe_review"
+                and any(mark in (node.get("config") or {}).get("prompt", "") for mark in ("carta de poder", "mer[ce]d"))]
+    assert carrying == []
+
+
+def test_one_pass_through_several_lenses_is_given_each_lens_5723():
+    """A node's `lens` may name several, comma-separated (Auto-Detect reviews once through all three): the prompt holds
+    each lens's text, and an unknown one in the list is refused."""
+    prompt = review_prompt("abbreviations,orthography,names-and-dates", None)[0]
+    assert all(lens["text"].strip().splitlines()[0] in prompt for lens in profiles()["generic"].lenses.values())
+    with pytest.raises(ValueError, match="no review lens 'spelling'"):
+        review_prompt("abbreviations,spelling", None)
