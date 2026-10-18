@@ -3800,8 +3800,11 @@ Running and failure
   minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it are not run
   with "Model download failed: <model> did not download (<reason>). Retry it in Activity, or choose the step's next
   candidate in Set Up" while the other steps run (`runner._await_downloads`,
-  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Not built: Retry and the next candidate
-  as actions on the run's summary itself (they are said, and done in Activity and Set Up).*
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Built (engine, #5352): the run summary's `download_failed` lists each step waiting on a download that failed, with the
+  download's `job_id` to retry (`POST /api/activity/jobs/{job_id}/retry`), and `next_candidate`, the first other entry of the step's
+  `chain` (local first; a cloud one carries `needs_permission` until pages may leave), chosen with
+  `POST /api/recipes/project/steps/use-candidate` (`run_view.download_failures`;
+  `fichero-server/tests/unit/recipes/test_download_failed_actions_5352.py`). Not built: the buttons in the app.*
 - `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no model that sends pages somewhere new for it: a LOCAL model, or one of the same provider, from the step's `chain` runs on its own and is named in `plan.fallbacks` (`used` true, `source.recipe.candidates-fallback-chain`); another cloud provider is offered there (`used` false) and never used without the person's press; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.
