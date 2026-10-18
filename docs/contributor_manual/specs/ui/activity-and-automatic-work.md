@@ -1501,10 +1501,11 @@ code path.
 - `activity.run.record-keeps-all-history` — **[BROKEN]** (#5376) a long run's record keeps every
   step and page from the start. Today the saved timeline is the newest 2,000 events of the replay
   buffer (`execution/runner.py:144-171`, `:257-264`), so a 200-page run loses its early history.
-- `activity.run.log-is-bounded` — **[BROKEN]** (#5376) a run's log is bounded in memory and
-  appended, not rewritten. Today `execution_log_lines` grows without limit and is rewritten in full
-  at every step (`execution/runner.py:1984-1988`), and the `complete` frame ships the whole final
-  state (`execution/runner.py:2161-2184`).
+- `activity.run.log-is-bounded` — **[PARTIAL]** (#5376) a run's log is bounded in memory and
+  appended, not rewritten. *Built 2026-10-18:* the log is a `BoundedLog` (`execution/run_log.py`: the first 200 and the latest
+  1,800 lines held, the middle counted; a node boundary appends only the lines since its last flush; the final text says
+  how many it leaves out); the node-boundary append was built in #5645; pinned by `test_run_log_bounded_5376.py`.
+  *Not built:* the `complete` frame still ships the whole final state (`execution/runner.py`).
 - `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
   kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
