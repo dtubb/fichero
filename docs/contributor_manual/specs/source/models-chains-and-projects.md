@@ -4504,8 +4504,11 @@ Each is described in the paragraph named; the id lets a test cite it.
 - `source.train.adopt-only-past-the-noise-band` — **[PARTIAL]** (#5700, #5441, R4 exit) after an evaluation, the best trained Kraken
   reader measured becomes the project's read-a-line reader only when its CER on the held-out pages beats the best downloadable
   reader's by more than the project's noise band; it is kept as the step's project-scope override (`model: {trained: <reader id>}`,
-  its CER, and why, naming both CERs and the band) through `project.save_setup`, audited and undoable. Within the band, or worse,
-  the downloadable reader is kept and the evaluation's reason says why. *Built: `training.evaluation.adopt_trained`, called by
+  its CER, and why, naming both CERs and the band) through `project.save_setup`, audited and undoable. The reader to beat is the
+  step's current one when the evaluation measured it, else the best downloadable one. A reader the person chose (Use This, a
+  bake-off, a cloud reader) is never replaced: past the band the trained reader is `offered`, and only a reader the rules or an
+  earlier adoption chose is swapped (review 77). Measured on fewer than 15 held-out pages (`NOISE_MIN_PAGES`), nothing is
+  adopted. Within the band, or worse, the current reader is kept and the evaluation's reason says why. *Built: `training.evaluation.adopt_trained`, called by
   the evaluation job (`result.adoption`); `recipes.cards.kraken_reader_for` reads a `trained` pin;
   `fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py`. Not built: a trained vision model set on the
   step (it is measured and carded only).*

@@ -742,11 +742,16 @@ def words(result: dict[str, Any], pages: int) -> str:
     return said
 
 
+#: What an override the evaluation set says made it: a reader the rules chose, which a better one may replace.
+ADOPTED_BY = "evaluation"
+
+
 def adopt_trained(db: Any, result: dict[str, Any]) -> dict[str, Any] | None:
     """Set the best trained Kraken reader measured as the project's read-a-line reader, only when its CER beats
     the best downloadable reader's by more than the project's noise band (#5700, #5441,
     `source.train.adopt-only-past-the-noise-band`); kept through `project.save_setup` (audited, undoable), as a
-    person's Use This is. None when the evaluation measured no trained reader, else what was decided and why.
+    person's Use This is. A reader the person chose is never replaced (review 77): the trained one is measured
+    against theirs and, past the band, offered (`offered`), not switched to. None when the evaluation measured no trained reader, else what was decided and why.
     ponytail: Kraken readers only; a trained vision model is measured and carded but not set on the step yet."""
     from fichero_server.recipes.project import read_noise_band, read_project_setup
 
@@ -762,6 +767,21 @@ def adopt_trained(db: Any, result: dict[str, Any]) -> dict[str, Any] | None:
         return None
     library = Path(db.path).parent
     band = read_noise_band(library)["value"]
+    recipe = read_project_setup(library).get("recipe")
+    step = next((s for s in (recipe or {}).get("steps") or [] if s.get("job") == "read-a-line"), None)
+    chosen = next((o for o in (recipe or {}).get("overrides") or [] if step is not None
+                   and (o.get("step"), o.get("scope"), o.get("folder_id")) == (step["id"], "project", None)
+                   and o.get("by") != ADOPTED_BY), None)
+    if step is not None:  # review 77: the step's current reader is the one to beat, when it was measured
+        from fichero_server.recipes.cards import kraken_reader_for
+
+        pin = (chosen or {}).get("model") or step.get("model") or {}
+        current = kraken_reader_for(pin) or pin.get("model") or pin.get("hf")
+        base = next((m for m in result["models"] if m["model"] == current and m["measured"]
+                     and m["scores"][policy]["cer"] is not None), base)
+    if trained["pages_read"] < NOISE_MIN_PAGES:
+        return {"adopted": None, "why": f"{trained['model']} was measured on {trained['pages_read']} held-out pages; "
+                                        f"a reader is adopted from {NOISE_MIN_PAGES} up, as the noise band is"}
     cer = trained["scores"][policy]["cer"]
     if base is None:
         return {"adopted": None, "why": f"{trained['model']} was not compared with a downloadable reader, so the "
@@ -773,11 +793,14 @@ def adopt_trained(db: Any, result: dict[str, Any]) -> dict[str, Any] | None:
         return {"adopted": None, "gain": round(gain, 6), "noise_band": band,
                 "why": (f"{said}: not adopted, the gain {gain:+.4f} is within the project's noise band ({band})"
                         if gain > 0 else f"{said}: not adopted, {base['model']} reads these pages as well or better")}
-    recipe = read_project_setup(library).get("recipe")
-    step = next((s for s in (recipe or {}).get("steps") or [] if s.get("job") == "read-a-line"), None)
     if step is None:
         return {"adopted": None, "gain": round(gain, 6), "noise_band": band,
                 "why": f"{said}: beyond the noise band, but this project's recipe has no read-a-line step"}
+    if chosen is not None:
+        return {"adopted": None, "offered": trained["model"], "step": step["id"], "gain": round(gain, 6),
+                "noise_band": band,
+                "why": (f"{said}: beyond the project's noise band ({band}), offered; the reader you chose stays "
+                        "until you choose this one")}
     from fichero_server.actions.registry import ActionContext, registry
 
     because = f"trained on your corrections: {said}, beyond the project's noise band ({band})"
@@ -786,6 +809,7 @@ def adopt_trained(db: Any, result: dict[str, Any]) -> dict[str, Any] | None:
     recipe["overrides"].append({"step": step["id"], "scope": "project", "folder_id": None,
                                 "model": {"trained": trained["model"]}, "card": trained["model"],
                                 "runs_on": "this-mac", "cer": cer, "policy": policy, "because": because,
+                                "by": ADOPTED_BY,
                                 "at": datetime.now(timezone.utc).isoformat()})
     step["model"] = {"trained": trained["model"]}
     ctx = ActionContext(actor="evaluation", library_path=str(library), is_bootstrap=True)
