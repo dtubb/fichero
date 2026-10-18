@@ -14641,6 +14641,59 @@
         }
       }
     },
+    "/api/recipes/htr-united": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Htr United Datasets",
+        "description": "HTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as\n(a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job\nkeeps the catalogue.",
+        "operationId": "htr_united_datasets_api_recipes_htr_united_get",
+        "parameters": [
+          {
+            "name": "languages",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Languages"
+            }
+          },
+          {
+            "name": "scripts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Scripts"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HtrUnitedDatasets"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/candidates": {
       "get": {
         "tags": [
@@ -66421,6 +66474,129 @@
         ],
         "title": "HpcTestResponse",
         "description": "Result of a (dry-run) Test-connection probe."
+      },
+      "HtrUnitedDataset": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "scripts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scripts"
+          },
+          "handwriting": {
+            "type": "boolean",
+            "title": "Handwriting"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "licence": {
+            "$ref": "#/components/schemas/HtrUnitedLicence"
+          },
+          "lines": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines"
+          },
+          "pages": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages"
+          },
+          "as": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "As",
+            "description": "test-set and training when the licence is open; empty until the licence is accepted"
+          },
+          "accept": {
+            "type": "string",
+            "nullable": true,
+            "title": "Accept",
+            "description": "what to accept first; null when the licence is open"
+          },
+          "importable": {
+            "type": "boolean",
+            "title": "Importable",
+            "description": "whether Fichero can import its format (PAGE or ALTO)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "description",
+          "languages",
+          "scripts",
+          "handwriting",
+          "format",
+          "licence",
+          "as",
+          "importable"
+        ],
+        "title": "HtrUnitedDataset",
+        "description": "One HTR-United ground-truth dataset and what it may be used as (#5571)."
+      },
+      "HtrUnitedDatasets": {
+        "properties": {
+          "fetched_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fetched At",
+            "description": "when the catalogue was kept; null when never"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/HtrUnitedDataset"
+            },
+            "type": "array",
+            "title": "Datasets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "datasets"
+        ],
+        "title": "HtrUnitedDatasets"
+      },
+      "HtrUnitedLicence": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "HtrUnitedLicence"
       },
       "IIIFImportRequest": {
         "properties": {
