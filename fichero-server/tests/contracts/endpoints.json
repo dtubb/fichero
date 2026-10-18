@@ -1113,6 +1113,16 @@
         "response_model": "ChallengeResponse"
       },
       {
+        "method": "POST",
+        "path": "/auth/first-run",
+        "operation_id": "first_run_api_auth_first_run_post",
+        "summary": "First Run",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FirstRunRequest",
+        "response_model": "FirstRunResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/identity",
         "operation_id": "identity_api_auth_identity_get",

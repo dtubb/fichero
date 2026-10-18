@@ -178,6 +178,7 @@ class AppState {
     let modelService: ModelService  // Public for @EnvironmentObject injection (HuggingFace browsing)
     let usersStore: UsersStore  // Public for Settings → Users tab
     let sessionStore: SessionStore  // Public for the login gate (#2021/#2022)
+    let ownerSignIn: OwnerSignInCoordinator
     let identityStore: IdentityStore  // Public for the access UX (F5): who am I / owner?
     let localInferenceStore: LocalInferenceStore  // Public for Settings → Local LLM tab (#3120)
     let appleAvailabilityStore: AppleAvailabilityStore  // FirstRun + provider rows (#3121/#3118)
@@ -200,6 +201,7 @@ class AppState {
         self.modelService = ModelService(ficheroClient: ficheroClient)
         self.usersStore = UsersStore(client: ficheroClient)
         self.sessionStore = SessionStore(client: ficheroClient)
+        self.ownerSignIn = OwnerSignInCoordinator(client: ficheroClient)
         self.identityStore = IdentityStore(client: ficheroClient)
         self.localInferenceStore = LocalInferenceStore(client: ficheroClient)
         self.appleAvailabilityStore = AppleAvailabilityStore(client: ficheroClient)

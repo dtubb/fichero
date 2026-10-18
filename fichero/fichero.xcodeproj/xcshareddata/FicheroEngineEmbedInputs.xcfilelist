@@ -614,6 +614,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/authz_kinds.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/bind_host.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/keychain.py
+$(SRCROOT)/../fichero-server/src/fichero_server/security/launch_secret.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/multiuser.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/path_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/provider_keys.py
