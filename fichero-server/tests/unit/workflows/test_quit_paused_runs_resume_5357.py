@@ -61,3 +61,35 @@ def test_a_resume_that_fails_leaves_the_run_paused_and_says_why(tmp_path, monkey
     assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == []
     run = asyncio.run(store.get_workflow_run("r"))
     assert run.status == "paused" and "no checkpoint" in run.error
+
+
+def test_a_pause_the_person_asked_for_before_the_quit_is_not_resumed(tmp_path, monkeypatch):
+    """Review 125: Pause then quit before the boundary leaves the run paused, with no quit marker."""
+    from fichero_server.execution.cancellation import clear_pause, request_pause
+    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
+
+    db_path = str(tmp_path / "fichero.duckdb")
+    store = ActivityStore(db_path)
+    _save(store, "r", status="running")
+
+    async def go():
+        cp = AsyncDuckDBCheckpointer.from_db_path(db_path)
+        await cp.aput({"configurable": {"thread_id": "r", "checkpoint_ns": ""}},
+                      {"id": "c1", "type": "checkpoint", "channel_values": {}, "channel_versions": {},
+                       "versions_seen": {}}, {"source": "t", "step": 1, "writes": {}}, {})
+
+    asyncio.run(go())
+    monkeypatch.setattr(runner, "_running_workflows", {"r": {"status": "running", "db_path": db_path}})
+    request_pause("r")  # the person's Pause; the status stays running until the boundary
+    try:
+        assert asyncio.run(runner.pause_live_runs_for_shutdown()) == 1
+    finally:
+        clear_pause("r")
+    run = asyncio.run(store.get_workflow_run("r"))
+    assert run.status == "paused" and run.error != runner.QUIT_PAUSED_ERROR
+
+    async def fake_resume(*a, **k):
+        raise AssertionError("a run the person paused must not be resumed")
+
+    monkeypatch.setattr("fichero_server.api.routes.workflow_execution.core.resume_workflow", fake_resume)
+    assert asyncio.run(activity.resume_quit_paused_runs(store, "DB")) == []
