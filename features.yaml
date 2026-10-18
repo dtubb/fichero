@@ -268,11 +268,11 @@
   notes: Video workflow tools still under review.
 - key: workflowToolsMcp
   name: Workflow tools MCP
-  tier: dev
+  tier: alpha
   swift_flag: fichero.features.workflow_tools_mcp
   routes: []
   ux_group: Processing
-  notes: MCP-backed workflow tools still under review.
+  notes: An enabled MCP server's tools are in the workflow palette (mcp.client.tools-reach-a-workflow, #5760).
 - key: workflowToolsAgents
   name: Workflow tools agents
   tier: dev
