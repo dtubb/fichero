@@ -14402,6 +14402,16 @@
               "default": "",
               "title": "Scripts"
             }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Period"
+            }
           }
         ],
         "responses": {
@@ -14411,6 +14421,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DerivedFacts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/font": {
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Choose Font",
+        "description": "Remember a pane's font choice for a script in this library's setup answers (`answers.fonts`),\nor clear it, through `project.save_setup` (audited, undoable). Transcription text is then drawn in it\n(`layers.text.font-from-script-and-period`).",
+        "operationId": "choose_font_api_recipes_font_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontChoice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFacts"
                 }
               }
             }
@@ -65265,6 +65339,26 @@
         "title": "FolderViewsResponse",
         "description": "Available folder/workspace lenses for the selected document folder."
       },
+      "FontChoice": {
+        "properties": {
+          "script": {
+            "type": "string",
+            "title": "Script",
+            "description": "ISO 15924 code of the script the font draws"
+          },
+          "font": {
+            "type": "string",
+            "nullable": true,
+            "title": "Font",
+            "description": "a bundled family; null returns to the derived font"
+          }
+        },
+        "type": "object",
+        "required": [
+          "script"
+        ],
+        "title": "FontChoice"
+      },
       "FormatInfo": {
         "properties": {
           "name": {
@@ -81306,6 +81400,12 @@
             "title": "Pages Read",
             "description": "of those, the pages that have a reading (lines read, or a page text), not counting a page the run left out as blank (#5705)"
           },
+          "lines_unread": {
+            "type": "integer",
+            "title": "Lines Unread",
+            "description": "the lines found on those pages that have no reading (#5758)",
+            "default": 0
+          },
           "names": {
             "items": {
               "$ref": "#/components/schemas/NamesOfAKind"
@@ -87659,6 +87759,12 @@
             "nullable": true,
             "title": "Mark State",
             "description": "The segment's one mark: ticked, crossed, struck or none."
+          },
+          "no_writing_model": {
+            "type": "string",
+            "nullable": true,
+            "title": "No Writing Model",
+            "description": "The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758)."
           },
           "language": {
             "type": "string",

@@ -101,6 +101,23 @@ enum ActivityRunStatus {
     case failed
     case cancelled
 
+    /// The statuses a run has ended in: what "Clear Finished" enables on AND what it deletes (#5016).
+    static let finished: [ActivityRunStatus] = [.completed, .failed, .cancelled]
+
+    /// The engine's names for `finished`, sent as the delete's status filter.
+    static var finishedEngineNames: [String] { finished.map(\.engineName) }
+
+    /// The name the engine's run table uses for this status.
+    var engineName: String {
+        switch self {
+        case .running: return "running"
+        case .paused: return "paused"
+        case .completed: return "completed"
+        case .failed: return "failed"
+        case .cancelled: return "cancelled"
+        }
+    }
+
     var icon: String {
         switch self {
         case .running: return "play.circle.fill"
