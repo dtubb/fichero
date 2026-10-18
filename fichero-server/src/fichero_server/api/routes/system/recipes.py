@@ -197,6 +197,9 @@ class StepProblem(BaseModel):
         "up to three refused readers closest to fitting, the ones the sentence names "
         "(source.onboard.nothing-fits-names-nearest)"))
     refused: list[RefusedCard] = Field(default_factory=list, description="every card refused for the step, and why")
+    licence: Optional[dict[str, str]] = Field(default=None, description=(
+        "for licence-not-accepted: the card, the licence's name and the words the Review the licence button shows "
+        "(source.onboard.every-setup-button-acts-or-says-why)"))
 
 
 class StepReader(BaseModel):
