@@ -14,11 +14,10 @@ import asyncio
 import base64
 import dataclasses
 import io
-import json
 import logging
 import re
 
-from PIL import Image, ImageDraw, ImageStat
+from PIL import Image
 
 from fichero_server.llm.working_lines import NO_WRITING_KEY
 from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)

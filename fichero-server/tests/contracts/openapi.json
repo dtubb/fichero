@@ -73008,6 +73008,11 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "last_load_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Load Error"
           }
         },
         "type": "object",

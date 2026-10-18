@@ -201,10 +201,17 @@ async def vision_slot(remote: bool = False):
         _vision_slot_held.reset(token)
 
 
+_IN_PROCESS_READERS = frozenset({"kraken", "mlx", "apple"})
+
+
 def _is_remote_model(config: LLMConfig | None) -> bool:
     """A node whose model runs off this Mac waits on the network, not this machine (#5264): by its
     address, so an Ollama on another machine is remote (#5586)."""
     if config is None or not getattr(config, "provider", None):
+        return False
+    # Readers that run inside this engine have no provider record to say so (#5758: all 5 pages of a Kraken read took
+    # the hosted pool and never met the memory gate).
+    if str(config.provider).lower() in _IN_PROCESS_READERS:
         return False
     from fichero_server.llm.places import runs_on_this_mac
 
