@@ -145,8 +145,28 @@ class FicheroError(RuntimeError):
         self.status_code = status_code
 
 
-def _read_cli_session_payload(as_user: str | None = None) -> dict[str, Any]:
-    """Read the selected CLI session payload from disk, if present."""
+def engine_key(base_url: str | None, uds_path: str | None) -> str:
+    """Which engine a session belongs to: the Unix socket the CLI dials, else the engine's base URL (#5757)."""
+    if uds_path:
+        return f"uds:{uds_path}"
+    return (base_url or "").rstrip("/").lower()
+
+
+def _session_for(sessions: dict[str, Any], user: str, engine: str | None) -> dict[str, Any]:
+    """The session of `user` made on `engine`, else one made before sessions were keyed by engine (it carries no
+    engine and keeps working until the next login stamps one). A session made on another engine is never returned."""
+    if engine:
+        stamped = sessions.get(f"{user}@{engine}")
+        if isinstance(stamped, dict):
+            return stamped
+    plain = sessions.get(user)
+    if isinstance(plain, dict) and not plain.get("engine"):
+        return plain
+    return {}
+
+
+def _read_cli_session_payload(as_user: str | None = None, engine: str | None = None) -> dict[str, Any]:
+    """Read the selected CLI session payload from disk, if present, as made on `engine` when it is named."""
     try:
         if (_CLI_SESSION_PATH.stat().st_mode & 0o777) != 0o600:
             return {}
@@ -162,8 +182,7 @@ def _read_cli_session_payload(as_user: str | None = None) -> dict[str, Any]:
         return {}
     selected_user = (as_user or payload.get("current_user") or "").strip()
     if selected_user:
-        selected = sessions.get(selected_user)
-        return selected if isinstance(selected, dict) else {}
+        return _session_for(sessions, selected_user, engine)
     first_session = next(iter(sessions.values()), {})
     return first_session if isinstance(first_session, dict) else {}
 
@@ -173,12 +192,13 @@ def _read_token(
     as_user: str | None = None,
     prefer_container: bool = False,
     refused: frozenset[str] = frozenset(),
+    engine: str | None = None,
 ) -> str | None:
     """Read the selected auth token, scoped to the actual backend host."""
     # An explicitly selected account must never fall back to the loopback
     # bootstrap credential: that would attribute an agent MCP action to owner.
     if as_user:
-        payload = _read_cli_session_payload(as_user=as_user)
+        payload = _read_cli_session_payload(as_user=as_user, engine=engine)
         token = payload.get("session_token")
         return token.strip() if isinstance(token, str) and token.strip() else None
 
@@ -188,7 +208,7 @@ def _read_token(
 
     loopback = _is_loopback_base_url(base_url)
     if loopback is False:
-        payload = _read_cli_session_payload(as_user=as_user)
+        payload = _read_cli_session_payload(as_user=as_user, engine=engine)
         token = payload.get("session_token")
         if isinstance(token, str) and token.strip():
             return token.strip()
@@ -198,7 +218,7 @@ def _read_token(
         return None
 
     if loopback is None:
-        payload = _read_cli_session_payload(as_user=as_user)
+        payload = _read_cli_session_payload(as_user=as_user, engine=engine)
         token = payload.get("session_token")
         if isinstance(token, str) and token.strip():
             return token.strip()
@@ -435,6 +455,8 @@ class FicheroClient:
             self._uds_path = _app_socket_to_dial(
                 self.base_url, base_url_was_explicit=base_url is not None
             )
+        # Which engine this client dials: a stored session is only sent to the engine it was made on (#5757).
+        self.engine_key = engine_key(self.base_url, self._uds_path)
         # token="" is honoured (explicit "no token"); token=None means discover
         # from disk on demand so the client can survive startup ordering races.
         self._discover_token = token is None
@@ -444,6 +466,7 @@ class FicheroClient:
             base_url=DEFAULT_BASE_URL if self._uds_path else self.base_url,
             as_user=self._as_user,
             prefer_container=self._uds_path is not None,
+            engine=self.engine_key,
         )
         # library_path="" is honoured (explicit "no library"); library_path=None
         # means discover from the environment on demand so a late-bound window
@@ -518,7 +541,8 @@ class FicheroClient:
             if refused and self.token:
                 self._refused.add(self.token)
             refreshed = _read_token(
-                base_url=self.base_url, as_user=self._as_user, refused=frozenset(self._refused)
+                base_url=self.base_url, as_user=self._as_user, refused=frozenset(self._refused),
+                engine=self.engine_key,
             )
             if refreshed and refreshed != self.token:
                 self.token = refreshed
