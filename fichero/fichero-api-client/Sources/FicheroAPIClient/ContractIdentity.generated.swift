@@ -7,5 +7,5 @@
 
 public enum BakedContractIdentity {
     public static let version = "2026.10.11"
-    public static let sha256 = "656a9a4ae156d665fd7d08a09d6e37f15d145d889e1c6a62f5f1c9409daac712"
+    public static let sha256 = "8dcd65852ad8a1d3a4ca564ddbc19e64ba75464a8f4e676654412b78c5a3fda5"
 }
