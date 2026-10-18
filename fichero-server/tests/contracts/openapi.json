@@ -88105,6 +88105,11 @@
           "paired_device_count": {
             "type": "integer",
             "title": "Paired Device Count"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
           }
         },
         "type": "object",

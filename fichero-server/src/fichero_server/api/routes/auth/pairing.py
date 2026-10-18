@@ -108,6 +108,8 @@ class SharingStateResponse(BaseModel):
     # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
     tailnet_serve_command: str | None = None
     paired_device_count: int
+    # The audit row of a change this answer follows (PUT /multiuser): what ⌘Z takes back.
+    audit_id: str | None = None
 
 
 class MultiuserRequest(BaseModel):
@@ -484,10 +486,10 @@ def set_multiuser(
     switch, the CLI and MCP share this route."""
     _owner_only(request, app_db)
     try:
-        registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
+        result = registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
     except ActionRefused as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _sharing_state(app_db)
+    return _sharing_state(app_db).model_copy(update={"audit_id": result.audit_id})
 
 
 class MultiuserParams(BaseModel):
