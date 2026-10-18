@@ -1739,6 +1739,26 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("register-local-client")
+    def auth_register_local_client_post(
+        ctx: typer.Context,
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+        request_id: str = typer.Option(..., '--request-id', help='Request Id.'),
+    ) -> None:
+        """Register Local Client (POST /api/auth/local-clients/register)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/register"
+            params = None
+            payload = _build_json_payload({
+                "public_key_pem": public_key_pem,
+                "request_id": request_id,
+            }, {
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+                "request_id": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Request Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("request-local-client")
     def auth_request_local_client_post(
         ctx: typer.Context,
@@ -1787,24 +1807,6 @@ def register_generated_openapi_commands(
                 "allow": allow,
             }, {
                 "allow": {'type': 'boolean', 'title': 'Allow', 'x-cli-required': True},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("register-local-client")
-    def auth_register_local_client_post(
-        ctx: typer.Context,
-        request_id: str = typer.Argument(..., help='Request Id'),
-        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
-    ) -> None:
-        """Register Local Client (POST /api/auth/local-clients/requests/{request_id}/register)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/auth/local-clients/requests/{request_id}/register"
-            params = None
-            payload = _build_json_payload({
-                "public_key_pem": public_key_pem,
-            }, {
-                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

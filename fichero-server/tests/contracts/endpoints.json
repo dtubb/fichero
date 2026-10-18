@@ -1176,6 +1176,16 @@
       },
       {
         "method": "POST",
+        "path": "/auth/local-clients/register",
+        "operation_id": "register_local_client_api_auth_local_clients_register_post",
+        "summary": "Register Local Client",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LocalClientRegisterBody",
+        "response_model": "SignInClient"
+      },
+      {
+        "method": "POST",
         "path": "/auth/local-clients/request",
         "operation_id": "request_local_client_api_auth_local_clients_request_post",
         "summary": "Request Local Client",
@@ -1205,18 +1215,6 @@
         "query_params": [],
         "request_model": "LocalClientDecision",
         "response_model": "LocalClientRequestResponse"
-      },
-      {
-        "method": "POST",
-        "path": "/auth/local-clients/requests/{request_id}/register",
-        "operation_id": "register_local_client_api_auth_local_clients_requests__request_id__register_post",
-        "summary": "Register Local Client",
-        "path_params": [
-          "request_id"
-        ],
-        "query_params": [],
-        "request_model": "LocalClientRegisterBody",
-        "response_model": "SignInClient"
       },
       {
         "method": "GET",
