@@ -373,6 +373,21 @@ async def test_a_corrected_line_records_the_lens_that_changed_it_5724(page, monk
     assert artifact.data["lens"] == "orthography"
 
 
+@pytest.mark.asyncio
+async def test_a_lines_short_note_is_kept_with_the_review_and_never_read_as_its_text_5724(page, monkeypatch):
+    """The review may add a short note after a line (`<id> | <flag> | <text> | <note>`): the line's reading is the
+    text, and the note is kept on the review artifact under the line's id.
+    WHY: a person checking a correction needs the reviewer's reason, and a note read as the text would replace the line."""
+    from fichero_server.models import Artifact, ContentRepresentation
+
+    second = _lines(page)[1]
+    await _review(page, monkeypatch, f"{second.id} | uncertain | vezino de la ciudad | c and z unclear in this hand")
+    (new,) = [r for r in _readings(page, second) if r.content == "vezino de la ciudad"]
+    artifact = page["db"].get(Artifact, page["db"].get(ContentRepresentation, new.id).derived_from_artifact_id)
+    assert artifact.data["line_notes"] == {second.id: "c and z unclear in this hand"}
+    assert not [r for r in _readings(page, second) if "unclear" in r.content]
+
+
 def _shipped_review_node_configs():
     import json
     from pathlib import Path
