@@ -248,6 +248,39 @@ async def get_all_mcp_tools() -> MCPToolListResponse:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def sync_mcp_tools() -> int:
+    """Make the engine's MCP client match the app database, then reload the workflow tool registry
+    (`mcp.client.tools-survive-a-restart`, #5760): enabled servers in, disabled and deleted ones out. Run by the
+    engine when it starts and after every save or delete; never raises, so a server that will not start cannot fail
+    a save or a launch."""
+    try:
+        manager = get_mcp_manager()
+        wanted = {server.name: server for server in get_app_db().query_mcp_servers(enabled=True)}
+        for existing in list(manager.list_servers()):
+            if existing.name not in wanted:
+                manager.remove_server(existing.name)
+        for server in wanted.values():
+            manager.add_server(_server_to_config(server))
+        from fichero_server.workflows.tools import mcp as workflow_mcp
+
+        return await workflow_mcp.reload_mcp_tools()
+    except Exception as exc:  # noqa: BLE001 - a bad server is logged, not raised
+        logger.warning("Could not load the MCP tools: %s", exc)
+        return 0
+
+
+def sync_mcp_tools_soon() -> None:
+    """Start `sync_mcp_tools` without making the caller wait for servers to connect."""
+    import asyncio
+
+    task = asyncio.get_running_loop().create_task(sync_mcp_tools())
+    _SYNCS.add(task)
+    task.add_done_callback(_SYNCS.discard)
+
+
+_SYNCS: set = set()  # strong references: a task nobody holds can be collected before it runs
+
+
 @router.post("/mcp-servers/tools/load-into-workflow-registry")
 async def load_mcp_tools_into_workflow_registry(
     _owner: None = Depends(_require_owner_or_bootstrap),
@@ -375,6 +408,7 @@ async def create_mcp_server(
         manager.add_server(config)
 
         logger.info(f"Created MCP server: {server.name}")
+        sync_mcp_tools_soon()
         return _server_to_response(server)
 
     except HTTPException:
@@ -432,6 +466,7 @@ async def update_mcp_server(
         manager.add_server(config)
 
         logger.info(f"Updated MCP server: {server.name}")
+        sync_mcp_tools_soon()
         return _server_to_response(server)
 
     except HTTPException:
@@ -467,6 +502,7 @@ async def delete_mcp_server(
         manager.remove_server(server_name)
 
         logger.info(f"Deleted MCP server: {server_name}")
+        sync_mcp_tools_soon()
         return MCPServerDeletedResponse(message=f"Server '{server_name}' deleted successfully")
 
     except HTTPException:

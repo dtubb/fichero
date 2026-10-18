@@ -1085,6 +1085,11 @@ async def lifespan(app: FastAPI):
                 break
             await asyncio.sleep(remaining)
         await asyncio.get_running_loop().run_in_executor(None, _warm_workflow_stack)
+        # The enabled MCP servers' tools join the workflow registry (`mcp.client.tools-survive-a-restart`, #5760),
+        # after the launch is ready so a slow server never slows it; it never raises.
+        from fichero_server.api.routes.mcp.servers import sync_mcp_tools
+
+        await sync_mcp_tools()
         # The embedding model is NOT warmed (#5283, ruled 2026-10-01): it is about 1.5 GB, and it
         # loads on the first embed or semantic search and is released once idle.
 
