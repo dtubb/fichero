@@ -28,3 +28,20 @@ def test_the_buffer_is_the_whole_v6_struct():
 def test_rusage_is_none_off_macos(monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     assert bc.process_rusage() is None and bc.process_energy_watts() is None
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="proc_pid_rusage is macOS")
+def test_the_tree_includes_a_running_child():
+    """A child that works counts: the tree's memory is more than this process alone, and the child is found."""
+    import subprocess
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; x = bytearray(80_000_000); time.sleep(5)"])
+    try:
+        import time
+
+        time.sleep(1)
+        assert child.pid in bc._descendant_pids(__import__("os").getpid())
+        assert bc.process_tree_rusage()["memory_bytes"] >= bc.process_rusage()["memory_bytes"] + 50_000_000
+    finally:
+        child.kill()
+        child.wait()

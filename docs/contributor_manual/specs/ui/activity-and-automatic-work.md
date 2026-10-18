@@ -1217,8 +1217,8 @@ and node, not by job); a retry action for failed pages.
   not yet seen in the app. Still a gap: a reading on a cloud model (the network lane) is not held,
   and the small display image is made on first view, not at import.
 - `activity.lane.measures-processors` — **[PARTIAL]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
-  Engine, memory), measured by the engine. Built: the engine's own CPU %, memory and energy (watts) are measured
-  process-wide, the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
+  Engine, memory), measured by the engine. Built: the engine's CPU %, memory and energy (watts) are measured
+  process-wide, the last two summed over its child processes (`process_tree_rusage`), the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
   ride on `GET /api/activity/jobs` (`fichero-server/tests/unit/jobs/test_process_rusage_5358.py`). Still a gap:
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
