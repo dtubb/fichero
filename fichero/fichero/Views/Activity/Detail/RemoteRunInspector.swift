@@ -110,6 +110,7 @@ struct RemoteRunInspector: View {
     }
 }
 
+#if DEBUG
 #Preview("A cluster run with one failed shard") {
     let appState = AppState()
     let shard = RemoteRunService.Shard(
@@ -122,3 +123,4 @@ struct RemoteRunInspector: View {
         .padding()
         .frame(width: 460)
 }
+#endif

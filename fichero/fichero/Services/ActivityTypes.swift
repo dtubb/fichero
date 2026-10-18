@@ -274,7 +274,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.runId = job.runId
         self.failedAt = job.failedAt
         self.remote = job.remote.map {
-            Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded)
+            Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded ?? 0)
         }
     }
 

@@ -75,6 +75,7 @@ struct HpcSignInSheet: View {
     }
 }
 
+#if DEBUG
 #Preview("Waiting for the second factor") {
     let appState = AppState()
     let prompt = HpcSignInService.Prompt(id: "1", text: "Duo passcode or option (1-3): ")
@@ -82,3 +83,4 @@ struct HpcSignInSheet: View {
         clusterId: "rorqual", clusterName: "Rorqual",
         service: HpcSignInService.previewing(prompts: [prompt], phase: .signingIn, in: appState))
 }
+#endif
