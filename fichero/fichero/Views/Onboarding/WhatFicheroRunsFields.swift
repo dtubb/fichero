@@ -79,8 +79,9 @@ struct WhatFicheroRunsFields: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+        // A grouped Form: the accounts are native rows, and the form scrolls itself (#5776).
+        Form {
+            Section {
                 Text(WhatFicheroRuns.intro)
                     .fixedSize(horizontal: false, vertical: true)
                 // Side by side, the same height; stacked at compact width. (ViewThatFits stacked them always: a
@@ -93,17 +94,20 @@ struct WhatFicheroRunsFields: View {
                 }
                 Text(WhatFicheroRuns.comesWith)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(WhatFicheroRuns.accountsTitle).font(.headline)
+            }
+            Section {
                 ForEach(WhatFicheroRuns.accountRows(providers: providers), id: \.account.providerType) { row in
                     accountRow(row)
                 }
                 Button(WhatFicheroRuns.addAnother) { add(nil) }
-                Text(WhatFicheroRuns.accountsFootnote).font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text(WhatFicheroRuns.accountsTitle)
+            } footer: {
+                Text(WhatFicheroRuns.accountsFootnote)
             }
-            .frame(maxWidth: 560, alignment: .leading)
-            // Clear of the scroller.
-            .padding(.trailing, 8)
         }
+        .formStyle(.grouped)
+        .frame(maxWidth: 560, alignment: .leading)
     }
 
     private var places: some View {

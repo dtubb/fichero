@@ -549,6 +549,32 @@ def totals(per_page: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return out
 
 
+#: How many held-out splits the noise band is measured over (ruled Q6 2026-10-17, #5692).
+NOISE_SPLITS = 3
+#: The fewest read pages a band is measured from (review 70: three pages, one a split, measure nothing). Five a split.
+#: ponytail: a stated floor; a per-split line count if pages vary too much in length.
+NOISE_MIN_PAGES = 15
+
+
+def noise_band(per_page: list[dict[str, Any]], splits: int = NOISE_SPLITS) -> float | None:
+    """The CER spread over `splits` held-out splits of the pages a reader read (page i in split i % splits): the
+    difference between the worst and the best split's CER. None with fewer than `NOISE_MIN_PAGES` read pages."""
+    from fichero_server.workflows.transcription_accuracy import DEFAULT_POLICY_NAME
+
+    scored = [p["scores"][DEFAULT_POLICY_NAME] for p in per_page
+              if p.get("read", True) and (p["scores"].get(DEFAULT_POLICY_NAME) or {}).get("cer") is not None]
+    if len(scored) < max(splits, NOISE_MIN_PAGES):
+        return None
+    cers = []
+    for k in range(splits):
+        part = scored[k::splits]
+        chars = sum(s["reference_chars"] for s in part)
+        if not chars:
+            return None
+        cers.append(sum(s["distance"] for s in part) / chars)
+    return max(cers) - min(cers)
+
+
 def speed(seconds: float, pages: int) -> dict[str, Any]:
     """The reading time measured in this run, and the pages an hour it gives on this Mac."""
     return {"seconds": round(seconds, 3), "pages": pages,
@@ -692,7 +718,13 @@ def evaluate(db: Any, job_id: str, request: EvaluationRunRequest, planned: dict[
                     key=lambda m: m["scores"][DEFAULT_POLICY_NAME]["cer"])
     # One model asked three ways is still one candidate: a winner needs two models.
     no_best = no_winner_why(list(dict.fromkeys(m["model"] for m in ranked)))
+    band = noise_band(ranked[0]["per_page"]) if ranked else None
+    if band is not None:  # the project's noise band, from the best reader's own pages (#5692)
+        from fichero_server.recipes.project import write_noise_band
+
+        write_noise_band(Path(db.path).parent, band, pages=ranked[0]["pages_read"], model=ranked[0]["model"])
     return {"stopped": False, "measured_at": measured_at, "definition": CER_DEFINITION, "trust": trust,
+            "noise_band": band,
             "ranked_by": DEFAULT_POLICY_NAME, "best": None if no_best else ranked[0]["model"],
             "best_granularity": None if no_best else ranked[0]["granularity"],
             "no_best_why": no_best, "models": models}

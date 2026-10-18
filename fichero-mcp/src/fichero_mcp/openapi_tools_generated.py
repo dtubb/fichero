@@ -8237,7 +8237,7 @@ def fichero_training_start_reasons_ab(
     contenders: Annotated[list[Any], Field(description='The answer-only student, the reasoning students, the teacher and a cheap baseline.')],
     held_out_ids: Annotated[list[Any], Field(description='The held-out checked pages: no arm trained on them.')],
     language: Annotated[Optional[str], Field(description='Language.')] = None,
-    noise_band: Annotated[Optional[float], Field(description='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.')] = None,
+    noise_band: Annotated[Optional[float], Field(description="A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692).")] = None,
 ) -> Any:
     "Measure answer-only against reasoning students on held-out checked pages\n\nQueue a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): every contender reads the held-out\nchecked lines as it was trained (a reasoning student also with its reasoning off); one CER and WER\neach, seconds a line, and for a `why` student whether its errors fall where it said it was unsure. A\nreasoning student is adopted only beyond `noise_band`; the result is written on every Fichero-trained\ncontender's card either way. Through `training.measure_reasons_ab`; 422 without held-out pages.\n\nRoute: POST /api/training/reasons-ab (toolset `training`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/training/reasons-ab", json=_rt.body({"checked": checked, "contenders": contenders, "held_out_ids": held_out_ids, "language": language, "noise_band": noise_band}))

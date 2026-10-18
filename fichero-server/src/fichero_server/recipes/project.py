@@ -109,3 +109,25 @@ def write_proposed(library: Path, proposal: dict[str, Any] | None) -> None:
         path.unlink(missing_ok=True)
     else:
         _write_yaml(path, proposal)
+
+
+def read_noise_band(library: Path) -> dict[str, Any]:
+    """The project's noise band (`source.train.noise-band-per-project`, #5692): `value` (a CER difference), whether it
+    was `measured` here, and its `basis` in words. Until an evaluation measures it, the ruled 0.5 CER points."""
+    import yaml
+
+    from fichero_server.training.reasons_ab import NOISE_BAND
+
+    path = Path(library) / FOLDER / "noise-band.yaml"
+    stored = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
+    if isinstance(stored, dict) and isinstance(stored.get("value"), (int, float)):
+        return {"value": float(stored["value"]), "measured": True, "basis": str(stored.get("basis") or "measured")}
+    return {"value": NOISE_BAND, "measured": False,
+            "basis": f"{NOISE_BAND * 100:.1f} CER points, the ruled band until this project's pages measure one"}
+
+
+def write_noise_band(library: Path, value: float, *, pages: int, model: str) -> None:
+    """Store the band an evaluation measured: the CER spread over three held-out splits of `pages` read by `model`."""
+    _write_yaml(Path(library) / FOLDER / "noise-band.yaml", {
+        "value": round(float(value), 6),
+        "basis": f"CER spread over 3 held-out splits of {pages} pages read by {model}"})
