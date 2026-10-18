@@ -14,11 +14,10 @@ import asyncio
 import base64
 import dataclasses
 import io
-import json
 import logging
 import re
 
-from PIL import Image, ImageDraw, ImageStat
+from PIL import Image
 
 from fichero_server.llm.working_lines import NO_WRITING_KEY
 from fichero_server.llm.line_cut import _MAX_CROP_WIDTH, _says_null, crop_line, parse_answer  # noqa: F401  (one cut, one parser: shipped to the runner)
@@ -92,8 +91,29 @@ def cut_short_reading(raw: str) -> str | None:
     return None if _says_null(text) else text or None
 
 
+def request_groups(found: list[OCRGeometryBox], granularity: str | None, per_call: int) -> list[list[int]]:
+    """The lines (indices into `found`) each call carries. `granularity` is how the bake-off measured the reader
+    (#5722): "lines" one a call, "region" one region a call (a line names its region by `parent_box_index`), "page"
+    all in one. None: `per_call` lines a call, as before; the other three are not cut to it, because the reader was
+    measured asking that way."""
+    n = len(found)
+    if granularity == "lines":
+        return [[i] for i in range(n)]
+    if granularity == "page":
+        return [list(range(n))] if n else []
+    if granularity == "region":
+        groups: list[list[int]] = []
+        for i, box in enumerate(found):
+            if groups and found[groups[-1][0]].metadata.get("parent_box_index") == box.metadata.get("parent_box_index"):
+                groups[-1].append(i)
+            else:
+                groups.append([i])
+        return groups
+    return [list(range(i, min(i + per_call, n))) for i in range(0, n, per_call)]
+
+
 async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, language: str | None = None,
-                     apple: bool = False) -> OCRGeometryResult:
+                     apple: bool = False, granularity: str | None = None) -> OCRGeometryResult:
     """Kraken's lines (`segment_to_geometry`) with each one's text read by `config`'s vision model, or, with
     `apple`, by Apple Vision on each line's own picture (one line a call: its answer IS the reading, not a JSON
     array, and it is not checked for loops, as only a generative model loops)."""
@@ -138,7 +158,7 @@ async def read_lines(image_path: str, lines: OCRGeometryResult, config, *, langu
         return answer or [None]
 
     per_call = 1 if apple else lines_per_call(config)
-    groups = [list(range(i, min(i + per_call, len(found)))) for i in range(0, len(found), per_call)]
+    groups = request_groups(found, None if apple else granularity, per_call)
     readings = [r for group in await asyncio.gather(*(batch(g) for g in groups)) for r in group]
 
     boxes, texts, cursor = list(regions), [], 0

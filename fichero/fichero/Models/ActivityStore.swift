@@ -59,14 +59,14 @@ final class ActivityStore: ChangeEventConsumer {
     var runs: [ActivityRun] = []
     /// Which read a footer line came from: the run list, or the jobs poll (#5469).
     enum LoadSource: Int { case runs, jobs }
-    private struct LoadFailureKey: Hashable {
+    private struct FailureKey: Hashable {
         let library: UUID
         let source: LoadSource
     }
     /// The footer's lines (`activity.window.honest-state`, #5431): one per
     /// library and read whose last load failed, naming the cause. Keyed so the
     /// next successful load of that read clears exactly its own line.
-    private var loadFailures: [LoadFailureKey: String] = [:]
+    private var loadFailures: [FailureKey: String] = [:]
     var runLoadFailures: [String] {
         let ordered = loadFailures
             .sorted { ($0.key.library.uuidString, $0.key.source.rawValue) < ($1.key.library.uuidString, $1.key.source.rawValue) }
@@ -78,7 +78,7 @@ final class ActivityStore: ChangeEventConsumer {
 
     /// Set ONE footer line, or clear it with nil; untouched when unchanged.
     func setLoadFailure(_ message: String?, library: UUID, source: LoadSource) {
-        let key = LoadFailureKey(library: library, source: source)
+        let key = FailureKey(library: library, source: source)
         if loadFailures[key] != message { loadFailures[key] = message }
     }
 

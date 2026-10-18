@@ -27,6 +27,8 @@ SOURCES = [ROOT / "fichero-server/src/fichero_server", ROOT / "fichero-mcp/src/f
 NOT_BUNDLED = {
     "peft": "Hugging Face training: runs on Hugging Face Jobs, never in the app",
     "iiif_fetch": "the cluster job's own module, run on the cluster (remote_read/runner.py)",
+    "line_cut": "the GPU worker's copy of llm/line_cut.py, shipped beside runner.py; the app imports fichero_server.llm.line_cut",
+    "vllm": "GPU-worker-only reader (remote_read/runner.py vllm_batch_asker, a lazy import); never runs in the app",
     "cld3": "optional language detector with a built-in fallback (llm/multilingual.py)",
     "libxmp": "XMP needs the exempi C library; to be read as XML instead (#5638)",
 }

@@ -1080,11 +1080,13 @@ plan's peak memory across steps. Ready shows none of it.
   from a sample of the material, setup fills in its suggestions for language, script, material, period
   and hand, labelled "suggested from your pages", along with the pages that are blank or duplicates. The
   person confirms them; they do not type them.
-- `source.onboard.auto.reader-measured-before-bulk` — **[GAP]** (#5533, #5519, #4951) no reader reads
-  the whole material on the strength of a published figure alone. Before the bulk read, a strong reader
-  reads the sample, the teacher-line check (#5446) removes its misreads, the candidates are compared on
-  it, and the winner reads the rest. All of this is jobs in the run. The person's yes for the winner is
-  one question, asked where the run waits (the ruling of section 12, "Use the winner").
+- `source.onboard.auto.reader-measured-before-bulk` — **[PARTIAL]** (#5533, #5519, #4951, #5660; built: the Start
+  plan carries `bakeoff_offer`, the comparison on the sample with its cost first and whether the project has the
+  corrected lines for it, pinned by `fichero-server/tests/unit/recipes/test_bakeoff_offered_on_start_plan.py`;
+  not built: the strong-reader sample read and the teacher-line check as jobs of the run) no reader reads the
+  whole material on the strength of a published figure alone. The Start plan OFFERS a comparison on the sample,
+  cost first, and never runs it by itself (ruled 2026-10-17, #5660 item 7); once run, its winner is the step's
+  model and the bulk read waits for the person's Use This (the ruling of section 12, "Use the winner").
 - `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578; tested in
   `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
   each page is read by the reader for its kind. A cheap first job sorts the pages (handwriting, print,
@@ -2438,7 +2440,7 @@ Jobs and chains
   on `source.job.review-asks-one-answer-line-per-segment-id`, which asks for the ids; today the preset's prompts say
   only "same line breaks" and think in text, not segments. *Test:* a stub that marks one line unreadable leaves it
   unchanged and flagged; a person's line is returned unchanged by the stub and untouched in the project.
-- `source.job.review-context-fits-the-model` — **[PARTIAL]** (#5648, ruled 2026-10-17) done: a pass of words never takes a page from a pass of read lines as the working pass; it ranks after the sound passes of lines and still leads where it is all there is (`PassCandidate.words_beside_read_lines`; `test_a_newer_pass_of_words_does_not_take_the_page_from_read_lines_5648`, `test_a_pass_of_words_is_still_the_working_pass_beside_lines_nobody_read_5648`); a model whose card states `prefill_tokens` is sent the page's lines in reading order up to what the prompt and the page image leave of it, and the prompt, the log and the step's notes say how many were left out (`test_a_page_over_the_models_budget_is_sent_the_lines_that_fit_and_told_what_was_left_out_5648`, `test_the_3b_mlx_reader_states_its_prefill_budget_5648`). Ruled 2026-10-17 (manager, on #5648; consistent with the 2026-09-28 ruling that word readings retire): a word pass whose words sit in lines is listed by line, each line's words joined, and a correction to such a line is written as a reading of the parent line, the words keeping their own readings; a word pass with no lines stays listed by word, capped by the budget. Owed: that grouping and its write to the parent line; the first-token wait scaling with the prompt (manager's call).
+- `source.job.review-context-fits-the-model` — **[PARTIAL]** (#5648, ruled 2026-10-17) done: a pass of words never takes a page from a pass of read lines as the working pass; it ranks after the sound passes of lines and still leads where it is all there is (`PassCandidate.words_beside_read_lines`; `test_a_newer_pass_of_words_does_not_take_the_page_from_read_lines_5648`, `test_a_pass_of_words_is_still_the_working_pass_beside_lines_nobody_read_5648`); a model whose card states `prefill_tokens` is sent the page's lines in reading order up to what the prompt and the page image leave of it, and the prompt, the log and the step's notes say how many were left out (`test_a_page_over_the_models_budget_is_sent_the_lines_that_fit_and_told_what_was_left_out_5648`, `test_the_3b_mlx_reader_states_its_prefill_budget_5648`). Ruled 2026-10-17 (manager, on #5648; consistent with the 2026-09-28 ruling that word readings retire): a word pass whose words sit in lines is listed by line, each line's words joined, and a correction to such a line is written as a reading of the parent line, the words keeping their own readings; a word pass with no lines stays listed by word, capped by the budget. Built: `tool_context._grouped_into_lines` and `working_lines._as_lines` (`test_a_word_pass_is_listed_by_its_lines_5648`, `test_a_correction_to_a_grouped_line_is_a_reading_of_the_line_and_the_words_keep_theirs_5648`). Owed: the first-token wait scaling with the prompt (manager's call).
 - `source.job.review-uses-the-projects-names-and-places` — **[PARTIAL]** (#5725) done: every review step is given the project's verified names, places and organisations (`recipes/known_names.py`; rejected, merged, unreviewed entities and concepts are left out, the most corroborated 300 are listed and the rest counted) with every other name each carries, whatever prompt the node has (`test_a_reading_of_a_confirmed_names_variant_comes_back_in_the_confirmed_spelling_5725`, `test_only_what_a_person_confirmed_is_listed_with_every_other_name_it_carries_5725`, `test_a_graph_larger_than_the_limit_says_how_many_are_left_out_5725`). Owed: the gazetteer's places beyond graph entities; the reference search over the graph and the corrected pages; names the review confirms going back to the graph; the disagreement view. The review is given the project's
   confirmed names and places (its knowledge-graph entities and gazetteer, the Find Names result) as a word list, so a
   name is spelled one way throughout; its reference search covers that graph and the project's corrected pages, not
@@ -2499,7 +2501,7 @@ Jobs and chains
   loses nothing. For a model that does not localise text as for one that does, a cloud model as a local one. *Test:*
   with a stub that answers a paragraph to the page and arrays to the batches, every line is tied; with one that
   answers nothing usable, the step fails for that page and the Kraken readings are unchanged.
-- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); **Built 2026-10-17 (engine):** the bake-off asks its two best vision candidates and any named at lines / region / page (`evaluation.requests_for`, `granularities_for`, `evaluate`'s trial pass; `granularities_for_best`, `named`), one table row per way asked (`granularity` on the row, `winner_granularity`), Use This records it on the override and the step (`use_this(granularity=)`), and `next_run` shows the extra cost first (`granularity_run_cost_usd`); pinned by `test_bakeoff_granularity_5722.py`. STILL OWED: the read step reading with the recipe's granularity at Start (it records, nothing reads it yet); answers tied by segment id rather than by position in an array; the app naming readers to compare (`named`) and showing the granularity column; a real run.* how a model is asked is an option the A/B measures,
+- `source.try.asking-granularity-is-measured` — **[PARTIAL]** (#5722) *Built 2026-10-16: the card's `lines_per_request` (Card field, `recipes/cards.lines_per_request_for`, set on the Qwen2.5-VL 3B card) caps every re-ask request (`test_review_re_asks_lines_5720.py::test_a_request_never_exceeds_the_model_cards_lines_per_request_5722`); **Built 2026-10-17 (engine):** the bake-off asks its two best vision candidates and any named at lines / region / page (`evaluation.requests_for`, `granularities_for`, `evaluate`'s trial pass; `granularities_for_best`, `named`), one table row per way asked (`granularity` on the row, `winner_granularity`), Use This records it on the override and the step (`use_this(granularity=)`), and `next_run` shows the extra cost first (`granularity_run_cost_usd`); pinned by `test_bakeoff_granularity_5722.py`. **Built 2026-10-18:** the read step reads with the recipe's granularity at Start (`start.plan_start` gives the run's read node `read_granularity`; the transcribe tool passes it to `line_reader.read_lines(granularity=)`, `request_groups`; pinned by `fichero-server/tests/unit/recipes/test_granularity_reaches_the_read_5722.py`). STILL OWED: answers tied by segment id rather than by position in an array; the app naming readers to compare (`named`) and showing the granularity column; a real run.* how a model is asked is an option the A/B measures,
   not a constant: the whole page, a region (a paragraph, the unit Kraken's regions give) at a time, or a few lines at a
   time, always with segment ids and always answered by id. A card states `lines_per_request`, the most lines the model is asked to read at once (decided 2026-10-16: a field
   on the card, never found by trying: a large cloud model, the whole page; a 2B local model, a few lines), and a request
@@ -2592,7 +2594,7 @@ Jobs and chains
   job, so adding a card adds a candidate; the planner maps a chosen candidate's pin to its shipped workflow
   from a table, and a pin with no workflow is skipped saying so ("cannot run here"), never run as Kraken.
   *Test:* every card naming `find-lines` is a bake-off candidate; a pin with no workflow is skipped by name.
-- `source.job.find-statements.candidates` — **[PARTIAL]** (#5637; ruled 2026-10-17; *built: the free-parser default and the installed-model preference in `assemble._choose`, the parser cards in `discovery.known_cards`; pinned by `fichero-server/tests/unit/recipes/test_find_statements_candidates_5637.py`. Not built: Apple Intelligence as a statements candidate that runs, and the bake-off comparing the candidates, cost first*) Find statements is not parser-or-nothing:
+- `source.job.find-statements.candidates` — **[PARTIAL]** (#5637; ruled 2026-10-17; *built: the free-parser default and the installed-model preference in `assemble._choose`, the parser cards in `discovery.known_cards`; pinned by `fichero-server/tests/unit/recipes/test_find_statements_candidates_5637.py`; Apple Intelligence and the cloud text models of the provider rows are listed candidates, a cloud one flagged needs-permission, pinned by `fichero-server/tests/unit/recipes/test_find_statements_cloud_candidates.py`. Not built: Apple Intelligence running as a statements model where this build has it, and the bake-off comparing the candidates, cost first*) Find statements is not parser-or-nothing:
   its candidates are the spaCy parser's triples, Apple Intelligence, and text models such as Claude or Qwen, compared
   by the same bake-off pattern as reading, with the cost shown first. The default: where no text model is installed
   on this Mac, the free local candidates (the parser, Apple Intelligence) run at Start, and a text model is offered
@@ -2845,7 +2847,7 @@ Profiles (the defaults section of a recipe)
   pages copied into the project are never counted. *Test:*
   `fichero-server/tests/unit/importers/test_dataless_sources.py` (a directory is not dataless) and
   `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py` (a Copy import of a folder warns of nothing).
-- `source.onboard.correct-off-unless-a-corrector-is-here` — **[OK]** (#5677) Correct (a second model checking the
+- `source.onboard.correct-off-unless-a-corrector-is-here` — **[PARTIAL]** (#5677; ruled Q3 2026-10-17: with a cloud key set, Correct is OFFERED at Ready with its cost, never on by itself. *Built: the off line names a cloud and its price only when that provider has a key set here (`Answers.cloud_keys`), and carries it as `offered` (card, provider, pages, cost), `fichero-server/tests/unit/recipes/test_correct_offered_with_a_key_5677.py`. Not built: Ready's button that turns it on from the offer (app)*) Correct (a second model checking the
   reading) is in a purpose's recipe only when a corrector is already available: a model for it already on this Mac
   (or one that ships with Fichero), or a cloud model the project allows; or when the person asks for it (ticks
   Correct, or answers yes to "Correct with a second model?"). Otherwise it is off, and the recipe (`left_off`) and the
@@ -3525,7 +3527,10 @@ Setup
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
   Also (#5589): each step declares where it can run (Mac / GPU cluster / CPU cluster / cloud); the plan places a step by scale and by GPU saturation. A step reaches a `cluster` target only through its bound target (`source.recipe.runs-on-binds-to-a-target`). Supersedes `source.recipe.cheapest-local-first` (cheapest only within the noise band). *Test:* a 1,000-page step places local; a 100,000-page step places on the bound `cluster` target; a recipe with no bound cluster never places there.
-- `source.onboard.pages-may-leave` — **[GAP]** (#4951; ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
+- `source.onboard.spend-cap` — **[PARTIAL]** (#5769, ruled 2026-10-17 Q5) setup records how much the project may spend on Hugging Face a month (`answers.hf_spend_cap_usd`, default $0, refused below $0): at $0 Hugging Face is never the training setting and every Hugging Face place of a train offer is `held`, offered, never started by itself (`answers.spend_cap`, `fichero-server/tests/unit/recipes/test_spend_cap_cluster_copies_5769.py::test_spend_cap_holds_paid_offers`). Not built: spend against the cap on the Start plan and the remote-run Inspector; the setup screen's field (#5769, Swift).
+- `source.onboard.cluster-offer` — **[PARTIAL]** (#5769, ruled 2026-10-17 Q5) where a cluster is set up here, every way offered on Hugging Face also offers the cluster as the free alternative (`place: cluster`, its name, no start action yet, `first_run`: test the connection, dry-run the submission, watch the first job) (`test_cluster_offered_beside_hf`). Not built: a training path on the cluster.
+- `source.onboard.copies-may-stay-on-cluster` — **[PARTIAL]** (#5769, ruled 2026-10-17) setup records whether downscaled working copies may stay on the cluster for re-runs (`answers.copies_may_stay_on_cluster`, yes or no); with no answer it follows whether pages may leave this Mac (`answers.copies_may_stay`, `test_copies_stay_default_follows_pages_may_leave`). Not built: the cluster run reading it; the setup screen's question.
+- `source.onboard.pages-may-leave` — **[PARTIAL]** (#4951, #5768; built: the engine flags a cloud candidate `needs_permission` until `cloud_allowed`, pinned by `fichero-server/tests/unit/recipes/test_cloud_candidates_need_permission_5768.py`; not built: the greyed card in the app, Swift) (ruled 2026-10-17) project setup asks "May pages leave this Mac?"; nothing leaves until the
   answer is yes (`answers.cloud_allowed`), and cloud candidates show greyed with "needs permission" until then.
 - `source.recipe.volume-rule` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** training offered from 5,000 pages in `assemble()`; cost and time limits not built; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. the volume band changes the
   recommendation: under 100 pages accuracy alone decides; from 5,000 the train step is offered
@@ -3631,7 +3636,8 @@ The recipe and its format
 - `source.recipe.train-never-automatic` — **[PARTIAL]** (#4950, #5336, #5440; reworded 2026-10-17; *built: a train step is never among what Start runs and
   the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`; under `here`, a ready offer starts by itself on this Mac when a recipe step finishes, once
   (a training job waiting, running, paused or done stops another), never on Hugging Face, and a refusal never fails the
-  step: `train_offers.start_when_ready`, `fichero-server/tests/unit/recipes/test_training_starts_by_setting_5440.py`.
+  step; after a training here failed or was stopped it starts again only on more corrected lines than it began on (or the
+  person's press), and the Start plan's setting says why it waits (`held_after_failure`): `train_offers.start_when_ready`, `fichero-server/tests/unit/recipes/test_training_starts_by_setting_5440.py`.
   Not built: `huggingface` starting by itself (its pages leave only on the person's yes); training again on later
   corrections (#5441)*) training runs by itself only per
   the onboarding setting (`answers.training`: here, huggingface or offered, defaulting by machine; see `source.onboard.auto.train-offer-comes`); with
@@ -3649,6 +3655,7 @@ The recipe and its format
   `recipes/train_offers.py`; pinned by `fichero-server/tests/unit/recipes/test_train_offers_5660.py` (4 tests).
   *Not built: Core ML (the engine has no Core ML training path); a cluster (ACENET) or another Mac as a
   training place; the app showing the offers.*
+- `source.distil.each-step-has-a-method` — **[PARTIAL]** (#5770; ruled: any recipe step with a model distils into a local model, each by its own method; order read-a-line, review, regions, names) every job in the registry whose step takes a model declares its distil method in `recipes/jobs.DISTIL`: its teacher (what makes the lessons), student, trainer and measure, or none with why (`train_offers.method_for`); a job with a method has an available way to train in the train offers and one with none has none (`fichero-server/tests/unit/recipes/test_source_distil_each_step_has_a_method_5770.py`). Today two jobs have a method, read-a-line (Kraken or MLX LoRA, from the person's corrections or the project's reader) and find-regions (YOLO); review (#4642) and names (#5536) say they are not built yet. Not built: the offers built from the declaration alone (`WAYS` still holds where each runs and the action that starts it).
 - `source.recipe.update-is-clicked-not-applied` — **[GAP]** (#5364) a new version of a followed recipe shows
   as an update symbol in the Inspector; nothing changes until the person clicks it; then the recipe
   updates and a re-run of existing pages is offered as one job with its estimate.
@@ -3664,6 +3671,14 @@ The recipe and its format
 - `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.
+- `source.recipe.check-names-every-fault` — **[OK]** (#5364, R6 exit) the check of a hand-edited recipe (`POST /api/recipes/check`,
+  `fichero_recipes_check`) names each fault in it, one sentence each, and one fault never hides another or stops the check with
+  an error: a schema it cannot read, a missing id, title or steps, code or a key anywhere, steps that are not a list, a step
+  that is not a step, a step with no id or another's id, a job this Fichero lacks, a layer not the job's, an unknown condition,
+  an unpinned model, an unknown place, a missing prompt file, a step whose inputs no earlier step gives, and a kept choice
+  (override) that names a step the recipe does not have or no scope. *`recipes/recipe.check_recipe`;
+  `fichero-server/tests/unit/recipes/test_check_names_every_fault_5364.py`.* Publishing, following and forking a recipe stay
+  open under #5364.
 - `source.recipe.data-not-code` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** code-shaped keys refused anywhere in a recipe (`recipes/recipe.py`); pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe can name only registered jobs, models,
   prompts, settings and workflows built from Fichero's tools; it cannot carry scripts or grant a
   model tools or network access, and an imported recipe that tries is refused, naming the entry.
@@ -4477,11 +4492,31 @@ Each is described in the paragraph named; the id lets a test cite it.
 - `source.lines.correct-this-line-verb` — **[PARTIAL]** (#5499; *built in part, pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`
   and `test_import_ground_truth.py`*) correcting a line is one verb, not three ids and six flags, and a person's corrections count as the
   bake-off's ground truth.
-- `source.try.compare-in-setup-works` — **[GAP]** (#5727) the Compare step in Set Up (the bake-off) works on a scratch project with enough
+- `source.try.compare-in-setup-works` — **[PARTIAL]** (#5727; built: the engine path Set Up calls, offer to table to Use This, pinned by `fichero-server/tests/unit/recipes/test_compare_in_setup_works_5727.py`; not reproduced: the live failure on the scratch project, which needs a GUI Set Up run) the Compare step in Set Up (the bake-off) works on a scratch project with enough
   corrected lines; the symptom is first reproduced and pinned by a test (`source.try.bakeoff-is-the-same-tool`).
-- `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
+- `source.find.htr-united-and-tessdata` — **[PARTIAL]** (#5571; built 2026-10-18, HTR-United half: `recipes/htr_united.py` reads the catalogue (`catalog.json`), keeps it in `discovery/`, and `matching` finds datasets by language, script and hand, most lines first, with licence, format and size; `search_online` fetches it when a day old and the finder counts the kept datasets for the project's languages; pinned by `fichero-server/tests/unit/recipes/test_htr_united_datasets_5571.py`. NOT built: offering a dataset as the bake-off's test set or as training data (the app and the import of its PAGE/ALTO), Tesseract's tessdata) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
   period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
 - `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
-  model's lines, and the readiness count matches what it trains on.
-- `source.train.noise-band-per-project` — **[GAP]** (#5692) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
-  measured), stored and served, so a comparison says when a difference is noise.
+  model's lines, and the readiness count matches what it trains on. *Offer built (#5700, m-recipes-r3): the line reader's
+  first way is "Fine-tune a Kraken reader on the lines you corrected" (teacher `person`, this Mac or Hugging Face Jobs),
+  the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
+  lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). Needs the set's
+  teacher `person` (51d6dde8e, m-acenet) on integration to run.*
+- `source.train.noise-band-per-project` — **[OK]** (#5692, ruled Q6 2026-10-17) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
+  measured), stored and served, so a comparison says when a difference is noise. *Built: an evaluation measures it from
+  the best reader's pages, from 15 read pages up (`training.evaluation.noise_band`, `NOISE_MIN_PAGES`), the project keeps it (`recipe/noise-band.yaml`,
+  `recipes.project.read_noise_band`, the ruled 0.5 CER points until then, said so), and every train offer carries it
+  (`noise_band`); `fichero-server/tests/unit/training/test_noise_band_per_project_5692.py`. The reasons A/B judges by it when its
+  request names no band (`reasons_job.band_for`, `test_the_reasons_ab_uses_the_projects_band_unless_one_is_given`). A
+  trained reader is adopted only past it (`source.train.adopt-only-past-the-noise-band`).*
+- `source.train.adopt-only-past-the-noise-band` — **[PARTIAL]** (#5700, #5441, R4 exit) after an evaluation, the best trained Kraken
+  reader measured becomes the project's read-a-line reader only when its CER on the held-out pages beats the best downloadable
+  reader's by more than the project's noise band; it is kept as the step's project-scope override (`model: {trained: <reader id>}`,
+  its CER, and why, naming both CERs and the band) through `project.save_setup`, audited and undoable. The reader to beat is the
+  step's current one when the evaluation measured it, else the best downloadable one. A reader the person chose (Use This, a
+  bake-off, a cloud reader) is never replaced: past the band the trained reader is `offered`, and only a reader the rules or an
+  earlier adoption chose is swapped (review 77). Measured on fewer than 15 held-out pages (`NOISE_MIN_PAGES`), nothing is
+  adopted. Within the band, or worse, the current reader is kept and the evaluation's reason says why. *Built: `training.evaluation.adopt_trained`, called by
+  the evaluation job (`result.adoption`); `recipes.cards.kraken_reader_for` reads a `trained` pin;
+  `fichero-server/tests/unit/training/test_adopt_past_the_noise_band_5700.py`. Not built: a trained vision model set on the
+  step (it is measured and carded only).*
