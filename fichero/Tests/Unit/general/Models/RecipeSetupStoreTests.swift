@@ -285,13 +285,12 @@ struct RecipeSetupStoreTests {
         #expect(store.asksCloudQuestion, "a yes already given stays answerable")
     }
 
-    /// WHY: sources are linked by default, so files stay where they are
-    /// (ruled 2026-10-03). A copy or move default would duplicate or relocate a
-    /// person's files on their first import without them choosing it.
-    @Test("sources are linked by default")
-    func intakeDefaultsToLink() {
+    /// WHY: sources are copied by default (section 7d): the originals are never touched and the
+    /// project owns its files. A move default would relocate a person's files unasked.
+    @Test("sources are copied by default")
+    func intakeDefaultsToCopy() {
         let store = makeStore { request in Self.reply(request, 200, "{}") }
-        #expect(store.ingestMode == .link)
+        #expect(store.ingestMode == .copy)
     }
 
     /// WHY: first run and Set Up… reopen where the person left off. If loading
@@ -369,7 +368,7 @@ struct RecipeSetupStoreTests {
         await store.loadSaved()
 
         #expect(store.purposes == ["transcribe"])
-        #expect(store.ingestMode == .link)
+        #expect(store.ingestMode == .copy)
         #expect(store.recipe == nil)
         #expect(store.errorMessage == nil)
     }

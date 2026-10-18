@@ -55,8 +55,8 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
         case .link: "Fichero reads the files where they are and never changes the originals."
         case .copy: "Fichero makes its own copy in the project; the originals are never touched."
         case .move: "The files move into the project, stored in the app; the originals are removed from where they were."
-        case .index: "Fichero works on the folder in place and writes its changes back into the original files, "
-            + "keeping that folder up to date. For folders; single files are linked."
+        case .index: "Fichero works on the folder where it is, keeps it up to date and writes its changes back "
+            + "into the original files. Folders only."
         case .keepArranged: "As Index, and Fichero also moves files inside the folder to follow the project's folders; "
             + "you see what would move before anything does."
         }
