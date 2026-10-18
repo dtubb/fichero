@@ -25,7 +25,6 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from fichero_server.api import uds_peer
 from fichero_server.security import accounts, launch_secret
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
@@ -1148,6 +1147,8 @@ def request_local_client(
     peer = _verified_peer(request)
     if not _switch_on(app_db, body.kind):
         raise HTTPException(status_code=403, detail="not allowed on this Mac")
+    from fichero_server.api import uds_peer  # lazy: ctypes stays out of app import (#5798)
+
     shown = uds_peer.identify(peer)
     with _client_requests_lock:
         live = _live_requests()
