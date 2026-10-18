@@ -1,6 +1,6 @@
 """multiuser.sign-in-by-challenge (slice 1, #2403): a client proves it holds a person's key.
 
-RED until slice 1 lands (specs/transport/multiuser-always-on.md). Additive: login, pairing and the bootstrap
+Slice 1 of docs/contributor_manual/specs/transport/multiuser-always-on.md. Additive: login, pairing and the bootstrap
 token keep working; this only adds `clients`/`credentials` and the two routes. Written to run on the M4.
 
 Contract the tests fix:
