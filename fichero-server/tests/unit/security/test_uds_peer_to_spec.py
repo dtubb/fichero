@@ -45,7 +45,8 @@ def test_a_peer_that_already_names_its_program_is_shown_as_is():
     assert uds_peer.identify(peer) == {"pid": 2, "exe": "/x", "signer": "S (T)"}
 
 
-def test_the_real_uvicorn_server_stamps_each_connection_with_its_peer():
+def _serve_once_and_get_peer():
+    """Run the real uvicorn on a UDS with the peer-aware protocol; return (status line, parsed body) of one GET."""
     uvicorn = pytest.importorskip("uvicorn")
 
     async def echo(scope, receive, send):
@@ -80,8 +81,29 @@ def test_the_real_uvicorn_server_stamps_each_connection_with_its_peer():
         while chunk := client.recv(4096):
             raw += chunk
         client.close()
-        peer = json.loads(raw.split(b"\r\n\r\n", 1)[1])
-        assert peer["pid"] == os.getpid() and peer["uid"] == os.getuid()
+        return raw.split(b"\r\n", 1)[0], json.loads(raw.split(b"\r\n\r\n", 1)[1])
     finally:
         server.should_exit = True
         thread.join(timeout=5)
+
+
+def test_the_real_uvicorn_server_stamps_each_connection_with_its_peer():
+    _status, peer = _serve_once_and_get_peer()
+    assert peer["pid"] == os.getpid() and peer["uid"] == os.getuid()
+
+
+def test_a_failing_peer_lookup_never_drops_the_connection(monkeypatch):
+    # Review 140: a surprise while stamping must serve the request without a peer, not close the socket.
+    def boom(_sock):
+        raise TypeError("surprise")
+
+    monkeypatch.setattr(uds_peer, "peer_of_socket", boom)
+    status, peer = _serve_once_and_get_peer()
+    assert status.endswith(b"200 OK") and peer is None
+
+
+def test_a_missing_security_symbol_gives_no_identity_not_an_error(monkeypatch):
+    monkeypatch.setattr(uds_peer, "_code_identity_of", lambda *a: (_ for _ in ()).throw(AttributeError("no symbol")))
+    if sys.platform != "darwin":
+        pytest.skip("Security.framework is macOS")
+    assert uds_peer._code_identity("00" * 32) == ("", None)

@@ -61,6 +61,13 @@ def _code_identity(token_hex: str) -> tuple[str, str | None]:
         sec = ctypes.CDLL("/System/Library/Frameworks/Security.framework/Security")
     except (ValueError, OSError):
         return "", None
+    try:
+        return _code_identity_of(token, cf, sec)
+    except (AttributeError, ValueError, OSError):  # a missing symbol: no identity, never a 500
+        return "", None
+
+
+def _code_identity_of(token: bytes, cf: Any, sec: Any) -> tuple[str, str | None]:
     vp, up = ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)
     cf.CFDataCreate.restype = vp
     cf.CFDataCreate.argtypes = [vp, ctypes.c_char_p, ctypes.c_long]
@@ -141,7 +148,12 @@ def peer_aware_http_protocol() -> type:
     class PeerAwareProtocol(Base):  # type: ignore[misc, valid-type]
         def connection_made(self, transport: Any) -> None:
             super().connection_made(transport)
-            sock = transport.get_extra_info("socket")
-            self.app = PeerStampingApp(self.app, peer_of_socket(sock) if sock is not None else None)
+            # A surprise here must never drop the connection (every UDS request, the embedded app's too): no peer instead.
+            try:
+                sock = transport.get_extra_info("socket")
+                peer = peer_of_socket(sock) if sock is not None else None
+            except Exception:  # noqa: BLE001
+                peer = None
+            self.app = PeerStampingApp(self.app, peer)
 
     return PeerAwareProtocol
