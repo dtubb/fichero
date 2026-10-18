@@ -2300,6 +2300,239 @@
         }
       }
     },
+    "/api/auth/local-clients/switches": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Get Local Client Switches",
+        "operationId": "get_local_client_switches_api_auth_local_clients_switches_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientSwitches"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Put Local Client Switches",
+        "operationId": "put_local_client_switches_api_auth_local_clients_switches_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientSwitches"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientSwitches"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/request": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Request Local Client",
+        "operationId": "request_local_client_api_auth_local_clients_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "List Local Client Requests",
+        "operationId": "list_local_client_requests_api_auth_local_clients_requests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests/{request_id}/decision": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Decide Local Client Request",
+        "operationId": "decide_local_client_request_api_auth_local_clients_requests__request_id__decision_post",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests/{request_id}/register": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Register Local Client",
+        "description": "The allowed client registers its own public key, once, from the same program that asked. No secret crosses.",
+        "operationId": "register_local_client_api_auth_local_clients_requests__request_id__register_post",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientRegisterBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInClient"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/sign-in": {
       "post": {
         "tags": [
@@ -71886,6 +72119,163 @@
           "builtin"
         ],
         "title": "LinkTypeRead"
+      },
+      "LocalClientDecision": {
+        "properties": {
+          "allow": {
+            "type": "boolean",
+            "title": "Allow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "allow"
+        ],
+        "title": "LocalClientDecision"
+      },
+      "LocalClientPeer": {
+        "properties": {
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "exe": {
+            "type": "string",
+            "title": "Exe"
+          },
+          "signer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Signer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pid",
+          "exe"
+        ],
+        "title": "LocalClientPeer"
+      },
+      "LocalClientRegisterBody": {
+        "properties": {
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key_pem"
+        ],
+        "title": "LocalClientRegisterBody"
+      },
+      "LocalClientRequestBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cli",
+              "mcp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "LocalClientRequestBody"
+      },
+      "LocalClientRequestList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LocalClientRequestResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "LocalClientRequestList"
+      },
+      "LocalClientRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "peer": {
+            "$ref": "#/components/schemas/LocalClientPeer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "allowed",
+              "denied"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "host",
+          "peer",
+          "state"
+        ],
+        "title": "LocalClientRequestResponse"
+      },
+      "LocalClientSwitches": {
+        "properties": {
+          "mcp": {
+            "type": "boolean",
+            "title": "Mcp"
+          },
+          "cli": {
+            "type": "boolean",
+            "title": "Cli"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mcp",
+          "cli"
+        ],
+        "title": "LocalClientSwitches"
       },
       "LocalInferenceCapabilitiesResponse": {
         "properties": {

@@ -777,6 +777,55 @@ def fichero_auth_revoke_invite(
     return _rt.call("POST", f"/api/auth/invites/{invite_id}/revoke")
 
 
+def fichero_auth_request_local_client(
+    *,
+    host: Annotated[Optional[str], Field(description='Host. Default: "".')] = None,
+    kind: Annotated[str, Field(description='Kind. One of: cli, mcp.')],
+    name: Annotated[str, Field(description='Name.')],
+) -> Any:
+    'Request Local Client\n\nRoute: POST /api/auth/local-clients/request (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/local-clients/request", json=_rt.body({"host": host, "kind": kind, "name": name}))
+
+
+def fichero_auth_list_local_client_requests(
+) -> Any:
+    'List Local Client Requests\n\nRoute: GET /api/auth/local-clients/requests (toolset `auth`; reads).'
+    return _rt.call("GET", "/api/auth/local-clients/requests")
+
+
+def fichero_auth_decide_local_client_request(
+    *,
+    request_id: Annotated[str, Field(description='Request Id')],
+    allow: Annotated[bool, Field(description='Allow.')],
+) -> Any:
+    'Decide Local Client Request\n\nRoute: POST /api/auth/local-clients/requests/{request_id}/decision (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/auth/local-clients/requests/{request_id}/decision", json=_rt.body({"allow": allow}))
+
+
+def fichero_auth_register_local_client(
+    *,
+    request_id: Annotated[str, Field(description='Request Id')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'Register Local Client\n\nThe allowed client registers its own public key, once, from the same program that asked. No secret crosses.\n\nRoute: POST /api/auth/local-clients/requests/{request_id}/register (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/auth/local-clients/requests/{request_id}/register", json=_rt.body({"public_key_pem": public_key_pem}))
+
+
+def fichero_auth_get_local_client_switches(
+) -> Any:
+    'Get Local Client Switches\n\nRoute: GET /api/auth/local-clients/switches (toolset `auth`; reads).'
+    return _rt.call("GET", "/api/auth/local-clients/switches")
+
+
+def fichero_auth_put_local_client_switches(
+    *,
+    cli: Annotated[bool, Field(description='Cli.')],
+    mcp: Annotated[bool, Field(description='Mcp.')],
+) -> Any:
+    'Put Local Client Switches\n\nRoute: PUT /api/auth/local-clients/switches (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/auth/local-clients/switches", json=_rt.body({"cli": cli, "mcp": mcp}))
+
+
 def fichero_auth_login(
     *,
     device_label: Annotated[Optional[str], Field(description='Device Label.')] = None,
@@ -8979,6 +9028,12 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_create_invite", "auth", "POST", "/api/auth/invites", fichero_auth_create_invite),
     GeneratedTool("fichero_auth_redeem_invite", "auth", "POST", "/api/auth/invites/redeem", fichero_auth_redeem_invite),
     GeneratedTool("fichero_auth_revoke_invite", "auth", "POST", "/api/auth/invites/{invite_id}/revoke", fichero_auth_revoke_invite),
+    GeneratedTool("fichero_auth_request_local_client", "auth", "POST", "/api/auth/local-clients/request", fichero_auth_request_local_client),
+    GeneratedTool("fichero_auth_list_local_client_requests", "auth", "GET", "/api/auth/local-clients/requests", fichero_auth_list_local_client_requests),
+    GeneratedTool("fichero_auth_decide_local_client_request", "auth", "POST", "/api/auth/local-clients/requests/{request_id}/decision", fichero_auth_decide_local_client_request),
+    GeneratedTool("fichero_auth_register_local_client", "auth", "POST", "/api/auth/local-clients/requests/{request_id}/register", fichero_auth_register_local_client),
+    GeneratedTool("fichero_auth_get_local_client_switches", "auth", "GET", "/api/auth/local-clients/switches", fichero_auth_get_local_client_switches),
+    GeneratedTool("fichero_auth_put_local_client_switches", "auth", "PUT", "/api/auth/local-clients/switches", fichero_auth_put_local_client_switches),
     GeneratedTool("fichero_auth_login", "auth", "POST", "/api/auth/login", fichero_auth_login),
     GeneratedTool("fichero_auth_logout", "auth", "POST", "/api/auth/logout", fichero_auth_logout),
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
