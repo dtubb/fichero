@@ -143,6 +143,29 @@ def build_transcribe_review_prompt(config: dict) -> str:
     return _DEFAULT_REVIEW_PROMPT
 
 
+def _with_line_scripts(prior_text: Any, documents: list, files: list, library_path: str) -> Any:
+    """Each page's context, with its lines' own scripts and directions said when the page mixes them (#5728)."""
+    if not library_path or not documents or not (isinstance(prior_text, list) or len(files) == 1):
+        return prior_text
+    from fichero_server.db import db_manager
+    from fichero_server.db.manager import LibraryNotFoundError
+    from fichero_server.llm.working_lines import working_lines
+    from fichero_server.recipes.review_profiles import line_scripts
+
+    try:
+        db = db_manager.get_database(library_path)
+    except LibraryNotFoundError:
+        return prior_text
+    texts = list(prior_text) if isinstance(prior_text, list) else [prior_text]
+    for index, doc in enumerate(documents[:len(texts)]):
+        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+        rows = working_lines(db, str(doc_id)) if doc_id else None
+        said = line_scripts([(r.id, r.script, r.direction) for r in rows.lines]) if rows else ""
+        if said:
+            texts[index] = f"{texts[index] or ''}\n\n{said}".strip()
+    return texts if isinstance(prior_text, list) else texts[0]
+
+
 def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
     """The prompt for `lens` built from the project's setup answers and the profile they choose
     (`source.job.review-is-built-from-the-project-and-a-profile`), and which profile that was."""
@@ -229,6 +252,7 @@ async def transcribe_review(
         from fichero_server.tool_context import with_page_context
 
         prior_text = with_page_context(None, documents, files, state.get("library_path", ""), confidence=True)
+    prior_text = _with_line_scripts(prior_text, documents, files, state.get("library_path", ""))
     input_metadata = inputs.get("metadata")
 
     update_page_content = inputs.get("update_page_content", False)
