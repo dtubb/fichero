@@ -68,6 +68,8 @@ class LibraryManager {
 
     /// One sentence shown after a host stopped sharing a library this Mac had open (#5731); cleared by the view.
     var sharingStoppedNotice: String?
+    /// Shared projects whose host turned Sharing off: greyed in the sidebar until Forgotten (#5739).
+    var hostGoneRows: [HostGoneRow] = []
 
     /// The project `createProject(at:)` made last. The sidebar selects its row when this changes
     /// (`create.project.appears-and-is-selected`, #5430).
