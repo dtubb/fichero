@@ -962,7 +962,8 @@ a trained model whose card holds no held-out page, a named page a trained candid
 on, no page with a checked reading, a model not on this Mac, a remote provider. Through
 `evaluation.run` (not undoable: a score is a result). `GET /api/evaluation/runs/{job_id}` gives the plan
 (candidates, pages, pages missing and why, readers not on this Mac) and the result (per model and per
-page, the CER under each policy, who checked each page, the best). Each model's scores are appended to
+page, the CER under each policy, who checked each page, the best, and `adoption`: whether the best trained
+Kraken reader became the project's read-a-line reader, only past the project's noise band, and why). Each model's scores are appended to
 its card; `GET /api/evaluation/scores?model=&reader=` reads them back. Activity's stop ends it before
 its next page, with nothing written on the cards.
 
