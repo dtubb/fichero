@@ -982,7 +982,9 @@ run off this Mac (422). Through the audited, non-undoable action `reading.start_
 
 `GET /api/reading-at-scale/jobs/{job_id}` follows it: `state`, the `reason` in words, the shard
 `counts` (pending, submitted, landed, failed), each failed shard's reason and last lines, the
-`package` (sources, shards, pages skipped and why) and the `landing` counts.
+`package` (sources, shards, pages skipped and why) and the `landing` counts. For a run on Hugging Face,
+`hf_spend` is this month's Hugging Face spend against the project's cap, as on the Start plan (each shard sent
+is a Job); null for a run on a cluster (#5769).
 
 `POST /api/reading-at-scale/jobs/{job_id}/resend-failed` sends the failed shards again, and only those
 (`reading.resend_failed`; 409 while the run is still going). `POST /api/reading-at-scale/jobs/{job_id}/cancel`

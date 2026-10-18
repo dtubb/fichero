@@ -398,14 +398,20 @@ def spend_this_month(db: Any, *, cap: float, now: Any = None) -> dict[str, Any]:
     spent, counted_jobs, unpriced = 0.0, 0, 0
     for (raw,) in rows:
         detail = json.loads(raw or "{}")
-        if not detail.get("far_id"):
+        request = detail.get("request") or {}
+        if request.get("target", "huggingface-jobs") != "huggingface-jobs":
+            continue  # a read on a cluster: an allocation, not bought by the hour
+        # a reading run is one row of many Jobs, a Job for each shard sent (each try); a training run is one Job
+        sent = (sum(s.get("tries", 0) for s in detail["shards"].values()) if detail.get("shards")
+                else int(bool(detail.get("far_id"))))
+        if not sent:
             continue
-        counted_jobs += 1
-        price, hours = detail.get("price_per_hour_usd"), _hours((detail.get("request") or {}).get("timeout"))
+        counted_jobs += sent
+        price, hours = detail.get("price_per_hour_usd"), _hours(request.get("timeout"))
         if price is None or hours is None:
-            unpriced += 1
+            unpriced += sent
             continue
-        spent += float(price) * hours
+        spent += float(price) * hours * sent
     spent = round(spent, 2)
     sentence = (f"Hugging Face this month: at most ${spent:.2f} of ${cap:.2f}, "
                 f"{counted_jobs} {'Job' if counted_jobs == 1 else 'Jobs'}"

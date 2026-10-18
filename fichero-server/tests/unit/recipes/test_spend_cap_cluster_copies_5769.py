@@ -86,6 +86,53 @@ def test_spend_this_month_is_shown_against_the_cap(db):
     assert "$3.10 of $5.00" in spend["sentence"] and "1 with no listed price" in spend["sentence"]
 
 
+def test_a_reading_run_counts_each_shard_it_sent_and_a_cluster_read_costs_nothing_here(db):
+    """A reading run is one row of many Jobs: each shard sent (each try) is a Job at its most. A read on a cluster is
+    the same kind of row and is not bought by the hour, so it is outside the Hugging Face spend."""
+    import json
+    from datetime import datetime, timezone
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    now = datetime(2026, 10, 18, tzinfo=timezone.utc)
+    jobs._ensure(db)
+
+    def read(row_id, target, shards):
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, 'read-at-scale', 's', 'done', 0, 't', ?, 'huggingface-jobs', ?)",
+                   [row_id, now, json.dumps({"price_per_hour_usd": 1.0, "request": {"timeout": "1h", "target": target},
+                                             "shards": shards})])
+
+    read("hf", "huggingface-jobs", {"0": {"state": "landed", "tries": 2, "far_id": "a"},
+                                    "1": {"state": "landed", "tries": 1, "far_id": "b"},
+                                    "2": {"state": "pending", "tries": 0}})
+    read("cluster", "rorqual", {"0": {"state": "landed", "tries": 1, "far_id": "101_0"}})
+    spend = spend_this_month(db, cap=5.0, now=now)
+    assert spend["jobs"] == 3 and spend["spent_at_most_usd"] == 3.0, spend
+
+
+def test_a_reading_runs_inspector_shows_the_spend_against_the_cap(db):
+    """The remote-run Inspector shows Hugging Face cost against the spend cap (rulings 2026-10-17 11:50)."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.remote_read import job as read_job
+
+    jobs._ensure(db)
+
+    def row(row_id, request):  # a finished row: the scheduler never runs it
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, ?, ?, 'done', 0, 't', now(), ?, ?)",
+                   [row_id, read_job.KIND, f"read:{row_id}", read_job.TARGET, json.dumps({"request": request})])
+        return row_id
+
+    request = {"scope_ids": ["f"], "reader": "vlm", "card": "c", "pages_may_leave": True}
+    assert "of $0.00" in read_job.status(db, row("hf", request))["hf_spend"]["sentence"]
+    cluster = row("cluster", {**request, "target": "rorqual"})
+    assert read_job.status(db, cluster)["hf_spend"] is None
+
+
 def test_the_start_plan_carries_the_spend(client):
     from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save
 
