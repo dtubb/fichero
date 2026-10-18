@@ -7,23 +7,13 @@ extension ShareSettingsView {
 
     @ViewBuilder
     var securitySection: some View {
-        Section("Security") {
-            LabeledContent("Backend authz") {
-                Text(backendAuthzStatus)
-                    .foregroundStyle(backendAuthzStatus == "Enabled" ? .primary : .secondary)
+        Section("Accounts") {
+            LabeledContent("Accounts") {
+                Text(accountsStatus)
+                    .foregroundStyle(.secondary)
             }
 
-            if isLoadingAuthz {
-                LabeledContent("Project Role") {
-                    ProgressView().controlSize(.small)
-                }
-            } else if let authzSnapshot, !authzSnapshot.multiuserEnabled {
-                // Multi-user off is a normal state, not a fault (#3335).
-                LabeledContent("Project Role") {
-                    Text("Not enforcing per-library access")
-                        .foregroundStyle(.secondary)
-                }
-            } else if let authzSnapshot {
+            if let authzSnapshot, authzSnapshot.multiuserEnabled {
                 LabeledContent("Project Role") {
                     Text(authzSnapshot.currentUserRole?.capitalized ?? "No role")
                         .foregroundStyle(.secondary)
@@ -33,20 +23,8 @@ extension ShareSettingsView {
                         .foregroundStyle(.secondary)
                 }
             } else if let authzError {
-                LabeledContent("Project Role") {
-                    Text(authzError)
-                        .foregroundStyle(.red)
-                }
-            } else {
-                LabeledContent("Project Role") {
-                    Text("Not loaded")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            LabeledContent("Pairing") {
-                Text(hostingEnabled ? "\(activePairedDevices(from: pairedDevices).count) devices" : "Off")
-                    .foregroundStyle(.secondary)
+                Label(authzError, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
             }
         }
     }
@@ -56,11 +34,11 @@ extension ShareSettingsView {
     /// `GET /api/auth/identity` via IdentityStore, never the local desired flag.
     var backendMultiuser: Bool { appState.identityStore.multiuserEnabled }
 
-    var backendAuthzStatus: String {
+    var accountsStatus: String {
         if !appState.isBackendRunning {
-            return "Unavailable"
+            return "Engine not running"
         }
-        return backendMultiuser ? "Enabled" : "Disabled"
+        return backendMultiuser ? "On" : "Off"
     }
 
     var securityRefreshKey: String {

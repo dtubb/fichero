@@ -81,9 +81,9 @@ struct MacRemoteClientPairingSection: View {
             }
 
             if let clientPairingError {
-                Text(clientPairingError)
+                Label(clientPairingError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.orange)
             }
         }
     }
