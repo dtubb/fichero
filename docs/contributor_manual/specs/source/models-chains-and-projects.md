@@ -2345,9 +2345,14 @@ Jobs and chains
   version that added them; a newly registered one is available to recipes, setup, the activity
   queue and the recipe check with no other change; a recipe naming a job this copy lacks is
   refused before anything runs, naming the job and the version that has it.
-- `source.recipe.jobs-carry-descriptions` — **[GAP]** (#4949) every registered job carries a plain
+- `source.recipe.jobs-carry-descriptions` — **[PARTIAL]** (#4949) every registered job carries a plain
   description, an example and the trade-offs between its usual options, and declares how its
   outputs are compared; setup, the Inspector and an exported recipe's README show that same text.
+  *Built: every registered job (33) has its topic's sentence and paragraph and declares how its outputs are
+  compared (`Job.compare`), served at `GET /api/topics/{id}`
+  (`fichero-server/tests/unit/recipes/test_jobs_carry_descriptions_4949.py`). Not built: an example per job (Set Up's
+  stages carry theirs, `recipes/stages.py`), the trade-offs between a job's usual options, and an exported recipe's
+  README (#5364).*
 - `source.job.find-and-identify-signs` — **[GAP]** (#4949) finding signs and identifying them
   against a sign list are jobs a recipe can name, used in place of finding lines and reading a
   line for scripts read sign by sign.
@@ -3002,9 +3007,12 @@ Purposes and layers
   a layer or a language can be added later from the
   library's Inspector; an added layer turns on the recipe's steps of that layer and runs them over
   everything already in the project, as one job.
-- `source.recipe.steps-name-layers` — **[GAP]** (#4950) every step names a layer; the resolved
+- `source.recipe.steps-name-layers` — **[OK]** (#4950) every step names a layer; the resolved
   recipe's `automatic` section lists the steps whose layer the purpose (or an added layer) turns
-  on, with whether each may use the cloud, and is never written by hand.
+  on, with whether each may use the cloud, and is never written by hand. *Built 2026-10-18 (engine):* `assemble` sets each
+  step's `layer` from its job and returns `automatic` (`id`, `layer`, `uses_cloud`, in step order; a step ticked by hand on top
+  of the purpose is a step but not automatic) on `POST /api/recipes/assemble`; pinned by
+  `fichero-server/tests/unit/recipes/test_steps_name_layers_4950.py`. `layer` and `automatic` are saved with the recipe as a snapshot of the assembly (checked 2026-10-18, review 136: nothing in the engine or the app compares a saved recipe with a fresh assembly, so the new keys read as no change; the app's own `answers.automatic` is a different thing, what runs by itself after Start). Not built: the app does not show the section yet.
 
 Setup
 - `source.onboard.widget-and-search` — **[PARTIAL]** (#4951, #5479) **Built 2026-10-05 (app), not yet seen:** What it is has a search field for languages and for scripts that autocompletes from the engine, and the chosen ones as blue tokens (name shown, tag on hover, × removes); Return on a typed word takes the engine's answer ("spanish" is the `es` token) and refuses a word it does not know in words (`CodeTokenField`, `RecipeSetupStore.addTyped`); pinned by `fichero/Tests/Unit/general/Models/SetupRoundTwoTests.swift`. **Built 2026-10-05 (round 3, app):** the Browse… list is gone; matches show in the field's own dropdown (`textInputSuggestions` on the Mac, a List under the field on iPhone and iPad). **Built 2026-10-03:** the Your Material step searches languages and scripts through the engine (2026-10-04: `RecipeSetupStore.searchLanguages`/`searchScripts`; a dialect shows whose dialect it is, a Glottolog-only language is kept as a private-use tag). The engine searches ISO 639-3 joined with Glottolog 5.3 (CC BY 4.0, vendored; languages ISO lacks and about 13,000 dialects, each answer with its BCP 47 tag and glottocode kept apart) and every ISO 15924 script: `GET /api/recipes/languages`, `/scripts`, `fichero-server/tests/unit/api/test_setup_searches_languages_and_scripts.py` and `fichero/Tests/Unit/general/Models/RecipeSetupStoreTests.swift`. *Not built (ruled 2026-10-05, #5479): the field is free text; no browse menu; one value, not tokens.* setup is a form with search beside each
@@ -3503,12 +3511,16 @@ Setup
 - `source.onboard.deterministic-recipe` — **[PARTIAL]** (#4950, #4951) **Built 2026-10-03 (engine):** `assemble()` from answers and cards (`recipes/assemble.py`); cards are not yet read from the real catalogue; pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`. **Built 2026-10-11 (#5682):** each step's reasons are its own kind's: only a reading step says what material it is made for, its CER and that a bake-off measures it; a line finder, name finder or search model says what covers the project (script, languages), where it comes from and whether it is here (seen in the MCP walk: the embedder, spaCy and blla each said "made for handwriting" and "unmeasured on your pages until a bake-off measures it"); pinned by `fichero-server/tests/unit/recipes/test_step_reasons_by_kind_5682.py`. the recipe is assembled by rules
   from the answers and the cards' confirmed facts; the same answers and catalogue always give the
   same recipe, and each choice names the card facts and measurements it rests on.
-- `source.recipe.candidates-filtered-then-ranked` — **[GAP]** (#4950) candidates are kept only if
-  they pass the hard constraints (job, script coverage, language where it matters, runs here or on
-  a bound target, licence, egress); material and period only lower a candidate's rank. The rest
-  are ranked in a fixed order: accuracy in one-point bands (measured here, else published, else
-  coverage), then local before remote, cheaper, faster, lower carbon, trainable, smaller, then
-  card id.
+- `source.recipe.candidates-filtered-then-ranked` — **[OK]** (#4950) candidates are kept only if they pass the
+  hard constraints: the job, script coverage (a Latin reader covers Fraktur and Gaelic type), the language where it
+  matters, the material where a reader is made for print or typescript only and the pages are handwriting, the cloud
+  only where pages may leave this Mac, this Mac's memory, and the licence. The rest are ranked in a fixed order: a
+  measurement on the project's pages in one-point bands; then a reader made for the project's script; then one that
+  lists the project's languages, one made for its period, one made for its material; then the published CER in
+  one-point bands; then a model already on this Mac, local before remote, cheaper, faster, lower carbon, trainable,
+  smaller, and the card id, so a tie is always broken the same way. *Built: `assemble._choose`, `_refusal`,
+  `_rank_key` (`source.recipe.script-reader-first`, #5516). Pinned by
+  `fichero-server/tests/unit/recipes/test_candidates_filtered_then_ranked_4950.py`.*
 - `source.recipe.cheapest-local-first` — **[PARTIAL]** (#4950, #4951; RETIRED 2026-10-17, the code changed in 4ffd86b01 and `assemble._choose` now ranks every passing candidate best first; replaced by `source.recipe.candidates-fallback-chain` and
   `source.recipe.placement-by-scale` below, ruled by the maintainer) the bulk reader is the BEST MEASURED candidate, not the cheapest local one.
   What stood here (pinned by `fichero-server/tests/unit/recipes/test_assemble_by_rule.py`, `assemble._choose` choosing the best LOCAL candidate and a remote
@@ -3539,9 +3551,13 @@ Setup
 - `source.recipe.reader-tiers` — **[GAP]** (#4948) with no measurement, readers are ordered by tier:
   specialist line readers, then small historical vision-language models, then general ones;
   Tesseract only for print and typescript; within a tier, by coverage.
-- `source.recipe.no-other-style-substitute` — **[GAP]** (#4951) a reader made for another style of
+- `source.recipe.no-other-style-substitute` — **[OK]** (#4951) a reader made for another style of
   the project's script (naskh for nastaliq) is never proposed in its place; the step is "needs a
-  model" and the gap is named.
+  model" and the gap is named. *Built: `assemble._refusal` refuses a reader whose card does not state the
+  project's script (`no-model-for-script`), and the step's problem names it only among the nearest, as "a
+  related script" (`_nearest`). The ruled exception is Latin: a Latin reader reads Fraktur and Gaelic type,
+  the exact one ranking first (#5516). Pinned by
+  `fichero-server/tests/unit/recipes/test_no_other_style_substitute_4951.py`.*
 - `source.onboard.sign-scripts-specialist-path` — **[GAP]** (#4951) for scripts read sign by sign
   (cuneiform, hieroglyphs, Linear B, Maya), setup names the gap, shows any specialist pipeline
   found as a card marked "not runnable in Fichero yet", offers the decipher or train paths, and
@@ -3553,9 +3569,13 @@ Setup
 - `source.recipe.loove-tokenizer-only` — **[GAP]** (#4948) LOOVE tokenizer coverage filters and
   ranks only language and vision-language models; Kraken and Tesseract are judged on their
   character-set coverage; a measurement on the project's pages outranks both.
-- `source.recipe.no-llm-correction-in-unknown-language` — **[GAP]** (#4950) a correction or
+- `source.recipe.no-llm-correction-in-unknown-language` — **[OK]** (#4950) a correction or
   normalising step by a language model is included only when the model's card lists the project's
-  language; otherwise it is left out and the recipe says why.
+  language; otherwise it is left out and the recipe says why. *Built: `assemble._refusal` refuses a
+  Correct or Normalise card that does not list the language, or lists none (`no-model-for-language`,
+  "No … here knows Arabic yet."); a frontier cloud model is the one exception, counted as multilingual and
+  only ever offered (#5718). Pinned by
+  `fichero-server/tests/unit/recipes/test_no_llm_correction_in_unknown_language_4950.py`.*
 - `source.onboard.assistant-proposal` — **[GAP]** (#4951) a language model may help: filling in a
   prose-only card (facts unconfirmed until a person confirms), explaining a choice, or suggesting
   answers from samples; it runs locally unless the project allows the cloud, and never decides the
@@ -3624,14 +3644,20 @@ The recipe and its format
   **(2026-10-11)** A YOLO layout model is pinned by its catalogue name (`{yolo: yolo-doclaynet-11n}`), the form
   the shipped card writes, and the recipe check knows it; a pin the check does not know is said in words, never
   as a list of its keys (`recipes/recipe.PIN_FORMS`; `fichero-server/tests/unit/recipes/test_yolo_pin_is_a_known_form.py`).
-- `source.recipe.runs-on-binds-to-a-target` — **[GAP]** (#4950) a shared recipe never names a
+- `source.recipe.runs-on-binds-to-a-target` — **[PARTIAL]** (#4950) a shared recipe never names a
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
-  and an unbound step waits with "No cluster is set up".
+  and an unbound step waits with "No cluster is set up". *Built: the placement rule takes the step's bound
+  cluster and, with none, keeps a step a cluster would suit on this Mac, saying "No cluster is set up for
+  this project" (`placement.place_step`; `fichero-server/tests/unit/recipes/test_placement.py`). Not built:
+  the binding itself (nothing binds a cluster to a step yet, so `start.place_runs` passes none), and a
+  `gpu-service` target.*
 - `source.recipe.alternatives-in-order` — **[PARTIAL]** (#4950) when this Mac cannot run a step's pin,
   the first listed alternative that can is used, and the choice is recorded and shown. *Built 2026-10-17 for a missing key: the step's `chain`, first entry that can run, `plan.fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: a model this Mac cannot serve (memory) still goes through `elsewhere`, offered and never used without the person's press (`ai.where.fallback-free-and-asked`): the two rules need the maintainer to say which wins.*
-- `source.recipe.conditions-fixed-list` — **[GAP]** (#4950) a step's `when` and `offered_when` use
+- `source.recipe.conditions-fixed-list` — **[OK]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
-  count); anything else is refused when the recipe is checked.
+  count); anything else is refused when the recipe is checked. *Built: `recipe.CONDITIONS`
+  (`spreads_detected`, `confidence_below`, `corrected_lines_at_least`); `check_recipe` names any other, by its key.
+  Pinned by `fichero-server/tests/unit/recipes/test_conditions_fixed_list_4950.py`.*
 - `source.recipe.train-never-automatic` — **[PARTIAL]** (#4950, #5336, #5440; reworded 2026-10-17; *built: a train step is never among what Start runs and
   the plan offers it, pinned by `fichero-server/tests/unit/recipes/test_start_plan.py` and `test_train_offers_5660.py`; under `here`, a ready offer starts by itself on this Mac when a recipe step finishes, once
   (a training job waiting, running, paused or done stops another), never on Hugging Face, and a refusal never fails the
@@ -3664,9 +3690,11 @@ The recipe and its format
 - `source.recipe.prompt-files` — **[GAP]** (#5364) each prompt is one file with a header naming its
   job, the model it was written for, its version and its variables; a variable the step does not
   supply is refused when the recipe is checked.
-- `source.recipe.schema-versioned` — **[GAP]** (#5364) `recipe.yaml` carries its schema version; a
+- `source.recipe.schema-versioned` — **[OK]** (#5364) `recipe.yaml` carries its schema version; a
   version newer than this Fichero understands is refused with the version named, and an older one
-  keeps working.
+  keeps working. *Built: `recipe.SCHEMA_VERSION` (1); `check_recipe` refuses a newer one by number and one that names
+  none (`fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`). Schema 1 is the only one so far, so
+  "older" has nothing to read yet.*
 - `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.

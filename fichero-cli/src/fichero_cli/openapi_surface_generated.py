@@ -1739,6 +1739,109 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("register-local-client")
+    def auth_register_local_client_post(
+        ctx: typer.Context,
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+        request_id: str = typer.Option(..., '--request-id', help='Request Id.'),
+    ) -> None:
+        """Register Local Client (POST /api/auth/local-clients/register)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/register"
+            params = None
+            payload = _build_json_payload({
+                "public_key_pem": public_key_pem,
+                "request_id": request_id,
+            }, {
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+                "request_id": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Request Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("request-local-client")
+    def auth_request_local_client_post(
+        ctx: typer.Context,
+        host: Optional[str] = typer.Option(None, '--host', help='Host. Default: "".'),
+        kind: str = typer.Option(..., '--kind', help='Kind. One of: cli, mcp.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+    ) -> None:
+        """Request Local Client (POST /api/auth/local-clients/request)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/request"
+            params = None
+            payload = _build_json_payload({
+                "host": host,
+                "kind": kind,
+                "name": name,
+            }, {
+                "host": {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': '', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['cli', 'mcp'], 'title': 'Kind', 'x-cli-required': True},
+                "name": {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-local-client-requests")
+    def auth_list_local_client_requests_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Local Client Requests (GET /api/auth/local-clients/requests)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/requests"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("decide-local-client-request")
+    def auth_decide_local_client_request_post(
+        ctx: typer.Context,
+        request_id: str = typer.Argument(..., help='Request Id'),
+        allow: bool = typer.Option(..., '--allow/--no-allow', help='Allow.'),
+    ) -> None:
+        """Decide Local Client Request (POST /api/auth/local-clients/requests/{request_id}/decision)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/auth/local-clients/requests/{request_id}/decision"
+            params = None
+            payload = _build_json_payload({
+                "allow": allow,
+            }, {
+                "allow": {'type': 'boolean', 'title': 'Allow', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-local-client-switches")
+    def auth_get_local_client_switches_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Local Client Switches (GET /api/auth/local-clients/switches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/switches"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-local-client-switches")
+    def auth_put_local_client_switches_put(
+        ctx: typer.Context,
+        cli: bool = typer.Option(..., '--cli/--no-cli', help='Cli.'),
+        mcp: bool = typer.Option(..., '--mcp/--no-mcp', help='Mcp.'),
+    ) -> None:
+        """Put Local Client Switches (PUT /api/auth/local-clients/switches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/switches"
+            params = None
+            payload = _build_json_payload({
+                "cli": cli,
+                "mcp": mcp,
+            }, {
+                "cli": {'type': 'boolean', 'title': 'Cli', 'x-cli-required': True},
+                "mcp": {'type': 'boolean', 'title': 'Mcp', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("login-auth-login")
     def auth_login_auth_login_post(
         ctx: typer.Context,
@@ -1782,6 +1885,26 @@ def register_generated_openapi_commands(
             endpoint_path = "/api/auth/me"
             params = None
             return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("migrate-owner")
+    def auth_migrate_owner_post(
+        ctx: typer.Context,
+        client: str = typer.Option(..., '--client', help='FirstRunClient. JSON.'),
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+    ) -> None:
+        """Migrate Owner (POST /api/auth/migrate-owner)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/migrate-owner"
+            params = None
+            payload = _build_json_payload({
+                "client": client,
+                "public_key_pem": public_key_pem,
+            }, {
+                "client": {'properties': {'kind': {'type': 'string', 'const': 'app', 'title': 'Kind', 'default': 'app'}, 'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'FirstRunClient', 'x-cli-required': True},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("list-sessions")

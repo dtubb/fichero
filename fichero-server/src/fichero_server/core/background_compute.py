@@ -232,10 +232,43 @@ def process_rusage(pid: int | None = None) -> dict[str, int] | None:
         return None
 
 
-def process_energy_watts() -> float | None:
-    """Average power since the LAST call, in watts; the first call primes it and returns None."""
+def _descendant_pids(root: int) -> list[int]:
+    """The pids below ``root`` (children, their children, ...) from libproc's `proc_listchildpids`, which returns the
+    count of pids (probed on the M4); no subprocess, so it cannot block the caller. [] when libproc is not loaded."""
+    import ctypes
+
+    if not _libproc:
+        process_rusage()  # loads libproc once
+    if not _libproc:
+        return []
+    found, queue = [], [root]
+    while queue:
+        buf = (ctypes.c_int * 256)()
+        count = _libproc[0].proc_listchildpids(queue.pop(), buf, ctypes.sizeof(buf))
+        for child in list(buf)[: max(0, min(count, 256))]:
+            found.append(child)
+            queue.append(child)
+    return found
+
+
+def process_tree_rusage() -> dict[str, int] | None:
+    """`process_rusage` summed over this process and every process below it (its Kraken and line-extraction
+    helpers, #5358); a child that cannot be read adds nothing."""
+    total = process_rusage()
+    if total is None:
+        return None
+    for pid in _descendant_pids(os.getpid()):
+        child = process_rusage(pid)
+        if child:
+            total = {k: total[k] + child[k] for k in total}
+    return total
+
+
+def process_energy_watts(usage: dict[str, int] | None = None) -> float | None:
+    """Average power since the LAST call, in watts; the first call primes it and returns None. ``usage`` is the
+    caller's `process_tree_rusage()` when it has one, so a poll reads the tree once."""
     global _energy_last_sample
-    usage = process_rusage()
+    usage = usage or process_tree_rusage()
     if usage is None:
         return None
     now = time.monotonic()
@@ -244,4 +277,4 @@ def process_energy_watts() -> float | None:
         _energy_last_sample = (now, usage["energy_nj"])
     if prev is None or now <= prev[0]:
         return None
-    return round((usage["energy_nj"] - prev[1]) / 1e9 / (now - prev[0]), 2)
+    return round(max(0, usage["energy_nj"] - prev[1]) / 1e9 / (now - prev[0]), 2)  # a child that exited takes its total with it
