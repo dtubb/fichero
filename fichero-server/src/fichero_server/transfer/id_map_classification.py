@@ -352,6 +352,8 @@ CLASSIFICATION: dict[str, tuple[str, str]] = {
     "table:devices.paired_by_device_id": (NOT_DOCUMENT_SCOPED, "the paired device that minted this one, engine-wide; devices are the engine's, never part of a project"),
     "table:enrollment_secrets.user_id": (NOT_DOCUMENT_SCOPED, _PERSON),
     "table:sessions.user_id": (NOT_DOCUMENT_SCOPED, _PERSON),
+    "table:sessions.client_id": (NOT_DOCUMENT_SCOPED, "the signed-in client a session belongs to, engine-wide; clients are the engine's, never part of a project"),
+    "table:clients.user_id": (NOT_DOCUMENT_SCOPED, _PERSON),
     "table:models.model_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     "table:models.provider_id": (NOT_DOCUMENT_SCOPED, _ENGINE),
     # --- the correction-episode ledger (finding 10) -------------------------------------------
