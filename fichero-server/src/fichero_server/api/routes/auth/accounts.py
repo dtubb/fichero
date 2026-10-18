@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from fichero_server.security import accounts
+from fichero_server.security import accounts, launch_secret
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import _new_id as new_id
@@ -920,6 +920,67 @@ def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_data
     return ChallengeResponse(
         nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
     )
+
+
+class FirstRunClient(BaseModel):
+    kind: Literal["app"] = "app"
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
+class FirstRunRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=120)
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    client: FirstRunClient
+
+
+class FirstRunResponse(BaseModel):
+    user: UserResponse
+    client: SignInClient
+
+
+_first_run_lock = threading.Lock()
+
+
+def _is_p256_public_key(pem: str) -> bool:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    try:
+        key = serialization.load_pem_public_key(pem.encode())
+    except (ValueError, TypeError):
+        return False
+    return isinstance(key, ec.EllipticCurvePublicKey) and key.curve.name == "secp256r1"
+
+
+@auth_router.post("/first-run", response_model=FirstRunResponse)
+def first_run(
+    body: FirstRunRequest, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> FirstRunResponse:
+    """Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).
+
+    Only over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is
+    not the launch secret. The owner gets an unusable password: they sign in by their key."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="first-run is local only")
+    if not launch_secret.matches(request.headers.get("X-Fichero-Launch-Secret")):
+        raise HTTPException(status_code=401, detail="first-run refused")
+    if not _is_p256_public_key(body.public_key_pem):
+        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+    with _first_run_lock:
+        if any(user.is_owner for user in app_db.list_users()):
+            raise HTTPException(status_code=409, detail="this library already has an owner")
+        user = app_db.create_user(
+            username="owner",
+            display_name=body.display_name,
+            password_hash=accounts.hash_password(secrets.token_urlsafe(32)),
+            is_owner=True,
+        )
+        client = app_db.create_client(
+            user_id=user.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
+    return FirstRunResponse(user=_to_public_user(user), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
 
 
 @auth_router.post("/sign-in", response_model=SignInResponse)

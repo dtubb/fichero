@@ -4,7 +4,7 @@ Spec: docs/contributor_manual/specs/transport/multiuser-always-on.md. The route 
 owner, only over the Unix socket, and only with the launch secret (`X-Fichero-Launch-Secret`), never the old bearer
 token. It registers the person's public key as the app client; the app then signs in by challenge like any client.
 
-Held as strict xfail until the route lands (the code commit removes the markers).
+Slice 4 of the plan: the held strict xfails of the red commit are gone now the route is built.
 """
 
 import pytest
@@ -14,7 +14,6 @@ from tests.signed_in import new_key, signature_for, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import harness  # noqa: F401
 
 SECRET = "ab" * 32
-held = pytest.mark.xfail(strict=True, reason="slice 4 (#2403): POST /api/auth/first-run not built yet")
 
 
 @pytest.fixture
@@ -36,7 +35,6 @@ def _first_run(http, pem, *, secret=SECRET, headers=None):
     )
 
 
-@held
 def test_first_run_works_once_then_409(harness, engine_secret):
     _key, pem = new_key()
     first = _first_run(uds_client(harness), pem)
@@ -48,7 +46,6 @@ def test_first_run_works_once_then_409(harness, engine_secret):
     assert _first_run(uds_client(harness), pem2).status_code == 409
 
 
-@held
 def test_the_new_owner_signs_in_by_challenge(harness, engine_secret):
     key, pem = new_key()
     client_id = _first_run(uds_client(harness), pem).json()["client"]["id"]
@@ -62,7 +59,6 @@ def test_the_new_owner_signs_in_by_challenge(harness, engine_secret):
     assert signed.json()["user"]["is_owner"] is True
 
 
-@held
 def test_first_run_is_refused_over_tcp_even_with_the_secret(harness, engine_secret):
     _key, pem = new_key()
     refused = _first_run(harness.client(), pem)
@@ -70,7 +66,6 @@ def test_first_run_is_refused_over_tcp_even_with_the_secret(harness, engine_secr
     assert not [u for u in harness.app_db.list_users() if u.is_owner]
 
 
-@held
 def test_first_run_needs_the_launch_secret(harness, engine_secret):
     _key, pem = new_key()
     for wrong in (None, "", "cd" * 32, SECRET[:-2]):
@@ -78,7 +73,6 @@ def test_first_run_needs_the_launch_secret(harness, engine_secret):
     assert not [u for u in harness.app_db.list_users() if u.is_owner]
 
 
-@held
 def test_the_bootstrap_token_is_not_the_launch_secret(harness, engine_secret):
     _key, pem = new_key()
     as_header = _first_run(uds_client(harness), pem, secret=harness.bootstrap)
@@ -86,7 +80,6 @@ def test_the_bootstrap_token_is_not_the_launch_secret(harness, engine_secret):
     assert (as_header.status_code, as_bearer.status_code) == (401, 401)
 
 
-@held
 def test_an_engine_without_a_launch_secret_refuses_first_run(harness):
     from fichero_server.security import launch_secret
 
@@ -95,7 +88,6 @@ def test_an_engine_without_a_launch_secret_refuses_first_run(harness):
     assert _first_run(uds_client(harness), pem).status_code == 401
 
 
-@held
 def test_first_run_is_409_when_an_owner_already_exists(harness, engine_secret):
     harness.app_db.create_user(
         username="owner", display_name="Owner", password_hash=accounts.hash_password("x"), is_owner=True
