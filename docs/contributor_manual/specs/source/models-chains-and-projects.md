@@ -3671,6 +3671,14 @@ The recipe and its format
 - `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.
+- `source.recipe.check-names-every-fault` — **[OK]** (#5364, R6 exit) the check of a hand-edited recipe (`POST /api/recipes/check`,
+  `fichero_recipes_check`) names each fault in it, one sentence each, and one fault never hides another or stops the check with
+  an error: a schema it cannot read, a missing id, title or steps, code or a key anywhere, steps that are not a list, a step
+  that is not a step, a step with no id or another's id, a job this Fichero lacks, a layer not the job's, an unknown condition,
+  an unpinned model, an unknown place, a missing prompt file, a step whose inputs no earlier step gives, and a kept choice
+  (override) that names a step the recipe does not have or no scope. *`recipes/recipe.check_recipe`;
+  `fichero-server/tests/unit/recipes/test_check_names_every_fault_5364.py`.* Publishing, following and forking a recipe stay
+  open under #5364.
 - `source.recipe.data-not-code` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** code-shaped keys refused anywhere in a recipe (`recipes/recipe.py`); pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe can name only registered jobs, models,
   prompts, settings and workflows built from Fichero's tools; it cannot carry scripts or grant a
   model tools or network access, and an imported recipe that tries is refused, naming the entry.
