@@ -317,7 +317,7 @@ async def pause_live_runs_for_shutdown() -> int:
             asked.append(thread_id)
     finally:
         for checkpointer in checkpointers.values():
-            checkpointer.conn.close()
+            checkpointer.__exit__(None, None, None)  # closes its own connection under its lock
     # Give the workers their boundary: the app kills the engine after a short grace, so the wait is bounded, and a
     # worker that has not stopped by then is covered by the `paused` record written above.
     deadline = time.monotonic() + BOUNDARY_GRACE_SECONDS
