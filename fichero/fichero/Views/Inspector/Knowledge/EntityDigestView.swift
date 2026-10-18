@@ -321,7 +321,9 @@ struct EntityDigestContent: View {
 
     // ponytail: the whole inspector payload for one field; read it from the entity itself once the engine adds it.
     private func loadStaleReason() async {
-        staleReason = try? await entityService.getEntityInspector(entity.id).staleReason
+        // Only an entity with an id has an inspector to read (fe13462d9: the call takes a String).
+        guard let id = entity.id else { return }
+        staleReason = try? await entityService.getEntityInspector(id).staleReason
     }
 
     private var headerSection: some View {
