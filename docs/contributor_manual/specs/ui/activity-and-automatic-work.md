@@ -1488,10 +1488,9 @@ code path.
   the child's checks; a page of the child waiting for a lane is held by its parent's row too; and
   the child is a run row under the step that called it, its steps and pages under it (`fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`).* Stop and Pause reach a
   sub-workflow.
-- `activity.run.stop-reaches-economy-htr` — **[BROKEN]** (#5375) Stop takes effect between
-  files in economy HTR. Today it runs a synchronous loop on the run's event loop with no progress
-  callback (`workflows/tools/economy_htr.py:296`), so Stop waits for the whole step and the log goes
-  quiet.
+- `activity.run.stop-reaches-economy-htr` — **[OK]** (#5375) Stop (and Pause) take effect between
+  files in economy HTR: each file is read off the run's event loop and the step checks for a stop or pause before the next
+  (`workflows/tools/economy_htr.py`); pinned by `fichero-server/tests/unit/workflows/test_economy_htr_stops_5375.py`.
 - `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5392, #5375, → #4402) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
