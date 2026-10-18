@@ -5221,6 +5221,30 @@
       },
       {
         "method": "POST",
+        "path": "/hpc/clusters/{cluster_id}/key/make",
+        "operation_id": "make_cluster_key_api_hpc_clusters__cluster_id__key_make_post",
+        "summary": "Make Cluster Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPublicKey"
+      },
+      {
+        "method": "GET",
+        "path": "/hpc/clusters/{cluster_id}/key/public",
+        "operation_id": "get_cluster_public_key_api_hpc_clusters__cluster_id__key_public_get",
+        "summary": "Get Cluster Public Key",
+        "path_params": [
+          "cluster_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "HpcPublicKey"
+      },
+      {
+        "method": "POST",
         "path": "/hpc/clusters/{cluster_id}/sign-in",
         "operation_id": "sign_in_api_hpc_clusters__cluster_id__sign_in_post",
         "summary": "Sign In",
@@ -8991,6 +9015,18 @@
         "path": "/reading-at-scale/jobs/{job_id}/cancel",
         "operation_id": "cancel_reading_job_api_reading_at_scale_jobs__job_id__cancel_post",
         "summary": "Stop a reading run (cancels its running shards on Hugging Face)",
+        "path_params": [
+          "job_id"
+        ],
+        "query_params": [],
+        "request_model": null,
+        "response_model": null
+      },
+      {
+        "method": "POST",
+        "path": "/reading-at-scale/jobs/{job_id}/catch-up",
+        "operation_id": "catch_up_reading_job_api_reading_at_scale_jobs__job_id__catch_up_post",
+        "summary": "Look at the far side now (after the Mac slept); a dropped run carries on",
         "path_params": [
           "job_id"
         ],
