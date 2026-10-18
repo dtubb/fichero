@@ -3240,9 +3240,9 @@ Setup
   About the material → the stages → one page per chosen stage → Train → Ready, one small page each, any
   of them skippable; Project › Set Up… starts at Add material. *Test:* pure Swift, the step list for no
   stage and for every stage.
-- `source.onboard.project.add-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** its own page, Add Files or Folders…, the line about adding later gone. *The chooser still picks a folder only.* Add material offers Add Files or Folders…
-  and then how it comes in (Copy, the default; Link, Move, Index, Keep arranged), separate from what the
-  material is. *Test:* pure Swift, the ways in and the default.
+- `source.onboard.project.add-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** its own page, Add Files or Folders…, the line about adding later gone. The chooser takes files and folders (`RecipeMaterialSourceFields`, `allowedContentTypes: [.folder, .item]`; `importFiles`/`importFolder`, `SetUpAddsMaterialToTheProjectTests`). Add material offers Add Files or Folders…
+  and then how it comes in (Copy, the default; Leave in place, Move; Index and Keep arranged are set on a synced folder, `source.onboard.five-ways-in`), separate from what the
+  material is. *Test:* pure Swift, the ways in and the default (`SetupThreeWaysInTests`).
 - `source.onboard.project.about-material` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** when written, where written (`answers.place`) and which hand (`RecipeWhenWhereHandFields`); pinned by `SetupStagesTests`. Pages counted from what was added (`RecipeSetupStore.countPages`, the Start plan's count). *Not built: the kinds beyond handwriting, print and typescript, which the engine's `MATERIALS` refuses today.* About the material holds the pages
   counted from what was added, languages, scripts, kinds (handwriting, print, typescript, tables and
   forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
