@@ -233,21 +233,19 @@ def process_rusage(pid: int | None = None) -> dict[str, int] | None:
 
 
 def _descendant_pids(root: int) -> list[int]:
-    """The pids below ``root`` (children, their children, ...), from one `ps` listing; [] when it cannot be read."""
-    import subprocess
+    """The pids below ``root`` (children, their children, ...) from libproc's `proc_listchildpids`, which returns the
+    count of pids (probed on the M4); no subprocess, so it cannot block the caller. [] when libproc is not loaded."""
+    import ctypes
 
-    try:
-        listing = subprocess.run(["ps", "-axo", "pid=,ppid="], capture_output=True, text=True, timeout=2).stdout
-    except (OSError, subprocess.SubprocessError):
+    if not _libproc:
+        process_rusage()  # loads libproc once
+    if not _libproc:
         return []
-    children: dict[int, list[int]] = {}
-    for line in listing.splitlines():
-        parts = line.split()
-        if len(parts) == 2 and all(p.isdigit() for p in parts):
-            children.setdefault(int(parts[1]), []).append(int(parts[0]))
     found, queue = [], [root]
     while queue:
-        for child in children.get(queue.pop(), []):
+        buf = (ctypes.c_int * 256)()
+        count = _libproc[0].proc_listchildpids(queue.pop(), buf, ctypes.sizeof(buf))
+        for child in list(buf)[: max(0, min(count, 256))]:
             found.append(child)
             queue.append(child)
     return found
@@ -266,10 +264,11 @@ def process_tree_rusage() -> dict[str, int] | None:
     return total
 
 
-def process_energy_watts() -> float | None:
-    """Average power since the LAST call, in watts; the first call primes it and returns None."""
+def process_energy_watts(usage: dict[str, int] | None = None) -> float | None:
+    """Average power since the LAST call, in watts; the first call primes it and returns None. ``usage`` is the
+    caller's `process_tree_rusage()` when it has one, so a poll reads the tree once."""
     global _energy_last_sample
-    usage = process_tree_rusage()
+    usage = usage or process_tree_rusage()
     if usage is None:
         return None
     now = time.monotonic()
