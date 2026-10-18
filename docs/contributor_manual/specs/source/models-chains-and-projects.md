@@ -2845,7 +2845,7 @@ Profiles (the defaults section of a recipe)
   pages copied into the project are never counted. *Test:*
   `fichero-server/tests/unit/importers/test_dataless_sources.py` (a directory is not dataless) and
   `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py` (a Copy import of a folder warns of nothing).
-- `source.onboard.correct-off-unless-a-corrector-is-here` — **[OK]** (#5677) Correct (a second model checking the
+- `source.onboard.correct-off-unless-a-corrector-is-here` — **[PARTIAL]** (#5677; ruled Q3 2026-10-17: with a cloud key set, Correct is OFFERED at Ready with its cost, never on by itself. *Built: the off line names a cloud and its price only when that provider has a key set here (`Answers.cloud_keys`), and carries it as `offered` (card, provider, pages, cost), `fichero-server/tests/unit/recipes/test_correct_offered_with_a_key_5677.py`. Not built: Ready's button that turns it on from the offer (app)*) Correct (a second model checking the
   reading) is in a purpose's recipe only when a corrector is already available: a model for it already on this Mac
   (or one that ships with Fichero), or a cloud model the project allows; or when the person asks for it (ticks
   Correct, or answers yes to "Correct with a second model?"). Otherwise it is off, and the recipe (`left_off`) and the
