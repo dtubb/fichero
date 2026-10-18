@@ -1113,8 +1113,12 @@ async def lifespan(app: FastAPI):
     # connections to close" blocked on any live run and the app SIGKILLed us
     # after its 2-second grace — twelve engine spawns in one session, each
     # orphaning an in-flight run with no terminal event.
-    from fichero_server.execution.runner import close_all_event_hubs_for_shutdown
+    from fichero_server.execution.runner import close_all_event_hubs_for_shutdown, pause_live_runs_for_shutdown
 
+    _paused_runs = await pause_live_runs_for_shutdown()
+    if _paused_runs:
+        logger.info("Shutdown: paused %d live run(s) at their last checkpoint; Resume carries them on (#5357).",
+                    _paused_runs)
     _closed_hubs = close_all_event_hubs_for_shutdown()
     if _closed_hubs:
         logger.info(
