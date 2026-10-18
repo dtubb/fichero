@@ -728,6 +728,16 @@ def fichero_auth_challenge(
     return _rt.call("POST", "/api/auth/challenge", json=_rt.body({"client_id": client_id}))
 
 
+def fichero_auth_first_run(
+    *,
+    client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
+    display_name: Annotated[str, Field(description='Display Name.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'First Run\n\nCreate the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.\n\nRoute: POST /api/auth/first-run (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/first-run", json=_rt.body({"client": client, "display_name": display_name, "public_key_pem": public_key_pem}))
+
+
 def fichero_auth_identity(
 ) -> Any:
     'Identity\n\nRoute: GET /api/auth/identity (toolset `auth`; reads).'
@@ -8953,6 +8963,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_artifacts_get_region", "artifacts", "GET", "/api/artifacts/{artifact_id}/region", fichero_artifacts_get_region),
     GeneratedTool("fichero_artifacts_edit_regions", "artifacts", "PUT", "/api/artifacts/{artifact_id}/regions", fichero_artifacts_edit_regions),
     GeneratedTool("fichero_auth_challenge", "auth", "POST", "/api/auth/challenge", fichero_auth_challenge),
+    GeneratedTool("fichero_auth_first_run", "auth", "POST", "/api/auth/first-run", fichero_auth_first_run),
     GeneratedTool("fichero_auth_identity", "auth", "GET", "/api/auth/identity", fichero_auth_identity),
     GeneratedTool("fichero_auth_list_invites", "auth", "GET", "/api/auth/invites", fichero_auth_list_invites),
     GeneratedTool("fichero_auth_create_invite", "auth", "POST", "/api/auth/invites", fichero_auth_create_invite),
