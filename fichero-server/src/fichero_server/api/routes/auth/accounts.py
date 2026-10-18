@@ -1006,9 +1006,12 @@ def migrate_owner(
     Same guards as first-run. The key goes to the owner row only, never to another person."""
     _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
     with _first_run_lock:
-        owner = next((user for user in app_db.list_users() if user.is_owner), None)
-        if owner is None:
+        owners = [user for user in app_db.list_users() if user.is_owner]
+        if not owners:
             raise HTTPException(status_code=404, detail="this library has no owner yet; use first-run")
+        if len(owners) > 1:
+            raise HTTPException(status_code=409, detail="this library has several owners; none is chosen for you")
+        owner = owners[0]
         if app_db.user_has_key(owner.id):
             raise HTTPException(status_code=409, detail="the owner already has a key")
         client = app_db.create_client(

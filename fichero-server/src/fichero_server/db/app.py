@@ -148,7 +148,12 @@ class AppDatabase:
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
-        self.migrate_device_tokens_to_clients()
+        try:
+            self.migrate_device_tokens_to_clients()
+        except Exception:
+            # A failed migration must never stop the app db opening: old device tokens keep working, and the
+            # migration runs again on the next open (it is idempotent).
+            logger.exception("device-token migration to clients failed; continuing without it")
 
     def commit(self) -> None:
         """Commit pending app-wide database work through the typed wrapper."""
