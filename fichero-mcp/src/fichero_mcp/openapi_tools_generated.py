@@ -720,6 +720,14 @@ def fichero_artifacts_edit_regions(
     return _rt.call("PUT", f"/api/artifacts/{artifact_id}/regions", json=_rt.body({"bbox": bbox, "indices": indices, "level": level, "op": op, "text": text}))
 
 
+def fichero_auth_challenge(
+    *,
+    client_id: Annotated[str, Field(description='Client Id.')],
+) -> Any:
+    'Challenge\n\nRoute: POST /api/auth/challenge (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/challenge", json=_rt.body({"client_id": client_id}))
+
+
 def fichero_auth_identity(
 ) -> Any:
     'Identity\n\nRoute: GET /api/auth/identity (toolset `auth`; reads).'
@@ -793,6 +801,16 @@ def fichero_auth_revoke_session(
 ) -> Any:
     'Revoke Session\n\nRoute: POST /api/auth/sessions/{session_id}/revoke (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/auth/sessions/{session_id}/revoke")
+
+
+def fichero_auth_sign_in(
+    *,
+    client_id: Annotated[str, Field(description='Client Id.')],
+    nonce: Annotated[str, Field(description='Nonce.')],
+    signature: Annotated[str, Field(description='Signature.')],
+) -> Any:
+    'Sign In\n\nRoute: POST /api/auth/sign-in (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/sign-in", json=_rt.body({"client_id": client_id, "nonce": nonce, "signature": signature}))
 
 
 def fichero_authz_list_accessible_libraries(
@@ -8924,6 +8942,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_artifacts_align_transcript_to_regions", "artifacts", "POST", "/api/artifacts/{artifact_id}/align-transcript", fichero_artifacts_align_transcript_to_regions),
     GeneratedTool("fichero_artifacts_get_region", "artifacts", "GET", "/api/artifacts/{artifact_id}/region", fichero_artifacts_get_region),
     GeneratedTool("fichero_artifacts_edit_regions", "artifacts", "PUT", "/api/artifacts/{artifact_id}/regions", fichero_artifacts_edit_regions),
+    GeneratedTool("fichero_auth_challenge", "auth", "POST", "/api/auth/challenge", fichero_auth_challenge),
     GeneratedTool("fichero_auth_identity", "auth", "GET", "/api/auth/identity", fichero_auth_identity),
     GeneratedTool("fichero_auth_list_invites", "auth", "GET", "/api/auth/invites", fichero_auth_list_invites),
     GeneratedTool("fichero_auth_create_invite", "auth", "POST", "/api/auth/invites", fichero_auth_create_invite),
@@ -8934,6 +8953,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
+    GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),
     GeneratedTool("fichero_authz_list_accessible_libraries", "authz", "GET", "/api/authz/libraries", fichero_authz_list_accessible_libraries),
     GeneratedTool("fichero_authz_get_library_snapshot", "authz", "GET", "/api/authz/library", fichero_authz_get_library_snapshot),
     GeneratedTool("fichero_authz_revoke_library_member_role", "authz", "DELETE", "/api/authz/members", fichero_authz_revoke_library_member_role),
