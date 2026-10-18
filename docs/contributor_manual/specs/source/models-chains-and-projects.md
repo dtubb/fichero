@@ -3530,7 +3530,7 @@ Setup
   gone), the next one in the chain runs if it is another local model or the same cloud provider, and the plan says which and why; one that sends pages somewhere new (another provider, or off the Mac for a local step) is offered and never used without the person's press; a missing key never substitutes silently
   (`source.recipe.missing-key-never-substitutes`). *Test:* the best measured candidate is chosen over a cheaper one outside the noise band and the
   cheaper inside it; a candidate that cannot run is replaced by the next, named in the plan.
-- `source.recipe.placement-by-scale` — **[PARTIAL]** (#4950, #5589; ruled 2026-10-17; the rule is `recipes/placement.py` `place_step`, tested in `fichero-server/tests/unit/recipes/test_placement.py`; built 2026-10-17: the Start plan (`start.place_runs`) puts `place`, `target`, `why` and `sizing` (`remote_read.sizing.size_run`, or \"measured by a 1,000-page pilot\" with no rate) on each read run; not built: the run sending a `cluster` placement to read-at-scale, which waits on `source.recipe.runs-on-binds-to-a-target`, so every step places on this Mac and says \"No cluster is set up\") where the chosen reader runs depends on the project's scale: about 100 or
+- `source.recipe.placement-by-scale` — **[PARTIAL]** (#4950, #5589; ruled 2026-10-17; the rule is `recipes/placement.py` `place_step`, tested in `fichero-server/tests/unit/recipes/test_placement.py`; built 2026-10-17: the Start plan (`start.place_runs`) puts `place`, `target`, `why` and `sizing` (`remote_read.sizing.size_run`, or \"measured by a 1,000-page pilot\" with no rate) on each read run; built 2026-10-18: with the project's cluster bound (`source.recipe.runs-on-binds-to-a-target`), a read placed `cluster` is sent there by Start as a read-at-scale run under its step and waited on (`runner._run_at_scale`; a cluster that refuses fails the step by name), `fichero-server/tests/unit/recipes/test_project_binds_its_cluster_4950.py`; not built: a vision reader or one reader per material on a cluster (they stay on this Mac and say so), and a live run, which waits on #5238) where the chosen reader runs depends on the project's scale: about 100 or
   about 1,000 pages run on this Mac; about 100,000 pages belong on ACENet or Hugging Face. Below a page threshold set in the plan the reader runs
   locally, above it remotely, where the person has allowed pages to leave. *Test:* the same candidate is placed here for 1,000 pages and remote for
   100,000, and stays here when pages may not leave.
@@ -3645,9 +3645,12 @@ The recipe and its format
   person's compute target; the project binds each `cluster` or `gpu-service` step to one of its own,
   and an unbound step waits with "No cluster is set up". *Built: the placement rule takes the step's bound
   cluster and, with none, keeps a step a cluster would suit on this Mac, saying "No cluster is set up for
-  this project" (`placement.place_step`; `fichero-server/tests/unit/recipes/test_placement.py`). Not built:
-  the binding itself (nothing binds a cluster to a step yet, so `start.place_runs` passes none), and a
-  `gpu-service` target.*
+  this project" (`placement.place_step`; `fichero-server/tests/unit/recipes/test_placement.py`). Built
+  2026-10-18: the project binds its cluster (`answers.cluster`, a cluster set up here by the name Set Up shows;
+  owner-only, as every cluster is; one not set up here binds nothing), and the Start plan places its reads on it
+  (`fichero-server/tests/unit/recipes/test_project_binds_its_cluster_4950.py`). Not built: a binding per step (one
+  cluster serves the project's cluster steps), a `gpu-service` target, the Set Up question (Swift), and a live run,
+  which waits on the app's key and sign-in (#5238).*
 - `source.recipe.alternatives-in-order` — **[PARTIAL]** (#4950) when this Mac cannot run a step's pin,
   the first listed alternative that can is used, and the choice is recorded and shown. *Built 2026-10-17 for a missing key: the step's `chain`, first entry that can run, `plan.fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: a model this Mac cannot serve (memory) still goes through `elsewhere`, offered and never used without the person's press (`ai.where.fallback-free-and-asked`): the two rules need the maintainer to say which wins.*
 - `source.recipe.conditions-fixed-list` — **[OK]** (#4950) a step's `when` and `offered_when` use
