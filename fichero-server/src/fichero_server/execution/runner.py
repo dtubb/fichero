@@ -2545,10 +2545,6 @@ async def _run_workflow_in_background(
             completed_at=datetime.now(timezone.utc),
             run_usage=_run_usage_record(),
         )
-        if not _all_files_failed:  # a clean finish keeps its account on the record, not a checkpoint (#5376)
-            from fichero_server.workflows.run_account import drop_finished_checkpoint  # noqa: PLC0415
-
-            await drop_finished_checkpoint(db, thread_id)
 
     except WorkflowCancelled:
         # #4402: Stop landed INSIDE a long-running node rather than between
