@@ -305,7 +305,7 @@ struct EntityDigestContent: View {
         .task(id: entity.id) {
             await loadClaims()
             await loadAppearsIn()
-            staleReason = try? await entityService.getEntityInspector(entity.id).staleReason
+            if let id = entity.id { staleReason = try? await entityService.getEntityInspector(id).staleReason }
         }
         .onChange(of: claimStore?.changeToken) {
             // A claim mutation anywhere (edit/merge/delete/curation) bumped the
