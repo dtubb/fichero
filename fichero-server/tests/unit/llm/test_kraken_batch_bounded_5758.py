@@ -60,3 +60,16 @@ def test_the_local_fan_out_semaphore_takes_the_memory_bound(monkeypatch):
 
     monkeypatch.setattr(builder, "_vision_fan_out_sem", None)
     assert asyncio.run(size()) == 1
+
+
+def test_lines_found_but_all_read_empty_are_kept_not_thrown_away(monkeypatch):
+    """M4 run 2026-10-17: page 1 had 30 lines, Kraken read every one as '' and the page was saved with no
+    geometry at all: the lines were stored nowhere."""
+    line = {"polygon": [[0, 0], [90, 0], [90, 20], [0, 20]], "baseline": [[0, 15], [90, 15]], "text": ""}
+    monkeypatch.setattr(kraken_runtime, "recognize_lines",
+                        lambda path, model: {"width": 100, "height": 100, "lines": [line, line], "regions": []})
+    result = kraken_runtime.recognize_to_geometry("p.png", "m")
+    assert result.text == "" and len([b for b in result.boxes if str(b.level) == "line"]) == 2
+    monkeypatch.setattr(kraken_runtime, "recognize_lines",
+                        lambda path, model: {"width": 100, "height": 100, "lines": [], "regions": []})
+    assert not kraken_runtime.recognize_to_geometry("p.png", "m").boxes
