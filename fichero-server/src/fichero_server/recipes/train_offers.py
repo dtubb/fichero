@@ -365,3 +365,50 @@ def start_when_ready(db: Any, *, mac_memory_gb: float | None = None) -> list[str
         jobs.save_detail(db, job_id, json.dumps(detail))
         started.append(action)
     return started
+
+
+#: The Job kinds that run on Hugging Face and are paid for there: training and reading at scale.
+HF_PAID_KINDS = ("train-a-model", "read-at-scale")
+
+
+def _hours(limit: str | None) -> float | None:
+    """A Job's time limit (`4h`, `90m`, `1h30m`, `3600s`, `1d`) in hours, or None when it says none."""
+    import re
+
+    parts = re.findall(r"(\d+(?:\.\d+)?)\s*([smhd])", str(limit or ""))
+    per = {"s": 1 / 3600, "m": 1 / 60, "h": 1.0, "d": 24.0}
+    return sum(float(n) * per[u] for n, u in parts) if parts else None
+
+
+def spend_this_month(db: Any, *, cap: float, now: Any = None) -> dict[str, Any]:
+    """This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769): each Job sent this
+    calendar month at its most, its hardware's price an hour (as listed when it was sent) times its time limit, where
+    the service ends it. A Job not yet sent costs nothing yet; one with no listed price is counted as unknown, never $0.
+    ponytail: an upper bound; the time a Job actually ran, when the service reports it."""
+    import json
+    from datetime import datetime, timezone
+
+    from fichero_server.execution import jobs
+
+    now = now or datetime.now(timezone.utc)
+    month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    jobs._ensure(db)
+    rows = db.execute_fetchall(f"SELECT detail FROM jobs WHERE kind IN ({', '.join('?' for _ in HF_PAID_KINDS)}) "
+                               "AND created_at >= ?", [*HF_PAID_KINDS, month])
+    spent, counted_jobs, unpriced = 0.0, 0, 0
+    for (raw,) in rows:
+        detail = json.loads(raw or "{}")
+        if not detail.get("far_id"):
+            continue
+        counted_jobs += 1
+        price, hours = detail.get("price_per_hour_usd"), _hours((detail.get("request") or {}).get("timeout"))
+        if price is None or hours is None:
+            unpriced += 1
+            continue
+        spent += float(price) * hours
+    spent = round(spent, 2)
+    sentence = (f"Hugging Face this month: at most ${spent:.2f} of ${cap:.2f}, "
+                f"{counted_jobs} {'Job' if counted_jobs == 1 else 'Jobs'}"
+                + (f", {unpriced} with no listed price" if unpriced else ""))
+    return {"cap_usd": cap, "spent_at_most_usd": spent, "jobs": counted_jobs, "unpriced": unpriced,
+            "month": month.strftime("%Y-%m"), "sentence": sentence + "."}

@@ -54,3 +54,42 @@ def test_copies_stay_default_follows_pages_may_leave():
     assert copies_may_stay({"cloud_allowed": True, "copies_may_stay_on_cluster": False}) is False
     with pytest.raises(ValueError, match="copies"):
         normalise({"purposes": ["transcribe"], "copies_may_stay_on_cluster": "maybe"}, strict=True)
+
+
+def test_spend_this_month_is_shown_against_the_cap(db):
+    """`source.onboard.spend-cap`: the Start plan shows this month's Hugging Face spend against the cap, each Job at its
+    most (its hardware's price an hour times its time limit, where it ends); a Job of last month, or one never sent,
+    does not count, and a Job with no listed price is counted as unknown, never as $0."""
+    import json
+    from datetime import datetime, timezone
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    now = datetime(2026, 10, 18, tzinfo=timezone.utc)
+    jobs._ensure(db)
+
+    def sent(kind, price, timeout, *, at=None, far_id="far-1"):  # a finished row: the scheduler never runs it
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, ?, ?, 'done', 0, 't', ?, 'huggingface-jobs', ?)",
+                   [f"{kind}-{price}-{timeout}-{at}-{far_id}", kind, "s", at or now,
+                    json.dumps({"price_per_hour_usd": price, "far_id": far_id, "request": {"timeout": timeout}})])
+
+    sent("train-a-model", 0.4, "4h")  # at most $1.60
+    sent("read-at-scale", 1.0, "1h30m")  # at most $1.50
+    sent("train-a-model", None, "2h")  # price unknown
+    sent("train-a-model", 9.0, "4h", at=datetime(2026, 9, 30, tzinfo=timezone.utc))  # last month
+    sent("train-a-model", 9.0, "4h", far_id=None)  # still waiting to be sent: nothing spent yet
+    spend = spend_this_month(db, cap=5.0, now=now)
+    assert spend["cap_usd"] == 5.0 and spend["spent_at_most_usd"] == 3.1 and spend["jobs"] == 3
+    assert spend["unpriced"] == 1 and spend["month"] == "2026-10"
+    assert "$3.10 of $5.00" in spend["sentence"] and "1 with no listed price" in spend["sentence"]
+
+
+def test_the_start_plan_carries_the_spend(client):
+    from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save
+
+    _save(client, _recipe(None, {"id": "lines", "job": "find-lines",
+                                 "model": {"kraken": "blla", "kraken_version": "bundled"}}))
+    spend = client.get("/api/recipes/project/start").json()["hf_spend"]
+    assert spend["cap_usd"] == 0.0 and spend["spent_at_most_usd"] == 0.0 and "$0.00 of $0.00" in spend["sentence"]

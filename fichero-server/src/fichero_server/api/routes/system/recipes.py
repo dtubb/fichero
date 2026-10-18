@@ -1563,6 +1563,18 @@ class BakeoffOffer(BaseModel):
     readiness_sentence: Optional[str] = Field(default=None, description="when not ready, what to correct")
 
 
+class HfSpend(BaseModel):
+    """This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."""
+
+    cap_usd: float = Field(description="the project's monthly cap (`answers.hf_spend_cap_usd`); $0 offers only")
+    spent_at_most_usd: float = Field(description=(
+        "this calendar month's Jobs at their most: each one's hardware price an hour times its time limit"))
+    jobs: int = Field(description="the Jobs sent to Hugging Face this month (training and reading at scale)")
+    unpriced: int = Field(description="of them, the Jobs with no listed price: not counted in the spend, said so")
+    month: str = Field(description="the month, YYYY-MM (UTC)")
+    sentence: str
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -1576,6 +1588,8 @@ class StartPlan(BaseModel):
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
+    hf_spend: Optional[HfSpend] = Field(default=None, description=(
+        "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"))
     bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
         "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
         "recipe has no reading step (#5660 item 7)"))
@@ -1665,6 +1679,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
                                         spend_cap=cap, clusters=_cluster_names(),
                                         noise_band=read_noise_band(library))
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    plan["hf_spend"] = spend_this_month(db, cap=cap)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
