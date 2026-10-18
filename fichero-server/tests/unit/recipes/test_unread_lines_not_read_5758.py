@@ -146,14 +146,17 @@ def test_a_line_a_recognising_reader_gave_no_text_is_saved_marked_with_why():
     from fichero_server.models.segments import segment_from_box
     from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel
 
-    def box(text, source):
+    def box(text, source, **meta):
         return OCRGeometryBox(text=text, bbox=[0.1, 0.1, 0.5, 0.05], level=OCRGeometryLevel.LINE, provider="kraken",
-                              model="m1", source=source, metadata={"polygon_px": [[0, 0], [9, 0], [9, 3]]})
+                              model="m1", source=source, metadata={"polygon_px": [[0, 0], [9, 0], [9, 3]], **meta})
 
     read = lambda b: segment_from_box(document_id="d", artifact_id="a", box_index=0, box=b, rendition_id=None,
                                       pass_provenance_kind=ProvenanceKind.workflow)
-    blank = read(box("", "kraken-htr")).metadata["read_no_writing"]
+    blank = read(box("", "kraken-htr", page_has_readings=True)).metadata["read_no_writing"]
     assert blank["model"] == "m1" and blank["reason"]
+    # a page where the reader returned empty for EVERY line is a failed read, not 'no writing' (review 64)
+    nothing = read(box("", "kraken-htr", page_read_nothing=True)).metadata
+    assert "read_no_writing" not in nothing and nothing["unread_reason"] == "every line came back empty: the reader may not suit this hand"
     assert "read_no_writing" not in read(box("", "kraken-blla")).metadata, "a finder reads nothing: not looked at"
     assert "read_no_writing" not in read(box("texto", "kraken-htr")).metadata
 
@@ -165,3 +168,17 @@ def test_every_unread_line_has_a_reason(db):
     reasons = unread_reasons(db, page)
     assert len(reasons) == 2 and all(isinstance(r, str) and r for r in reasons.values())
     assert run_view.lines_unread_why(db, [page]) == {next(iter(reasons.values())): 2}
+
+
+def test_a_page_the_reader_returned_nothing_for_is_unread_failed_and_read_again(db):
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import NOTHING_FOR_PAGE, is_done, unread_reasons
+
+    page = _page(db, 3, 0)
+    for seg in db.query(Segment, document_id=page):
+        if seg.kind == "line":
+            seg.metadata = {**(seg.metadata or {}), "unread_reason": NOTHING_FOR_PAGE}
+            db.save(seg)
+    assert set(unread_reasons(db, page).values()) == {NOTHING_FOR_PAGE}
+    assert is_done(db, {"job": "read-a-line", "model_override": None}, page) is False, "a second Start reads it again"
+    assert run_view.pages_read_nothing(db, [page]) == 1

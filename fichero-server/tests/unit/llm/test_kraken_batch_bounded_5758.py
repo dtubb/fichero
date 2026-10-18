@@ -48,20 +48,6 @@ def test_pages_read_at_once_follow_the_memory_and_never_exceed_the_cap(monkeypat
     assert kraken_runtime.page_fan_out(4) == 1
 
 
-def test_the_local_fan_out_semaphore_takes_the_memory_bound(monkeypatch):
-    import asyncio
-
-    from fichero_server.workflows import builder
-
-    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: 3 * GB)
-
-    async def size():
-        return builder._get_vision_semaphore()._value
-
-    monkeypatch.setattr(builder, "_vision_fan_out_sem", None)
-    assert asyncio.run(size()) == 1
-
-
 def test_lines_found_but_all_read_empty_are_kept_not_thrown_away(monkeypatch):
     """M4 run 2026-10-17: page 1 had 30 lines, Kraken read every one as '' and the page was saved with no
     geometry at all: the lines were stored nowhere."""
@@ -69,7 +55,37 @@ def test_lines_found_but_all_read_empty_are_kept_not_thrown_away(monkeypatch):
     monkeypatch.setattr(kraken_runtime, "recognize_lines",
                         lambda path, model: {"width": 100, "height": 100, "lines": [line, line], "regions": []})
     result = kraken_runtime.recognize_to_geometry("p.png", "m")
-    assert result.text == "" and len([b for b in result.boxes if str(b.level) == "line"]) == 2
+    lines = [b for b in result.boxes if str(b.level) == "line"]
+    assert result.text == "" and len(lines) == 2 and all(b.metadata.get("page_read_nothing") for b in lines)
+    some = dict(line, text="texto")
+    monkeypatch.setattr(kraken_runtime, "recognize_lines",
+                        lambda path, model: {"width": 100, "height": 100, "lines": [line, some], "regions": []})
+    mixed = [b for b in kraken_runtime.recognize_to_geometry("p.png", "m").boxes if str(b.level) == "line"]
+    assert all(b.metadata.get("page_has_readings") for b in mixed)
     monkeypatch.setattr(kraken_runtime, "recognize_lines",
                         lambda path, model: {"width": 100, "height": 100, "lines": [], "regions": []})
     assert not kraken_runtime.recognize_to_geometry("p.png", "m").boxes
+
+
+def test_the_local_slot_reads_the_memory_each_time_not_once(monkeypatch):
+    import asyncio
+
+    from fichero_server.workflows import builder
+
+    memory = {"gb": 64}
+    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: memory["gb"] * GB)
+    monkeypatch.setattr(builder, "_vision_fan_out_sem", None)
+    monkeypatch.setattr(builder, "_GATE_POLL_SECONDS", 0.01)
+
+    async def run():
+        peak = 0
+        async def one():
+            nonlocal peak
+            async with builder.vision_slot():
+                peak = max(peak, builder._local_in_flight)
+                await asyncio.sleep(0.05)
+        memory["gb"] = 3  # the Mac is under pressure when the pages arrive: one at a time
+        await asyncio.gather(*(one() for _ in range(4)))
+        return peak
+
+    assert asyncio.run(run()) == 1

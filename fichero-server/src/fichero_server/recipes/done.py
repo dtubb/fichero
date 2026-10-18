@@ -201,6 +201,7 @@ def unread_on(db: Any, doc_id: str) -> int:
     return lines_state(db, doc_id)[1]
 
 
+NOTHING_FOR_PAGE = "every line came back empty: the reader may not suit this hand"
 NOT_ANSWERED = "no reader has answered for the line: the read step did not reach it, or ended before it did"
 
 
@@ -211,7 +212,7 @@ def unread_reasons(db: Any, doc_id: str) -> dict[str, str]:
     from fichero_server.models.segments import Segment
 
     read = {r.segment_id for r in db.query(ContentRepresentation, document_id=doc_id) if r.segment_id}
-    return {x.id: NOT_ANSWERED for x in db.query(Segment, document_id=doc_id)
+    return {x.id: (x.metadata or {}).get("unread_reason") or NOT_ANSWERED for x in db.query(Segment, document_id=doc_id)
             if x.kind == "line" and x.deleted_at is None and x.id not in read
             and not isinstance((x.metadata or {}).get("read_no_writing"), dict)}
 
