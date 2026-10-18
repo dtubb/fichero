@@ -9,12 +9,14 @@ follow in later slices.
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 import re
 import stat
 from collections.abc import Mapping
 from typing import TextIO
 
+logger = logging.getLogger(__name__)
 _HEX_32_BYTES = re.compile(r"[0-9a-f]{64}")
 _secret: str | None = None
 
@@ -56,11 +58,30 @@ def read_from_file(path: str) -> None:
         _set_checked(handle.read())
 
 
-def load_at_startup(environ: Mapping[str, str], stdin: TextIO) -> None:
+def _ready(stream: TextIO, timeout: float) -> bool:
+    """Whether a line can be read within `timeout`; an in-memory stream (tests) always can."""
+    import select
+
+    try:
+        fd = stream.fileno()
+    except (AttributeError, OSError, ValueError):
+        return True
+    return bool(select.select([fd], [], [], timeout)[0])
+
+
+def load_at_startup(environ: Mapping[str, str], stdin: TextIO, *, timeout: float = 5.0) -> None:
     """The one place an engine takes the secret. A flag (not the secret) says the app spawned us over a pipe.
 
-    A `--reload` dev engine cannot inherit stdin, so it names the dev file instead (honoured only when FICHERO_ENV=development, which the dev script sets). With neither, first-run stays closed."""
-    if environ.get("FICHERO_LAUNCH_SECRET_STDIN") == "1":
-        read_from_stream(stdin)
-    elif environ.get("FICHERO_DEV_LAUNCH_SECRET_FILE") and environ.get("FICHERO_ENV") == "development":
-        read_from_file(environ["FICHERO_DEV_LAUNCH_SECRET_FILE"])
+    A `--reload` dev engine cannot inherit stdin, so it names the dev file instead (honoured only when FICHERO_ENV=development, which the dev script sets). With neither, first-run stays closed.
+
+    Never raises and never waits past `timeout`: a secret that does not arrive, arrives malformed, or a file that
+    cannot be read leaves first-run closed and the engine starts (#5797: nothing may stop the embedded app's launch)."""
+    try:
+        if environ.get("FICHERO_LAUNCH_SECRET_STDIN") == "1":
+            if not _ready(stdin, timeout):
+                raise ValueError(f"no launch secret on stdin within {timeout:g} s")
+            read_from_stream(stdin)
+        elif environ.get("FICHERO_DEV_LAUNCH_SECRET_FILE") and environ.get("FICHERO_ENV") == "development":
+            read_from_file(environ["FICHERO_DEV_LAUNCH_SECRET_FILE"])
+    except (ValueError, OSError) as exc:
+        logger.warning("Launch secret not taken (%s); first-run stays closed", exc)
