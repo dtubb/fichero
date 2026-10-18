@@ -252,7 +252,10 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   because the person has not answered it (`copies_follow_pages_may_leave`), and the clusters set up here
   (`clusters`, by name; the copies question applies only where there is one; empty for a caller who is not
   the owner, as every `/api/hpc` route is owner-only, and so is the Start plan's cluster offer). This month's spend against the cap
-  is on the Start plan (`hf_spend`).
+  is on the Start plan (`hf_spend`). The project binds one of `clusters` as its cluster by putting its name in
+  `answers.cluster` (`PUT /api/recipes/project`, #4950): the Start plan then places a read of more pages than this
+  Mac should read on it (a read run's `place: cluster`, `target` the cluster's id) and Start sends that read there
+  as a read-at-scale run under its step; for a caller who is not the owner nothing binds.
 
 `GET /api/recipes/hands` · `GET`/`PUT /api/recipes/samples` · `POST`/`GET /api/recipes/stages/{stage}/try`
 

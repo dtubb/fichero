@@ -110,6 +110,8 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         problems.append(f"The Hugging Face spend cap is an amount in dollars a month, $0 or more, not {cap!r}.")
     if out.get(COPIES_STAY) is not None and not isinstance(out[COPIES_STAY], bool):
         problems.append(f"Whether working copies may stay on the cluster is yes or no, not {out[COPIES_STAY]!r}.")
+    if out.get(CLUSTER) is not None and not isinstance(out[CLUSTER], str):
+        problems.append(f"The project's cluster is one set up here, by its name, not {out[CLUSTER]!r}.")
     if strict and problems:
         raise ValueError(" ".join(problems))
     return out
@@ -118,6 +120,9 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
 #: The ruled money-and-place answers (#5769, ruled 2026-10-17).
 SPEND_CAP = "hf_spend_cap_usd"
 COPIES_STAY = "copies_may_stay_on_cluster"
+#: The cluster the project binds its cluster steps to, by the name Set Up shows (`source.recipe.runs-on-binds-to-a-
+#: target`, #4950): the recipe never names it, the project does.
+CLUSTER = "cluster"
 
 
 def spend_cap(answers: dict[str, Any] | None) -> float:
