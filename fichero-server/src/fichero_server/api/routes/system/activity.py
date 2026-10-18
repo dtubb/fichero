@@ -159,6 +159,9 @@ class BackgroundJob(BaseModel):
     # When a failed job failed (ISO 8601, UTC), so a list of errors can say when each happened rather than guess;
     # null for any job that has not failed, and cleared when it is retried.
     failed_at: Optional[datetime] = None
+    # Who started it: the person, plus the paired Mac when it came from another one ("alice on Alice's Mac",
+    # `sharing.remote-run-in-host-activity`, #5732); "automatic" for work the app queued itself.
+    started_by: Optional[str] = None
 
 
 class MachineState(BaseModel):
@@ -537,6 +540,7 @@ async def list_background_jobs(
                 run_id=row.get("run_id"),
                 offer=job_queue.offer_for(row["kind"], state, reason),
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
+                started_by=row.get("started_by"),
             )
         )
 
