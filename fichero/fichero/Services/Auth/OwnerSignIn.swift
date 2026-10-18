@@ -76,7 +76,9 @@ actor AppSignInService {
     }
 
     /// First launch: make the key, register it as this app's client through `first-run`, then sign in.
-    func bootstrapOwner(launchSecret: String, displayName: String, clientName: String, host: String) async throws -> String {
+    func bootstrapOwner(
+        launchSecret: String, displayName: String, clientName: String, host: String
+    ) async throws -> String {
         let key = try keys.loadOrCreate()
         let clientID = try await transport.firstRun(
             launchSecret: launchSecret, displayName: displayName, clientName: clientName, host: host,
