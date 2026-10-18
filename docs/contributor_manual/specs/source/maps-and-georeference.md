@@ -718,7 +718,7 @@ For the archive lane to apply; this file edits none of them. **Applied 2026-09-2
 | Availability (Swift) | n | | |
 | Backend (pytest) | y | GCPs, derived transform, residuals, CRS rules, gazetteer links, time-bounded places | to be written: test_georeference.py (backend api tests) |
 | Formats harness (pytest) | y | IIIF georef in/out/round trip on the Allmaps files; GCP tables; world file; GeoJSON; GeoPackage; LPF | to be written: test_iiif_georef.py (formats tests) |
-| MCP | y | the gazetteer query and GCP actions route | `fichero-mcp/tests/test_mcp_full.py` |
+| MCP | y | the gazetteer query and GCP actions route | `fichero-mcp/tests/test_mcp_generated.py` |
 | CLI | y | import/export of the geo formats; the gazetteer query | `fichero-cli/tests/` |
 | Click-around (XCUITest, Mac) | n | (future map-view UI spec) | |
 | iPhone / iPad | n | (future map-view UI spec) | |

@@ -9,6 +9,7 @@ typed errors. The engine half (a generated tool calling the real route) is in
 from __future__ import annotations
 
 import ast
+from pathlib import Path
 import asyncio
 import importlib.util
 import json
@@ -329,3 +330,14 @@ def test_an_empty_or_list_answer_reaches_the_agent_as_one_json_block(monkeypatch
     assert result.isError is False
     assert len(result.content) == 1, result.content
     assert json.loads(result.content[0].text) == answer
+
+
+def test_only_one_server_module():
+    """`research.mcp-three-servers-not-collapsed` (#2896): `server.py` is the one MCP server and its tools are
+    generated from the contract. The hand-maintained `full.py`, `simple.py` and the tool lists behind them are gone,
+    so a route is never described by two tool sets that drift apart."""
+    import fichero_mcp
+
+    package = Path(fichero_mcp.__file__).parent
+    modules = {p.stem for p in package.glob("*.py")}
+    assert modules == {"__init__", "server", "openapi_runtime", "openapi_tools_generated", "ui_control"}, modules

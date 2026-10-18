@@ -1,13 +1,7 @@
 """Tool registration and schema well-formedness for every MCP surface (#4227).
 
-`fichero-mcp` ships three FastMCP surfaces plus three static `types.Tool`
-catalogues:
-
-* `fichero_mcp.server` — the full `fichero-mcp` entry point
-* `fichero_mcp.simple` — the small stable outside-agent contract
-* `fichero_mcp.full`  — the wide surface
-* `document_tools.TOOLS` / `kg_tools.TOOLS` / `research_tools.TOOLS` — declared
-  tool schemas an MCP client sees verbatim
+`fichero-mcp` ships ONE FastMCP surface, `fichero_mcp.server`, whose tools are generated from the contract
+(`research.mcp-three-servers-not-collapsed`, #2896; the hand-kept `full`, `simple` and static catalogues are gone).
 
 A malformed `inputSchema` is not a crash; an MCP client just silently refuses
 to call the tool, or calls it with arguments the server cannot use. These tests
@@ -22,25 +16,10 @@ import asyncio
 
 import pytest
 
-from fichero_mcp import document_tools, full as mcp_full, kg_tools
-from fichero_mcp import research_tools, server as mcp_server, simple as mcp_simple
+from fichero_mcp import server as mcp_server
 
-FASTMCP_SURFACES = {
-    "server": mcp_server,
-    "simple": mcp_simple,
-    "full": mcp_full,
-}
-# The two surfaces with a console entry point in pyproject.toml (`fichero-mcp`
-# and `fichero-mcp-simple`) — the ones an MCP client can actually launch.
-# `fichero_mcp.full` has no entry point and, today, no tool descriptions at all
-# (see agent-work/status/cli-mcp-test-wiring.md); holding it to the description
-# contract would just be a red gate for a surface nothing launches.
-SHIPPED_SURFACES = ("server", "simple")
-STATIC_CATALOGUES = {
-    "document_tools": document_tools,
-    "kg_tools": kg_tools,
-    "research_tools": research_tools,
-}
+FASTMCP_SURFACES = {"server": mcp_server}
+SHIPPED_SURFACES = ("server",)
 
 
 def _tools(module) -> list:
@@ -97,24 +76,6 @@ def test_surface_tool_schemas_are_well_formed(surface):
         _assert_schema_is_usable(tool.inputSchema, f"{surface}:{tool.name}")
 
 
-@pytest.mark.parametrize("catalogue", sorted(STATIC_CATALOGUES))
-def test_static_catalogue_schemas_are_well_formed(catalogue):
-    tools = STATIC_CATALOGUES[catalogue].TOOLS
-
-    assert tools, f"{catalogue}.TOOLS is empty"
-    for tool in tools:
-        assert tool.name.startswith("fichero_"), f"{catalogue}: {tool.name} unprefixed"
-        assert (tool.description or "").strip(), f"{catalogue}: {tool.name} undescribed"
-        _assert_schema_is_usable(tool.inputSchema, f"{catalogue}:{tool.name}")
-
-
-@pytest.mark.parametrize("catalogue", sorted(STATIC_CATALOGUES))
-def test_static_catalogue_names_are_unique(catalogue):
-    names = [tool.name for tool in STATIC_CATALOGUES[catalogue].TOOLS]
-
-    assert len(names) == len(set(names))
-
-
 def test_server_surface_covers_the_documented_families():
     """The read + write families #1269 promises an agent, by name."""
     names = {tool.name for tool in _tools(mcp_server)}
@@ -129,24 +90,6 @@ def test_server_surface_covers_the_documented_families():
         "fichero_create_note",
     ):
         assert expected in names, f"{expected} missing from the fichero-mcp surface"
-
-
-def test_simple_surface_stays_small_and_stable():
-    """`fichero-mcp-simple` is a *contract*: a small, unprefixed tool set."""
-    names = {tool.name for tool in _tools(mcp_simple)}
-
-    assert names == {
-        "health",
-        "list_documents",
-        "get_document",
-        "run_workflow",
-        "workflow_status",
-        "list_artifacts",
-        "kg_search",
-        "kg_claims",
-        "create_note",
-        "list_notes",
-    }
 
 
 def test_server_tool_names_are_namespaced():

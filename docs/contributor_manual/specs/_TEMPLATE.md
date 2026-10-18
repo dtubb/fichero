@@ -56,7 +56,7 @@ One line per behavior, each with a stable id and a tag. The id is what a test ci
 | Pure rule (Swift) | y/n | the rule off-main | `fichero/Tests/Unit/…/<Surface>Tests.swift` |
 | Availability (Swift) | y/n | capability reachable in the surface | same, `AppSource.root()` |
 | Backend (pytest) | y/n | endpoint contract + delivery | `fichero-server/tests/…` |
-| MCP | y/n | tool maps + routes | `fichero-mcp/tests/test_mcp_full.py` |
+| MCP | y/n | tool maps + routes | `fichero-mcp/tests/test_mcp_generated.py` |
 | CLI | y/n | command wires endpoint | `fichero-cli/tests/test_*.py` |
 | Click-around (XCUITest, Mac) | y/n | click → effect, end-to-end | `fichero/Tests/UI/…` (subclass `FicheroUISessionTests`) |
 | iPhone (iOS) | y/n | the touch path on iPhone | `fichero/Tests/UI/ios` + `fichero-ui-ios` plan |

@@ -2,7 +2,7 @@
 
 `mcp` 2.0 removed `mcp.server.fastmcp` — FastMCP became
 `mcp.server.mcpserver.MCPServer`. Every tool module in this package
-(`server.py`, `full.py`, `simple.py`) does `from mcp.server.fastmcp import
+(`server.py`) does `from mcp.server.fastmcp import
 FastMCP`, so an unbounded install resolves 2.x and the product does not import
 at all: no failing call, no error at runtime, just six modules that cannot be
 loaded.
@@ -39,7 +39,7 @@ def test_mcp_is_capped_below_2():
     assert specifier is not None, "fichero-mcp must declare mcp itself"
     assert "<2" in specifier.replace(" ", ""), (
         f"fichero-mcp declares mcp{specifier} — needs a <2 ceiling. mcp 2.x "
-        "removed mcp.server.fastmcp, which server.py/full.py/simple.py import."
+        "removed mcp.server.fastmcp, which server.py imports."
     )
 
 
@@ -57,7 +57,7 @@ def test_fastmcp_import_path_still_exists():
     assert callable(FastMCP)
 
 
-@pytest.mark.parametrize("module", ["server", "full", "simple"])
+@pytest.mark.parametrize("module", ["server"])
 def test_tool_modules_import(module):
     """Each entry-point module loads — this is what mcp 2.x silently breaks."""
     import importlib
