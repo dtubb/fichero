@@ -4672,7 +4672,7 @@ async def process_vision(
                     for _box, _text in zip(geometry.boxes, _texts):
                         if not _text:
                             _blank.append(_box.metadata["segment_id"])  # looked at, no writing (#5758)
-                            logger.info("line left without a reading: %s on %s — Kraken read it as empty text",
+                            logger.debug("line left without a reading: %s on %s — Kraken read it as empty text",
                                         _box.metadata["segment_id"], image_path)
                             continue
                         _boxes.append(_box.model_copy(update={
@@ -4682,6 +4682,9 @@ async def process_vision(
                             "confidence": getattr(_text, "confidence", None)}))
                         _joined.append(_text)
                         _cursor += len(_text) + 1
+                    if _blank:
+                        logger.info("kraken reader: %d of %d lines on %s left without a reading",
+                                    len(_blank), len(geometry.boxes), image_path)
                     return geometry.model_copy(update={
                         "text": "\n".join(_joined), "boxes": _boxes, "source": "kraken-htr",
                         "metadata": {**geometry.metadata, _wl.NO_WRITING_KEY: _blank}})
@@ -5527,10 +5530,13 @@ async def process_vision(
                     from fichero_server.db import db_manager as _dbm
                     from fichero_server.llm.working_lines import NO_WRITING_KEY, mark_no_writing, write_readings
 
-                    for b in page_geometry.boxes:
-                        if b.metadata.get("segment_id") and READ_FLAG_KEY in b.metadata:
-                            logger.info("line left without a reading: %s on %s — the check flagged its reading (%s)",
-                                        b.metadata["segment_id"], doc_id_for_file, b.metadata[READ_FLAG_KEY].get("kind"))
+                    _flagged = [b for b in page_geometry.boxes
+                                if b.metadata.get("segment_id") and READ_FLAG_KEY in b.metadata]
+                    if _flagged:
+                        logger.info("%d lines on %s flagged by the check", len(_flagged), doc_id_for_file)
+                    for b in _flagged:
+                        logger.debug("line left without a reading: %s on %s — the check flagged its reading (%s)",
+                                     b.metadata["segment_id"], doc_id_for_file, b.metadata[READ_FLAG_KEY].get("kind"))
                     mark_no_writing(_dbm.get_database(library_path), page_geometry.metadata.get(NO_WRITING_KEY) or [],
                                     model=page_geometry.model, run_id=task_id, library_path=library_path)
 

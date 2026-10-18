@@ -277,7 +277,7 @@ def is_done(db: Any, card: dict[str, Any], doc_id: str) -> bool | None:
         # Lines found are not lines read (#5758): a page with any line left without a reading is read again.
         model = card.get("model_override")
         found, unread, blank = lines_state(db, doc_id, model)
-        return found > 0 and not unread and (blank > 0 or _has_line_readings(db, doc_id, model))
+        return found > 0 and not unread and (blank == found or _has_line_readings(db, doc_id, model))
     if job == "read-a-page":
         return _has_page_reading(db, doc_id, card.get("model_override"))
     if job == "prepare-the-image":
