@@ -420,6 +420,12 @@ def main() -> None:
     # every authenticated tool call will then fail with a 401. Flag it once at
     # startup; each authenticated call also still raises a clear FicheroError.
     with _client() as probe:
+        if not probe.token:
+            logger.warning(
+                "No Fichero auth token found. Set FICHERO_API_KEY, or start the "
+                "engine (it writes the key file). Authenticated tool calls will "
+                "be rejected until a token is available."
+            )
         # Attach, never start (#5512): this launcher holds no engine of its own. With none running it
         # says so in one sentence and still serves, so the client's first call answers in the same words.
         try:
@@ -428,12 +434,6 @@ def main() -> None:
             logger.error(
                 "No Fichero engine is running at %s. Open Fichero (the app starts the engine), then try again.",
                 _CONFIG["base_url"] or "the default address",
-            )
-        if not probe.token:
-            logger.warning(
-                "No Fichero auth token found. Set FICHERO_API_KEY, or start the "
-                "engine (it writes the key file). Authenticated tool calls will "
-                "be rejected until a token is available."
             )
     mcp.run()
 

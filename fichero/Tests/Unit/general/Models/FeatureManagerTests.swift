@@ -71,6 +71,8 @@ final class FeatureManagerTests: XCTestCase {
             XCTAssertTrue(featureManager.isSettingsBackendTabEnabled)
             XCTAssertTrue(featureManager.isSettingsModelsTabEnabled)
             XCTAssertTrue(featureManager.isMCPEnabled)
+            // An enabled MCP server's tools are in the workflow palette (mcp.client.tools-reach-a-workflow, #5760).
+            XCTAssertTrue(featureManager.isWorkflowToolsMCPEnabled)
             XCTAssertTrue(featureManager.isIntegrationsEnabled)
         }
     }

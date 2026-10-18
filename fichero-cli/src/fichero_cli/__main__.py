@@ -359,8 +359,8 @@ def _render_stream_line(line: str, *, as_json: bool) -> str:
     return render(decoded, as_json=as_json)
 
 
-def _read_cli_session(as_user: str | None = None) -> dict[str, Any]:
-    return client_module._read_cli_session_payload(as_user=as_user)
+def _read_cli_session(as_user: str | None = None, engine: str | None = None) -> dict[str, Any]:
+    return client_module._read_cli_session_payload(as_user=as_user, engine=engine)
 
 
 def _report_fichero_error(ctx: typer.Context, exc: FicheroError) -> None:
@@ -405,7 +405,7 @@ def _auth_error(ctx: typer.Context, exc: FicheroError) -> None:
     raise typer.Exit(code=1) from exc
 
 
-def _write_cli_session(token: str, user: Any = None) -> None:
+def _write_cli_session(token: str, user: Any = None, engine: str | None = None) -> None:
     existing = {}
     try:
         existing = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
@@ -417,11 +417,13 @@ def _write_cli_session(token: str, user: Any = None) -> None:
         if isinstance(maybe_username, str):
             username = maybe_username.strip()
     session_payload = {"session_token": token, "user": user}
+    if engine:
+        session_payload["engine"] = engine  # a session is sent only to the engine it was made on (#5757)
     if username:
         sessions = existing.get("sessions") if isinstance(existing, dict) else None
         if not isinstance(sessions, dict):
             sessions = {}
-        sessions[username] = session_payload
+        sessions[f"{username}@{engine}" if engine else username] = session_payload
         payload = {"current_user": username, "sessions": sessions}
     else:
         payload = session_payload
@@ -433,7 +435,7 @@ def _write_cli_session(token: str, user: Any = None) -> None:
     os.chmod(client_module._CLI_SESSION_PATH, 0o600)
 
 
-def _delete_cli_session(as_user: str | None = None) -> None:
+def _delete_cli_session(as_user: str | None = None, engine: str | None = None) -> None:
     try:
         payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
     except (FileNotFoundError, ValueError):
@@ -450,7 +452,11 @@ def _delete_cli_session(as_user: str | None = None) -> None:
         return
     selected_user = (as_user or payload.get("current_user") or "").strip()
     if selected_user:
-        sessions.pop(selected_user, None)
+        if engine:
+            sessions.pop(f"{selected_user}@{engine}", None)
+        legacy = sessions.get(selected_user)
+        if isinstance(legacy, dict) and (not engine or not legacy.get("engine")):
+            sessions.pop(selected_user, None)
     if not sessions:
         try:
             client_module._CLI_SESSION_PATH.unlink()
@@ -648,7 +654,8 @@ def auth_login_command(
     if not isinstance(token, str) or not token.strip():
         typer.secho("POST /api/auth/login returned no session_token", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    _write_cli_session(token.strip(), payload.get("user") if isinstance(payload, dict) else None)
+    _write_cli_session(
+        token.strip(), payload.get("user") if isinstance(payload, dict) else None, engine=client.engine_key)
     typer.echo(render(payload.get("user", payload), as_json=ctx.obj["json"]))
 
 
@@ -659,7 +666,7 @@ def auth_logout_command(ctx: typer.Context) -> None:
             payload = client.request("POST", "/api/auth/logout")
     except FicheroError as exc:
         _auth_error(ctx, exc)
-    _delete_cli_session(as_user=ctx.obj.get("as_user"))
+    _delete_cli_session(as_user=ctx.obj.get("as_user"), engine=client.engine_key)
     typer.echo(render(payload, as_json=ctx.obj["json"]))
 
 

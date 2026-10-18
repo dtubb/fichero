@@ -59,11 +59,10 @@ STAGES: tuple[Stage, ...] = (
           "The left column's lines, then the right's, each traced along its baseline.",
           ()),
     Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines", "find-where-readers-disagree"),
-          "Reads the writing, line by line or the whole page at once, and can correct it with a second model.",
+          "Reads the writing line by line, and can correct it with a second model.",
           "“Juan de la Cruz vende una casa” read from its line, ready to correct.",
-          (Question("read_how", "Read line by line or the page at once?", "one",
-                    (("lines", "Line by line"), ("page", "The page at once")), default="lines"),
-           Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False))),
+          # Lines are read one by one; "or the page at once?" was dropped (ruled 2026-10-18, #5788).
+          (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),)),
     Stage("normalise", "Normalise", ("translate-transliterate-normalise",),
           "Writes the text again in the same language at another level: as written (a diplomatic reading), "
           "abbreviations expanded, spelling normalised, or modernised.",

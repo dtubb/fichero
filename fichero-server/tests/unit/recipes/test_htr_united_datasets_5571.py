@@ -90,3 +90,20 @@ def test_an_online_search_fetches_the_catalogue_when_none_is_kept(tmp_path, monk
 
 async def _no_hub(*_a, **_k):
     return [], []
+
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("bad", [[], "html", {"1": "x"}, {"1": {"language": "lat"}}, {"1": {"volume": 5}}])
+def test_a_malformed_catalogue_is_a_value_error_the_finder_survives(bad, tmp_path, monkeypatch):
+    from fichero_server.recipes import discovery
+
+    with pytest.raises(ValueError):
+        htr_united.rows(bad)
+    monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "store"))
+    monkeypatch.setattr(discovery, "egress_allowed", lambda: True)
+    monkeypatch.setattr(discovery, "refresh_repository", lambda: {"records": []})
+    monkeypatch.setattr(discovery, "search_hugging_face", _no_hub)
+    monkeypatch.setattr(htr_united, "_harvest", lambda: bad)
+    assert discovery.search_online(frozenset({"la"}))["sources"]["htr-united"]["state"] == "failed"

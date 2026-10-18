@@ -47,6 +47,7 @@ Build-tier visibility uses a maturity floor:
 | Workflow LangGraph preview | `alpha` | `fichero.features.workflow_langgraph_preview` | - | Processing | Inspect the compiled LangGraph form of a workflow. |
 | Workflow tools audio | `alpha` | `fichero.features.workflow_tools_audio` | - | Processing | Audio workflow tools still under review. |
 | Workflow tools convert | `alpha` | `fichero.features.workflow_tools_convert` | - | Processing | Convert workflow tools still under review. |
+| Workflow tools MCP | `alpha` | `fichero.features.workflow_tools_mcp` | - | Processing | An enabled MCP server's tools are in the workflow palette (mcp.client.tools-reach-a-workflow, |
 | Settings backend tab | `alpha` | `fichero.features.settings_backend_tab` | - | Settings | Backend configuration panel. |
 | Settings capture tab | `alpha` | `fichero.features.settings_capture_tab` | - | Settings | Capture and intake settings panel. |
 | Settings engine tab | `alpha` | `fichero.features.settings_engine_tab` | - | Settings | Engine settings panel. |
@@ -62,7 +63,6 @@ Build-tier visibility uses a maturity floor:
 | Automation | `dev` | `fichero.features.automation` | `/api/schedules`, `/api/triggers` | Processing | Schedules, triggers, and automated flows. |
 | Workflow tools agents | `dev` | `fichero.features.workflow_tools_agents` | - | Processing | Agent-backed workflow tools still under review. |
 | Workflow tools logic | `dev` | `fichero.features.workflow_tools_logic` | - | Processing | Logic workflow tools still under review. |
-| Workflow tools MCP | `dev` | `fichero.features.workflow_tools_mcp` | - | Processing | MCP-backed workflow tools still under review. |
 | Workflow tools outputs | `dev` | `fichero.features.workflow_tools_outputs` | - | Processing | Output workflow tools still under review. |
 | Workflow tools search | `dev` | `fichero.features.workflow_tools_search` | - | Processing | Search-oriented workflow tools that are not yet shipped by default. |
 | Workflow tools transform | `dev` | `fichero.features.workflow_tools_transform` | - | Processing | Transform workflow tools still under review. |

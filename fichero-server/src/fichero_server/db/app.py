@@ -376,6 +376,13 @@ class AppDatabase:
             self.conn.execute("ALTER TABLE sessions ADD COLUMN client_id VARCHAR")
             self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
 
+        # Who made an account change, and from which paired device (review 76): the app audit rows kept neither.
+        _audit_cols = {row[1] for row in self.conn.execute("PRAGMA table_info(actionaudits)").fetchall()}
+        for _col, _type in (("client", "VARCHAR"), ("device", "JSON")):
+            if _col not in _audit_cols:
+                self.conn.execute(f"ALTER TABLE actionaudits ADD COLUMN {_col} {_type}")
+                self.conn.execute("CHECKPOINT")
+
         _invite_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
         }
@@ -1034,9 +1041,11 @@ class AppDatabase:
         password_hash: str,
         is_owner: bool = False,
         active: bool = True,
+        id: str | None = None,
     ) -> AccountUser:
-        """Insert a new user row and return the typed record."""
+        """Insert a new user row and return the typed record. ``id`` lets a caller audit the new id first."""
         user = AccountUser(
+            **({"id": id} if id else {}),
             username=username.strip(),
             display_name=display_name.strip(),
             password_hash=password_hash,
@@ -1612,10 +1621,12 @@ class AppDatabase:
         token_hash: str,
         channel: str,
         ttl: timedelta,
+        id: str | None = None,
     ) -> AccountInvite:
-        """Insert a new invite row and return the typed record."""
+        """Insert a new invite row and return the typed record. ``id`` lets a caller audit the new id first."""
         now = utc_now()
         invite = AccountInvite(
+            **({"id": id} if id else {}),
             username=username.strip(),
             display_name=display_name.strip(),
             token_hash=token_hash,
@@ -1825,10 +1836,20 @@ class AppDatabase:
             self.conn.execute("UPDATE sessions SET revoked = TRUE WHERE client_id = ?", [client_id])
             self.conn.commit()
 
-    def session_client_id(self, token_hash: str) -> str | None:
+    def session_client(self, token_hash: str) -> AccountClient | None:
+        """The client a session was signed in through, in one read (None for password and device sessions)."""
         with self._lock:
-            row = self.conn.execute("SELECT client_id FROM sessions WHERE token_hash = ?", [token_hash]).fetchone()
-        return row[0] if row else None
+            row = self.conn.execute(
+                "SELECT c.id, c.user_id, c.kind, c.name, c.host, c.public_key_pem, c.created_at, c.revoked_at "
+                "FROM sessions s JOIN clients c ON c.id = s.client_id WHERE s.token_hash = ?",
+                [token_hash],
+            ).fetchone()
+        if row is None:
+            return None
+        return AccountClient(
+            id=row[0], user_id=row[1], kind=row[2], name=row[3], host=row[4] or "", public_key_pem=row[5],
+            created_at=ensure_utc(row[6]), revoked_at=ensure_utc(row[7]) if row[7] else None,
+        )
 
     def create_device(
         self,
@@ -2151,10 +2172,13 @@ class AppDatabase:
                 """
                 INSERT INTO actionaudits (
                     id, action_name, actor, target_ids, params, before, after,
-                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash
+                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash,
+                    client, device
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
+                    client = excluded.client,
+                    device = excluded.device,
                     action_name = excluded.action_name,
                     actor = excluded.actor,
                     target_ids = excluded.target_ids,
@@ -2184,10 +2208,31 @@ class AppDatabase:
                     audit.inverse_of,
                     audit.prev_hash,
                     audit.row_hash,
+                    audit.client,
+                    json.dumps(audit.device) if audit.device is not None else None,
                 ],
             )
             self.conn.commit()
         return audit
+
+    def save_chained_account_audit(self, audit: ActionAudit) -> ActionAudit:
+        """Append an account-change row to the app audit chain: sequence, previous hash, keyed row hash.
+
+        Same chain rules as the library's ``save_chained_audit``; the head is read and the row written
+        under one lock so two changes cannot take the same sequence number.
+        """
+        from fichero_server.actions.audit_chain import compute_action_audit_hash
+
+        with self._lock:
+            head = self.conn.execute(
+                "SELECT chain_seq, row_hash FROM actionaudits WHERE chain_seq IS NOT NULL "
+                "ORDER BY chain_seq DESC LIMIT 1"
+            ).fetchone()
+            audit.created_at = utc_now()
+            audit.chain_seq = (head[0] + 1) if head else 1
+            audit.prev_hash = (head[1] or None) if head else None
+            audit.row_hash = compute_action_audit_hash(audit, v2=True)
+            return self.save_action_audit(audit)
 
     def list_action_audits(self) -> list[ActionAudit]:
         """Return app-scoped ActionAudit rows in created order."""
@@ -2196,7 +2241,8 @@ class AppDatabase:
                 """
                 SELECT
                     id, action_name, actor, target_ids, params, before, after,
-                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash
+                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash,
+                    client, device
                 FROM actionaudits
                 ORDER BY created_at, id
                 """
@@ -2217,6 +2263,8 @@ class AppDatabase:
                 inverse_of=row[11],
                 prev_hash=row[12],
                 row_hash=row[13] or "",
+                client=row[14],
+                device=json.loads(row[15]) if row[15] else None,
             )
             for row in rows
         ]

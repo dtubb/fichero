@@ -216,7 +216,7 @@ class _QuietSteadyStateAccessLog(logging.Filter):
         return not any(str(path).startswith(p) for p in self.NOISY_PREFIXES)
 
 
-_RUN_MODULE_WHITELIST = {"fichero_cli", "fichero_mcp.server", "fichero_mcp.simple"}
+_RUN_MODULE_WHITELIST = {"fichero_cli", "fichero_mcp.server"}
 
 
 def main(argv: list[str] | None = None):

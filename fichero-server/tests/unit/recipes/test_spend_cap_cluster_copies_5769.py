@@ -54,3 +54,108 @@ def test_copies_stay_default_follows_pages_may_leave():
     assert copies_may_stay({"cloud_allowed": True, "copies_may_stay_on_cluster": False}) is False
     with pytest.raises(ValueError, match="copies"):
         normalise({"purposes": ["transcribe"], "copies_may_stay_on_cluster": "maybe"}, strict=True)
+
+
+def test_spend_this_month_is_shown_against_the_cap(db):
+    """`source.onboard.spend-cap`: the Start plan shows this month's Hugging Face spend against the cap, each Job at its
+    most (its hardware's price an hour times its time limit, where it ends); a Job of last month, or one never sent,
+    does not count, and a Job with no listed price is counted as unknown, never as $0."""
+    import json
+    from datetime import datetime, timezone
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    now = datetime(2026, 10, 18, tzinfo=timezone.utc)
+    jobs._ensure(db)
+
+    def sent(kind, price, timeout, *, at=None, far_id="far-1"):  # a finished row: the scheduler never runs it
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, ?, ?, 'done', 0, 't', ?, 'huggingface-jobs', ?)",
+                   [f"{kind}-{price}-{timeout}-{at}-{far_id}", kind, "s", at or now,
+                    json.dumps({"price_per_hour_usd": price, "far_id": far_id, "request": {"timeout": timeout}})])
+
+    sent("train-a-model", 0.4, "4h")  # at most $1.60
+    sent("read-at-scale", 1.0, "1h30m")  # at most $1.50
+    sent("train-a-model", None, "2h")  # price unknown
+    sent("train-a-model", 9.0, "4h", at=datetime(2026, 9, 30, tzinfo=timezone.utc))  # last month
+    sent("train-a-model", 9.0, "4h", far_id=None)  # still waiting to be sent: nothing spent yet
+    spend = spend_this_month(db, cap=5.0, now=now)
+    assert spend["cap_usd"] == 5.0 and spend["spent_at_most_usd"] == 3.1 and spend["jobs"] == 3
+    assert spend["unpriced"] == 1 and spend["month"] == "2026-10"
+    assert "$3.10 of $5.00" in spend["sentence"] and "1 with no listed price" in spend["sentence"]
+
+
+def test_a_reading_run_counts_each_shard_it_sent_and_a_cluster_read_costs_nothing_here(db):
+    """A reading run is one row of many Jobs: each shard sent (each try) is a Job at its most. A read on a cluster is
+    the same kind of row and is not bought by the hour, so it is outside the Hugging Face spend."""
+    import json
+    from datetime import datetime, timezone
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    now = datetime(2026, 10, 18, tzinfo=timezone.utc)
+    jobs._ensure(db)
+
+    def read(row_id, target, shards):
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, 'read-at-scale', 's', 'done', 0, 't', ?, 'huggingface-jobs', ?)",
+                   [row_id, now, json.dumps({"price_per_hour_usd": 1.0, "request": {"timeout": "1h", "target": target},
+                                             "shards": shards})])
+
+    read("hf", "huggingface-jobs", {"0": {"state": "landed", "tries": 2, "far_id": "a"},
+                                    "1": {"state": "landed", "tries": 1, "far_id": "b"},
+                                    "2": {"state": "pending", "tries": 0}})
+    read("cluster", "rorqual", {"0": {"state": "landed", "tries": 1, "far_id": "101_0"}})
+    spend = spend_this_month(db, cap=5.0, now=now)
+    assert spend["jobs"] == 3 and spend["spent_at_most_usd"] == 3.0, spend
+
+
+def test_the_month_turns_at_midnight_utc(db):
+    """Review 104: the month's boundary is UTC, whatever zone a row's time was written in."""
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    from fichero_server.execution import jobs
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    jobs._ensure(db)
+    eastern = timezone(timedelta(hours=-4))
+    for row_id, at in (("late-sept-eastern", datetime(2026, 9, 30, 21, 30, tzinfo=eastern)),  # 01:30 UTC on 1 Oct
+                       ("sept-utc", datetime(2026, 9, 30, 23, 59, tzinfo=timezone.utc))):
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, 'train-a-model', 's', 'done', 0, 't', ?, 'huggingface-jobs', ?)",
+                   [row_id, at, json.dumps({"price_per_hour_usd": 1.0, "far_id": row_id, "request": {"timeout": "1h"}})])
+    now = datetime(2026, 10, 1, 1, 0, tzinfo=eastern)  # 05:00 UTC on 1 Oct
+    assert spend_this_month(db, cap=5.0, now=now)["jobs"] == 1
+
+
+def test_a_reading_runs_inspector_shows_the_spend_against_the_cap(db):
+    """The remote-run Inspector shows Hugging Face cost against the spend cap (rulings 2026-10-17 11:50)."""
+    import json
+
+    from fichero_server.execution import jobs
+    from fichero_server.remote_read import job as read_job
+
+    jobs._ensure(db)
+
+    def row(row_id, request):  # a finished row: the scheduler never runs it
+        db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, started_by, created_at, target, detail) "
+                   "VALUES (?, ?, ?, 'done', 0, 't', now(), ?, ?)",
+                   [row_id, read_job.KIND, f"read:{row_id}", read_job.TARGET, json.dumps({"request": request})])
+        return row_id
+
+    request = {"scope_ids": ["f"], "reader": "vlm", "card": "c", "pages_may_leave": True}
+    assert "of $0.00" in read_job.status(db, row("hf", request))["hf_spend"]["sentence"]
+    cluster = row("cluster", {**request, "target": "rorqual"})
+    assert read_job.status(db, cluster)["hf_spend"] is None
+
+
+def test_the_start_plan_carries_the_spend(client):
+    from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _save
+
+    _save(client, _recipe(None, {"id": "lines", "job": "find-lines",
+                                 "model": {"kraken": "blla", "kraken_version": "bundled"}}))
+    spend = client.get("/api/recipes/project/start").json()["hf_spend"]
+    assert spend["cap_usd"] == 0.0 and spend["spent_at_most_usd"] == 0.0 and "$0.00 of $0.00" in spend["sentence"]

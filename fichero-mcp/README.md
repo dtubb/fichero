@@ -4,8 +4,8 @@ MCP server for Fichero — exposes a running Fichero server's document, search,
 workflow, and knowledge tools to AI clients over MCP. A thin wrapper over
 `FicheroClient`: every tool is one HTTP call.
 
-Entry points: `fichero-mcp` (full surface, ~29 tools) and
-`fichero-mcp-simple` (minimal).
+Entry point: `fichero-mcp`, one server whose tools are generated from the engine's contract (choose them with
+`--toolsets`).
 
 ## Connecting
 
