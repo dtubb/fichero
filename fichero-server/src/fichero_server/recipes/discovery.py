@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -747,8 +748,21 @@ HF_TAG_LIMIT = 50
 #: The project's languages as Hugging Face model names spell them ("trocr-spanish-…", "…-latin-htr").
 _LANGUAGE_WORDS = {"es": "spanish", "la": "latin", "fr": "french", "it": "italian", "de": "german", "pt": "portuguese",
                    "ca": "catalan", "nl": "dutch", "en": "english"}
-#: Script words a reader's tags or name may state, as ISO 15924 codes.
+#: Script words a reader's tags or name may state, as ISO 15924 codes: these two, then any one-word script name
+#: ISO 15924 lists (`script_words`).
 _SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
+#: Not read from a listing: "latin" in a model's name is the language, and the codes for no script in particular.
+_NOT_SCRIPT_WORDS = frozenset({"Latn", "Zyyy", "Zinh", "Zzzz", "Zsym", "Zmth", "Zxxx", "Zsye"})
+
+
+@lru_cache(maxsize=1)
+def script_words() -> dict[str, str]:
+    """Word -> ISO 15924 code for every script whose English name is one word ("cyrillic" -> Cyrl) (#5594 residue)."""
+    from fichero_server.recipes.names import _scripts
+
+    words = {row["name"].lower(): row["code"] for row, _text in _scripts()
+             if row["code"] not in _NOT_SCRIPT_WORDS and re.fullmatch(r"[a-z]{4,}", row["name"].lower())}
+    return {**words, **_SCRIPT_WORDS}
 
 
 def _words(model: dict[str, Any]) -> frozenset[str]:
@@ -798,7 +812,7 @@ def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
     words = _words(model)
     licence = next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), "")
     langs = _hub_tags(model) or languages
-    scripts = frozenset(code for word, code in _SCRIPT_WORDS.items() if word in words)
+    scripts = frozenset(code for word, code in script_words().items() if word in words)
     material = _hub_material(words)
     why = [what]
     if scripts:
