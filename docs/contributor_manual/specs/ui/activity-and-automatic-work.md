@@ -1216,12 +1216,17 @@ and node, not by job); a retry action for failed pages.
   `import.folder` action, thumbnail stage and lanes (`fichero-server/tests/unit/jobs/test_thumbnails_first.py`);
   not yet seen in the app. Still a gap: a reading on a cloud model (the network lane) is not held,
   and the small display image is made on first view, not at import.
-- `activity.lane.measures-processors` — **[GAP]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
-  Engine, memory), measured by the engine.
+- `activity.lane.measures-processors` — **[PARTIAL]** (#5358) each job's row shows what it uses (CPU, GPU, Neural
+  Engine, memory), measured by the engine. Built: the engine's own CPU %, memory and energy (watts) are measured
+  process-wide, the last two from `proc_pid_rusage` RUSAGE_INFO_V6, which needs no root (probed on the M4), and
+  ride on `GET /api/activity/jobs` (`fichero-server/tests/unit/jobs/test_process_rusage_5358.py`). Still a gap:
+  per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
   step can run at the same time when memory allows; two steps on the same processor do not.
-- `activity.lane.idle-unload` — **[GAP]** (#5358) a resident model with no work is unloaded after a short idle
-  time.
+- `activity.lane.idle-unload` — **[PARTIAL]** (#5358, #5529) a resident model with no work is unloaded after a short idle
+  time. Built for Kraken: its line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
+  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`; `fichero-server/tests/unit/jobs/test_engine_memory.py`).
+  Still a gap: the other resident models (the embedder, a local model server).
 - `activity.throttle.watched-first` — **[PARTIAL]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS. Built (2026-10-04): handed-in work (a page of a run a
   person started) is ordered first on the local-model lane, and a long background job (training)
@@ -1372,9 +1377,12 @@ and node, not by job); a retry action for failed pages.
   search entries, vectors and word analysis name what they were made from (`source.derived.recomputable`);
   claims name their page and offsets but not the text version; entity mentions and NLP drafts name
   nothing.
-- `activity.derived.stale-is-marked` — **[GAP]** (#5360) a change marks exactly
+- `activity.derived.stale-is-marked` — **[PARTIAL]** (#5360) a change marks exactly
   the rows derived from it stale, with the reason, and the Inspector shows "out of date" on them
-  until they are remade.
+  until they are remade. Built: the engine reports which stored vectors are stale and why
+  (`text-changed`, `model-changed`, `not-embedded`) from the stored text and model
+  (`fichero-server/tests/unit/db/test_stale_vectors_marked_5360.py`). Still a gap: no API field
+  carries it to the Inspector, and other derived rows (claims, mentions) have no marker.
 - `activity.derived.coalesced` — **[PARTIAL]** (#5360) many corrections to one page
   make one recompute job after a short quiet period. Built: one waiting job per kind and page
   (`fichero-server/tests/unit/jobs/test_job_queue.py`); the page's re-embed waits QUIET_SECONDS and each correction pushes it later
@@ -1488,10 +1496,9 @@ code path.
   the child's checks; a page of the child waiting for a lane is held by its parent's row too; and
   the child is a run row under the step that called it, its steps and pages under it (`fichero-server/tests/unit/jobs/test_sub_workflows_are_child_runs.py`).* Stop and Pause reach a
   sub-workflow.
-- `activity.run.stop-reaches-economy-htr` — **[BROKEN]** (#5375) Stop takes effect between
-  files in economy HTR. Today it runs a synchronous loop on the run's event loop with no progress
-  callback (`workflows/tools/economy_htr.py:296`), so Stop waits for the whole step and the log goes
-  quiet.
+- `activity.run.stop-reaches-economy-htr` — **[OK]** (#5375) Stop (and Pause) take effect between
+  files in economy HTR: each file is read off the run's event loop and the step checks for a stop or pause before the next
+  (`workflows/tools/economy_htr.py`); pinned by `fichero-server/tests/unit/workflows/test_economy_htr_stops_5375.py`.
 - `activity.run.stop-reaches-in-flight-calls` — **[BROKEN]** (#5392, #5375, → #4402) Stop ends an
   in-flight Kraken page or model call rather than waiting for it. Today nothing passes cancellation
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
@@ -1516,10 +1523,12 @@ code path.
 - `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
   the engine's run registry: the cap evicts only runs that have exited (`execution/runner.py`
   `_cap_workflow_state_registry`); pinned by `fichero-server/tests/unit/workflows/test_live_run_never_evicted_5376.py`.
-- `activity.run.quit-pauses` — **[BROKEN]** (#5357) quitting pauses running runs at their next
-  boundary, and they carry on at the next launch. Today engine shutdown only closes the SSE hubs
-  (`api/main.py:1020-1022`), so quit is a crash, and on reopen every running, accepted and paused
-  run is failed (`workflows/activity_store.py:76-78`, `workflows/activity.py:658-707`).
+- `activity.run.quit-pauses` — **[PARTIAL]** (#5357) quitting pauses running runs at their next
+  boundary, and they carry on at the next launch. *Built 2026-10-18 (engine):* on shutdown each live run with a checkpoint on
+  disk is recorded `paused` (`runner.pause_live_runs_for_shutdown`, before the streams close), and a paused run is not swept on
+  reopen (`activity.durable.paused-stays-paused`), so it waits for Resume; pinned by `test_quit_pauses_runs_5357.py`.
+  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written) and
+  the run carrying on by itself at the next launch.
 - `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
   text or image it reads has changed, and is reused when it has not, in any workflow. Built
   (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a
