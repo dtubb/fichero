@@ -80624,6 +80624,10 @@
             "type": "object",
             "nullable": true,
             "title": "Actual"
+          },
+          "hf_spend": {
+            "$ref": "#/components/schemas/HfSpend",
+            "nullable": true
           }
         },
         "type": "object",
