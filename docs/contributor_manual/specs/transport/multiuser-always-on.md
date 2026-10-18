@@ -74,11 +74,14 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   each launch, handed to the engine it spawns over an inherited pipe (never an environment variable, argv or a file),
   held only in the app's memory and the engine's memory. It authorises exactly three routes: first-run,
   migrate-owner and the reset challenge. The old bearer-token file the CLI/MCP read today is **refused** on those
-  three routes, and a process that did not spawn the engine cannot obtain the secret. Dev Local (Xcode runs the app, a launch script
-  starts the engine): the script makes the secret, passes it to the engine on stdin and writes it 0600 into the app
-  container, where the Debug app reads it; this file path is compiled out of Release, Beta and App Store builds, which
-  only ever spawn their own engine. Tests start the engine in-process with a fixed test secret. So the engine has
-  one rule everywhere (secret on stdin at start-up) and only Debug has a file.
+  three routes, and a process that did not spawn the engine cannot obtain the secret. Dev Local: the Xcode pre-action
+  (`fichero-server/scripts/dev-uds-engine.sh`) starts the engine on the container socket
+  (`~/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock`), so the app did not spawn it. Once an owner exists
+  the Dev Local app needs no launch secret at all: it signs in with the owner's Keychain key over the UDS like any
+  local client. For FIRST RUN only (no owner yet) the script passes the secret to the engine on stdin and writes it
+  0600 into the app container next to the socket; the app reads it once and deletes it. That file path is compiled out of
+  Release, Beta and App Store builds, which only ever spawn their own engine. Tests start the engine in-process with a
+  fixed test secret. One rule everywhere: the engine takes the secret on stdin at start-up; only Debug has a file.
 - **Session lifetime:** app and device sessions last 12 h, sliding; CLI/MCP sessions last 1 h and renew by silent
   re-sign-in (a challenge costs nothing); a revoked client or person ends at once.
 - **Keychain access group:** one shared group (team id + `app.fichero.shared`) holds the owner key for every bundle
