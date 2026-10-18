@@ -229,37 +229,6 @@ _FINISHED: dict[str, RunAccount] = {}
 _FINISHED_LIMIT = 500
 
 
-#: Where a finished run's account is kept on its record once its checkpoint is dropped (#5376, #5373).
-KEPT_ACCOUNT = "account"
-
-
-async def drop_finished_checkpoint(db: Any, thread_id: str) -> bool:
-    """Delete a finished run's checkpoint, after keeping its account on the run's record (`activity.run.checkpoints-pruned`).
-
-    Done means: the record says `completed`, the account (built from the state and the checkpoint's writes before they go) is `done` with no page failed or left.
-    Anything else keeps its checkpoint: Resume and Read Again read it. Returns whether it was dropped."""
-    from fichero_server.workflows.activity import get_activity_tracker
-    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
-
-    store = get_activity_tracker(str(db.path)).store
-    run = await store.get_workflow_run(thread_id)
-    if run is None or run.status != "completed":
-        return False
-    state, pending = await _checkpoint(db, thread_id)
-    account = await run_account(db, thread_id, run=run, state=state, pending_writes=pending)
-    if account is None or account.state != "done" or account.pages_failed or account.pages_left or account.offer:
-        return False
-    timeline = dict(run.progress_timeline or {})
-    timeline[KEPT_ACCOUNT] = account.model_dump(mode="json")
-    await store.update_workflow_run(thread_id, progress_timeline=timeline)
-    checkpointer = AsyncDuckDBCheckpointer.from_db_path(db.path)
-    try:
-        await checkpointer.adelete_thread(thread_id)
-    finally:
-        checkpointer.conn.close()
-    return True
-
-
 async def _checkpoint(db: Any, thread_id: str) -> tuple[dict[str, Any], list[Any]]:
     from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
 
@@ -297,9 +266,6 @@ async def run_account(db: Any, thread_id: str, *, run: Any = None, state: dict[s
     cached = _FINISHED.get(thread_id)
     if cached is not None and cached.state == account_state(run.status, run.error):
         return cached
-    kept = (getattr(run, "progress_timeline", None) or {}).get(KEPT_ACCOUNT)
-    if kept and run.status == "completed":  # its checkpoint was dropped at completion (`drop_finished_checkpoint`)
-        return RunAccount.model_validate(kept)
     if state is None:
         state, pending_writes = await _checkpoint(db, thread_id)
     # A record from before a column existed lacks it: the account says less, it never fails (#5555).
