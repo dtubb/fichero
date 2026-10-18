@@ -1511,11 +1511,13 @@ code path.
   step and page from the start: the event hub keeps every event but the log lines for the saved timeline
   (`WorkflowEventHub.record`), while a late viewer's replay stays the newest 2,000; pinned by
   `fichero-server/tests/unit/execution/test_record_keeps_all_history_5376.py`.
-- `activity.run.log-is-bounded` — **[PARTIAL]** (#5376) a run's log is bounded in memory and
+- `activity.run.log-is-bounded` — **[OK]** (#5376) a run's log is bounded in memory and
   appended, not rewritten. *Built 2026-10-18:* the log is a `BoundedLog` (`execution/run_log.py`: the first 200 and the latest
   1,800 lines held, the middle counted; a node boundary appends only the lines since its last flush; the final text says
   how many it leaves out); the node-boundary append was built in #5645; pinned by `test_run_log_bounded_5376.py`.
-  *Not built:* the `complete` frame still ships the whole final state (`execution/runner.py`).
+  The `complete` frame carries each final-state value only when its JSON is within 2,000 characters, else its size
+  (`run_log.bounded_final_state`; the same test file). The full state stays on the run's checkpoint. **[OK]** once the
+  M4 run is green.
 - `activity.run.checkpoints-pruned` — **[PARTIAL]** (#5376) only the last checkpoint per run is
   kept, and all are deleted when the run is done. *Built 2026-10-18:* the run path's checkpointer is built with
   `keep_last_only`, so a save drops the thread's earlier checkpoints and their writes (`workflows/checkpointer.py`;
@@ -1528,8 +1530,10 @@ code path.
   boundary, and they carry on at the next launch. *Built 2026-10-18 (engine):* on shutdown each live run with a checkpoint on
   disk is recorded `paused` (`runner.pause_live_runs_for_shutdown`, before the streams close), and a paused run is not swept on
   reopen (`activity.durable.paused-stays-paused`), so it waits for Resume; pinned by `test_quit_pauses_runs_5357.py`.
-  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written) and
-  the run carrying on by itself at the next launch.
+  *Built (engine):* the quit records the reason (`runner.QUIT_PAUSED_ERROR`) and the library's next open resumes the runs that
+  carry it, clearing the reason first so a later pause by a person is left for Resume; a resume that fails leaves the run paused
+  with why (`activity.resume_quit_paused_runs`; `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`).
+  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written).
 - `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
   text or image it reads has changed, and is reused when it has not, in any workflow. Built
   (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a
