@@ -7,7 +7,6 @@ read the same answers from the engine (four architecture rules: logic in the eng
 from __future__ import annotations
 
 import asyncio
-import os
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -302,10 +301,9 @@ def _hf_token_set() -> bool:
 
 
 def _this_machine_memory_gb() -> float:
-    try:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
-    except (ValueError, OSError):
-        return 8.0
+    from fichero_server.recipes.train_offers import this_mac_memory_gb
+
+    return this_mac_memory_gb()
 
 
 class PurposeJob(BaseModel):
@@ -997,6 +995,7 @@ class ModelCandidate(BaseModel):
     rule_rank: Optional[int] = Field(default=None, description="its place by the rules' fixed order among the "
                                      "candidates they keep; null when refused or not in the rules")
     refused: Optional[str] = Field(default=None, description="the rules' first reason it cannot do the job here")
+    needs_permission: bool = Field(default=False, description="a cloud reader the project may not use until the person has said pages may leave this Mac: shown greyed, \"needs permission\" (`source.onboard.pages-may-leave`, #5768)")
     installed: Optional[bool] = Field(default=None, description=(
         "whether its model is already on this Mac (an MLX model in the store, a spaCy pipeline, a bundled Kraken "
         "model); null where nothing is downloaded first (a Kraken reader the run fetches, a cloud model) (#5612)"))
@@ -1102,7 +1101,7 @@ async def model_candidates(
     counts them. Refused (422), in words, for an unknown script, language, material or job."""
     from starlette.concurrency import run_in_threadpool
 
-    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, rank_key
+    from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, needs_permission, rank_key
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
         candidate_availability,
@@ -1201,7 +1200,7 @@ async def model_candidates(
         memory_gb=None if not c.memory_gb and c.source == "hugging-face" else c.memory_gb,
         size=size_words(c.size_gb), cer_published=c.cer_published,
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
-        rule_rank=rank.get(c.id), refused=refused(c),
+        rule_rank=rank.get(c.id), refused=refused(c), needs_permission=needs_permission(c, a),
         installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id, fit=fit(c),
@@ -1556,7 +1555,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     from fichero_server.recipes.done import annotate, material
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
-    from fichero_server.recipes.start import estimate, plan_start
+    from fichero_server.recipes.start import estimate, place_runs, plan_start
     from fichero_server.recipes.train_offers import counted, train_offers
 
     library = _library(db)
@@ -1575,6 +1574,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local)
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
