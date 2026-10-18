@@ -257,10 +257,15 @@ def main(argv: list[str] | None = None):
 
     parser = argparse.ArgumentParser(add_help=True)
     parser.add_argument("--prepare-local-access", action="store_true")
+    parser.add_argument("--launch-secret-stdin", action="store_true", help="read the per-launch secret from one line of stdin")
     parser.add_argument("--prepare-remote-access", action="store_true")
     parser.add_argument("--public-base-url")
     parser.add_argument("--remote-access-dir")
     args, _remaining = parser.parse_known_args(argv)
+    if args.launch_secret_stdin:
+        from fichero_server.security import launch_secret
+
+        launch_secret.read_from_stream(sys.stdin)
 
     if args.prepare_local_access:
         subject_alt_hosts = []
