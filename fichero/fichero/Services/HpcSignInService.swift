@@ -156,6 +156,14 @@ final class HpcSignInService {
         self.prompts = prompts
         self.phase = phase
     }
+
+    /// A previewed service already in a state: one expression for the `#Preview` body, whose result builder
+    /// cannot take a statement that returns nothing.
+    static func previewing(prompts: [Prompt], phase: Phase, in appState: AppState) -> HpcSignInService {
+        let service = appState.hpcSignInService
+        service.showForPreview(prompts: prompts, phase: phase)
+        return service
+    }
     #endif
 
     /// The engine's refusals, said plainly (the sign-in route answers 409 with no key and 502 when ssh ended).
