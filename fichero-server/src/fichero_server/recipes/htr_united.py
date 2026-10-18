@@ -76,6 +76,28 @@ def matching(datasets: list[dict[str, Any]], *, languages: frozenset[str], scrip
     return sorted(found, key=lambda d: d["lines"] or 0, reverse=True)
 
 
+#: Licences used without asking: open, attribution at most. Anything else, or none stated, is accepted first.
+_OPEN = frozenset({"cc0-1.0", "cc-by-4.0", "cc-by-sa-4.0", "cc-by-3.0", "cc-by-sa-3.0", "mit", "apache-2.0",
+                   "etalab-2.0", "odbl-1.0", "odc-by"})
+_IMPORTABLE = ("page", "alto")
+
+
+def offered(datasets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each dataset with what it may be used as (`as`: test-set, training) and whether Fichero can import it.
+    A licence outside `_OPEN` leaves `as` empty and `accept` says what to accept first (ground truth only, licence
+    respected: nothing is used unaccepted)."""
+    from fichero_server.recipes.assemble import _licence_words
+
+    out = []
+    for d in datasets:
+        name = (d["licence"].get("name") or "").strip()
+        open_ = name.lower() in _OPEN
+        out.append({**d, "as": ["test-set", "training"] if open_ else [],
+                    "accept": None if open_ else _licence_words(name),
+                    "importable": any(k in d["format"].lower() for k in _IMPORTABLE)})
+    return out
+
+
 def cached() -> dict[str, Any] | None:
     """The listing kept from the last fetch ({"fetched_at", "records"}), or None. Never the network."""
     try:

@@ -1078,6 +1078,24 @@ def _step_reader(request: Request, library_path: Optional[str], step: str) -> Op
     return str(card["id"]) if isinstance(card, dict) and card.get("id") else None
 
 
+@router.get("/htr-united")
+async def htr_united_datasets(languages: str, scripts: str = "") -> dict[str, Any]:
+    """HTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as
+    (a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job
+    keeps the catalogue."""
+    from fichero_server.recipes import htr_united
+    from fichero_server.recipes.names import resolve_language, resolve_script
+
+    try:
+        script_codes = frozenset(resolve_script(s) for s in scripts.split(",") if s.strip())
+        tags = frozenset(resolve_language(t) for t in languages.split(",") if t.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    kept = htr_united.cached()
+    found = htr_united.matching(kept["records"], languages=tags, scripts=script_codes) if kept else []
+    return {"fetched_at": kept["fetched_at"] if kept else None, "datasets": htr_united.offered(found)}
+
+
 @router.get("/candidates", response_model=ModelCandidateList)
 async def model_candidates(
     request: Request,
