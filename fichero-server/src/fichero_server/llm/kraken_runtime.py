@@ -1359,7 +1359,14 @@ def recognize_to_geometry(
             )
         )
 
-    if not texts:
+    lines_found = [b for b in boxes if b.level == OCRGeometryLevel.LINE]
+    if not texts and lines_found:
+        # Lines found and every one read as empty text: the lines are kept (each saved marked 'looked, no
+        # writing'), never thrown away with the page's reading (#5758: page 1 of the M4 run had 30 lines, a quick
+        # all-empty read, and then no lines stored anywhere).
+        logger.warning("Kraken found %d lines on %s and read every one as empty text; the lines are kept",
+                       len(lines_found), image_path)
+    elif not texts:
         return geometry_unavailable(
             status=OCRGeometryStatus.PRODUCED_NOTHING,
             provider=_PROVIDER,
