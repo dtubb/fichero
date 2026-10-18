@@ -2190,6 +2190,49 @@
         }
       }
     },
+    "/api/auth/first-run": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "First Run",
+        "description": "Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.",
+        "operationId": "first_run_api_auth_first_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirstRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirstRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/sign-in": {
       "post": {
         "tags": [
@@ -64977,6 +65020,75 @@
           "page_id"
         ],
         "title": "FindDocumentsSplitRequest"
+      },
+      "FirstRunClient": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "app",
+            "title": "Kind",
+            "default": "app"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FirstRunClient"
+      },
+      "FirstRunRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/FirstRunClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "public_key_pem",
+          "client"
+        ],
+        "title": "FirstRunRequest"
+      },
+      "FirstRunResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/SignInClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "client"
+        ],
+        "title": "FirstRunResponse"
       },
       "FlowCandidate": {
         "properties": {

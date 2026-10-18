@@ -1,0 +1,99 @@
+import CryptoKit
+import Foundation
+import Testing
+
+@testable import Fichero
+
+/// multiuser.sign-in-by-challenge, app side (slice 4, #2403). The engine's own check is pinned in
+/// `fichero-server/tests/unit/security/test_challenge_sign_in_to_spec.py`.
+@Suite("App sign-in")
+struct AppSignInTests {
+    @Test("the signed message is the engine's: purpose, engine id, client id, nonce, expiry joined by NUL")
+    func messageBytes() {
+        let bytes = SignInMessage.bytes(engineID: "eng", clientID: "cli", nonce: "non", expiresAt: 1_700_000_000)
+        #expect(bytes == Data("fichero-sign-in-v1\u{0}eng\u{0}cli\u{0}non\u{0}1700000000".utf8))
+    }
+
+    @Test("a reset message cannot be a sign-in message")
+    func purposesDiffer() {
+        let signIn = SignInMessage.bytes(engineID: "e", clientID: "c", nonce: "n", expiresAt: 1)
+        let reset = SignInMessage.bytes(purpose: SignInMessage.resetPurpose, engineID: "e", clientID: "c", nonce: "n", expiresAt: 1)
+        #expect(signIn != reset)
+    }
+
+    @Test("sign-in answers the challenge with a signature the registered public key verifies")
+    func signsTheChallenge() async throws {
+        let key = P256.Signing.PrivateKey()
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n1", expiresAt: 99, engineID: "engine-a"))
+        let service = AppSignInService(transport: transport, keys: FixedKey(key), clients: MemoryClientID("client-1"))
+        let token = try await service.signIn()
+        #expect(token == "session-token")
+        let sent = try #require(transport.signIns.first)
+        #expect(sent.clientID == "client-1" && sent.nonce == "n1")
+        let der = try #require(Data(base64Encoded: sent.signature))
+        let message = SignInMessage.bytes(engineID: "engine-a", clientID: "client-1", nonce: "n1", expiresAt: 99)
+        #expect(key.publicKey.isValidSignature(try P256.Signing.ECDSASignature(derRepresentation: der), for: message))
+    }
+
+    @Test("with no registered client, sign-in says so instead of calling the engine")
+    func notRegistered() async {
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 1, engineID: "e"))
+        let service = AppSignInService(transport: transport, keys: FixedKey(P256.Signing.PrivateKey()), clients: MemoryClientID(nil))
+        await #expect(throws: AppSignInService.Failure.notRegistered) { try await service.signIn() }
+        #expect(transport.challengeCalls == 0)
+    }
+
+    @Test("first launch registers the public key through first-run, remembers the client, then signs in")
+    func bootstrap() async throws {
+        let key = P256.Signing.PrivateKey()
+        let transport = FakeTransport(challenge: SignInChallenge(nonce: "n", expiresAt: 5, engineID: "e"))
+        let clients = MemoryClientID(nil)
+        let service = AppSignInService(transport: transport, keys: FixedKey(key), clients: clients)
+        _ = try await service.bootstrapOwner(launchSecret: "ab", displayName: "Daniel", clientName: "Fichero", host: "Mac")
+        let first = try #require(transport.firstRuns.first)
+        #expect(first.launchSecret == "ab" && first.publicKeyPEM == key.publicKey.pemRepresentation)
+        #expect(clients.clientID() == "new-client")
+        #expect(transport.signIns.first?.clientID == "new-client")
+    }
+}
+
+private final class FakeTransport: SignInTransport, @unchecked Sendable {
+    struct SignIn { let clientID: String; let nonce: String; let signature: String }
+    struct FirstRun { let launchSecret: String; let publicKeyPEM: String }
+    let challengeToReturn: SignInChallenge
+    private(set) var challengeCalls = 0
+    private(set) var signIns: [SignIn] = []
+    private(set) var firstRuns: [FirstRun] = []
+
+    init(challenge: SignInChallenge) { challengeToReturn = challenge }
+
+    func challenge(clientID: String) async throws -> SignInChallenge {
+        challengeCalls += 1
+        return challengeToReturn
+    }
+
+    func signIn(clientID: String, nonce: String, signature: String) async throws -> String {
+        signIns.append(SignIn(clientID: clientID, nonce: nonce, signature: signature))
+        return "session-token"
+    }
+
+    func firstRun(
+        launchSecret: String, displayName: String, clientName: String, host: String, publicKeyPEM: String
+    ) async throws -> String {
+        firstRuns.append(FirstRun(launchSecret: launchSecret, publicKeyPEM: publicKeyPEM))
+        return "new-client"
+    }
+}
+
+private struct FixedKey: OwnerKeyProviding {
+    let key: P256.Signing.PrivateKey
+    init(_ key: P256.Signing.PrivateKey) { self.key = key }
+    func loadOrCreate() throws -> P256.Signing.PrivateKey { key }
+}
+
+private final class MemoryClientID: ClientIDStoring, @unchecked Sendable {
+    private var value: String?
+    init(_ value: String?) { self.value = value }
+    func clientID() -> String? { value }
+    func save(clientID: String) { value = clientID }
+}
