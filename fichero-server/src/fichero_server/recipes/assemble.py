@@ -349,6 +349,16 @@ _FIXES = {
     "not-enough-memory": ["choose-cloud", "choose-model"],
 }
 
+#: What each fix does when the person presses it: (the route the app calls, or "") and (why it cannot act, or ""),
+#: exactly one set (`source.onboard.every-setup-button-acts-or-says-why`, #5790; a test fails on a fix in neither).
+FIX_ACTIONS: dict[str, tuple[str, str]] = {
+    "download": ("POST /api/local-models/download/{model_type}/{model_id:path}", ""),
+    "choose-cloud": ("POST /api/recipes/project/steps/use-candidate", ""),
+    "choose-model": ("GET /api/recipes/candidates", ""),
+    "allow-cloud": ("PUT /api/recipes/project", ""),
+    "accept-licence": ("POST /api/recipes/project/steps/use-candidate", ""),
+}
+
 
 def _and(names: list[str]) -> str:
     return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
@@ -473,9 +483,15 @@ def _problem(job: str, cards: list[Card], a: Answers, material: str, detail: str
     if nearest:
         sentence += " Nearest: " + "; ".join(f"{n['name']} ({n['why']})" for n in nearest) + "."
     # `kind`, not `code`: a recipe refuses any key named code (`recipe._FORBIDDEN_KEYS`), and this one is saved.
-    return {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
+    out = {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
             "nearest": nearest,
             "refused": [{"card": c.id, "why": r[1]} for c, r in sorted(refusals, key=lambda cr: cr[0].id)]}
+    if code == "licence-not-accepted":
+        # The licence "Review the licence…" opens: the nearest card refused for it, named and worded.
+        card = next((c for c, r in sorted(refusals, key=lambda cr: cr[0].id) if r[0] == code), None)
+        if card:
+            out["licence"] = {"card": card.id, "name": card.licence, "words": _licence_words(card.licence)}
+    return out
 
 
 #: Licences that are open and copyleft: said so, never "not open" (#5687).
