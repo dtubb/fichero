@@ -192,3 +192,30 @@ class TestSignInAndKey:
         pid = next(i for i in range(1, 10_000) if broker.ended(str(i)) == "expired")
         r = client.post(f"/api/hpc/prompts/{pid}", json={"answer": "123456"})
         assert r.status_code == 410 and "expired" in r.json()["detail"]
+
+
+class TestMakeTheKey:
+    """`compute.secret.fichero-makes-the-key`: the engine makes the cluster's key pair; the public half is shown (and
+    can be shown again) to be added in CCDB; the private half never leaves the engine's folder."""
+
+    def test_make_show_again_and_remove(self, client, tmp_path, monkeypatch):
+        import shutil
+        import stat
+
+        import pytest
+
+        if not shutil.which("ssh-keygen"):
+            pytest.skip("no ssh-keygen here")
+        monkeypatch.setenv("FICHERO_BASE_PATH", str(tmp_path))
+        cid = client.post("/api/hpc/clusters", json=_cluster_body()).json()["cluster_id"]
+        r = client.post(f"/api/hpc/clusters/{cid}/key/make")
+        assert r.status_code == 200, r.text
+        public = r.json()["public_key"]
+        assert public.startswith("ssh-ed25519 ") and "PRIVATE" not in r.text
+        private = tmp_path / "hpc-keys" / cid / "id_ed25519"
+        assert stat.S_IMODE(private.stat().st_mode) == 0o600
+        assert client.get(f"/api/hpc/clusters/{cid}/key/public").json()["public_key"] == public  # shown again, same
+        again = client.post(f"/api/hpc/clusters/{cid}/key/make")
+        assert again.status_code == 409  # never silently replace a key the person already put in CCDB
+        client.delete(f"/api/hpc/clusters/{cid}/key")
+        assert client.get(f"/api/hpc/clusters/{cid}/key/public").status_code == 404

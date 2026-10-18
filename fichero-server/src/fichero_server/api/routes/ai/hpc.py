@@ -393,6 +393,49 @@ async def delete_cluster_key(
     return HpcKeyState(cluster_id=cluster_id, has_key=False)
 
 
+class HpcPublicKey(BaseModel):
+    cluster_id: str
+    public_key: str = Field(description="To add to the person's own cluster account (CCDB on the Alliance).")
+
+
+@router.post("/clusters/{cluster_id}/key/make", response_model=HpcPublicKey)
+async def make_cluster_key(
+    cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> HpcPublicKey:
+    """Fichero makes the cluster's key pair (`compute.secret.fichero-makes-the-key`): the private half stays in the
+    engine's folder, the public half is returned to be added in CCDB. 409 if a key is already made."""
+    import asyncio
+
+    from fichero_server.remote_read.ssh_prompts import KeyExists, make_cluster_key as make
+
+    _require_cluster(app_db, cluster_id)
+    try:
+        public = await asyncio.to_thread(make, cluster_id)
+    except KeyExists as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=500 if isinstance(exc, RuntimeError) else 400, detail=str(exc)) from exc
+    return HpcPublicKey(cluster_id=cluster_id, public_key=public)
+
+
+@router.get("/clusters/{cluster_id}/key/public", response_model=HpcPublicKey)
+async def get_cluster_public_key(
+    cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> HpcPublicKey:
+    """The public half again, to copy into CCDB; never the private one."""
+    from fichero_server.remote_read.ssh_prompts import public_key
+
+    _require_cluster(app_db, cluster_id)
+    public = public_key(cluster_id)
+    if public is None:
+        raise HTTPException(status_code=404, detail="no key is made for this cluster yet")
+    return HpcPublicKey(cluster_id=cluster_id, public_key=public)
+
+
 @router.get("/prompts", response_model=HpcPromptList)
 async def list_prompts(_owner: None = Depends(_require_owner_or_bootstrap)) -> HpcPromptList:
     """What a cluster login is waiting on (a second factor, a passphrase), for the app to show."""
