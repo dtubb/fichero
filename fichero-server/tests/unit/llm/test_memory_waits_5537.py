@@ -340,3 +340,31 @@ def test_footprint_of_this_process_is_read_or_none():
 def test_model_server_pids_lists_only_running_engine_servers(mac):  # noqa: F811
     assert routes.model_server_pids() == []
 
+
+
+def test_peak_memory_reports_the_resident_set_and_swap_growth_not_only_the_footprint():
+    """M4 2026-10-17 (#5758): footprint 19.7 GB (pages in the compressor) against 6.9 GB resident and flat swap."""
+    rss, swap = iter([4 * GB, 7 * GB, 5 * GB, 5 * GB]), iter([GB, 3 * GB])
+    peak = PeakMemory(engine=lambda: 19 * GB, servers=lambda: None, rss=lambda: next(rss), swap=lambda: next(swap))
+    for _ in range(3):
+        peak.sample()
+    peak.stop()  # swap is read at start and at stop only
+    assert peak.pressure() == {"engine_peak_rss_bytes": 7 * GB, "swap_growth_bytes": 2 * GB}
+    assert peak.record()["engine_peak_memory_bytes"] == 19 * GB, "the footprint stays, as a detail"
+
+
+def test_the_default_readings_spawn_no_process(monkeypatch):
+    """Review 68: a `ps` and a `sysctl` every second cost the person's Mac; both are read in-process."""
+    import subprocess
+
+    from fichero_server.execution import throttle
+
+    def boom(*a, **k):
+        raise AssertionError("a subprocess was spawned")
+
+    monkeypatch.setattr(subprocess, "run", boom)
+    monkeypatch.setattr(subprocess, "Popen", boom)
+    assert throttle.peak_rss_bytes() > 0
+    peak = PeakMemory(engine=lambda: None, servers=lambda: None)
+    peak.sample()
+    assert peak.pressure()["engine_peak_rss_bytes"] > 0
