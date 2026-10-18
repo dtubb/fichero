@@ -741,7 +741,7 @@ needs them.
   A recipe is a shareable file in the sense of `source.recipe.is-a-file` (→ #4950). *Test:* a
   tiny model and a tiny set, in automation on CPU for a few steps, yields an adapter that
   loads; the full path is a named-machine test. The base is the recipe's pick from the catalogue (`source.recipe.picks-the-tuning-base`, about 3B, #5442); today the request defaults to `Qwen/Qwen3-VL-8B-Instruct`.
-- `compute.tune.survives-the-time-limit` — **[GAP]** (#5240) a training job longer than its time limit saves a
+- `compute.tune.survives-the-time-limit` — **[PARTIAL]** (#5240; the wrapper and sbatch are `training/resumable.py`, tested with a stub trainer that checkpoints on SIGUSR1 in `fichero-server/tests/unit/training/test_resumable_training.py`: two parts, steps 1..12 once each, `scontrol requeue` once; not yet wired to a real `ketos train` run or a cluster, and the Activity row's "running (part 2)" is `part_words`, not yet shown) a training job longer than its time limit saves a
   checkpoint on the scheduler's warning signal, is re-queued under the same job id, and resumes
   from the checkpoint; the job's row reads "running (part 2)". *Test:* fixture with a
   two-minute limit and a trainer stub: the run completes across two parts with no repeated

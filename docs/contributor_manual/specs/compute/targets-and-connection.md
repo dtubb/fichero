@@ -273,16 +273,18 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### A Slurm cluster
 
-- `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
-  the private half is stored only in the Keychain, the one key store (`ai/ai-settings.md` (section K)); the
-  public half is shown with Copy, to be added to the person's **own** cluster account, and can be
-  shown again. Removing the target deletes the private half.
-  *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
-  read public half twice (same), remove target, assert the secret is gone.
-  One key per cluster site (one site's clusters share it), in a file of its own; a passphrase, if
-  set, is kept in the Keychain (reference flow, 2026-10-04).
+- `compute.secret.fichero-makes-the-key` — **[PARTIAL]** (#5238; ruled by the manager 2026-10-17: engine-folder storage replaces the Keychain, because the engine may be remote and the app's Keychain would be on the wrong Mac; `POST /api/hpc/clusters/{id}/key/make`, 409 if one exists; `GET .../key/public` shows the public half again; tests `fichero-server/tests/unit/api/test_routes_hpc.py` `TestMakeTheKey` and `TestThePrivateKeyStaysInTheEngineFolder`, `tests/unit/remote_read/test_ssh_second_factor.py`; the app's Add-a-cluster sheet is `AddClusterSheet`, parse-checked only) for an SSH target Fichero makes an Ed25519 key pair
+  with the system `ssh-keygen` (`-N ''`: **no passphrase**). The private half is stored as a plain file, 0600, in a
+  0700 folder `hpc-keys/<cluster>/` of the engine's state folder. It is readable by processes running as that person
+  (the same exposure as `~/.ssh`); the cluster's second factor is what guards it. No route ever returns the private
+  half (only `/key/public`), it is never in a library export, sync or backup bundle (only the key module and its routes
+  name the folder; a test fails if another module does), and deleting the cluster or its key deletes it. The public
+  half is shown with Copy, to be added to the person's **own** cluster account, and can be shown again.
+  *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create, read public half twice
+  (same), delete the cluster, assert the key file and its folder are gone; assert the modes.
+  One key per cluster, in a file of its own.
 
-- `compute.secret.ccdb-guided` — **[GAP]** (#5454, #5238) adding the public key to the cluster account
+- `compute.secret.ccdb-guided` — **[PARTIAL]** (#5454, #5238; `AddClusterSheet` copies the public half and links the account page, parse-checked only; the automatic retry while a new key reaches the clusters is not built) adding the public key to the cluster account
   (CCDB on the Alliance) is guided in the app: the public half is copied, and the account page is
   linked. A new key can take minutes to reach the clusters, so the app says so and retries the
   connection on its own until it is accepted or the person stops it. *Test:* the SSH fixture
@@ -297,7 +299,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   subprocess (one ControlMaster connection, no new dependency; asyncssh ruled out), never from `~/.ssh`:
   the key is the one the app pushes into the engine's own state folder (`hpc-keys/<cluster>/id_ed25519`, mode
   0600, under `FICHERO_BASE_PATH`), passed with `-i` and `IdentitiesOnly`. That folder is inside the app's
-  container, so it works in the sandbox. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
+  container, so it works in the sandbox. The open connection's socket lives in `hpc-ssh` beside it (mode 0700, refused if a symlink or owned by another user); when that path is too long for a unix socket (about 100 bytes) it is a per-user `/tmp/fichero-ssh-<uid>` with the same checks, and a pre-created folder is refused, never used. *Existing data:* `SshShell` (`remote_read/slurm_target.py`) and the one
   argv builder `remote_jobs.build_ssh_command`, which is also what "show me what will run" displays. Not yet:
   a check against the SSH fixture in the sandboxed build. *Test:* `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py`.
 - `compute.connect.second-factor-passes-through` — **[PARTIAL]** (#5238; ruled 2026-10-17) when the far side asks for a
@@ -307,8 +309,7 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
   refusal, a time-out or a wrong answer ends the attempt with a typed failure naming the reason. The master is opened
   without `BatchMode` (which would forbid asking); every later command reuses it. *Test:*
   `fichero-server/tests/unit/remote_read/test_ssh_second_factor.py` (a fake ssh with a keyboard-interactive step:
-  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). Not yet: the app's
-  sheet that shows the prompt (Swift).
+  the prompt text reaches the broker, a right answer connects, a wrong or refused one raises). The app's sheet is written (`HpcSignInService`, `HpcSignInSheet`, parse-checked, NOT built or run); nothing presents it yet because the Add-a-cluster row is not built.
   For a push factor (Duo), the app says to approve on the phone. The app says which credential is
   being asked for, because a wrong key passphrase falls back to the account password (seen on
   Rorqual, 2026-10-04).

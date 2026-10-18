@@ -168,8 +168,8 @@
   "sha256": "0ee565bd85620221df667efae544b494af5f09b0520ee4541aa4b2d928079beb"
  },
  "transcribe_auto_detect.json": {
-  "preset_version": 7,
-  "sha256": "bfbc0f62fc8f6aa8c6cc16a5a2df1107006878ce4eb08965c4486d84c6f6ab87"
+  "preset_version": 8,
+  "sha256": "e09163ef65fe8db319307c5e384d819b1ffb1fceb50bacac183ce0fba29084ec"
  },
  "transcribe_cloud.json": {
   "preset_version": 5,

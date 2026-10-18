@@ -247,6 +247,9 @@ async def delete_cluster(
         raise HTTPException(status_code=404, detail=f"HPC cluster not found: {cluster_id}")
     del clusters[cluster_id]
     _save_clusters(app_db, clusters)
+    from fichero_server.remote_read.ssh_prompts import remove_cluster_key
+
+    remove_cluster_key(cluster_id)  # the key goes with its cluster (compute.secret.fichero-makes-the-key)
     _broadcast_hpc_change()
     return DeletedResponse(status="deleted")
 
@@ -393,6 +396,49 @@ async def delete_cluster_key(
     return HpcKeyState(cluster_id=cluster_id, has_key=False)
 
 
+class HpcPublicKey(BaseModel):
+    cluster_id: str
+    public_key: str = Field(description="To add to the person's own cluster account (CCDB on the Alliance).")
+
+
+@router.post("/clusters/{cluster_id}/key/make", response_model=HpcPublicKey)
+async def make_cluster_key(
+    cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> HpcPublicKey:
+    """Fichero makes the cluster's key pair (`compute.secret.fichero-makes-the-key`): the private half stays in the
+    engine's folder, the public half is returned to be added in CCDB. 409 if a key is already made."""
+    import asyncio
+
+    from fichero_server.remote_read.ssh_prompts import KeyExists, make_cluster_key as make
+
+    _require_cluster(app_db, cluster_id)
+    try:
+        public = await asyncio.to_thread(make, cluster_id)
+    except KeyExists as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=500 if isinstance(exc, RuntimeError) else 400, detail=str(exc)) from exc
+    return HpcPublicKey(cluster_id=cluster_id, public_key=public)
+
+
+@router.get("/clusters/{cluster_id}/key/public", response_model=HpcPublicKey)
+async def get_cluster_public_key(
+    cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
+    app_db: AppDatabase = Depends(get_app_database),
+) -> HpcPublicKey:
+    """The public half again, to copy into CCDB; never the private one."""
+    from fichero_server.remote_read.ssh_prompts import public_key
+
+    _require_cluster(app_db, cluster_id)
+    public = public_key(cluster_id)
+    if public is None:
+        raise HTTPException(status_code=404, detail="no key is made for this cluster yet")
+    return HpcPublicKey(cluster_id=cluster_id, public_key=public)
+
+
 @router.get("/prompts", response_model=HpcPromptList)
 async def list_prompts(_owner: None = Depends(_require_owner_or_bootstrap)) -> HpcPromptList:
     """What a cluster login is waiting on (a second factor, a passphrase), for the app to show."""
@@ -409,8 +455,13 @@ async def answer_prompt(
 ) -> HpcPromptList:
     from fichero_server.remote_read.ssh_prompts import prompt_broker
 
-    if not prompt_broker().answer(prompt_id, body.answer):
-        raise HTTPException(status_code=404, detail="no such prompt (answered, refused or timed out)")
+    broker = prompt_broker()
+    if not broker.answer(prompt_id, body.answer):
+        if broker.ended(prompt_id) == "expired":
+            raise HTTPException(status_code=410, detail="That prompt expired before it was answered: sign in again.")
+        if broker.ended(prompt_id) == "refused":
+            raise HTTPException(status_code=410, detail="That prompt was refused: sign in again.")
+        raise HTTPException(status_code=404, detail="no such prompt (already answered)")
     return await list_prompts(None)
 
 

@@ -286,7 +286,7 @@ class Choice:
 #: The hard constraints, in the order they are tried; a refused card names the first it fails. The
 #: code is what setup shows (in words, with a fix), the raw reason what the Inspector and log keep.
 _CONSTRAINTS = ("no-model-for-job", "no-model-for-script", "no-model-for-language", "no-model-for-language",
-                "no-reader-for-material", "no-reader-for-period", "licence-not-accepted", "cloud-not-allowed",
+                "no-reader-for-material", "licence-not-accepted", "cloud-not-allowed",
                 "not-enough-memory")
 
 
@@ -294,7 +294,10 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
     """(code, raw reason) for why `card` cannot do `job` for this project, or None if it may."""
     if job not in card.jobs:
         return "no-model-for-job", "its card does not name this job"
-    if card.scripts is not None and not (a.scripts <= card.scripts):
+    # Fraktur and Gaelic type are Latin: a Latin reader fits them (#5516), the exact one ranking first. Han variants
+    # stay apart (`no-cross-script-reader`: a Japanese card never reads Traditional or Simplified Chinese).
+    if card.scripts is not None and not all(x in card.scripts or (x in _LATIN_VARIANTS and "Latn" in card.scripts)
+                                            for x in a.scripts):
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
@@ -305,9 +308,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
     if (material == "handwriting" and card.handwriting_scripts is not None
             and not (a.scripts <= card.handwriting_scripts)):
         return "no-reader-for-material", "it reads this script printed, never handwritten"
-    if job in READING_JOBS and material == "handwriting" and in_period(card, a) is False:
-        return "no-reader-for-period", (f"it was made for pages of {card.period[0]}–{card.period[1]}, "
-                                        "not the project's period")
+    # A period is never a refusal: another period, or none stated, only lowers the rank (`_period_rank`, ruled 2026-10-17).
     if not card.open_licence:
         return "licence-not-accepted", _licence_words(card.licence)
     if not card.local and card.runs_on.startswith("cloud:") and not a.cloud_allowed:
@@ -332,7 +333,6 @@ _FIXES = {
     "no-model-for-script": ["download", "choose-cloud", "choose-model"],
     "no-model-for-language": ["download", "choose-cloud", "choose-model"],
     "no-reader-for-material": ["download", "choose-model"],
-    "no-reader-for-period": ["download", "choose-model"],
     "licence-not-accepted": ["accept-licence", "choose-model"],
     "cloud-not-allowed": ["allow-cloud", "choose-model"],
     "not-enough-memory": ["choose-cloud", "choose-model"],
@@ -359,8 +359,6 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
         return f"No {noun} here knows {_and([language_name(t) for t in sorted(a.languages)])} yet."
     if code == "no-reader-for-material":
         return f"No {noun} here is made for {material}."
-    if code == "no-reader-for-period":
-        return f"No {noun} here was made for pages written in {a.period or 'this period'}."
     if code == "licence-not-accepted":
         return f"The {noun} that fits has a licence you have not accepted yet."
     if code == "cloud-not-allowed":
@@ -372,6 +370,7 @@ def _sentence(code: str, job: str, a: Answers, material: str) -> str:
 NEAREST = 3
 #: A script's parent: the script a variant of it is filed under (Fraktur and Gaelic are Latin; Simplified and
 #: Traditional Han are Han; the Syriac and Arabic styles their script). ISO 15924 data, not a model's name.
+_LATIN_VARIANTS = frozenset({"Latf", "Latg"})
 _PARENT = {"Latf": "Latn", "Latg": "Latn", "Hans": "Hani", "Hant": "Hani", "Syre": "Syrc", "Syrj": "Syrc",
            "Syrn": "Syrc", "Aran": "Arab", "Cyrs": "Cyrl"}
 #: A script's parts, where ISO 15924 names a whole made of others (Japanese is Han plus the kana).
@@ -583,14 +582,6 @@ def _choose(job: str, cards: list[Card], a: Answers, material: str | None = None
     # Best first (`source.recipe.candidates-fallback-chain`, ruled 2026-10-17): a cloud candidate is already out
     # unless pages may leave; local and cheaper only break ties inside the accuracy band (`_rank_key`).
     pool = kept
-    if job in READING_JOBS and material == "handwriting" and a.period:
-        # A reader that states no period is offered and measured, never the rules' choice, for handwriting of a
-        # stated period (#5714): nothing says it reads that hand, and its failure would show only as a poor score.
-        stated = [c for c in pool if c.period is not None] or [c for c in kept if c.period is not None]
-        if not stated:
-            gap = "no reader states that it reads pages of this period; the bake-off measures the ones that state none"
-            return Choice(job, None, gap=gap, problem=_problem(job, cards, a, material, gap))
-        pool = stated
     if job == "find-lines" and material in APPLE_LINES_MATERIALS:
         # Print and typescript: Apple finds the lines and keeps no text; a hand is Kraken's (#5451, ruled 2026-10-17).
         pool = [c for c in pool if c.pin == APPLE_LINES_PIN] or pool
