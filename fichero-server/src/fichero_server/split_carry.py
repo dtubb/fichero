@@ -9,8 +9,8 @@ passes of their own, so a recipe's "already done" sees the work.
 
 A page's results that are not yet rows (a transcription's boxes in an artifact) are converted first,
 the same conversion an edit makes, so the carry sees one kind of record. Every kind of segment is
-carried, each with its readings: a region and a line by where its centre falls, a segment inside one
-(a word in its line) with the one it sits in, so it stays inside it. The spread's artifacts are not
+carried, each with its readings: a region and a line by where its own centre falls, a word or character
+with the line it sits in, so it stays inside it; a segment whose outer one went to the other half has none. The spread's artifacts are not
 carried.
 """
 from __future__ import annotations
@@ -37,6 +37,8 @@ _TOLERANCE = 1e-6
 LINE = "line"
 #: Outer segments first, so a segment inside one goes with it (#5452).
 _DEPTH = {"region": 0, LINE: 1, "word": 3, "character": 4}
+#: The kinds that sit inside a line and go with it, wherever their own centre falls.
+_INSIDE_A_LINE = frozenset({"word", "character"})
 
 
 def _bounds(anchor: SourceAnchor) -> tuple[float, float, float, float]:
@@ -116,7 +118,10 @@ def carry_readings_over(db: Any, parent: Document, children: list[Document]) -> 
                     f"{segment.kind} {segment.id} is measured on rendition {segment.anchor.rendition_id}, not on "
                     "the page's own frame, so its place in a half cannot be worked out from the split's regions")
             bounds = _bounds(segment.anchor)
-            child_id = placed.get(segment.parent_segment_id or "") or _half_for(bounds, regions)
+            # a word or a character goes with its line; a region and a line go by their own centre, so a region
+            # over the gutter never takes a page of lines to the wrong half (review 63)
+            inside = segment.kind in _INSIDE_A_LINE and placed.get(segment.parent_segment_id or "")
+            child_id = inside or _half_for(bounds, regions)
             if child_id is None:
                 report["unplaced"].append(segment.id)
                 continue
