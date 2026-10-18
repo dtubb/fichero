@@ -11,6 +11,7 @@ import base64
 import logging
 import os
 import secrets
+import threading
 import time
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
@@ -782,6 +783,8 @@ def delete_user(
 CHALLENGE_TTL_SECONDS = 60
 SIGN_IN_FAILURES_PER_MINUTE = 10
 _REFUSED = HTTPException(status_code=401, detail="sign-in refused")
+MAX_OUTSTANDING_CHALLENGES = 5  # per client: a flood of challenges cannot grow memory
+_engine_id_lock = threading.Lock()
 _challenges: dict[str, tuple[str, int]] = {}  # nonce -> (client_id, expires_at, whole seconds)
 _sign_in_failures: dict[str, list[float]] = {}  # client_id -> failure times
 
@@ -800,7 +803,7 @@ class ChallengeResponse(BaseModel):
 class SignInRequest(BaseModel):
     client_id: str
     nonce: str
-    signature: str  # base64 ECDSA-P256-SHA256 over _sign_in_message(...)
+    signature: str  # base64 of the DER ECDSA-P256-SHA256 signature (CryptoKit derRepresentation) over _sign_in_message(...)
 
 
 class SignInClient(BaseModel):
@@ -831,10 +834,11 @@ def _live_client(app_db: AppDatabase, client_id: str):
 
 def _engine_id(app_db: AppDatabase) -> str:
     """This engine's own id, made once and kept: what a sign-in signature is bound to (review 98)."""
-    engine_id = app_db.get_setting("engine_id")
-    if not engine_id:
-        engine_id = secrets.token_urlsafe(16)
-        app_db.set_setting("engine_id", engine_id)
+    with _engine_id_lock:  # get-then-set must not race: two ids would make half the signatures fail
+        engine_id = app_db.get_setting("engine_id")
+        if not engine_id:
+            engine_id = secrets.token_urlsafe(16)
+            app_db.set_setting("engine_id", engine_id)
     return engine_id
 
 
@@ -864,6 +868,9 @@ def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_data
     now = time.time()
     for stale in [n for n, (_, exp) in _challenges.items() if exp <= now]:
         del _challenges[stale]
+    mine = [n for n, (cid, _) in _challenges.items() if cid == body.client_id]  # insertion order = oldest first
+    for old in mine[: max(0, len(mine) - MAX_OUTSTANDING_CHALLENGES + 1)]:
+        del _challenges[old]
     nonce = secrets.token_urlsafe(32)
     expires_at = int(now) + CHALLENGE_TTL_SECONDS
     _challenges[nonce] = (body.client_id, expires_at)
@@ -893,15 +900,18 @@ def sign_in(body: SignInRequest, app_db: AppDatabase = Depends(get_app_database)
         )
     )
     if not ok:
-        _sign_in_failures[body.client_id] = [*recent, now]
+        # Only a live client is counted: sign-in is reachable over TCP and unknown ids must not grow this dict.
+        if client is not None:
+            _sign_in_failures[body.client_id] = [*recent, now]
         raise _REFUSED
     user = app_db.get_user(client.user_id)
     if user is None or not user.active:
         raise _REFUSED
     raw_token = accounts.new_session_token()
     token_hash = accounts.hash_token(raw_token)
-    app_db.create_session(user_id=user.id, token_hash=token_hash, device_label=client.name, ttl=SESSION_TTL)
-    app_db.set_session_client(token_hash, client.id)
+    app_db.create_session(
+        user_id=user.id, token_hash=token_hash, device_label=client.name, ttl=SESSION_TTL, client_id=client.id
+    )
     return SignInResponse(
         session_token=raw_token,
         user=_to_public_user(user),
