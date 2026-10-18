@@ -483,6 +483,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/samples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/feast-days.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/frontier-cloud-providers.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/iso15924.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-autonyms.txt

@@ -42,9 +42,14 @@ def _count(entry: dict[str, Any], metric: str) -> int | None:
 
 
 def rows(catalog: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-    """The catalogue's datasets as discovery keeps them, in the catalogue's order."""
+    """The catalogue's datasets as discovery keeps them, in the catalogue's order. A catalogue that is not an
+    object of objects raises ValueError (the finder says it could not be read and keeps the last one)."""
+    if not isinstance(catalog, dict) or not all(isinstance(e, dict) for e in catalog.values()):
+        raise ValueError("HTR-United's catalogue is not a list of datasets by id")
     out = []
     for entry in catalog.values():
+        if not all(isinstance(entry.get(k) or [], list) for k in ("language", "script", "volume")):
+            raise ValueError(f"HTR-United's dataset {entry.get('title')!r} lists its languages or scripts wrongly")
         licence = entry.get("license")
         licence = licence[0] if isinstance(licence, list) and licence else licence
         out.append({
