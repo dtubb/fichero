@@ -6356,7 +6356,7 @@ def fichero_recipes_save_project_setup(
     answers: Annotated[Optional[dict[str, Any]], Field(description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")] = None,
     recipe: Annotated[Optional[dict[str, Any]], Field(description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")] = None,
 ) -> Any:
-    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
+    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet\nalso store the recipe the rules assemble from them (#5747); a recipe already stored is kept.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
@@ -7581,12 +7581,13 @@ def fichero_segments_update(
     kind_raw: Annotated[Optional[str], Field(description='The kind as the source format named it.')] = None,
     language: Annotated[Optional[str], Field(description="The segment's language, a BCP 47 tag.")] = None,
     mark_state: Annotated[Optional[str], Field(description="The segment's one mark: ticked, crossed, struck or none. One of: ticked, crossed, struck, none.")] = None,
+    no_writing_model: Annotated[Optional[str], Field(description='The reader (model) that looked at this line and found no writing on it: the line counts as read for that reader, and a different one looks again (#5758).')] = None,
     parent_segment_id: Annotated[Optional[str], Field(description='The segment this one now sits inside.')] = None,
     script: Annotated[Optional[str], Field(description="The segment's script, an ISO 15924 code.")] = None,
     segment_id_2: Annotated[str, Field(description='The segment to change.')],
 ) -> Any:
     'Update Segment\n\nRoute: PUT /api/segments/{segment_id} (toolset `segments`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "mark_state": mark_state, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
+    return _rt.call("PUT", f"/api/segments/{segment_id}", json=_rt.body({"anchor": anchor, "baseline": baseline, "direction": direction, "expected_version": expected_version, "is_furniture": is_furniture, "kind": kind, "kind_raw": kind_raw, "language": language, "mark_state": mark_state, "no_writing_model": no_writing_model, "parent_segment_id": parent_segment_id, "script": script, "segment_id": segment_id_2}))
 
 
 def fichero_segments_correct_line(
