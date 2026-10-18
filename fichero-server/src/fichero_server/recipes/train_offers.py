@@ -18,13 +18,21 @@ TITLE = "Train a model of your own for this step"
 THIS_MAC = {"place": "this-mac", "name": "this Mac"}
 HF_JOBS = {"place": "huggingface-jobs", "name": "Hugging Face Jobs"}
 
+#: The teacher that means the person's own corrected lines (`training.kraken_set.PERSON`, #5700).
+PERSON = "person"
+
 #: Per trainable job, its ways to train: (method, how, says, [(place, action that starts it)]); no places: not
 #: available yet, with why. Places are the ones the engine trains on today; a cluster (ACENET) or another Mac
 #: is not one yet (no training path), so neither is listed.
 WAYS: dict[str, list[dict[str, Any]]] = {
     "read-a-line": [
-        # The Kraken and MLX trainers learn from a teacher's line readings (`training/kraken_set.py`: no line in
-        # the set is a person's), so both are distillations of the reader the project already uses.
+        # The lines a person corrected are the lessons (#5700, teacher `person`): what the readiness counts, so it
+        # comes first and is what starts by itself under `here`.
+        {"method": "kraken", "how": "fine-tune", "teacher": PERSON,
+         "says": "Fine-tune a Kraken reader on the lines you corrected",
+         "targets": [(THIS_MAC, "training.start_here"), (HF_JOBS, "training.start")]},
+        # The Kraken and MLX trainers can also learn from a teacher's line readings, distilling the reader the
+        # project already uses.
         {"method": "kraken", "how": "distil",
          "says": "Train a Kraken reader of your own on the lines your reader read",
          "targets": [(THIS_MAC, "training.start_here"), (HF_JOBS, "training.start")]},
@@ -84,7 +92,7 @@ def _does(mode: str) -> str:
             "offered": "Training is offered here when the corrected lines reach the threshold; you start it."}[mode]
 
 
-def _params(action: str, job: str, counts: dict[str, Any]) -> dict[str, Any] | None:
+def _params(action: str, job: str, counts: dict[str, Any], teacher: str | None = None) -> dict[str, Any] | None:
     """What the app posts with `action`, as-is (#5660 item 9): the engine fills it, never the app. None when the
     engine cannot yet (no teacher: no reader has read this project's lines)."""
     scope = counts.get("scope_ids") or []
@@ -93,7 +101,7 @@ def _params(action: str, job: str, counts: dict[str, Any]) -> dict[str, Any] | N
     if action == "training.start_regions_here":
         return {"name": "regions", "scope_ids": scope}
     if action in _TAUGHT:
-        teacher = counts.get("teacher")
+        teacher = teacher or counts.get("teacher")
         if not teacher:
             return None
         params = {"scope_ids": scope, "teacher": teacher}
@@ -108,7 +116,8 @@ def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None) 
     counts = counts or {}
     out = []
     for way in WAYS[job]:
-        targets = [{**place, "starts": action, "params": _params(action, job, counts)} for place, action in way["targets"]
+        targets = [{**place, "starts": action, "params": _params(action, job, counts, way.get("teacher"))}
+                   for place, action in way["targets"]
                    if not (stays_local and place is not THIS_MAC)]  # pages kept on this Mac never leave it
         why = way.get("why")
         if way["targets"] and not targets:

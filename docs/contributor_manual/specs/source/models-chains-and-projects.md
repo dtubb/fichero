@@ -4476,6 +4476,10 @@ Each is described in the paragraph named; the id lets a test cite it.
 - `source.find.htr-united-and-tessdata` — **[GAP]** (#5571) discovery reads HTR-United's catalogue (ground-truth datasets by language, script,
   period and hand, offered as a bake-off test set and fine-tuning data, ground truth only, licence respected) and Tesseract's tessdata.
 - `source.train.on-the-persons-corrections` — **[GAP]** (#5700) a reader is fine-tuned on the person's corrected lines, not only distilled from a
-  model's lines, and the readiness count matches what it trains on.
+  model's lines, and the readiness count matches what it trains on. *Offer built (#5700, m-recipes-r3): the line reader's
+  first way is "Fine-tune a Kraken reader on the lines you corrected" (teacher `person`, this Mac or Hugging Face Jobs),
+  the material its corrected-lines readiness counts, and the way that starts by itself under `here`; distilling a model's
+  lines stays a second way (`fichero-server/tests/unit/recipes/test_train_on_corrections_5700.py`). Needs the set's
+  teacher `person` (51d6dde8e, m-acenet) on integration to run.*
 - `source.train.noise-band-per-project` — **[GAP]** (#5692) a project's noise band is measured (CER spread over three held-out splits, 0.5 until
   measured), stored and served, so a comparison says when a difference is noise.
