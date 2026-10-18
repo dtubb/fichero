@@ -34,3 +34,17 @@ def test_summary_uses_singular_claim_label_for_one_claim():
     assert inspector._compose_entity_summary(entity, [KnowledgeClaim(text="claim")], []) == (
         "Place · 1 claim"
     )
+
+
+def test_stale_reason_is_the_vector_reason_or_none():
+    """#5360: the Inspector response carries why the stored vector is out of date."""
+    from unittest.mock import MagicMock
+
+    entity = KnowledgeEntity(id="e1", canonical_name="Alice", entity_type=EntityType.person)
+    db = MagicMock()
+    db.entity_embedding_text.return_value = "Alice"
+    db.stale_reasons.return_value = {"e1": "text-changed"}
+    assert inspector._stale_reason(db, entity) == "text-changed"
+    db.stale_reasons.return_value = {}
+    assert inspector._stale_reason(db, entity) is None
+    assert "stale_reason" in inspector.EntityInspectorResponse.model_fields
