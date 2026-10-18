@@ -218,7 +218,7 @@ def test_a_folder_not_in_the_project_is_refused(client, db, archive, steps):
 
 
 def test_every_step_finishes_a_batch_before_the_next_batch(client, db, archive, steps, monkeypatch):
-    """source.recipe.batch-at-archive-scale: a batch is one folder or at most BATCH_PAGE_LIMIT pages, whichever is
+    """source.recipe.batch-at-archive-scale and source.onboard.auto.volumes-in-batches: a batch is one folder or at most BATCH_PAGE_LIMIT pages, whichever is
     smaller, and every step finishes on it before the next batch starts. WHY: each step was handed every page of
     the project at once, so no volume was readable until all of them had been through every step."""
     from fichero_server.recipes import runner
