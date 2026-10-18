@@ -71,6 +71,7 @@ class _PairingCode:
     expires_at: datetime
     used: bool = False
     paired_by_device_id: str | None = None  # the paired device that minted it (#5351)
+    ambient: bool = False  # minted by the host app (no signed-in person): the device must say who it is
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -557,6 +558,7 @@ def create_pairing_code(
         user_id=user.id,
         expires_at=expires_at,
         paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
+        ambient=_use_multiuser_auth() and _current_session_user(request) is None,
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
@@ -613,6 +615,11 @@ def pair_device(
                 raise HTTPException(status_code=403, detail="user is disabled")
             user_id = chosen.id
         if _use_multiuser_auth():
+            if chosen is None and record.ambient:
+                # The host owner is never ambient on a remote device: the device says who it is.
+                raise HTTPException(
+                    status_code=401, detail="person required: this library uses Multi-user, sign in as a person"
+                )
             user = chosen or app_db.get_user(record.user_id)
             if user is None or not user.active:
                 record.used = True
