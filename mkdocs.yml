@@ -482,6 +482,7 @@ nav:
           - Transport:
               - "Engine Transport: HTTPS / UDS / In-Memory": contributor_manual/specs/transport/transport-http-uds.md
               - Library Sharing: contributor_manual/specs/transport/library-sharing.md
+              - Multi-user always on: contributor_manual/specs/transport/multiuser-always-on.md
           - UI:
               - About: contributor_manual/specs/ui/about.md
               - Activity & Automatic Work: contributor_manual/specs/ui/activity-and-automatic-work.md

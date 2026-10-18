@@ -34,3 +34,10 @@ struct NoteStaleCompareView: View {
         .frame(maxWidth: .infinity)
     }
 }
+
+#Preview {
+    NoteStaleCompareView(
+        comparison: NoteStaleComparison(mine: "Letter to Ann, draft two.", theirs: "Letter to Ann, sent Tuesday."),
+        onChoose: { _ in }
+    )
+}
