@@ -484,18 +484,21 @@ async def get_thread_history(
         # Check if thread exists
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
         latest_tuple = await checkpointer.aget_tuple(config)
-
+        finished = None
         if not latest_tuple:
-            raise HTTPException(
-                status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
-            )
+            # A run that finished clean has no checkpoint (#5376): its steps come from its record.
+            finished = await get_activity_tracker(str(db.path)).store.get_workflow_run(thread_id)
+            if finished is None or finished.status != "completed":
+                raise HTTPException(
+                    status_code=404, detail=f"No checkpoint found for thread: {thread_id}"
+                )
 
         # workflow_id is in channel_values (CheckpointMetadata is LangGraph-
         # internal; cannot carry user fields — see #1079).
-        thread_state = latest_tuple.checkpoint.get("channel_values", {})
+        thread_state = latest_tuple.checkpoint.get("channel_values", {}) if latest_tuple else {}
         workflow_id = (
             (thread_state.get("workflow_id") if isinstance(thread_state, dict) else None)
-            or latest_tuple.metadata.get("workflow_id")
+            or (latest_tuple.metadata.get("workflow_id") if latest_tuple else finished.workflow_id)
             or "unknown"
         )
         store = WorkflowStore(db)
