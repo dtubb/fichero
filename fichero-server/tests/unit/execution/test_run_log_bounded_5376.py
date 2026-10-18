@@ -41,3 +41,11 @@ def test_the_runner_keeps_its_log_in_one():
 
     src = inspect.getsource(runner)
     assert "execution_log_lines = BoundedLog()" in src and "list(execution_log_lines)" not in src
+
+
+def test_the_complete_frame_omits_big_final_state_values():
+    from fichero_server.execution.run_log import bounded_final_state
+
+    got = bounded_final_state({"small": [1], "big": "x" * 5000}, limit=100)
+    assert got["small"] == [1] and got["big"] == {"omitted": 5002}
+    assert bounded_final_state(None) is None

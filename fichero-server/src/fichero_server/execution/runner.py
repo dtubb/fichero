@@ -25,7 +25,7 @@ from fichero_server.execution.cancellation import (
     clear_pause,
     pause_requested,
 )
-from fichero_server.execution.run_log import BoundedLog
+from fichero_server.execution.run_log import BoundedLog, bounded_final_state
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_steps import close_open_steps
@@ -2501,7 +2501,7 @@ async def _run_workflow_in_background(
             "checkpoint_id": checkpoint_tuple.checkpoint["id"]
             if checkpoint_tuple
             else None,
-            "final_state": final_state,
+            "final_state": bounded_final_state(final_state),
             "duration_ms": total_duration_ms,
         }
         if completion_metadata.get("empty_output"):
