@@ -529,6 +529,10 @@ async def resume_workflow(
         # (`activity.run.resume-keeps-model`, #5373), as read-again does.
         started = await activity_tracker.store.get_workflow_run(thread_id)
         snapshot = started.workflow_snapshot if started and isinstance(started.workflow_snapshot, dict) else {}
+        # ... and the graph it started with, from the same snapshot (`activity.run.resume-from-snapshot`, #5373).
+        from fichero_server.workflows.resume_snapshot import as_started  # noqa: PLC0415
+
+        workflow = as_started(workflow, snapshot)
         started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
         exec_request = ExecuteWorkflowRequest(
             workflow_id=workflow_id,
