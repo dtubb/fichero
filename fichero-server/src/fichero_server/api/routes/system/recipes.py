@@ -258,6 +258,9 @@ class LeftOffStep(BaseModel):
     job: str
     title: str
     sentence: str
+    offered: Optional[dict[str, Any]] = Field(default=None, description=(
+        "Correct offered at Ready (ruled Q3 2026-10-17, #5677): a cloud corrector whose provider has a key set here, "
+        "`card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"))
 
 
 class AssembledRecipe(BaseModel):
@@ -821,6 +824,12 @@ def _optional_library(request: Request) -> Optional[Path]:
     return _library(get_library_database(request, path)) if path else None
 
 
+def _providers_with_keys() -> list[str]:
+    from fichero_server.recipes.derived import _providers_with_keys as keyed
+
+    return keyed()
+
+
 def _answers(answers: dict[str, Any]) -> Answers:
     """Setup's answers as the rules read them (the one place they are turned into `Answers`)."""
 
@@ -834,7 +843,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
         job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
-        search_embedder=search_embedder(),
+        search_embedder=search_embedder(), cloud_keys=tuple(_providers_with_keys()),
     )
 
 
