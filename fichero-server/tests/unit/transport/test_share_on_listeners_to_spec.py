@@ -35,6 +35,7 @@ def backend_main_owner(app_db):
 
 
 def test_an_update_with_a_paired_device_keeps_the_local_listener(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_LAN_HOST", "studio.local")  # sharing over .local: a pre-route device is LAN
     _pair_device(app_db)
     assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1", LAN]
 
@@ -101,3 +102,18 @@ def test_a_direct_pairing_is_recorded_as_lan(harness):
     code = harness.host().post("/api/pair/code").json()["code"]
     paired = harness.remote().post("/api/pair", json={"code": code, "device_name": "iPad"})
     assert harness.app_db.device_route(paired.json()["device_id"]) == "lan"
+
+
+# A device paired before the route was recorded counts as LAN only while this Mac shares over .local (review 78).
+
+
+def test_a_legacy_device_counts_as_lan_when_this_mac_shares_over_dot_local(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_LAN_HOST", "studio.local")
+    _paired_over(app_db, None)
+    assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1", LAN]
+
+
+def test_a_legacy_device_counts_as_tailscale_when_this_mac_does_not_share_over_dot_local(app_db, monkeypatch):
+    monkeypatch.setenv("FICHERO_LAN_HOST", LAN)
+    _paired_over(app_db, None)
+    assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1"]
