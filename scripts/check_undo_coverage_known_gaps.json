@@ -477,5 +477,8 @@
   "POST /api/hpc/clusters/{cluster_id}/sign-in": "nothing to undo: opens the one connection to the cluster; no library data changes (#5238)",
   "POST /api/hpc/clusters/{cluster_id}/check": "nothing to undo: reads the login node (hostname, storage, Apptainer, GPUs, fair share) and changes nothing (#5454)",
   "POST /api/reading-at-scale/jobs/{job_id}/catch-up": "nothing to undo: asks the engine to look at the far side now; no library data changes (#5740)",
-  "POST /api/hpc/clusters/{cluster_id}/key/make": "not undoable by design: makes the cluster's key pair in the engine's folder; removing the key (DELETE .../key) is its inverse (#5238)"
+  "POST /api/hpc/clusters/{cluster_id}/key/make": "not undoable by design: makes the cluster's key pair in the engine's folder; removing the key (DELETE .../key) is its inverse (#5238)",
+  "POST /api/auth/challenge": "sign-in handshake: issues a one-time nonce, changes no library data - nothing to undo (multiuser-always-on, #2403)",
+  "POST /api/auth/sign-in": "signs a client in (a session, like POST /api/auth/login); not undoable, the session is ended by revoking the client (multiuser-always-on, #2403)",
+  "POST /api/auth/first-run": "creates the owner once, UDS and launch secret only; reversed by the owner reset, not by undo (multiuser-always-on, #2403)"
 }
