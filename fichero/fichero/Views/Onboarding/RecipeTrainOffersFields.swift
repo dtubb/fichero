@@ -39,7 +39,7 @@ struct RecipeTrainOffersFields: View {
             Button("Send the Pages and Train") { start(pending, pagesMayLeave: true) }
             Button("Cancel", role: .cancel) { askingToSend = nil }
         } message: { pending in
-            Text("The project's pages and their lines go to \(pending.target.name) to train the model there.")
+            Text("Your pages and corrected lines are copied to \(pending.target.name) to train there. The copy is deleted when training ends.")
         }
         // Opened straight on Train (Project › Train › Train a Model…): the offers are on the project's Start plan,
         // read here when no page before has read it (a folder's plan is not the project's).

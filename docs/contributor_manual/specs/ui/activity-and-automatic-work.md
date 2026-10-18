@@ -524,9 +524,21 @@ workflow by hand: a hand run is a job like any other.
   `BackgroundTasks`), legacy chains (`api/routes/workflow/chains.py`, → #4949), the companion thumbnail
   or display picture warmed after a picture request (`api/routes/system/storage.py`), and the inline
   re-embed of a direct text edit (`activity.auto.reembed-on-change`).
-- `activity.remote-under-its-step` — **[GAP]** (#5240, #5353) a remote job a run starts (a Hugging
-  Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's;
-  today reading at scale and training are top-level rows of their own.
+- `activity.remote-under-its-step` — **[PARTIAL]** (#5240, #5353, #5740) a remote job a run starts (a Hugging
+  Face Job, a cluster job) is a child of the step that sent it, its far-side state its own row's. Built (engine):
+  `ReadAtScaleRequest.parent_job_id` hangs the run under its step (`jobs.set_parent`); the Activity row (`GET
+  /api/activity/jobs`, `BackgroundJob.remote`) says target, far-side state (queued / running / done / failed),
+  shards done of total, pages landed, and what it offers; the Inspector's status (`GET
+  /api/reading-at-scale/jobs/{id}`) lists each shard (state, tries, reason, last lines, seconds) and sets the
+  estimate (pages, shards, GPU-hours from a pilot's rate) beside the actual. Not yet: the recipe step passing its
+  id (the recipes lane), a "landing" state between done and landed, the Swift row and Inspector. Test:
+  `fichero-server/tests/unit/api/test_remote_runs_in_activity.py`,
+  `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py`.
+- `activity.remote.actions` — **[PARTIAL]** (#5740) Cancel (`POST /api/reading-at-scale/jobs/{id}/cancel`, cancels the
+  far-side shards), Retry failed shards (`.../resend-failed`, only those) and Catch up (`.../catch-up`: a live run
+  skips its next wait; a run the scheduler dropped is queued again and carries on from its recorded shards), the
+  same for Hugging Face and a cluster. Not yet: the buttons (Swift). Test:
+  `fichero-server/tests/unit/remote_read/test_read_at_scale_job.py`.
 - `activity.jobs.failed-at` — **[OK]** (2026-10-11) every job in `GET /api/activity/jobs` (`BackgroundJob`)
   carries `failed_at`: for a failed job, when it failed (ISO 8601, UTC; a queued job's end, a workflow run's
   completion); null for any other, and null again once it is retried. So the popover's recent errors say when each
@@ -628,6 +640,11 @@ workflow by hand: a hand run is a job like any other.
   under it has no price, and nothing when no model was called, never "$0"
   (`ActivityTableTests` `testActivityWindowMeasures_theColumnsCarryTimeCostErrorsAndModelRolledUp`).
   Not yet seen in the app.
+- `activity.window.clear-finished` — **[PARTIAL]** (#5016) *Clear Finished…* in the window's toolbar,
+  after one confirmation, soft-deletes every ended run (completed, failed, stopped) in every open
+  project, the same delete as Delete (`deleteRuns(statuses:)`); runs still going stay. ⌘A then Delete
+  already works on the table (`.onDeleteCommand`). Pinned by `ActivityClearFinishedShapeTests`. Not
+  yet seen in the app. Left: the first row drawn under the title bar (needs a screen).
 - `activity.window.clear-failed` — **[PARTIAL]** (#5634, ruled 2026-10-09) *Clear Failed* in the
   window's toolbar clears every failed row the window shows, in every open project and this Mac's
   own: failed workflow runs (`workflow_run.delete` with a status filter, soft-deleted as before) and

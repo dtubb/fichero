@@ -81,7 +81,7 @@ struct SetupWhereItLivesFields: View {
 }
 
 /// How sources come in (ruled 2026-10-03 and 2026-10-05, `source.onboard.five-ways-in`): Link,
-/// Copy, Move, Index or Keep arranged, each with what it does to the originals. Link is the
+/// Copy, Move, Index or Keep arranged, each with what it does to the originals. Copy is the
 /// default; Move says plainly that the originals go. Keep arranged (#5480) imports as Index and,
 /// after its dry run and the person's yes, keeps the folder arranged.
 struct ProjectIntakeChoice: View {
@@ -207,7 +207,7 @@ struct RecipeAboutFields: View {
             if !store.proposedScripts.isEmpty {
                 // #5626: the usual script of each language chosen is put in; the pages may say otherwise.
                 Text("Proposed from the languages: \(store.proposedScripts.keys.sorted().map(store.name(of:)).joined(separator: ", ")). "
-                     + "Remove or add scripts if the pages are written otherwise.")
+                     + "Remove or add writing systems if the pages are written otherwise.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -229,6 +229,8 @@ struct RecipeAboutFields: View {
             }
             Divider()
             Text("Material").font(.headline)
+            Text("Handwriting, print or typescript decides which reader is tried.")
+                .font(.caption).foregroundStyle(.secondary)
             FlowLayout(spacing: 16) {
                 ForEach(RecipeSetupStore.materialKinds, id: \.self) { kind in
                     Toggle(kind.capitalized, isOn: Binding(
@@ -285,7 +287,7 @@ struct CodeTokenField: View {
     @State private var query = ""
     @State private var matches: [RecipeSetupStore.CodeChoice] = []
 
-    private var title: String { scripts ? "Scripts" : "Languages" }
+    private var title: String { scripts ? "Writing system" : "Languages" }
     private var codes: [String] { scripts ? store.scripts : store.languages }
     private var unchosen: [RecipeSetupStore.CodeChoice] { matches.filter { !codes.contains($0.code) } }
 
@@ -328,7 +330,7 @@ struct CodeTokenField: View {
     }
 
     private var field: some View {
-        TextField(title, text: $query, prompt: Text(scripts ? "Type to find, e.g. Latin" : "Type to find, e.g. Spanish"))
+        TextField(title, text: $query, prompt: Text(scripts ? "e.g. Latin alphabet, Arabic, Cyrillic" : "e.g. Spanish, Latin"))
             .labelsHidden()
             .onChange(of: query) { _, text in take(text) }
             .onSubmit {

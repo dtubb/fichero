@@ -62,16 +62,26 @@ enum InlineWords {
         return size
     }
 
+    /// The transcription family setup derived or a pane chose (#5438), else the system font. The bundled face is the
+    /// base with the cascade behind it, so a letter it lacks still finds the faces that have it.
+    private static func font(_ size: CGFloat, family: String?) -> NSFont {
+        let cascade = BundledFonts.loadedCascade
+        guard let family, let face = BundledFonts.face(family: family, in: cascade) else {
+            return NSFont.systemFont(ofSize: size)
+        }
+        return BundledFonts.ctFont(base: face, size: size, cascade: cascade) as NSFont
+    }
+
     /// The attributes a reading is drawn with at `size`. The size is COMPUTED from the box (it has to
     /// match the word it stands in for, at any zoom), so this is the one place a point size is given
     /// rather than a semantic text style: no text style describes "as tall as this box".
-    private static func attributes(_ size: CGFloat, alignment: NSTextAlignment) -> [NSAttributedString.Key: Any] {
+    private static func attributes(_ size: CGFloat, alignment: NSTextAlignment, family: String?) -> [NSAttributedString.Key: Any] {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = alignment
-        return [.font: NSFont.systemFont(ofSize: size), .paragraphStyle: paragraph]
+        return [.font: font(size, family: family), .paragraphStyle: paragraph]
     }
 
-    static func draw(_ text: String, direction: String?, in rect: CGRect) {
+    static func draw(_ text: String, direction: String?, in rect: CGRect, family: String? = nil) {
         let alignment: NSTextAlignment
         if SegmentLabel.layout(text, direction: direction).vertical {
             alignment = .center
@@ -79,9 +89,9 @@ enum InlineWords {
             alignment = direction == "rtl" ? .right : .left
         }
         let placed = layout(text, direction: direction, in: rect) { string, points in
-            (string as NSString).size(withAttributes: attributes(points, alignment: alignment))
+            (string as NSString).size(withAttributes: attributes(points, alignment: alignment, family: family))
         }
-        var drawn = attributes(placed.fontSize, alignment: alignment)
+        var drawn = attributes(placed.fontSize, alignment: alignment, family: family)
         drawn[.foregroundColor] = NSColor.labelColor
         // Drawn across the box's full width with the alignment placing it, so a rounding hair in the
         // measure can never wrap a row. Text is set from the frame's top (high y in this unflipped

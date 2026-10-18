@@ -273,16 +273,18 @@ Where targets appear in Settings (`compute.target.lives-in-ai-settings`) moved t
 
 ### A Slurm cluster
 
-- `compute.secret.fichero-makes-the-key` — **[GAP]** (#5238) for an SSH target Fichero makes an Ed25519 key pair;
-  the private half is stored only in the Keychain, the one key store (`ai/ai-settings.md` (section K)); the
-  public half is shown with Copy, to be added to the person's **own** cluster account, and can be
-  shown again. Removing the target deletes the private half.
-  *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create,
-  read public half twice (same), remove target, assert the secret is gone.
-  One key per cluster site (one site's clusters share it), in a file of its own; a passphrase, if
-  set, is kept in the Keychain (reference flow, 2026-10-04).
+- `compute.secret.fichero-makes-the-key` — **[PARTIAL]** (#5238; ruled by the manager 2026-10-17: engine-folder storage replaces the Keychain, because the engine may be remote and the app's Keychain would be on the wrong Mac; `POST /api/hpc/clusters/{id}/key/make`, 409 if one exists; `GET .../key/public` shows the public half again; tests `fichero-server/tests/unit/api/test_routes_hpc.py` `TestMakeTheKey` and `TestThePrivateKeyStaysInTheEngineFolder`, `tests/unit/remote_read/test_ssh_second_factor.py`; the app's Add-a-cluster sheet is `AddClusterSheet`, parse-checked only) for an SSH target Fichero makes an Ed25519 key pair
+  with the system `ssh-keygen` (`-N ''`: **no passphrase**). The private half is stored as a plain file, 0600, in a
+  0700 folder `hpc-keys/<cluster>/` of the engine's state folder. It is readable by processes running as that person
+  (the same exposure as `~/.ssh`); the cluster's second factor is what guards it. No route ever returns the private
+  half (only `/key/public`), it is never in a library export, sync or backup bundle (only the key module and its routes
+  name the folder; a test fails if another module does), and deleting the cluster or its key deletes it. The public
+  half is shown with Copy, to be added to the person's **own** cluster account, and can be shown again.
+  *Existing data:* none; saved clusters have no key and read "Needs a key". *Test:* create, read public half twice
+  (same), delete the cluster, assert the key file and its folder are gone; assert the modes.
+  One key per cluster, in a file of its own.
 
-- `compute.secret.ccdb-guided` — **[GAP]** (#5454, #5238) adding the public key to the cluster account
+- `compute.secret.ccdb-guided` — **[PARTIAL]** (#5454, #5238; `AddClusterSheet` copies the public half and links the account page, parse-checked only; the automatic retry while a new key reaches the clusters is not built) adding the public key to the cluster account
   (CCDB on the Alliance) is guided in the app: the public half is copied, and the account page is
   linked. A new key can take minutes to reach the clusters, so the app says so and retries the
   connection on its own until it is accepted or the person stops it. *Test:* the SSH fixture

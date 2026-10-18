@@ -207,6 +207,8 @@ class LibraryManager {
         /// This project's bake-off (#4951, Check on your pages): started in setup or the project
         /// Inspector, it runs as a job in Activity and is read back from here by both.
         @ObservationIgnored lazy var bakeoffStore = BakeoffStore(client: ficheroClient)
+        /// The family this project's transcription text is drawn in (#5438), one per project.
+        @ObservationIgnored lazy var transcriptionFontStore = TranscriptionFontStore(client: ficheroClient)
         /// The line finders' comparison for Find lines (#5660 item 7), kept apart from the readers'.
         @ObservationIgnored lazy var lineBakeoffStore = BakeoffStore(client: ficheroClient, step: BakeoffStore.lineStep)
 

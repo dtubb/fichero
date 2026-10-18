@@ -34,14 +34,14 @@ WAYS: dict[str, list[dict[str, Any]]] = {
         # The Kraken and MLX trainers can also learn from a teacher's line readings, distilling the reader the
         # project already uses.
         {"method": "kraken", "how": "distil",
-         "says": "Train a Kraken reader of your own on the lines your reader read",
+         "says": "Train a reader on the lines you have corrected",
          "targets": [(THIS_MAC, "training.start_here"), (HF_JOBS, "training.start")]},
         {"method": "mlx-vision-lora", "how": "distil",
-         "says": "Distil a vision model's readings into a small MLX model (LoRA)",
+         "says": "Make a small, fast reader from the best model's readings",
          "targets": [(HF_JOBS, "training.start_vision_lora")]},
     ],
     "find-regions": [
-        {"method": "yolo", "how": "fine-tune", "says": "Fine-tune a YOLO layout model on your corrected regions",
+        {"method": "yolo", "how": "fine-tune", "says": "Train the region finder on the regions you corrected",
          "targets": [(THIS_MAC, "training.start_regions_here")]},
     ],
     "find-names-tag-words": [

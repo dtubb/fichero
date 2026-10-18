@@ -1,8 +1,6 @@
 import SwiftUI
 
-/// What an empty pane says: which pane it is and what would fill it (#5273). A row of identical
-/// "No selection" labels did neither. Same shape as the Segments pane's `ContentUnavailableView`
-/// (icon, title, one line of what to do). The Library pane has no entry: it always shows its
+/// What an empty pane says to VoiceOver: which pane it is and what would fill it (#5273). Drawn BLANK. The Library pane has no entry: it always shows its
 /// location, even an empty one.
 enum PaneEmptyState: String, CaseIterable {
     case reader
@@ -32,9 +30,13 @@ enum PaneEmptyState: String, CaseIterable {
         }
     }
 
+    /// Blank (`panes.empty-state.blank`, ruled 2026-10-11): the title and hint are VoiceOver's, not drawn.
     var view: some View {
-        ContentUnavailableView(title, systemImage: systemImage, description: Text(hint))
+        Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityElement()
+            .accessibilityLabel(title)
+            .accessibilityHint(hint)
             .accessibilityIdentifier("paneEmptyState.\(rawValue)")
     }
 }

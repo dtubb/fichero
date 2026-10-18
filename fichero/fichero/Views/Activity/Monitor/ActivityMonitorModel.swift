@@ -391,7 +391,7 @@ extension ActivityMonitorRow {
             name: job.name,
             projectName: projectName,
             phase: Phase(job.state),
-            reason: job.reason,
+            reason: job.remote?.words ?? job.reason,
             workingOn: nil,
             done: job.current,
             total: job.total,
