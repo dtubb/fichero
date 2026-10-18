@@ -558,22 +558,21 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
 
 def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, bound_cluster: str | None = None,
                pages_per_second: float | None = None) -> list[dict[str, Any]]:
-    """Where each read step runs and what a run that size costs, for the step row (#5589). With no measured rate the
-    sizing says a pilot measures it; a cluster is bound to a step by nothing yet, so `bound_cluster` is None."""
+    """Each read run says where it runs (`place`, `target`, `why`) and what a run that size costs (`sizing`), for
+    its step row (`source.recipe.placement-by-scale`, #5589). With no measured rate the sizing says a pilot measures
+    it. A cluster is bound to a step by nothing yet (`runs-on-binds-to-a-target`), so `bound_cluster` is None."""
     from fichero_server.recipes.placement import place_step
     from fichero_server.remote_read.sizing import size_run
 
-    out = []
     for run in runs:
         if run.get("job") != "read-a-line":
             continue
-        placed = place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster)
+        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster))
         try:
-            sizing: Any = size_run(pages, pages_per_second=pages_per_second or 0)
+            run["sizing"] = size_run(pages, pages_per_second=pages_per_second or 0)
         except ValueError:
-            sizing = "measured by a 1,000-page pilot"
-        out.append({"steps": run["steps"], **placed, "sizing": sizing})
-    return out
+            run["sizing"] = "measured by a 1,000-page pilot"
+    return runs
 
 
 def _size_words(size_mb: int | None) -> str:
