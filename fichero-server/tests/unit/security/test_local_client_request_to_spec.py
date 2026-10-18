@@ -12,7 +12,7 @@ from tests.signed_in import new_key, signature_for, signed_in_client, uds_client
 from tests.unit.security.test_sharing_probe_2026_10_01 import _multiuser_on, harness  # noqa: F401
 
 BASE = "/api/auth/local-clients"
-PEER = {"uid": os.getuid(), "pid": 4242, "exe": "/usr/local/bin/fichero", "signer": "Fichero"}
+PEER = {"uid": os.getuid(), "pid": 4242, "token": "aa" * 32, "exe": "/usr/local/bin/fichero", "signer": "Fichero"}
 ASK = {"kind": "cli", "name": "fichero CLI", "host": "MacBook Pro"}
 
 
@@ -114,7 +114,7 @@ def test_another_program_cannot_register_for_an_allowed_request(harness, monkeyp
     request_id = _ask(harness).json()["id"]
     harness.client().post(f"{BASE}/requests/{request_id}/decision", json={"allow": True}, headers=owner.headers)
     _key, pem = new_key()
-    thief = {**PEER, "pid": 9999, "exe": "/usr/bin/python3"}
+    thief = {**PEER, "pid": 9999, "token": "bb" * 32, "exe": "/usr/bin/python3"}
     stolen = uds_client(harness, thief).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert stolen.status_code == 404
 
@@ -123,3 +123,26 @@ def test_the_bootstrap_token_is_not_the_owner_here(harness, monkeypatch):
     _owner(harness, monkeypatch)
     http = harness.client()
     assert http.get(BASE + "/switches", headers={"Authorization": "Bearer " + harness.bootstrap}).status_code == 403
+
+
+def test_one_program_cannot_fill_the_owners_list(harness, monkeypatch):
+    from fichero_server.api.routes.auth import accounts as routes
+
+    _users, owner = _owner(harness, monkeypatch)
+    _switch_on(harness, owner, cli=True)
+    codes = [_ask(harness).status_code for _ in range(routes.MAX_PENDING_PER_PROGRAM + 1)]
+    assert codes[-1] == 429 and codes[:-1] == [200] * routes.MAX_PENDING_PER_PROGRAM
+    other = {**PEER, "pid": 7, "token": "cc" * 32, "exe": "/usr/local/bin/other"}
+    assert _ask(harness, peer=other).status_code == 200
+
+
+def test_a_reused_pid_is_a_different_program(harness, monkeypatch):
+    # Same pid and path, but the audit token (which carries the pid version) differs: not the program that asked.
+    _users, owner = _owner(harness, monkeypatch)
+    _switch_on(harness, owner, cli=True)
+    request_id = _ask(harness).json()["id"]
+    harness.client().post(f"{BASE}/requests/{request_id}/decision", json={"allow": True}, headers=owner.headers)
+    _key, pem = new_key()
+    reused = {**PEER, "token": "dd" * 32}
+    stolen = uds_client(harness, reused).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
+    assert stolen.status_code == 404
