@@ -8,4 +8,4 @@ is generated from, so both ends hash the same document.
 """
 
 CONTRACT_VERSION = "2026.10.11"
-CONTRACT_SHA256 = "abd404de693d0ab1fc35f97338bae989fcf0c5acad0b10c4058d5b5fd9740771"
+CONTRACT_SHA256 = "eee39b78008decc18cc02808ee8b140545be1b98154d7e2844dd809e9a143441"
