@@ -1223,10 +1223,12 @@ and node, not by job); a retry action for failed pages.
   per-job attribution, and GPU and Neural Engine use (the OS gives no per-process figure without root).
 - `activity.lane.overlap-different-processors` — **[GAP]** (#5358, #5370) a CPU-bound step and a GPU-bound
   step can run at the same time when memory allows; two steps on the same processor do not.
-- `activity.lane.idle-unload` — **[PARTIAL]** (#5358, #5529) a resident model with no work is unloaded after a short idle
-  time. Built for Kraken: its line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
-  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`; `fichero-server/tests/unit/jobs/test_engine_memory.py`).
-  Still a gap: the other resident models (the embedder, a local model server).
+- `activity.lane.idle-unload` — **[OK]** (#5358, #5529) a resident model with no work is unloaded after a short idle
+  time. Kraken's line finder, reader and the reader's two line-extraction processes are let go after 120 s without a
+  page (`llm/kraken_runtime.py` `IDLE_RELEASE_SECONDS`, `_release_if_idle`); an embedding model no embed holds after
+  600 s (`db/embeddings.py` `EMBEDDER_IDLE_SECONDS`, `release_idle_embedders`); an engine-started local model server
+  after 600 s (`api/routes/ai/local_inference.py` `IDLE_STOP_SECONDS`). Tests: `fichero-server/tests/unit/jobs/test_engine_memory.py`,
+  `fichero-server/tests/unit/db/test_embedding_model_only_while_needed.py`.
 - `activity.throttle.watched-first` — **[PARTIAL]** (#5358) a job a person is waiting
   on goes first in its lane at utility QoS. Built (2026-10-04): handed-in work (a page of a run a
   person started) is ordered first on the local-model lane, and a long background job (training)
