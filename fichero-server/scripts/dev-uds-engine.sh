@@ -58,7 +58,7 @@ case "$MODE" in
     SECRET_FILE="$(dirname "$SOCK")/launch-secret"
     ( umask 077; openssl rand -hex 32 | tr -d '\n' > "$SECRET_FILE" )
     chmod 600 "$SECRET_FILE"
-    ( FICHERO_PARENT_PID=none FICHERO_UDS_PATH="$SOCK" FICHERO_DEV_LAUNCH_SECRET_FILE="$SECRET_FILE" nohup "$SCRIPT_DIR/start_fichero_server.sh" --uds --reload >"$LOG" 2>&1 & )
+    ( FICHERO_PARENT_PID=none FICHERO_UDS_PATH="$SOCK" FICHERO_ENV=development FICHERO_DEV_LAUNCH_SECRET_FILE="$SECRET_FILE" nohup "$SCRIPT_DIR/start_fichero_server.sh" --uds --reload >"$LOG" 2>&1 & )
     for _ in $(seq 1 90); do uds_alive && break; sleep 0.5; done
     ;;
   https)

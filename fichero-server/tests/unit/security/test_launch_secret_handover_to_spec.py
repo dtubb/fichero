@@ -64,7 +64,7 @@ def test_start_up_reads_the_dev_file_when_named(tmp_path):
     path = tmp_path / "launch-secret"
     path.write_text(SECRET)
     path.chmod(0o600)
-    launch_secret.load_at_startup({"FICHERO_DEV_LAUNCH_SECRET_FILE": str(path)}, io.StringIO(""))
+    launch_secret.load_at_startup({"FICHERO_ENV": "development", "FICHERO_DEV_LAUNCH_SECRET_FILE": str(path)}, io.StringIO(""))
     assert launch_secret.matches(SECRET)
 
 
@@ -76,3 +76,23 @@ def test_start_up_with_neither_leaves_first_run_closed():
 def test_the_secret_never_enters_the_environment(tmp_path):
     launch_secret.load_at_startup({"FICHERO_LAUNCH_SECRET_STDIN": "1"}, io.StringIO(SECRET + "\n"))
     assert SECRET not in os.environ.values()
+
+
+@pytest.mark.parametrize("env", [{}, {"FICHERO_ENV": "production"}])
+def test_the_dev_file_is_ignored_outside_development(tmp_path, env):
+    path = tmp_path / "launch-secret"
+    path.write_text(SECRET)
+    path.chmod(0o600)
+    launch_secret.load_at_startup({**env, "FICHERO_DEV_LAUNCH_SECRET_FILE": str(path)}, io.StringIO(""))
+    assert not launch_secret.matches(SECRET)
+
+
+def test_a_symlinked_secret_file_is_refused(tmp_path):
+    real = tmp_path / "real"
+    real.write_text(SECRET)
+    real.chmod(0o600)
+    link = tmp_path / "link"
+    link.symlink_to(real)
+    with pytest.raises(OSError):
+        launch_secret.read_from_file(str(link))
+    assert not launch_secret.matches(SECRET)

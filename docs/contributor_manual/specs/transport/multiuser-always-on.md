@@ -80,6 +80,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   audit token (`LOCAL_PEERTOKEN`) and runs the code-signing check on that token, never by mapping a pid to a path
   afterwards (pids get reused, a time-of-check race); the executable path shown is read from the same token. Loopback TCP serves only the network side (paired devices, who sign in with keys or passwords like
   anyone else); it carries no local-client routes and no bootstrap.
+- **[GAP] (→ #5797) The embedded app does not yet hand the secret to its engine on stdin** (`EmbeddedBackendService+Spawn.swift`). Until #5797 is landed and built, no slice may enforce sign-in or the removal of the ambient owner: first run and sign-in must not fail in the embedded app (manager rule, 2026-10-18).
 - **The launch secret** (replaces "the bootstrap token" on the sensitive routes): 32 random bytes made by the app at
   each launch, handed to the engine it spawns over an inherited pipe (never an environment variable, argv or a file),
   held only in the app's memory and the engine's memory. It authorises exactly three routes: first-run,
@@ -89,7 +90,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   (`~/Library/Containers/app.fichero.fichero/Data/tmp/fichero.sock`), so the app did not spawn it. Once an owner exists
   the Dev Local app needs no launch secret at all: it signs in with the owner's Keychain key over the UDS like any
   local client. For FIRST RUN only (no owner yet) the script passes the secret to the engine on stdin and writes it
-  0600 into the app's container next to the socket; the app reads it once and deletes it. Until it is deleted any process of the same user can read it: **accepted for Debug builds only**, where the user is also the developer. That file path is compiled out of
+  0600 into the app's container next to the socket; the app reads it once and deletes it. Until it is deleted any process of the same user can read it: **accepted for Debug builds only**, and the engine honours the file only when `FICHERO_ENV=development` (which the dev script sets) and opens it with `O_NOFOLLOW` and an `fstat` on the open descriptor, where the user is also the developer. That file path is compiled out of
   Release, Beta and App Store builds, which only ever spawn their own engine. Tests start the engine in-process with a
   fixed test secret. One rule everywhere: the engine takes the secret on stdin at start-up; only Debug has a file.
 - **Session lifetime:** app and device sessions last 12 h, sliding; CLI/MCP sessions last 1 h and renew by silent
@@ -195,7 +196,7 @@ the CLI and the MCP operator keep working after every slice.
 1. **Slice 1: tables + challenge**: the `clients` table (the person-level `credentials` table arrives with the slice that registers person keys: slice 4 and 8), the challenge and sign-in routes, sessions carry `(person, client)`. Additive; nothing removed. Contract regen.
 2. **Slice 2: audit columns**: person AND client on audit rows, change events, background jobs, Activity.
 3. **Slice 3: test-fixture migration**: the `signed_in_client` helper; every existing test moves to it and the new guard `check_no_ambient_owner_in_tests` lands in warn mode.
-4. **Slice 4: App sign-in**: first-run route (UDS + launch secret), the Keychain owner key, silent sign-in, the launch-secret pipe in the embedded, Dev Local and test engines.
+4. **Slice 4: App sign-in** (the synchronized Keychain access group the iPhone and Mac share is slice 7's): first-run route (UDS + launch secret), the Keychain owner key, silent sign-in, the launch-secret pipe in the embedded, Dev Local and test engines.
 5. **Slice 5: Migration**: owner key via migrate-owner, device tokens → clients, flag retirement, banner. Reviewed against a copy of Daniel's real library, never the live one.
 6. **Slice 6: CLI and MCP sign-in**: the two switches, UDS-only client request, verified-peer approval sheet, client-owned keys, the no-credential flow, signed single-binary CLI/MCP.
 7. **Slice 7: More devices + iOS**: synced-key registration, approval request/QR, sign-in options order.
