@@ -167,6 +167,37 @@ def mark_no_writing(db: Any, segment_ids: list[str], *, model: str | None, run_i
                                                 "no_writing_model": model or ""}, ctx)
 
 
+class _Lines(list):
+    """The shown rows regrouped by line, with the lines that hold a person's word (left as the person read them)."""
+    people: set[str]
+
+
+def _as_lines(db: Any, shown: list[tuple[str, str | None, str]], answer: list[str]) -> _Lines | None:
+    """When the page's words were listed by their lines (`tool_context._grouped_into_lines`) and the answer names those
+    lines, the rows as lines: (line id, None, the words' text joined). A line's correction is then a reading of the
+    line, derived from no word's reading, and the words keep theirs. None otherwise."""
+    from fichero_server.models import ContentRepresentation, Segment
+    from fichero_server.tool_context import line_of_word
+
+    words = {row.id: row for row in db.query_in(Segment, "id", [sid for sid, _, _ in shown])}
+    parents = {row.id: row for row in db.query_in(
+        Segment, "id", [w.parent_segment_id for w in words.values() if w.parent_segment_id])}
+    lines = {sid: line_of_word(words.get(sid), parents) for sid, _, _ in shown}
+    if not shown or any(line is None for line in lines.values()):
+        return None
+    named = {answer_line(a)[0] for a in answer}
+    if not named & {line.id for line in lines.values()}:
+        return None
+    by_line: dict[str, list[str]] = {}
+    for sid, _rid, text in shown:
+        by_line.setdefault(lines[sid].id, []).append(text)
+    out = _Lines((line_id, None, " ".join(texts)) for line_id, texts in by_line.items())
+    reps = db.query_in(ContentRepresentation, "id", [rid for _, rid, _ in shown if rid])
+    out.people = {lines[r.segment_id].id for r in reps
+                  if getattr(r.provenance_kind, "value", r.provenance_kind) == "human" and r.segment_id in lines}
+    return out
+
+
 #: What a correcting step's per-page result says when its text cannot be put onto the page's lines.
 NOT_TIED = "not tied to lines"
 #: The flag a review gives each line (`source.job.review-is-segment-native`).
@@ -228,6 +259,9 @@ def correct_lines(
     if not shown:
         return [], f"{NOT_TIED}: the page has no read lines; kept as the page's review"
     answer = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    grouped = _as_lines(db, shown, answer)
+    if grouped is not None:  # the words were listed by their lines: a correction is a reading of the line (#5648)
+        shown = grouped
     ids = {segment_id for segment_id, _, _ in shown}
     by_id: dict[str, str] = {}
     unreadable: set[str] = set()
@@ -247,11 +281,15 @@ def correct_lines(
     else:
         return [], (f"{NOT_TIED}: the review gave {len(answer)} line(s) for the page's {len(shown)}; "
                     "kept as the page's review")
-    counting = {r.id: r for r in db.query_in(ContentRepresentation, "id", [rid for _, rid, _ in shown])}
+    counting = {r.id: r for r in db.query_in(ContentRepresentation, "id", [rid for _, rid, _ in shown if rid])}
+    people_lines = getattr(grouped, "people", set()) if grouped is not None else set()
     readings, derived_from, people = [], {}, 0
     for segment_id, representation_id, old in shown:
         new = corrected.get(segment_id)
         if not new or segment_id in unreadable or " ".join(new.split()) == " ".join(old.split()):
+            continue
+        if representation_id is None and segment_id in people_lines:
+            people += 1
             continue
         kind = getattr(counting.get(representation_id), "provenance_kind", None)
         if getattr(kind, "value", kind) == "human":

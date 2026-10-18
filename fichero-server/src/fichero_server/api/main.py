@@ -1090,6 +1090,21 @@ async def lifespan(app: FastAPI):
 
     warm_started = asyncio.create_task(_warm_after_ready())
 
+    async def _load_mcp_tools() -> None:
+        """An enabled MCP server's tools are in the workflow registry from start (#5760), off the bind path."""
+        try:
+            from fichero_server.workflows.tools.mcp import note_load_result, sync_mcp_tools_from_db
+
+            await sync_mcp_tools_from_db()
+            note_load_result(None)
+        except Exception as exc:
+            from fichero_server.workflows.tools.mcp import note_load_result
+
+            note_load_result(exc)
+            logger.warning("MCP tools did not load at start: %r", exc)
+
+    mcp_tools_started = asyncio.create_task(_load_mcp_tools())
+
     _api_stamp("lifespan pre-yield complete")
     yield
     signal_sse_shutdown()
@@ -1132,6 +1147,7 @@ async def lifespan(app: FastAPI):
     # `_first_registry_200_signal.wait()` (a short-lived process that never
     # saw a real `/api/registry` 200), and awaiting an un-cancelled wait here
     # would hang shutdown on traffic that may never come.
+    mcp_tools_started.cancel()
     warm_started.cancel()
     with suppress(asyncio.CancelledError):
         await warm_started

@@ -64,9 +64,12 @@ def _set(value) -> frozenset[str] | None:
 def kraken_reader_for(pin: dict) -> str | None:
     """The model id under which this Mac fetches and runs the Kraken reader a Zenodo pin names: the
     catalogue's id, or `kraken-zenodo-<n>` for any other reader in Kraken's repository (fetched
-    through the same download job, which checks the record is a Kraken recognition model)."""
+    through the same download job, which checks the record is a Kraken recognition model); a `trained` pin is
+    the id of a reader Fichero trained, already on this Mac."""
     from fichero_server.llm.kraken_runtime import KRAKEN_RECOGNITION_MODELS, reader_id_for_doi
 
+    if pin.get("trained"):  # a reader Fichero trained and adopted for this project (#5700)
+        return str(pin["trained"])
     if not pin.get("zenodo"):
         return None
     return next((rid for rid, row in KRAKEN_RECOGNITION_MODELS.items()

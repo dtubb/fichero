@@ -182,3 +182,20 @@ def test_a_page_the_reader_returned_nothing_for_is_unread_failed_and_read_again(
     assert set(unread_reasons(db, page).values()) == {NOTHING_FOR_PAGE}
     assert is_done(db, {"job": "read-a-line", "model_override": None}, page) is False, "a second Start reads it again"
     assert run_view.pages_read_nothing(db, [page]) == 1
+
+
+def test_the_summary_shows_the_lines_the_reader_saw_as_blank(db):
+    """Live M4 run: 36 blank lines on pages that also had text were left out, so 66 lines without text showed as 30."""
+    from fichero_server.llm.working_lines import mark_no_writing
+    from fichero_server.models.segments import Segment
+
+    page = _page(db, 4, 2)
+    unread = [s.id for s in db.query(Segment, document_id=page) if s.kind == "line"
+              and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page))]
+    mark_no_writing(db, unread, model="weak")
+    assert run_view.lines_seen_blank(db, [page]) == 2
+    summary = run_view.RecipeRunSummary(
+        job_id="j", state="done", finished=True, pages=5, pages_read=4, names=[], dates=0, statements=0, failed=[],
+        pages_failed=0, skipped=[], not_run=[], lines_seen_blank=36, pages_with_lines=4)
+    said = run_view._lines(summary, 0)
+    assert "36 lines the reader found no writing on" in said and "No lines found on 1 page" in said, said

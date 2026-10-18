@@ -115,10 +115,18 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
     _walk_forbidden(recipe, "", "", out)
 
     steps = recipe.get("steps") or []
+    if not isinstance(steps, list):
+        out.append("recipe.yaml: steps is not a list of steps")
+        steps = []
     seen_ids: set[str] = set()
     for index, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):  # a hand edit: a bare word where a step goes (#5364)
+            out.append(f"step {index}: is not a step ({step!r}); a step has an id and a job")
+            continue
         label = f"step {index} ({step.get('id', '?')})"
-        if step.get("id") in seen_ids:
+        if not step.get("id"):
+            out.append(f"{label}: has no id")
+        elif step.get("id") in seen_ids:
             out.append(f"{label}: another step already has this id")
         seen_ids.add(step.get("id"))
         job = get_job(step.get("job", ""))
@@ -149,9 +157,28 @@ def check_recipe(recipe: dict[str, Any], folder: Path | None = None) -> list[str
 
     # Material that is already text starts with the page's text, so its recipe needs no reading step (#5553).
     material = (recipe.get("suits") or {}).get("material")
-    out.extend(unmet_inputs([s.get("job", "") for s in steps],
+    out.extend(unmet_inputs([s.get("job", "") if isinstance(s, dict) else None for s in steps],
                             starts_with=starts_with([material] if isinstance(material, str) else material)))
+    _check_overrides(recipe.get("overrides"), seen_ids, out)
     return out
+
+
+def _check_overrides(overrides: Any, step_ids: set[str], out: list[str]) -> None:
+    """Each kept choice must name a step of this recipe and a scope (#5364): a hand edit that renamed a step left
+    the person's choice pointing nowhere. A removed step's record names a step that is gone by design."""
+    if overrides is None:
+        return
+    if not isinstance(overrides, list):
+        out.append("recipe.yaml: overrides is not a list")
+        return
+    for index, o in enumerate(overrides, start=1):
+        if not isinstance(o, dict):
+            out.append(f"override {index}: is not an override ({o!r})")
+            continue
+        if override_kind(o) != REMOVED_STEP and o.get("step") not in step_ids:
+            out.append(f"override {index}: names step {o.get('step')!r}, which this recipe does not have")
+        if o.get("scope") not in ("project", "folder"):
+            out.append(f"override {index}: scope {o.get('scope')!r} is not project or folder")
 
 
 REMOVED_STEP = "removed-step"
