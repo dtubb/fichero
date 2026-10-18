@@ -90013,6 +90013,15 @@
             "type": "array",
             "title": "Refused",
             "description": "every card refused for the step, and why"
+          },
+          "licence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Licence",
+            "description": "for licence-not-accepted: the card, the licence's name and the words the Review the licence button shows (source.onboard.every-setup-button-acts-or-says-why)"
           }
         },
         "type": "object",
