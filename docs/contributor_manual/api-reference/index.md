@@ -250,7 +250,8 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
 - `money_and_place` (#5769): the project's Hugging Face cap (`hf_spend_cap_usd`), whether working copies may
   stay on a cluster as it stands (`copies_may_stay_on_cluster`) and whether that still follows pages-may-leave
   because the person has not answered it (`copies_follow_pages_may_leave`), and the clusters set up here
-  (`clusters`, by name; the copies question applies only where there is one). This month's spend against the cap
+  (`clusters`, by name; the copies question applies only where there is one; empty for a caller who is not
+  the owner, as every `/api/hpc` route is owner-only, and so is the Start plan's cluster offer). This month's spend against the cap
   is on the Start plan (`hf_spend`).
 
 `GET /api/recipes/hands` · `GET`/`PUT /api/recipes/samples` · `POST`/`GET /api/recipes/stages/{stage}/try`
