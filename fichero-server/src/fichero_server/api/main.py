@@ -1093,10 +1093,14 @@ async def lifespan(app: FastAPI):
     async def _load_mcp_tools() -> None:
         """An enabled MCP server's tools are in the workflow registry from start (#5760), off the bind path."""
         try:
-            from fichero_server.workflows.tools.mcp import sync_mcp_tools_from_db
+            from fichero_server.workflows.tools.mcp import note_load_result, sync_mcp_tools_from_db
 
             await sync_mcp_tools_from_db()
+            note_load_result(None)
         except Exception as exc:
+            from fichero_server.workflows.tools.mcp import note_load_result
+
+            note_load_result(exc)
             logger.warning("MCP tools did not load at start: %r", exc)
 
     mcp_tools_started = asyncio.create_task(_load_mcp_tools())

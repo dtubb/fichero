@@ -51705,6 +51705,44 @@
         "title": "BakeoffNextRun",
         "description": "Who would take part in a bake-off started now and what it would cost, said before it starts (ruled\n2026-10-11): at most two readers of each kind, from what the finder found."
       },
+      "BakeoffOffer": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "what the comparison costs, first"
+          },
+          "run_cost_usd": {
+            "type": "number",
+            "title": "Run Cost Usd"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the corrected sample pages it would read"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready",
+            "description": "false until the project holds enough corrected lines"
+          },
+          "readiness_sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Readiness Sentence",
+            "description": "when not ready, what to correct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence",
+          "run_cost_usd",
+          "pages",
+          "ready"
+        ],
+        "title": "BakeoffOffer",
+        "description": "The bake-off offered on the Start plan: its cost said first, then whether the project can run it now."
+      },
       "BakeoffPage": {
         "properties": {
           "document_id": {
@@ -73001,6 +73039,11 @@
           "updated_at": {
             "type": "string",
             "title": "Updated At"
+          },
+          "last_load_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Last Load Error"
           }
         },
         "type": "object",
@@ -81412,11 +81455,24 @@
             "description": "the lines found on those pages that have no reading (#5758)",
             "default": 0
           },
+          "lines_seen_blank": {
+            "type": "integer",
+            "title": "Lines Seen Blank",
+            "description": "lines the reader looked at and found no writing on, on pages that also have text (#5758)",
+            "default": 0
+          },
           "pages_read_nothing": {
             "type": "integer",
             "title": "Pages Read Nothing",
             "description": "pages the reader returned nothing for, line by line: failed reads (#5758)",
             "default": 0
+          },
+          "next_reader": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Next Reader",
+            "description": "when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)"
           },
           "lines_unread_why": {
             "additionalProperties": {
@@ -90224,6 +90280,11 @@
             "type": "array",
             "title": "Train Offers",
             "description": "for each step a model can be trained for, how to train it on the corrected pages and where; offered later, never run at Start (#5660 item 9)"
+          },
+          "bakeoff_offer": {
+            "$ref": "#/components/schemas/BakeoffOffer",
+            "nullable": true,
+            "description": "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the recipe has no reading step (#5660 item 7)"
           },
           "refusals": {
             "items": {
