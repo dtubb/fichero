@@ -113,15 +113,21 @@ struct RecipeCloudQuestion: View {
 /// stand and which clusters exist; the app only asks.
 struct RecipeMoneyAndPlaceFields: View {
     @Bindable var store: RecipeSetupStore
+    @FocusState private var capFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if store.cloudAllowed {
                 HStack {
                     Text("Hugging Face spend a month, at most")
-                    TextField("0", value: $store.spendCapUsd, format: .currency(code: "USD"))
+                    // The engine refuses a cap below $0 (the save fails), so the field never holds one.
+                    TextField("0", value: Binding(get: { store.spendCapUsd },
+                                                  set: { store.spendCapUsd = $0.map { max($0, 0) } }),
+                              format: .currency(code: "USD"))
                         .multilineTextAlignment(.trailing).frame(maxWidth: 90)
+                        .focused($capFocused)
                         .onSubmit { Task { _ = await store.save() } }
+                        .onChange(of: capFocused) { _, focused in if !focused { Task { _ = await store.save() } } }
                 }
                 Text("$0 means paid offers stay offers: nothing paid starts without you. Spend shows against this on Start.")
                     .font(.caption).foregroundStyle(.secondary)
