@@ -1205,6 +1205,16 @@
         "response_model": "UserResponse"
       },
       {
+        "method": "POST",
+        "path": "/auth/migrate-owner",
+        "operation_id": "migrate_owner_api_auth_migrate_owner_post",
+        "summary": "Migrate Owner",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FirstRunRequest",
+        "response_model": "FirstRunResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/sessions",
         "operation_id": "list_sessions_api_auth_sessions_get",

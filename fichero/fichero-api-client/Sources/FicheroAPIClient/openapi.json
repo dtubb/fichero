@@ -2245,6 +2245,61 @@
         }
       }
     },
+    "/api/auth/migrate-owner": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Migrate Owner",
+        "description": "Give an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.",
+        "operationId": "migrate_owner_api_auth_migrate_owner_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Launch-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Launch-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirstRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirstRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/sign-in": {
       "post": {
         "tags": [
