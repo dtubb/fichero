@@ -1509,10 +1509,9 @@ code path.
   kept, and all are deleted when the run is done. Today every superstep's full state is stored
   (`workflows/checkpointer.py:39-57`) and rows go only when a thread is deleted
   (`api/routes/workflow_execution/threads.py:1002`).
-- `activity.run.live-run-never-evicted` — **[BROKEN]** (#5376) a live run is never dropped from
-  the engine's run registry. Today the registry cap evicts the first entry when none has finished
-  (`execution/runner.py:273-284`), and the reopen sweep then fails the evicted run
-  (`workflows/activity.py:681-689`).
+- `activity.run.live-run-never-evicted` — **[OK]** (#5376) a live run is never dropped from
+  the engine's run registry: the cap evicts only runs that have exited (`execution/runner.py`
+  `_cap_workflow_state_registry`); pinned by `fichero-server/tests/unit/workflows/test_live_run_never_evicted_5376.py`.
 - `activity.run.quit-pauses` — **[BROKEN]** (#5357) quitting pauses running runs at their next
   boundary, and they carry on at the next launch. Today engine shutdown only closes the SSE hubs
   (`api/main.py:1020-1022`), so quit is a crash, and on reopen every running, accepted and paused
@@ -1693,7 +1692,7 @@ is done exactly once, and no artifact is written twice.
 |-----|---------------|------|------|
 | Backend (pytest) | y | job rows, lease recovery, paused-stays-paused, nothing-twice, invalidation edges, re-extract on correction | `fichero-server/tests/unit/jobs/**` (new), extending `test_page_content_is_a_cache.py`, `test_activity_jobs.py`, `test_run_lifecycle_vocabulary.py` |
 | Pure rule (Swift) | y | table row model, roll-up, column formatting off-main | a new `JobsStoreTests.swift` under `fichero/Tests/Unit/general/` |
-| MCP / CLI | y | list jobs, pause all, pause/cancel one | `fichero-mcp/tests/test_mcp_full.py`; CLI generated from OpenAPI |
+| MCP / CLI | y | list jobs, pause all, pause/cancel one | `fichero-mcp/tests/test_mcp_generated.py`; CLI generated from OpenAPI |
 | Click-around (Mac) | y | pause all → island says paused → relaunch → still paused | `fichero/Tests/UI/…` |
 | Load (#4634) | y | 10,000 queued pages: bounded memory, no CPU peg, table pages | `fichero-server/tests/perf/…` |
 | iPhone / iPad | n | jobs are seen on the Mac first | — |

@@ -29,6 +29,18 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
 
     var savedName: String { rawValue }
 
+    /// What setup asks (ruled 2026-10-18, #5788): Index and Keep arranged are set on a synced folder in the Inspector.
+    static let setupChoices: [SetupWayIn] = [.copy, .link, .move]
+
+    /// The choice a saved way in lights in setup: an earlier Index or Keep arranged reads as Leave in place
+    /// (its folder keeps its mode in the Inspector).
+    var shownInSetup: SetupWayIn {
+        switch self {
+        case .index, .keepArranged: .link
+        default: self
+        }
+    }
+
     /// The import's own mode: Keep arranged imports as Index.
     var ingestMode: IngestMode {
         switch self {
@@ -41,7 +53,7 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .link: "Link"
+        case .link: "Leave in place"
         case .copy: "Copy"
         case .move: "Move"
         case .index: "Index"
@@ -196,6 +208,15 @@ struct RecipeSetupAnswers: Codable, Equatable {
             if isOn { levels.insert(level) } else { levels.remove(level) }
             let ordered = Self.normaliseLevels.map(\.id).filter(levels.contains)
             normaliseHowFar = ordered + normaliseHowFar.filter { $0.hasPrefix(Self.translationPrefix) }
+        }
+
+        /// What Start will run for "Into what", one entry per ticked level and one for a translation (the engine
+        /// makes one run for each, `recipes/start.py`).
+        var runTitles: [String] {
+            let levels = Self.normaliseLevels.filter { writes(level: $0.id) }.map(\.title)
+            guard let tag = translation else { return levels }
+            let name = JobQuestionFields.translationLanguages.first { $0.tag == tag }?.name ?? tag
+            return levels + ["Translation into \(name)"]
         }
 
         /// The language a translation is asked into (its tag), or nil for none.

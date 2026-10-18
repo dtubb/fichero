@@ -13,7 +13,7 @@ Provides:
 """
 
 from __future__ import annotations
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 import asyncio
 import concurrent.futures
@@ -63,6 +63,9 @@ from fichero_server.workflows.types import PortDef, DataType
 # does for parallel transcribe runs) races and intermittently raises
 # `KeyError(<symbol>)`. Module-load resolution happens once on the main
 # thread before any executor task can fire.
+# Every name the engine uses, under the lock, before the few below: this module's page-read threads use more
+# than they (CGImageGetWidth, CGRectMake, the destination calls) and the first use must not race (#5745).
+quartz_warm.warm()
 try:
     from Quartz import (  # noqa: F401  (imported for side-effect)
         CGImageSourceCreateWithURL,

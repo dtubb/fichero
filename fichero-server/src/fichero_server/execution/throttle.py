@@ -13,7 +13,7 @@ Every probe degrades to "no reason" when it cannot read its signal (not macOS, a
 missing, a sandbox refusal): an unreadable signal must never park the queue for good.
 """
 from __future__ import annotations
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 import logging
 import os
@@ -294,6 +294,7 @@ def thermal_state_level() -> int | None:
 def seconds_since_input() -> float | None:
     """Seconds since the person last touched keyboard or mouse, or None when unreadable."""
     try:
+        quartz_warm.warm()
         import Quartz
 
         return float(Quartz.CGEventSourceSecondsSinceLastEventType(

@@ -5276,96 +5276,6 @@ def fichero_mcp_check_verdict(
     return _rt.call("POST", "/api/mcp/tools/check/verdicts", json=_rt.body({"correction": correction, "layer": layer, "reasons": reasons, "segment_id": segment_id, "target_id": target_id, "verdict": verdict}))
 
 
-def fichero_mcp_knowledge_claims_list(
-    *,
-    claim_type: Annotated[Optional[str], Field(description='Claim Type')] = None,
-    entity_id: Annotated[Optional[str], Field(description='Entity Id')] = None,
-    limit: Annotated[Optional[int], Field(description='Limit')] = None,
-    offset: Annotated[Optional[int], Field(description='Offset')] = None,
-    q: Annotated[Optional[str], Field(description='Q')] = None,
-) -> Any:
-    'List knowledge claims\n\nList knowledge claims with optional filtering.\n\nRoute: GET /api/mcp/tools/knowledge/claims (toolset `mcp`; reads).'
-    return _rt.call("GET", "/api/mcp/tools/knowledge/claims", params={"claim_type": claim_type, "entity_id": entity_id, "limit": limit, "offset": offset, "q": q})
-
-
-def fichero_mcp_knowledge_claim_create(
-    *,
-    claim_type: Annotated[Optional[str], Field(description='Type: fact, analysis, interpretation, argument, historiography, theory. Default: "fact".')] = None,
-    confidence: Annotated[Optional[float], Field(description='Confidence. Default: 0.5.')] = None,
-    created_by: Annotated[Optional[str], Field(description='IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility. Default: "mcp".')] = None,
-    curation_state: Annotated[Optional[str], Field(description='State: unreviewed, shortlisted, curated, rejected. Default: "unreviewed".')] = None,
-    entity_ids: Annotated[Optional[list[Any]], Field(description='Linked entity IDs.')] = None,
-    epistemic_status: Annotated[Optional[str], Field(description='Status: tentative, confirmed, rejected. Default: "tentative".')] = None,
-    language: Annotated[Optional[str], Field(description='ISO 639-1 language code.')] = None,
-    metadata: Annotated[Optional[dict[str, Any]], Field(description='Metadata.')] = None,
-    source_document_id: Annotated[Optional[str], Field(description='Primary source document ID.')] = None,
-    source_ids: Annotated[Optional[list[Any]], Field(description='Multiple source document IDs.')] = None,
-    source_languages: Annotated[Optional[list[Any]], Field(description='ISO 639-1 codes per source.')] = None,
-    source_page_labels: Annotated[Optional[list[Any]], Field(description='Source Page Labels.')] = None,
-    source_type: Annotated[Optional[str], Field(description='Source type: document, claim, multiple, synthesis. Default: "document".')] = None,
-    text: Annotated[str, Field(description='Claim text content.')],
-) -> Any:
-    'Create knowledge claim\n\nCreate a new knowledge claim. Maps 1:1 to canonical Knowledge API.\n\nRoute: POST /api/mcp/tools/knowledge/claims/create (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/mcp/tools/knowledge/claims/create", json=_rt.body({"claim_type": claim_type, "confidence": confidence, "created_by": created_by, "curation_state": curation_state, "entity_ids": entity_ids, "epistemic_status": epistemic_status, "language": language, "metadata": metadata, "source_document_id": source_document_id, "source_ids": source_ids, "source_languages": source_languages, "source_page_labels": source_page_labels, "source_type": source_type, "text": text}))
-
-
-def fichero_mcp_knowledge_claim_delete(
-    *,
-    claim_id: Annotated[str, Field(description='Claim Id')],
-) -> Any:
-    'Delete knowledge claim\n\nSoft-delete a knowledge claim.\n\nRoute: DELETE /api/mcp/tools/knowledge/claims/{claim_id} (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("DELETE", f"/api/mcp/tools/knowledge/claims/{claim_id}")
-
-
-def fichero_mcp_knowledge_claim_get(
-    *,
-    claim_id: Annotated[str, Field(description='Claim Id')],
-) -> Any:
-    'Get knowledge claim\n\nRetrieve a knowledge claim by ID.\n\nRoute: GET /api/mcp/tools/knowledge/claims/{claim_id} (toolset `mcp`; reads).'
-    return _rt.call("GET", f"/api/mcp/tools/knowledge/claims/{claim_id}")
-
-
-def fichero_mcp_knowledge_entities_list(
-    *,
-    entity_type: Annotated[Optional[str], Field(description='Entity Type')] = None,
-    limit: Annotated[Optional[int], Field(description='Limit')] = None,
-    offset: Annotated[Optional[int], Field(description='Offset')] = None,
-    q: Annotated[Optional[str], Field(description='Q')] = None,
-) -> Any:
-    'List knowledge entities\n\nList knowledge entities with optional filtering.\n\nRoute: GET /api/mcp/tools/knowledge/entities (toolset `mcp`; reads).'
-    return _rt.call("GET", "/api/mcp/tools/knowledge/entities", params={"entity_type": entity_type, "limit": limit, "offset": offset, "q": q})
-
-
-def fichero_mcp_knowledge_entity_upsert(
-    *,
-    aliases: Annotated[Optional[list[Any]], Field(description='Alternative names.')] = None,
-    canonical_name: Annotated[str, Field(description='Canonical entity name.')],
-    description: Annotated[Optional[str], Field(description='Entity description.')] = None,
-    entity_type: Annotated[Optional[str], Field(description='Entity type. Default: "other".')] = None,
-    id: Annotated[Optional[str], Field(description='Entity ID for updates.')] = None,
-    language: Annotated[Optional[str], Field(description='ISO 639-1 language code.')] = None,
-    metadata: Annotated[Optional[dict[str, Any]], Field(description='Custom metadata.')] = None,
-) -> Any:
-    'Upsert knowledge entity\n\nCreate or update a knowledge entity. Maps 1:1 to canonical Knowledge API.\n\nRoute: POST /api/mcp/tools/knowledge/entities/upsert (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/mcp/tools/knowledge/entities/upsert", json=_rt.body({"aliases": aliases, "canonical_name": canonical_name, "description": description, "entity_type": entity_type, "id": id, "language": language, "metadata": metadata}))
-
-
-def fichero_mcp_knowledge_entity_delete(
-    *,
-    entity_id: Annotated[str, Field(description='Entity Id')],
-) -> Any:
-    'Delete knowledge entity\n\nSoft-delete a knowledge entity.\n\nRoute: DELETE /api/mcp/tools/knowledge/entities/{entity_id} (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("DELETE", f"/api/mcp/tools/knowledge/entities/{entity_id}")
-
-
-def fichero_mcp_knowledge_entity_get(
-    *,
-    entity_id: Annotated[str, Field(description='Entity Id')],
-) -> Any:
-    'Get knowledge entity\n\nRetrieve a knowledge entity by ID.\n\nRoute: GET /api/mcp/tools/knowledge/entities/{entity_id} (toolset `mcp`; reads).'
-    return _rt.call("GET", f"/api/mcp/tools/knowledge/entities/{entity_id}")
-
-
 def fichero_migrations_list(
 ) -> Any:
     'List Migrations\n\nList all available migrations with descriptions.\n\nRoute: GET /api/migrations (toolset `migrations`; reads).'
@@ -6380,7 +6290,7 @@ def fichero_recipes_save_project_setup(
     answers: Annotated[Optional[dict[str, Any]], Field(description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")] = None,
     recipe: Annotated[Optional[dict[str, Any]], Field(description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")] = None,
 ) -> Any:
-    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
+    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet\nalso store the recipe the rules assemble from them (#5747); a recipe already stored is kept.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
@@ -9486,14 +9396,6 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_mcp_servers_update", "mcp-servers", "PUT", "/api/mcp-servers/{server_id}", fichero_mcp_servers_update),
     GeneratedTool("fichero_mcp_servers_load_tools", "mcp-servers", "POST", "/api/mcp-servers/{server_id}/load-tools", fichero_mcp_servers_load_tools),
     GeneratedTool("fichero_mcp_check_verdict", "mcp", "POST", "/api/mcp/tools/check/verdicts", fichero_mcp_check_verdict),
-    GeneratedTool("fichero_mcp_knowledge_claims_list", "mcp", "GET", "/api/mcp/tools/knowledge/claims", fichero_mcp_knowledge_claims_list),
-    GeneratedTool("fichero_mcp_knowledge_claim_create", "mcp", "POST", "/api/mcp/tools/knowledge/claims/create", fichero_mcp_knowledge_claim_create),
-    GeneratedTool("fichero_mcp_knowledge_claim_delete", "mcp", "DELETE", "/api/mcp/tools/knowledge/claims/{claim_id}", fichero_mcp_knowledge_claim_delete),
-    GeneratedTool("fichero_mcp_knowledge_claim_get", "mcp", "GET", "/api/mcp/tools/knowledge/claims/{claim_id}", fichero_mcp_knowledge_claim_get),
-    GeneratedTool("fichero_mcp_knowledge_entities_list", "mcp", "GET", "/api/mcp/tools/knowledge/entities", fichero_mcp_knowledge_entities_list),
-    GeneratedTool("fichero_mcp_knowledge_entity_upsert", "mcp", "POST", "/api/mcp/tools/knowledge/entities/upsert", fichero_mcp_knowledge_entity_upsert),
-    GeneratedTool("fichero_mcp_knowledge_entity_delete", "mcp", "DELETE", "/api/mcp/tools/knowledge/entities/{entity_id}", fichero_mcp_knowledge_entity_delete),
-    GeneratedTool("fichero_mcp_knowledge_entity_get", "mcp", "GET", "/api/mcp/tools/knowledge/entities/{entity_id}", fichero_mcp_knowledge_entity_get),
     GeneratedTool("fichero_migrations_list", "migrations", "GET", "/api/migrations", fichero_migrations_list),
     GeneratedTool("fichero_migrations_data_integrity_check", "migrations", "GET", "/api/migrations/integrity-check", fichero_migrations_data_integrity_check),
     GeneratedTool("fichero_migrations_rollback", "migrations", "POST", "/api/migrations/rollback", fichero_migrations_rollback),

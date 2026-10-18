@@ -37,7 +37,6 @@ dependencies = [
 
 [project.scripts]
 fichero-mcp = "fichero_mcp.server:main"
-fichero-mcp-simple = "fichero_mcp.simple:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]

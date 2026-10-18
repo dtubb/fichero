@@ -625,9 +625,7 @@ def _device_attribution(request: Request) -> dict | None:
     session = getattr(request.state, "session", None)
     if session is None:
         return None
-    app_db = get_app_db()
-    client_id = app_db.session_client_id(session.token_hash)
-    client = app_db.get_client(client_id) if client_id else None
+    client = get_app_db().session_client(session.token_hash)
     if client is None:
         return None
     return {"id": client.id, "name": client.name, "kind": client.kind}

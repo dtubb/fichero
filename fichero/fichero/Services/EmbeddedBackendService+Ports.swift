@@ -380,7 +380,12 @@ extension EmbeddedBackendService {
     ///     `.inMemory`) and so exercise the sweep-ordering guarantee with no
     ///     port/pid syscalls at all.
     func resolvePortConflict(
-        sweep: () async -> Void = { await EmbeddedBackendService.awaitedOrphanSweep() },
+        sweep: () async -> Void = {
+            // The sweep machinery is compiled out of the App Store binary (#3749).
+            #if !FICHERO_APP_STORE
+            await EmbeddedBackendService.awaitedOrphanSweep()
+            #endif
+        },
         transportMode: TransportMode = EngineConfig.transportMode
     ) async throws -> PortResolution {
         #if FICHERO_APP_STORE

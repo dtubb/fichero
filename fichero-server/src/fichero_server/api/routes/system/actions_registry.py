@@ -439,7 +439,7 @@ def _invert_acl_set(
     return ("acl.set", {"user": user_id, "role": role_before})
 
 
-@action("acl.set", AclSetParams, domains=["authz"], undoable=True, invert=_invert_acl_set)
+@action("acl.set", AclSetParams, domains=["authz"], undoable=True, invert=_invert_acl_set, owner_only=True)
 def _acl_set(_db: Database, params: AclSetParams, ctx: ActionContext):
     """Owner-only ACL mutation through the shared registry write path."""
     # Asserted up front, before any lookup, in every branch (role, remove, override).
