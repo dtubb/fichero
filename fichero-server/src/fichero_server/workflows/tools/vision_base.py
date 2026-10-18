@@ -13,7 +13,7 @@ Provides:
 """
 
 from __future__ import annotations
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # noqa: F401  (#5745: warm() resolves Quartz names under a lock at first use)
 
 import asyncio
 import concurrent.futures
