@@ -74,7 +74,7 @@ struct JobQuestionFields: View {
                 .fixedSize()
             }
         case "place-in-a-gazetteer":
-            Picker("Which gazetteer", selection: $store.jobAnswers.gazetteer) {
+            Picker("Which place list", selection: $store.jobAnswers.gazetteer) {
                 Text("GeoNames").tag("geonames")
                 Text("Wikidata").tag("wikidata")
                 Text("The project's own list").tag("project")

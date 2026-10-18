@@ -693,7 +693,7 @@ extension RecipeSetupStoreTests {
           {"step":"read-a-line","job":"read-a-line","title":"Train a model of your own for this step",
            "readiness":{"ready":true,"lines":2400,"pages":3,"sentence":null},
            "ways":[
-            {"method":"kraken","how":"distil","says":"Train a Kraken reader of your own on the lines your reader read",
+            {"method":"kraken","how":"distil","says":"Train a reader on the lines you have corrected",
              "available":true,
              "targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_here","params":\(taught)},
                         {"place":"huggingface-jobs","name":"Hugging Face Jobs","starts":"training.start",
@@ -702,7 +702,7 @@ extension RecipeSetupStoreTests {
              "why":"not available yet: Fichero has no spaCy trainer"}]},
           {"step":"find-regions","job":"find-regions","title":"Train a model of your own for this step",
            "readiness":\(regions),
-           "ways":[{"method":"yolo","how":"fine-tune","says":"Fine-tune a YOLO layout model on your corrected regions",
+           "ways":[{"method":"yolo","how":"fine-tune","says":"Train the region finder on the regions you corrected",
              "available":true,"targets":[{"place":"this-mac","name":"this Mac","starts":"training.start_regions_here",
              "params":{"name":"regions","scope_ids":["root-1","root-2"]}}]}]}]}
         """
