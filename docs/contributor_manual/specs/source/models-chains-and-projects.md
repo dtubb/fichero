@@ -3687,9 +3687,11 @@ The recipe and its format
 - `source.recipe.prompt-files` — **[GAP]** (#5364) each prompt is one file with a header naming its
   job, the model it was written for, its version and its variables; a variable the step does not
   supply is refused when the recipe is checked.
-- `source.recipe.schema-versioned` — **[GAP]** (#5364) `recipe.yaml` carries its schema version; a
+- `source.recipe.schema-versioned` — **[OK]** (#5364) `recipe.yaml` carries its schema version; a
   version newer than this Fichero understands is refused with the version named, and an older one
-  keeps working.
+  keeps working. *Built: `recipe.SCHEMA_VERSION` (1); `check_recipe` refuses a newer one by number and one that names
+  none (`fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`). Schema 1 is the only one so far, so
+  "older" has nothing to read yet.*
 - `source.recipe.folder-format` — **[PARTIAL]** (#5364) **Built 2026-10-03 (engine):** `recipe.yaml` load and check (`recipes/recipe.py`); prompts, measurements and the RO-Crate wrapper not yet written by Export Recipe; pinned by `fichero-server/tests/unit/recipes/test_recipe_format_and_check.py`. a recipe exports as a folder: `recipe.yaml`
   (published JSON Schema), one file per prompt, its workflows, its measurements, a licence, a README
   and a Workflow RO-Crate wrapper.
