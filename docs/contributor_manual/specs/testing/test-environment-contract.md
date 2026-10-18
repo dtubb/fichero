@@ -85,7 +85,7 @@ n/a (infrastructure spec).
   the developer's real `~/.cache` (fast but not hermetic)?
 
 ## Triaged from the backlog (2026-10-04)
-- `testenv.one-mcp-test-tree` — **[GAP]** (#4480) fichero-mcp is tested from one tree only; the stale copy under fichero-server/tests/unit/mcp is removed or made the same suite (it still exists).
+- `testenv.one-mcp-test-tree` — **[PARTIAL]** (#4480) fichero-mcp is tested from one tree only; no duplicate file remains, and six engine-side tests import `fichero_mcp` by design (`fichero-server/tests/unit/mcp`).
 - `testenv.no-defaults-leak` — **[GAP]** (#4234, #4103, #4578) tests never create UserDefaults suites in the shipping app container, and a sweep removes the ~180 test.purge.* plists.
 - `testenv.full-suite-completes` — **[GAP]** (#5249, #4039) a full engine pytest run finishes without a hang (the perf test is bounded, not skipped) and without shared-app middleware errors at setup.
 - `testenv.no-modal-in-hosted-tests` — **[GAP]** (#4270) a hosted unit test never raises a user-visible save panel or alert; save paths are pointed at a temp directory.

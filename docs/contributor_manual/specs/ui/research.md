@@ -360,6 +360,7 @@ Inspector content, not as a rival top-level surface.
   `MCPServersView()`). Not independently re-verified this pass: whether "run a Fichero MCP
   tool directly" from the catalog (the issue's own pass-criteria checklist item) is reachable
   from this UI, or only server configuration is.
+  Verified 2026-10-17: add/edit/delete and a server's tool list work end to end; `MCPToolsCatalogView` is mounted nowhere; no door runs one tool; the stdio allowlist refuses the app's own `fichero-mcp` launcher.
 - `research.mcp-semantic-spatial-tools` — **[PARTIAL]** (#270) some of the asked-for spatial
   tools exist — `fichero_mp_place_node`, `fichero_mp_focus_node`
   (`fichero-mcp/src/fichero_mcp/kg_tools.py`) — but the issue's fuller list (group, stack,
@@ -367,20 +368,12 @@ Inspector content, not as a rival top-level surface.
   `research_tools.py` has note tools (`fichero_research_create_note`, `.list_notes`) but not
   the update/merge/publish lifecycle the issue also asks for. A partial build of a larger ask,
   not a from-scratch gap.
-- `research.mcp-three-servers-not-collapsed` — **[GAP]** (#2896) `fichero-mcp/src/
-  fichero_mcp/server.py`, `full.py`, and `simple.py` are still three separate,
-  hand-maintained servers with their own tool lists — none generated from the action registry
-  as this issue asks. Directly related to `research.agent-audited-tools`'s fresh evidence
-  above (individual MCP write/delete tools now call actions correctly) but a different,
-  larger ask: one server, tool list GENERATED, not three hand-maintained lists individually
-  patched to be correct.
-- `research.mcp-knowledge-endpoints-unwired` — **[GAP]** (#1439) re-verified at HEAD via
-  the swiftui wiring allowlist (retired 2026-09-27, its reasoned entries carried into `scripts/check_endpoint_coverage_matrix_known_gaps.json`, #5105): all six
-  `/api/mcp/tools/knowledge/*` endpoints (claims list/create/get/delete, entities list/upsert/
-  get/delete) remain allowlisted as "baseline: not yet wired" — this week's audit fix
-  (`research.agent-audited-tools`) corrected what these tools call on the BACKEND; it did not
-  touch this issue's own ask, which is SwiftUI reachability. The other 20 integrations/MCP
-  endpoints in this issue's own list were not individually re-checked this pass.
+- `research.mcp-three-servers-not-collapsed` — **[PARTIAL]** (#2896) `server.py` is one server whose tools are generated from the contract (#5453, `openapi.mcp.*`). Residue: `full.py` and `simple.py` (`fichero-mcp-simple`, whitelisted in `fichero_server/__main__.py`) are still shipped and hand-maintained; retire them and their five test files.
+- `research.mcp-knowledge-endpoints-unwired` — **[GAP]** (#1439) the eight `/api/mcp/tools/knowledge/*` routes duplicate `/api/entities` and `/api/claims` and surface as a second MCP tool for one capability (toolset `mcp`). They are retired, not wired; `POST /api/mcp/tools/check/verdicts` stays (it carries `source.check.model-never-a-person`). The `/api/integrations/*` endpoints belong to the Integrations fold.
+- `mcp.client.tools-survive-a-restart` — **[BROKEN]** (#5760) an enabled server's tools are loaded into the workflow tool registry when the engine starts and whenever a server is saved or deleted, by the engine, with no button. Today only `POST /api/mcp-servers/tools/load-into-workflow-registry` loads them, and nothing calls it at start.
+- `mcp.client.tools-reach-a-workflow` — **[GAP]** (#5760) a loaded `mcp_*` tool is in the node palette with no feature flag, and a one-node workflow runs it. Today the palette hides them behind `workflowToolsMcp` (tier dev).
+- `mcp.client.round-trip-pinned` — **[GAP]** (#5760) a test saves an in-process stdio MCP server (FastMCP, one `echo` tool, launched by `python`) through `/api/mcp-servers`, loads it, finds `mcp_echo` in `TOOL_DEFS` and runs it. Today no test connects to a real server.
+- `mcp.client.tools-reach-the-agent` — **[GAP]** (#5761) with a server enabled, the chat loop also binds its read-only tools and logs each call like an action tool call; or the ruling makes the in-app agent external and the two "drives MCP tools" sentences (`ChatStatusViews.swift:37`, `ResearchChatPane.swift:10`) come out.
 - `research.apple-fm-tool-callback` — **[GAP]** (#821) no `Tool`-protocol conformance for
   Apple's `LanguageModelSession(tools:)` was found anywhere under `fichero/fichero/`; the
   entity-grounding-during-extraction ask (let `extract_all` check the KG before proposing a
