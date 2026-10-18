@@ -3,12 +3,10 @@ import Testing
 
 /// `source.recipe.into-what-is-a-multi-select` (#5789): the plan names one run per ticked reading level.
 struct IntoWhatRunsTests {
-    @Test func theNormaliseStepNamesOneRunPerTickedLevelAndTranslation() {
-        var answers = RecipeSetupAnswers.JobAnswers()
-        #expect(answers.runTitles == ["Abbreviations expanded"], "the default is one run")
-        answers.set(level: "as_written", true)
-        answers.translation = "es"
-        #expect(answers.runTitles == ["As written", "Abbreviations expanded", "Translation into Spanish"])
+    @Test func theAppKeepsNoRunTitlesOfItsOwn() throws {
+        // The engine names the runs (`RecipeStep.run_titles`, #5795); a copy here would drift from Start's plan.
+        #expect(!(try AppSource.code("Models/RecipeSetupAnswers.swift")).contains("runTitles"))
+        #expect((try AppSource.code("Views/Onboarding/RecipeStepsView.swift")).contains("step.runTitles"))
     }
 
     @Test func aStepWithMoreThanOneRunSaysSoOnItsRow() {
