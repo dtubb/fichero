@@ -367,13 +367,26 @@ exposes them.
 - Response: `200` with `PairResponse`. The enrollment secret is not itself a
   device credential, so the returned token remains independently revocable.
 
-### This Mac's tailnet address
+### Sharing state
 
 `GET /api/pair/tailnet`
 
-- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the
-  share sheet to offer (#5318). Behind pairing auth.
-- Response: `200` with `TailnetOfferResponse`.
+- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the share
+  sheet to offer instead of a typed address (#5318). Owner only.
+- Response: `200` with `tailnet_url` (null when Tailscale is missing or stopped).
+
+`GET /api/pair/sharing`
+
+- Purpose: read Sharing state (#5751). Owner only.
+- Response: `200` with `multiuser_enabled`, `tailnet_url`, `tailnet_serve_command`
+  (the one command to paste when the app cannot make the tailnet forward, #5317)
+  and `paired_device_count`.
+
+`PUT /api/pair/multiuser`
+
+- Purpose: set the persisted Multi-user switch (#5751). Owner only.
+- Request body: `{"enabled": bool}`. Response: `200` with the sharing state, or
+  `409` when `FICHERO_MULTIUSER` in the environment decides it.
 
 ### Cluster connection (ACENet)
 

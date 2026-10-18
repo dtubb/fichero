@@ -1622,6 +1622,23 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='auth')
         existing_apps['auth'] = target_app
 
+    @target_app.command("challenge")
+    def auth_challenge_post(
+        ctx: typer.Context,
+        client_id: str = typer.Option(..., '--client-id', help='Client Id.'),
+    ) -> None:
+        """Challenge (POST /api/auth/challenge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/challenge"
+            params = None
+            payload = _build_json_payload({
+                "client_id": client_id,
+            }, {
+                "client_id": {'type': 'string', 'title': 'Client Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("identity")
     def auth_identity_get(
         ctx: typer.Context,
@@ -1765,6 +1782,29 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/auth/sessions/{session_id}/revoke"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("sign-in")
+    def auth_sign_in_post(
+        ctx: typer.Context,
+        client_id: str = typer.Option(..., '--client-id', help='Client Id.'),
+        nonce: str = typer.Option(..., '--nonce', help='Nonce.'),
+        signature: str = typer.Option(..., '--signature', help='Signature.'),
+    ) -> None:
+        """Sign In (POST /api/auth/sign-in)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/sign-in"
+            params = None
+            payload = _build_json_payload({
+                "client_id": client_id,
+                "nonce": nonce,
+                "signature": signature,
+            }, {
+                "client_id": {'type': 'string', 'title': 'Client Id', 'x-cli-required': True},
+                "nonce": {'type': 'string', 'title': 'Nonce', 'x-cli-required': True},
+                "signature": {'type': 'string', 'title': 'Signature', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('authz')
@@ -12084,6 +12124,34 @@ def register_generated_openapi_commands(
                 "enrollment_secret": {'type': 'string', 'minLength': 1, 'title': 'Enrollment Secret', 'x-cli-required': True},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("set-multiuser")
+    def pair_set_multiuser_put(
+        ctx: typer.Context,
+        enabled: bool = typer.Option(..., '--enabled/--no-enabled', help='Enabled.'),
+    ) -> None:
+        """Set Multiuser (PUT /api/pair/multiuser)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/multiuser"
+            params = None
+            payload = _build_json_payload({
+                "enabled": enabled,
+            }, {
+                "enabled": {'type': 'boolean', 'title': 'Enabled', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("sharing-state")
+    def pair_sharing_state_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Sharing State (GET /api/pair/sharing)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/sharing"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
     @target_app.command("detected-tailnet")

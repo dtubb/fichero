@@ -7,8 +7,12 @@ shared-secret-only single-user app.
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import secrets
+import threading
+import time
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from functools import cache
@@ -24,7 +28,14 @@ from fichero_server.security import accounts
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import _new_id as new_id
-from fichero_server.models import AccountInvite, AccountUser, ActionAudit, AuthIdentityResponse, AuthIdentityUser
+from fichero_server.models import (
+    AccountInvite,
+    AccountUser,
+    ActionAudit,
+    AuthIdentityClient,
+    AuthIdentityResponse,
+    AuthIdentityUser,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -486,7 +497,7 @@ def me(request: Request) -> UserResponse:
 
 
 @auth_router.get("/identity", response_model=AuthIdentityResponse)
-def identity(request: Request) -> AuthIdentityResponse:
+def identity(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> AuthIdentityResponse:
     auth_kind = auth_kind_from_request(request)
     if auth_kind is None:
         raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
@@ -496,6 +507,7 @@ def identity(request: Request) -> AuthIdentityResponse:
         multiuser_enabled=_use_multiuser_auth(),
         auth_kind=auth_kind,
         user=_identity_user(user),
+        client=_identity_client(request, app_db),
         is_owner_access=auth_kind == "bootstrap" or bool(getattr(user, "is_owner", False)),
     )
 
@@ -806,3 +818,145 @@ def delete_user(
     _audit(request, app_db, "user.delete", user_id, username=user.username)
     app_db.delete_user(user_id)
     return StatusResponse(status="ok")
+
+
+# --- Sign-in by challenge (multiuser-always-on, slice 1) -------------------------------------------------------------
+# A client proves it holds the private half of the public key registered for it. Single-process in-memory state, the
+# same invariant as the login rate limit above.
+
+CHALLENGE_TTL_SECONDS = 60
+SIGN_IN_FAILURES_PER_MINUTE = 10
+_REFUSED = HTTPException(status_code=401, detail="sign-in refused")
+MAX_OUTSTANDING_CHALLENGES = 5  # per client: a flood of challenges cannot grow memory
+_engine_id_lock = threading.Lock()
+_challenges: dict[str, tuple[str, int]] = {}  # nonce -> (client_id, expires_at, whole seconds)
+_sign_in_failures: dict[str, list[float]] = {}  # client_id -> failure times
+
+
+class ChallengeRequest(BaseModel):
+    client_id: str
+
+
+class ChallengeResponse(BaseModel):
+    nonce: str
+    expires_in: int
+    expires_at: int
+    engine_id: str
+
+
+class SignInRequest(BaseModel):
+    client_id: str
+    nonce: str
+    signature: str  # base64 of the DER ECDSA-P256-SHA256 signature (CryptoKit derRepresentation) over _sign_in_message(...)
+
+
+class SignInClient(BaseModel):
+    id: str
+    kind: str
+    name: str
+
+
+class SignInResponse(BaseModel):
+    session_token: str
+    user: UserResponse
+    client: SignInClient
+
+
+def _identity_client(request: Request, app_db: AppDatabase) -> AuthIdentityClient | None:
+    session = getattr(request.state, "session", None)
+    client = app_db.session_client(session.token_hash) if session is not None else None
+    if client is None:
+        return None
+    return AuthIdentityClient(id=client.id, kind=client.kind, name=client.name)
+
+
+def _live_client(app_db: AppDatabase, client_id: str):
+    client = app_db.get_client(client_id)
+    return client if client is not None and client.revoked_at is None else None
+
+
+def _engine_id(app_db: AppDatabase) -> str:
+    """This engine's own id, made once and kept: what a sign-in signature is bound to (review 98)."""
+    with _engine_id_lock:  # get-then-set must not race: two ids would make half the signatures fail
+        engine_id = app_db.get_setting("engine_id")
+        if not engine_id:
+            engine_id = secrets.token_urlsafe(16)
+            app_db.set_setting("engine_id", engine_id)
+    return engine_id
+
+
+def _sign_in_message(engine_id: str, client_id: str, nonce: str, expires_at: int) -> bytes:
+    """Domain-separated, so a signature for another engine, client, purpose or expiry never verifies."""
+    return "\x00".join(["fichero-sign-in-v1", engine_id, client_id, nonce, str(expires_at)]).encode()
+
+
+def _signature_is_valid(public_key_pem: str, message: bytes, signature: str) -> bool:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    try:
+        key = serialization.load_pem_public_key(public_key_pem.encode())
+        key.verify(base64.b64decode(signature, validate=True), message, ec.ECDSA(hashes.SHA256()))
+    except (InvalidSignature, ValueError, TypeError):
+        return False
+    return True
+
+
+@auth_router.post("/challenge", response_model=ChallengeResponse)
+def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_database)) -> ChallengeResponse:
+    # An unknown and a revoked client look the same, so ids cannot be probed.
+    if _live_client(app_db, body.client_id) is None:
+        raise _REFUSED
+    now = time.time()
+    for stale in [n for n, (_, exp) in _challenges.items() if exp <= now]:
+        del _challenges[stale]
+    mine = [n for n, (cid, _) in _challenges.items() if cid == body.client_id]  # insertion order = oldest first
+    for old in mine[: max(0, len(mine) - MAX_OUTSTANDING_CHALLENGES + 1)]:
+        del _challenges[old]
+    nonce = secrets.token_urlsafe(32)
+    expires_at = int(now) + CHALLENGE_TTL_SECONDS
+    _challenges[nonce] = (body.client_id, expires_at)
+    return ChallengeResponse(
+        nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
+    )
+
+
+@auth_router.post("/sign-in", response_model=SignInResponse)
+def sign_in(body: SignInRequest, app_db: AppDatabase = Depends(get_app_database)) -> SignInResponse:
+    now = time.time()
+    recent = [t for t in _sign_in_failures.get(body.client_id, []) if now - t < 60]
+    if len(recent) >= SIGN_IN_FAILURES_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="too many failed sign-ins", headers={"Retry-After": "60"})
+    # Single use: the nonce is spent whether or not the signature is good.
+    issued = _challenges.pop(body.nonce, None)
+    client = _live_client(app_db, body.client_id)
+    ok = (
+        issued is not None
+        and issued[0] == body.client_id
+        and issued[1] > now
+        and client is not None
+        and _signature_is_valid(
+            client.public_key_pem,
+            _sign_in_message(_engine_id(app_db), body.client_id, body.nonce, issued[1]),
+            body.signature,
+        )
+    )
+    if not ok:
+        # Only a live client is counted: sign-in is reachable over TCP and unknown ids must not grow this dict.
+        if client is not None:
+            _sign_in_failures[body.client_id] = [*recent, now]
+        raise _REFUSED
+    user = app_db.get_user(client.user_id)
+    if user is None or not user.active:
+        raise _REFUSED
+    raw_token = accounts.new_session_token()
+    token_hash = accounts.hash_token(raw_token)
+    app_db.create_session(
+        user_id=user.id, token_hash=token_hash, device_label=client.name, ttl=SESSION_TTL, client_id=client.id
+    )
+    return SignInResponse(
+        session_token=raw_token,
+        user=_to_public_user(user),
+        client=SignInClient(id=client.id, kind=client.kind, name=client.name),
+    )

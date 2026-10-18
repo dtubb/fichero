@@ -706,6 +706,7 @@ async def promote_to_claim(
             actor=ctx.actor,
             origin_window=ctx.origin_window,
             origin_user=ctx.actor,
+            device=(ctx.device or {}).get("name"),
         )
     return PromoteResponse(
         annotation_id=after["annotation"]["id"],

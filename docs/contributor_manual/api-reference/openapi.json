@@ -2148,6 +2148,90 @@
         }
       }
     },
+    "/api/auth/challenge": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Challenge",
+        "operationId": "challenge_api_auth_challenge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sign-in": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Sign In",
+        "operationId": "sign_in_api_auth_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users": {
       "get": {
         "tags": [
@@ -2288,6 +2372,94 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/sharing": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Sharing State",
+        "description": "Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751).",
+        "operationId": "sharing_state_api_pair_sharing_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/multiuser": {
+      "put": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Set Multiuser",
+        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route.",
+        "operationId": "set_multiuser_api_pair_multiuser_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultiuserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingStateResponse"
                 }
               }
             }
@@ -50769,6 +50941,30 @@
         ],
         "title": "AuditLogResponse"
       },
+      "AuthIdentityClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "AuthIdentityClient",
+        "description": "The client a session was signed in through (multiuser-always-on)."
+      },
       "AuthIdentityResponse": {
         "properties": {
           "multiuser_enabled": {
@@ -50781,6 +50977,10 @@
           },
           "user": {
             "$ref": "#/components/schemas/AuthIdentityUser",
+            "nullable": true
+          },
+          "client": {
+            "$ref": "#/components/schemas/AuthIdentityClient",
             "nullable": true
           },
           "is_owner_access": {
@@ -51022,6 +51222,11 @@
             "format": "date-time",
             "nullable": true,
             "title": "Failed At"
+          },
+          "started_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started By"
           },
           "remote": {
             "$ref": "#/components/schemas/RemoteRunRow",
@@ -53863,6 +54068,47 @@
         ],
         "title": "ChainStepsAcceptedResponse",
         "description": "202 body for POST /chains/{chain_id}/execute-steps.\n\nThread ids are assigned up front so a client can watch any step's run\n(SSE stream, Activity trace) the moment it starts."
+      },
+      "ChallengeRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "ChallengeRequest"
+      },
+      "ChallengeResponse": {
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At"
+          },
+          "engine_id": {
+            "type": "string",
+            "title": "Engine Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nonce",
+          "expires_in",
+          "expires_at",
+          "engine_id"
+        ],
+        "title": "ChallengeResponse"
       },
       "CharacterRange": {
         "properties": {
@@ -74807,6 +75053,19 @@
         ],
         "title": "MovedGroup"
       },
+      "MultiuserRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "MultiuserRequest"
+      },
       "MutationListResponse": {
         "properties": {
           "items": {
@@ -87828,6 +88087,106 @@
         ],
         "title": "ShareResponse",
         "description": "Result of a share: the granted access + a link the recipient can open."
+      },
+      "SharingStateResponse": {
+        "properties": {
+          "multiuser_enabled": {
+            "type": "boolean",
+            "title": "Multiuser Enabled"
+          },
+          "tailnet_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Url"
+          },
+          "tailnet_serve_command": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Serve Command"
+          },
+          "paired_device_count": {
+            "type": "integer",
+            "title": "Paired Device Count"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiuser_enabled",
+          "paired_device_count"
+        ],
+        "title": "SharingStateResponse"
+      },
+      "SignInClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "SignInClient"
+      },
+      "SignInRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "nonce",
+          "signature"
+        ],
+        "title": "SignInRequest"
+      },
+      "SignInResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/SignInClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user",
+          "client"
+        ],
+        "title": "SignInResponse"
       },
       "SignInstance": {
         "properties": {

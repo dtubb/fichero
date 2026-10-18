@@ -46,6 +46,7 @@ struct ShareSettingsView: View {
     @State var didBootstrap = false
     @State var copiedInvite = false
     @State var addressDraft = ""
+    @State var sharingState: SharingStateRecord?
     @State var detectedTailnetURL: String?
     @State var confirmRemoveAllDevices = false
 
@@ -62,7 +63,7 @@ struct ShareSettingsView: View {
             Section {
                 Toggle(isOn: sharingBinding) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(hostingEnabled ? "On" : "Off")
+                        Text(SharingToggles.all[0].label)
                             .font(.headline)
                         Text(SharingToggles.caption(.sharing))
                             .font(.caption)
@@ -105,7 +106,12 @@ struct ShareSettingsView: View {
             }
 
             if hostingEnabled {
-                Section {
+                Section("Connected Devices") {
+                    if let note = RemoteAccessConfig.thisNetworkOffNote(
+                        thisNetwork: RemoteAccessConfig.thisNetworkChoice ?? true, publicHost: validatedPublicURL?.host
+                    ) {
+                        Text(note).font(.caption).foregroundStyle(.secondary)
+                    }
                     PairedDevicesSectionView(
                         devices: activePairedDevices(from: pairedDevices),
                         isLoading: isLoadingDevices,
@@ -161,7 +167,7 @@ struct ShareSettingsView: View {
                 await refreshDevices()
             }
             await refreshConnectedClients()
-            await refreshDetectedTailnet()
+            await refreshSharingState()
             await loadAuthzSnapshot()
             didBootstrap = true
         }
