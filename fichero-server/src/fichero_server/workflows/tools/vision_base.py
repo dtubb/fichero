@@ -3755,6 +3755,7 @@ async def process_vision(
     # vision_mode="kraken" with no recognition model: "model" has the run's vision model read
     # each line Kraken found (the teacher labelling lines for a Kraken reader to learn from).
     lines_read_by: str = "kraken",
+    read_granularity: str | None = None,  # how the model is asked per call, as a bake-off measured it (#5722)
 ) -> dict[str, Any]:
     """Process images with vision AI.
 
@@ -4660,6 +4661,7 @@ async def process_vision(
                                             model=effective_config.model),
                             effective_config, language=language,
                             **({"apple": True} if lines_read_by == "apple" else {}),
+                            granularity=read_granularity,
                         )
                     from fichero_server.llm import kraken_runtime as _kr
 
@@ -4766,6 +4768,7 @@ async def process_vision(
                             result = await read_lines(
                                 image_path, result, effective_config, language=language,
                                 **({"apple": True} if lines_read_by == "apple" else {}),
+                                granularity=read_granularity,
                             )
                     if page_index is not None:
                         result = result.model_copy(

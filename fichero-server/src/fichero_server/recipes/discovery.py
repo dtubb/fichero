@@ -40,6 +40,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from functools import lru_cache
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -323,6 +324,16 @@ def _parser_statement_cards() -> list[Card]:
             for c in seed_cards() if c.id.startswith("spacy:pkg/")]
 
 
+FRONTIER_PROVIDERS_FILE = Path(__file__).parent / "seed" / "frontier-cloud-providers.txt"
+
+
+@lru_cache(maxsize=1)
+def frontier_providers() -> frozenset[str]:
+    """The cloud provider types whose models count as multilingual (a default the owner can change)."""
+    lines = FRONTIER_PROVIDERS_FILE.read_text(encoding="utf-8").splitlines()
+    return frozenset(line.strip() for line in lines if line.strip() and not line.startswith("#"))
+
+
 def _cloud_text_cards() -> list[Card]:
     """The enabled models of the person's cloud provider rows, as cards for `TEXT_MODEL_JOBS`: they run through the
     provider settings already there, and the rules take one only where the project lets pages leave this Mac. With no
@@ -347,9 +358,11 @@ def _cloud_text_cards() -> list[Card]:
         for model in app_db.list_models(row.id):
             if not model.enabled or _is_embedder(model):
                 continue
+            frontier = ptype in frontier_providers()
             out.append(Card(
                 id=f"{ptype}:{model.model_id}@{row.id}", pin={"cloud": ptype, "model": model.model_id},
-                jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
+                jobs=TEXT_MODEL_JOBS | {"correct"} if frontier else TEXT_MODEL_JOBS, multilingual=frontier,
+                scripts=None, languages=None, material=frozenset(),
                 runs_on=f"cloud:{ptype}", open_licence=True, licence="",
                 note=f"{model.name or model.model_id} ({row.name})", source="installed", offered_only=True,
                 offered_because=f"a cloud model from your {row.name} settings: its pages leave this Mac",
@@ -747,8 +760,22 @@ HF_TAG_LIMIT = 50
 #: The project's languages as Hugging Face model names spell them ("trocr-spanish-…", "…-latin-htr").
 _LANGUAGE_WORDS = {"es": "spanish", "la": "latin", "fr": "french", "it": "italian", "de": "german", "pt": "portuguese",
                    "ca": "catalan", "nl": "dutch", "en": "english"}
-#: Script words a reader's tags or name may state, as ISO 15924 codes.
+#: Script words a reader's tags or name may state, as ISO 15924 codes: these two, then any one-word script name
+#: ISO 15924 lists (`script_words`).
 _SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
+#: Not read from a listing: "latin" in a model's name is the language, "gothic" the blackletter hand of Latin script
+#: (not Wulfila's Gothic alphabet, Goth), and the codes for no script in particular.
+_NOT_SCRIPT_WORDS = frozenset({"Latn", "Goth", "Zyyy", "Zinh", "Zzzz", "Zsym", "Zmth", "Zxxx", "Zsye"})
+
+
+@lru_cache(maxsize=1)
+def script_words() -> dict[str, str]:
+    """Word -> ISO 15924 code for every script whose English name is one word ("cyrillic" -> Cyrl) (#5594 residue)."""
+    from fichero_server.recipes.names import _scripts
+
+    words = {row["name"].lower(): row["code"] for row, _text in _scripts()
+             if row["code"] not in _NOT_SCRIPT_WORDS and re.fullmatch(r"[a-z]{4,}", row["name"].lower())}
+    return {**words, **_SCRIPT_WORDS}
 
 
 def _words(model: dict[str, Any]) -> frozenset[str]:
@@ -798,7 +825,7 @@ def _hf_card(model: dict[str, Any], what: str, how: str, wanted: frozenset[str],
     words = _words(model)
     licence = next((t.split(":", 1)[1] for t in tags if t.startswith("license:")), "")
     langs = _hub_tags(model) or languages
-    scripts = frozenset(code for word, code in _SCRIPT_WORDS.items() if word in words)
+    scripts = frozenset(code for word, code in script_words().items() if word in words)
     material = _hub_material(words)
     why = [what]
     if scripts:
@@ -1370,10 +1397,21 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                         "detail": (f"Remote compute: {compute['where']}" if compute["available"]
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
-                     "detail": "Transkribus models: not searched"},
-                    {"source": "htr-united", "state": "not-searched", "count": 0,
-                     "detail": "HTR-United: not searched"}]
+                     "detail": "Transkribus models: not searched"}, _htr_united_source(a)]
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
+
+
+def _htr_united_source(a: Answers) -> dict[str, Any]:
+    """HTR-United's ground-truth datasets for the project's languages, from the kept catalogue (#5571); never the
+    network. Said not searched when none is kept."""
+    from fichero_server.recipes import htr_united
+
+    kept = htr_united.cached()
+    if kept is None:
+        return {"source": "htr-united", "state": "not-searched", "count": 0, "detail": "HTR-United: not searched"}
+    found = htr_united.matching(kept["records"], languages=a.languages, scripts=a.scripts)
+    return {"source": "htr-united", "state": "cached", "count": len(found),
+            "detail": f"HTR-United: {len(found)} datasets for these"}
 
 
 #: Said in place of the online sources for a step with no search of its own (#5668).
@@ -1546,6 +1584,18 @@ def search_online(languages: frozenset[str], progress: Callable[[str], None] = l
             sources["kraken-repository"] = {"state": "failed", "detail": "Could not reach Zenodo"}
     else:
         sources["kraken-repository"] = {"state": "cached", "detail": f"{len(cached['records'])} found on Zenodo"}
+    from fichero_server.recipes import htr_united
+
+    if _stale(htr_united.cached()):
+        progress("Searching HTR-United…")
+        try:
+            kept = htr_united.refresh()
+            sources["htr-united"] = {"state": "searched", "detail": f"{len(kept['records'])} datasets on GitHub"}
+        except (OSError, ValueError) as exc:  # the network or the catalogue failed: say so, keep the cache
+            logger.warning("HTR-United's catalogue could not be read: %s", exc)
+            sources["htr-united"] = {"state": "failed", "detail": "Could not reach HTR-United"}
+    else:
+        sources["htr-united"] = {"state": "cached", "detail": "HTR-United: kept from before"}
     try:
         found, left_out = asyncio.run(search_hugging_face(languages, progress, hand_tags))
         keep_hub(found, languages, left_out)
