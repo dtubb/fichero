@@ -21,6 +21,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
+from tests.signed_in import new_key, signature_for
 from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401
     _bearer,
     _multiuser_on,
@@ -29,21 +30,11 @@ from tests.unit.security.test_sharing_probe_2026_10_01 import (  # noqa: F401
 
 
 def _new_key():
-    key = ec.generate_private_key(ec.SECP256R1())
-    pem = key.public_key().public_bytes(
-        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
-    return key, pem
-
-
-def _message(client_id: str, issued: dict, *, engine_id=None, expires_at=None, purpose="fichero-sign-in-v1") -> bytes:
-    parts = [purpose, engine_id or issued["engine_id"], client_id, issued["nonce"], str(expires_at or issued["expires_at"])]
-    return "\x00".join(parts).encode()
+    return new_key()
 
 
 def _sign(key, client_id: str, issued: dict, **overrides) -> str:
-    message = _message(client_id, issued, **overrides)
-    return base64.b64encode(key.sign(message, ec.ECDSA(hashes.SHA256()))).decode()
+    return signature_for(key, client_id, issued, **overrides)
 
 
 @pytest.fixture
