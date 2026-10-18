@@ -787,7 +787,7 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         if sample_is_text(db_manager.get_database(str(library))):
             answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
-    recipe = assemble(a, known_cards(a))
+    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     if saved.get("overrides"):
         from fichero_server.recipes.bakeoff import apply_project_overrides
@@ -828,6 +828,25 @@ def _providers_with_keys() -> list[str]:
     from fichero_server.recipes.derived import _providers_with_keys as keyed
 
     return keyed()
+
+
+def _cloud_correctors(keys: tuple[str, ...] | list[str]) -> list[Any]:
+    """The person's cloud vision readers whose provider has a key here, as correctors priced per page from the price
+    list (#5677): what Correct is offered with at Ready, never the rules' choice. A reader with no known price is
+    left out: the offer states its cost. ponytail: a vision reader is assumed to correct; a card of its own when not."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.bakeoff import cloud_readers
+    from fichero_server.recipes.routes import _cloud_cost
+
+    out = []
+    for card in cloud_readers():
+        if not card.runs_here or card.runs_on.split(":", 1)[-1] not in keys:
+            continue
+        price = _cloud_cost(f"{card.pin['cloud']}/{card.pin['model']}", 1)
+        if price:
+            out.append(replace(card, jobs=card.jobs | {"correct"}, cost_per_page=price))
+    return out
 
 
 def _answers(answers: dict[str, Any]) -> Answers:
@@ -1831,8 +1850,13 @@ async def use_candidate_for_step(
     from fichero_server.recipes.discovery import other_text_cards
 
     # The rules' cards, and the text models the finder offers a person beyond them (#5660 item 4) that can run.
-    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here)]
-    card = next((c for c in offered if c.id == request.card), None)
+    # And the keyed cloud correctors: Correct's offer at Ready is taken here (#5677). A text card shares a corrector's
+    # id, so the card that does the step's job is the one taken.
+    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here),
+               *_cloud_correctors(a.cloud_keys if a else ())]
+    job = next((s.get("job") for s in (setup["recipe"] or {}).get("steps") or [] if s.get("id") == request.step), None)
+    named = [c for c in offered if c.id == request.card]
+    card = next((c for c in named if job in c.jobs), named[0] if named else None)
     if card is None:
         raise HTTPException(status_code=422, detail=f"{request.card} is not a model Fichero has found here: list "
                                                     "the candidates (online, to search) and choose one of them")
