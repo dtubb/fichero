@@ -276,9 +276,26 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     words = f"Done: {counts['landed']} of {total} shards landed, {detail['landing']['landed']} pages read"
     if counts["failed"]:
         words += f"; {counts['failed']} shards failed (re-send them)"
+    elif hasattr(target, "remove"):  # a cluster; Hugging Face keeps nothing of a finished Job
+        words += _copies_left(db, target, job_id)
     detail.pop("catch_up", None)  # a request made as the run ended has nothing left to hurry
     _save(db, job_id, detail, reason=words, keep_catch_up=False)
     return counts
+
+
+def _copies_left(db: Any, target: Any, job_id: str) -> str:
+    """`source.onboard.copies-may-stay-on-cluster`: the run's working copies stay for re-runs only when the project
+    said so; otherwise they leave once every shard has landed (with failed shards they wait for the re-send)."""
+    from fichero_server.recipes.answers import copies_may_stay
+    from fichero_server.recipes.project import read_project_setup
+
+    if copies_may_stay(read_project_setup(Path(db.path).parent)["answers"]):
+        return "; the working copies stay on the cluster for re-runs"
+    try:
+        target.remove(job_id)
+    except Exception as exc:  # the pages are read and home; a folder left behind is said, not a failed run
+        return f"; the working copies could not be removed from the cluster ({exc})"
+    return "; the working copies were removed from the cluster"
 
 
 def _out_of_reach_if_running_there(db: Any, job_id: str, detail: dict[str, Any], exc: Exception) -> None:

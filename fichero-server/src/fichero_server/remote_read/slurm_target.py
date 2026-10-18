@@ -130,6 +130,10 @@ class SlurmTarget:
     def cancel(self, far_id: str) -> None:
         self._run(["scancel", far_id])
 
+    def remove(self, job_key: str) -> None:
+        """Take the run's folder off the cluster: the downscaled pages, the package and what came back."""
+        self._run(["rm", "-rf", self._dir(job_key)])
+
     def price_per_hour(self, flavor: str) -> float | None:
         return None  # a cluster allocation is not bought by the hour (outside the spend cap)
 
