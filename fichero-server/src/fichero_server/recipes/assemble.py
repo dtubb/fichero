@@ -204,6 +204,8 @@ class Card:
     #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
     #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
     offered_only: bool = False
+    #: A frontier cloud model counted as multilingual (#5718): not refused a rewrite for a language it does not list.
+    multilingual: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
     #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).
@@ -310,7 +312,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
-    if job in REWRITING_JOBS and card.languages is None:
+    if job in REWRITING_JOBS and card.languages is None and not card.multilingual:
         return "no-model-for-language", "a model that does not list the language would rewrite it into one it knows"
     if material == "handwriting" and card.material and "handwriting" not in card.material:
         return "no-reader-for-material", "it is made for print or typescript, never handwriting"
