@@ -51,6 +51,13 @@ WAYS: dict[str, list[dict[str, Any]]] = {
 }
 
 
+def method_for(job: str) -> Any:
+    """The job's declared distil method (`recipes.jobs.DISTIL`, `source.distil.each-step-has-a-method`), or None."""
+    from fichero_server.recipes.jobs import DISTIL
+
+    return DISTIL.get(job)
+
+
 #: The audited actions that need a teacher (the model whose line readings are the lessons).
 _TAUGHT = frozenset({"training.start_here", "training.start", "training.start_vision_lora"})
 
