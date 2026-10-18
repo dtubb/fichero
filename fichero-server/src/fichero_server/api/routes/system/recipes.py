@@ -300,6 +300,17 @@ def _hf_token_set() -> bool:
     return bool(get_api_key("huggingface"))
 
 
+def _cluster_names() -> list[str]:
+    """The clusters set up on this Mac, by name (#5769); none when the app's settings cannot be read."""
+    from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.db.app import get_app_db
+
+    try:
+        return sorted(str(c.get("name") or c.get("cluster_id") or "a cluster") for c in _load_clusters(get_app_db()).values())
+    except Exception:  # noqa: BLE001 -- no clusters to offer, never a failed plan
+        return []
+
+
 def _this_machine_memory_gb() -> float:
     from fichero_server.recipes.train_offers import this_mac_memory_gb
 
@@ -1419,13 +1430,20 @@ class ProposedJobs(BaseModel):
 class TrainTarget(BaseModel):
     """A place a way of training runs, and the audited action that starts it there (#5660 item 9)."""
 
-    place: str = Field(description="this-mac or huggingface-jobs: only the places the engine trains on today")
+    place: str = Field(description=(
+        "this-mac, huggingface-jobs, or cluster (a cluster set up here, the free alternative offered beside Hugging "
+        "Face; no start action yet)"))
     name: str
-    starts: str = Field(description="the action that starts it, e.g. training.start_here")
+    starts: Optional[str] = Field(default=None, description=(
+        "the action that starts it, e.g. training.start_here; null for a cluster, offered with its first-run steps"))
     params: Optional[dict[str, Any]] = Field(default=None, description=(
         "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot "
         "fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for "
         "pages to leave (`pages_may_leave`) is asked at start, never sent here"))
+    held: Optional[str] = Field(default=None, description=(
+        "why this place stays an offer, never started by itself: a $0 Hugging Face spend cap (#5769)"))
+    first_run: Optional[list[str]] = Field(default=None, description=(
+        "a cluster's attended first run, step by step (`source.onboard.cluster-offer`, #5769)"))
 
 
 class TrainWay(BaseModel):
@@ -1539,14 +1557,18 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["folder_id"] = folder_id
     from fichero_server.recipes.train_offers import training_setting
 
+    from fichero_server.recipes.answers import spend_cap
+
+    cap = spend_cap(setup["answers"])
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
-                               hf_configured=_hf_token_set(), stays_local=stays_local)
+                               hf_configured=_hf_token_set(), stays_local=stays_local, spend_cap=cap)
     from fichero_server.recipes.train_offers import held_after_failure
 
     held = held_after_failure(db) if setting["mode"] == "here" else None
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
-    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
+    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
+                                        spend_cap=cap, clusters=_cluster_names())
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
     elif within is None and not pages["pages"]:

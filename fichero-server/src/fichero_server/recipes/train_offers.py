@@ -61,8 +61,27 @@ TRAIN_HERE_MIN_RAM_GB = 16
 TRAINING_MODES = ("here", "huggingface", "offered")
 
 
+#: What a $0 spend cap says, on the setting and on each Hugging Face place (#5769).
+_CAP_HOLDS = "the project's Hugging Face spend cap is $0, so paid training is offered, never started by itself"
+#: The attended first run on a cluster (`source.onboard.cluster-offer`): the steps the person takes before a cluster
+#: trains unattended. ponytail: steps, not a start action; a cluster training path is not built yet.
+CLUSTER_FIRST_RUN = ("Test the connection to the cluster (Settings › Compute, or fichero_hpc_test_cluster)",
+                     "Dry-run the submission and read the job script (fichero_hpc_dry_run_submit)",
+                     "Watch the first job to its end before leaving the next ones unattended")
+
+
 def training_setting(answered: str | None, *, mac_memory_gb: float, hf_configured: bool,
-                     stays_local: bool = False) -> dict[str, str]:
+                     stays_local: bool = False, spend_cap: float | None = None) -> dict[str, str]:
+    """How training happens in this project; with `spend_cap` (`answers.spend_cap`, #5769) at $0, Hugging Face is never
+    the setting: it falls back to `offered` and says so."""
+    setting = _setting(answered, mac_memory_gb=mac_memory_gb, hf_configured=hf_configured, stays_local=stays_local)
+    if setting["mode"] == "huggingface" and spend_cap is not None and spend_cap <= 0:
+        return {"mode": "offered", "why": _CAP_HOLDS}
+    return setting
+
+
+def _setting(answered: str | None, *, mac_memory_gb: float, hf_configured: bool,
+             stays_local: bool = False) -> dict[str, str]:
     """How training happens in this project, from setup's answer (`answers.training`) or, with none, from the machine
     (#5440, ruled 2026-10-17): here when this Mac has the memory, else Hugging Face when a token is set up, else offered
     on the Start plan. A choice that cannot be met falls back to `offered` and says why. A project that keeps its pages on
@@ -112,13 +131,18 @@ def _params(action: str, job: str, counts: dict[str, Any], teacher: str | None =
     return None
 
 
-def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None, spend_cap: float | None = None,
+          clusters: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
     counts = counts or {}
     out = []
     for way in WAYS[job]:
-        targets = [{**place, "starts": action, "params": _params(action, job, counts, way.get("teacher"))}
+        targets = [{**place, "starts": action, "params": _params(action, job, counts, way.get("teacher")),
+                    "held": _CAP_HOLDS if place is HF_JOBS and spend_cap is not None and spend_cap <= 0 else None}
                    for place, action in way["targets"]
                    if not (stays_local and place is not THIS_MAC)]  # pages kept on this Mac never leave it
+        if any(t["place"] == HF_JOBS["place"] for t in targets):  # the free alternative beside every paid one
+            targets += [{"place": "cluster", "name": name, "starts": None, "params": None, "held": None,
+                         "first_run": list(CLUSTER_FIRST_RUN)} for name in clusters]
         why = way.get("why")
         if way["targets"] and not targets:
             why = "this project keeps its pages on this Mac, and this training runs only on Hugging Face Jobs"
@@ -176,7 +200,8 @@ def _roots(db: Any) -> list[str]:
 
 
 def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool,
-                 setting: dict[str, str] | None = None) -> list[dict[str, Any]]:
+                 setting: dict[str, str] | None = None, spend_cap: float | None = None,
+                 clusters: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
     """One offer per recipe step a model can be trained for, in the recipe's order."""
     from fichero_server.recipes.assemble import TRAIN_OFFERED_FROM_LINES
     from fichero_server.recipes.bakeoff import readiness
@@ -191,7 +216,7 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
         job = step.get("job")
         if job not in WAYS:
             continue
-        ways = _ways(job, stays_local=stays_local, counts=counts)
+        ways = _ways(job, stays_local=stays_local, counts=counts, spend_cap=spend_cap, clusters=clusters)
         if not any(w["available"] for w in ways):
             # Nothing here can train it: no count of corrections to ask for (#5659: the names step asked for
             # 2,000 corrected lines, which no spaCy trainer would read).
@@ -241,12 +266,16 @@ def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str
     from fichero_server.llm import get_api_key
     from fichero_server.recipes.project import read_project_setup
 
+    from fichero_server.recipes.answers import spend_cap
+
     setup = read_project_setup(Path(db.path).parent)
     answers = setup["answers"] or {}
     stays_local = not answers.get("cloud_allowed", False)
     setting = training_setting(answers.get("training"), mac_memory_gb=mac_memory_gb or this_mac_memory_gb(),
-                               hf_configured=bool(get_api_key("huggingface")), stays_local=stays_local)
-    return train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
+                               hf_configured=bool(get_api_key("huggingface")), stays_local=stays_local,
+                               spend_cap=spend_cap(answers))
+    return train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
+                        spend_cap=spend_cap(answers))
 
 
 def _start(db: Any, action: str, params: dict[str, Any]) -> str:
