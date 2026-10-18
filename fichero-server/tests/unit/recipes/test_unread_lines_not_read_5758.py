@@ -112,7 +112,7 @@ def test_the_mark_is_a_versioned_audited_segment_update_keyed_by_the_model_that_
     from fichero_server.models.segments import Segment
     from fichero_server.recipes.done import is_done
 
-    page = _page(db, 2, 1)
+    page = _page(db, 1, 0)
     blank = next(s for s in db.query(Segment, document_id=page) if s.kind == "line"
                  and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page)))
     before = blank.version
@@ -121,3 +121,64 @@ def test_the_mark_is_a_versioned_audited_segment_update_keyed_by_the_model_that_
     assert db.get(Segment, blank.id).version == before + 1, "saved through segment.update: versioned"
     assert is_done(db, {"job": "read-a-line", "model_override": "weak"}, page) is True
     assert is_done(db, {"job": "read-a-line", "model_override": "better"}, page) is False, "a better reader looks again"
+
+
+def test_one_blank_line_does_not_finish_a_page_for_a_reader_that_read_none_of_its_text(db):
+    from fichero_server.llm.working_lines import mark_no_writing
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import is_done
+
+    page = _page(db, 2, 1)  # line 0 has a reading (not by "better"), line 1 has none
+    blank = next(s for s in db.query(Segment, document_id=page) if s.kind == "line"
+                 and not any(r.segment_id == s.id for r in db.query(ContentRepresentation, document_id=page)))
+    mark_no_writing(db, [blank.id], model="better")
+    assert is_done(db, {"job": "read-a-line", "model_override": "better"}, page) is False
+
+    blank_page = _page(db, 1, 0)  # every line blank: looked at, nothing to read
+    only = next(s for s in db.query(Segment, document_id=blank_page) if s.kind == "line")
+    mark_no_writing(db, [only.id], model="better")
+    assert is_done(db, {"job": "read-a-line", "model_override": "better"}, blank_page) is True
+
+
+def test_a_line_a_recognising_reader_gave_no_text_is_saved_marked_with_why():
+    """The live run (M4, 2026-10-17) segmented and read in one go: a line read as empty text was saved with no
+    reading and no mark, so 36 lines were 'unread' with no reason anywhere."""
+    from fichero_server.models.segments import segment_from_box
+    from fichero_server.media.ocr_geometry import OCRGeometryBox, OCRGeometryLevel
+
+    def box(text, source, **meta):
+        return OCRGeometryBox(text=text, bbox=[0.1, 0.1, 0.5, 0.05], level=OCRGeometryLevel.LINE, provider="kraken",
+                              model="m1", source=source, metadata={"polygon_px": [[0, 0], [9, 0], [9, 3]], **meta})
+
+    read = lambda b: segment_from_box(document_id="d", artifact_id="a", box_index=0, box=b, rendition_id=None,
+                                      pass_provenance_kind=ProvenanceKind.workflow)
+    blank = read(box("", "kraken-htr", page_has_readings=True)).metadata["read_no_writing"]
+    assert blank["model"] == "m1" and blank["reason"]
+    # a page where the reader returned empty for EVERY line is a failed read, not 'no writing' (review 64)
+    nothing = read(box("", "kraken-htr", page_read_nothing=True)).metadata
+    assert "read_no_writing" not in nothing and nothing["unread_reason"] == "every line came back empty: the reader may not suit this hand"
+    assert "read_no_writing" not in read(box("", "kraken-blla")).metadata, "a finder reads nothing: not looked at"
+    assert "read_no_writing" not in read(box("texto", "kraken-htr")).metadata
+
+
+def test_every_unread_line_has_a_reason(db):
+    from fichero_server.recipes.done import unread_reasons
+
+    page = _page(db, 3, 1)
+    reasons = unread_reasons(db, page)
+    assert len(reasons) == 2 and all(isinstance(r, str) and r for r in reasons.values())
+    assert run_view.lines_unread_why(db, [page]) == {next(iter(reasons.values())): 2}
+
+
+def test_a_page_the_reader_returned_nothing_for_is_unread_failed_and_read_again(db):
+    from fichero_server.models.segments import Segment
+    from fichero_server.recipes.done import NOTHING_FOR_PAGE, is_done, unread_reasons
+
+    page = _page(db, 3, 0)
+    for seg in db.query(Segment, document_id=page):
+        if seg.kind == "line":
+            seg.metadata = {**(seg.metadata or {}), "unread_reason": NOTHING_FOR_PAGE}
+            db.save(seg)
+    assert set(unread_reasons(db, page).values()) == {NOTHING_FOR_PAGE}
+    assert is_done(db, {"job": "read-a-line", "model_override": None}, page) is False, "a second Start reads it again"
+    assert run_view.pages_read_nothing(db, [page]) == 1
