@@ -74,6 +74,7 @@ struct LibraryHeaderRow: View {
         // name (ruled 2026-10-10). `ProjectRowMenuOffers` still refuses it everything but folders
         // and imports, so the menu is never empty (#116) whatever row it lands on.
         header.contextMenu { libraryContextMenu }
+            .accessibilityIdentifier(SidebarAccessibilityID.project(library.id))
             // The key window's project, for File's and Project's project verbs (#5652): the same target this menu
             // renders. Only the window's own project's row publishes it.
             .focusedSceneValue(\.projectVerbs, isCurrentLibrary ? verbs : nil)
