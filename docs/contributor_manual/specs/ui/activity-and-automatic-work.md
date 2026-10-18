@@ -1534,7 +1534,9 @@ code path.
   *Built (engine):* the quit records the reason (`runner.QUIT_PAUSED_ERROR`) and the library's next open resumes the runs that
   carry it, clearing the reason first so a later pause by a person is left for Resume; a resume that fails leaves the run paused
   with why (`activity.resume_quit_paused_runs`; `fichero-server/tests/unit/workflows/test_quit_paused_runs_resume_5357.py`).
-  *Not built:* the worker stopping at its next boundary (it is killed at exit, so the checkpoint is the last one written).
+  The quit then waits up to `runner.BOUNDARY_GRACE_SECONDS` (1 s; the app kills the engine soon after) for each asked run to reach
+  its boundary and settle `paused`; one that does not is covered by the `paused` record (`test_quit_paused_runs_resume_5357.py`).
+  *Not built:* a step that runs longer than the grace is still cut at exit, so its checkpoint is the last one written.
 - `activity.run.cache-keyed-on-content` — **[PARTIAL]** (#5360, #5361) a step re-runs when the
   text or image it reads has changed, and is reused when it has not, in any workflow. Built
   (2026-10-03): a text-reading step's key carries a fingerprint of the page's current text, so a
