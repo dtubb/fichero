@@ -2130,7 +2130,7 @@ class AppDatabase:
             audit.created_at = utc_now()
             audit.chain_seq = (head[0] + 1) if head else 1
             audit.prev_hash = (head[1] or None) if head else None
-            audit.row_hash = compute_action_audit_hash(audit)
+            audit.row_hash = compute_action_audit_hash(audit, v2=True)
             return self.save_action_audit(audit)
 
     def list_action_audits(self) -> list[ActionAudit]:
