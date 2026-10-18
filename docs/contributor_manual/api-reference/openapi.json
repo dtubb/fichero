@@ -51705,6 +51705,44 @@
         "title": "BakeoffNextRun",
         "description": "Who would take part in a bake-off started now and what it would cost, said before it starts (ruled\n2026-10-11): at most two readers of each kind, from what the finder found."
       },
+      "BakeoffOffer": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "what the comparison costs, first"
+          },
+          "run_cost_usd": {
+            "type": "number",
+            "title": "Run Cost Usd"
+          },
+          "pages": {
+            "type": "integer",
+            "title": "Pages",
+            "description": "the corrected sample pages it would read"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready",
+            "description": "false until the project holds enough corrected lines"
+          },
+          "readiness_sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Readiness Sentence",
+            "description": "when not ready, what to correct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sentence",
+          "run_cost_usd",
+          "pages",
+          "ready"
+        ],
+        "title": "BakeoffOffer",
+        "description": "The bake-off offered on the Start plan: its cost said first, then whether the project can run it now."
+      },
       "BakeoffPage": {
         "properties": {
           "document_id": {
@@ -70912,6 +70950,13 @@
           "sentence": {
             "type": "string",
             "title": "Sentence"
+          },
+          "offered": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Offered",
+            "description": "Correct offered at Ready (ruled Q3 2026-10-17, #5677): a cloud corrector whose provider has a key set here, `card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"
           }
         },
         "type": "object",
@@ -81059,9 +81104,9 @@
             "type": "number",
             "maximum": 1.0,
             "minimum": 0.0,
+            "nullable": true,
             "title": "Noise Band",
-            "description": "A reasoning student is adopted only if it beats the answer-only one by more than this CER.",
-            "default": 0.005
+            "description": "A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692)."
           }
         },
         "type": "object",
@@ -81417,11 +81462,24 @@
             "description": "the lines found on those pages that have no reading (#5758)",
             "default": 0
           },
+          "lines_seen_blank": {
+            "type": "integer",
+            "title": "Lines Seen Blank",
+            "description": "lines the reader looked at and found no writing on, on pages that also have text (#5758)",
+            "default": 0
+          },
           "pages_read_nothing": {
             "type": "integer",
             "title": "Pages Read Nothing",
             "description": "pages the reader returned nothing for, line by line: failed reads (#5758)",
             "default": 0
+          },
+          "next_reader": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Next Reader",
+            "description": "when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)"
           },
           "lines_unread_why": {
             "additionalProperties": {
@@ -90224,6 +90282,11 @@
             "title": "Train Offers",
             "description": "for each step a model can be trained for, how to train it on the corrected pages and where; offered later, never run at Start (#5660 item 9)"
           },
+          "bakeoff_offer": {
+            "$ref": "#/components/schemas/BakeoffOffer",
+            "nullable": true,
+            "description": "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the recipe has no reading step (#5660 item 7)"
+          },
           "refusals": {
             "items": {
               "type": "string"
@@ -92398,6 +92461,13 @@
             "type": "string",
             "title": "Does",
             "description": "what the setting does once the corrected lines reach the threshold, in a sentence"
+          },
+          "noise_band": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Noise Band",
+            "description": "the project's noise band (#5692): `value`, the CER difference a trained model must beat its base by; `measured`, whether this project's pages measured it (CER spread over 3 held-out splits) or it is the ruled 0.5 CER points; `basis` in words"
           }
         },
         "type": "object",
@@ -92520,7 +92590,7 @@
           "place": {
             "type": "string",
             "title": "Place",
-            "description": "this-mac or huggingface-jobs: only the places the engine trains on today"
+            "description": "this-mac, huggingface-jobs, or cluster (a cluster set up here, the free alternative offered beside Hugging Face; no start action yet)"
           },
           "name": {
             "type": "string",
@@ -92528,8 +92598,9 @@
           },
           "starts": {
             "type": "string",
+            "nullable": true,
             "title": "Starts",
-            "description": "the action that starts it, e.g. training.start_here"
+            "description": "the action that starts it, e.g. training.start_here; null for a cluster, offered with its first-run steps"
           },
           "params": {
             "additionalProperties": true,
@@ -92537,13 +92608,27 @@
             "nullable": true,
             "title": "Params",
             "description": "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for pages to leave (`pages_may_leave`) is asked at start, never sent here"
+          },
+          "held": {
+            "type": "string",
+            "nullable": true,
+            "title": "Held",
+            "description": "why this place stays an offer, never started by itself: a $0 Hugging Face spend cap (#5769)"
+          },
+          "first_run": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "First Run",
+            "description": "a cluster's attended first run, step by step (`source.onboard.cluster-offer`, #5769)"
           }
         },
         "type": "object",
         "required": [
           "place",
-          "name",
-          "starts"
+          "name"
         ],
         "title": "TrainTarget",
         "description": "A place a way of training runs, and the audited action that starts it there (#5660 item 9)."

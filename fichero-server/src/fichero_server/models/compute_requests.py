@@ -90,8 +90,9 @@ class ReasonsABRequest(BaseModel):
     contenders: list[ContenderSpec] = Field(min_length=2, description="The answer-only student, the reasoning "
                                             "students, the teacher and a cheap baseline.")
     language: str | None = None
-    noise_band: float = Field(0.005, ge=0.0, le=1.0, description="A reasoning student is adopted only if it beats "
-                              "the answer-only one by more than this CER.")
+    noise_band: float | None = Field(None, ge=0.0, le=1.0, description="A reasoning student is adopted only if it "
+                                     "beats the answer-only one by more than this CER; null: the project's noise band "
+                                     "(measured, else the ruled 0.005, #5692).")
 
 
 class ReadAtScaleRequest(BaseModel):

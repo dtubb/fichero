@@ -93,6 +93,15 @@ def start_ab(db: Any, request: ReasonsABRequest, *, started_by: str) -> dict[str
     return {"job_id": job_id}
 
 
+def band_for(db: Any, given: float | None) -> float:
+    """The noise band a comparison judges by: the one the request named, else the project's (#5692)."""
+    from pathlib import Path
+
+    from fichero_server.recipes.project import read_noise_band
+
+    return given if given is not None else read_noise_band(Path(db.path).parent)["value"]
+
+
 def run_ab(db: Any, subject: str) -> dict[str, Any]:
     from fichero_server.training.reasons_ab import Contender, run_ab as measure_ab
 
@@ -102,7 +111,7 @@ def run_ab(db: Any, subject: str) -> dict[str, Any]:
     jobs.save_detail(db, job_id, json.dumps(detail), reason="Each contender reading the held-out lines")
     result = asyncio.run(measure_ab(db, checked=request.checked, held_out_ids=request.held_out_ids,
                                     contenders=[Contender(**c.model_dump()) for c in request.contenders],
-                                    language=request.language, noise_band=request.noise_band))
+                                    language=request.language, noise_band=band_for(db, request.noise_band)))
     detail["result"] = result
     adopted = [label for label, v in result["verdicts"].items() if v["adopted"]]
     words = (f"Adopted: {', '.join(adopted)}" if adopted else "No reasoning student beat the answer-only one "

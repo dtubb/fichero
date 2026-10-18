@@ -49,6 +49,25 @@ def _maker(reading: Any) -> str:
     return "machine" if (getattr(reading, "producer_tool", None) or getattr(reading, "producer_model", None)) else "unrecorded"
 
 
+def line_of_word(row: Any, shapes: dict[str, Any]) -> Any:
+    """The line a word sits in (its parent, a line), or None (#5648)."""
+    parent = shapes.get(getattr(row, "parent_segment_id", None) or "")
+    return parent if getattr(row, "kind", None) == "word" and getattr(parent, "kind", None) == "line" else None
+
+
+def _grouped_into_lines(rows: list[tuple[str, Any, Any, str]], shapes: dict[str, Any]) -> list[tuple[str, Any, Any, str]]:
+    """A page read as words that sit in lines, listed one row per line, the line's words joined in order (ruled
+    2026-10-17, #5648): 656 word rows become the page's ~40 lines. Rows that are not all such words stay as they are."""
+    if not rows or not all(line_of_word(row, shapes) is not None for _id, row, _r, _t in rows):
+        return rows
+    grouped: dict[str, list] = {}
+    for _id, row, reading, text in rows:
+        line = line_of_word(row, shapes)
+        entry = grouped.setdefault(line.id, [line.id, line, reading, []])
+        entry[3].append(text)
+    return [(line_id, line, reading, " ".join(texts)) for line_id, line, reading, texts in grouped.values()]
+
+
 def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None, *,
                  confidence: bool = False) -> ToolContext:
     """The compact lines for `segment_ids` on one page (None: the whole page). With `confidence`, each line
@@ -75,18 +94,20 @@ def tool_context(db: Any, document_id: str, segment_ids: list[str] | None = None
             ContentRepresentation, "id", [s.representation_id for s in derived.spans if s.representation_id]
         )
     }
-    lines, ids = [], []
+    rows: list[tuple[str, Any, Any, str]] = []  # (segment id, its row, its reading, its text)
     for span in derived.spans:
         if span.representation_id is None or (wanted is not None and not in_scope(span.segment_id)):
             continue
-        row = shapes.get(span.segment_id)
+        rows.append((span.segment_id, shapes.get(span.segment_id), readings.get(span.representation_id),
+                     derived.text[span.start:span.end].replace("\n", " ")))
+    rows = _grouped_into_lines(rows, shapes)
+    lines, ids = [], []
+    for segment_id, row, reading, text in rows:
         box = " ".join(f"{v:.3f}" for v in (row.bbox_x, row.bbox_y, row.bbox_w, row.bbox_h)) if row else "- - - -"
-        text = derived.text[span.start:span.end].replace("\n", " ")
-        reading = readings.get(span.representation_id)
         sure = getattr(reading, "machine_confidence", None)
         shown = f" | {'-' if sure is None else f'{sure:.2f}'}" if confidence else ""
-        lines.append(f"{span.segment_id} | {box} | {_maker(reading)}{shown} | {text}")
-        ids.append(span.segment_id)
+        lines.append(f"{segment_id} | {box} | {_maker(reading)}{shown} | {text}")
+        ids.append(segment_id)
     if not lines and wanted is None:
         block, came_from = _text_without_segments(db, document_id)
         if block:
