@@ -8,6 +8,7 @@ import pytest
 
 from fichero_server import __main__ as backend_main
 from fichero_server.security import accounts
+from tests.unit.security.test_sharing_probe_2026_10_01 import _clear_pairing_state, harness  # noqa: F401
 
 LAN = "192.168.1.42"
 
@@ -21,7 +22,7 @@ def _lan(monkeypatch):
 def _pair_device(app_db, revoked=False):
     user = app_db.list_users()[0] if hasattr(app_db, "list_users") and app_db.list_users() else None
     user_id = user.id if user else backend_main_owner(app_db)
-    device = app_db.create_device(name="iPhone", user_id=user_id, token_hash=accounts.hash_token("t"))
+    device = app_db.create_device(name="iPhone", user_id=user_id, token_hash=accounts.hash_token(accounts.new_session_token()))
     if revoked:
         app_db.revoke_device(device.id)
     return device
@@ -56,3 +57,47 @@ def test_an_explicit_off_wins_over_a_paired_device(app_db, monkeypatch):
 def test_an_explicit_on_opens_it_with_no_device(app_db, monkeypatch):
     monkeypatch.setenv("FICHERO_THIS_NETWORK", "1")
     assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1", LAN]
+
+
+# The route a device paired over decides whether it keeps the .local listener open (review 75): a
+# Tailscale-paired device must not, so a tailnet-only Mac stays "safe at work" after the update.
+
+
+def _paired_over(app_db, route):
+    device = _pair_device(app_db)
+    if route is not None:
+        app_db.set_device_route(device.id, route)
+    return device
+
+
+def test_a_tailscale_only_mac_keeps_this_network_off_after_the_update(app_db):
+    _paired_over(app_db, "tailnet")
+    assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1"]
+
+
+def test_a_device_paired_over_the_lan_keeps_it_on(app_db):
+    _paired_over(app_db, "lan")
+    assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1", LAN]
+
+
+def test_a_mixed_mac_keeps_it_on_for_the_lan_device(app_db):
+    _paired_over(app_db, "tailnet")
+    _paired_over(app_db, "lan")
+    assert backend_main._listener_hosts("127.0.0.1", app_db=app_db) == ["127.0.0.1", LAN]
+
+
+def test_a_pairing_through_tailscale_serve_is_recorded_as_tailnet(harness):
+    code = harness.host().post("/api/pair/code").json()["code"]
+    paired = harness.remote().post(
+        "/api/pair",
+        json={"code": code, "device_name": "iPhone"},
+        headers={"Tailscale-User-Login": "me@example.com"},
+    )
+    assert paired.status_code == 200, paired.text
+    assert harness.app_db.device_route(paired.json()["device_id"]) == "tailnet"
+
+
+def test_a_direct_pairing_is_recorded_as_lan(harness):
+    code = harness.host().post("/api/pair/code").json()["code"]
+    paired = harness.remote().post("/api/pair", json={"code": code, "device_name": "iPad"})
+    assert harness.app_db.device_route(paired.json()["device_id"]) == "lan"

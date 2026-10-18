@@ -65,14 +65,15 @@ def _app_db_for_listener():
 
 def _this_network_on(app_db) -> bool:
     """"This network" (`sharing.share-on-choice`): the app's explicit choice, else on only while a device is
-    actually paired, so an update never drops a phone and a fresh setup stays off. No ``app_db``: no gate."""
+    actually paired over .local or the LAN (never one paired through Tailscale), so an update never drops a
+    phone and a fresh setup stays off. No ``app_db``: no gate."""
     choice = (os.environ.get("FICHERO_THIS_NETWORK") or "").strip()
     if choice in ("0", "1"):
         return choice == "1"
     if app_db is None:
         return True
     try:
-        return any(not device.revoked for device in app_db.list_devices())
+        return app_db.has_lan_paired_device()
     except Exception:  # an unreadable device list must not silently drop an owner's paired phone
         logger.warning("Could not read paired devices for the .local listener; keeping it.", exc_info=True)
         return True

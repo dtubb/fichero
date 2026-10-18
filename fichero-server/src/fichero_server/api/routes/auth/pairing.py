@@ -635,6 +635,8 @@ def pair_device(
         )
         if record.paired_by_device_id:
             app_db.set_device_paired_by(device.id, record.paired_by_device_id)
+        # Through `tailscale serve` (its identity headers) vs straight onto the .local/LAN listener.
+        app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         record.used = True
         _PAIRING_CODES.pop(code, None)
         return _to_pair_response(device, raw_token)
@@ -673,6 +675,7 @@ def enroll_device(
             user_id=user.id,
             token_hash=accounts.hash_token(raw_token),
         )
+        app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         _record_device_audit(
             action_name="device.enroll",
             actor=f"enrollment:{secret.id}",

@@ -351,6 +351,11 @@ class AppDatabase:
             self.conn.execute("ALTER TABLE devices ADD COLUMN paired_by_device_id VARCHAR")
             self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
 
+        # Which route the device paired over ("lan" or "tailnet"); unset for devices paired before this existed.
+        if "paired_route" not in _device_cols:
+            self.conn.execute("ALTER TABLE devices ADD COLUMN paired_route VARCHAR")
+            self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
         _invite_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
         }
@@ -1874,6 +1879,26 @@ class AppDatabase:
                 "UPDATE devices SET paired_by_device_id = ? WHERE id = ?", [paired_by_device_id, device_id]
             )
             self.conn.commit()
+
+    def set_device_route(self, device_id: str, route: str | None) -> None:
+        """Record the route a device paired over: "lan" (direct, .local or the LAN) or "tailnet"."""
+        with self._lock:
+            self.conn.execute("UPDATE devices SET paired_route = ? WHERE id = ?", [route, device_id])
+            self.conn.commit()
+
+    def device_route(self, device_id: str) -> str | None:
+        with self._lock:
+            row = self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]).fetchone()
+        return row[0] if row else None
+
+    def has_lan_paired_device(self) -> bool:
+        """A live device paired over .local or the LAN; one paired before the route was recorded counts as LAN
+        (the app only offers the .local address then), a tailnet-paired one never does."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT 1 FROM devices WHERE NOT revoked AND (paired_route IS NULL OR paired_route = 'lan') LIMIT 1"
+            ).fetchone()
+        return row is not None
 
     def device_paired_by(self) -> dict[str, str]:
         """device id -> the paired device that paired it (devices paired by the host are absent)."""
