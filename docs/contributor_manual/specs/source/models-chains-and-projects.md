@@ -1080,11 +1080,13 @@ plan's peak memory across steps. Ready shows none of it.
   from a sample of the material, setup fills in its suggestions for language, script, material, period
   and hand, labelled "suggested from your pages", along with the pages that are blank or duplicates. The
   person confirms them; they do not type them.
-- `source.onboard.auto.reader-measured-before-bulk` — **[GAP]** (#5533, #5519, #4951) no reader reads
-  the whole material on the strength of a published figure alone. Before the bulk read, a strong reader
-  reads the sample, the teacher-line check (#5446) removes its misreads, the candidates are compared on
-  it, and the winner reads the rest. All of this is jobs in the run. The person's yes for the winner is
-  one question, asked where the run waits (the ruling of section 12, "Use the winner").
+- `source.onboard.auto.reader-measured-before-bulk` — **[PARTIAL]** (#5533, #5519, #4951, #5660; built: the Start
+  plan carries `bakeoff_offer`, the comparison on the sample with its cost first and whether the project has the
+  corrected lines for it, pinned by `fichero-server/tests/unit/recipes/test_bakeoff_offered_on_start_plan.py`;
+  not built: the strong-reader sample read and the teacher-line check as jobs of the run) no reader reads the
+  whole material on the strength of a published figure alone. The Start plan OFFERS a comparison on the sample,
+  cost first, and never runs it by itself (ruled 2026-10-17, #5660 item 7); once run, its winner is the step's
+  model and the bulk read waits for the person's Use This (the ruling of section 12, "Use the winner").
 - `source.onboard.auto.reader-per-material` — **[PARTIAL]** (#5478, #5578; tested in
   `fichero-server/tests/unit/recipes/test_reader_per_material_to_spec.py`)
   each page is read by the reader for its kind. A cheap first job sorts the pages (handwriting, print,
