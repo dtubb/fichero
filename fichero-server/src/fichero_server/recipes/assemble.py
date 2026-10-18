@@ -265,6 +265,9 @@ class Answers:
     #: The cloud providers with a key set here (`derived._providers_with_keys`): only their models are offered as a
     #: way to turn a step on (#5677, ruled Q3 2026-10-17). Names only, never the keys.
     cloud_keys: tuple[str, ...] = ()
+    #: The CER difference inside which two readers measured on the person's pages tie (`source.train.noise-band-per-
+    #: project`, #5692): the project's own once an evaluation measured it, else one point.
+    noise_band: float = 0.01
 
     def __post_init__(self) -> None:
         # In the order setup offers them, so the same purposes ticked in any order give the same recipe.
@@ -547,14 +550,15 @@ def _material_rank(card: Card, material: str) -> int:
 
 def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     """The fixed order (section 8, `source.recipe.script-reader-first`): a measurement on the project's pages in
-    one-point bands first; then a reader made for the project's script before a generic one; then one whose card
-    states the material, then one that states none; then the published CER in one-point bands, so a published
+    bands of the project's noise band (one point until measured) first; then a reader made for the project's
+    script before a generic one; then one whose card states the material, then one that states none; then the published CER in one-point bands, so a published
     CER only ranks cards of the same script tier and material; then a model already on this Mac before one to
     download (`source.onboard.auto.installed-model-first`, #5583), local before remote, cheaper, faster, lower
     carbon, trainable, smaller, and the card id so ties are deterministic. Without answers (the bake-off's own
     rows) every card is one tier."""
-    measured = int(card.cer_measured_here * 100) if card.cer_measured_here is not None else 100
-    band = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
+    band = a.noise_band if a is not None and a.noise_band > 0 else 0.01
+    measured = int(card.cer_measured_here / band + 1e-9) if card.cer_measured_here is not None else 1_000_000
+    published = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
     return (
         measured,
         0 if made_for_script(card, a) else 1,
@@ -562,7 +566,7 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
         _language_rank(card, a),
         _period_rank(card, a),
         _material_rank(card, material),
-        band,
+        published,
         1 if card.installed is False else 0,
         0 if card.local else 1,
         card.cost_per_page,
