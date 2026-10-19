@@ -374,6 +374,7 @@ class TestReadOnlyGate:
             "claim_get",
             "workflow_list",
             "provider_list",
+            "mcp_call_tool",  # read-only, owner-only; never offered under this name (CHAT_HIDDEN_ACTIONS, #5761)
         }
 
     def test_action_tools_read_only_filters_to_flagged_actions(self):
@@ -423,6 +424,8 @@ class TestWriteAllowlist:
         # an off-list mutation is NEVER offered to the model
         assert "entity_delete" not in offered
         assert "claim_delete" not in offered
+        # the MCP call action is reached only through its namespaced tools in an owner's chat (#5761)
+        assert "mcp_call_tool" not in offered
 
     def test_read_only_action_still_dispatches_through_audit(self, db):
         reg = _make_read_write_registry()
