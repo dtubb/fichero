@@ -136,7 +136,7 @@ def test_the_search_model_is_loading_again_after_an_idle_release(monkeypatch):
 def test_a_queue_waiting_behind_another_kind_of_job_is_not_stalled(watched, monkeypatch):
     # A Kraken run holds the model lane for minutes; the embeds queued behind it are waiting their turn (#5807).
     library, warnings = watched
-    monkeypatch.setattr(derivatives, "_jobs_say", lambda lib: "moving")
+    monkeypatch.setattr(derivatives, "_jobs_say", lambda lib, since=None: "moving")
     time.sleep(0.8)
     assert warnings == []
 
@@ -144,20 +144,59 @@ def test_a_queue_waiting_behind_another_kind_of_job_is_not_stalled(watched, monk
 def test_a_queue_whose_jobs_all_ended_set_aside_is_over_not_stalled(watched, monkeypatch):
     # The pages left in the count were set aside or failed: nothing is queued, so there is nothing to stall on (#5845).
     library, warnings = watched
-    monkeypatch.setattr(derivatives, "_jobs_say", lambda lib: "over")
+    monkeypatch.setattr(derivatives, "_jobs_say", lambda lib, since=None: "over")
     time.sleep(0.8)
     assert warnings == [] and library not in derivatives._progress
 
 
-def test_the_job_table_says_moving_only_for_another_kind_running(tmp_path, db, monkeypatch):
+def _job(db, kind: str, state: str):
+    from fichero_server.execution import jobs
+
+    job_id = jobs._insert(db, kind, "p", None, "automatic")
+    db.execute("UPDATE jobs SET state = ?, finished_at = now() WHERE id = ?", [state, job_id])
+    return job_id
+
+
+@pytest.fixture
+def table(db, monkeypatch):
     from fichero_server.db.manager import db_manager
     from fichero_server.execution import jobs
 
     jobs._ensure(db)
-    monkeypatch.setattr(db_manager, "open_database", lambda library: db)
-    running_embed = jobs._insert(db, derivatives.EMBED_KIND, "p1", None, "automatic")
-    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [running_embed])
-    assert derivatives._jobs_say("any") is None  # its own kind running is the busy ceiling's business
-    other = jobs._insert(db, "read-a-page", "p2", None, "automatic")
-    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [other])
+    jobs.load_kinds()
+    monkeypatch.setattr(db_manager, "open_database", lambda key: db)
+    return db
+
+
+def test_page_work_of_ours_on_a_model_lane_running_says_moving(table):
+    _job(table, "read-a-page", "running")
     assert derivatives._jobs_say("any") == "moving"
+
+
+def test_a_workflow_row_a_batch_or_a_far_side_watcher_running_is_not_movement(table):
+    for kind in ("workflow", "batch", "workflow-step", "train-a-model", "read-at-scale", derivatives.EMBED_KIND):
+        _job(table, kind, "running")
+    assert derivatives._jobs_say("any") is None  # a hung embed still alarms during a run
+
+
+def test_over_needs_a_job_of_this_batch_to_have_failed_not_any_old_one(table):
+    from fichero_server.core.timeutil import utc_now
+
+    failed = _job(table, derivatives.THUMBNAIL_KIND, "failed")
+    table.execute("UPDATE jobs SET finished_at = ? WHERE id = ?", [utc_now().replace(year=2020), failed])
+    assert derivatives._jobs_say("any", since=utc_now()) is None  # an old failure from another batch
+    _job(table, derivatives.THUMBNAIL_KIND, "failed")
+    assert derivatives._jobs_say("any", since=utc_now().replace(year=2020)) == "over"
+
+
+def test_a_hung_embed_past_the_ceiling_alarms_even_while_page_work_runs(watched, monkeypatch, table):
+    library, warnings = watched
+    _job(table, "read-a-page", "running")  # a Kraken run is going...
+    monkeypatch.setattr(derivatives, "BUSY_CEILING_SECONDS", 0.1)
+    with derivatives._progress_lock:
+        derivatives._busy[library] = {1: ("Embedding a page", time.monotonic() - 5)}  # ...and one embed has hung
+    try:
+        time.sleep(0.8)
+    finally:
+        derivatives._busy.pop(library, None)
+    assert warnings and "stalled at 0 of 3" in warnings[0]
