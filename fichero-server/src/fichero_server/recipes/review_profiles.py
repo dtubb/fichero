@@ -74,6 +74,17 @@ def lens_ids() -> list[str]:
     return list(profiles()[GENERIC].lenses)
 
 
+def review_passes(preset_key: str, lenses: list[str] | None) -> int:
+    """The model calls a page takes in the shipped review preset `preset_key` with `lenses` on (None: every lens):
+    one for each pass `keep_lenses` keeps (#5723)."""
+    from fichero_server.workflows.default_workflows import shipped_preset
+
+    preset = shipped_preset(preset_key) or {}
+    kept, _ = keep_lenses(preset.get("nodes") or [], preset.get("edges") or [],
+                          lens_ids() if lenses is None else lenses)
+    return sum(1 for node in kept if node.get("tool") == "transcribe_review")
+
+
 def keep_lenses(nodes: list[dict[str, Any]], edges: list[dict[str, Any]],
                 lenses: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """A review workflow with only `lenses` on (#5723): a pass through several lenses keeps those on; a pass whose

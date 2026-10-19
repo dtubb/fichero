@@ -89949,6 +89949,20 @@
             "nullable": true,
             "title": "Memory",
             "description": "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, and the peak that comes to (#5537); null for any other run"
+          },
+          "calls_per_page": {
+            "type": "integer",
+            "title": "Calls Per Page",
+            "description": "model calls each page takes: the review makes one for each pass it runs, one a lens on (#5723); any other run, one",
+            "default": 1
+          },
+          "lenses": {
+            "items": {
+              "$ref": "#/components/schemas/StartLensCost"
+            },
+            "type": "array",
+            "title": "Lenses",
+            "description": "the review's lenses, on or off, each with what it costs a page, so turning one on or off is priced before Start (#5723); empty for any other run"
           }
         },
         "type": "object",
@@ -89993,6 +90007,31 @@
         ],
         "title": "StartInstead",
         "description": "An installed model the plan offers instead of a download (#5583)."
+      },
+      "StartLensCost": {
+        "properties": {
+          "lens": {
+            "type": "string",
+            "title": "Lens"
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "cost_per_page_usd": {
+            "type": "number",
+            "nullable": true,
+            "title": "Cost Per Page Usd",
+            "description": "one call a page: 0 on this Mac; null when unpriced"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lens",
+          "on",
+          "cost_per_page_usd"
+        ],
+        "title": "StartLensCost"
       },
       "StartPlaceInstead": {
         "properties": {
