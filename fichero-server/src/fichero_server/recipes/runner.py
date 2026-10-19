@@ -302,18 +302,20 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     # Pages a live run of the same reader already reads are joined, not read beside (#5848): the step reads the rest
     # itself and then waits for that run, so a resume and a Retry, or two Starts, never read a page twice.
     reader = reader_key(workflow, request)
-    with LIVE_CHECK_LOCK:
+    with LIVE_CHECK_LOCK:  # decided under the lock, never waited under it: start_run takes it on the loop
         live = live_run_reading(str(db.path), workflow.id, documents, reader)
-        if live and live[1] >= set(documents):
-            return _join_live_run(live[0], parent)
-        if live:
+        covered = bool(live) and live[1] >= set(documents)
+        if live and not covered:
             documents = [d for d in documents if d not in live[1]]
             request.inputs = {"selected_doc_ids": documents}
-        # Registered up front, as a chain's steps are, so the run's stream and status know the thread.
-        _set_workflow_state(thread_id, {"workflow_id": workflow.id, "workflow_name": workflow.name,
-                                        "db_path": str(db.path), "documents": [str(d) for d in documents],
-                                        "reader": reader, "status": "accepted", "events": WorkflowEventHub(),
-                                        "error": None, "final_state": None})
+        if not covered:
+            # Registered up front, as a chain's steps are, so the run's stream and status know the thread.
+            _set_workflow_state(thread_id, {"workflow_id": workflow.id, "workflow_name": workflow.name,
+                                            "db_path": str(db.path), "documents": [str(d) for d in documents],
+                                            "reader": reader, "status": "accepted", "events": WorkflowEventHub(),
+                                            "error": None, "final_state": None})
+    if covered:
+        return _join_live_run(live[0], parent)
     try:
         _validate_step_workflow(workflow, request, db)
     except Exception as exc:  # noqa: BLE001 -- the run's own preflight says why; the recipe records it

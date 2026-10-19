@@ -742,6 +742,11 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
     if workflow is None:
         raise HTTPException(status_code=404, detail=f"The run's workflow {run.workflow_name!r} is gone")
     snapshot = run.workflow_snapshot if isinstance(run.workflow_snapshot, dict) else {}
+    if isinstance(snapshot.get("nodes"), list) and snapshot["nodes"]:
+        # The nodes the run ran with (a recipe step's settings laid over the preset), so its reader key matches the
+        # recipe's and a Retry joins a resuming recipe's live read (#5848, review 261).
+        workflow = workflow.model_copy(update={"nodes": snapshot["nodes"],
+                                               "edges": snapshot.get("edges") or workflow.edges})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
     inputs["selected_doc_ids"] = account.not_done_ids
