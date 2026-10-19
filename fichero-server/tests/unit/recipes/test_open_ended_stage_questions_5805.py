@@ -85,9 +85,10 @@ def test_suggestions_hold_only_what_a_sample_try_found():
     # a stage whose try reported no kinds suggests nothing; the stage that was not tried suggests nothing
     assert _question(items, "statements", "statement_kinds")["suggestions"] == []
     assert _question(listing(None, None, {"names": {"names": []}}), "names", "entity_kinds")["suggestions"] == []
-    # a try that reports its kinds (found_kinds) is read as is, once each
+    # a try that reports its kinds (found_kinds) is read once each, trimmed, in the same sorted order as Names' (the
+    # test first expected the try's own order; `suggested_kinds` has sorted every source since 04b50149d)
     items = listing(None, None, {"statements": {"found_kinds": ["sale", "Sale", " gift "]}})
-    assert _question(items, "statements", "statement_kinds")["suggestions"] == ["sale", "gift"]
+    assert _question(items, "statements", "statement_kinds")["suggestions"] == ["gift", "sale"]
 
 
 def test_passages_says_what_it_does_without_listing_kinds_and_has_an_example():

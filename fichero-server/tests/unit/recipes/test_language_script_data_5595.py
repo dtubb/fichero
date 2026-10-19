@@ -43,7 +43,7 @@ def test_a_name_without_its_dates_resolves_and_a_miss_says_what_is_near(client):
 def test_a_syriac_reader_covers_classical_syriac(client):
     """Classical Syriac is stored as syc; a card listing Syriac (syr) covers it, so no rule refuses it for the
     language alone: the same readers and language-checked steps as for Syriac."""
-    from fichero_server.recipes.assemble import Answers, Card, assemble
+    from fichero_server.recipes.assemble import CORRECT_QUESTION, Answers, Card, assemble
 
     syc = _assemble(client, languages=["Classical Syriac"], scripts=["Syrc"]).json()
     assert syc["suits"]["languages"] == ["syc"]
@@ -52,7 +52,9 @@ def test_a_syriac_reader_covers_classical_syriac(client):
     card = Card(id="t:syriac@1", pin={"hf": "x/syriac-corrector", "revision": "abc"}, jobs=frozenset({"correct"}),
                 scripts=frozenset({"Syrc"}), languages=frozenset({"syr"}), material=frozenset())
     step = next(s for s in assemble(Answers(purposes=("transcribe",), languages=frozenset({"syc"}),
-                                            scripts=frozenset({"Syrc"})), [card])["steps"] if s["job"] == "correct")
+                                            scripts=frozenset({"Syrc"}),
+                                            job_answers={CORRECT_QUESTION: True}),  # optional since 0d2ddeeff (#5812)
+                         [card])["steps"] if s["job"] == "correct")
     assert step.get("model") == card.pin, step
 
 

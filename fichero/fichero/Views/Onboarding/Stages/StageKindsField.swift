@@ -71,3 +71,16 @@ struct StageKindsField: View {
         typed = ""
     }
 }
+
+#Preview("Open kinds: none chosen, two found on the samples") {
+    @Previewable @State var answer: StageAnswer? = .many([])
+    StageKindsField(
+        question: Components.Schemas.StageQuestion(
+            key: "entity_kinds", ask: "Which kinds of names?", kind: .many,
+            readByAStep: true, openEnded: true, suggestions: ["people", "places"]
+        ),
+        answer: $answer
+    )
+    .padding()
+    .frame(width: 420)
+}
