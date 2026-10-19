@@ -108,6 +108,7 @@ def all_seed_cards() -> tuple[Card, ...]:
             cer_published=row.get("cer_published"),
             licence=str(row.get("licence") or ""),
             note=str(row.get("note") or ""),
+            short_name=str(row.get("short_name") or ""),
             period=tuple(row["period"]) if row.get("period") else None,
             handwriting_scripts=_set(row.get("handwriting_scripts")),
             lines_per_request=int(row["lines_per_request"]) if row.get("lines_per_request") else None,

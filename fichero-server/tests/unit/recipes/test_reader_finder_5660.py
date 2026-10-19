@@ -113,7 +113,7 @@ def test_each_candidate_says_plainly_whether_it_ships_is_here_or_downloads(clien
     assert (catmus["availability"], catmus["availability_words"]) == ("download", "Download (16 MB)")
     assert catmus["download"]["params"] == {"runtime": "kraken", "model": "kraken-catmus-medieval"}
     apple = {c["id"]: c for c in _candidates(client, job="read-a-page")["items"]}["apple:vision/recognize-text@os"]
-    assert (apple["availability"], apple["availability_words"]) == ("ships", "Ships with Fichero")
+    assert (apple["availability"], apple["availability_words"]) == ("ships", "Available")
 
     marker = kraken_runtime._marker_path("kraken-catmus-medieval")
     marker.parent.mkdir(parents=True, exist_ok=True)
@@ -121,5 +121,5 @@ def test_each_candidate_says_plainly_whether_it_ships_is_here_or_downloads(clien
     weights.write_bytes(b"w")
     marker.write_text(json.dumps({"doi": "10.5281/zenodo.12743230", "model_path": str(weights)}))
     again = {c["id"]: c for c in _candidates(client)["items"]}["kraken:zenodo/10.5281/zenodo.12743230@unpinned"]
-    assert (again["availability"], again["availability_words"]) == ("installed", "On this Mac (16 MB)")
+    assert (again["availability"], again["availability_words"]) == ("installed", "Downloaded (16 MB)")
     assert again["installed"] is True and again["download"] is None

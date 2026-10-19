@@ -80,7 +80,7 @@ struct StageCandidateChooser: View {
                 set: { _ in chosen = StageCandidateChoice.toggle(candidate.id, in: chosen) }
             )) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(candidate.name).fixedSize(horizontal: false, vertical: true)
+                    Text(candidate.shortName ?? candidate.name).fixedSize(horizontal: false, vertical: true).help(candidate.name)
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(candidate.availabilityWords).font(.caption).foregroundStyle(.secondary)
                         if let link = candidate.link, let url = URL(string: link) {

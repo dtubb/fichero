@@ -1172,6 +1172,7 @@ class ModelCandidate(BaseModel):
 
     id: str = Field(description="<runtime>:<source>@<version>")
     name: str
+    short_name: str = Field(default="", description="the name a model row shows, short enough to read in a row; the whole `name` is the hover text (source.find.model-row-words)")
     source: CardSource
     offered_because: str = Field(description="why discovery offers it, in words")
     pin: dict[str, Any]
@@ -1205,7 +1206,7 @@ class ModelCandidate(BaseModel):
     availability: CandidateAvailability = Field(description=(
         "ships with Fichero, installed on this Mac, can be downloaded, runs elsewhere, or not runnable here (#5660)"))
     availability_words: str = Field(description=(
-        "the same, in one short phrase with its size: 'Ships with Fichero', 'On this Mac (16 MB)', 'Download "
+        "the same, in one short phrase with its size: 'Available', 'Downloaded (16 MB)', 'Download "
         "(2.3 GB)', 'Runs at openai', 'Fichero cannot run it yet (…)'"))
     fit: Optional[ModelFit] = Field(default=None, description=(
         "for an MLX model: whether it fits this Mac to read with ('fits', 'tight', 'won't fit') and why, by the rule "
@@ -1376,6 +1377,7 @@ async def model_candidates(
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
         candidate_availability,
+        short_name,
         model_link,
         step_candidates,
         candidate_download,
@@ -1473,7 +1475,7 @@ async def model_candidates(
 
     compared = await run_in_threadpool(_compared_by_default, library_path, step) if library_path and step else set()
     items = [ModelCandidate(
-        id=c.id, name=c.note.strip().rstrip(".") or c.id, source=c.source,
+        id=c.id, name=c.note.strip().rstrip(".") or c.id, short_name=short_name(c), source=c.source,
         offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
         jobs=sorted(c.jobs), scripts=sorted(c.scripts) if c.scripts is not None else None,
         languages=sorted(c.languages) if c.languages is not None else None, licence=c.licence,

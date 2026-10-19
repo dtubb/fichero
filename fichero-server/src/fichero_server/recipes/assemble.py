@@ -180,6 +180,8 @@ class Card:
     cer_published: float | None = None
     licence: str = ""
     note: str = ""
+    #: The name a model row shows (`source.find.model-row-words`); empty: derived from the note (`discovery.short_name`).
+    short_name: str = ""
     #: The years the reader was made for (its card's `period: [from, to]`), None when it states none (#5516).
     period: tuple[int, int] | None = None
     #: The scripts whose handwriting it reads, where that is narrower than `scripts` (None: all of `scripts`): Apple
