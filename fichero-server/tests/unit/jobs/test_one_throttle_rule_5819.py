@@ -168,3 +168,29 @@ def test_an_automatic_runs_kraken_page_stays_balanced_and_a_started_ones_goes_fa
         _chain(db, who)
         monkeypatch.setattr(jobs, "_current", SimpleNamespace(person=jobs.person_waits_on(db, "page-1")))
         assert prefs.priority_for(jobs.current_job_is_a_persons()) == expected
+
+
+# --- review 276: every starter the engine writes is decided -----------------------------------------------------------
+
+
+def test_every_literal_started_by_in_the_engine_is_decided_as_background_or_a_person():
+    """A starter nobody decided went flat out and was not held on battery (schedule, trigger: review 276). Read the
+    source: a new `started_by="x"` must be added to BACKGROUND_STARTERS or PERSON_STARTERS."""
+    root = Path(__file__).resolve().parents[3] / "src" / "fichero_server"
+    literal = re.compile(r"started_by\s*[=:]\s*(?:str\s*=\s*)?[\"']([a-z][a-z _-]*)[\"']")
+    decided = set(jobs.BACKGROUND_STARTERS) | set(jobs.PERSON_STARTERS)
+    found = {}
+    for path in root.rglob("*.py"):
+        for number, line in enumerate(path.read_text().splitlines(), 1):
+            for who in literal.findall(line):
+                found.setdefault(who, f"{path.relative_to(root)}:{number}")
+    undecided = {who: where for who, where in found.items() if who not in decided}
+    assert not undecided, undecided
+    assert {"schedule", "trigger", "correction", "import", "sync", "kept export"} <= set(found)  # the scan sees them
+
+
+@pytest.mark.parametrize("who", ["schedule", "trigger", "correction"])
+def test_scheduled_triggered_and_correction_runs_are_background(db, who):
+    _chain(db, who)
+    assert jobs.person_waits_on(db, "page-1") is False
+    assert throttle.decide(jobs.person_waits_on(db, "page-1")).action in ("go", "slow", "hold")
