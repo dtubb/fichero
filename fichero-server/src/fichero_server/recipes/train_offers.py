@@ -138,8 +138,23 @@ def _params(action: str, job: str, counts: dict[str, Any], teacher: str | None =
     return None
 
 
+def training_stays_local(answers: dict[str, Any] | None) -> tuple[bool, str | None]:
+    """The ONE place check for training, used by the Start plan and by auto-start: do this project's pages stay on this
+    Mac for training (Hugging Face Jobs is the place that takes them)? With the sentence that says why and what to do,
+    which differs by who said no: the app's places, or the project (#5841)."""
+    from fichero_server.recipes import places
+
+    if not places.allows("huggingface"):
+        return True, ("Hugging Face is not among your places, and this training runs only on Hugging Face Jobs. Allow it in "
+                      "Fichero \u203a Set Up Fichero\u2026, under where models may run, or choose a training that runs here.")
+    if not (answers or {}).get("cloud_allowed"):
+        return True, ("Your pages stay on this Mac, and this training runs only on Hugging Face Jobs. Allow this project's "
+                      "pages to leave this Mac for Hugging Face, or choose a training that runs here.")
+    return False, None
+
+
 def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None, spend_cap: float | None = None,
-          clusters: list[str] | tuple[str, ...] = ()) -> list[dict[str, Any]]:
+          clusters: list[str] | tuple[str, ...] = (), stays_why: str | None = None) -> list[dict[str, Any]]:
     counts = counts or {}
     out = []
     for way in WAYS[job]:
@@ -152,8 +167,8 @@ def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None, 
                          "first_run": list(CLUSTER_FIRST_RUN)} for name in clusters]
         why = way.get("why")
         if way["targets"] and not targets:
-            why = ("Your pages stay on this Mac, and this training runs only on Hugging Face Jobs. Allow this project's "
-                   "pages to leave this Mac for Hugging Face, or choose a training that runs here.")
+            why = stays_why or ("Your pages stay on this Mac, and this training runs only on Hugging Face Jobs. Allow this "
+                                "project's pages to leave this Mac for Hugging Face, or choose a training that runs here.")
         out.append({"method": way["method"], "how": way["how"], "says": way["says"], "targets": targets,
                     "available": bool(targets), "why": why})
     return out
@@ -209,8 +224,8 @@ def _roots(db: Any) -> list[str]:
 
 def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bool,
                  setting: dict[str, str] | None = None, spend_cap: float | None = None,
-                 clusters: list[str] | tuple[str, ...] = (), noise_band: dict[str, Any] | None = None
-                 ) -> list[dict[str, Any]]:
+                 clusters: list[str] | tuple[str, ...] = (), noise_band: dict[str, Any] | None = None,
+                 stays_why: str | None = None) -> list[dict[str, Any]]:
     """One offer per recipe step a model can be trained for, in the recipe's order."""
     from fichero_server.recipes.assemble import TRAIN_OFFERED_FROM_LINES
     from fichero_server.recipes.bakeoff import readiness
@@ -225,7 +240,8 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
         job = step.get("job")
         if job not in WAYS:
             continue
-        ways = _ways(job, stays_local=stays_local, counts=counts, spend_cap=spend_cap, clusters=clusters)
+        ways = _ways(job, stays_local=stays_local, counts=counts, spend_cap=spend_cap, clusters=clusters,
+                     stays_why=stays_why)
         if not any(w["available"] for w in ways):
             # Nothing here can train it: no count of corrections to ask for (#5659: the names step asked for
             # 2,000 corrected lines, which no spaCy trainer would read).
@@ -242,22 +258,14 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
 
 def offered(offers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """What the Start plan shows (`source.recipe.train-offered-once-ready`, #5804): an offer only once its step has enough
-    corrected work (below that, nothing: no greyed row, no count), each way once, and no way for a trainer Fichero does
-    not have. A way the where-it-runs answers refuse stays, with its sentence. `train_offers` is the full list the
+    corrected work (below that, nothing: no greyed row, no count), and no way for a trainer Fichero does not have. A way the where-it-runs answers refuse stays, with its sentence. `train_offers` is the full list the
     engine starts from (`due_starts`)."""
     out = []
     for offer in offers:
         if not offer["readiness"].get("ready"):
             continue
-        seen: set[tuple[str, str]] = set()
-        ways = []
-        for way in offer["ways"]:
-            key = (way["method"], way["how"])
-            has_trainer = any(w["targets"] for w in WAYS[offer["job"]] if (w["method"], w["how"]) == key)
-            if key in seen or not has_trainer:
-                continue
-            seen.add(key)
-            ways.append(way)
+        ways = [way for way in offer["ways"]
+                if any(w["targets"] for w in WAYS[offer["job"]] if (w["method"], w["how"]) == (way["method"], way["how"]))]
         if ways:
             out.append({**offer, "ways": ways})
     return out
@@ -306,14 +314,15 @@ def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str
     answers = setup["answers"] or {}
     from fichero_server.recipes import places
 
-    stays_local = not places.may_leave_to(answers, "huggingface")  # Hugging Face Jobs is a place of its own
+    stays_local, stays_why = training_stays_local(answers)
     setting = training_setting(answers.get("training"), mac_memory_gb=mac_memory_gb or this_mac_memory_gb(),
                                hf_configured=bool(get_api_key("huggingface")), stays_local=stays_local,
                                spend_cap=spend_cap(answers))
     from fichero_server.recipes.project import read_noise_band
 
     return train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
-                        spend_cap=spend_cap(answers), noise_band=read_noise_band(Path(db.path).parent))
+                        spend_cap=spend_cap(answers), noise_band=read_noise_band(Path(db.path).parent),
+                        stays_why=stays_why)
 
 
 def _start(db: Any, action: str, params: dict[str, Any]) -> str:

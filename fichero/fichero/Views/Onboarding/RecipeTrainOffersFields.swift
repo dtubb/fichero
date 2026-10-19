@@ -7,9 +7,6 @@ import SwiftUI
 /// Nothing here runs at Start.
 struct RecipeTrainOffersFields: View {
     let store: RecipeSetupStore
-    /// Only these jobs' offers: a stage page offers training for its own steps (section 7d,
-    /// `source.onboard.stages.page-trains`); nil offers every step's (the Train page).
-    var onlyJobs: Set<String>?
     /// The ways started from here, by step and way, so the row says it started.
     @State private var started: Set<String> = []
     @State private var starting: String?
@@ -24,7 +21,7 @@ struct RecipeTrainOffersFields: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ForEach(store.trainOffers(forJobs: onlyJobs), id: \.step) { offer in
+            ForEach(store.trainOffers, id: \.step) { offer in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(store.title(ofStepId: offer.step)).font(.subheadline.weight(.semibold))
                     ForEach(offer.ways, id: \.wayKey) { way in

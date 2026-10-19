@@ -327,9 +327,7 @@ struct SetupStagesTests {
         """)]
         let store = RecipeSetupStore(client: StagesMockURLProtocol.client())
         await store.loadStartPlan()
-        #expect(store.trainOffers(forJobs: ["read-a-line", "correct"]).map(\.job) == ["read-a-line"])
-        #expect(store.trainOffers(forJobs: ["work-out-dates"]).isEmpty, "a stage with nothing to train offers nothing")
-        #expect(store.trainOffers(forJobs: nil).count == 2, "the Train page offers every step's")
+        #expect(store.trainOffers.map(\.job) == ["read-a-line", "find-names-tag-words"], "the plan's offers, in order")
     }
 
     // MARK: What Fichero runs
