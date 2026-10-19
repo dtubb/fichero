@@ -128,3 +128,19 @@ def test_a_candidate_column_names_its_model_and_links_it_before_the_run():
     plan = {"workflows": [], "runs": [], "estimate": {"total_cost_usd": 0}, "refusals": []}
     column = _column(card("hf:a@1", pin={"hf": "Org/Model"}, source="hugging-face"), plan)
     assert column["name"] and column["link"] == "https://huggingface.co/Org/Model"
+
+
+def test_the_steps_own_card_keeps_its_model_against_a_shipped_twin_at_another_revision():
+    """Review 296 LOW 1: the project pins revision r2 of a repo; a shipped card at r1 came first. The own card wins
+    the model's place (by its id, or by the pin it runs), so Compare finds it and the route lists it once."""
+    from fichero_server.recipes.discovery import dedupe_cards, step_candidates
+
+    shipped = card("hf:shipped@r1", pin={"hf": "Org/Model", "revision": "r1"})
+    own = card("hf:own@r2", pin={"hf": "org/model", "revision": "r2"}, source="installed")
+    other = card("hf:other@1", pin={"hf": "Org/Other", "revision": "r1"})
+    assert [c.id for c in dedupe_cards([shipped, own, other])] == ["hf:shipped@r1", "hf:other@1"]  # no step: first wins
+    assert [c.id for c in dedupe_cards([shipped, own, other], own_ids=frozenset({"hf:own@r2"}))] == ["hf:own@r2", "hf:other@1"]
+    assert [c.id for c in dedupe_cards([shipped, own, other], own_pin={"hf": "org/model", "revision": "r2"})] == [
+        "hf:own@r2", "hf:other@1"]
+    assert [c.id for c in step_candidates([shipped, own, other], "read-a-line", frozenset({"hf:own@r2"}))] == [
+        "hf:own@r2", "hf:other@1"]

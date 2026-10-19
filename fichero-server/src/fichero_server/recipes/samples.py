@@ -406,7 +406,9 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     job = str(step.get("job"))
     a = _answers(setup["answers"] or {})
     found, _ = discover(a, online=False, job=job)
-    found = step_candidates(found, job)  # Find a Reader's list: page readers, cloud and remote ones included (#5808)
+    own_card = (step.get("card") or {}).get("id") if isinstance(step.get("card"), dict) else None
+    found = step_candidates(found, job, frozenset({own_card} if own_card else ()),
+                            step.get("model") if isinstance(step.get("model"), dict) else None)  # Find a Reader's list: page readers, cloud and remote ones included (#5808)
     by_id = {c.id: c for c in [*known_cards(a, include_not_built=True), *found]}
     if wanted:
         named = [by_id[i] for i in dict.fromkeys(wanted) if i in by_id]
