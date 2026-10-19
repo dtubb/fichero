@@ -1712,43 +1712,47 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     _ensure(db)
     cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
     waiting_on_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
+    # Not every waiting row (an import queues thousands) fetched and sorted per poll (#5843): the count of each
+    # (state, kind) group, and the ONE row that stands for it (the lane's pick: a person's first, then oldest).
+    runs = "kind NOT IN ('workflow', 'workflow-step')"
+    counts = {(state, kind): n for state, kind, n in db.execute_fetchall(
+        f"SELECT state, kind, COUNT(*) FROM jobs WHERE state IN ('waiting', 'paused') AND {runs} GROUP BY state, kind")}
+    parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs}"]
+    params: list[Any] = []
+    for (state, kind) in counts:
+        first = f"{_PERSON_RANK_SQL} DESC, " if state == "waiting" else ""
+        parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)")
+        params += [state, kind]
+    parts.append(f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)")
+    params.append(failed_limit)
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, "
-        f"{waiting_on_col} FROM ("
-        " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
-        " UNION ALL"
-        " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
-        f"{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
-        f") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        f"{waiting_on_col} FROM (" + " UNION ALL ".join(parts) + ") "
+        "ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
         f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
-        [failed_limit],
+        params,
     )
     out: list[dict[str, Any]] = []
-    waiting: dict[tuple[str, str], dict[str, Any]] = {}
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
     for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on in rows:
         # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
         # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
         group = (state, kind) if state in ("waiting", "paused") else None
-        if group is not None and group in waiting:
-            waiting[group]["count"] += 1
-            waiting[group]["id"] = f"{state}:{kind}"
-            continue
         if state == "waiting":
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         # A running row that is waiting for something (a try whose page waits for the lane, a page held for Kraken or
         # memory) is listed as waiting until the wait ends: by the row's `waiting_on`, not by its reason's words (#5839).
         shown = "waiting" if state == "running" and waiting_on else state
         row = {"id": job_id, "kind": kind, "subject": subject, "state": shown, "reason": reason,
-               "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id,
+               "attempts": attempts, "created_at": created_at, "count": counts.get(group, 1), "parent_id": parent_id,
                "started_by": started_by,
                # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
                "failed_at": finished_at if state == "failed" else None}
-        if group is not None:
-            waiting[group] = row
+        if group is not None and row["count"] > 1:
+            row["id"] = f"{state}:{kind}"
         out.append(row)
     # The run each row's work is for (#5615): a page's parent is its step's row ("<run id>:<step name>"),
     # whose own parent is the run.

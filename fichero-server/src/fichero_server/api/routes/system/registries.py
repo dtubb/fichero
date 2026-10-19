@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 from fichero_server.core.timeutil import utc_now
+from fichero_server.core.single_flight import single_flight
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -120,7 +121,8 @@ class RegistryPatchRequest(BaseModel):
     response_model=ClassificationListResponse,
     summary="List epistemic statuses (custom + built-in)",
 )
-async def list_epistemic_statuses(
+@single_flight
+def list_epistemic_statuses(
     db: Database = Depends(get_library_database),
 ) -> ClassificationListResponse:
     """Return all epistemic status values registered for this library.
@@ -253,7 +255,8 @@ def delete_epistemic_status(
     response_model=ClassificationListResponse,
     summary="List claim kinds (custom + built-in)",
 )
-async def list_claim_kinds(
+@single_flight
+def list_claim_kinds(
     db: Database = Depends(get_library_database),
 ) -> ClassificationListResponse:
     """Return all claim kind values registered for this library.
