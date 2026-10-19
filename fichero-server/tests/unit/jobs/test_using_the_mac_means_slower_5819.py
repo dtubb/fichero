@@ -23,15 +23,18 @@ def mac(monkeypatch):
     monkeypatch.setattr(throttle, "thermal_state_level", lambda: state["thermal"])
     monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
-    # the probe list holds the function itself, so fake what it reads: a trusted cached reading
+    # The probe list holds the function itself, so fake what it reads. The build reading is cached for 10 s: clear it
+    # here and make every read stale (a negative age limit), so a test that toggles a process between two
+    # `why_wait()` calls sees the toggle (review 206).
     monkeypatch.setattr(throttle, "_build", None)
+    monkeypatch.setattr(throttle, "BUILD_READING_SECONDS", -1.0)
+
     def pgrep(cmd, **kwargs):  # pgrep -x <regex>: a process whose whole name matches
         state["calls"].append((cmd, kwargs))
         found = any(re.fullmatch(cmd[2], name) for name in state["procs"])
         return type("R", (), {"returncode": 0 if found else 1})()
 
     monkeypatch.setattr(throttle.subprocess, "run", pgrep)
-    monkeypatch.setattr(throttle, "BUILD_READING_SECONDS", 0.0)
     return state
 
 
