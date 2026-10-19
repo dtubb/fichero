@@ -10,6 +10,8 @@ final class AppPlacesStore {
     private(set) var places: Set<String> = [WhereTheWorkRuns.thisMac.rawValue]
     /// The engine's sentence about this Mac's memory and what it can run; nil until it answers.
     private(set) var thisMacLine: String?
+    /// Whether the person has answered: until then the engine caps nothing (unset is not "this Mac only").
+    private(set) var answered = false
     var errorMessage: String?
 
     private let client: FicheroClient
@@ -30,6 +32,14 @@ final class AppPlacesStore {
             if error.isCancellationError { return }
             errorMessage = "Could not read where models may run: \(error.localizedDescription)"
         }
+    }
+
+    /// Continue on the screen writes the answer, the default (this Mac only) included, so a fresh install lands at an
+    /// answer and an existing one keeps working until its person gets here. False, said, if the engine refused.
+    func keepAnswer() async -> Bool {
+        if answered { return true }
+        await set(.thisMac, allowed: true)  // sends the places as shown, this Mac among them
+        return answered
     }
 
     /// What the person last asked for, and whether a PUT is in flight: ticks are sent one at a time and the latest
@@ -66,6 +76,7 @@ final class AppPlacesStore {
 
     private func take(_ view: Components.Schemas.PlacesView) {
         places = Set(view.places)
+        answered = view.answered
         thisMacLine = view.thisMac
     }
 }

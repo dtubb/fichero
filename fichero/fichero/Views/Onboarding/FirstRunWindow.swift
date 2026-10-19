@@ -160,6 +160,13 @@ struct FirstRunWindow: View {
             finish()
             return
         }
+        // AI and ML Models: Continue writes the answer, the default included (`source.onboard.places-cap-projects`).
+        if step == .whatFicheroRuns, let placesStore {
+            Task {
+                if await placesStore.keepAnswer() { step = step.next(in: steps) }
+            }
+            return
+        }
         // Continue keeps the answers so far as a draft on the project, so setup can be closed
         // at any step; saving is not Start.
         guard step.savesDraft, let store else { step = step.next(in: steps); return }

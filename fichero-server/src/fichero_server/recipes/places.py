@@ -19,16 +19,17 @@ DEFAULT = (THIS_MAC,)
 SMALL_MAC_GB = 8
 
 
-def get_places() -> list[str]:
-    """The allowed places; this Mac only until the person says otherwise (or the setting cannot be read)."""
+def get_places() -> list[str] | None:
+    """The allowed places, or None when the person has not answered (the setting is absent): unset is NOT ANSWERED,
+    not "this Mac only", so an existing install behaves as before until its person answers (the house rule since 153).
+    A setting that cannot be read is the strictest answer."""
     from fichero_server.db.app import get_app_db
 
     try:
         raw = get_app_db().get_setting(SETTING_KEY)
-        said = json.loads(raw) if raw else None
+        return normalise(json.loads(raw)) if raw else None
     except Exception:  # noqa: BLE001 -- unreadable: the strictest answer, never a failed plan
-        said = None
-    return normalise(said)
+        return [THIS_MAC]
 
 
 def normalise(said: Any) -> list[str]:
@@ -47,8 +48,9 @@ def set_places(places: list[str]) -> list[str]:
 
 def allows(place: str, places: list[str] | None = None) -> bool:
     """Whether the app allows `place`. Per place, never one flag: allowing another Mac opens neither the cloud nor
-    Hugging Face Jobs nor the cluster (review 213)."""
-    return place == THIS_MAC or place in (places if places is not None else get_places())
+    Hugging Face Jobs nor the cluster (review 213). Not answered yet: no cap (the project's own yes still gates)."""
+    said = places if places is not None else get_places()
+    return place == THIS_MAC or said is None or place in said
 
 
 def may_leave_to(answers: dict[str, Any] | None, place: str) -> bool:
