@@ -994,32 +994,11 @@ def _release_if_idle() -> None:
         _INFERENCE_LOCK.release()
 
 
-#: The most lines the reader sends through the network at once, however much memory there is, and what one line
-#: of a batch is budgeted at (a line crop through the recogniser, measured nowhere yet: a deliberately large guess).
-_MAX_READER_BATCH = 16
-_MIN_READER_BATCH = 8
-_BATCH_LINE_BYTES = 256 * 1024**2
-
-
 def reader_batch_size() -> int:
-    """How many lines the reader sends through at once, from what this Mac can hand out now (#5758: a page of
-    handwriting took the engine to 18.2 GB on a 16 GB Mac). One line a time when the memory is not known; beyond the
-    page's need (`kraken_need_bytes`) each `_BATCH_LINE_BYTES` buys a line, up to `_MAX_READER_BATCH`. While memory is
-    not short even by the cold figure (that much free, pressure below critical) the batch is at least `_MIN_READER_BATCH`: the per-line
-    figure is a guess measured nowhere, and a 30-line page read 2 lines at a time ran the reader 15 times."""
-    available = _available_memory_bytes()
-    if available is None:
-        return 1
-    need = kraken_need_bytes()
-    batch = max(1, min(_MAX_READER_BATCH, (available - need) // _BATCH_LINE_BYTES))
-    from fichero_server.execution.throttle import memory_short
-
-    # The floor only where there is room by the COLD figure too: below it, the module's own per-line figure stands
-    # (#5758: 8 lines at 256 MB each on a Mac with less than the cold need free is the 18.2 GB footprint again).
-    cold = _kraken_memory_need_bytes()
-    if memory_short(available_bytes=lambda: available, pressure_level=_memory_pressure_level, need_bytes=cold) is None:
-        return max(_MIN_READER_BATCH, batch)
-    return batch
+    """How many lines the reader sends through at once: one (#5854, `source.read.batch-of-one`). A batch pads every
+    line crop to the widest in it: on a 33-line page batch 1 took 3.0 s, 8 took 5.5 s, 16 took 43.5 s (M4). Memory
+    could only ever shrink it below one, so it no longer enters (#5758's bound is met by one line at a time)."""
+    return 1
 
 
 #: What each page read at once holds beyond the model: its image, the segmenter's maps, the lines' crops (measured

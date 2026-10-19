@@ -163,32 +163,3 @@ def test_a_call_carries_its_models_into_the_inference_thread(monkeypatch):
     assert seen["wanted"] == {"segment": "blla", "read": "reader-b"}
 
 
-def test_the_reader_batch_is_at_least_8_while_memory_is_not_short(monkeypatch):
-    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 3 * GIB)
-    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
-    _hold()
-    assert kr.reader_batch_size() >= 8  # was (3 GiB - 2.5 GiB) // 256 MiB = 2 lines
-    kr._RESIDENT.clear()
-    assert kr.reader_batch_size() >= 8  # cold with 3 GiB free is not short either
-
-
-def test_the_reader_batch_shrinks_when_memory_really_is_short(monkeypatch):
-    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 400 * 1024**2)
-    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
-    _hold()
-    assert kr.reader_batch_size() == 1
-    kr._RESIDENT.clear()
-    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 3 * GIB)
-    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 4)  # critical: the floor is not applied
-    assert kr.reader_batch_size() == 2  # (3 GiB - 2.5 GiB) // 256 MiB
-
-
-def test_the_batch_floor_needs_room_by_the_cold_figure_too(monkeypatch):
-    """Review 279 MED 3 (#5758): 2 GiB free is above the working need but below the cold one; 8 lines of 256 MB is not
-    offered there."""
-    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 2 * GIB)
-    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
-    _hold()
-    token = kr._WANTED.set({"segment": "blla", "read": "reader-a"})
-    assert kr.reader_batch_size() == (2 * GIB - kr.kraken_need_bytes()) // kr._BATCH_LINE_BYTES < 8
-    kr._WANTED.reset(token)
