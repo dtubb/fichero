@@ -238,12 +238,27 @@ def test_a_recipe_run_or_a_try_keeps_a_row_each(db, lane):
 
 
 def test_the_kinds_row_counts_what_is_done_of_the_whole_queue(db, lane):
-    lane.release.set()
-    for i in range(2):
-        jobs.enqueue(db, PERSON, f"done-{i}", started_by="owner")
-    assert _wait_for(lambda: len(lane.started) == 2 and not [r for r in jobs.snapshot(db) if r["kind"] == PERSON])
     jobs.set_paused(True)
-    for i in range(3):
-        jobs.enqueue(db, PERSON, f"later-{i}", started_by="owner")
+    ids = [jobs.enqueue(db, PERSON, f"page-{i}", started_by="owner") for i in range(5)]
+    for job_id in ids[:2]:  # two of the five finished after the queue was queued
+        db.execute("UPDATE jobs SET state = 'done', started_at = now(), finished_at = now() WHERE id = ?", [job_id])
     (row,) = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
     assert row["count"] == 3 and row["done"] == 2  # "2 of 5"
+
+
+def test_stop_on_a_row_for_many_reaches_every_job_not_started(db, lane):
+    jobs.set_paused(True)
+    ids = [jobs.enqueue(db, PERSON, f"page-{i}", started_by="owner") for i in range(3)]
+    (row,) = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert row["id"] == f"waiting:{PERSON}"
+
+    jobs.cancel_job(db, row["id"])
+
+    assert [db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [i])[0] for i in ids] == ["cancelled"] * 3
+
+
+def test_a_single_job_keeps_its_own_id(db, lane):
+    jobs.set_paused(True)
+    job_id = jobs.enqueue(db, PERSON, "only", started_by="owner")
+    (row,) = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert row["id"] == job_id

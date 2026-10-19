@@ -1751,9 +1751,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             rep = waiting[group]
             rep["count"] += 1
             if shown == "running" and rep["state"] != "running":  # a job that is really going makes the row running
-                rep.update(state="running", id=job_id, reason=reason, subject=subject)
-            elif rep["state"] != "running":
-                rep["id"] = f"{shown}:{kind}"
+                rep.update(state="running", reason=reason, subject=subject)
+            # A row for many jobs is the kind's queue: Stop and Pause on it reach every one not started (the running
+            # one finishes its item), `queue_of` reads this id (review 244).
+            rep["id"] = f"{group[0] if group[0] == 'paused' else 'waiting'}:{kind}"
             continue
         if state == "waiting":
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
