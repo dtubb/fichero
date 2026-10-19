@@ -1778,20 +1778,30 @@ def retry_job(db: "Database", job_id: str) -> str:
     return "waiting"
 
 
+_paused_cache: list[bool] = []  # empty: unknown; `set_paused` / `set_mode` are the only writers, and clear it
+
+
 def is_paused() -> bool:
+    """Polled on every claim by every lane thread, so it is read once and cached; the lane threads must not
+    queue on the app-DB lock the request path needs (`activity.engine.auth-never-hangs`)."""
+    if _paused_cache:
+        return _paused_cache[0]
     from fichero_server.db.app import get_app_db
 
     try:
-        return get_app_db().get_setting(PAUSE_SETTING_KEY) == "1"
+        paused = get_app_db().get_setting(PAUSE_SETTING_KEY) == "1"
     except Exception as exc:  # noqa: BLE001 -- an unreadable setting must not stop the queue for good
         logger.warning("Could not read %s: %s", PAUSE_SETTING_KEY, exc)
         return False
+    _paused_cache[:] = [paused]
+    return paused
 
 
 def set_paused(paused: bool) -> None:
     from fichero_server.db.app import get_app_db
 
     get_app_db().set_setting(PAUSE_SETTING_KEY, "1" if paused else "0")
+    _paused_cache.clear()
     _scheduler.wake(None)
 
 
@@ -1823,6 +1833,7 @@ def set_mode(new_mode: str) -> None:
     app_db = get_app_db()
     app_db.set_setting(STARTED_SETTING_KEY, "1" if new_mode == "started" else "0")
     app_db.set_setting(PAUSE_SETTING_KEY, "1" if new_mode == "paused" else "0")
+    _paused_cache.clear()
     _scheduler.wake(None)
 
 

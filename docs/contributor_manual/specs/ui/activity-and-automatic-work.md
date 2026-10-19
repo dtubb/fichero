@@ -708,6 +708,14 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (same test).
+- `activity.engine.auth-never-hangs` — **[OK]** (owner, 2026-10-19 18:11: the engine stopped answering and was respawned; the
+  lane threads waited on the app-DB lock in `jobs.is_paused`, and auth's device lookup behind them) the pause flag `jobs.is_paused`
+  (polled on every claim) is read once and cached, cleared by `set_paused` / `set_mode`, its only writers; auth's device and
+  user lookups wait at most 5 s for the app-DB lock and then answer 503 in words ("Fichero is busy with background work ..."),
+  never a hang. No app-DB lock hold spans anything but its statement (the holder in the watchdog dumps was not found
+  inside a slow call: the waiters are all `with self._lock` statement holds starved by the polling). A try's page in its
+  scratch library resolves to a person through `person_waits_on` (its run row's starter, the try's job being in the
+  project's database) (`fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py`).
 - `activity.throttle.person-heavy-first` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun for ever while the
   project's thumbnails, 47-61 s each, took every heavy slot in turn) while memory is busy and only one heavy job runs at a time,
   a heavy lane's background work steps aside for a page handed in on another heavy lane whose run a PERSON started and that the
