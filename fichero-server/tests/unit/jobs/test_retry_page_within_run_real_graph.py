@@ -58,6 +58,6 @@ def test_retry_on_a_failed_page_reopens_the_same_run_and_keeps_its_earlier_pages
     after = _account(db, run)
     assert after.pages_total == len(pages) and after.pages_done == len(pages), (
         "the state reducers lost the earlier pages, or the retry did not finish the run")
-    runs = client.get("/api/workflow-execution/runs").json()
-    ids = [x.get("thread_id") for x in (runs if isinstance(runs, list) else runs.get("runs", []))]
+    listed = client.get("/api/workflow-execution/runs", params={"limit": 500}).json()["items"]  # WorkflowRunListResponse
+    ids = [x["thread_id"] for x in listed]
     assert ids.count(run) == 1  # one record for the run: reopened, not duplicated
