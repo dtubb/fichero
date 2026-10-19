@@ -10,7 +10,7 @@ extension RecipeSetupStore {
 
     /// What a "no material yet" refusal says while this Set Up has already added something: the engine counts no page
     /// until the import lands, so the person is told the pages are on their way, not that there are none (review 208).
-    static let pagesStillComingIn = "Your pages are still coming in; the plan follows when they have landed."
+    static let pagesStillComingIn = "Your pages are still coming in; try again in a moment."
 
     /// The engine's refusal sentence, or `pagesStillComingIn` when it is the no-material one and material was added.
     func refusalWords(_ detail: String?, fallback: String) -> String {
@@ -32,7 +32,12 @@ extension RecipeSetupStore {
         tiedFolderPath = nil
         do {
             let ids = try await importer.importFolder(url, mode: ingestMode)
-            materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(wayIn.title.lowercased()))."
+            // Nothing imported is not material: Continue stays waiting and the person is told (review 211).
+            if ids.isEmpty {
+                errorMessage = "Nothing was added from \(url.lastPathComponent)."
+            } else {
+                materialAdded = "\(url.lastPathComponent): \(ids.count) added (\(wayIn.title.lowercased()))."
+            }
             if ingestMode == .index, let syncFolders {
                 if let tied = await syncFolders.tie(path: url.path) {
                     tiedFolderPath = url.path
@@ -78,7 +83,11 @@ extension RecipeSetupStore {
             do {
                 let outcome = try await importer.importFiles(files, mode: ingestMode)
                 let failed = outcome.failures.isEmpty ? "" : ", \(outcome.failures.count) could not be added"
-                said.append("\(files.count) file\(files.count == 1 ? "" : "s") added (\(wayIn.title.lowercased()))\(failed).")
+                if files.count > outcome.failures.count {
+                    said.append("\(files.count) file\(files.count == 1 ? "" : "s") added (\(wayIn.title.lowercased()))\(failed).")
+                } else {
+                    errorMessage = "Could not add the files: none of them were added."
+                }
             } catch {
                 if !error.isCancellationError { errorMessage = "Could not add the files: \(error.localizedDescription)" }
             }
