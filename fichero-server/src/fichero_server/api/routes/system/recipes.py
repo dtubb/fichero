@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
+from fichero_server.llm.local_model_facts import GIB
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 # Imported, never redefined: one schema component for every route's refusal sentence (#5094).
 from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
@@ -1145,7 +1146,7 @@ def _mlx_model_of(card: Any) -> Any:
     if not card.size_gb:
         return None
     return SimpleNamespace(repo_id=repo, display_name=card.note.strip().rstrip(".") or repo,
-                           download_size_bytes=int(card.size_gb * 1e9), kv_bytes_per_token=None)
+                           download_size_bytes=int(card.size_gb * GIB), kv_bytes_per_token=None)
 
 
 class ModelCandidate(BaseModel):
@@ -1405,7 +1406,7 @@ async def model_candidates(
 
     models = {c.id: _mlx_model_of(c) for c in cards}
     catalogue = [*MANAGED_MLX_MODELS.values(), *(m for m in models.values() if m is not None)]
-    physical = int((mac_memory_gb or _this_machine_memory_gb()) * 1e9)
+    physical = int((mac_memory_gb or _this_machine_memory_gb()) * GIB)
     context = await run_in_threadpool(_step_context, request, library_path, step, job)
 
     def fit(c: Any) -> Optional[ModelFit]:

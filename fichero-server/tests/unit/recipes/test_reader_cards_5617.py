@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 import pytest
+from fichero_server.llm.local_model_facts import GIB
 
 DOI = "10.5281/zenodo.7933402"
 RECORD = {
@@ -76,7 +77,7 @@ def test_source_find_repository_reader_named(client, here):
     items = client.get("/api/recipes/candidates", params={"scripts": "Latn", "languages": "de",
                                                           "mac_memory_gb": 32}).json()["items"]
     card = next(c for c in items if c["source"] == "kraken-repository")
-    assert card["name"] == RECORD["summary"] and card["size_gb"] == pytest.approx(0.0163)
+    assert card["name"] == RECORD["summary"] and card["size_gb"] == pytest.approx(RECORD["size_bytes"] / GIB, abs=1e-3)
     assert "German, Latin script, print, 19th century" in card["offered_because"], card["offered_because"]
 
 
