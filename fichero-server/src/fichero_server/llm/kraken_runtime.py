@@ -66,6 +66,7 @@ import ctypes
 import re
 import ctypes.util
 import contextlib
+import contextvars
 import functools
 import importlib
 import importlib.metadata
@@ -460,16 +461,23 @@ def _kraken_memory_need_bytes() -> int:
 _RESIDENT_WORKING_NEED_BYTES = 768 * 1024**2
 
 
+#: The models the next call will use, by kind -> key (None: any key): set by the entry points that know them, read by
+#: `kraken_need_bytes`. A page that finds lines needs the line finder; one that reads also needs its reader. Unset: both.
+_WANTED: contextvars.ContextVar[dict[str, str | None]] = contextvars.ContextVar(
+    "kraken_wanted", default={"segment": "blla", "read": None})
+
+
 def kraken_models_resident() -> bool:
-    """Whether Kraken's models (the line finder or a reader) are in memory now: the next page does not load them."""
-    return bool(_RESIDENT)
+    """Whether every model the next call will use is in memory now, with the key it will ask for: the call loads
+    nothing (a held line finder with no reader, or another reader, still loads one)."""
+    return all(kind in _RESIDENT and (key is None or _RESIDENT[kind][0] == key) for kind, key in _WANTED.get().items())
 
 
 def kraken_need_bytes() -> int:
-    """What the next Kraken page needs free to start: the working need alone when its models are already resident, the
-    cold-load figure (`_kraken_memory_need_bytes`, 2.5 GB) otherwise. THE number for the page guard, the lane's
-    throttle (`throttle.heavy_work_need_bytes`) and the reader's batch size: a resident page asked for 2.5 GB free
-    waited 5 s per page on a Mac that had room (the speed review, 2026-10-19)."""
+    """What the next Kraken page needs free to start: the working need alone when every model it uses is already
+    resident (`kraken_models_resident`), the cold-load figure (`_kraken_memory_need_bytes`, 2.5 GB) otherwise. For work
+    that IS the next Kraken page only: the page guard, the page fan-out, the reader's batch and `model_need` for a
+    loaded Kraken. NOT the shared floor other heavy work asks (`throttle.heavy_work_need_bytes` stays cold)."""
     cold = _kraken_memory_need_bytes()
     return min(cold, _RESIDENT_WORKING_NEED_BYTES) if kraken_models_resident() else cold
 
@@ -767,8 +775,10 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     # goes flat out; the Mac on battery slows it (#5819, `activity.throttle.use-means-slower`).
     jobs_module = sys.modules.get("fichero_server.execution.jobs")
     person = bool(jobs_module and jobs_module.current_job_is_a_persons())
+    wanted = _WANTED.get()  # likewise: the thread below starts with no context
 
     def _throttled() -> None:
+        _WANTED.set(wanted)
         try:
             # #4987 "know before running": checked INSIDE the lock, before
             # ANY kraken/torch import — a queued second call must see the
@@ -995,7 +1005,7 @@ def reader_batch_size() -> int:
     """How many lines the reader sends through at once, from what this Mac can hand out now (#5758: a page of
     handwriting took the engine to 18.2 GB on a 16 GB Mac). One line a time when the memory is not known; beyond the
     page's need (`kraken_need_bytes`) each `_BATCH_LINE_BYTES` buys a line, up to `_MAX_READER_BATCH`. While memory is
-    not actually short (enough free, pressure below critical) the batch is at least `_MIN_READER_BATCH`: the per-line
+    not short even by the cold figure (that much free, pressure below critical) the batch is at least `_MIN_READER_BATCH`: the per-line
     figure is a guess measured nowhere, and a 30-line page read 2 lines at a time ran the reader 15 times."""
     available = _available_memory_bytes()
     if available is None:
@@ -1004,7 +1014,10 @@ def reader_batch_size() -> int:
     batch = max(1, min(_MAX_READER_BATCH, (available - need) // _BATCH_LINE_BYTES))
     from fichero_server.execution.throttle import memory_short
 
-    if memory_short(available_bytes=lambda: available, pressure_level=_memory_pressure_level, need_bytes=need) is None:
+    # The floor only where there is room by the COLD figure too: below it, the module's own per-line figure stands
+    # (#5758: 8 lines at 256 MB each on a Mac with less than the cold need free is the 18.2 GB footprint again).
+    cold = _kraken_memory_need_bytes()
+    if memory_short(available_bytes=lambda: available, pressure_level=_memory_pressure_level, need_bytes=cold) is None:
         return max(_MIN_READER_BATCH, batch)
     return batch
 
@@ -1092,6 +1105,7 @@ def segment_lines(
         # #5019: refuse BEFORE loading the model; an empty path is not a file to open.
         raise KrakenSegmentationError("No image path was supplied for this page; the engine could not resolve its source file.")
     caller = run_call or _kraken_call
+    token = _WANTED.set({"segment": "blla"})
     try:
         return caller(lambda: _segment_raw(image_path, direction))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
@@ -1102,6 +1116,8 @@ def segment_lines(
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken segmentation failed: {exc}") from exc
+    finally:
+        _WANTED.reset(token)
 
 
 def recognize_lines(
@@ -1113,12 +1129,15 @@ def recognize_lines(
 ) -> dict[str, object]:
     """Segment + RECOGNISE one image; raw per-line text plus pixel geometry."""
     caller = run_call or _kraken_call
+    token = _WANTED.set({"segment": "blla", "read": model_path})
     try:
         return caller(lambda: _recognize_raw(image_path, model_path, direction))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken recognition failed: {exc}") from exc
+    finally:
+        _WANTED.reset(token)
 
 
 def _usable(lines: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -1169,12 +1188,15 @@ def read_given_lines(
     if not _usable(lines):
         return [ReadLine("") for _ in lines]
     caller = run_call or _kraken_call
+    token = _WANTED.set({"read": model_path})
     try:
         return caller(lambda: _read_given_raw(image_path, model_path, lines))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
         raise
     except Exception as exc:
         raise KrakenSegmentationError(f"Kraken could not read the lines: {exc}") from exc
+    finally:
+        _WANTED.reset(token)
 
 
 def record_files(doi: str) -> list[dict[str, object]]:

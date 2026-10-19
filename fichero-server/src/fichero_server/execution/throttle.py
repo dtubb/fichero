@@ -69,11 +69,12 @@ def memory_available_bytes() -> int | None:
 
 
 def heavy_work_need_bytes() -> int:
-    """What heavy local work needs free to start: Kraken's measured floor (#4987), the one number; the small working
-    need alone while Kraken's models are already resident (`kraken_need_bytes`)."""
-    from fichero_server.llm.kraken_runtime import kraken_need_bytes
+    """What heavy local work needs free to start: Kraken's measured floor (#4987), the one number. Always the COLD figure:
+    it is the shared floor of the scheduler, training and derivatives, whose work is not a Kraken page that finds its
+    models already in memory (`kraken_runtime.kraken_need_bytes` is for that page, review 279)."""
+    from fichero_server.llm.kraken_runtime import _kraken_memory_need_bytes
 
-    return kraken_need_bytes()
+    return _kraken_memory_need_bytes()
 
 
 def _two_amounts_that_differ(need: int, free: int) -> tuple[str, str]:
@@ -316,6 +317,10 @@ def model_need(model: str | None, *, loaded: bool = False) -> dict[str, Any]:
     (no model, one the catalogue does not size): the shared floor, {}."""
     provider, _, name = (model or "").partition(":")
     if provider == "kraken":
+        if loaded:  # its models are in memory: the next page needs only its working room (`kraken_need_bytes`)
+            from fichero_server.llm.kraken_runtime import kraken_need_bytes
+
+            return {"need_bytes": kraken_need_bytes(), "what": "Kraken"}
         return {"what": "Kraken"}
     if provider != "omlx" or not name:
         return {}
