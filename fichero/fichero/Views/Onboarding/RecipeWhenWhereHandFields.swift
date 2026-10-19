@@ -19,6 +19,9 @@ struct RecipeWhenWhereHandFields: View {
                     .labelsHidden()
             }
             Text("Which hand").font(.headline)
+            Text("A hand is a style of handwriting, such as Secretary or Kurrent. It helps Fichero find readers made for it. "
+                 + "The hands listed are Fichero's own for your script and century; any other you type is kept as you typed it.")
+                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             FlowLayout(spacing: 10) {
                 ForEach(store.handOptions, id: \.id) { hand in
                     VStack(alignment: .leading, spacing: 1) {
@@ -37,7 +40,10 @@ struct RecipeWhenWhereHandFields: View {
             // A hand typed is kept as typed (and shown ticked).
             ForEach(store.hands.filter { id in id != RecipeSetupStore.notSureHand
                 && !store.handOptions.contains { $0.id == id } }, id: \.self) { typed in
-                Toggle(typed, isOn: Binding(get: { true }, set: { _ in store.toggle(hand: typed) })).setupCheckbox()
+                VStack(alignment: .leading, spacing: 1) {
+                    Toggle(typed, isOn: Binding(get: { true }, set: { _ in store.toggle(hand: typed) })).setupCheckbox()
+                    Text("Typed by you, kept as typed.").font(.caption).foregroundStyle(.secondary)
+                }
             }
             TextField("Another hand", text: $typedHand, prompt: Text("Another hand, as you would name it"))
                 .onSubmit {
