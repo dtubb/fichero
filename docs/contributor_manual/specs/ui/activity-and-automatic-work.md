@@ -672,13 +672,17 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   comes back with `group` = "earlier" and last, so none stays in the live area
   (`fichero-server/tests/unit/api/test_activity_order_live_run_first.py`). Not yet: the window's History group and Clear
   Finished (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`, Swift after the regen).
-- `activity.log.persons-log` — **[GAP]** (#5850) the default log is the person's: one line per page when it is done or
+- `activity.log.persons-log` — **[PARTIAL]** (#5850) the default log is the person's: one line per page when it is done or
   failed and one per stage, one sentence per event in local time, never repeated, never nested inside another job's line.
-  Supersedes `activity.details.log-filtered-newest-last` for what the log holds. (Not yet written:
-  `fichero-server/tests/unit/jobs/test_person_log_levels.py`.)
-- `activity.log.developer-level` — **[GAP]** (#5850) the "Node … started" and other debug lines are a Developer level, off
-  by default; the log shows the person's lines until it is switched on. (Not yet written:
-  `fichero-server/tests/unit/jobs/test_person_log_levels.py`.)
+  Supersedes `activity.details.log-filtered-newest-last` for what the log holds. Engine side: `GET /api/activity/jobs/{id}/log`
+  returns only `detail` = "person" lines by default (a row's end, warnings and errors, a failed node), each sentence once
+  per row (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the window shows the time in local time
+  (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
+- `activity.log.developer-level` — **[PARTIAL]** (#5850) the "Node … started" and other debug lines are a Developer level, off
+  by default; the log shows the person's lines until it is switched on. Engine side: `?detail=developer` adds the debug lines
+  ("Node 'x' started", "completed in", a row's start, what a row waits for now, a server's output), each line tagged
+  `detail` (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the Developer switch in the details view
+  (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
 - `activity.retry.page-within-run` — **[PARTIAL]** (#5853) Retry on a page retries it within its run, not as a new run
   (`activity.retry.one-row` keeps a whole failed run's Retry). A run that has ended reopens for the page: the same run id
   goes back to running and reads that page. A run still going takes the page into its queue (no 409): the page row waits

@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 """
 
 import asyncio
+import re
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -781,6 +782,9 @@ class JobLogLine(BaseModel):
     level: str = Field(description="info, warning or error")
     message: str
     job_id: str = Field(description="the row the line is about: the job asked for or one under it")
+    detail: Literal["person", "developer"] = Field(
+        "person", description="person: a page or stage done or failed, the person's log; developer: the debug lines "
+        "(Node started, a row's start, what a row waits for now, a server's output), off unless asked for")
 
 
 class JobLog(BaseModel):
@@ -794,13 +798,33 @@ class JobLog(BaseModel):
 _JOB_LOG_LIMIT = 1000
 
 
+_DEBUG_EVENT = re.compile(r"^Node '.*' (started|completed in \d+ms)$")
+
+
+def _event_detail(level: str, message: str) -> str:
+    """An activity event is the person's unless it is a debug line ("Node 'x' started", "completed in 12ms")."""
+    return "developer" if level == "debug" or _DEBUG_EVENT.match(message) else "person"
+
+
+def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
+    """The person's log (`activity.log.persons-log`): only person lines, and no sentence twice for the same row."""
+    seen: set[tuple[str, str]] = set()
+    kept = []
+    for line in lines:
+        if line.detail != "person" or (line.job_id, line.message) in seen:
+            continue
+        seen.add((line.job_id, line.message))
+        kept.append(line)
+    return kept
+
+
 def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
     """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for."""
     name = node.get("display_name") or node.get("name") or node["id"]
     lines = []
     if node.get("started_at"):
         lines.append(JobLogLine(timestamp=node["started_at"], level="info", message=f"Started {name}",
-                                job_id=node["id"]))
+                                job_id=node["id"], detail="developer"))
     state, reason = node.get("state") or "", node.get("reason")
     ended = {"done": ("info", f"Done: {name}"),
              "failed": ("error", f"Failed: {name}: {reason or 'no reason recorded'}"),
@@ -810,7 +834,7 @@ def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
                                 job_id=node["id"]))
     elif reason:
         lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
-                                job_id=node["id"]))
+                                job_id=node["id"], detail="developer"))
     for child in node.get("children", []):
         lines.extend(_job_rows_log(child))
     return lines
@@ -837,7 +861,11 @@ def _event_threads(node: dict[str, Any], wanted: dict[str, Optional[set[str]]]) 
 
 
 @router.get("/jobs/{job_id}/log", response_model=JobLog)
-async def get_job_log(job_id: str, db: Database = Depends(get_library_database)) -> JobLog:
+async def get_job_log(
+    job_id: str,
+    detail: Literal["person", "developer"] = Query("person", description="developer adds the debug lines"),
+    db: Database = Depends(get_library_database),
+) -> JobLog:
     """The log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for
     a run (its activity events), for a step (the events of its node), and what each job's own row says (it
     started, it failed and why, it waits and for what). Nothing about another row."""
@@ -862,12 +890,13 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
             level = event.level.value if isinstance(event.level, ActivityLevel) else str(event.level)
             lines.append(JobLogLine(
                 timestamp=when.isoformat(), level=level, message=event.message + error,
+                detail=_event_detail(level, event.message),
                 # A node with no row of its own (the builder's routing) is the run's line.
                 job_id=row if (row := job_queue.step_id(thread, event.node_id or "")) in rows else thread))
 
     for row, entry in job_queue.logged_lines(db, list(rows)):  # what a row's work kept (a server's output)
         lines.append(JobLogLine(timestamp=entry.get("at"), level=str(entry.get("level") or "info"),
-                                message=str(entry["message"]), job_id=row))
+                                message=str(entry["message"]), job_id=row, detail="developer"))
 
     def order(line: JobLogLine) -> tuple[int, datetime]:
         # A line with no time (what a row waits for now) is the newest.
@@ -876,6 +905,8 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
         return (0, _parse_iso_to_naive_utc(line.timestamp))
 
     lines.sort(key=order)
+    if detail == "person":
+        lines = person_lines(lines)
     return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
 
 
