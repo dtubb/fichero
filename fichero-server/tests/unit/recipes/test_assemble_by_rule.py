@@ -117,7 +117,9 @@ def test_the_egress_question_is_needed_only_where_a_cloud_model_would_fit():
     """Setup asks once whether pages may leave this Mac, and only when it matters
     (`source.onboard.cloud-asked-once`): a cloud model that fits a step is named, while every step
     still chooses locally. Without this, setup either asks everyone or never asks."""
-    recipe = assemble(SPANISH_LETTERS, CARDS)
+    # Correct is optional (#5812, 0d2ddeeff): a cloud model fits a step only once the person asks for that step.
+    recipe = assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=3000,
+                              job_answers=YES_CORRECT), CARDS)
     assert recipe["cloud_options"] == ["correct"]
     assert not any(s["uses_cloud"] for s in recipe["steps"])
     for_print = Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), "print")
