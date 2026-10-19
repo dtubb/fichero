@@ -632,4 +632,23 @@ extension ActivityService {
             throw ActivityServiceError.unexpectedResponse(statusCode)
         }
     }
+
+    /// A step takes a candidate of its chain as the project's reader (#5352): the engine sets it, keeps it as the
+    /// project's override and saves the recipe, as Set Up's Use for This Step does.
+    func useCandidate(step: String, card: String) async throws {
+        let response = try await client.api.useCandidateForStepApiRecipesProjectStepsUseCandidatePost(
+            body: .json(.init(step: step, card: card)))
+        switch response {
+        case .ok:
+            return
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            let body = await AccessError.collectDenialBody(payload)
+            if let denial = AccessError.classify(statusCode: statusCode, body: body) { throw denial }
+            if let words = EngineErrorDetail.message(from: body) { throw ActivityServiceError.refused(words) }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
 }
