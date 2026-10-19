@@ -3614,7 +3614,7 @@ The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-
 - `source.onboard.edited-in-the-inspector` — **[GAP]** (#4951) everything setup set (purpose,
   defaults, recipe, steps, models, layers) is shown and edited in the Inspector when the library
   is selected.
-- `source.onboard.regen-shows-diff` — **[GAP]** (#4951) changing an answer re-assembles the recipe
+- `source.onboard.regen-shows-diff` — **[PARTIAL]** (#4951; *engine built 2026-10-18: `POST /api/recipes/assemble` for an open project with a saved recipe returns `changes`, each step added, taken out or run with another model or settings, in a sentence, writing nothing (`recipes/diff.py`; `fichero-server/tests/unit/recipes/test_regen_shows_diff_4951.py`); a step the person set by hand is the saved model, which the assembly keeps. Not built: the defaults' changes (answers other than steps), the app showing the diff, and the person's choice to take a hand-set step back*) changing an answer re-assembles the recipe
   and defaults and shows what would change, step by step; values the person set by hand are kept
   unless they choose otherwise.
 - `source.onboard.rerun-rewrites-nothing` — **[GAP]** (#4951) changing a project's answers or recipe

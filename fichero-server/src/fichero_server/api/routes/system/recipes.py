@@ -277,6 +277,16 @@ class LeftOffStep(BaseModel):
         "`card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"))
 
 
+class RecipeChange(BaseModel):
+    """One step a fresh assembly would add, take out or run differently from the project's saved recipe."""
+
+    step: str
+    kind: str = Field(description="added, removed or changed")
+    words: str = Field(description="the change in a sentence: 'Work out dates would be added'")
+    was: Optional[dict[str, Any]] = Field(default=None, description="the saved step's model")
+    now: Optional[dict[str, Any]] = Field(default=None, description="the fresh step's model")
+
+
 class AssembledRecipe(BaseModel):
     # Optional so older clients keep decoding; present so a recipe saved from this answer is a
     # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
@@ -291,6 +301,9 @@ class AssembledRecipe(BaseModel):
         "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the "
         "cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the "
         "assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"))
+    changes: list[RecipeChange] = Field(default_factory=list, description=(
+        "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written "
+        "(source.onboard.regen-shows-diff)"))
     gaps: list[str]
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
@@ -958,8 +971,17 @@ async def assemble_recipe(
         gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
-        already_text=recipe.get("already_text"),
+        already_text=recipe.get("already_text"), changes=_changes(library, recipe),
     )
+
+
+def _changes(library: Optional[Path], fresh: dict) -> list[RecipeChange]:
+    """What the fresh assembly would change in the open project's saved recipe (none when there is no project, or no
+    saved recipe: then everything is new and nothing is a change)."""
+    from fichero_server.recipes.diff import diff_recipes
+
+    saved = read_project_setup(library)["recipe"] if library else None
+    return [RecipeChange(**c) for c in diff_recipes(saved, fresh)] if saved else []
 
 
 class CheckRequest(BaseModel):
