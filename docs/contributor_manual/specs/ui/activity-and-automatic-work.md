@@ -1385,7 +1385,7 @@ and node, not by job); a retry action for failed pages.
   The 20:24 dumps show ONE recognise (the lane's job, `jobs._work` -> `recognize_to_geometry`; the second `recognize_to_geometry`
   frames are the same job's waiting thread), and the request thread in `working_pass` only deriving text; what held the loop
   8-10 s was the route being `async def` and running that derivation (library DB queries, the library lock behind the lane's
-  writes) ON the event loop; it runs on a worker thread now, same test file. NOT built: the owner's "the view shows the page as
+  writes) ON the event loop; it runs on a worker thread now, one derivation at a time, and callers asking for the same page's text at once share one (`single_flight`): three GETs beside a Kraken read starved the GIL (blla is mostly single-threaded; r1's profile). Same test file, with the loop's longest stall measured beside the call. NOT built: the owner's "the view shows the page as
   waiting or reading in that run, and a page nothing covers queues one de-duplicated job on the model lane". The text view has no
   such state today (a page with no pass answers an empty text); it needs the product shape first.
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
