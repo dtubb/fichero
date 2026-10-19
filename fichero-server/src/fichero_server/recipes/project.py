@@ -37,24 +37,7 @@ def read_project_setup(library: Path) -> dict[str, Any]:
         path = _path(library, part)
         out[part] = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
     out["answers"] = normalise(out["answers"], strict=False)
-    _tick_what_the_plan_has(out)
     return out
-
-
-def _tick_what_the_plan_has(setup: dict[str, Any]) -> None:
-    """One source of truth for "Have a second model check the reading?" (#5812): a plan that has the Correct step
-    reads as ticked unless the person answered it. The tickbox was blank beside a plan that listed Correct above it
-    (a corrector already at hand keeps the step in without being asked)."""
-    from fichero_server.recipes.assemble import CORRECT, CORRECT_QUESTION
-
-    answers, recipe = setup.get("answers"), setup.get("recipe")
-    if not isinstance(answers, dict) or not isinstance(recipe, dict):
-        return
-    if not any(isinstance(s, dict) and s.get("job") == CORRECT for s in recipe.get("steps") or []):
-        return
-    job_answers = dict(answers.get("job_answers") or {})
-    if job_answers.get(CORRECT_QUESTION) is None:
-        answers["job_answers"] = {**job_answers, CORRECT_QUESTION: True}
 
 
 def write_project_setup(library: Path, answers: dict | None, recipe: dict | None) -> None:

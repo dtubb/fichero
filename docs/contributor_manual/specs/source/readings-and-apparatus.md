@@ -450,10 +450,12 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
 - `source.find.no-finder-for-no-model-jobs` — **[GAP]** (#5812) the Ready page and Set Up show no "Choose a model" row or
   finder for a job that needs none (the engine side is `source.recipe.every-job-declares-needs-a-model`; the pure-Swift check
   of the Ready rows is not written).
-- `source.recipe.second-model-tickbox-matches-the-plan` — **[OK]** (#5812; `recipes/project.py` `_tick_what_the_plan_has`; tested in
-  `fichero-server/tests/unit/recipes/test_correct_tickbox_agrees_with_plan_5812.py`) the Read page's "Have a second model
-  check the reading?" and the plan's Correct step never disagree: a plan that has the step reads as ticked unless the
-  person answered; ticking adds the step and unticking removes it (the existing re-assembly).
+- `source.recipe.optional-steps-wait-to-be-asked` — **[OK]** (#5812, owner ruling 2026-10-19; `assemble._correct_left_off`, `assemble.assemble`;
+  tested in `fichero-server/tests/unit/recipes/test_optional_steps_wait_to_be_asked_5812.py`) an optional step joins the plan
+  only when the person ticks it or says yes: Correct (the Read page's "Have a second model check the reading?" or the step
+  ticked), Find where the readers disagree (ticked), and cloud and training until asked. The answer drives the plan, never the plan
+  the answer: an unanswered or unticked question gives a plan with no Correct and no disagree step, so no download is queued for
+  either; a corrector already at hand does not put Correct in. Ready still says what turning it on would cost.
 - `source.disagree.agreement-not-accuracy` — **[PARTIAL]** (#5665; the route's fields say agreement only; a checked
   line is not yet scored as accuracy) the figure is labelled agreement everywhere
   (route, lens, Inspector) unless a person checked the line, as `compare_readings` labels its score.
