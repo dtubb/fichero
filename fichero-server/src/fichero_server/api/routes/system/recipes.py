@@ -1509,6 +1509,12 @@ class StartWorkflow(BaseModel):
     runs_on: str
 
 
+class StartLensCost(BaseModel):
+    lens: str
+    on: bool
+    cost_per_page_usd: Optional[float] = Field(description="one call a page: 0 on this Mac; null when unpriced")
+
+
 class StartEstimateRun(BaseModel):
     workflow: str
     steps: list[str]
@@ -1521,6 +1527,12 @@ class StartEstimateRun(BaseModel):
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
         "and the peak that comes to (#5537); null for any other run"))
+    calls_per_page: Optional[int] = Field(default=1, description=(
+        "model calls each page takes: the review makes one for each pass it runs, one a lens on (#5723); any other "
+        "run, one; null when a review's passes cannot be counted, and then `cost_usd` is null too, never $0"))
+    lenses: list[StartLensCost] = Field(default_factory=list, description=(
+        "the review's lenses, on or off, each with what it costs a page, so turning one on or off is priced before "
+        "Start (#5723); empty for any other run"))
 
 
 class StartEstimate(BaseModel):

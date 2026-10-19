@@ -74,6 +74,35 @@ def lens_ids() -> list[str]:
     return list(profiles()[GENERIC].lenses)
 
 
+#: The shipped review preset a recipe's Correct step runs (`start.WORKFLOW_FOR_JOB["correct"]`).
+REVIEW_PRESET = "transcribe_paleography_review"
+
+
+def review_passes(preset: str, lenses: list[str] | None) -> int | None:
+    """The model calls a page takes in the shipped review preset `preset` (its key, or the name a run carries as its
+    `workflow`) with `lenses` on (None: every lens): one for each pass `keep_lenses` keeps (#5723). None when the
+    preset cannot be read or has no review pass: unpriced, never a $0 review (#5590, review 160)."""
+    import json
+
+    from fichero_server.workflows.default_workflows import _PRESETS_DIR, shipped_preset
+
+    found = shipped_preset(preset)
+    if found is None:
+        for path in sorted(_PRESETS_DIR.glob("*.json")):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(data, dict) and data.get("name") == preset:
+                found = data
+                break
+    if not found:
+        return None
+    kept, _ = keep_lenses(found.get("nodes") or [], found.get("edges") or [],
+                          lens_ids() if lenses is None else lenses)
+    return sum(1 for node in kept if node.get("tool") == "transcribe_review") or None
+
+
 def keep_lenses(nodes: list[dict[str, Any]], edges: list[dict[str, Any]],
                 lenses: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """A review workflow with only `lenses` on (#5723): a pass through several lenses keeps those on; a pass whose
