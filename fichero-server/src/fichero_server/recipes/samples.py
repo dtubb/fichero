@@ -218,7 +218,7 @@ def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
     if state in ("failed", "cancelled", "cleared"):
         why = _sentence(row.get("reason")) if row else None
         error = result.get("error") or why or "The try did not finish: try it again"
-        return {**result, "state": "failed", "error": error}
+        return {**result, "state": "failed", "error": error, "candidates": _ended(result, error)}
     followed = {**result, "state": state if state == "running" else result["state"]}
     said_now = jobs.state_and_reason(db, job_id)
     if said_now and said_now[1]:
@@ -242,6 +242,21 @@ _FILE_LOCKS_GUARD = threading.Lock()
 def _file_lock(path: Path) -> threading.RLock:
     with _FILE_LOCKS_GUARD:
         return _FILE_LOCKS.setdefault(str(path), threading.RLock())
+
+
+def _ended(result: dict[str, Any], error: str) -> list[dict[str, Any]]:
+    """The compared columns of a try whose job ended before it wrote its end (the engine stopped under it): each
+    still-running column is failed with the try's sentence and a final progress, counting the pages it had finished,
+    never left "running" at 0 of N with no why (`source.onboard.stages.try-progress-in-place`)."""
+    total = len(result.get("pages") or [])
+    columns = []
+    for column in result.get("candidates") or []:
+        if column.get("state") in ("waiting", "running"):
+            made = column.get("per_page") or []
+            column = {**column, "state": "failed", "why": column.get("why") or error,
+                      "progress": finished_progress("failed", made, total, str(result.get("stage")))}
+        columns.append(column)
+    return columns
 
 
 def _write(library: Path, stage: str, result: dict[str, Any]) -> None:
