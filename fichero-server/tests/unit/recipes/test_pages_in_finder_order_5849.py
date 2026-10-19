@@ -35,3 +35,24 @@ def test_the_kraken_gate_lets_pages_in_the_order_they_came():
     assert order == list(range(12))
     assert vision_base._KrakenPageGate.in_flight == 0
     assert not vision_base._KrakenPageGate._queue
+
+
+def test_two_boxes_that_each_hold_a_folder_1_stay_apart(db):
+    """WHY (review 267 LOW): sorting by the immediate parent's name interleaved same-named folders of different boxes."""
+    def save(name, doc_type, parent=None, sort_order=0, **kw):
+        doc = Document(name=name, doc_type=doc_type, parent_id=parent, sort_order=sort_order, **kw)
+        db.save(doc)
+        return doc.id
+
+    box_b = save("Box 2", DocType.folder, sort_order=2)
+    box_a = save("Box 10", DocType.folder, sort_order=1)  # the person put Box 10 first
+    names = {}
+    for box, label in ((box_b, "B"), (box_a, "A")):
+        for folder in ("Folder 2", "Folder 1"):
+            f = save(folder, DocType.folder, parent=box)
+            for n in ("IMG_10.png", "IMG_2.png"):
+                names[save(n, DocType.file, parent=f, file_type=FileType.image, path=f"/x/{label}/{folder}/{n}")] = \
+                    f"{label}/{folder}/{n}"
+    assert [names[i] for i in db.unit_of_work_ids()] == [
+        f"{label}/{folder}/{n}" for label in ("A", "B") for folder in ("Folder 1", "Folder 2")
+        for n in ("IMG_2.png", "IMG_10.png")]
