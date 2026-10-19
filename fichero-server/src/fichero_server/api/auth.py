@@ -24,6 +24,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import utc_now
+import asyncio
 import hashlib
 import logging
 import os
@@ -39,7 +40,7 @@ from fichero_server.security import accounts
 from fichero_server.api import client_presence
 from fichero_server.api.library_header import require_library_path
 from fichero_server.actions import ActionContext
-from fichero_server.db.app import get_app_db
+from fichero_server.db.app import AppDatabaseBusy, get_app_db
 from fichero_server.security.multiuser import multiuser_enabled
 
 logger = logging.getLogger(__name__)
@@ -461,11 +462,24 @@ def _authenticate_session_token(token: str):
     return user, session
 
 
+AUTH_DB_WAIT_SECONDS = 5.0
+
+
+def _busy_response(request: Request, is_loopback: bool) -> JSONResponse:
+    """The app database is held by background work: say so in words, quickly, instead of hanging the request."""
+    return _refused(
+        request, 503,
+        {"detail": "Fichero is busy with background work and could not check your sign-in in time. "
+                   "Try again in a moment.", "code": "app_db_busy"},
+        "app_db_busy", is_loopback,
+    )
+
+
 def _authenticate_device_token(token: str):
     """Resolve a bearer device token to a live user/device pair."""
     token_hash = accounts.hash_token(token)
     app_db = get_app_db()
-    device = app_db.get_device_by_token_hash(token_hash)
+    device = app_db.get_device_by_token_hash(token_hash, wait=AUTH_DB_WAIT_SECONDS)
     if device is None:
         return None, None, "missing or invalid Authorization header"
     now = utc_now()
@@ -478,14 +492,14 @@ def _authenticate_device_token(token: str):
         # the OWNER paired it. A device another person paired while Multi-user was on is not the
         # owner's: turning Multi-user off must not promote a viewer's Mac to owner (#5344).
         if device.user_id:
-            paired_by = app_db.get_user(device.user_id)
+            paired_by = app_db.get_user(device.user_id, wait=AUTH_DB_WAIT_SECONDS)
             if paired_by is None or not paired_by.active or not paired_by.is_owner:
                 return None, device, "missing or invalid Authorization header"
         if _should_touch_last_seen(device.last_seen, now):
             app_db.touch_device(token_hash, when=now)
         # Without the owner here its edits were audited as an anonymous ``system`` (#5319).
         return _resolve_single_user_owner(), device, None
-    user = app_db.get_user(device.user_id)
+    user = app_db.get_user(device.user_id, wait=AUTH_DB_WAIT_SECONDS)
     if user is None or not user.active:
         return None, device, "missing or invalid Authorization header"
     if _should_touch_last_seen(device.last_seen, now):
@@ -777,7 +791,10 @@ def attach_auth_middleware(
             if provided.startswith("Bearer "):
                 raw_token = provided.removeprefix("Bearer ").strip()
                 if raw_token:
-                    user, device, detail = _authenticate_device_token(raw_token)
+                    try:
+                        user, device, detail = await asyncio.to_thread(_authenticate_device_token, raw_token)
+                    except AppDatabaseBusy:
+                        return _busy_response(request, is_loopback)
                     if device is not None and detail is None:
                         request.state.user = user
                         request.state.device = device
@@ -855,7 +872,10 @@ def attach_auth_middleware(
                 "session_expired", is_loopback,
             )
 
-        user, device, detail = _authenticate_device_token(raw_token)
+        try:
+            user, device, detail = await asyncio.to_thread(_authenticate_device_token, raw_token)
+        except AppDatabaseBusy:
+            return _busy_response(request, is_loopback)
         if user is None or device is None:
             if is_loopback and _is_stale_sandbox_bootstrap_token(
                 raw_token, expected_header.removeprefix("Bearer ").strip()

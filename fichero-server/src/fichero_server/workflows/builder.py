@@ -1743,7 +1743,7 @@ def _make_parallel_node_function(
         # short-circuits on.
         from langgraph.types import Command, Send  # noqa: PLC0415
 
-        def _with_chaining(update: dict, *, failed: bool = False, error: str | None = None):
+        def _with_chaining(update: dict, *, failed: bool = False, error: str | None = None, skipped: bool = False):
             # Each result names its page, so the run's account can offer to read
             # the pages it did not do (#5555, `run_account`); and says when the
             # page was read a second time after a passing cause.
@@ -1759,6 +1759,8 @@ def _make_parallel_node_function(
                     "tool": node_def.tool,
                     "error": error or "upstream failed",
                 }
+                if skipped:  # left out of a reopen, not failed: the next stage leaves it out too
+                    payload_upstream["skipped"] = True
             else:
                 results_for_node = update.get("parallel_results", {}).get(node_id, [])
                 branch_result = (
@@ -1795,7 +1797,14 @@ def _make_parallel_node_function(
             ]
             return Command(update=update, goto=sends)
 
+        def _skipped_result() -> dict:
+            return {"parallel_results": {node_id: [{"file": file_path, "index": index, "total": total, "success": False,
+                                                    "cancelled": True, "skipped": True,
+                                                    "error": "not part of this reopen"}]}}
+
         upstream = state.get("parallel_upstream")
+        if isinstance(upstream, dict) and upstream.get("skipped"):
+            return _with_chaining(_skipped_result(), failed=True, error="not part of this reopen", skipped=True)
         if isinstance(upstream, dict) and upstream.get("error"):
             # An upstream chained stage failed for THIS item — propagate the
             # marker so every later stage's aggregate still reaches `total`.
@@ -1871,10 +1880,7 @@ def _make_parallel_node_function(
         # are not read, whatever file list the run's checkpoint still holds (Retry on a stopped run's page).
         only_docs = state.get("only_doc_ids") or []
         if only_docs and isinstance(document, dict) and not ({document.get("id"), document.get("parent_id")} & set(only_docs)):
-            return _with_chaining(
-                {"parallel_results": {node_id: [{"file": file_path, "index": index, "total": total, "success": False,
-                                                 "cancelled": True, "skipped": True, "error": "not part of this reopen"}]}},
-                failed=True, error="not part of this reopen")
+            return _with_chaining(_skipped_result(), failed=True, error="not part of this reopen", skipped=True)
 
         event_document_meta: dict[str, Any] = {}
         if isinstance(document, dict):

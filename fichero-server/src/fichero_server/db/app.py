@@ -14,6 +14,7 @@ This is separate from library databases which store:
 - Provider references (which providers this library uses)
 """
 
+import contextlib
 import json
 import logging
 from datetime import datetime, timedelta
@@ -98,6 +99,10 @@ class AppSetting(BaseModel):
 def get_db_path() -> str:
     """Get the path to the app-wide database."""
     return str(settings.app_db_path)
+
+
+class AppDatabaseBusy(RuntimeError):
+    """The app-DB lock was not free within the wait a caller allowed (`activity.engine.auth-never-hangs`)."""
 
 
 class AppDatabase:
@@ -1130,9 +1135,23 @@ class AppDatabase:
             ).fetchone()
         return self._row_to_user(result) if result else None
 
-    def get_user(self, user_id: str) -> AccountUser | None:
+    @contextlib.contextmanager
+    def _lock_within(self, wait: float | None):
+        """The lock, waiting at most `wait` seconds (None: as long as it takes). Raises `AppDatabaseBusy`."""
+        if wait is None:
+            with self._lock:
+                yield
+            return
+        if not self._lock.acquire(timeout=wait):
+            raise AppDatabaseBusy(f"the app database was busy for {wait:g} s")
+        try:
+            yield
+        finally:
+            self._lock.release()
+
+    def get_user(self, user_id: str, *, wait: float | None = None) -> AccountUser | None:
         """Get a user by ID."""
-        with self._lock:
+        with self._lock_within(wait):
             result = self.conn.execute(
                 """
                 SELECT id, username, display_name, password_hash,
@@ -1959,9 +1978,9 @@ class AppDatabase:
             ).fetchone()
         return self._row_to_device(result) if result else None
 
-    def get_device_by_token_hash(self, token_hash: str) -> Device | None:
-        """Return one paired device by stored token hash."""
-        with self._lock:
+    def get_device_by_token_hash(self, token_hash: str, *, wait: float | None = None) -> Device | None:
+        """Return one paired device by stored token hash. `wait` bounds the lock (auth must never hang)."""
+        with self._lock_within(wait):
             result = self.conn.execute(
                 """
                 SELECT id, name, user_id, token_hash,

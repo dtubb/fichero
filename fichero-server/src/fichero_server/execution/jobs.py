@@ -1778,33 +1778,43 @@ def retry_job(db: "Database", job_id: str) -> str:
     return "waiting"
 
 
-def is_paused() -> bool:
+#: The two flags every claim reads. Read once, then only ever REPLACED by `set_paused` / `set_mode` (their only writers),
+#: so a claim never reads the app database again, and `_claim` warms them before it takes `_heavy_pick`.
+_flag_cache: dict[str, bool] = {}
+
+
+def _flag(key: str) -> bool:
+    if key in _flag_cache:
+        return _flag_cache[key]
     from fichero_server.db.app import get_app_db
 
     try:
-        return get_app_db().get_setting(PAUSE_SETTING_KEY) == "1"
+        value = get_app_db().get_setting(key) == "1"
     except Exception as exc:  # noqa: BLE001 -- an unreadable setting must not stop the queue for good
-        logger.warning("Could not read %s: %s", PAUSE_SETTING_KEY, exc)
+        logger.warning("Could not read %s: %s", key, exc)
         return False
+    _flag_cache[key] = value
+    return value
+
+
+def is_paused() -> bool:
+    """Polled on every claim by every lane thread: cached, so the lane threads never queue on the app-DB lock the
+    request path needs (`activity.engine.auth-never-hangs`)."""
+    return _flag(PAUSE_SETTING_KEY)
 
 
 def set_paused(paused: bool) -> None:
     from fichero_server.db.app import get_app_db
 
     get_app_db().set_setting(PAUSE_SETTING_KEY, "1" if paused else "0")
+    _flag_cache[PAUSE_SETTING_KEY] = paused
     _scheduler.wake(None)
 
 
 def is_started() -> bool:
     """*Start* is on (`activity.mode.start-stop`, #5621): waiting work goes ahead although the person is
     on battery or a build runs. Memory and heat still hold it (`throttle.why_wait`)."""
-    from fichero_server.db.app import get_app_db
-
-    try:
-        return get_app_db().get_setting(STARTED_SETTING_KEY) == "1"
-    except Exception as exc:  # noqa: BLE001 -- unreadable: automatic, the throttle as it always was
-        logger.warning("Could not read %s: %s", STARTED_SETTING_KEY, exc)
-        return False
+    return _flag(STARTED_SETTING_KEY)
 
 
 def mode() -> str:
@@ -1823,6 +1833,8 @@ def set_mode(new_mode: str) -> None:
     app_db = get_app_db()
     app_db.set_setting(STARTED_SETTING_KEY, "1" if new_mode == "started" else "0")
     app_db.set_setting(PAUSE_SETTING_KEY, "1" if new_mode == "paused" else "0")
+    _flag_cache[STARTED_SETTING_KEY] = new_mode == "started"
+    _flag_cache[PAUSE_SETTING_KEY] = new_mode == "paused"
     _scheduler.wake(None)
 
 
@@ -2565,6 +2577,9 @@ class _Scheduler:
             return self._claim_one(lane)
         from fichero_server.execution.throttle import memory_is_busy
 
+        # The flags a claim reads come from the app database on their first read only: warm them HERE, never while
+        # `_heavy_pick` is held (a stuck app-DB call under it stalled every heavy lane, owner 18:11).
+        is_paused(), is_started()
         with self._heavy_pick:
             if memory_is_busy() and self.heavy_running() is not None:
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS

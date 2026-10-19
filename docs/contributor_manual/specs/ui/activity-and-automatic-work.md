@@ -687,7 +687,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   ("Node 'x' started", "completed in", a row's start, what a row waits for now, a server's output), each line tagged
   `detail` (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the Developer switch in the details view
   (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
-- `activity.retry.page-within-run` — **[PARTIAL]** (#5853) Retry on a page retries it within its run, not as a new run
+- `activity.retry.page-within-run` — **[OK]** (#5853) Retry on a page retries it within its run, not as a new run
   (`activity.retry.one-row` keeps a whole failed run's Retry). Retry is for a page that failed or was stopped; a done
   page answers in words ("This page is already read") and does nothing. A run that has ended reopens for the page: the
   same run id goes back to running over all its pages with the node cache on, so only the retried page calls the model
@@ -698,8 +698,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   never touched, since its account and its offer to read the rest are built from it. A run still going takes the page into its queue (no 409): the page row waits
   ("Retried by you; waits in its run") and the run reopens for it when its pass ends. Pinned by
   `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` and, against the real graph (one model call, the run
-  id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (both branches). [PARTIAL] until that test is green
-  on the M4, the stopped branch's included.
+  id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (both branches), green on the M4 at `c7cc86d09` (REALGRAPH, 3-page stopped test included).
 - `activity.engine.keychain-cached` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun while `keychain.lookup_api_key` ran a
   `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 5 minutes, so a repeated lookup
   spawns no subprocess (a stale one is returned at once and re-read on a thread); a refusal is never kept; saving or deleting a key
@@ -708,6 +707,15 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (same test).
+- `activity.engine.auth-never-hangs` — **[PARTIAL]** (owner, 2026-10-19 18:11: the engine stopped answering and was respawned; review 317:
+  the dumps' holder is the `is_paused` claim thread inside `app.py` `get_setting`'s execute, with `app_db._lock` AND `_heavy_pick`
+  held for 3+ minutes, one DuckDB call stuck under a Python `isinstance` (ABC) callback) the two flags every claim reads
+  (`jobs.is_paused`, `is_started`) are read from the app database once, then only replaced by `set_paused` / `set_mode`; `_claim`
+  warms them BEFORE it takes `_heavy_pick`, so no app-DB call happens under it. Auth's device and user lookups run on a worker
+  thread (never the event loop), wait at most 5 s for the app-DB lock, and answer 503 `app_db_busy` in words, never a hang.
+  A try's page in its scratch library resolves to a person through `person_waits_on` (its run row's starter, the try's job
+  being in the project's database). Pinned by `fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py`.
+  [PARTIAL] until the M4 run; the stuck DuckDB call itself is not explained (see bugs-ready.md).
 - `activity.throttle.person-heavy-first` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun for ever while the
   project's thumbnails, 47-61 s each, took every heavy slot in turn) while memory is busy and only one heavy job runs at a time,
   a heavy lane's background work steps aside for a page handed in on another heavy lane whose run a PERSON started and that the
