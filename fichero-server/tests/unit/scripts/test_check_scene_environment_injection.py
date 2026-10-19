@@ -197,3 +197,32 @@ def test_repo_is_clean():
 
 def test_self_test_mode_passes():
     assert _mod._self_test() == 0
+
+
+# ---------------------------------------------------------------------------
+# #5811 — AppState is read the same way: the Activity Detail window opened by Start trapped on it
+# ---------------------------------------------------------------------------
+
+def _app_state_scenes(tmp_path: Path, extra_scene: str):
+    app_dir, workspace, manager = _fixture(tmp_path)
+    (app_dir / "RunPane.swift").write_text(
+        "struct RunPane: View {\n"
+        "  @Environment(AppState.self) private var appState\n"
+        '  var body: some View { Text("x") }\n}\n'
+        "struct RunWindow: View { var body: some View { RunPane() } }\n",
+        encoding="utf-8",
+    )
+    app = (app_dir / "App.swift").read_text(encoding="utf-8")
+    (app_dir / "App.swift").write_text(app.replace("  }\n}\n", f"    {extra_scene}\n  }}\n}}\n"), encoding="utf-8")
+    contracts = CONTRACTS | {"run (Window)": "fixture: app state"}
+    return scan(app_dir, workspace, manager, detached=contracts)[0]
+
+
+def test_scene_that_never_injects_app_state_is_reported(tmp_path):
+    found = _app_state_scenes(tmp_path, 'Window("Run", id: "run") { RunWindow() }')
+    assert "run (Window) needs AppState" in found
+
+
+def test_scene_that_injects_app_state_is_not_reported(tmp_path):
+    found = _app_state_scenes(tmp_path, 'Window("Run", id: "run") { RunWindow().environment(appState) }')
+    assert not [key for key in found if key.startswith("run (Window)")]

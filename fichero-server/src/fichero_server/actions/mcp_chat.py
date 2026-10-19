@@ -8,6 +8,7 @@ an `ActionAudit` row and shows in Activity. A server that is off contributes not
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
@@ -48,10 +49,21 @@ async def _chat_tools_by_server(unavailable: dict[str, str] | None = None) -> li
     return found
 
 
+def _hash8(text: str) -> str:
+    return hashlib.sha1(text.encode()).hexdigest()[:8]  # noqa: S324 - a name disambiguator, not security
+
+
 def tool_key(server: str, tool: str) -> str:
     """The name the model sees: `mcp__<server>__<tool>`, so an external tool never shadows a built-in one and two
-    servers may each have a tool of the same name."""
-    return "mcp__" + "__".join(re.sub(r"[^A-Za-z0-9_-]", "_", part) for part in (server, tool))
+    servers may each have a tool of the same name. A part with characters the model API refuses is sanitised AND
+    suffixed with a short hash of the original, so 'a.b' and 'a_b' stay distinct; a name over the API's 64 characters
+    is cut and ends in a hash of the whole."""
+    parts = []
+    for part in (server, tool):
+        clean = re.sub(r"[^A-Za-z0-9_-]", "_", part)
+        parts.append(clean if clean == part else f"{clean}_{_hash8(part)}")
+    key = "mcp__" + "__".join(parts)
+    return key if len(key) <= 64 else f"{key[:55]}_{_hash8(key)}"
 
 
 def may_use_mcp_tools(ctx: ActionContext) -> bool:
