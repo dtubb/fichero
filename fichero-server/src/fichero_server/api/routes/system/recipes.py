@@ -1477,13 +1477,17 @@ class PlacesSetting(BaseModel):
 
 
 class PlacesView(PlacesSetting):
+    answered: bool = Field(description="False until the person answers in Set Up Fichero; then no cap applies, and "
+                                       "places shows this Mac only.")
     memory_gb: float = Field(description="This Mac's memory, worked out by the engine.")
     this_mac: str = Field(description="What this Mac can run, in a sentence, from its real memory.")
 
 
 def _places_view() -> PlacesView:
     gb = _this_machine_memory_gb()
-    return PlacesView(places=places.get_places(), memory_gb=round(gb, 1), this_mac=places.this_mac_line(gb))
+    said = places.get_places()
+    return PlacesView(places=said or list(places.DEFAULT), answered=said is not None, memory_gb=round(gb, 1),
+                      this_mac=places.this_mac_line(gb))
 
 
 @router.get("/places", response_model=PlacesView)
@@ -1513,7 +1517,7 @@ def _action_set_places(db: Database, params: PlacesSetting, ctx: ActionContext) 
     unknown = [p for p in params.places if p not in places.PLACES]
     if unknown:
         raise ValueError(f"Fichero does not know the place {unknown[0]!r}.")
-    before = places.get_places()
+    before = places.get_places() or list(places.DEFAULT)
     kept = list(places.normalise(params.places))
     # Applied once the audit commits: a rolled-back action leaves the setting as it was.
     db.add_after_commit_hook(lambda: places.set_places(kept))

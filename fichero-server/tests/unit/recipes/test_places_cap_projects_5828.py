@@ -13,10 +13,22 @@ from fichero_server.recipes import places
 from fichero_server.recipes.project import read_project_setup, write_project_setup
 
 
-def test_this_mac_only_until_the_person_says_otherwise(client, app_db):
+def test_unset_is_not_answered_and_caps_nothing(client, app_db):
+    """The house rule since 153: unset is NOT ANSWERED, not "this Mac only". The project's own yes still gates."""
     r = client.get("/api/recipes/places")
     assert r.status_code == 200, r.text
-    assert r.json()["places"] == ["this-mac"]
+    assert r.json()["answered"] is False and r.json()["places"] == ["this-mac"]
+    assert places.get_places() is None
+    assert places.allows("cloud") and places.allows("acenet") and places.allows("huggingface")
+    assert places.may_leave_to({"cloud_allowed": True}, "cloud")
+    assert not places.may_leave_to({"cloud_allowed": False}, "cloud"), "a project's own no still holds"
+    assert not places.may_leave_to(None, "cloud")
+
+
+def test_answering_this_mac_only_caps_every_other_place(client, app_db):
+    assert client.put("/api/recipes/places", json={"places": []}).json()["answered"] is True
+    assert places.get_places() == ["this-mac"]
+    assert not places.allows("cloud") and not places.may_leave_to({"cloud_allowed": True}, "cloud")
 
 
 def test_the_answer_is_set_by_an_audited_action_and_this_mac_stays(client, app_db, db):
@@ -42,12 +54,13 @@ def test_a_save_never_narrows_what_the_project_stored(client, app_db):
 
 def test_reading_the_setup_never_caps_it(app_db, tmp_path):
     write_project_setup(tmp_path, {"cloud_allowed": True}, None)
-    assert places.get_places() == ["this-mac"]
+    places.set_places([])
     assert read_project_setup(tmp_path)["answers"]["cloud_allowed"] is True
 
 
 def test_pages_go_to_a_place_only_when_the_project_said_yes_and_the_app_allows_that_place(app_db):
     yes, no = {"cloud_allowed": True}, {"cloud_allowed": False}
+    places.set_places([])
     assert not places.may_leave_to(yes, "cloud"), "this Mac only"
     places.set_places(["cloud"])
     assert places.may_leave_to(yes, "cloud")
@@ -64,6 +77,7 @@ def test_allowing_only_another_mac_opens_neither_the_cloud_nor_hugging_face_nor_
 
 
 def test_copies_stay_on_the_cluster_needs_the_cluster_allowed_even_when_said_true(app_db):
+    places.set_places([])
     said = {"cloud_allowed": True, answers_mod.COPIES_STAY: True}
     assert not answers_mod.copies_may_stay(said)
     places.set_places(["acenet"])
