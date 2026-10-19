@@ -24,6 +24,8 @@ from __future__ import annotations
 import logging
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from enum import Enum
 
@@ -137,7 +139,36 @@ def _run_security(*args: str, input_data: str | None = None) -> tuple[int, str, 
 # =============================================================================
 
 
+#: A found or absent answer is kept this long: every read spawns a `security` subprocess (2.5 s on the loop in the owner's
+#: Dev Embedded run). A refusal (UNREADABLE) is never kept: the person may fix it. A save or delete drops the entry.
+_LOOKUP_SECONDS = 300.0
+_LOOKUPS: dict[str, tuple[float, "KeychainLookup"]] = {}
+_LOOKUPS_LOCK = threading.Lock()
+
+
+def forget_cached_lookups(provider: str | None = None) -> None:
+    """Drop the cached answer for a provider (a key was saved or deleted), or for all."""
+    with _LOOKUPS_LOCK:
+        if provider is None:
+            _LOOKUPS.clear()
+        else:
+            _LOOKUPS.pop(provider, None)
+
+
 def lookup_api_key(provider: str) -> KeychainLookup:
+    """The cached answer, or the keychain's (`_read_api_key`)."""
+    with _LOOKUPS_LOCK:
+        kept = _LOOKUPS.get(provider)
+    if kept is not None and time.monotonic() - kept[0] < _LOOKUP_SECONDS:
+        return kept[1]
+    found = _read_api_key(provider)
+    if found.state is not ProviderKeyState.UNREADABLE:
+        with _LOOKUPS_LOCK:
+            _LOOKUPS[provider] = (time.monotonic(), found)
+    return found
+
+
+def _read_api_key(provider: str) -> KeychainLookup:
     """Read a provider's API key and say which of the three things happened.
 
     This is the truthful primitive; `get_api_key` and `has_api_key` are views
@@ -214,6 +245,7 @@ def _invalidate_llm_api_key_cache(provider: str) -> None:
     or deleted key takes effect immediately, without a process restart (#2545,
     M1 follow-up). Local import avoids the keychain <- llm import cycle.
     """
+    forget_cached_lookups(provider)
     try:
         from fichero_server.llm import clear_api_key_cache
 

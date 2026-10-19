@@ -372,6 +372,12 @@ def _list_documents(
     )
 
 
+async def _child_counts_off_the_loop(db: Database, items: list[Document]) -> list[Document]:
+    """`_with_child_counts` on a worker thread: it waits on the database's transaction gate behind a write, and held the
+    event loop 2.5 s in the owner's run (the `get_children -> child_counts` stack)."""
+    return await asyncio.to_thread(_with_child_counts, db, items)
+
+
 def _with_child_counts(db: Database, items: list[Document]) -> list[Document]:
     """Populate each item's transient ``child_count`` (#3355).
 
@@ -1582,7 +1588,7 @@ async def get_children(
         if limit is not None:
             children = children[:limit]
         perf["returned_rows"] = len(children)
-        items = _with_child_counts(db, children)
+        items = await _child_counts_off_the_loop(db, children)
         return _list_answer(items, count=len(children), withheld=withheld, summary=summary)
 
 
