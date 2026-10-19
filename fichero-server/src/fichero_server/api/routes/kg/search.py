@@ -21,6 +21,7 @@ from fichero_server.models.knowledge import (
     KnowledgeEntity,
     Note,
 )
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/search")
@@ -51,7 +52,8 @@ class KGSearchResponse(BaseModel):
     response_model=KGSearchResponse,
     summary="Mixed-type KG search — one call, hits across entities + claims + notes + annotations",
 )
-async def search_kg(
+@off_loop
+def search_kg(
     q: str = Query(..., min_length=1),
     limit: int = Query(default=50, ge=1, le=200),
     types: list[HitType] | None = Query(

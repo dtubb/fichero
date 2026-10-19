@@ -16,6 +16,7 @@ from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import Artifact, DocType, Document, FileType, Segment
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/view", tags=["views"])
 #: A whole page of HTML for the Reader: bulk by nature, never trimmed for an agent (`openapi.mcp.answers-fit-an-agent`).
@@ -834,7 +835,8 @@ def _document_scoped_entities(
 
 
 @router.get("/document/{doc_id}", response_class=HTMLResponse, openapi_extra=BULK)
-async def document_view(
+@off_loop
+def document_view(
     request: Request,
     doc_id: str,
     pages_filter: str | None = Query(default=None, alias="pages"),
@@ -1047,7 +1049,8 @@ async def document_view(
 
 
 @router.get("/kg/global", response_class=HTMLResponse, openapi_extra=BULK)
-async def global_kg_view(
+@off_loop
+def global_kg_view(
     request: Request,
     db: Database = Depends(get_library_database),
 ) -> HTMLResponse:

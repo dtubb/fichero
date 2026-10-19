@@ -32,6 +32,7 @@ from fichero_server.models.knowledge import (
     ProjectInclusion,
 )
 from fichero_server.models import Artifact, Document, DocType
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents")
@@ -101,7 +102,8 @@ class DocumentRollupResponse(BaseModel):
         "request instead of 7 separate ones. (#902 prep)"
     ),
 )
-async def inspector(
+@off_loop
+def inspector(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> DocumentInspectorResponse:
@@ -221,7 +223,8 @@ async def inspector(
     response_model=DocumentOutlineResponse,
     summary="Hierarchical source outline for document drill-down",
 )
-async def document_outline(
+@off_loop
+def document_outline(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> DocumentOutlineResponse:
@@ -379,7 +382,8 @@ async def document_outline(
         "documents only (not the document itself)."
     ),
 )
-async def document_rollup(
+@off_loop
+def document_rollup(
     document_id: str,
     db: Database = Depends(get_library_database),
 ) -> DocumentRollupResponse:
@@ -737,7 +741,8 @@ def _build_knowledge_graph(
         "entity-kind sections (#1047). Empty for leaf documents."
     ),
 )
-async def knowledge_graph(
+@off_loop
+def knowledge_graph(
     document_id: str,
     include_descendants: Annotated[bool, Query()] = True,
     db: Database = Depends(get_library_database),

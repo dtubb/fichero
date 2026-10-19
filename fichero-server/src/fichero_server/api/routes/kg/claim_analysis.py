@@ -19,6 +19,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaimLink,
 )
 from fichero_server.models import ContradictionEvidence, ContradictionListResponse, Document
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/kg/claim-analysis")
 
@@ -52,7 +53,8 @@ def _source_docs(db: Database, claim: KnowledgeClaim) -> list[dict[str, Any]]:
 
 
 @router.get("/{claim_id}/contradictions", response_model=ContradictionListResponse)
-async def contradictions(
+@off_loop
+def contradictions(
     claim_id: str,
     min_link_quality: float = Query(default=0.0, ge=0.0, le=1.0),
     db: Database = Depends(get_library_database),
@@ -104,7 +106,8 @@ async def contradictions(
 
 
 @router.get("/{claim_id}/evidence-chain", response_model=EvidenceChain)
-async def evidence_chain(
+@off_loop
+def evidence_chain(
     claim_id: str,
     max_depth: int = Query(default=2, ge=1, le=5),
     db: Database = Depends(get_library_database),

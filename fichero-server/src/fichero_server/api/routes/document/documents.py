@@ -57,6 +57,7 @@ from fichero_server.db.storage import auto_snapshot_before_risky_operation
 from fichero_server.db.storage_snapshots import SnapshotRefused
 from fichero_server.db.storage import settings as storage_settings
 from fichero_server.actions.registry import audit_with_digests, registry
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -2206,7 +2207,8 @@ async def purge_document(
 
 
 @router.get("/{doc_id}/related", response_model=RelatedDocumentListResponse)
-async def related_documents(
+@off_loop
+def related_documents(
     doc_id: str,
     limit: int = 20,
     db: Database = Depends(get_library_database),

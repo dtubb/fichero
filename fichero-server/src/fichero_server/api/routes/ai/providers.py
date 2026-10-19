@@ -49,6 +49,7 @@ from fichero_server.api.routes.ai.provider_models import (  # noqa: F401 (re-exp
     generate_model_description,
 )
 from fichero_server.api.routes.ai.provider_keys import router as keys_router
+from fichero_server.core.off_loop import off_loop
 # NOTE: fichero_server.llm is imported inside the one handler that probes the
 # Apple Intelligence bridge (#3950) — it pulls langchain_core at startup.
 
@@ -464,7 +465,8 @@ async def list_library_provider_refs(
 
 
 @router.post("/refs")
-async def add_provider_ref(
+@off_loop
+def add_provider_ref(
     request: ProviderRefCreate,
     db: Database = Depends(get_library_database_for_write),
     app_db: AppDatabase = Depends(get_app_database),

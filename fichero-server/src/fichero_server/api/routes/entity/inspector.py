@@ -25,6 +25,7 @@ from fichero_server.models.knowledge import (
     ProjectInclusion,
 )
 from fichero_server.models import Document
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/entities")
@@ -138,7 +139,8 @@ class EntityInspectorResponse(BaseModel):
     response_model=EntityInspectorResponse,
     summary="One-call aggregate of every KG row attached to this entity",
 )
-async def inspector(
+@off_loop
+def inspector(
     entity_id: str,
     db: Database = Depends(get_library_database),
 ) -> EntityInspectorResponse:

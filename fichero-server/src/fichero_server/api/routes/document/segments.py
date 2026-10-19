@@ -83,6 +83,7 @@ from fichero_server.models.segments import (
     snapshot_segment_version,
     tiles_for_rect,
 )
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 
@@ -525,7 +526,8 @@ async def list_segments_in_scope(
 
 
 @router.get("/document/{doc_id}", response_model=SegmentListResponse)
-async def list_document_segments(
+@off_loop
+def list_document_segments(
     doc_id: str,
     artifact_id: Optional[str] = Query(
         None, description="Restrict to one artifact's boxes, or one real pass's source artifact"

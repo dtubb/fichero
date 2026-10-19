@@ -26,6 +26,7 @@ from fichero_server.models.segments import (
     primary_live_segment_id,
     resolve_segment,
 )
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -122,7 +123,8 @@ class ResolvedLocation(Location):
 
 
 @router.post("/resolve", response_model=ResolvedLocation)
-async def resolve_location(location: Location, db: Database = Depends(get_library_database)) -> ResolvedLocation:
+@off_loop
+def resolve_location(location: Location, db: Database = Depends(get_library_database)) -> ResolvedLocation:
     """Resolve a page-child anchor once, for every UI/MCP caller.
 
     Source-model slice 4 (#4922): a `segmentId` is followed through

@@ -23,6 +23,7 @@ from fichero_server.models.knowledge import (
     KnowledgeClaimLink,
 )
 from fichero_server.models import ClaimLinkListResponse, ClaimListResponse
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(tags=["claim-links"])
 
@@ -174,7 +175,8 @@ async def create_claim_link(
 
 
 @router.get("/claims/{claim_id}/links", response_model=ClaimLinkListResponse)
-async def list_claim_links(
+@off_loop
+def list_claim_links(
     claim_id: str,
     db: Database = Depends(get_library_database),
 ) -> ClaimLinkListResponse:
@@ -250,7 +252,8 @@ async def delete_claim_link(
 
 
 @router.get("/claims/{claim_id}/related", response_model=ClaimListResponse)
-async def get_related_claims(
+@off_loop
+def get_related_claims(
     claim_id: str,
     relation_type: ClaimRelationType | None = None,
     db: Database = Depends(get_library_database),

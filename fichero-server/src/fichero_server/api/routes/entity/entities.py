@@ -49,6 +49,7 @@ from fichero_server.models import (
     TopEntityListResponse,
 )
 from fichero_server.api.errors import ErrorDetail as _RefusalBody
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 
@@ -1519,7 +1520,8 @@ async def entity_claim_counts(
         403: {"model": _RefusalBody, "description": "Library path rejected by allowlist"},
     },
 )
-async def entity_digest(
+@off_loop
+def entity_digest(
     format_type: Annotated[str, Query(alias="format")] = "markdown",
     # Display-label hint only; auth and DB resolution still come from the header.
     library_path: Annotated[str | None, Query()] = None,
@@ -1774,7 +1776,8 @@ async def get_entity_documents(
 
 
 @router.get("/{entity_id}/co-occurrence", response_model=EntityCoOccurrenceListResponse)
-async def get_entity_co_occurrence(
+@off_loop
+def get_entity_co_occurrence(
     entity_id: str,
     limit: int = 50,
     db: Database = Depends(get_library_database),
