@@ -9,7 +9,7 @@ API = Path(__file__).resolve().parents[3] / "src" / "fichero_server" / "api"
 # A model entry point called by name: a read, an OCR, an embedding, a lane job.
 MODEL_CALL = re.compile(
     r"(recognize_to_geometry|recognize_lines|segment_to_geometry|read_given_lines|apple_vision_ocr\w*|_embed_text\w*|"
-    r"embed_texts|get_embedder|run_on_lane|\.encode\()"
+    r"embed_texts|get_embedder|run_on_lane|\b(?:model|embedder|encoder|tokenizer|st_model)\.encode\()"
 )
 
 

@@ -967,6 +967,9 @@ class DatabaseEmbeddingMixin:
         Returns:
             List of floats (embedding vector)
         """
+        from fichero_server.core.no_model_in_get import forbid_in_get
+
+        forbid_in_get("an embedding")
         self._ensure_embedder()
         model_name = getattr(self, "_embedding_model_name", None) or self._get_embedding_model_name()
         formatted = format_for_model(model_name, text, role)
@@ -987,6 +990,9 @@ class DatabaseEmbeddingMixin:
         Returns:
             List of embedding vectors
         """
+        from fichero_server.core.no_model_in_get import forbid_in_get
+
+        forbid_in_get("an embedding")
         if not texts:
             return []
 
