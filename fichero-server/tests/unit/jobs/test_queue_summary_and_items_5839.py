@@ -5,9 +5,10 @@ from __future__ import annotations
 from fichero_server.execution import jobs
 
 
-def _done(db, kind: str, seconds: float, n: int = 3) -> None:
-    for i in range(n):
-        job_id = jobs._insert(db, kind, f"d{i}", None, "automatic")
+def _finish(db, kind: str, seconds: float, n: int) -> None:
+    """The first `n` queued jobs of this kind finish, each having taken `seconds`."""
+    for (job_id,) in db.execute_fetchall(
+            "SELECT id FROM jobs WHERE kind = ? AND state = 'waiting' ORDER BY created_at, rowid LIMIT ?", [kind, n]):
         db.execute("UPDATE jobs SET state = 'done', started_at = now() - to_seconds(?), finished_at = now() "
                    "WHERE id = ?", [seconds, job_id])
 
@@ -19,8 +20,8 @@ def _queued(db, kind: str, n: int) -> None:
 
 def test_the_summary_counts_done_and_left_and_says_about_how_long_from_measured_items(db):
     jobs._ensure(db)
-    _done(db, "thumb-5839", 2.0)
-    _queued(db, "thumb-5839", 5)
+    _queued(db, "thumb-5839", 8)
+    _finish(db, "thumb-5839", 2.0, 3)  # 3 of the 8 are done after they were queued: 5 left
 
     said = jobs.queue_summary(db, jobs.snapshot(db))
 
