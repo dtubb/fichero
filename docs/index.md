@@ -8,9 +8,9 @@ hide:
   <img src="assets/icon.png" alt="Fichero icon" width="256">
 </p>
 
-# Fichero: For archives
+# Fichero
 
-Fichero is a Mac app to read and work with archives. It can help transcribe handwritten documents, or generate structured data from using Automatic Text Recognition (ATR). It can also help you navigate, search, and edit the results. To learn more about how Fichero works, see the [user guide](user-guide.md), which is coming soon.
+Fichero is a Mac app to read and work with archives. It can help you transcribe handwritten documents, or generate structured data from them. It can also help you navigate, search, and edit the results. To learn more about how Fichero works, see the [user guide](user-guide.md), which is coming soon.
 
 **Fichero is open source. It is in early days, 100% vibe coded, and in Public Alpha.** 
 
