@@ -2022,7 +2022,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/InviteRedeemResponse"
                 }
               }
             }
@@ -2131,6 +2131,422 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/challenge": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Challenge",
+        "operationId": "challenge_api_auth_challenge_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/first-run": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "First Run",
+        "description": "Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.",
+        "operationId": "first_run_api_auth_first_run_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Launch-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Launch-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirstRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirstRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/migrate-owner": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Migrate Owner",
+        "description": "Give an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.",
+        "operationId": "migrate_owner_api_auth_migrate_owner_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Launch-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Launch-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrateOwnerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirstRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/switches": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Get Local Client Switches",
+        "operationId": "get_local_client_switches_api_auth_local_clients_switches_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientSwitches"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Put Local Client Switches",
+        "operationId": "put_local_client_switches_api_auth_local_clients_switches_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientSwitches"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientSwitches"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/request": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Request Local Client",
+        "operationId": "request_local_client_api_auth_local_clients_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "List Local Client Requests",
+        "operationId": "list_local_client_requests_api_auth_local_clients_requests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests/{request_id}/decision": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Decide Local Client Request",
+        "operationId": "decide_local_client_request_api_auth_local_clients_requests__request_id__decision_post",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/register": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Register Local Client",
+        "description": "The allowed client registers its own public key, once, from the same program that asked. No secret crosses.",
+        "operationId": "register_local_client_api_auth_local_clients_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientRegisterBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInClient"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sign-in": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Sign In",
+        "operationId": "sign_in_api_auth_sign_in_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInResponse"
                 }
               }
             }
@@ -2288,6 +2704,94 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/sharing": {
+      "get": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Sharing State",
+        "description": "Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751).",
+        "operationId": "sharing_state_api_pair_sharing_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingStateResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pair/multiuser": {
+      "put": {
+        "tags": [
+          "pairing",
+          "pairing"
+        ],
+        "summary": "Set Multiuser",
+        "description": "Set the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route.",
+        "operationId": "set_multiuser_api_pair_multiuser_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultiuserRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharingStateResponse"
                 }
               }
             }
@@ -2557,7 +3061,14 @@
             }
           },
           "400": {
-            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it."
+            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7250,7 +7761,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7429,7 +7947,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -7513,7 +8038,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -7597,7 +8129,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -7660,7 +8199,14 @@
             }
           },
           "404": {
-            "description": "No such folder or proposal."
+            "description": "No such folder or proposal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "The folder has no proposal, or a person set none of its documents."
@@ -10290,7 +10836,14 @@
             }
           },
           "404": {
-            "description": "No document with this id exists"
+            "description": "No document with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -10341,7 +10894,14 @@
             }
           },
           "404": {
-            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots"
+            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -14624,6 +15184,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipes/htr-united": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Htr United Datasets",
+        "description": "HTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as\n(a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job\nkeeps the catalogue.",
+        "operationId": "htr_united_datasets_api_recipes_htr_united_get",
+        "parameters": [
+          {
+            "name": "languages",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Languages"
+            }
+          },
+          {
+            "name": "scripts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Scripts"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HtrUnitedDatasets"
                 }
               }
             }
@@ -20905,7 +21518,14 @@
             }
           },
           "404": {
-            "description": "No document with this id exists"
+            "description": "No document with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -22033,10 +22653,24 @@
             "description": "Successful Response"
           },
           "400": {
-            "description": "Missing library header or unsupported digest format"
+            "description": "Missing library header or unsupported digest format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Library path rejected by allowlist"
+            "description": "Library path rejected by allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -22605,7 +23239,14 @@
             }
           },
           "404": {
-            "description": "Entity not found"
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -50427,6 +51068,14 @@
             "type": "array",
             "title": "Steps"
           },
+          "automatic": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticStep"
+            },
+            "type": "array",
+            "title": "Automatic",
+            "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"
+          },
           "gaps": {
             "items": {
               "type": "string"
@@ -50716,6 +51365,30 @@
         ],
         "title": "AuditLogResponse"
       },
+      "AuthIdentityClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "AuthIdentityClient",
+        "description": "The client a session was signed in through (multiuser-always-on)."
+      },
       "AuthIdentityResponse": {
         "properties": {
           "multiuser_enabled": {
@@ -50728,6 +51401,10 @@
           },
           "user": {
             "$ref": "#/components/schemas/AuthIdentityUser",
+            "nullable": true
+          },
+          "client": {
+            "$ref": "#/components/schemas/AuthIdentityClient",
             "nullable": true
           },
           "is_owner_access": {
@@ -50841,6 +51518,31 @@
           "query"
         ],
         "title": "AuthorityRefreshRequest"
+      },
+      "AutomaticStep": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "layer": {
+            "type": "string",
+            "title": "Layer"
+          },
+          "uses_cloud": {
+            "type": "boolean",
+            "title": "Uses Cloud",
+            "description": "whether the step may use a cloud model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "layer",
+          "uses_cloud"
+        ],
+        "title": "AutomaticStep",
+        "description": "A step the purpose (or an added layer) turns on by itself (`source.recipe.steps-name-layers`)."
       },
       "AutomaticWork": {
         "properties": {
@@ -50970,6 +51672,11 @@
             "nullable": true,
             "title": "Failed At"
           },
+          "started_by": {
+            "type": "string",
+            "nullable": true,
+            "title": "Started By"
+          },
           "remote": {
             "$ref": "#/components/schemas/RemoteRunRow",
             "nullable": true
@@ -51005,6 +51712,16 @@
             "type": "number",
             "nullable": true,
             "title": "Process Cpu Percent"
+          },
+          "process_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Process Memory Bytes"
+          },
+          "process_energy_watts": {
+            "type": "number",
+            "nullable": true,
+            "title": "Process Energy Watts"
           },
           "cpu_count": {
             "type": "integer",
@@ -53811,6 +54528,47 @@
         "title": "ChainStepsAcceptedResponse",
         "description": "202 body for POST /chains/{chain_id}/execute-steps.\n\nThread ids are assigned up front so a client can watch any step's run\n(SSE stream, Activity trace) the moment it starts."
       },
+      "ChallengeRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id"
+        ],
+        "title": "ChallengeRequest"
+      },
+      "ChallengeResponse": {
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "expires_in": {
+            "type": "integer",
+            "title": "Expires In"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At"
+          },
+          "engine_id": {
+            "type": "string",
+            "title": "Engine Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nonce",
+          "expires_in",
+          "expires_at",
+          "engine_id"
+        ],
+        "title": "ChallengeResponse"
+      },
       "CharacterRange": {
         "properties": {
           "start": {
@@ -54371,6 +55129,12 @@
             },
             "type": "array",
             "title": "Next Nodes"
+          },
+          "restorable": {
+            "type": "boolean",
+            "title": "Restorable",
+            "description": "false for a step read from the run's saved record: it is not a checkpoint, so a restore or fork by its id would find nothing",
+            "default": true
           }
         },
         "type": "object",
@@ -62525,6 +63289,11 @@
             },
             "type": "array",
             "title": "Triangulated Facts"
+          },
+          "stale_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stale Reason"
           }
         },
         "type": "object",
@@ -63146,7 +63915,15 @@
       "ErrorDetail": {
         "properties": {
           "detail": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
             "title": "Detail"
           }
         },
@@ -63155,7 +63932,7 @@
           "detail"
         ],
         "title": "ErrorDetail",
-        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way."
+        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way.\n\nSome refusals carry a STRUCTURED detail instead of a sentence (a stale note's\n`current_body`, an ingest 403's `code`), so `detail` is a string or an object."
       },
       "EvaluationCandidate": {
         "properties": {
@@ -64684,6 +65461,75 @@
         ],
         "title": "FindDocumentsSplitRequest"
       },
+      "FirstRunClient": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "app",
+            "title": "Kind",
+            "default": "app"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FirstRunClient"
+      },
+      "FirstRunRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/FirstRunClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "public_key_pem",
+          "client"
+        ],
+        "title": "FirstRunRequest"
+      },
+      "FirstRunResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/SignInClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "client"
+        ],
+        "title": "FirstRunResponse"
+      },
       "FlowCandidate": {
         "properties": {
           "order": {
@@ -65998,6 +66844,50 @@
         "type": "object",
         "title": "HeuristicRequest"
       },
+      "HfSpend": {
+        "properties": {
+          "cap_usd": {
+            "type": "number",
+            "title": "Cap Usd",
+            "description": "the project's monthly cap (`answers.hf_spend_cap_usd`); $0 offers only"
+          },
+          "spent_at_most_usd": {
+            "type": "number",
+            "title": "Spent At Most Usd",
+            "description": "this calendar month's Jobs at their most: each one's hardware price an hour times its time limit"
+          },
+          "jobs": {
+            "type": "integer",
+            "title": "Jobs",
+            "description": "the Jobs sent to Hugging Face this month (training and reading at scale)"
+          },
+          "unpriced": {
+            "type": "integer",
+            "title": "Unpriced",
+            "description": "of them, the Jobs with no listed price: not counted in the spend, said so"
+          },
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "the month, YYYY-MM (UTC)"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cap_usd",
+          "spent_at_most_usd",
+          "jobs",
+          "unpriced",
+          "month",
+          "sentence"
+        ],
+        "title": "HfSpend",
+        "description": "This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."
+      },
       "HpcCheckResponse": {
         "properties": {
           "cluster_id": {
@@ -66382,6 +67272,129 @@
         ],
         "title": "HpcTestResponse",
         "description": "Result of a (dry-run) Test-connection probe."
+      },
+      "HtrUnitedDataset": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "scripts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Scripts"
+          },
+          "handwriting": {
+            "type": "boolean",
+            "title": "Handwriting"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "licence": {
+            "$ref": "#/components/schemas/HtrUnitedLicence"
+          },
+          "lines": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines"
+          },
+          "pages": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages"
+          },
+          "as": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "As",
+            "description": "test-set and training when the licence is open; empty until the licence is accepted"
+          },
+          "accept": {
+            "type": "string",
+            "nullable": true,
+            "title": "Accept",
+            "description": "what to accept first; null when the licence is open"
+          },
+          "importable": {
+            "type": "boolean",
+            "title": "Importable",
+            "description": "whether Fichero can import its format (PAGE or ALTO)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "description",
+          "languages",
+          "scripts",
+          "handwriting",
+          "format",
+          "licence",
+          "as",
+          "importable"
+        ],
+        "title": "HtrUnitedDataset",
+        "description": "One HTR-United ground-truth dataset and what it may be used as (#5571)."
+      },
+      "HtrUnitedDatasets": {
+        "properties": {
+          "fetched_at": {
+            "type": "string",
+            "nullable": true,
+            "title": "Fetched At",
+            "description": "when the catalogue was kept; null when never"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/HtrUnitedDataset"
+            },
+            "type": "array",
+            "title": "Datasets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "datasets"
+        ],
+        "title": "HtrUnitedDatasets"
+      },
+      "HtrUnitedLicence": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "HtrUnitedLicence"
       },
       "IIIFImportRequest": {
         "properties": {
@@ -67870,6 +68883,36 @@
         ],
         "title": "InviteMintResponse"
       },
+      "InviteRedeemClient": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "app",
+              "device"
+            ],
+            "title": "Kind",
+            "default": "app"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "InviteRedeemClient"
+      },
       "InviteRedeemRequest": {
         "properties": {
           "invite_token": {
@@ -67880,15 +68923,48 @@
           "new_password": {
             "type": "string",
             "minLength": 1,
+            "nullable": true,
             "title": "New Password"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/InviteRedeemClient",
+            "nullable": true
           }
         },
         "type": "object",
         "required": [
-          "invite_token",
-          "new_password"
+          "invite_token"
         ],
-        "title": "InviteRedeemRequest"
+        "title": "InviteRedeemRequest",
+        "description": "Accept an invite with a password, or with the person's public key (multiuser.invite-registers-public-key).\n\nWith a key and no password the person has no password at all: they sign in by challenge."
+      },
+      "InviteRedeemResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/RedeemedClient",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user"
+        ],
+        "title": "InviteRedeemResponse"
       },
       "InviteRequest": {
         "properties": {
@@ -71247,6 +72323,170 @@
         ],
         "title": "LinkTypeRead"
       },
+      "LocalClientDecision": {
+        "properties": {
+          "allow": {
+            "type": "boolean",
+            "title": "Allow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "allow"
+        ],
+        "title": "LocalClientDecision"
+      },
+      "LocalClientPeer": {
+        "properties": {
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "exe": {
+            "type": "string",
+            "title": "Exe"
+          },
+          "signer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Signer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pid",
+          "exe"
+        ],
+        "title": "LocalClientPeer"
+      },
+      "LocalClientRegisterBody": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Request Id"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "public_key_pem"
+        ],
+        "title": "LocalClientRegisterBody"
+      },
+      "LocalClientRequestBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cli",
+              "mcp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "LocalClientRequestBody"
+      },
+      "LocalClientRequestList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LocalClientRequestResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "LocalClientRequestList"
+      },
+      "LocalClientRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "peer": {
+            "$ref": "#/components/schemas/LocalClientPeer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "allowed",
+              "denied"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "host",
+          "peer",
+          "state"
+        ],
+        "title": "LocalClientRequestResponse"
+      },
+      "LocalClientSwitches": {
+        "properties": {
+          "mcp": {
+            "type": "boolean",
+            "title": "Mcp"
+          },
+          "cli": {
+            "type": "boolean",
+            "title": "Cli"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mcp",
+          "cli"
+        ],
+        "title": "LocalClientSwitches"
+      },
       "LocalInferenceCapabilitiesResponse": {
         "properties": {
           "system": {
@@ -72920,6 +74160,26 @@
         "title": "MetricsResponse",
         "description": "Response for metrics recomputation."
       },
+      "MigrateOwnerRequest": {
+        "properties": {
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/FirstRunClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key_pem",
+          "client"
+        ],
+        "title": "MigrateOwnerRequest",
+        "description": "The owner row already has a name; only the key and the client are new."
+      },
       "MigrationCommand": {
         "type": "string",
         "enum": [
@@ -74545,6 +75805,42 @@
         "type": "object",
         "title": "ModelsByTierResponse"
       },
+      "MoneyAndPlace": {
+        "properties": {
+          "hf_spend_cap_usd": {
+            "type": "number",
+            "title": "Hf Spend Cap Usd",
+            "description": "the monthly Hugging Face cap (`answers.hf_spend_cap_usd`); $0 offers only"
+          },
+          "copies_may_stay_on_cluster": {
+            "type": "boolean",
+            "title": "Copies May Stay On Cluster",
+            "description": "whether working copies stay on a cluster for re-runs, as it stands: the person's answer, else what they said about pages leaving"
+          },
+          "copies_follow_pages_may_leave": {
+            "type": "boolean",
+            "title": "Copies Follow Pages May Leave",
+            "description": "true while the person has not answered the copies question, so its value follows pages-may-leave"
+          },
+          "clusters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Clusters",
+            "description": "the clusters set up here, by name: the copies question and the cluster offer apply only where there is one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hf_spend_cap_usd",
+          "copies_may_stay_on_cluster",
+          "copies_follow_pages_may_leave",
+          "clusters"
+        ],
+        "title": "MoneyAndPlace",
+        "description": "The three ruled money-and-place settings as the engine holds them (#5769), for the setup screen to show; this\nmonth's spend against the cap is on the Start plan (`hf_spend`)."
+      },
       "MoveItemsRequest": {
         "properties": {
           "item_ids": {
@@ -74596,6 +75892,19 @@
           "sentence"
         ],
         "title": "MovedGroup"
+      },
+      "MultiuserRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "MultiuserRequest"
       },
       "MutationListResponse": {
         "properties": {
@@ -79745,6 +81054,10 @@
             "type": "object",
             "nullable": true,
             "title": "Actual"
+          },
+          "hf_spend": {
+            "$ref": "#/components/schemas/HfSpend",
+            "nullable": true
           }
         },
         "type": "object",
@@ -80899,6 +82212,15 @@
             "nullable": true,
             "title": "Needed By",
             "description": "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they stay (source.onboard.plan-editable)"
+          },
+          "run_titles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Run Titles",
+            "description": "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the order Start makes them (#5795); null for every other step"
           }
         },
         "type": "object",
@@ -80926,6 +82248,29 @@
         ],
         "title": "RecomputeResponse",
         "description": "Result of a triangulation recompute run."
+      },
+      "RedeemedClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "RedeemedClient"
       },
       "Reference": {
         "properties": {
@@ -87534,6 +88879,10 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "money_and_place": {
+            "$ref": "#/components/schemas/MoneyAndPlace",
+            "nullable": true
           }
         },
         "type": "object",
@@ -87614,6 +88963,106 @@
         ],
         "title": "ShareResponse",
         "description": "Result of a share: the granted access + a link the recipient can open."
+      },
+      "SharingStateResponse": {
+        "properties": {
+          "multiuser_enabled": {
+            "type": "boolean",
+            "title": "Multiuser Enabled"
+          },
+          "tailnet_url": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Url"
+          },
+          "tailnet_serve_command": {
+            "type": "string",
+            "nullable": true,
+            "title": "Tailnet Serve Command"
+          },
+          "paired_device_count": {
+            "type": "integer",
+            "title": "Paired Device Count"
+          },
+          "audit_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Audit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "multiuser_enabled",
+          "paired_device_count"
+        ],
+        "title": "SharingStateResponse"
+      },
+      "SignInClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "SignInClient"
+      },
+      "SignInRequest": {
+        "properties": {
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "client_id",
+          "nonce",
+          "signature"
+        ],
+        "title": "SignInRequest"
+      },
+      "SignInResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/SignInClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user",
+          "client"
+        ],
+        "title": "SignInResponse"
       },
       "SignInstance": {
         "properties": {
@@ -89453,6 +90902,11 @@
             "title": "Train Offers",
             "description": "for each step a model can be trained for, how to train it on the corrected pages and where; offered later, never run at Start (#5660 item 9)"
           },
+          "hf_spend": {
+            "$ref": "#/components/schemas/HfSpend",
+            "nullable": true,
+            "description": "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"
+          },
           "bakeoff_offer": {
             "$ref": "#/components/schemas/BakeoffOffer",
             "nullable": true,
@@ -89970,6 +91424,15 @@
             "type": "array",
             "title": "Refused",
             "description": "every card refused for the step, and why"
+          },
+          "licence": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "nullable": true,
+            "title": "Licence",
+            "description": "for licence-not-accepted: the card, the licence's name and the words the Review the licence button shows (source.onboard.every-setup-button-acts-or-says-why)"
           }
         },
         "type": "object",
@@ -91575,6 +93038,12 @@
             "title": "Timeout",
             "description": "The Job's time limit; always sent (the service's default is 30 minutes).",
             "default": "4h"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target",
+            "description": "Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there).",
+            "default": "huggingface-jobs"
           },
           "batch_size": {
             "type": "integer",

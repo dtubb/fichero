@@ -167,6 +167,9 @@ class BackgroundJob(BaseModel):
     # When a failed job failed (ISO 8601, UTC), so a list of errors can say when each happened rather than guess;
     # null for any job that has not failed, and cleared when it is retried.
     failed_at: Optional[datetime] = None
+    # Who started it: the person, plus the paired Mac when it came from another one ("alice on Alice's Mac",
+    # `sharing.remote-run-in-host-activity`, #5732); "automatic" for work the app queued itself.
+    started_by: Optional[str] = None
     # A run sent to another place (a cluster, Hugging Face Jobs), under the recipe step that sent it
     # (`activity.remote-under-its-step`): target, far-side state, shards done of total, pages landed, and what the
     # row offers (Cancel, Retry failed shards, Catch up). Null for any other row.
@@ -218,6 +221,10 @@ class BackgroundJobsResponse(BaseModel):
     # multiple cores). None on the very first poll (no interval yet) or if the
     # sample is unavailable. Per-job attribution is intentionally not attempted.
     process_cpu_percent: Optional[float] = None
+    # The engine's memory (bytes), with its child processes, and average power since the last poll (watts) from the OS (#5358);
+    # None off macOS or on the first poll. Per-job and GPU/Neural Engine attribution are not measured.
+    process_memory_bytes: Optional[int] = None
+    process_energy_watts: Optional[float] = None
     cpu_count: int
     # Pause Background Work is on (`activity.pause.global`): nothing that runs by itself starts.
     paused: bool = False
@@ -454,7 +461,12 @@ async def list_background_jobs(
     """
     from pathlib import Path as _Path
 
-    from fichero_server.core.background_compute import cpu_count, process_cpu_percent
+    from fichero_server.core.background_compute import (
+        cpu_count,
+        process_cpu_percent,
+        process_energy_watts,
+        process_tree_rusage,
+    )
     from fichero_server.execution import throttle
     from fichero_server.importers import derivatives
     from fichero_server.importers.derivatives import background_jobs_snapshot
@@ -562,14 +574,18 @@ async def list_background_jobs(
                 run_id=row.get("run_id"),
                 offer=job_queue.offer_for(row["kind"], state, reason),
                 failed_at=_utc(row.get("failed_at")) if state == "failed" else None,
+                started_by=row.get("started_by"),
                 remote=_remote_row(db, row),
             )
         )
 
+    usage = process_tree_rusage()  # once per poll, shared by memory and energy (#5358)
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),
         process_cpu_percent=process_cpu_percent(),
+        process_memory_bytes=(usage or {}).get("memory_bytes"),
+        process_energy_watts=process_energy_watts(usage),
         cpu_count=cpu_count(),
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),

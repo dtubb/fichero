@@ -101,6 +101,7 @@ def test_multiuser_loopback_bootstrap_identity_is_the_login_gate_contract(
     assert identity.json() == {
         "multiuser_enabled": True,
         "auth_kind": "bootstrap",
+        "client": None,
         "user": None,
         "is_owner_access": True,
     }

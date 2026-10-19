@@ -293,7 +293,8 @@ def test_rebuild_backfills_entities_and_claims_idempotently(db):
 
     assert first["entity_vectors_indexed"] == 1
     assert first["claim_vectors_indexed"] == 1
-    assert second["entity_vectors_indexed"] == 1
-    assert second["claim_vectors_indexed"] == 1
+    # Idempotent: a vector whose text is unchanged is not written again (`_drop_unchanged`), so a rerun is cheap.
+    assert second["entity_vectors_indexed"] == 0
+    assert second["claim_vectors_indexed"] == 0
     assert db.lance.open_table("kg_entity_embeddings").count_rows() == 1
     assert db.lance.open_table("kg_claim_embeddings").count_rows() == 1

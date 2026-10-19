@@ -16,9 +16,6 @@ $(SRCROOT)/../fichero-mcp/src/fichero_mcp/research_tools.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/server.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/simple.py
 $(SRCROOT)/../fichero-mcp/src/fichero_mcp/ui_control.py
-<<<<<<< HEAD
-=======
->>>>>>> cb732e67c
 $(SRCROOT)/../fichero-server/src/fichero_server/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/__main__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/_pdfium_probe.py
@@ -35,6 +32,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/auth.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/change_stream.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/client_presence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/contract_identity_generated.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/errors.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/feature_tiers_generated.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/library_header.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/main.py
@@ -205,6 +203,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/api/tcp_transport.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/templates/document_view.html
 $(SRCROOT)/../fichero-server/src/fichero_server/api/transport_diagnostics.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/uds_claim.py
+$(SRCROOT)/../fichero-server/src/fichero_server/api/uds_peer.py
 $(SRCROOT)/../fichero-server/src/fichero_server/api/uds_transport.py
 $(SRCROOT)/../fichero-server/src/fichero_server/bibliography/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/bibliography/doi_lookup.py
@@ -259,6 +258,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/execution/cancellation.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/chaining.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/ghg.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/jobs.py
+$(SRCROOT)/../fichero-server/src/fichero_server/execution/run_log.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/execution/throttle.py
 $(SRCROOT)/../fichero-server/src/fichero_server/export_service.py
@@ -483,6 +483,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/runner.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/samples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/cards.yaml
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/feast-days.yaml
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/frontier-cloud-providers.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/glottolog.txt.gz
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/iso15924.txt
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/seed/language-autonyms.txt
@@ -614,6 +615,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/security/authz_kinds.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/bind_host.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/keychain.py
+$(SRCROOT)/../fichero-server/src/fichero_server/security/launch_secret.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/multiuser.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/path_security.py
 $(SRCROOT)/../fichero-server/src/fichero_server/security/provider_keys.py
@@ -686,6 +688,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/workflows/registry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/registry_builtins.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/remote_jobs.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/resolver.py
+$(SRCROOT)/../fichero-server/src/fichero_server/workflows/resume_snapshot.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_account.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_comparison.py
 $(SRCROOT)/../fichero-server/src/fichero_server/workflows/run_log_tidy.py

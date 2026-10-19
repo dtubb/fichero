@@ -12,6 +12,10 @@ struct MacRemoteClientPairingSection: View {
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
     @State private var showingManualInvite = false
+    // Shown only after the host answers "person required": a Multi-user host asks who this Mac is.
+    @State private var needsPerson = false
+    @State private var personName = ""
+    @State private var personPassword = ""
 
     init(
         appState: AppState,
@@ -43,6 +47,17 @@ struct MacRemoteClientPairingSection: View {
                         Text("Connects to \(host)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if needsPerson {
+                        Text("This library uses Multi-user. Sign in as the person using this Mac.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("Username", text: $personName)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+                        SecureField("Password", text: $personPassword)
+                            .textFieldStyle(.roundedBorder)
                     }
 
                     HStack {
@@ -81,9 +96,9 @@ struct MacRemoteClientPairingSection: View {
             }
 
             if let clientPairingError {
-                Text(clientPairingError)
+                Label(clientPairingError, systemImage: "exclamationmark.triangle")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.orange)
             }
         }
     }
@@ -113,7 +128,8 @@ struct MacRemoteClientPairingSection: View {
                 remoteURL: pairingFields.remoteURL,
                 pairCode: pairingFields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(),
-                expectedSPKIPin: pairingFields.spkiPin
+                expectedSPKIPin: pairingFields.spkiPin,
+                person: PairingPerson(username: personName, password: personPassword)
             )
             try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: pairingFields.spkiPin)
             try RemoteClientPairing.persistPairedHost(
@@ -141,6 +157,7 @@ struct MacRemoteClientPairingSection: View {
                 throw error
             }
         } catch {
+            if error as? RemoteClientPairingError == .personRequired { needsPerson = true }
             clientPairingError = error.localizedDescription
         }
     }

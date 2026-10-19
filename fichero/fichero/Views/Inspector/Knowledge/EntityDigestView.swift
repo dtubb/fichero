@@ -279,6 +279,8 @@ struct EntityDigestContent: View {
     /// Internal: read from `body`/Biography/AppearsIn/Provenance, written from
     /// `body` and Provenance's `loadClaims`.
     @State var isLoading = false
+    /// Why this entity's stored vector is out of date, from the inspector payload (#5360); nil when current.
+    @State private var staleReason: String?
     /// The claim being edited from a biography sentence's "[Edit]" run (#4833).
     /// Read/written only from the Biography extension file — internal.
     @State var editingBiographyClaimId: String?
@@ -303,13 +305,25 @@ struct EntityDigestContent: View {
         .task(id: entity.id) {
             await loadClaims()
             await loadAppearsIn()
+            await loadStaleReason()
         }
         .onChange(of: claimStore?.changeToken) {
             // A claim mutation anywhere (edit/merge/delete/curation) bumped the
             // store — re-read this entity's statements without reselecting.
             // (spec: kg-entity-inspector, kg.entity.statements.resyncs-on-change — F3)
-            Task { await loadClaims() }
+            Task {
+                await loadClaims()
+                // A re-embed clears "Out of date" without reselecting.
+                await loadStaleReason()
+            }
         }
+    }
+
+    // ponytail: the whole inspector payload for one field; read it from the entity itself once the engine adds it.
+    private func loadStaleReason() async {
+        // Only an entity with an id has an inspector to read (fe13462d9: the call takes a String).
+        guard let id = entity.id else { return }
+        staleReason = try? await entityService.getEntityInspector(id).staleReason
     }
 
     private var headerSection: some View {
@@ -348,8 +362,22 @@ struct EntityDigestContent: View {
                     .foregroundStyle(.secondary)
                     .italic()
             }
+
+            if let line = Self.staleLine(staleReason) {
+                Text(line).font(.caption).foregroundStyle(.secondary)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What the engine's `stale_reason` says in words (#5360). "Not embedded" is the state of every entity in a
+    /// library that never embeds, so it is not called out of date; a changed text or model is.
+    nonisolated static func staleLine(_ reason: String?) -> String? {
+        switch reason {
+        case "not-embedded": "Not embedded"
+        case "text-changed", "model-changed": "Out of date"
+        default: nil
+        }
     }
 
     /// Human-readable name for a source document id, for the "Appears In" and

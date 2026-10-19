@@ -707,6 +707,7 @@ Nothing in the project changes.
   /api/documents/transfer/incoming`, answering the objects it lacks by `diff_manifests`, its `SyncCheckpoint`
   and `pending_objects`), takes each (`PUT …/incoming/{id}/objects/{sha256}`, re-hashed by `land_object`) and
   lands it (`POST …/incoming/{id}/land`); `fichero-server/tests/unit/transfer/test_transfer_between_machines.py`. *Not built: streaming an object larger than memory.*
+- `transfer.devices-are-engine-wide` — **[OK]** a paired device (`devices.user_id`, `devices.paired_by_device_id`, which device minted it) belongs to the engine, not to a project: a move or copy never carries, re-points or cuts one (`NOT_DOCUMENT_SCOPED` in `transfer/id_map_classification.py`). Test: `fichero-server/tests/unit/transfer/` (`test_every_raw_sql_id_column_is_classified`).
 - `transfer.machine.paired-only` — **[PARTIAL]** (#5657, #5238) the far engine is a paired device; what lands
   is stamped by the far engine with the paired person; versions must match. Built: `POST /api/machines/pair`
   (a `.ts.net` address and the code the other Mac's Fichero shows) runs the existing device pairing with this

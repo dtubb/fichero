@@ -35,6 +35,20 @@ mind-palace routes, renamed to `/api/canvas`), and more.
   header recorded during auth enforcement, so an unnamed caller is attributed
   by transport rather than rejected.
 
+## Signing in by a client's key (#2403)
+
+`POST /api/auth/challenge` and `POST /api/auth/sign-in` sign a registered client (a paired device or the app) in
+with its own key instead of a password.
+
+- `POST /api/auth/challenge` `{client_id}` answers a single-use `nonce`, `expires_in` (60 seconds), `expires_at` and
+  this engine's `engine_id`. At most 5 challenges are outstanding per client; an older one is dropped. An unknown and a
+  revoked client get the same 401, so client ids cannot be probed.
+- `POST /api/auth/sign-in` `{client_id, nonce, signature}`: the signature is ECDSA P-256 / SHA-256 over
+  `fichero-sign-in-v1`, the engine id, the client id, the nonce and its expiry, NUL-separated, so a signature made for
+  another engine, client or expiry never verifies. The nonce is spent whether or not the signature is good. A good
+  one answers `session_token`, the `user` and the `client`; anything else is 401 "sign-in refused", and more than 10
+  failed sign-ins a minute for one client is 429 with `Retry-After: 60`.
+
 ## W3C annotation export
 
 `GET /api/documents/{doc_id}/annotations.jsonld`
@@ -233,6 +247,12 @@ Between machines a transfer is always a copy. The sending engine pushes; the far
   questions (each a `job_answers` key, with options, its default and this project's answer), the stages it
   needs and why in words, and whether it can be tried on the sample pages (by the bake-off, or by its
   workflow). Without an open project every stage is off and every answer its default.
+- `money_and_place` (#5769): the project's Hugging Face cap (`hf_spend_cap_usd`), whether working copies may
+  stay on a cluster as it stands (`copies_may_stay_on_cluster`) and whether that still follows pages-may-leave
+  because the person has not answered it (`copies_follow_pages_may_leave`), and the clusters set up here
+  (`clusters`, by name; the copies question applies only where there is one; empty for a caller who is not
+  the owner, as every `/api/hpc` route is owner-only, and so is the Start plan's cluster offer). This month's spend against the cap
+  is on the Start plan (`hf_spend`).
 
 `GET /api/recipes/hands` · `GET`/`PUT /api/recipes/samples` · `POST`/`GET /api/recipes/stages/{stage}/try`
 
@@ -367,13 +387,105 @@ exposes them.
 - Response: `200` with `PairResponse`. The enrollment secret is not itself a
   device credential, so the returned token remains independently revocable.
 
-### This Mac's tailnet address
+### First launch: the owner
+
+`POST /api/auth/first-run`
+
+- Purpose: make the library's owner and register their public key, once
+  (`multiuser.first-launch-creates-owner-and-key`, #2403). Local only: it works over the engine's Unix socket and
+  never over TCP.
+- Request: header `X-Fichero-Launch-Secret` (the per-launch secret the app handed the engine; the old bearer token is
+  refused) and a body with `display_name`, `public_key_pem` (a P-256 public key) and `client` (`name`, `host`).
+- Response: `200` with the owner `user` and the registered `client`; the app then signs in by challenge. `401` for a
+  missing or wrong secret, `403` over TCP, `409` once an owner exists, `422` for a key that is not P-256.
+
+`POST /api/auth/migrate-owner`
+
+- Purpose: give an existing owner row its first key, once (`multiuser.migrate-owner`, #2403). Same guards as
+  first-run; the body is `public_key_pem` and `client` (no `display_name`: the owner row has its name). The key goes
+  to the owner row only.
+- Response: `200` with the owner `user` and the registered `client`. `401` for a missing or wrong launch secret, `403`
+  over TCP, `404` when no owner exists (use first-run), `409` when the owner already has a key, `422` for a non-P-256 key.
+
+`POST /api/auth/invites/redeem`
+
+- Purpose: accept an invite with a password, or with the person's own key (`multiuser.invite-registers-public-key`,
+  #2403). Body: `invite_token`, then `new_password` OR `public_key_pem` (P-256) with `client` (`kind` app/device,
+  `name`, `host`). A key redemption gives the person an unusable password: they sign in by challenge.
+- Response: `200` with `session_token`, `user` and `client` (null for a password redemption). `422` when neither
+  a password nor a key is sent, for a non-P-256 key, or for a key without a client; the invite stays unused.
+
+### Sign in by key
+
+`POST /api/auth/challenge`
+
+- Purpose: start a passwordless sign-in for a registered client (`multiuser.sign-in-by-challenge`, #2403).
+- Request: `client_id`.
+- Response: `200` with `nonce`, `expires_in`, `expires_at` and `engine_id`. The nonce is single use and lives 60 s;
+  at most 5 stay outstanding per client. `401` ("sign-in refused") for an unknown or revoked client, with the same
+  body for both. Open: no session needed.
+
+`POST /api/auth/sign-in`
+
+- Purpose: finish the sign-in with the client's signature.
+- Request: `client_id`, `nonce`, and `signature`: base64 DER ECDSA-P256-SHA256 over
+  `"fichero-sign-in-v1" 0x00 engine_id 0x00 client_id 0x00 nonce 0x00 expires_at`. The engine rebuilds the message
+  from its own `engine_id`, so a signature made for another engine is refused.
+- Response: `200` with `session_token`, `user` and `client`. `401` ("sign-in refused") for any failure; `429` after
+  10 failures a minute for a live client. Open: no session needed.
+
+### Local CLI and MCP clients
+
+All under `/api/auth/local-clients`. Off until the owner turns a switch on (`multiuser.first-connection-asks-the-person`,
+#2403). Engine side only: the transport that stamps the socket's verified peer onto each request comes with the app.
+
+`GET /api/auth/local-clients/switches` and `PUT /api/auth/local-clients/switches`
+
+- Purpose: read or set *Allow local MCP clients* and *Allow the fichero CLI* (`{mcp, cli}`, both default off). The
+  signed-in owner only; the bootstrap token is refused.
+
+`POST /api/auth/local-clients/request`
+
+- Purpose: a local program asks to be allowed (`{kind: cli|mcp, name, host}`). Unix socket only (`403` over TCP), a
+  verified peer of the same macOS user (`403` otherwise), and the kind's switch on (`403` "not allowed on this Mac").
+- Response: `200` with the request, including what the engine verified about the program (`peer.pid`, `peer.exe`,
+  `peer.signer`) and `state` `pending`. Requests expire after five minutes; at most 20 are pending (`429`).
+
+`GET /api/auth/local-clients/requests`
+
+- Purpose: the pending and decided requests, for the app's approval sheet. Signed-in owner only.
+
+`POST /api/auth/local-clients/requests/{request_id}/decision`
+
+- Purpose: Allow or Deny (`{allow}`). Signed-in owner only; audited. `404` unless pending.
+
+`POST /api/auth/local-clients/register`
+
+- Purpose: the allowed program registers its OWN public key (`{request_id, public_key_pem}`, P-256), once. Unix socket only, from
+  the same program (pid and path) that asked. `409` while pending, `403` when denied or the switch went off, `404`
+  for another program or a used request.
+- Response: `200` with the new client; it then signs in by challenge. The client acts for the owner who allowed it.
+
+### Sharing state
 
 `GET /api/pair/tailnet`
 
-- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the
-  share sheet to offer (#5318). Behind pairing auth.
-- Response: `200` with `TailnetOfferResponse`.
+- Purpose: this Mac's `.ts.net` address when Tailscale is running, for the share
+  sheet to offer instead of a typed address (#5318). Owner only.
+- Response: `200` with `tailnet_url` (null when Tailscale is missing or stopped).
+
+`GET /api/pair/sharing`
+
+- Purpose: read Sharing state (#5751). Owner only.
+- Response: `200` with `multiuser_enabled`, `tailnet_url`, `tailnet_serve_command`
+  (the one command to paste when the app cannot make the tailnet forward, #5317)
+  and `paired_device_count`.
+
+`PUT /api/pair/multiuser`
+
+- Purpose: set the persisted Multi-user switch (#5751). Owner only.
+- Request body: `{"enabled": bool}`. Response: `200` with the sharing state, or
+  `409` when `FICHERO_MULTIUSER` in the environment decides it.
 
 ### Cluster connection (ACENet)
 
@@ -878,7 +990,11 @@ person's Hugging Face account, and Fichero's trainer fine-tunes the `base` Krake
 chosen `flavor` with an explicit `timeout`. The answer carries the job id and the hardware's
 `price_per_hour_usd`. It is refused, with nothing queued, without `pages_may_leave: true` (403),
 without a Hugging Face token in Settings (412), or with a base reader that is not installed (422).
-Through the audited, non-undoable action `training.start`.
+Through the audited, non-undoable action `training.start`. `target` names where it trains: `huggingface-jobs`
+(the default), or a cluster set up here by its id, where the set goes to the run's folder, one GPU job runs the
+same trainer in the server image, `flavor` does not apply and `price_per_hour_usd` is null; a cluster with no
+key in the app is refused by name (422, #5238). The run's folder leaves the cluster when the reader is home
+unless the project said working copies may stay (#5769).
 
 `POST /api/training/vision-lora` is the same job on the vision-model card (`compute.tune.lora`): the
 same training set cut into line pictures with the line reader's own instruction and the teacher's
@@ -982,7 +1098,9 @@ run off this Mac (422). Through the audited, non-undoable action `reading.start_
 
 `GET /api/reading-at-scale/jobs/{job_id}` follows it: `state`, the `reason` in words, the shard
 `counts` (pending, submitted, landed, failed), each failed shard's reason and last lines, the
-`package` (sources, shards, pages skipped and why) and the `landing` counts.
+`package` (sources, shards, pages skipped and why) and the `landing` counts. For a run on Hugging Face,
+`hf_spend` is this month's Hugging Face spend against the project's cap, as on the Start plan (each shard sent
+is a Job); null for a run on a cluster (#5769).
 
 `POST /api/reading-at-scale/jobs/{job_id}/resend-failed` sends the failed shards again, and only those
 (`reading.resend_failed`; 409 while the run is still going). `POST /api/reading-at-scale/jobs/{job_id}/cancel`
@@ -1493,11 +1611,12 @@ Spec: `docs/contributor_manual/specs/source/models-chains-and-projects.md` (`sou
 - `GET /api/recipes/jobs`: every job a recipe can name, with what it takes and gives, its plain description and the `topic` that explains it.
 - `GET /api/topics`, `GET /api/topics/{topic_id}`: each topic setup teaches and each recipe job, explained once (#5471): `kind` (`job` or `topic`), `title`, `short` (one sentence), `long` (a paragraph after it), `example` and `manual`. `404` for an unknown id. The text lives only in `fichero-server/src/fichero_server/recipes/seed/topics.yaml`; a job's name and description are read from it.
 - `GET /api/recipes/purposes`: the purposes setup offers, in order, and whether each runs by itself.
-- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. `left_off` lists the steps left off by default with why and their cost; Correct's carries `offered` when a cloud corrector's provider has a key set here (its `card`, `runs_on`, `pages`, `cost_usd`), offered at Ready, never turned on by itself (#5677). Writes nothing.
+- `POST /api/recipes/assemble`: the recipe the rules give for setup's answers, each choice with its reasons and each gap named; a whole recipe (`fichero_recipe`, `version`, `suits`) that passes the check. `left_off` lists the steps left off by default with why and their cost; Correct's carries `offered` when a cloud corrector's provider has a key set here (its `card`, `runs_on`, `pages`, `cost_usd`), offered at Ready, never turned on by itself (#5677). The Normalise step (`translate-transliterate-normalise`) carries `run_titles`, its runs by title in the order Start makes them: one for each reading level asked ("As written", "Abbreviations expanded", "Normalised spelling", "Modernised") and one for a translation ("Translation into English"); null on every other step (#5795). Writes nothing.
 - `POST /api/recipes/check`: every reason a recipe cannot run as it stands, step by step.
 - `GET /api/recipes/candidates?scripts=&languages=&material=&job=&online=`: every reader candidate for these scripts and languages (#5519), each a card saying where it came from (`source`: `shipped`, `installed`, `kraken-repository`, `hugging-face`), why it is offered (`offered_because`), what it states (scripts, languages, licence, size, published CER) and what the rules make of it (`rule_rank` in the fixed order, or `refused` with the rules' reason), and `measured` ("unmeasured on your pages until a bake-off measures it" until one does). Installed: every complete MLX vision model in the model store no shipped card pins, its card made from its own config and README (a model Fichero trained included). Kraken's repository: htrmopo's listing of Zenodo's `ocr_models` community (the call `kraken list` makes), Kraken recognition models only, newest version of each, kept in the model store's `discovery/` folder and fetched again at most daily; a record's published CER is ranked on only when it names the project's languages. Hugging Face: image-to-text and image-text-to-text models by task and language tag, MLX builds only (or a safetensors model's MLX conversion, found by its `base_model:` tag), never GGUF; listed with `in_recipe_rules: false` because Fichero cannot download a Hub model outside its catalogue yet. The network is reached only with `online=true` and never when the engine works offline (`FICHERO_LOCAL_ONLY` / `local_only_ai`); `sources` says what each source did (`read`, `searched`, `cached`, `not-searched`, `offline`, `failed`). `POST /api/recipes/assemble` and the bake-off choose from the shipped, installed and cached repository cards (never the network); an assembled step's `card.source` names where its card came from. `422` for an unknown script, language, material or job.
+- `GET /api/recipes/htr-united?languages=&scripts=` (#5571): HTR-United's ground-truth datasets kept for these languages (required; codes or names) and scripts, most lines first, never the network (the search job keeps the catalogue). `fetched_at` is when it was kept (null: never searched). Each of `datasets` has `title`, `url`, `languages`, `scripts`, `handwriting`, `format`, `licence {name, url}`, `lines`, `pages`, and what it may be used as: `as` (`test-set`, `training`; empty until a licence outside the open ones is accepted), `accept` (the words to accept first, null when open) and `importable` (PAGE or ALTO). `422` for an unknown script or language.
 - `GET|PUT /api/recipes/project`: the open project's saved setup answers and recipe (files in the project's `recipe/` folder). Saving is audited and undoable, and is not Start.
-- `GET /api/recipes/project/start`: what Start would run — `runs`, in order, each a card: a shipped workflow (the steps it carries out, with the step's model as its override), a check run (`check`, its layer and checker) the project's synced folder (`export`, its folder and formats) or the project as a static site (`publish`, the folder its `where` names); `skipped`, each step Start cannot run with why (no model, a condition Start cannot honour yet, a cloud step in a project that keeps its pages here, a job no card runs yet); the steps only offered later (training); `refusals`, which stop Start (no recipe, a recipe that fails the check, nothing left to run, a model neither on this Mac nor downloading); `waiting`, the steps that wait for a model already downloading, in words, which do not stop Start (each such `downloads` entry has `downloading`, its `job_id` and its `progress`; the run's steps on it wait for it to land, #5660); the page count and the cost estimate — and the first yes once given. Each run carries `done`, `of` and a `note`: "already done on N of M pages" for splitting, finding lines and reading (a page already split, already with lines, or already read by the step's own model), or that the card cannot tell and runs on every page. `train_offers` lists, per trainable step, its ways and each way's `targets` (`place` this-mac, huggingface-jobs or cluster; `starts` and `params`; `held`, why a Hugging Face place stays an offer under a $0 spend cap, setup's `answers.hf_spend_cap_usd`; and for a cluster set up here, `first_run`, the attended first run's steps, with `starts` null), with the project's training `setting` (#5769) and its `noise_band` (`value`, `measured`, `basis`: the CER spread over 3 held-out splits an evaluation measured, else the ruled 0.5 CER points, #5692).
+- `GET /api/recipes/project/start`: what Start would run — `runs`, in order, each a card: a shipped workflow (the steps it carries out, with the step's model as its override), a check run (`check`, its layer and checker) the project's synced folder (`export`, its folder and formats) or the project as a static site (`publish`, the folder its `where` names); `skipped`, each step Start cannot run with why (no model, a condition Start cannot honour yet, a cloud step in a project that keeps its pages here, a job no card runs yet); the steps only offered later (training); `refusals`, which stop Start (no recipe, a recipe that fails the check, nothing left to run, a model neither on this Mac nor downloading); `waiting`, the steps that wait for a model already downloading, in words, which do not stop Start (each such `downloads` entry has `downloading`, its `job_id` and its `progress`; the run's steps on it wait for it to land, #5660); the page count and the cost estimate — and the first yes once given. Each run carries `done`, `of` and a `note`: "already done on N of M pages" for splitting, finding lines and reading (a page already split, already with lines, or already read by the step's own model), or that the card cannot tell and runs on every page. `train_offers` lists, per trainable step, its ways and each way's `targets` (`place` this-mac, huggingface-jobs or cluster; `starts` and `params`; `held`, why a Hugging Face place stays an offer under a $0 spend cap, setup's `answers.hf_spend_cap_usd`; and for a cluster set up here, `first_run`, the attended first run's steps, with `starts` null), with the project's training `setting` (#5769) and its `noise_band` (`value`, `measured`, `basis`: the CER spread over 3 held-out splits an evaluation measured, else the ruled 0.5 CER points, #5692). `hf_spend` is this month's Hugging Face spend against that cap (`cap_usd`, `spent_at_most_usd`: each Job sent this month at its hardware's price an hour times its time limit, `jobs`, `unpriced`: Jobs with no listed price, never counted as $0, `month`, `sentence`; #5769).
 - `POST /api/recipes/project/start`: the first yes. Records when Start was pressed and on which recipe version (`recipe/started.yaml`), audited and undoable, and runs the recipe over the project's material as one `run-a-recipe` job (#5390): the cards in order, each its own job beneath it (a workflow run, a check run, the synced folder's writes), a card starting only when the one before has finished, one that fails stopping those after it. `started.job_id` names the run. A step runs only on the pages that do not yet have its output, unless its id is in the optional body's `redo` (`{"redo": ["read"]}`). The cards include `Split Pages` (a photograph of an open notebook cut at its gutter; the steps after it read the cut pages) and, for a reading step pinned to a cloud or MLX model, `Read Lines (Kraken lines, vision model)`. `422` while the plan has refusals. After Start, on a purpose that runs by itself, each import runs the recipe over the pages it brought; on a "tools" purpose, nothing runs at import.
 - `POST /api/recipes/project/start/use-instead`: use an installed model instead of downloading the one the plan waits for (#5583, `source.onboard.auto.installed-model-first`). Body `{model, card}`: `model` as the plan's `downloads` entry names it, `card` one of that entry's `instead` (each with its name and, when not open, its `licence`, which the press accepts). Kept as a project-scope override, as a bake-off's Use This is, so proposing the recipe again keeps it. `422` for a choice the plan does not offer.
 - `POST /api/recipes/project/steps/use-candidate`: use any candidate `GET /api/recipes/candidates` lists as a step's reader (#5612, `source.find.app-card-actions`). Body `{step, card}`. Kept as a project-scope override by the path use-instead takes, through `project.save_setup` (audited, undoable); a model still to download is then a download the Start plan offers. Each candidate also carries `download` (`model.download` with its runtime and id, or null), `installed` and `runs_where` (`this_mac`, `own_machine`, `provider`). `422` for a card not found here, a step the recipe lacks, or a card that does not do the step's job.

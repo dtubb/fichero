@@ -328,8 +328,11 @@ def _seed_sidecar_merge_pair(tmp_path: Path, global_db: Database) -> tuple[Path,
 
 
 def _library_tree_fingerprint(root: Path) -> dict[str, str]:
+    """Every file's hash, but the DuckDB file and its WAL: a snapshot checkpoints the library's own database
+    (`snapshot_library`), which folds the WAL into the file and changes its bytes with no change of content.
+    Opening it here to compare rows would replay that WAL, which is the very thing under test."""
     fingerprint: dict[str, str] = {}
-    for entry in sorted(path for path in root.rglob("*") if path.is_file()):
+    for entry in sorted(path for path in root.rglob("*") if path.is_file() and not path.name.endswith((".duckdb", ".duckdb.wal"))):
         fingerprint[str(entry.relative_to(root))] = hashlib.sha256(entry.read_bytes()).hexdigest()
     return fingerprint
 

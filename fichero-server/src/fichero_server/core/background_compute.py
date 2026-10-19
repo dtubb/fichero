@@ -177,3 +177,104 @@ def process_cpu_percent() -> float | None:
     if wall_delta <= 0:
         return None
     return round((cpu - prev[1]) / wall_delta * 100.0, 1)
+
+
+# -----------------------------------------------------------------------------
+# Memory and energy of this process from proc_pid_rusage RUSAGE_INFO_V6 (#5358):
+# no root, probed on the M4. macOS only; anywhere else every value is None.
+# -----------------------------------------------------------------------------
+_RUSAGE_V6_FIELDS = (
+    "ri_user_time ri_system_time ri_pkg_idle_wkups ri_interrupt_wkups ri_pageins ri_wired_size "
+    "ri_resident_size ri_phys_footprint ri_proc_start_abstime ri_proc_exit_abstime ri_child_user_time "
+    "ri_child_system_time ri_child_pkg_idle_wkups ri_child_interrupt_wkups ri_child_pageins "
+    "ri_child_elapsed_abstime ri_diskio_bytesread ri_diskio_byteswritten ri_cpu_time_qos_default "
+    "ri_cpu_time_qos_maintenance ri_cpu_time_qos_background ri_cpu_time_qos_utility ri_cpu_time_qos_legacy "
+    "ri_cpu_time_qos_user_initiated ri_cpu_time_qos_user_interactive ri_billed_system_time "
+    "ri_serviced_system_time ri_logical_writes ri_lifetime_max_phys_footprint ri_instructions ri_cycles "
+    "ri_billed_energy ri_serviced_energy ri_interval_max_phys_footprint ri_runnable_time ri_flags "
+    "ri_user_ptime ri_system_ptime ri_pinstructions ri_pcycles ri_energy_nj ri_penergy_nj "
+    "ri_secure_time_in_system ri_secure_ptime_in_system ri_neural_footprint "
+    "ri_lifetime_max_neural_footprint ri_interval_max_neural_footprint ri_conclave_footprint "
+    "ri_page_wait_time_mach ri_page_cache_hits"
+).split()
+#: sys/resource.h ends v6 with `uint64_t ri_reserved[6]`: the kernel writes the whole struct, so a buffer one field
+#: short is overwritten past its end (464 bytes in all).
+_RUSAGE_V6_RESERVED = 6
+_energy_last_sample: tuple[float, int] | None = None
+_libproc: list = []  # [CDLL, struct class], built once
+
+
+def process_rusage(pid: int | None = None) -> dict[str, int] | None:
+    """{memory_bytes, energy_nj, instructions, cycles} for a pid (default: this process), or None."""
+    import ctypes
+    import sys
+
+    if sys.platform != "darwin":
+        return None
+    try:
+        if not _libproc:
+            fields = ([("ri_uuid", ctypes.c_uint8 * 16)] + [(n, ctypes.c_uint64) for n in _RUSAGE_V6_FIELDS]
+                      + [("ri_reserved", ctypes.c_uint64 * _RUSAGE_V6_RESERVED)])
+            # Slice assignment, not extend: two first polls at once still leave exactly [CDLL, struct class].
+            _libproc[:] = [ctypes.CDLL("/usr/lib/libproc.dylib"),
+                           type("rusage_info_v6", (ctypes.Structure,), {"_fields_": fields})]
+        lib, info = _libproc[0], _libproc[1]()
+        if lib.proc_pid_rusage(pid or os.getpid(), 6, ctypes.byref(info)) != 0:
+            return None
+        return {
+            "memory_bytes": info.ri_phys_footprint,
+            "energy_nj": info.ri_energy_nj,
+            "instructions": info.ri_instructions,
+            "cycles": info.ri_cycles,
+        }
+    except Exception as exc:  # noqa: BLE001 — a metric must never break its caller
+        logger.debug("process_rusage failed: %s", exc)
+        return None
+
+
+def _descendant_pids(root: int) -> list[int]:
+    """The pids below ``root`` (children, their children, ...) from libproc's `proc_listchildpids`, which returns the
+    count of pids (probed on the M4); no subprocess, so it cannot block the caller. [] when libproc is not loaded."""
+    import ctypes
+
+    if not _libproc:
+        process_rusage()  # loads libproc once
+    if not _libproc:
+        return []
+    found, queue = [], [root]
+    while queue:
+        buf = (ctypes.c_int * 256)()
+        count = _libproc[0].proc_listchildpids(queue.pop(), buf, ctypes.sizeof(buf))
+        for child in list(buf)[: max(0, min(count, 256))]:
+            found.append(child)
+            queue.append(child)
+    return found
+
+
+def process_tree_rusage() -> dict[str, int] | None:
+    """`process_rusage` summed over this process and every process below it (its Kraken and line-extraction
+    helpers, #5358); a child that cannot be read adds nothing."""
+    total = process_rusage()
+    if total is None:
+        return None
+    for pid in _descendant_pids(os.getpid()):
+        child = process_rusage(pid)
+        if child:
+            total = {k: total[k] + child[k] for k in total}
+    return total
+
+
+def process_energy_watts(usage: dict[str, int] | None = None) -> float | None:
+    """Average power since the LAST call, in watts; the first call primes it and returns None. ``usage`` is the
+    caller's `process_tree_rusage()` when it has one, so a poll reads the tree once."""
+    global _energy_last_sample
+    usage = usage or process_tree_rusage()
+    if usage is None:
+        return None
+    now = time.monotonic()
+    with _cpu_sample_lock:
+        prev = _energy_last_sample
+        _energy_last_sample = (now, usage["energy_nj"])
+    if prev is None or now <= prev[0]:
+        return None
+    return round(max(0, usage["energy_nj"] - prev[1]) / 1e9 / (now - prev[0]), 2)  # a child that exited takes its total with it

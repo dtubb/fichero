@@ -50,6 +50,7 @@ from fichero_server.security.security_scoped_access import (
     grant_access,
     granted_paths,
 )
+from fichero_server.api.errors import ErrorDetail as _RefusalBody
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,7 @@ class SecurityScopedAccessResponse(BaseModel):
     summary="Grant the running engine access to a security-scoped library folder",
     responses={
         400: {
+            "model": _RefusalBody,
             "description": (
                 "The bookmark could not be turned into access — malformed, or "
                 "startAccessingSecurityScopedResource() refused. The engine cannot read this "

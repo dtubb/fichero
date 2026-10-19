@@ -51,3 +51,21 @@ def test_no_tailscale_means_an_empty_offer(two_macs, monkeypatch):  # noqa: F811
     monkeypatch.setattr(tailscale_serve, "detected_tailnet_url", lambda *a, **k: "")
     session = two_macs["a"].post("/api/auth/login", json={"username": "owner", "password": "password"}).json()["session_token"]
     assert two_macs["a"].get("/api/pair/tailnet", headers=_bearer(session)).json() == {"tailnet_url": None}
+
+
+def test_a_local_invite_keeps_its_pin_even_when_tailscale_is_up(two_macs, monkeypatch):  # noqa: F811
+    # Tailscale up (an explicit tailnet URL) must not drop the pin from a .local sharing address.
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://studio.local:8765")
+    monkeypatch.setenv("FICHERO_TAILNET_URL", "https://studio.tail1234.ts.net")
+    body = _mint(two_macs["a"]).json()
+    assert body["spki_pin"] == "c3BraS1waW4="
+    assert body["tailnet_url"] == "https://studio.tail1234.ts.net"
+
+
+def test_a_forged_ts_net_host_header_does_not_skip_the_pin(two_macs, monkeypatch):  # noqa: F811
+    # The skip comes from what this engine shares at, never from the caller's Host header.
+    monkeypatch.setenv("FICHERO_PUBLIC_BASE_URL", "https://studio.local:8765")
+    code = _mint(two_macs["a"]).json()["code"]
+    monkeypatch.delenv("FICHERO_TLS_SPKI_HASH", raising=False)
+    r = two_macs["tailnet_b"].post("/api/pair", json={"code": code, "device_name": "Mac B"})
+    assert r.status_code != 200

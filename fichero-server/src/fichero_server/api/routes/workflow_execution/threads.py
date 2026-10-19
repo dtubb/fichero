@@ -78,6 +78,8 @@ class CheckpointSnapshot(BaseModel):
     state_values: dict[str, Any] = Field(default_factory=dict)  # State at this step
     writes: dict[str, Any] = Field(default_factory=dict)  # What was written
     next_nodes: list[str] = Field(default_factory=list)  # Next nodes to execute
+    restorable: bool = Field(default=True, description="false for a step read from the run's saved record: it is not a "
+                             "checkpoint, so a restore or fork by its id would find nothing")
 
 
 class CheckpointHistoryResponse(BaseModel):
@@ -431,6 +433,18 @@ async def _render_run_diagram_png(run: WorkflowRun) -> bytes:
     )
 
 
+def _steps_from_record(run: WorkflowRun | None, translate) -> list[CheckpointSnapshot]:
+    """One entry per finished step in the run's saved record (`activity.run.checkpoints-pruned`, #5376). A run keeps
+    only its last checkpoint, so the history reads the earlier steps from the record: which step, when, and the
+    node's name; the state at that step is not kept."""
+    timeline = run.progress_timeline if run and isinstance(run.progress_timeline, dict) else {}
+    ended = [e for e in timeline.get("events") or []
+             if isinstance(e, dict) and e.get("event") == "node_end" and e.get("node_id")]
+    return [CheckpointSnapshot(checkpoint_id=f"record-{i}", step=i, restorable=False, timestamp=e.get("timestamp"),
+                               node_name=translate(e["node_id"]) or e["node_id"])
+            for i, e in enumerate(ended)]
+
+
 # =============================================================================
 # Endpoints
 # =============================================================================
@@ -635,6 +649,10 @@ async def get_thread_history(
 
         # Reverse to get chronological order (oldest first)
         checkpoints.reverse()
+
+        # A run holds one checkpoint (`keep_last_only`): the earlier steps come from its saved record.
+        if len(checkpoints) <= 1:
+            checkpoints = [*_steps_from_record(run, _translate_node_name), *checkpoints]
 
         # Update step numbers to be chronological
         for i, cp in enumerate(checkpoints):
