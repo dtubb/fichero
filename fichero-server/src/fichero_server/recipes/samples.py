@@ -544,6 +544,14 @@ def _readable(row: Any) -> str:
 
 
 def _run_try(db: Any, subject: str) -> dict[str, Any]:
+    """The try job, with a person watching: its model-lane rows go ahead of a bulk run's (#5839)."""
+    from fichero_server.execution import jobs
+
+    with jobs.person_is_waiting():
+        return _run_try_watched(db, subject)
+
+
+def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     """The job: each candidate's run of the stage's cards on its own copy of the samples (one run when nothing is
     compared), the step's own as the try's result, and the columns with how each compared."""
     from fichero_server.execution import jobs

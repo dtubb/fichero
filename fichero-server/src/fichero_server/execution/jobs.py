@@ -279,6 +279,20 @@ _holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
 #: The row of this task's latest model call's slot. Kept after the slot closes, because a call's
 #: usage is read from its answer after the call (`llm.chat_structured`); cleared when this task's
 #: next call starts outside a slot (`forget_call_row`).
+#: Set while a person is looking at the result of the code running (a stage try): the lane rows it hands in are watched.
+_person_waiting: ContextVar[bool] = ContextVar("_person_waiting", default=False)
+
+
+@contextlib.contextmanager
+def person_is_waiting():
+    """Every model-lane row `submit` makes inside this is watched: ahead of a bulk run's rows (#5839)."""
+    token = _person_waiting.set(True)
+    try:
+        yield
+    finally:
+        _person_waiting.reset(token)
+
+
 _call_row: ContextVar[tuple[Any, str] | None] = ContextVar("_call_row", default=None)
 
 
@@ -920,6 +934,8 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     _ensure(db)
     future: Future = Future()
     job_id = _insert(db, kind, subject, model, started_by)
+    if _person_waiting.get():
+        db.execute("UPDATE jobs SET watched = TRUE WHERE id = ?", [job_id])
     parent = _current_step()
     if parent:  # a page of a step of a run (`activity.jobs-are-a-tree`)
         _ensure_step_row(db, parent)
@@ -1608,7 +1624,9 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
         f"{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
-        ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        f") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
+        f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
     )
@@ -1762,6 +1780,12 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
 BACKGROUND_STARTERS = ("automatic", "sync", "kept export")
 _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
                      + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS) + "))")
+
+
+#: Who goes first when a lane picks, and in the order Activity lists the waiting rows (#5839): work a person is
+#: looking at (2: a stage try, a page open on screen) ahead of work a person started and went away from (1: a
+#: bulk recipe run), ahead of background work (0).
+_PERSON_RANK_SQL = f"(CASE WHEN COALESCE(watched, FALSE) THEN 2 WHEN {_PERSON_WAITS_SQL} THEN 1 ELSE 0 END)"
 
 
 def _watched(db: "Database", job_id: str) -> bool:
@@ -2284,9 +2308,9 @@ class _Scheduler:
 
             def first(clause: str, extra: list[Any]) -> tuple | None:
                 return db.execute_fetchone(
-                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL} FROM jobs "
+                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL} FROM jobs "
                     f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
-                    f"ORDER BY {attached_first}{_PERSON_WAITS_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                    f"ORDER BY {attached_first}{_PERSON_RANK_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
                     f"created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
                 )
@@ -2332,7 +2356,7 @@ class _Scheduler:
             return None
         # Across libraries the same rule: within its share first, then waited-for work (handed in, then a
         # person's own), then the loaded model, then the oldest.
-        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, not c[2][5], c[2][3] != lane.loaded_model, c[2][4]))
+        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, -c[2][6], c[2][3] != lane.loaded_model, c[2][4]))
         return candidates[0][:3]
 
     def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:
