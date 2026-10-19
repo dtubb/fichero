@@ -286,7 +286,6 @@
   "PUT /api/recipes/samples": "swapping a sample page in Set Up (#5668): engine, CLI and MCP first; the app reads the samples and its swap is not built yet",
   "DELETE /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
   "PUT /api/hpc/clusters/{cluster_id}/key": "the app's sign-in sheet (Swift) is not built yet; engine, CLI and MCP first (#5238, #5454)",
-  "GET /api/recipes/htr-united": "the HTR-United datasets for a project (#5571): engine, CLI and MCP; the app's store is the Swift half of #5571 (top of m-ios's list); remove this entry in the commit that adds it",
   "POST /api/auth/migrate-owner": "owner key migration (multiuser-always-on slice 5): the app's call to it is not wired to a store yet; engine first (#2403)",
   "POST /api/auth/local-clients/request": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",
   "POST /api/auth/local-clients/requests/{request_id}/decision": "local CLI/MCP clients (multiuser-always-on slice 6a): the app's Settings/approval sheet store is Swift, later; engine first (#2403)",

@@ -60,6 +60,8 @@ db/__init__.py::Database._ensure_text_search_index 1
 db/__init__.py::Database._reconnect_after_invalidated 2
 db/__init__.py::Database.search 1
 db/__init__.py::Database.workflow_rows_for_list 1
+# device-token migration must never block opening the db (review 128); logged, retried next open; #5799 surfaces it
+db/app.py::AppDatabase.__init__ 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task 1
 db/embeddings.py::DatabaseEmbeddingMixin._schedule_embedding_task._runner 1
 db/embeddings.py::DatabaseEmbeddingMixin.flush_deferred_embeddings._flush 1

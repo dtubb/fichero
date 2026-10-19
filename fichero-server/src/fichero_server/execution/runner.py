@@ -25,7 +25,7 @@ from fichero_server.execution.cancellation import (
     clear_pause,
     pause_requested,
 )
-from fichero_server.execution.run_log import BoundedLog
+from fichero_server.execution.run_log import BoundedLog, bounded_final_state
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_steps import close_open_steps
@@ -276,6 +276,55 @@ def close_all_event_hubs_for_shutdown() -> int:
             hub.put(None)
             closed += 1
     return closed
+
+
+#: The reason a quit records on the runs it pauses; the next launch resumes the runs that carry it (#5357).
+QUIT_PAUSED_ERROR = "Paused: the app quit"
+#: How long a quit waits for paused runs to reach their boundary (the app kills the engine soon after).
+BOUNDARY_GRACE_SECONDS = 1.0
+
+
+async def pause_live_runs_for_shutdown() -> int:
+    """Quit pauses the runs in flight, they do not fail (#5357, `activity.run.quit-pauses`): each live run that has a
+    checkpoint on disk is asked to pause (the pause request every run checks at its boundary, so it settles as `paused`
+    through its own path) and is recorded `paused` here as the fallback for a worker that does not reach a boundary
+    before the process ends. A run with no checkpoint yet has nothing to resume from and is left for the reopen sweep.
+    Returns how many."""
+    import asyncio  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    from fichero_server.execution.cancellation import pause_requested, request_pause  # noqa: PLC0415
+    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
+    asked: list[str] = []
+    checkpointers: dict[str, AsyncDuckDBCheckpointer] = {}
+    try:
+        for thread_id, state in list(_running_workflows.items()):
+            db_path = state.get("db_path")
+            if not db_path or state.get("status") not in ("accepted", "running"):
+                continue
+            if db_path not in checkpointers:
+                checkpointers[db_path] = AsyncDuckDBCheckpointer.from_db_path(db_path)
+            saved = await checkpointers[db_path].aget_tuple(
+                {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
+            if saved is None:
+                continue
+            # A pause the person already asked for is theirs: no marker, so the next open leaves it for Resume.
+            by_person = pause_requested(thread_id)
+            request_pause(thread_id)
+            await get_activity_tracker(db_path).store.update_workflow_run(
+                thread_id=thread_id, status="paused", error=None if by_person else QUIT_PAUSED_ERROR)
+            asked.append(thread_id)
+    finally:
+        for checkpointer in checkpointers.values():
+            checkpointer.__exit__(None, None, None)  # closes its own connection under its lock
+    # Give the workers their boundary: the app kills the engine after a short grace, so the wait is bounded, and a
+    # worker that has not stopped by then is covered by the `paused` record written above.
+    deadline = time.monotonic() + BOUNDARY_GRACE_SECONDS
+    while time.monotonic() < deadline and any(
+            _running_workflows.get(t, {}).get("status") in ("accepted", "running") for t in asked):
+        await asyncio.sleep(0.05)
+    return len(asked)
 
 
 def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
@@ -936,6 +985,7 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
         {
             "workflow_id": request.workflow_id,
             "workflow_name": workflow.name,
+            "db_path": str(db.path),
             "status": "accepted",
             "events": event_hub,
             "error": None,
@@ -2468,7 +2518,7 @@ async def _run_workflow_in_background(
             "checkpoint_id": checkpoint_tuple.checkpoint["id"]
             if checkpoint_tuple
             else None,
-            "final_state": final_state,
+            "final_state": bounded_final_state(final_state),
             "duration_ms": total_duration_ms,
         }
         if completion_metadata.get("empty_output"):

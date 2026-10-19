@@ -708,6 +708,7 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
         recovered = await tracker.store.recover_stale_runs(
             max_age_hours=0, exclude_thread_ids=live_thread_ids
         )
+        await _resume_quit_paused_bg(tracker, db_path)
         if recovered:
             logger.info(
                 "recover_stale_runs: recovered %d stale run(s) for library %s",
@@ -720,6 +721,38 @@ async def _recover_stale_runs_bg(tracker: "ActivityTracker", db_path: str) -> No
             "recover_stale_runs failed for %s (ignored — library open continues)",
             db_path,
         )
+
+
+async def resume_quit_paused_runs(store: Any, db: Any) -> list[str]:
+    """Carry on the runs the last quit paused (#5357, `activity.run.quit-pauses`); a run a person paused is left for
+    Resume. The marker is cleared first, so a later pause is not taken for a quit; a resume that fails leaves the run
+    paused with the reason as its error. Returns the thread ids resumed."""
+    from fichero_server.api.routes.workflow_execution import core  # noqa: PLC0415
+    from fichero_server.execution.runner import QUIT_PAUSED_ERROR  # noqa: PLC0415
+
+    from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
+
+    resumed: list[str] = []
+    for run in await store.list_workflow_runs(statuses=["paused"], limit=500):
+        if run.error != QUIT_PAUSED_ERROR or _running_workflows.get(run.thread_id, {}).get("status") in (
+                "accepted", "running"):  # still winding down to its boundary in this process: not yet resumable
+            continue
+        await store.update_workflow_run(run.thread_id, error="Resumed after the app reopened")
+        try:
+            await core.resume_workflow(run.thread_id, None, db=db)
+        except Exception as exc:  # noqa: BLE001 -- the run stays paused and says why; the launch goes on
+            await store.update_workflow_run(run.thread_id, error=f"Could not resume after the app reopened: {exc}")
+            continue
+        resumed.append(run.thread_id)
+    return resumed
+
+
+async def _resume_quit_paused_bg(tracker: "ActivityTracker", db_path: str) -> None:
+    from pathlib import Path  # noqa: PLC0415
+
+    from fichero_server.db.manager import db_manager  # noqa: PLC0415
+
+    await resume_quit_paused_runs(tracker.store, db_manager.get_database(Path(db_path).parent))
 
 
 async def _settle_recovered_run_documents(

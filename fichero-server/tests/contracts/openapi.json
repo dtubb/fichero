@@ -3061,7 +3061,14 @@
             }
           },
           "400": {
-            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it."
+            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7754,7 +7761,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7933,7 +7947,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -8017,7 +8038,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -8101,7 +8129,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -8164,7 +8199,14 @@
             }
           },
           "404": {
-            "description": "No such folder or proposal."
+            "description": "No such folder or proposal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "The folder has no proposal, or a person set none of its documents."
@@ -10794,7 +10836,14 @@
             }
           },
           "404": {
-            "description": "No document with this id exists"
+            "description": "No document with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -10845,7 +10894,14 @@
             }
           },
           "404": {
-            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots"
+            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -21462,7 +21518,14 @@
             }
           },
           "404": {
-            "description": "No document with this id exists"
+            "description": "No document with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -22590,10 +22653,24 @@
             "description": "Successful Response"
           },
           "400": {
-            "description": "Missing library header or unsupported digest format"
+            "description": "Missing library header or unsupported digest format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Library path rejected by allowlist"
+            "description": "Library path rejected by allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -23162,7 +23239,14 @@
             }
           },
           "404": {
-            "description": "Entity not found"
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -50984,6 +51068,14 @@
             "type": "array",
             "title": "Steps"
           },
+          "automatic": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticStep"
+            },
+            "type": "array",
+            "title": "Automatic",
+            "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"
+          },
           "gaps": {
             "items": {
               "type": "string"
@@ -51427,6 +51519,31 @@
         ],
         "title": "AuthorityRefreshRequest"
       },
+      "AutomaticStep": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "layer": {
+            "type": "string",
+            "title": "Layer"
+          },
+          "uses_cloud": {
+            "type": "boolean",
+            "title": "Uses Cloud",
+            "description": "whether the step may use a cloud model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "layer",
+          "uses_cloud"
+        ],
+        "title": "AutomaticStep",
+        "description": "A step the purpose (or an added layer) turns on by itself (`source.recipe.steps-name-layers`)."
+      },
       "AutomaticWork": {
         "properties": {
           "job": {
@@ -51595,6 +51712,16 @@
             "type": "number",
             "nullable": true,
             "title": "Process Cpu Percent"
+          },
+          "process_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Process Memory Bytes"
+          },
+          "process_energy_watts": {
+            "type": "number",
+            "nullable": true,
+            "title": "Process Energy Watts"
           },
           "cpu_count": {
             "type": "integer",
@@ -55002,6 +55129,12 @@
             },
             "type": "array",
             "title": "Next Nodes"
+          },
+          "restorable": {
+            "type": "boolean",
+            "title": "Restorable",
+            "description": "false for a step read from the run's saved record: it is not a checkpoint, so a restore or fork by its id would find nothing",
+            "default": true
           }
         },
         "type": "object",
@@ -63151,6 +63284,11 @@
             },
             "type": "array",
             "title": "Triangulated Facts"
+          },
+          "stale_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stale Reason"
           }
         },
         "type": "object",
@@ -63772,7 +63910,15 @@
       "ErrorDetail": {
         "properties": {
           "detail": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
             "title": "Detail"
           }
         },
@@ -63781,7 +63927,7 @@
           "detail"
         ],
         "title": "ErrorDetail",
-        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way."
+        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way.\n\nSome refusals carry a STRUCTURED detail instead of a sentence (a stale note's\n`current_body`, an ingest 403's `code`), so `detail` is a string or an object."
       },
       "EvaluationCandidate": {
         "properties": {
@@ -75649,6 +75795,42 @@
         "type": "object",
         "title": "ModelsByTierResponse"
       },
+      "MoneyAndPlace": {
+        "properties": {
+          "hf_spend_cap_usd": {
+            "type": "number",
+            "title": "Hf Spend Cap Usd",
+            "description": "the monthly Hugging Face cap (`answers.hf_spend_cap_usd`); $0 offers only"
+          },
+          "copies_may_stay_on_cluster": {
+            "type": "boolean",
+            "title": "Copies May Stay On Cluster",
+            "description": "whether working copies stay on a cluster for re-runs, as it stands: the person's answer, else what they said about pages leaving"
+          },
+          "copies_follow_pages_may_leave": {
+            "type": "boolean",
+            "title": "Copies Follow Pages May Leave",
+            "description": "true while the person has not answered the copies question, so its value follows pages-may-leave"
+          },
+          "clusters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Clusters",
+            "description": "the clusters set up here, by name: the copies question and the cluster offer apply only where there is one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hf_spend_cap_usd",
+          "copies_may_stay_on_cluster",
+          "copies_follow_pages_may_leave",
+          "clusters"
+        ],
+        "title": "MoneyAndPlace",
+        "description": "The three ruled money-and-place settings as the engine holds them (#5769), for the setup screen to show; this\nmonth's spend against the cap is on the Start plan (`hf_spend`)."
+      },
       "MoveItemsRequest": {
         "properties": {
           "item_ids": {
@@ -82020,6 +82202,15 @@
             "nullable": true,
             "title": "Needed By",
             "description": "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they stay (source.onboard.plan-editable)"
+          },
+          "run_titles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Run Titles",
+            "description": "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the order Start makes them (#5795); null for every other step"
           }
         },
         "type": "object",
@@ -88678,6 +88869,10 @@
           "count": {
             "type": "integer",
             "title": "Count"
+          },
+          "money_and_place": {
+            "$ref": "#/components/schemas/MoneyAndPlace",
+            "nullable": true
           }
         },
         "type": "object",
