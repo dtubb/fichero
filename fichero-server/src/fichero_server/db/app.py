@@ -871,16 +871,17 @@ class AppDatabase:
 
     def delete_setting(self, key: str):
         """Delete a setting."""
-        value = self.get_setting(key)
-        if value is None:
-            return
-        self._delete_typed(
-            AppSetting(key=key, value=value, updated_at=utc_now()),
-            key_field="key",
-            table_name="settings",
-        )
-        self.conn.commit()
-        self._settings[key] = None
+        with self._lock:  # the read, the delete, the commit and the cached value are one step
+            value = self.get_setting(key)
+            if value is None:
+                return
+            self._delete_typed(
+                AppSetting(key=key, value=value, updated_at=utc_now()),
+                key_field="key",
+                table_name="settings",
+            )
+            self.conn.commit()
+            self._settings[key] = None
 
     def get_ai_defaults(self) -> dict[str, str]:
         """Get all AI default settings as a dict.
