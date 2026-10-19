@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
+from fichero_server.core.single_flight import single_flight
 from fichero_server.api.auth import action_context
 from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.library_header import optional_library_path
@@ -2380,6 +2381,7 @@ async def what_runs_by_itself(db: Database = Depends(get_library_database)) -> W
 
 
 @router.get("/project/runs", response_model=RecipeRuns)
+@single_flight
 async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRuns:
     """The project's recipe runs, newest first: Start's, and one for each import after it. Each stage that is a
     workflow run carries its run account (pages done, failed and left, time left, what it waits for; #5576)."""
@@ -2390,6 +2392,7 @@ async def recipe_runs(db: Database = Depends(get_library_database)) -> RecipeRun
 
 
 @router.get("/project/runs/{job_id}", response_model=RecipeRunStatus)
+@single_flight
 async def recipe_run_status(job_id: str, db: Database = Depends(get_library_database)) -> RecipeRunStatus:
     """A started recipe's run: each card's state and its own job (a workflow stage with its run account), the
     steps it skipped with why and their fixes, and what it waits for now (#5576)."""
@@ -2403,6 +2406,7 @@ async def recipe_run_status(job_id: str, db: Database = Depends(get_library_data
 
 
 @router.get("/project/runs/{job_id}/summary", response_model=RecipeRunSummary)
+@single_flight
 async def recipe_run_summary(job_id: str, db: Database = Depends(get_library_database)) -> RecipeRunSummary:
     """What a recipe run made, over the pages it ran on (`source.onboard.auto.results-summary`, #5577): pages
     with a reading, names by kind and dates (the document knowledge graph's grouping), statements, each stage's

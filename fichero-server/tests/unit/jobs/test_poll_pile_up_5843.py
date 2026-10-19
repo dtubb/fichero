@@ -1,0 +1,68 @@
+"""#5843: polls arrived faster than they finished and piled up beside Kraken. One query in flight per poll route,
+and a jobs table of any size answers the Activity snapshot at once."""
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+
+from fichero_server.core import single_flight as single_flight_module
+from fichero_server.core.single_flight import single_flight
+from fichero_server.execution import jobs
+
+
+def test_concurrent_polls_run_one_query_and_the_others_get_its_answer():
+    runs = []
+
+    @single_flight
+    async def poll(key: str = "a") -> dict:
+        runs.append(key)
+        await asyncio.sleep(0.2)
+        return {"key": key}
+
+    async def go():
+        first = [asyncio.ensure_future(poll(key="a")) for _ in range(12)]
+        other = asyncio.ensure_future(poll(key="b"))
+        return await asyncio.gather(*first, other)
+
+    answers = asyncio.run(go())
+    assert runs == ["a", "b"]  # twelve callers of "a": one query; "b" is its own
+    assert all(a == {"key": "a"} for a in answers[:12]) and answers[12] == {"key": "b"}
+    assert poll.single_flight_stats["served"] == 11
+    asyncio.run(poll(key="a"))  # a poll after the first finished runs again
+    assert runs == ["a", "b", "a"]
+
+
+def test_a_sync_route_runs_in_a_thread_and_a_slow_poll_is_logged_with_its_callers(caplog, monkeypatch):
+    monkeypatch.setattr(single_flight_module, "SLOW_MS", 50)
+
+    @single_flight
+    def poll(key: str = "a") -> list:
+        time.sleep(0.15)
+        return [1, 2, 3]
+
+    async def go():
+        return await asyncio.gather(poll(key="a"), poll(key="a"))
+
+    with caplog.at_level(logging.INFO, logger=single_flight_module.__name__):
+        assert asyncio.run(go()) == [[1, 2, 3], [1, 2, 3]]
+    line = next(r.getMessage() for r in caplog.records if "poll" in r.getMessage())
+    assert "test_poll_pile_up_5843.poll" in line and "3 rows" in line and "1 callers" in line
+
+
+def test_a_ten_thousand_row_jobs_table_answers_the_snapshot_in_under_50_ms(db):
+    jobs._ensure(db)
+    db.execute(
+        "INSERT INTO jobs (id, kind, subject, state, created_at, started_by) "
+        "SELECT 'w' || i, CASE WHEN i % 2 = 0 THEN 'make-thumbnail' ELSE 'embed-for-search' END, 'doc' || i, "
+        "CASE WHEN i < 9990 THEN 'waiting' WHEN i < 9995 THEN 'running' ELSE 'failed' END, "
+        "now() - to_seconds(10000 - i), 'automatic' FROM range(10000) t(i)")
+    jobs.snapshot(db)  # the first call may add columns
+    started = time.monotonic()
+    rows = jobs.snapshot(db)
+    took_ms = (time.monotonic() - started) * 1000
+    assert took_ms < 50, f"{took_ms:.0f} ms"
+    waiting = [r for r in rows if r["state"] == "waiting"]
+    assert sorted(r["count"] for r in waiting) == [4995, 4995]  # one row per kind, each with its whole count
+    assert {r["id"] for r in waiting} == {"waiting:make-thumbnail", "waiting:embed-for-search"}
+    assert len([r for r in rows if r["state"] == "running"]) == 5
