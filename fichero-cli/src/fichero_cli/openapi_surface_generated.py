@@ -649,6 +649,23 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("list-queued-items")
+    def activity_list_queued_items_get(
+        ctx: typer.Context,
+        kind: str = typer.Argument(..., help='Kind'),
+        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
+        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
+    ) -> None:
+        """List Queued Items (GET /api/activity/jobs/kind/{kind}/items)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/activity/jobs/kind/{kind}/items"
+            params = {
+                "limit": limit,
+                "offset": offset,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("set-background-mode")
     def activity_set_background_mode_put(
         ctx: typer.Context,
@@ -714,11 +731,14 @@ def register_generated_openapi_commands(
     def activity_get_job_log_get(
         ctx: typer.Context,
         job_id: str = typer.Argument(..., help='Job Id'),
+        detail: Optional[str] = typer.Option(None, '--detail', help='developer adds the debug lines.'),
     ) -> None:
         """Get Job Log (GET /api/activity/jobs/{job_id}/log)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = f"/api/activity/jobs/{job_id}/log"
-            params = None
+            params = {
+                "detail": detail,
+            }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 

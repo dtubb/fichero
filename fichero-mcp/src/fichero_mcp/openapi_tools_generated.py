@@ -268,6 +268,16 @@ def fichero_activity_clear_failed_jobs(
     return _rt.call("POST", "/api/activity/jobs/clear-failed")
 
 
+def fichero_activity_list_queued_items(
+    *,
+    kind: Annotated[str, Field(description='Kind')],
+    limit: Annotated[Optional[int], Field(description='Limit')] = None,
+    offset: Annotated[Optional[int], Field(description='Offset')] = None,
+) -> Any:
+    "List Queued Items\n\nThe pages of one kind's row (`activity.window.expands-to-pages`, #5839): its queued jobs, each a line, in the\norder the lane will pick them, running first.\n\nRoute: GET /api/activity/jobs/kind/{kind}/items (toolset `activity`; reads)."
+    return _rt.call("GET", f"/api/activity/jobs/kind/{kind}/items", params={"limit": limit, "offset": offset})
+
+
 def fichero_activity_set_background_mode(
     *,
     mode: Annotated[str, Field(description='automatic: heavy work waits while the Mac is in use or on battery; started: it goes ahead anyway (memory and heat still hold it) until set back; paused: nothing that runs by itself starts. One of: automatic, started, paused.')],
@@ -304,9 +314,10 @@ def fichero_activity_cancel_job(
 def fichero_activity_get_job_log(
     *,
     job_id: Annotated[str, Field(description='Job Id')],
+    detail: Annotated[Optional[str], Field(description='developer adds the debug lines')] = None,
 ) -> Any:
     "Get Job Log\n\nThe log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for\na run (its activity events), for a step (the events of its node), and what each job's own row says (it\nstarted, it failed and why, it waits and for what). Nothing about another row.\n\nRoute: GET /api/activity/jobs/{job_id}/log (toolset `activity`; reads)."
-    return _rt.call("GET", f"/api/activity/jobs/{job_id}/log")
+    return _rt.call("GET", f"/api/activity/jobs/{job_id}/log", params={"detail": detail})
 
 
 def fichero_activity_set_job_paused(
@@ -6388,7 +6399,7 @@ def fichero_recipes_put_places(
     *,
     places: Annotated[list[Any], Field(description='The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; this Mac is always one.')],
 ) -> Any:
-    'Put Places\n\nAllow these places (an audited action). Every project is capped by them: stricter, never looser.\n\nRoute: PUT /api/recipes/places (toolset `recipes`; changes data, as the agent account when one exists).'
+    "Put Places\n\nAllow these places, with no project open (the setting is the app's, so is its audit row). Every project is\ncapped by them: stricter, never looser. Owner only: it decides where every project's pages may go.\n\nRoute: PUT /api/recipes/places (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/places", json=_rt.body({"places": places}))
 
 
@@ -8997,6 +9008,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_activity_cleanup_old_activities", "activity", "DELETE", "/api/activity/cleanup", fichero_activity_cleanup_old_activities),
     GeneratedTool("fichero_activity_list_background_jobs", "activity", "GET", "/api/activity/jobs", fichero_activity_list_background_jobs),
     GeneratedTool("fichero_activity_clear_failed_jobs", "activity", "POST", "/api/activity/jobs/clear-failed", fichero_activity_clear_failed_jobs),
+    GeneratedTool("fichero_activity_list_queued_items", "activity", "GET", "/api/activity/jobs/kind/{kind}/items", fichero_activity_list_queued_items),
     GeneratedTool("fichero_activity_set_background_mode", "activity", "PUT", "/api/activity/jobs/mode", fichero_activity_set_background_mode),
     GeneratedTool("fichero_activity_set_background_paused", "activity", "PUT", "/api/activity/jobs/paused", fichero_activity_set_background_paused),
     GeneratedTool("fichero_activity_get_job_tree", "activity", "GET", "/api/activity/jobs/{job_id}", fichero_activity_get_job_tree),
