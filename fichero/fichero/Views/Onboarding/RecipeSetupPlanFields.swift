@@ -234,7 +234,10 @@ struct RecipeStartFields: View {
                 Text("For the pages already here: \(plan.estimate.pages) pages · \(Self.cost(plan.estimate.totalCostUsd))")
                     .font(.headline)
                 // In words, never the engine's raw message (section 7d, `source.onboard.ready.words-not-engine-errors`).
-                ForEach(plan.refusals, id: \.self) { refusal in
+                // A refusal that names a step sits in that step's box (#5840), so only the others are here.
+                let stepJobs = Set((store.recipe?.steps ?? []).map(\.job))
+                ForEach(plan.refusals.filter { Self.job(ofRefusal: $0).map { !stepJobs.contains($0) } ?? true },
+                        id: \.self) { refusal in
                     Label(Self.words(for: refusal, title: store.title(ofJob:)), systemImage: "exclamationmark.triangle")
                         .font(.body)
                         .foregroundStyle(.orange)
@@ -274,23 +277,6 @@ struct RecipeStartFields: View {
 /// proposed on arrival and kept as a draft whenever it changes, so Start's estimate is the
 /// engine's plan for exactly what is shown.
 struct RecipeReadyFields: View {
-    /// The rows of Ready, in order; the optional ones can be left and done later from the Inspector. Training is its
-    /// own page before Ready (section 7d, `source.onboard.stages.train-and-ready-last`), not a row here.
-    enum Row: CaseIterable {
-        case plan, runsByItself, checkOnYourPages, keepAnExport
-
-        var title: String {
-            switch self {
-            case .plan: "The plan"
-            case .runsByItself: "What runs by itself"
-            case .checkOnYourPages: "Check on your pages"
-            case .keepAnExport: "Keep an export"
-            }
-        }
-
-        var isOptional: Bool { self == .checkOnYourPages || self == .keepAnExport }
-    }
-
     @Bindable var store: RecipeSetupStore
     let onFix: (String) -> Void
     /// The project's comparison of readers (Check on your pages); nil without a project.
@@ -301,13 +287,31 @@ struct RecipeReadyFields: View {
     var project: LibraryManager.LibraryReference?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ForEach(Row.allCases, id: \.self) { row in
-                if row != .plan { Divider() }
-                Text(row.isOptional ? "\(row.title) (optional)" : row.title).font(.headline)
-                content(row)
+        // Native grouped sections, as System Settings draws them (#5840): a box per step, then the parts.
+        Form {
+            if let error = store.errorMessage {
+                Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
+            }
+            if store.isAssembling {
+                Section { ProgressView() }
+            } else if store.recipe == nil, !store.canAssemble {
+                Section {
+                    Text("Add at least one language and one script under Your Material.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            ForEach(sections, id: \.title) { section in
+                Section {
+                    sectionContent(section)
+                } header: {
+                    HStack(spacing: 6) {
+                        Text(section.title)
+                        if section.isOptional { Text("Optional").font(.caption).foregroundStyle(.secondary) }
+                    }
+                }
             }
         }
+        .formStyle(.grouped)
         .task {
             await store.loadJobs()
             await store.loadPurposes()
@@ -321,14 +325,34 @@ struct RecipeReadyFields: View {
         }
     }
 
+    /// The boxes in order: the plan's steps numbered in run order, then the parts (`ReadySection`).
+    private var sections: [ReadySection] {
+        ReadySection.order(steps: (store.recipe?.steps ?? []).map { (id: $0.id, title: store.title(of: $0)) })
+    }
+
     @ViewBuilder
-    private func content(_ row: Row) -> some View {
-        switch row {
-        case .plan:
-            RecipeProposalFields(store: store, onFix: onFix, project: project)
-            RecipeStartFields(store: store, onFix: onFix, project: project)
+    private func sectionContent(_ section: ReadySection) -> some View {
+        switch section {
+        case .step(_, let stepId, _):
+            if let recipe = store.recipe {
+                RecipeStepsView(store: store, recipe: recipe, onFix: onFix, finder: project, onlyStepId: stepId)
+                if let step = recipe.steps.first(where: { $0.id == stepId }) {
+                    RecipeStepRunLine(store: store, step: step)
+                }
+            }
         case .runsByItself:
             RecipeAutomaticFields(store: store)
+        case .start:
+            if let recipe = store.recipe {
+                RecipeTakenOutRows(store: store, removed: recipe.removed ?? [])
+                RecipeCloudQuestion(store: store)
+                RecipeMoneyAndPlaceFields(store: store)
+            }
+            RecipeStartFields(store: store, onFix: onFix, project: project)
+            OfferedJobsList(store: store)
+            if let why = store.startDisabledReason {
+                Label(why, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+            }
         case .checkOnYourPages:
             if let bakeoff {
                 BakeoffSection(context: bakeoff, setup: store)
@@ -379,7 +403,34 @@ struct RecipeReadyFields: View {
         .frame(width: 520, height: 120)
 }
 
+/// Inside a step's box on Ready (#5840): the step's pages and cost from the Start plan, and the plan's refusals that name
+/// this step, in words.
+struct RecipeStepRunLine: View {
+    let store: RecipeSetupStore
+    let step: Components.Schemas.RecipeStep
+
+    var body: some View {
+        if let plan = store.startPlan {
+            if let run = plan.estimate.runs.first(where: { $0.steps.contains(step.id) || $0.steps.contains(step.job) }) {
+                Text("\(run.pages) pages · \(RecipeStartFields.cost(run.costUsd))")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(plan.refusals.filter { RecipeStartFields.job(ofRefusal: $0) == step.job }, id: \.self) { refusal in
+                Label(RecipeStartFields.words(for: refusal, title: store.title(ofJob:)), systemImage: "exclamationmark.triangle")
+                    .font(.body).foregroundStyle(.orange)
+            }
+        }
+    }
+}
+
 extension RecipeStartFields {
+    /// The job a refusal names ("step 1 (find-regions): …"), or nil when it names none.
+    static func job(ofRefusal refusal: String) -> String? {
+        guard refusal.hasPrefix("step "), let open = refusal.firstIndex(of: "("),
+              let close = refusal.range(of: "):"), open < close.lowerBound else { return nil }
+        return String(refusal[refusal.index(after: open)..<close.lowerBound])
+    }
+
     /// A refusal as Ready says it (`source.onboard.ready.words-not-engine-errors`): the step by its title, not
     /// "step 1 (find-regions)", and a model the engine cannot run said as what to do, never its internal form.
     static func words(for refusal: String, title: (String) -> String) -> String {
