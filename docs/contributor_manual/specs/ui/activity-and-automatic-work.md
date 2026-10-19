@@ -680,7 +680,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   failed and one per stage, one sentence per event in local time, never repeated, never nested inside another job's line.
   Supersedes `activity.details.log-filtered-newest-last` for what the log holds. Engine side: `GET /api/activity/jobs/{id}/log`
   returns only `detail` = "person" lines by default (a row's end, warnings and errors, a failed node), each sentence once
-  per row (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the window shows the time in local time
+  per row (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Today this is every activity event that is not a Node start or finish, plus a row's end, deduped: the "one line per page done or failed, one per stage" is not enforced yet. Not yet: the window shows the time in local time
   (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
 - `activity.log.developer-level` — **[PARTIAL]** (#5850) the "Node … started" and other debug lines are a Developer level, off
   by default; the log shows the person's lines until it is switched on. Engine side: `?detail=developer` adds the debug lines

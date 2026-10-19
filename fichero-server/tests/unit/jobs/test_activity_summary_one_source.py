@@ -75,3 +75,31 @@ def test_a_live_block_reuses_the_status_the_list_already_read(monkeypatch):
     db = type("Db", (), {"path": "/tmp/x/library.duckdb"})()
     blocks = asyncio.run(activity.live_blocks(db, [_job("rec", "run-a-recipe", "running")], {"rec": status}))
     assert [b.id for b in blocks] == ["rec"]
+
+
+def test_a_recipe_runs_status_is_read_off_the_event_loop(monkeypatch):
+    """Review 297 LOW: `runner.status` ran synchronously on the loop inside `_recipe_state`."""
+    import asyncio
+    import threading
+
+    from fichero_server.api.routes.system import activity
+    from fichero_server.recipes import run_view, runner
+
+    seen: list[bool] = []
+    main = threading.get_ident()
+
+    def status(_db, _job_id):
+        seen.append(threading.get_ident() != main)
+        return {"steps": [], "state": "running", "reason": None}
+
+    async def with_accounts(_db, st):
+        st["waiting_for"] = None
+        return st
+
+    monkeypatch.setattr(runner, "status", status)
+    monkeypatch.setattr(run_view, "with_accounts", with_accounts)
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs, "state_and_reason", lambda *_a: None)
+    asyncio.run(activity._recipe_state(None, "rec"))
+    assert seen == [True]  # on a worker thread, not the loop's
