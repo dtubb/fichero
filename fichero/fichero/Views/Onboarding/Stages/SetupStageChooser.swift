@@ -83,6 +83,10 @@ struct SetupStageRow: View {
         stage: Components.Schemas.SetupStage(
             id: "names", title: "Names", sentence: "Finds the people, places and things the pages name.",
             example: "“Juan de Mosquera, vecino de Popayán” gives a person and a place.",
+            exampleCredit: Components.Schemas.ExampleCredit(
+                title: "Sample page", shortCredit: "Sample", licence: "CC BY 4.0",
+                sourceUrl: "https://example.org", licenceUrl: "https://creativecommons.org/licenses/by/4.0/"
+            ),
             jobs: ["find-names-tag-words"], on: true, jobsInRecipe: [], questions: [],
             needs: [], sampleable: true, triedBy: .workflow
         ),
