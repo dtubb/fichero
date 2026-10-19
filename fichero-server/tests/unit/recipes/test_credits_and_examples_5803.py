@@ -50,8 +50,7 @@ def _facts(page: dict) -> list[str]:
 @pytest.mark.parametrize("stage", stages.STAGES, ids=lambda s: s.id)
 def test_every_quoted_word_in_an_example_sentence_is_on_the_example_page_or_made_of_it(stage):
     page = _page("dialogo-lengua-p18")
-    text = "\n".join(page["lines"][i]["text"] for i in range(len(page["lines"]))) if False else \
-        "\n".join(line["text"] for line in page["lines"])
+    text = "\n".join(line["text"] for line in page["lines"])
     facts = [f.casefold() for f in _facts(page)]
     for quoted in re.findall("“([^”]+)”", stage.example):
         needle = quoted.casefold()

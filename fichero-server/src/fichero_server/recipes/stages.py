@@ -12,6 +12,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from fichero_server.recipes.examples import example_credit
+
 
 @dataclass(frozen=True)
 class Question:
@@ -53,7 +55,7 @@ STAGES: tuple[Stage, ...] = (
                     (("straighten", "Straighten"), ("crop", "Crop"), ("brighten", "Brighten")), default=[]))),
     Stage("find-regions", "Find Regions", ("find-regions",),
           "Finds the blocks on each page: columns, notes in the margin, headings, tables and pictures.",
-          "A two-column page with a note in the margin: three blocks, the note kept apart.",
+          "One block of text, a note in the margin and the folio number: three blocks, the note kept apart.",
           (Question("layout", "Columns, margins and glosses? Tables on the pages?", "many",
                     (("columns", "Columns"), ("margins", "Notes in the margins"), ("glosses", "Glosses between lines"),
                      ("tables", "Tables"), ("forms", "Forms")), default=[]),
@@ -61,23 +63,23 @@ STAGES: tuple[Stage, ...] = (
                     read_by_a_step=False))),
     Stage("find-lines", "Find Lines", ("find-lines", "put-in-order", "refine-shapes"),
           "Finds the lines of writing in each block and the order to read them in.",
-          "The left column's lines, then the right's, each traced along its baseline.",
+          "The block's lines from the top down, each traced along its baseline, in the order they are read.",
           ()),
     Stage("read", "Read", ("read-a-line", "read-a-page", "correct", "tie-text-to-lines", "find-where-readers-disagree"),
           "Reads the writing line by line, and can correct it with a second model.",
-          "“Juan de la Cruz vende una casa” read from its line, ready to correct.",
+          "“enel tþo q́ el escriuio, yental caso” read from its first line, ready to correct.",
           # Lines are read one by one; "or the page at once?" was dropped (ruled 2026-10-18, #5788).
           (Question("correct_with_a_second_model", "Have a second model check the reading? Slower and more accurate; may cost if it runs in the cloud.", "yes-no", default=False),)),
     Stage("normalise", "Normalise", ("translate-transliterate-normalise",),
           "Writes the text again in the same language at another level: as written (a diplomatic reading), "
           "abbreviations expanded, spelling normalised, or modernised.",
-          "“q̃ dho” written out as “que dicho”.",
+          "“tþo” written out as “tiempo”, “q́” as “que”.",
           (Question("normalise_how_far", "Into what?", "many", _LEVELS, default=["as_written"], read_by_a_step=True),),
           needs=("read",)),
     # ponytail: Translate shares Normalise's job until a translation job of its own exists; `stage_of` names Normalise.
     Stage("translate", "Translate", ("translate-transliterate-normalise",),
           "Translates the text into another language, any language you choose.",
-          "“vende una casa” as “sells a house”.",
+          "“muchos Años despues” as “many years later”.",
           (Question("translate_into", "Into which language?", "language", default=""),),
           needs=("read",)),
     Stage("organise", "Organise", ("find-documents-in-a-folder", "split-into-entries"),
@@ -89,7 +91,7 @@ STAGES: tuple[Stage, ...] = (
           needs=("read",)),
     Stage("names", "Names", ("find-names-tag-words", "place-in-a-gazetteer", "link-to-authorities"),
           "Finds the people, places and other names in the text, places them on a map and links them to authorities.",
-          "“Juan de la Cruz” and “Istmina” marked, Istmina placed on the map.",
+          "“españa” marked as a place and placed on the map, “Impresores” as an organisation.",
           (Question("entity_kinds", "Which kinds of names?", "many",
                     default=[], read_by_a_step=True, open_ended=True),
            Question("gazetteer", "Which place list? GeoNames (worldwide, modern names) · Wikidata · My own list", "one",
@@ -98,28 +100,28 @@ STAGES: tuple[Stage, ...] = (
           needs=("read",)),
     Stage("statements", "Statements", ("find-statements",),
           "Finds who did what to whom, as statements you can check: a sale, a gift, a marriage, a letter sent.",
-          "“Juan de la Cruz sells a house to María Mosquera”.",
+          "“Historia” happened after the Passion of “Redentor”.",
           (Question("statement_kinds", "Which kinds of statements?", "many", default=[], read_by_a_step=False,
                     open_ended=True),),
           needs=("read", "names")),
     Stage("dates", "Dates & Times", ("work-out-dates",),
           "Works out the dates the names step found, in the calendar they were written in.",
-          "“a 3 de mayo de 1740” as 1740-05-03.",
+          "“muchos Años despues” worked out as “many years later”.",
           (Question("calendars", "Which calendars?", "many", default=[], read_by_a_step=True, open_ended=True),),
           needs=("names",)),
     Stage("passages", "Passages", ("pull-out-passages",),
           "Pulls out the passages you ask for, of any kind, and keeps where each one sits on the page.",
-          "The notary's closing formula on each deed.",
+          "“Autor del libro. M. ora sus no per=” and the line after it, kept where they sit on the page.",
           (Question("passage_kinds", "Which kinds of passages?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("structured-data", "Structured Data", ("find-a-tables-cells", "extract-to-a-table", "describe-for-the-catalogue"),
-          "Fills a table or a catalogue record from the pages: a ledger's columns, a deed's parties and date.",
-          "Each deed's buyer, seller, price and date as one row.",
+          "Fills a table or a catalogue record from the pages: one column for each field you name.",
+          "The work, the speaker and the folio as one row: “Diálogo de la Lengua”, “M.”, “8”.",
           (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("search", "Search", ("make-a-vector",),
           "Makes the pages searchable by meaning as well as by their words.",
-          "Searching “sale of land” finds “venta de un solar”.",
+          "Searching “historia” finds the lines that say “Historia”.",
           (),
           needs=("read",)),
 )
@@ -196,6 +198,7 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
         result = tried.get(stage.id)
         out.append({
             "id": stage.id, "title": stage.title, "sentence": stage.sentence, "example": stage.example,
+            "example_credit": example_credit(),
             "example_from_samples": example_from_samples(stage.id, result),
             "jobs": list(stage.jobs), "on": bool(in_recipe & set(stage.jobs)),
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
