@@ -8,6 +8,8 @@ enum ReadySection: Equatable {
     case runsByItself
     case checkOnYourPages
     case keepAnExport
+    /// Offered only once there is enough corrected work (#5804).
+    case trainOffer
     case start
 
     /// The heading of the box; a step's is numbered.
@@ -17,6 +19,7 @@ enum ReadySection: Equatable {
         case .runsByItself: "What runs by itself"
         case .checkOnYourPages: "Check on your pages"
         case .keepAnExport: "Keep an export"
+        case .trainOffer: "Train a model of your own"
         case .start: "Start"
         }
     }
@@ -24,8 +27,8 @@ enum ReadySection: Equatable {
     /// Shown small and grey beside the heading: the parts that can be left and done later from the Inspector.
     var isOptional: Bool { self == .checkOnYourPages || self == .keepAnExport }
 
-    static func order(steps: [(id: String, title: String)]) -> [ReadySection] {
+    static func order(steps: [(id: String, title: String)], offersTraining: Bool = false) -> [ReadySection] {
         steps.enumerated().map { .step(number: $0.offset + 1, stepId: $0.element.id, title: $0.element.title) }
-            + [.runsByItself, .checkOnYourPages, .keepAnExport, .start]
+            + [.runsByItself, .checkOnYourPages, .keepAnExport] + (offersTraining ? [.trainOffer] : []) + [.start]
     }
 }

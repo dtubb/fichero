@@ -16,6 +16,13 @@ struct ReadySectionsTests {
         #expect(sections.filter(\.isOptional) == [.checkOnYourPages, .keepAnExport])
     }
 
+    @Test("a training offer is a section of its own, before Start, only when there is one")
+    func trainingOffer() {
+        #expect(ReadySection.order(steps: [], offersTraining: true)
+                == [.runsByItself, .checkOnYourPages, .keepAnExport, .trainOffer, .start])
+        #expect(!ReadySection.order(steps: []).contains(.trainOffer))
+    }
+
     @Test("with no steps the parts still follow in order")
     func noSteps() {
         #expect(ReadySection.order(steps: []) == [.runsByItself, .checkOnYourPages, .keepAnExport, .start])
@@ -23,9 +30,9 @@ struct ReadySectionsTests {
 }
 
 struct ReadyRefusalTests {
-    @Test("a refusal names its step's job, or none")
+    @Test("a refusal names its step by id, or none")
     func refusalJob() {
-        #expect(RecipeStartFields.job(ofRefusal: "step 1 (find-regions): no model") == "find-regions")
-        #expect(RecipeStartFields.job(ofRefusal: "Nothing to run") == nil)
+        #expect(RecipeStartFields.stepId(ofRefusal: "step 1 (find-regions): no model") == "find-regions")
+        #expect(RecipeStartFields.stepId(ofRefusal: "Nothing to run") == nil)
     }
 }

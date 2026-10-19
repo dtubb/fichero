@@ -235,15 +235,16 @@ struct RecipeStartFields: View {
                     .font(.headline)
                 // In words, never the engine's raw message (section 7d, `source.onboard.ready.words-not-engine-errors`).
                 // A refusal that names a step sits in that step's box (#5840), so only the others are here.
-                let stepJobs = Set((store.recipe?.steps ?? []).map(\.job))
-                ForEach(plan.refusals.filter { Self.job(ofRefusal: $0).map { !stepJobs.contains($0) } ?? true },
+                let stepIds = Set((store.recipe?.steps ?? []).map(\.id))
+                ForEach(plan.refusals.filter { Self.stepId(ofRefusal: $0).map { !stepIds.contains($0) } ?? true },
                         id: \.self) { refusal in
                     Label(Self.words(for: refusal, title: store.title(ofJob:)), systemImage: "exclamationmark.triangle")
                         .font(.body)
                         .foregroundStyle(.orange)
                 }
-                // Steps that wait for a model already downloading (#5660): not a refusal, Start stays pressable.
-                ForEach(store.waitingForDownloads, id: \.self) { waiting in
+                // Steps that wait for a model already downloading (#5660): not a refusal, Start stays pressable. One that
+                // names a step sits in that step's box (#5840); the others are here.
+                ForEach(store.waitingForDownloads(notInSteps: Set((store.recipe?.steps ?? []).map(\.id))), id: \.self) { waiting in
                     Label(waiting, systemImage: "arrow.down.circle")
                         .font(.body)
                         .foregroundStyle(.secondary)
@@ -330,7 +331,8 @@ struct RecipeReadyFields: View {
 
     /// The boxes in order: the plan's steps numbered in run order, then the parts (`ReadySection`).
     private var sections: [ReadySection] {
-        ReadySection.order(steps: (store.recipe?.steps ?? []).map { (id: $0.id, title: store.title(of: $0)) })
+        ReadySection.order(steps: (store.recipe?.steps ?? []).map { (id: $0.id, title: store.title(of: $0)) },
+                           offersTraining: !store.trainOffers.isEmpty)
     }
 
     @ViewBuilder
@@ -345,6 +347,8 @@ struct RecipeReadyFields: View {
             }
         case .runsByItself:
             RecipeAutomaticFields(store: store)
+        case .trainOffer:
+            RecipeTrainOffersFields(store: store)
         case .start:
             if let recipe = store.recipe {
                 RecipeTakenOutRows(store: store, removed: recipe.removed ?? [])
@@ -427,17 +431,21 @@ struct RecipeStepRunLine: View {
                 Text("\(run.pages) pages · \(RecipeStartFields.cost(run.costUsd))")
                     .font(.callout).foregroundStyle(.secondary)
             }
-            ForEach(plan.refusals.filter { RecipeStartFields.job(ofRefusal: $0) == step.job }, id: \.self) { refusal in
+            ForEach(plan.refusals.filter { RecipeStartFields.stepId(ofRefusal: $0) == step.id }, id: \.self) { refusal in
                 Label(RecipeStartFields.words(for: refusal, title: store.title(ofJob:)), systemImage: "exclamationmark.triangle")
                     .font(.body).foregroundStyle(.orange)
+            }
+            ForEach(store.waitingForDownloads(inStep: step.id), id: \.self) { waiting in
+                Label(waiting, systemImage: "arrow.down.circle").font(.body).foregroundStyle(.secondary)
             }
         }
     }
 }
 
 extension RecipeStartFields {
-    /// The job a refusal names ("step 1 (find-regions): …"), or nil when it names none.
-    static func job(ofRefusal refusal: String) -> String? {
+    /// The step a refusal names, by id ("step 1 (find-regions): …": the recipe's check writes the step's id there), or
+    /// nil when it names none. Two steps of one job never share a refusal.
+    static func stepId(ofRefusal refusal: String) -> String? {
         guard refusal.hasPrefix("step "), let open = refusal.firstIndex(of: "("),
               let close = refusal.range(of: "):"), open < close.lowerBound else { return nil }
         return String(refusal[refusal.index(after: open)..<close.lowerBound])
