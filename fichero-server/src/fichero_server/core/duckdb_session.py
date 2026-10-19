@@ -22,6 +22,7 @@ import logging
 import os
 import tempfile
 import threading
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -151,39 +152,143 @@ def pin_utc_session(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnectio
     return conn
 
 
-# Per-connection buffer-pool cap (the 2026-08-22 Air OOM): DuckDB's default is
-# 80% OF PHYSICAL RAM PER DATABASE, and the app routinely holds 4+ open at
-# once (per-library packages + global + app.duckdb) — a structural overcommit
-# on any machine. Spills go to disk instead. Override for a beefy box via env.
+# The buffer-pool cap (the 2026-08-22 Air OOM): DuckDB's default is 80% OF PHYSICAL RAM PER DATABASE, and the
+# app routinely holds 4+ open at once (per-library packages + global + app.duckdb) -- a structural overcommit on any
+# machine. Spills go to disk instead. One app-wide budget, scaled to the Mac and shared by the open instances
+# (manager ruling 2026-10-19): a flat 1.5 GB each was up to 6 GB on a 16 GB Mac.
+#: With this set, it is the TOTAL budget (e.g. "4GB"), split the same way; it replaces the 10%-of-memory figure.
 DUCKDB_MEMORY_LIMIT_ENV = "FICHERO_DUCKDB_MEMORY_LIMIT"
-DEFAULT_DUCKDB_MEMORY_LIMIT = "1.5GB"
+#: The share of physical memory all open DuckDB instances may use between them.
+BUDGET_FRACTION = 0.10
+#: No instance gets less than this, so many open instances may together pass the budget; the floor wins.
+FLOOR_BYTES = 256 * 1024**2
+
+_UNITS = {"b": 1, "kb": 1000, "mb": 1000**2, "gb": 1000**3, "tb": 1000**4,
+          "kib": 1024, "mib": 1024**2, "gib": 1024**3, "tib": 1024**4}
 
 
-def apply_memory_limit(conn: duckdb.DuckDBPyConnection) -> duckdb.DuckDBPyConnection:
-    """Cap this connection's memory and point its spill at the temp dir.
+def parse_size(text: str) -> int:
+    """Bytes in a DuckDB size string ("1.5GB", "256 MiB", "512"); ValueError for anything else."""
+    import re
 
-    The cap IS the Air-OOM guard (2026-08-24): an uncapped DuckDB claims 80%
-    of RAM per open database. A cap that silently fails to apply is the
-    #4395 shape — a protection that reads as present and does nothing — so
-    an EXPLICIT limit that cannot be applied raises (the user asked for a
-    bound; running unbounded instead is a substitution). Only the DEFAULT
-    cap degrades to a loud warning, because refusing every connect on an
-    exotic DuckDB build would trade a memory risk for a broken app.
+    m = re.fullmatch(r"\s*([0-9]*\.?[0-9]+)\s*([a-zA-Z]*)\s*", text or "")
+    unit = (m.group(2) or "b").lower() if m else ""
+    if not m or unit not in _UNITS:
+        raise ValueError(f"not a memory size: {text!r}")
+    return int(float(m.group(1)) * _UNITS[unit])
+
+
+def physical_memory_bytes() -> int | None:
+    """This Mac's physical memory (a seam: tests fake it)."""
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError, AttributeError):
+        return None
+
+
+def total_budget_bytes() -> int:
+    """All open instances' budget together: the env override if set (raises, as an explicit bound must), else
+    BUDGET_FRACTION of physical memory (unknown memory: 16 GiB assumed)."""
+    explicit = os.environ.get(DUCKDB_MEMORY_LIMIT_ENV)
+    if explicit:
+        try:
+            return parse_size(explicit)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"{DUCKDB_MEMORY_LIMIT_ENV}={explicit!r} could not be applied -- "
+                f"refusing to run this connection unbounded: {exc}"
+            ) from exc
+    from fichero_server.llm.local_model_facts import GIB  # the one GiB (#5833); lazy: no import cost at startup
+
+    return int((physical_memory_bytes() or 16 * GIB) * BUDGET_FRACTION)
+
+
+def instance_limit_bytes(open_instances: int) -> int:
+    """What each of `open_instances` open databases may hold: its share of the budget, never under the floor."""
+    return max(FLOOR_BYTES, total_budget_bytes() // max(1, open_instances))
+
+
+def spill_directory() -> Path:
+    """Where big queries spill: this app's temp dir (inside the container when sandboxed), never a bare /tmp."""
+    tmp = Path(tempfile.gettempdir())
+    if tmp.resolve() in (Path("/tmp").resolve(), Path("/private/tmp")):
+        tmp = Path.home() / "Library" / "Caches" / "Fichero"
+    return tmp / "fichero-duckdb-spill"
+
+
+#: The open instances by file (connections to one file share an instance, and so its limit): key -> live
+#: connections. Weakly held where a connection allows it; a closed one is dropped when next looked at.
+_instances: dict[str, list[Any]] = {}
+_instances_lock = threading.Lock()
+
+
+def _live(ref: Any) -> Any:
+    conn = ref() if isinstance(ref, weakref.ReferenceType) else ref
+    if conn is None:
+        return None
+    try:  # on a cursor of its own: a connection is not for two threads, and another may be mid-query on this one
+        conn.cursor().execute("SELECT 1")
+    except Exception:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
+        return None
+    return conn
+
+
+def _rebalance() -> None:
+    """Give every open instance its share of the budget again (called as one opens). A close is seen at the next
+    open or rebalance; until then the others keep a smaller share than they could, which stays within the budget."""
+    with _instances_lock:
+        keepers: dict[str, Any] = {}
+        for key, refs in list(_instances.items()):
+            live = [r for r in refs if _live(r) is not None]
+            if live:
+                _instances[key] = live
+                keepers[key] = _live(live[0])
+            else:
+                del _instances[key]
+        limit = instance_limit_bytes(len(keepers))
+        for conn in keepers.values():
+            try:
+                conn.cursor().execute(f"SET memory_limit='{limit // 1024**2}MiB'")  # the instance's, whoever asks
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Could not re-apply the DuckDB memory limit: %s", exc)
+
+
+def rebalance_memory_limits() -> None:
+    """Re-apply the shares after an instance closed (callers that close a database may call this)."""
+    _rebalance()
+
+
+def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) -> duckdb.DuckDBPyConnection:
+    """Register this connection's instance, cap every open instance at its share of the budget, and point the
+    spill at the app temp dir.
+
+    The cap IS the Air-OOM guard (2026-08-24): an uncapped DuckDB claims 80% of RAM per open database. A cap that
+    silently fails to apply is the #4395 shape -- a protection that reads as present and does nothing -- so an
+    EXPLICIT limit (the env total) that cannot be applied raises (the user asked for a bound; running unbounded
+    instead is a substitution). Only the computed cap degrades to a loud warning, because refusing every connect on
+    an exotic DuckDB build would trade a memory risk for a broken app.
     """
     explicit = os.environ.get(DUCKDB_MEMORY_LIMIT_ENV)
-    limit = explicit or DEFAULT_DUCKDB_MEMORY_LIMIT
     try:
-        conn.execute(f"SET memory_limit='{limit}'")
-        conn.execute(
-            "SET temp_directory=?", [str(Path(tempfile.gettempdir()) / "fichero-duckdb-spill")]
-        )
+        spill = spill_directory()
+        spill.mkdir(parents=True, exist_ok=True)
+        conn.execute("SET temp_directory=?", [str(spill)])
+        try:
+            ref: Any = weakref.ref(conn)
+        except TypeError:  # ponytail: a connection that cannot be weakly held is held strongly until closed
+            ref = conn
+        with _instances_lock:
+            _instances.setdefault(key or f"memory:{id(conn)}", []).append(ref)
+        _rebalance()
+        if explicit:
+            total_budget_bytes()  # raises for an unparsable explicit value, before the connection is handed out
     except Exception as exc:  # pragma: no cover - setting unsupported
         if explicit:
             raise RuntimeError(
-                f"{DUCKDB_MEMORY_LIMIT_ENV}={explicit!r} could not be applied — "
+                f"{DUCKDB_MEMORY_LIMIT_ENV}={explicit!r} could not be applied -- "
                 f"refusing to run this connection unbounded: {exc}"
             ) from exc
-        logger.warning("Could not cap DuckDB memory (%s): %s", limit, exc)
+        logger.warning("Could not cap DuckDB memory: %s", exc)
     return conn
 
 
@@ -209,7 +314,7 @@ def connect_utc(database: Any = ":memory:", **kwargs: Any) -> duckdb.DuckDBPyCon
             first_open_lock = _first_open_locks.setdefault(key, threading.Lock())
         with first_open_lock:
             replaying = key not in _opened_in_this_process and wal_left_behind(key)
-            conn = apply_memory_limit(pin_utc_session(duckdb.connect(database, **kwargs)))
+            conn = apply_memory_limit(pin_utc_session(duckdb.connect(database, **kwargs)), key)
             _opened_in_this_process.add(key)
             if replaying:
                 rebuilt, failed = rebuild_secondary_indexes(conn)
