@@ -12,11 +12,6 @@ struct JobQuestionFields: View {
     @Bindable var store: RecipeSetupStore
     let job: String
 
-    static let entityKinds: [(id: String, title: String)] = [
-        ("people", "People"), ("places", "Places"), ("organisations", "Organisations"),
-        ("dates", "Dates"), ("things", "Things (objects, goods)"), ("events", "Events")
-    ]
-
     /// The languages a reading can be translated into from Set Up (a tag the engine resolves): the scholarly ones a
     /// colonial archive is read into.
     static let translationLanguages: [(tag: String, name: String)] = [
@@ -29,24 +24,16 @@ struct JobQuestionFields: View {
         case "find-names-tag-words":
             VStack(alignment: .leading, spacing: 4) {
                 Text("Which kinds of names").font(.headline)
-                // Wraps to the sheet's width: six fixed-size checkboxes in one row made the sheet
-                // wider than its window, cutting off the steps and Continue (#5624).
-                FlowLayout(spacing: 12) {
-                    ForEach(Self.entityKinds, id: \.id) { kind in
-                        Toggle(kind.title, isOn: Binding(
-                            get: { store.jobAnswers.entityKinds.contains(kind.id) },
-                            set: { isOn in
-                                if isOn {
-                                    store.jobAnswers.entityKinds.append(kind.id)
-                                } else {
-                                    store.jobAnswers.entityKinds.removeAll { $0 == kind.id }
-                                }
-                            }
-                        ))
-                        .setupCheckbox()
-                        .fixedSize()
-                    }
-                }
+                // Open-ended (#5805): every kind unless the person types some; chips from a sample try.
+                StageKindsField(
+                    question: store.stages.first { $0.id == "names" }?.questions.first { $0.key == "entity_kinds" }
+                        ?? .init(key: "entity_kinds", ask: "Which kinds of names", kind: .many, readByAStep: true,
+                                 openEnded: true),
+                    answer: Binding(
+                        get: { .many(store.jobAnswers.entityKinds) },
+                        set: { if case .many(let kinds)? = $0 { store.jobAnswers.entityKinds = kinds } }
+                    )
+                )
             }
         case "translate-transliterate-normalise":
             // Several at once (#5660 item 1): each level ticked is its own run writing that reading.
