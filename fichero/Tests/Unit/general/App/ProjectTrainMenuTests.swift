@@ -18,13 +18,13 @@ struct ProjectTrainMenuTests {
         )
     }
 
-    @Test("Train a Model… asks Set Up for its Train page; another stage still opens Ready; none, the first page")
+    @Test("Train a Model… asks Set Up, which opens Ready (where the plan offers training); none, the first page")
     func setUpOpensOnTrain() {
-        #expect(SetupStep.opening(requestedStage: SetupStep.trainStage) == .train)
+        #expect(SetupStep.opening(requestedStage: SetupStep.trainStage) == .ready)
         #expect(SetupStep.opening(requestedStage: "statements") == .ready)
         #expect(SetupStep.opening(requestedStage: nil) == nil)
-        // The Train page is in every project's Set Up, so the press always lands on it.
-        #expect(SetupStep.projectSteps(chosenStages: [], isNewProject: false).contains(.train))
+        // Training is not a Set Up step (#5804): Set Up never lists a Train page.
+        #expect(!SetupStep.projectSteps(chosenStages: [], isNewProject: false).map { $0.title() }.contains("Train"))
     }
 
     @Test("with no project, Train a Model… is off and says why")
@@ -61,7 +61,7 @@ struct ProjectTrainMenuTests {
         #expect(asked.count == 1)
         #expect(asked.first?.0 == project)
         #expect(asked.first?.1 == SetupStep.trainStage)
-        #expect(SetupStep.opening(requestedStage: asked.first?.1) == .train)
+        #expect(SetupStep.opening(requestedStage: asked.first?.1) == .ready)
         #expect(TrainModelMenuItem.title == "Train a Model…")
         #expect(MakeModelGlobalMenuItem.title == "Make Available in Every Project")
     }

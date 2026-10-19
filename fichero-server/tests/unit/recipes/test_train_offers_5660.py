@@ -90,7 +90,10 @@ def test_the_start_plan_carries_the_offers_counted_on_the_project(client, db, tm
     plan = client.get("/api/recipes/project/start")
     assert plan.status_code == 200, plan.text
     body = plan.json()
-    read = next(o for o in body["train_offers"] if o["job"] == "read-a-line")
+    assert body["train_offers"] == [], "below the threshold the plan shows no offer (#5804)"
+    from fichero_server.recipes.train_offers import _offers_now
+
+    read = next(o for o in _offers_now(db) if o["job"] == "read-a-line")
     assert read["readiness"]["lines"] == LINES_PER_PAGE and read["readiness"]["more_pages"] == 1
     assert read["readiness"]["more_lines"] == TRAIN_OFFERED_FROM_LINES - LINES_PER_PAGE
     assert all(r.get("job") != "train-a-model" for r in body["runs"])

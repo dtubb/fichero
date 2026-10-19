@@ -32,14 +32,6 @@ extension FirstRunWindow {
             materialPage(step, store: store)
         case .stages, .stage:
             stagePage(step, store: store)
-        case .train:
-            stepPage(
-                title: "Train",
-                subtitle: "Teach Fichero your hand. Once you have corrected some pages, it can train a model of your own, here or elsewhere.",
-                systemImage: step.icon
-            ) {
-                recipeCard(step) { RecipeTrainOffersFields(store: store) }
-            }
         default:
             stepPage(
                 title: "Ready",
@@ -54,6 +46,12 @@ extension FirstRunWindow {
                         keptExports: project?.keptExportStore,
                         project: project
                     )
+                    // Training is offered once there is enough corrected work, never before (#5804): no row, no count.
+                    if !store.trainOffers(forJobs: nil).isEmpty {
+                        Divider()
+                        Text("Train a model of your own").font(.headline)
+                        RecipeTrainOffersFields(store: store)
+                    }
                 }
             }
         }

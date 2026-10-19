@@ -103,9 +103,9 @@ struct SetupFourStepsTests {
     @Test("a new project's setup: your project, add material, about the material, the stages, Train, Ready")
     func setupIsSmallPages() {
         let setup = SetupStep.projectSteps(chosenStages: [], isNewProject: true)
-        #expect(setup == [.project, .addMaterial, .aboutMaterial, .stages, .train, .ready])
+        #expect(setup == [.project, .addMaterial, .aboutMaterial, .stages, .ready])
         #expect(setup.map { $0.title() }
-                == ["Your Project", "Add Material", "About the Material", "Choose the Stages", "Train", "Ready"])
+                == ["Your Project", "Add Material", "About the Material", "Choose the Stages", "Ready"])
     }
 
     /// WHY (section 7b, kept in 7d): Set Up… on an existing project starts at Add material, because the project

@@ -183,6 +183,15 @@ struct SetupStageTryResult: Decodable, Equatable {
 
     private static let underWay: Set<String> = ["waiting", "running"]
 
+    /// What a try under way says beside its spinner: the engine's reason for the wait (a run held behind the imported
+    /// pages names what it waits for, #5818), else a plain line; nil when it is not under way. A spinner alone read as
+    /// "nothing happens".
+    var underWayWords: String? {
+        guard isUnderWay else { return nil }
+        let reason = comparison?.reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return reason.isEmpty ? "Working on it. Activity shows where it is." : reason
+    }
+
     /// Why the try failed, in the engine's words, or nil when it did not: the stage's error, else the comparison's reason,
     /// else a plain sentence (a failed try is never blank).
     var failure: String? {

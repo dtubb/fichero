@@ -105,7 +105,7 @@ enum SetupPreviewFixtures {
 }
 
 #Preview("10 Train") {
-    SetupPreviewFixtures.page(FirstRunWindow(mode: .setUp, project: SetupPreviewFixtures.project, initialStep: .train))
+    SetupPreviewFixtures.page(FirstRunWindow(mode: .setUp, project: SetupPreviewFixtures.project, initialStep: .ready))
 }
 
 #Preview("11 Ready") {

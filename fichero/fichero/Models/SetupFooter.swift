@@ -53,9 +53,6 @@ struct SetupFooter: Equatable {
         case .stage:
             primary = Choice(title: "Continue", action: .advance)
             leading = Choice(title: "Skip This Stage", action: .skip)
-        case .train:
-            primary = Choice(title: "Continue", action: .advance)
-            leading = Choice(title: "Not Now", action: .skip)
         case .ready:
             primary = Choice(title: "Start", action: .start)
         case .addMaterial:

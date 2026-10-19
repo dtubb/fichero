@@ -77,3 +77,9 @@ extension RecipeSetupStore {
         return nil
     }
 }
+
+extension Components.Schemas.TrainWay {
+    /// One way of an offer, by what it is: a method has more than one (Kraken fine-tunes and distils), so the method
+    /// alone made two rows one (the first drawn twice, #5804).
+    var wayKey: String { "\(method)/\(how)" }
+}

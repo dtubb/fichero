@@ -89,7 +89,7 @@ struct RecipeSetupFlowTests {
     @Test("Set Up… starts at Add material, then the stages, and ends at Train and Ready")
     @MainActor func screensInOrder() {
         let setUp = SetupStep.projectSteps(chosenStages: ["read"], isNewProject: false)
-        #expect(setUp == [.addMaterial, .aboutMaterial, .stages, .stage("read"), .train, .ready])
+        #expect(setUp == [.addMaterial, .aboutMaterial, .stages, .stage("read"), .ready])
         var walked = [setUp[0]]
         while walked.last != .ready { walked.append(walked.last!.next(in: setUp)) }
         #expect(walked == setUp, "Continue walks the steps in order and stops at Ready")
@@ -104,7 +104,7 @@ struct RecipeSetupFlowTests {
     func everyScreenBeforeStartKeepsADraft() async {
         let store = RecipeSetupStore(client: makeClient { _ in (200, #"{"answers":{},"recipe":null}"#) })
         let draftScreens = SetupStep.projectSteps(chosenStages: ["read"], isNewProject: true).filter(\.savesDraft)
-        #expect(draftScreens == [.addMaterial, .aboutMaterial, .stages, .stage("read"), .train],
+        #expect(draftScreens == [.addMaterial, .aboutMaterial, .stages, .stage("read")],
                 "every step after Your project but Ready saves on Continue")
         #expect(!SetupStep.ready.savesDraft && !SetupStep.project.savesDraft)
         for _ in draftScreens { #expect(await store.save()) }
