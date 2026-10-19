@@ -145,6 +145,20 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     var ownJobId: String?
     /// What the engine offers on the row (#5615): "Resume" on a job set aside after its interruptions.
     var offer: String?
+    /// Where a waiting job of its own stands in the engine's list, which is the order the lane will pick them (#5839).
+    var queuePosition: Int?
+
+    // MARK: - Waiting looks like waiting (#5839)
+
+    /// Not started yet, whatever the run's own word: a waiting row, or a running run with nothing done whose work is waiting (for the
+    /// model lane, for memory) or a job the engine says "Waiting ..." for. It shows no spinner, no progress and no
+    /// ticking timer, only a grey "Waiting: <reason>".
+    var looksWaiting: Bool {
+        if phase == .waiting { return true }
+        guard phase == .running else { return false }
+        if done == 0, let waiting = account?.waitingReason, !waiting.isEmpty { return true }  // one page done: it is running
+        return kind == .job && (reason ?? "").hasPrefix("Waiting")
+    }
 
     // MARK: - Icons (#5560)
 
@@ -206,7 +220,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         }
         // A running run whose page waits (for memory, #5537) says what for.
         if phase == .running, let waiting = account?.waitingReason, !waiting.isEmpty {
-            return waiting
+            return waiting.hasPrefix("Waiting") ? waiting : "Waiting: \(waiting)"
         }
         if let reason, !reason.isEmpty, phase == .failed || phase == .waiting || phase == .paused {
             if reason.lowercased().hasPrefix(phase.word.lowercased()) || reason.hasPrefix("Paused") {
@@ -266,7 +280,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
 
     /// "12 of 40", plus "about 3 min left" while it runs.
     var progressText: String {
-        guard total > 0 else { return "" }
+        guard total > 0, !looksWaiting else { return "" }
         let counts = "\(done) of \(total)"
         guard let remaining = remainingSeconds else { return counts }
         return "\(counts), \(Self.duration(remaining)) left"
@@ -282,7 +296,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         return tokens > 0 ? "Not priced" : ""
     }
 
-    var secondsText: String { seconds.map(Self.duration) ?? "" }
+    var secondsText: String { looksWaiting ? "" : (seconds.map(Self.duration) ?? "") }
 
     var errorsText: String { errors > 0 ? "\(errors)" : "" }
 
@@ -310,6 +324,10 @@ struct ActivityMonitorRow: Identifiable, Equatable {
     /// Live rows first: the default order is what is happening now, then the newest.
     var liveKey: Int { phase.isLive ? 0 : 1 }
     var phaseKey: Int { phase.rawValue }
+    /// Running work before waiting work, and waiting work in the order the lane picks it (#5839).
+    var waitingKey: Int { looksWaiting ? 1 : 0 }
+    var queueKey: Int { queuePosition ?? Int.max }
+    var waitingStartedKey: Date { looksWaiting ? (started ?? .distantFuture) : .distantPast }
     var startedKey: Date { started ?? .distantPast }
     var secondsKey: Double { seconds ?? -1 }
     var costKey: Double { costUsd ?? -1 }
@@ -318,6 +336,9 @@ struct ActivityMonitorRow: Identifiable, Equatable {
 
     static let defaultSort: [KeyPathComparator<ActivityMonitorRow>] = [
         KeyPathComparator(\.liveKey),
+        KeyPathComparator(\.waitingKey),
+        KeyPathComparator(\.queueKey),
+        KeyPathComparator(\.waitingStartedKey),
         KeyPathComparator(\.startedKey, order: .reverse)
     ]
 
@@ -493,9 +514,15 @@ extension ActivityMonitorRow {
         jobs: [ActivityJob]
     ) -> Group {
         let runIds = Set(runRows.compactMap(\.runThreadId))
+        // The engine lists waiting jobs in the order the lane will pick them; the table keeps that order (#5839).
         let jobRows = jobs
             .filter { $0.parentId == nil && !runIds.contains($0.id) && !runKinds.contains($0.taskType) }
-            .map { job($0, libraryId: libraryId, projectName: libraryName) }
+            .enumerated()
+            .map { index, listed -> ActivityMonitorRow in
+                var row = job(listed, libraryId: libraryId, projectName: libraryName)
+                row.queuePosition = index
+                return row
+            }
         return Group(
             id: libraryId.uuidString,
             title: isMac ? "This Mac" : libraryName,
