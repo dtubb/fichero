@@ -11,6 +11,7 @@ its proposed jobs away. Everything goes through the real routes.
 """
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -201,12 +202,21 @@ def test_the_plan_says_which_layers_can_be_added_now(client, project):
     assert "entities" not in after and set(after) < set(before)
 
 
-def test_swapping_the_reader_after_start_queues_no_run_over_the_pages_already_there(client, project):
-    """`source.onboard.rerun-rewrites-nothing` (#4951): a model swap is a default for new work. Start after it queues
-    nothing more for the pages the first Start already took, and the saved recipe says the new reader."""
+def test_swapping_the_reader_after_start_rewrites_nothing_and_a_new_page_gets_the_new_reader(client, db, project):
+    """`source.onboard.rerun-rewrites-nothing` (#4951): a model swap is a default for new work. Start again after it
+    may queue a run, but one that asks for no `redo`, so at run time every page that has a step's output is split off
+    (`source.recipe.done-is-not-redone`, `runner._run_batch`); nothing already made changes. A page imported after
+    the swap is queued, as an import run over that page alone, with the new reader (the control: a queue that took
+    nothing would pass the first half too)."""
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import runner
+    from tests.unit.recipes.test_setup_rewrites_nothing_on_a_read_library_4951 import _everything
+    from tests.unit.recipes.test_unread_lines_not_read_5758 import _page
+
+    _page(db, lines=3, read=2)
     _start(client)
-    before = _runs(client)
-    swapped = {"zenodo": "10.5281/zenodo.99"}
+    before, made = _runs(client), _everything(db)
+    swapped = {"hf": "mlx-community/swapped-vlm-4bit", "revision": "main"}  # a pin the plan can run: an MLX build
     saved = client.get("/api/recipes/project").json()
     for step in saved["recipe"]["steps"]:
         if step["job"] == "read-a-line":
@@ -214,6 +224,17 @@ def test_swapping_the_reader_after_start_queues_no_run_over_the_pages_already_th
     r = client.put("/api/recipes/project", json={"answers": saved["answers"], "recipe": saved["recipe"]})
     assert r.status_code == 200, r.text
     _start(client)
-    assert _runs(client) == before
+    for run in _runs(client)[: len(_runs(client)) - len(before)]:  # the runs the second Start queued
+        assert json.loads(jobs.read_job(db, run["job_id"])["detail"])["redo"] == []
+    assert _everything(db) == made
     again = client.get("/api/recipes/project").json()["recipe"]
     assert next(s for s in again["steps"] if s["job"] == "read-a-line")["model"] == swapped
+
+    arrived = Document(name="arrived.jpg", doc_type=DocType.file)
+    db.save(arrived)
+    count = len(_runs(client))
+    job_id = runner.material_arrived(db, [arrived.id])
+    assert job_id and len(_runs(client)) == count + 1
+    newest = _runs(client)[0]
+    assert newest["started_by"] == "import" and newest["documents"] == [arrived.id]
+    assert "mlx-community/swapped-vlm-4bit" in str(jobs.read_job(db, job_id)), "the new page is read with the swapped reader"
