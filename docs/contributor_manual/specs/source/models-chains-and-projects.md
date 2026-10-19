@@ -1425,6 +1425,9 @@ section disagree, this section holds; 7c's stage pages, samples and engine run s
   runs, then a hand-off to Set Up a Project or to the app.
 - **Set Up a Project**: one view, the same from every way in: the welcome's Set Up a New Project…, File ›
   Set Up New Project… and Project › Set Up…. There is never a second copy of it.
+- **Library-scoped loads wait for their library** (#5822): the sidebar's automation and activity loads ask only
+  libraries the engine has loaded (`librariesReadyToLoad`); before that they show nothing, not an error, and they run
+  again when a library loads. After it loads, a real error still shows with Retry.
 - **Fichero › Set Up Fichero… reaches the key window** (#5821): the menu item runs on the window that is key, which
   becomes the front one and presents the welcome (`FirstRunWindow(.firstRun)`), whatever its project holds; the request
   clears when the welcome closes. It never relies on which project was last opened.
