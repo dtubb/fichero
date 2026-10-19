@@ -1244,6 +1244,13 @@ and node, not by job); a retry action for failed pages.
   queued job can be marked watched, and goes first in its lane at utility QoS; a person's own small change marks its
   synced-folder rewrite so (`fichero-server/tests/unit/jobs/test_synced_folder.py`). Still a gap: other work a person
   waits for that is not handed in (an opened page).
+- `activity.throttle.person-started-first` — **[BUILT]** (#5820) on a shared lane the order is: work a person
+  started (a run, a try, a Start; any starter but the engine, a synced folder or a kept export), then work marked
+  watched, then background work (embedding, derivatives, indexing). A queued person-started job never waits behind
+  queued background work; behind a RUNNING background job it waits only for that one item (a job is one page's
+  embed), then it is the next pick, before the background work queued after it; background work resumes after.
+  Its waiting line names the holder ("Waiting for the model lane: Embed for search is running")
+  (`fichero-server/tests/unit/jobs/test_person_started_work_goes_first_5820.py`).
 - `activity.throttle.hand-started-waits-for-memory-and-heat` — **[PARTIAL]** (#5358) a run a person
   started by hand waits only for memory and heat, never for battery or for the person being at
   the Mac, and its row says which it waits for. Built: a page a person waits for is held only by
