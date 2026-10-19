@@ -1379,6 +1379,16 @@ and node, not by job); a retry action for failed pages.
   `VNRecognizeTextRequest` per page carries the lines and the words (a per-line Apple read is a different feature, and gap
   escalation adds a request only for a band Vision missed)
   (`fichero-server/tests/unit/workflows/test_apple_vision_runs_beside_kraken.py`; the job lane already runs a Vision page beside a Kraken page, `tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py`).
+- `activity.reconnects-after-engine-restart` — **[PARTIAL]** (owner, 2026-10-19 20:14, P1: Activity could not load after Sharing was
+  turned on; `briefs/activity-after-sharing-restart-2026-10-19.md`) after the engine restarts, Activity loads again without the
+  person doing anything: a jobs read that finds the engine not there (a `URLError`, or the socket layer's `NIOCore.IOError`,
+  "error 1") says so in the footer in words ("Couldn't load activity: the engine could not be reached"), never the raw socket
+  text; reads again after 2, 4, 8, 16, then every 30 s; and when one answers, the footer line clears and the run list is
+  read again (`ActivityStore.jobsPollFailed` / `jobsPollSucceeded`, the window reloads on `refreshToken`)
+  (`fichero/Tests/Unit/general/Models/ActivityReconnectTests.swift`; needs compile). NOT shown to be the cause: why the
+  requests never reached the engine at all (the log has none after the restart); this makes the app keep trying and say so, it does
+  not explain an `EPERM` on a stale or sandboxed dial. Open: should turning Sharing on restart the engine (its graceful shutdown
+  timed out and cancelled work in flight)? That is the owner's call.
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
