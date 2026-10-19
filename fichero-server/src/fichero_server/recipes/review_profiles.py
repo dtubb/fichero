@@ -78,7 +78,9 @@ def keep_lenses(nodes: list[dict[str, Any]], edges: list[dict[str, Any]],
                 lenses: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """A review workflow with only `lenses` on (#5723): a pass through several lenses keeps those on; a pass whose
     lens is off leaves, and what fed its `context` feeds the pass after it; a node that fed only passes that left
-    goes too. Unchanged when every lens of the workflow is on."""
+    goes too. Unchanged when every lens of the workflow is on. ponytail: it assumes today's chain shape, each pass
+    taking the one before through `context` and giving `records`, and rewires only those two ports; a preset that
+    chains its passes another way needs its own rule here."""
     on = set(lenses)
     kept, gone = [], set()
     for node in nodes:
