@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Project › Train (#5652 slice 1, `menus.context-matches-bar`)
 
-// Train a Model… opens the project's Set Up on its Train page (`SetupStep.train`: the Start plan's train offers,
+// Train a Model… opens the project's Set Up on Ready (training is not a step, #5804; the Start plan's train offers,
 // `RecipeTrainOffersFields`); no new flow. A trained model's verb, Make Available in Every Project, is ONE item that
 // Project › Train, the Models node's row menu and the model's Inspector all render, on the one target `make(…)`
 // builds over `TrainedModelsStore.makeAvailableEverywhere`.

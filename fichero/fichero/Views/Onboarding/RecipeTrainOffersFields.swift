@@ -27,7 +27,7 @@ struct RecipeTrainOffersFields: View {
             ForEach(store.trainOffers(forJobs: onlyJobs), id: \.step) { offer in
                 VStack(alignment: .leading, spacing: 8) {
                     Text(store.title(ofStepId: offer.step)).font(.subheadline.weight(.semibold))
-                    ForEach(offer.ways, id: \.method) { way in
+                    ForEach(offer.ways, id: \.wayKey) { way in
                         wayRow(offer, way)
                     }
                 }
@@ -49,7 +49,7 @@ struct RecipeTrainOffersFields: View {
     }
 
     private func key(_ offer: RecipeSetupStore.TrainOffer, _ way: RecipeSetupStore.TrainWay) -> String {
-        "\(offer.step)/\(way.method)"
+        "\(offer.step)/\(way.wayKey)"
     }
 
     private func start(_ pending: Pending, pagesMayLeave: Bool) {

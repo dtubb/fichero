@@ -73,7 +73,7 @@ struct SetupStagesTests {
         #expect(choice.chosenInOrder == ["find-lines", "read", "names", "dates"])
         #expect(SetupStep.projectSteps(chosenStages: choice.chosenInOrder, isNewProject: false)
                 == [.addMaterial, .aboutMaterial, .stages, .stage("find-lines"), .stage("read"), .stage("names"),
-                    .stage("dates"), .train, .ready])
+                    .stage("dates"), .ready])
     }
 
     @Test("source.onboard.stages.goals-are-shortcuts: a goal ticks its stages; a stage unticked afterwards stays so")

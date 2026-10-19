@@ -57,13 +57,6 @@ struct SetupStagePage: View {
                     )
                 }
             }
-            // Train or fine-tune a model of the project's own for this stage's steps (Kraken, spaCy, Core ML, MLX
-            // LoRA), where the engine offers it (`source.onboard.stages.page-trains`); offered, never run at Start.
-            if !store.trainOffers(forJobs: Set(stage.jobs)).isEmpty {
-                Divider()
-                Text("Train your own").font(.headline)
-                RecipeTrainOffersFields(store: store, onlyJobs: Set(stage.jobs))
-            }
             if stage.sampleable, let tryStore {
                 Divider()
                 // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
