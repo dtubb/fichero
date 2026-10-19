@@ -8,6 +8,16 @@ extension RecipeSetupStore {
     /// (Your Material's Continue waits for it, #5813).
     var hasMaterial: Bool { materialAdded != nil || (countedPages ?? 0) > 0 }
 
+    /// What a "no material yet" refusal says while this Set Up has already added something: the engine counts no page
+    /// until the import lands, so the person is told the pages are on their way, not that there are none (review 208).
+    static let pagesStillComingIn = "Your pages are still coming in; the plan follows when they have landed."
+
+    /// The engine's refusal sentence, or `pagesStillComingIn` when it is the no-material one and material was added.
+    func refusalWords(_ detail: String?, fallback: String) -> String {
+        guard let detail else { return fallback }
+        return materialAdded != nil && detail.contains("has no material yet") ? Self.pagesStillComingIn : detail
+    }
+
     /// Import a folder into the project the way setup chose (link, copy, move
     /// or index), through the project's own import path. Importing is not
     /// Start: no recipe step runs on it. With Index, the folder is then tied
