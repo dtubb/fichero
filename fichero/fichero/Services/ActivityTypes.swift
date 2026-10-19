@@ -249,6 +249,9 @@ struct ActivityJob: Identifiable, Equatable {
     let failedAt: Date?
     /// A run sent to a cluster or Hugging Face Jobs (`activity.remote-under-its-step`): the row says where, how far.
     let remote: Remote?
+    /// The engine put this row in History (`group` is "earlier"): a run that ended, was stopped or was interrupted
+    /// (`activity.window.history-group`, #5851). A live row, a queue beside it, is false.
+    let isEarlier: Bool
 
     struct Remote: Equatable {
         let target: String
@@ -276,6 +279,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.remote = job.remote.map {
             Remote(target: $0.target ?? "", farState: $0.farState, shards: $0.shards, pagesLanded: $0.pagesLanded ?? 0)
         }
+        self.isEarlier = job.group?.rawValue == "earlier"
     }
 
     /// Test/preview seam — construct without the generated schema.
@@ -293,7 +297,8 @@ struct ActivityJob: Identifiable, Equatable {
         offer: String? = nil,
         runId: String? = nil,
         failedAt: Date? = nil,
-        remote: Remote? = nil
+        remote: Remote? = nil,
+        isEarlier: Bool = false
     ) {
         self.id = id
         self.taskType = taskType
@@ -309,6 +314,7 @@ struct ActivityJob: Identifiable, Equatable {
         self.runId = runId
         self.failedAt = failedAt
         self.remote = remote
+        self.isEarlier = isEarlier
     }
 
     /// A determinate bar is only meaningful once the backend knows the total.
@@ -334,6 +340,9 @@ struct BackgroundJobsSnapshot: Equatable {
     var mode: ActivityMode = .automatic
     /// This Mac's state as the engine's throttle reads it (`activity.popover.summary`).
     var machine: Components.Schemas.MachineState?
+    /// The engine's one summary of the live blocks, the background group and History
+    /// (`activity.popover.same-summary`, #5852): the window and the popover both read it.
+    var activity: Components.Schemas.ActivitySummary?
 }
 
 /// How background work runs on this Mac (`activity.mode.start-stop`, #5621):
