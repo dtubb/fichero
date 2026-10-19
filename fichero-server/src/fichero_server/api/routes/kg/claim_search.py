@@ -177,20 +177,16 @@ async def find_similar_claims(
 ) -> KGGraphListResponse:
     """Find claims similar to a given claim (excludes the claim itself)."""
     # The database and LanceDB reads run in a thread (#5843): they wait on the transaction gate and the lancedb import.
+    # A GET never runs a model (`activity.read.get-runs-no-model`): the claim's own STORED vector is the probe.
     def prepare():
         found = db.get(KnowledgeClaim, claim_id)
-        return found, found is not None and KG_CLAIM_EMBEDDINGS_TABLE in db._lance_tables()
+        return found, (db.stored_vector(KG_CLAIM_EMBEDDINGS_TABLE, claim_id) if found is not None else None)
 
-    claim, embedded = await asyncio.to_thread(prepare)
+    claim, query_vector = await asyncio.to_thread(prepare)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    if not embedded:
-        raise HTTPException(status_code=503, detail="Claims not embedded yet.")
-
-    try:
-        query_vector = await db._embed_text_async(claim.text, role="passage")  # type: ignore[attr-defined]
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Embedding failed: {exc}") from exc
+    if query_vector is None:
+        raise HTTPException(status_code=503, detail="This claim isn't embedded yet.")
 
     def search():
         found = [r for r in db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit + 1)
