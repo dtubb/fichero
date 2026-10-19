@@ -69,10 +69,11 @@ def memory_available_bytes() -> int | None:
 
 
 def heavy_work_need_bytes() -> int:
-    """What heavy local work needs free to start: Kraken's measured floor (#4987), the one number."""
-    from fichero_server.llm.kraken_runtime import _kraken_memory_need_bytes
+    """What heavy local work needs free to start: Kraken's measured floor (#4987), the one number; the small working
+    need alone while Kraken's models are already resident (`kraken_need_bytes`)."""
+    from fichero_server.llm.kraken_runtime import kraken_need_bytes
 
-    return _kraken_memory_need_bytes()
+    return kraken_need_bytes()
 
 
 def _two_amounts_that_differ(need: int, free: int) -> tuple[str, str]:

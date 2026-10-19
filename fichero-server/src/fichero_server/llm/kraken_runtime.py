@@ -65,6 +65,7 @@ from __future__ import annotations
 import ctypes
 import re
 import ctypes.util
+import contextlib
 import functools
 import importlib
 import importlib.metadata
@@ -75,6 +76,7 @@ import warnings
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable, TypeVar
 
@@ -451,6 +453,27 @@ def _kraken_memory_need_bytes() -> int:
     return _DEFAULT_KRAKEN_MEMORY_NEED_BYTES
 
 
+#: What a page needs free while its models are already in memory: the page's own image, segmentation maps and line
+#: crops (`_PAGE_BYTES` is the budget for a page read at once, this is the floor to START one). The cold figure
+#: (`_kraken_memory_need_bytes`) also pays to load blla and the reader; a resident page does not. Provisional,
+#: measured nowhere yet: the per-page log line (`kraken page ...`) and the benchmark will say if it is wrong.
+_RESIDENT_WORKING_NEED_BYTES = 768 * 1024**2
+
+
+def kraken_models_resident() -> bool:
+    """Whether Kraken's models (the line finder or a reader) are in memory now: the next page does not load them."""
+    return bool(_RESIDENT)
+
+
+def kraken_need_bytes() -> int:
+    """What the next Kraken page needs free to start: the working need alone when its models are already resident, the
+    cold-load figure (`_kraken_memory_need_bytes`, 2.5 GB) otherwise. THE number for the page guard, the lane's
+    throttle (`throttle.heavy_work_need_bytes`) and the reader's batch size: a resident page asked for 2.5 GB free
+    waited 5 s per page on a Mac that had room (the speed review, 2026-10-19)."""
+    cold = _kraken_memory_need_bytes()
+    return min(cold, _RESIDENT_WORKING_NEED_BYTES) if kraken_models_resident() else cold
+
+
 def _available_memory_bytes(
     *,
     free_percent: Callable[[], int | None] | None = None,
@@ -606,7 +629,7 @@ def assert_memory_available_for_kraken(
     from fichero_server.execution.throttle import memory_short
 
     reason = memory_short(available_bytes=available_bytes or _available_memory_bytes,
-                          pressure_level=pressure_level or _memory_pressure_level)
+                          pressure_level=pressure_level or _memory_pressure_level, need_bytes=kraken_need_bytes())
     if reason is not None:
         raise KrakenMemoryUnavailableError(
             f"{reason}. Close other apps, or wait for other work to finish; a queued job waits on its own.")
@@ -711,6 +734,22 @@ def quiet_coreml_warning() -> None:
     warnings.filterwarnings("ignore", message=r".*run predict\(\) on this Core ML model.*")
 
 
+#: macOS QoS class per priority (`core/background_compute`): what the page's thread ran at.
+_QOS = {"fast": "user-initiated", "balanced": "utility", "background": "background"}
+
+
+def _log_page(total: float) -> None:
+    """One INFO line per page: what each stage took and the priority it ran at (the speed review, 2026-10-19)."""
+    def secs(name: str) -> str:
+        return f"{float(_PAGE.get(name, 0.0)):.1f}s"
+
+    priority = str(_PAGE.get("priority", "?"))
+    logger.info("kraken page %s: load %s segment %s recognise %s total %.1fs | priority=%s qos=%s threads=%s "
+                "person=%s throttle=%s", _PAGE.get("name", "?"), secs("load"), secs("segment"), secs("recognise"),
+                total, priority, _QOS.get(priority, "?"), _PAGE.get("threads", "?"),
+                "yes" if _PAGE.get("person") else "no", _PAGE.get("throttle", "?"))
+
+
 def _kraken_call(op: Callable[[], _T]) -> _T:
     """Run one Kraken operation in-process, one at a time, off the main
     thread (callers already dispatch through `asyncio.to_thread`, same as
@@ -752,7 +791,11 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
 
             from fichero_server.core.compute_preferences import priority_for
 
-            threads = apply_to_this_thread(priority_for(person))
+            from fichero_server.execution.throttle import decide
+
+            priority = priority_for(person)
+            threads = apply_to_this_thread(priority)
+            _PAGE.update(priority=priority, threads=threads, person=person, throttle=decide(person).action)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
             bound_native_thread_pools(threads)
@@ -772,11 +815,15 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
                 # worse than an unthrottled page, but nothing else may be
                 # hidden here.
                 logger.warning("could not cap torch threads for kraken", exc_info=True)
-            outcome.append((True, op()))
+            began = time.perf_counter()
+            result = op()
+            _log_page(time.perf_counter() - began)
+            outcome.append((True, result))
         except BaseException as exc:  # noqa: BLE001 — re-raised on the caller's thread
             outcome.append((False, exc))
 
     with _INFERENCE_LOCK:
+        _PAGE.clear()
         worker = threading.Thread(target=_throttled, name="kraken-inference", daemon=True)
         worker.start()
         worker.join()
@@ -841,10 +888,13 @@ def _segment_raw(image_path: str | Path, direction: str | None = None) -> dict[s
     from PIL import Image
     from kraken import blla
 
+    _page_is(image_path)
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
-        segmentation = blla.segment(image, model=_segmenter(), **text_direction(direction))
+        model = _segmenter()
+        with _stage("segment"):
+            segmentation = blla.segment(image, model=model, **text_direction(direction))
         width, height = image.width, image.height
     return {"width": width, "height": height, "lines": _raw_lines(segmentation),
             "regions": _raw_regions(segmentation)}
@@ -858,6 +908,25 @@ def _segment_raw(image_path: str | Path, direction: str | None = None) -> dict[s
 _RESIDENT: dict[str, tuple[str, object]] = {}
 
 
+#: The page being read: its name, what each stage took (seconds) and the priority it ran at. Touched only inside
+#: `_kraken_call`'s lock (one page at a time), logged as one line when the page ends.
+_PAGE: dict[str, object] = {}
+
+
+@contextlib.contextmanager
+def _stage(name: str):
+    """Add the time spent in this stage to the page being read (`load`, `segment`, `recognise`)."""
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        _PAGE[name] = float(_PAGE.get(name, 0.0)) + time.perf_counter() - start  # type: ignore[arg-type]
+
+
+def _page_is(image_path: str | Path) -> None:
+    _PAGE["name"] = Path(str(image_path)).name
+
+
 def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
     held = _RESIDENT.get(kind)
     if held is not None and held[0] == key:
@@ -866,7 +935,8 @@ def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
     # One line per load, countable with the unloads (`model-lane:`), so a reload per page shows (#5846).
     logger.info("model-lane: load kraken %s %s (%s)", kind, key,
                 "replacing the one held" if held is not None else "none held")
-    model = load()
+    with _stage("load"):
+        model = load()
     _RESIDENT[kind] = (key, model)
     return model
 
@@ -917,19 +987,26 @@ def _release_if_idle() -> None:
 #: The most lines the reader sends through the network at once, however much memory there is, and what one line
 #: of a batch is budgeted at (a line crop through the recogniser, measured nowhere yet: a deliberately large guess).
 _MAX_READER_BATCH = 16
+_MIN_READER_BATCH = 8
 _BATCH_LINE_BYTES = 256 * 1024**2
 
 
 def reader_batch_size() -> int:
     """How many lines the reader sends through at once, from what this Mac can hand out now (#5758: a page of
-    handwriting took the engine to 18.2 GB on a 16 GB Mac). One line a time when the memory is not known or the
-    model alone leaves little: slower, never swapping. Beyond the model's own need (`_kraken_memory_need_bytes`)
-    each `_BATCH_LINE_BYTES` buys a line, up to `_MAX_READER_BATCH`."""
+    handwriting took the engine to 18.2 GB on a 16 GB Mac). One line a time when the memory is not known; beyond the
+    page's need (`kraken_need_bytes`) each `_BATCH_LINE_BYTES` buys a line, up to `_MAX_READER_BATCH`. While memory is
+    not actually short (enough free, pressure below critical) the batch is at least `_MIN_READER_BATCH`: the per-line
+    figure is a guess measured nowhere, and a 30-line page read 2 lines at a time ran the reader 15 times."""
     available = _available_memory_bytes()
     if available is None:
         return 1
-    spare = available - _kraken_memory_need_bytes()
-    return max(1, min(_MAX_READER_BATCH, spare // _BATCH_LINE_BYTES))
+    need = kraken_need_bytes()
+    batch = max(1, min(_MAX_READER_BATCH, (available - need) // _BATCH_LINE_BYTES))
+    from fichero_server.execution.throttle import memory_short
+
+    if memory_short(available_bytes=lambda: available, pressure_level=_memory_pressure_level, need_bytes=need) is None:
+        return max(_MIN_READER_BATCH, batch)
+    return batch
 
 
 #: What each page read at once holds beyond the model: its image, the segmenter's maps, the lines' crops (measured
@@ -943,7 +1020,7 @@ def page_fan_out(cap: int) -> int:
     available = _available_memory_bytes()
     if available is None:
         return 1
-    return max(1, min(cap, (available - _kraken_memory_need_bytes()) // _PAGE_BYTES))
+    return max(1, min(cap, (available - kraken_need_bytes()) // _PAGE_BYTES))
 
 
 def _reader_config(config_cls: Callable[..., object]) -> object:
@@ -983,17 +1060,21 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
     from kraken.configs import RecognitionInferenceConfig
     from kraken.tasks import RecognitionTaskModel
 
+    _page_is(image_path)
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
-        segmentation = blla.segment(image, model=_segmenter(), **text_direction(direction))
+        model = _segmenter()
+        with _stage("segment"):
+            segmentation = blla.segment(image, model=model, **text_direction(direction))
         # Kraken 7's recognition task: it loads both a .mlmodel and a .safetensors reader (the
         # format of Kraken 7 models such as PP-OCRv6), where the old load_any read only .mlmodel.
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
         net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
-        predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+        with _stage("recognise"):
+            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
         width, height = image.width, image.height
     lines = _raw_lines(segmentation)
     for index, line in enumerate(lines):
@@ -1051,6 +1132,7 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
     from kraken.tasks import RecognitionTaskModel
 
     usable = _usable(lines)
+    _page_is(image_path)
 
     def pts(points: object) -> list[list[int]]:
         return [[int(x), int(y)] for x, y in points]  # type: ignore[union-attr]
@@ -1064,7 +1146,8 @@ def _read_given_raw(image_path: str | Path, model_path: str, lines: list[dict[st
                    for ln in usable],
             regions={}, line_orders=[])
         net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
-        predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
+        with _stage("recognise"):
+            predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
     read = {str(ln["id"]): ReadLine(str(getattr(r, "prediction", r) or ""), confidence=_line_confidence(r),
                                      char_confidences=[round(float(c), 4) for c in getattr(r, "confidences", None) or []]
                                      or None)
