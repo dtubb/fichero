@@ -102,6 +102,21 @@ struct StageShowcasePicturesTests {
                 == ["80% overlap", "free, on this Mac"])
     }
 
+    /// A figure the engine could not work out says why in its words, never 0% or nothing (review 351); the names
+    /// only this one found arrive as a list, whose count the column says.
+    @Test("a missing figure shows the engine's words")
+    func notMeasuredShowsItsWords() throws {
+        func candidate(_ measures: String) throws -> StageCandidate {
+            try JSONDecoder().decode(StageCandidate.self, from: Data(#"{"card":"c","local":true,"measures":\#(measures)}"#.utf8))
+        }
+        let words = "nothing to compare with: the other candidates found no lines"
+        #expect(try candidate(#"{"kind":"shapes","not_measured":"\#(words)"}"#).quality == words)
+        #expect(try candidate(#"{"kind":"text","not_measured":"couldn't measure: an empty reference"}"#).quality
+                == "couldn't measure: an empty reference")
+        #expect(try candidate(#"{"kind":"items","found":12,"only_this_found":["a","b","c"]}"#).quality
+                == "found 12, 3 only here")
+    }
+
     @Test("up to three candidates are chosen; none chosen asks for the engine's own")
     func choosingWhoToCompare() {
         var chosen: [String] = []

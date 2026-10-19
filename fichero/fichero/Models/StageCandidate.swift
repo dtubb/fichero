@@ -82,13 +82,13 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
     static func words(_ measures: Measures) -> String? {
         switch measures.kind {
         case "shapes":
-            return measures.agreement.map { percent($0, digits: 0) + " overlap" }
+            return measures.agreement.map { percent($0, digits: 0) + " overlap" } ?? measures.notMeasured
         case "items":
             guard let found = measures.found else { return nil }
             return "found \(found)" + (measures.onlyThisFound.map { ", \($0) only here" } ?? "")
         default:
             if let cer = measures.cer { return percent(cer, digits: 1) + " character errors" }
-            return measures.agreement.map { percent($0, digits: 0) + " agreement" }
+            return measures.agreement.map { percent($0, digits: 0) + " agreement" } ?? measures.notMeasured
         }
     }
 
@@ -134,10 +134,29 @@ struct StageCandidateMeasures: Decodable, Equatable {
     let cer: Double?
     let found: Int?
     let onlyThisFound: Int?
+    /// Why it has no figure, in the engine's words ("nothing to compare with: the other candidates found no lines"):
+    /// shown where the percentage would be, so a missing figure is never read as 0%.
+    let notMeasured: String?
 
     enum CodingKeys: String, CodingKey {
         case kind, agreement, cer, found
         case onlyThisFound = "only_this_found"
+        case notMeasured = "not_measured"
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try values.decode(String.self, forKey: .kind)
+        agreement = try values.decodeIfPresent(Double.self, forKey: .agreement)
+        cer = try values.decodeIfPresent(Double.self, forKey: .cer)
+        found = try values.decodeIfPresent(Int.self, forKey: .found)
+        notMeasured = try values.decodeIfPresent(String.self, forKey: .notMeasured)
+        // The engine lists the names only this one found; the count is what the column says.
+        if let count = try? values.decodeIfPresent(Int.self, forKey: .onlyThisFound) {
+            onlyThisFound = count
+        } else {
+            onlyThisFound = try values.decodeIfPresent([String].self, forKey: .onlyThisFound)?.count
+        }
     }
 }
 

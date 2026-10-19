@@ -1807,7 +1807,7 @@ def _vision_ocr_cgimage_with_geometry(
                 continue
             request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
             request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
-            request.setRecognitionLanguages_([lang])
+            set_vision_languages(request, lang)
             handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(crop, None)
             success, _error = handler.performRequests_error_([request], None)
             results = request.results() if success else None
@@ -1878,7 +1878,7 @@ def _vision_ocr_cgimage_with_geometry(
         request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
         request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
         request.setRevision_(_VISION_SECOND_DETECTOR_REVISION)
-        request.setRecognitionLanguages_([lang])
+        set_vision_languages(request, lang)
         handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(
             cg_image, None
         )
@@ -1944,7 +1944,7 @@ def _vision_ocr_cgimage_with_geometry(
                 continue
             request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
             request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
-            request.setRecognitionLanguages_([lang])
+            set_vision_languages(request, lang)
             handler = Vision.VNImageRequestHandler.alloc().initWithCGImage_options_(crop, None)
             success, _error = handler.performRequests_error_([request], None)
             results = request.results() if success else None
@@ -1985,7 +1985,7 @@ def _vision_ocr_cgimage_with_geometry(
     # Try Accurate first
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)  # pylint: disable=no-member
-    request.setRecognitionLanguages_([lang])
+    set_vision_languages(request, lang)
 
     geometry = _extract_text(request, "Accurate")
     if geometry is not None:
@@ -2001,7 +2001,7 @@ def _vision_ocr_cgimage_with_geometry(
     logger.info("Retrying with Fast recognition level")
     request = Vision.VNRecognizeTextRequest.alloc().init()  # pylint: disable=no-member
     request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelFast)  # pylint: disable=no-member
-    request.setRecognitionLanguages_([lang])
+    set_vision_languages(request, lang)
 
     geometry = _extract_text(request, "Fast")
     if geometry is not None:
@@ -2419,11 +2419,25 @@ def _llm_geometry_unavailable(
     )
 
 
+#: Words that mean "no language stated" (the language policy's `unknown`, a node's `auto`, ISO's `und`).
+VISION_DETECTS_LANGUAGE = frozenset({"auto", "unknown", "und"})
+
+
+def set_vision_languages(request, locale: str) -> None:
+    """Point a Vision text request at `locale`; for 'auto' (none stated) let Vision detect the language itself."""
+    if locale == "auto":
+        request.setAutomaticallyDetectsLanguage_(True)
+    else:
+        request.setRecognitionLanguages_([locale])
+
+
 def normalize_vision_language(language: str | None) -> str:
     """Normalize legacy language hints to the locale strings Apple expects."""
     raw = (language or "").strip()
     if not raw:
         return "en-US"
+    if raw.lower() in VISION_DETECTS_LANGUAGE:  # not a language: Vision works it out (never the literal 'auto')
+        return "auto"
 
     normalized = raw.replace("_", "-")
     lowered = normalized.lower()
@@ -2527,6 +2541,16 @@ def _supported_text_revisions() -> frozenset[int]:
         return frozenset()
 
 
+_LANGUAGE_WORDS = {"en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian", "pt": "Portuguese",
+                   "ja": "Japanese", "ko": "Korean", "ar": "Arabic", "la": "Latin", "tr": "Turkish", "cy": "Welsh"}
+
+
+def _language_word(language: str | None) -> str:
+    """A language as a person says it ('Spanish' for es-ES); the code as given when it is not one of the common few."""
+    raw = str(language or "")
+    return _LANGUAGE_WORDS.get(raw.replace("_", "-").split("-")[0].lower(), raw)
+
+
 def validate_vision_language(language: str | None) -> str:
     """Normalize a language request to a locale Vision will actually honour.
 
@@ -2544,15 +2568,17 @@ def validate_vision_language(language: str | None) -> str:
     bricking every OCR call over it would be worse than the bug.
     """
     locale = normalize_vision_language(language)
+    if locale == "auto":
+        return locale
     supported = _supported_vision_locales()
     if not supported:
         return locale
     if locale not in supported:
-        raise ValueError(
-            f"Apple Vision cannot recognize with language {language!r} "
-            f"(resolved to {locale!r}). This macOS supports: "
-            f"{', '.join(sorted(supported))}."
-        )
+        # In words, once; the supported list is in the log, not on the card.
+        logger.warning("Apple Vision cannot recognize with %r (resolved to %r); this macOS supports: %s",
+                       language, locale, ", ".join(sorted(supported)))
+        raise ValueError(f"Apple Vision can't read {_language_word(language)} on this Mac. "
+                         "Choose another reader for this step.")
     return locale
 
 
