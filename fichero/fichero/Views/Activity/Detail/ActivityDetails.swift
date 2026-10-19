@@ -21,6 +21,10 @@ struct ActivityDetails: Equatable {
         case readStageAgain(threadId: String, label: String)
         /// A skipped step's fix: the project's setup at that stage (#5577, #5670); nil, setup as it opens.
         case openSetUp(stage: String?)
+        /// A failed download retried (#5352): the download's job.
+        case retryDownload(jobId: String)
+        /// The step takes the next candidate of its chain (#5352).
+        case useNextCandidate(step: String, card: String)
     }
 
     struct FailedPage: Equatable, Identifiable {
