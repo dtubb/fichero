@@ -53,7 +53,29 @@ struct ActivityPopoverSummary: Equatable {
         let stages: [ActivityPopoverStage]
     }
 
+    /// What is working right now, from the engine's one summary (`activity.popover.same-summary`, #5852): "Recipe ›
+    /// Stage › Workflow" and "7 of 20 pages · 2 of 8 folders", the same words the window's live block has.
+    struct Block: Equatable, Identifiable {
+        let id: String
+        let title: String
+        let counts: String
+        /// What a waiting block waits for; nil while it works.
+        let waiting: String?
+    }
+
+    /// One kind of background work and its total, from the same summary; a wait looks waiting and says why.
+    struct BackgroundLine: Equatable, Identifiable {
+        let id: String
+        let text: String
+        let waiting: String?
+    }
+
     static let errorsShown = 3
+
+    /// The live blocks the engine's summary names, first in the popover.
+    var blocks: [Block] = []
+    /// One line per background kind with its total.
+    var background: [BackgroundLine] = []
 
     /// The recipe runs in hand, each with its stages.
     var runs: [Run] = []
@@ -86,7 +108,9 @@ struct ActivityPopoverSummary: Equatable {
 
     init(jobs: [ActivityJob], paused: Bool, machine: Components.Schemas.MachineState? = nil, liveRuns: [LiveRun] = [],
          runTrees: [String: ActivityJobNode] = [:], processCpuPercent: Double? = nil, cpuCount: Int = 0,
-         errorWindow: ActivityErrorWindow? = nil) {
+         errorWindow: ActivityErrorWindow? = nil, activity: Components.Schemas.ActivitySummary? = nil) {
+        blocks = (activity?.live ?? []).map(Self.block)
+        background = (activity?.background ?? []).map(Self.backgroundLine)
         // A recipe run in hand, and everything under it: said once, by the run (#5666).
         let inHand = Self.runsInHand(jobs, runTrees: runTrees)
         runs = inHand.runs
@@ -131,6 +155,26 @@ struct ActivityPopoverSummary: Equatable {
                                  waitingReason: waitingReason)
         macReadings = (machine.map(Self.readings) ?? [])
             + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
+    }
+
+    private static func block(_ live: Components.Schemas.LiveBlock) -> Block {
+        let pages = live.total > 0 ? "\(live.done) of \(live.total) pages" : "no pages yet"
+        let folders = live.foldersTotal.map { "\(live.foldersDone ?? 0) of \($0) folders" }
+        let failed = live.failed > 0 ? "\(live.failed) failed" : nil
+        return Block(
+            id: live.id,
+            title: [live.recipe, live.stage, live.workflow].compactMap { $0 }.joined(separator: " › "),
+            counts: [pages, folders, failed].compactMap { $0 }.joined(separator: " · "),
+            waiting: live.state == "waiting" ? live.reason.map(worded) : nil
+        )
+    }
+
+    private static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundLine {
+        BackgroundLine(
+            id: line.kind,
+            text: line.total > 0 ? "\(line.name) · \(line.done) of \(line.total)" : line.name,
+            waiting: line.state == "waiting" ? (line.reason.map(worded) ?? "Waiting") : nil
+        )
     }
 
     /// The recipe runs in hand, with every id under them (the runs, their stages' runs, their steps and pages).
@@ -290,13 +334,24 @@ struct ActivityPopoverSummaryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(summary.runs) { run in
+            ForEach(summary.blocks) { block in
+                ActivityPopoverBlockView(block: block)
+            }
+            // A run the engine's summary already shows as a block is not said twice.
+            ForEach(summary.runs.filter { run in !summary.blocks.contains { $0.id == run.id } }) { run in
                 ActivityPopoverRunView(run: run)
+            }
+            ForEach(summary.background) { line in
+                Label(line.waiting.map { "\(line.text) · \($0)" } ?? line.text,
+                      systemImage: line.waiting == nil ? "arrow.triangle.2.circlepath" : "clock")
+                    .font(.callout)
+                    .foregroundStyle(line.waiting == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .accessibilityIdentifier("activity.popover.background")
             }
             ForEach(summary.running) { item in
                 ActivityPopoverRunningRow(item: item)
             }
-            if summary.running.isEmpty && summary.runs.isEmpty && nothingElseRunning {
+            if summary.running.isEmpty && summary.runs.isEmpty && summary.blocks.isEmpty && nothingElseRunning {
                 Text("Nothing running.").font(.callout).foregroundStyle(.secondary)
             }
             if summary.waitingCount > 0 {

@@ -730,8 +730,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of
   `activity.popover.summary`. Engine side: `activity` (live blocks, background lines, the History count) is built once from the
   ordered job list and rides in the one jobs response both read
-  (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`). Not yet: the popover reads it
-  (`fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`, after the regen).
+  (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`). Swift (needs compile): the popover reads it, showing the live blocks and the background lines first
+  (`fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`). Not yet: the window reads the same
+  blocks, and the old per-job popover rows are not retired.
 - `activity.window.all-projects` — **[PARTIAL]** (#5354) the Activity window merges
   every open library and the global one (`ActivityMonitorWindow.swift`); unpinned.
 - `activity.window.table` — **[PARTIAL]** (#5415, #5354) the window is a table of every job of
