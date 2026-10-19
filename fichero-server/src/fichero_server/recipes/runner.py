@@ -332,11 +332,24 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     if dead is not None:  # the run's row ended and the run never came back: its row says how
         return thread_id, ("done" if dead["state"] == "done" else "failed"), dead["reason"] or dead["state"]
     status, error = _step_run_outcome(thread_id)
+    error = None if status == "completed" else outcome_why(status, error)
     if status == "completed" and live:  # the pages the live run reads: this step is done when that run is
         joined = _join_live_run(live[0], parent)
         if joined[1] != "done":
             return joined
     return thread_id, ("done" if status == "completed" else "failed"), error
+
+
+def outcome_why(status: str, error: str | None) -> str:
+    """Why a step's run did not complete, in words: its own error, else how it ended. A run paused by the engine's
+    shutdown (live runs are paused at their checkpoint) says so; never blank, so a failure always says why."""
+    if error and str(error).strip():
+        return str(error).strip()
+    if status == "paused":
+        return "the engine stopped while this was running; try it again"
+    if status in ("cancelled", "stopped"):
+        return "it was stopped before it finished"
+    return f"the run ended {status or 'without a result'} and gave no reason"
 
 
 def _join_live_run(live: str, parent: str) -> tuple[str, str, str | None]:
