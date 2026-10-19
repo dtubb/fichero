@@ -6,10 +6,11 @@ API endpoints for managing MCP (Model Context Protocol) servers.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from fichero_server.api.routes.auth.accounts import (
+    _audit,
     _require_authenticated_or_bootstrap,
     _require_owner_or_bootstrap,
 )
@@ -46,6 +47,7 @@ class CreateMCPServerRequest(BaseModel):
     headers: dict[str, str] = {}
     tool_name_prefix: bool = True
     enabled: bool = True
+    available_to_chat: bool = False
 
 
 class UpdateMCPServerRequest(BaseModel):
@@ -61,6 +63,7 @@ class UpdateMCPServerRequest(BaseModel):
     headers: dict[str, str] | None = None
     tool_name_prefix: bool | None = None
     enabled: bool | None = None
+    available_to_chat: bool | None = None
 
 
 class MCPServerResponse(BaseModel):
@@ -77,6 +80,7 @@ class MCPServerResponse(BaseModel):
     headers: dict[str, str]
     tool_name_prefix: bool
     enabled: bool
+    available_to_chat: bool = False
     created_at: str
     updated_at: str
     last_load_error: str | None = None
@@ -146,6 +150,7 @@ def _server_to_response(server: MCPServer) -> MCPServerResponse:
         headers=server.headers,
         tool_name_prefix=server.tool_name_prefix,
         enabled=server.enabled,
+        available_to_chat=server.available_to_chat,
         created_at=server.created_at.isoformat(),
         updated_at=server.updated_at.isoformat(),
         last_load_error=_mcp_tools.last_load_error if server.enabled else None,
@@ -381,6 +386,7 @@ async def create_mcp_server(
             headers=request.headers,
             tool_name_prefix=request.tool_name_prefix,
             enabled=request.enabled,
+            available_to_chat=request.available_to_chat,
         )
 
         # Save to database
@@ -406,6 +412,7 @@ async def create_mcp_server(
 async def update_mcp_server(
     server_id: str,
     request: UpdateMCPServerRequest,
+    http_request: Request,
     _owner: None = Depends(_require_owner_or_bootstrap),
 ):
     """Update an existing MCP server."""
@@ -440,6 +447,11 @@ async def update_mcp_server(
             server.tool_name_prefix = request.tool_name_prefix
         if request.enabled is not None:
             server.enabled = request.enabled
+        if request.available_to_chat is not None and request.available_to_chat != server.available_to_chat:
+            # The owner's switch for what the chat agent may call: audited first, so it cannot change unrecorded (#5761).
+            _audit(http_request, app_db, "mcp_server.set_available_to_chat", server.id,
+                   server=server.name, available_to_chat=request.available_to_chat)
+            server.available_to_chat = request.available_to_chat
 
         # Save to database
         app_db.save_mcp_server(server)

@@ -23,6 +23,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/actions/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/audit_chain.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/chat_tools.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/highlight_reanchor.py
+$(SRCROOT)/../fichero-server/src/fichero_server/actions/mcp_chat.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/page_text_cache.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/registry.py
 $(SRCROOT)/../fichero-server/src/fichero_server/actions/undo.py

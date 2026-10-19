@@ -5276,6 +5276,7 @@ def fichero_mcp_servers_list(
 def fichero_mcp_servers_create(
     *,
     args: Annotated[Optional[list[Any]], Field(description='Args. Default: [].')] = None,
+    available_to_chat: Annotated[Optional[bool], Field(description='Available To Chat. Default: false.')] = None,
     command: Annotated[Optional[str], Field(description='Command.')] = None,
     description: Annotated[Optional[str], Field(description='Description. Default: "".')] = None,
     enabled: Annotated[Optional[bool], Field(description='Enabled. Default: true.')] = None,
@@ -5287,7 +5288,7 @@ def fichero_mcp_servers_create(
     url: Annotated[Optional[str], Field(description='Url.')] = None,
 ) -> Any:
     'Create Mcp Server\n\nCreate a new MCP server.\n\nRoute: POST /api/mcp-servers (toolset `mcp-servers`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/mcp-servers", json=_rt.body({"args": args, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
+    return _rt.call("POST", "/api/mcp-servers", json=_rt.body({"args": args, "available_to_chat": available_to_chat, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
 
 
 def fichero_mcp_servers_get_all_tools(
@@ -5328,6 +5329,7 @@ def fichero_mcp_servers_update(
     *,
     server_id: Annotated[str, Field(description='Server Id')],
     args: Annotated[Optional[list[Any]], Field(description='Args.')] = None,
+    available_to_chat: Annotated[Optional[bool], Field(description='Available To Chat.')] = None,
     command: Annotated[Optional[str], Field(description='Command.')] = None,
     description: Annotated[Optional[str], Field(description='Description.')] = None,
     enabled: Annotated[Optional[bool], Field(description='Enabled.')] = None,
@@ -5339,7 +5341,7 @@ def fichero_mcp_servers_update(
     url: Annotated[Optional[str], Field(description='Url.')] = None,
 ) -> Any:
     'Update Mcp Server\n\nUpdate an existing MCP server.\n\nRoute: PUT /api/mcp-servers/{server_id} (toolset `mcp-servers`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/mcp-servers/{server_id}", json=_rt.body({"args": args, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
+    return _rt.call("PUT", f"/api/mcp-servers/{server_id}", json=_rt.body({"args": args, "available_to_chat": available_to_chat, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
 
 
 def fichero_mcp_servers_load_tools(
