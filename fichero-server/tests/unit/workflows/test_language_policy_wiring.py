@@ -222,9 +222,9 @@ def test_an_unrecognisable_vision_language_raises_instead_of_no_opping():
     if not _supported_vision_locales():
         pytest.skip("Vision recognition locales unavailable on this machine")
 
-    with pytest.raises(ValueError, match="cannot recognize"):
+    with pytest.raises(ValueError, match="can.t read"):
         validate_vision_language("Klingon")
-    with pytest.raises(ValueError, match="cannot recognize"):
+    with pytest.raises(ValueError, match="can.t read"):
         validate_vision_language("es-XX")
 
 
@@ -287,7 +287,7 @@ def test_apple_vision_dispatch_refuses_a_language_vision_cannot_use():
         pytest.skip("Vision recognition locales unavailable on this machine")
 
     config = LLMConfig(provider="apple", model="apple-vision")
-    with pytest.raises(ValueError, match="cannot recognize"):
+    with pytest.raises(ValueError, match="can.t read"):
         asyncio.run(
             _apple_vision_dispatch(["/tmp/x.png"], "p", config, language="Klingon")
         )
