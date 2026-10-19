@@ -4,9 +4,10 @@ first yes in that project, and the plan then shows it."""
 from __future__ import annotations
 
 from tests.unit.recipes.test_bakeoff_readers import _set_up, folder  # noqa: F401
+from tests.unit.recipes.test_recipe_execution_to_spec import engine, pages  # noqa: F401
 
 
-def test_start_enables_on_a_saved_setup_and_records_the_first_yes(client, db, folder):  # noqa: F811
+def test_start_enables_on_a_saved_setup_and_records_the_first_yes(client, db, folder, pages, engine):  # noqa: F811
     _set_up(client)
     plan = client.get("/api/recipes/project/start")
     assert plan.status_code == 200, plan.text
