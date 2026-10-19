@@ -40,7 +40,9 @@ nonisolated protocol SignInTransport: Sendable {
     ) async throws -> String
     /// An owner row already exists without a key (the engine makes one for the first loopback request, before this
     /// app has asked): give that row its first key. Returns the new client's id.
-    func migrateOwner(launchSecret: String, clientName: String, host: String, publicKeyPEM: String) async throws -> String
+    func migrateOwner(
+        launchSecret: String, clientName: String, host: String, publicKeyPEM: String
+    ) async throws -> String
 }
 
 nonisolated protocol OwnerKeyProviding: Sendable {

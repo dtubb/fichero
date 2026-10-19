@@ -172,3 +172,11 @@ def test_a_peer_whose_program_cannot_be_read_is_refused_not_recorded(harness, mo
     refused = _ask(harness, peer=unreadable)
     assert refused.status_code == 403 and "could not be verified" in refused.text
     assert not routes._client_requests
+
+
+def test_a_whitespace_only_name_is_refused(harness, monkeypatch):
+    _users, owner = _owner(harness, monkeypatch)
+    _switch_on(harness, owner, cli=True)
+    assert _ask(harness, body={**ASK, "name": "   "}).status_code == 422
+    padded = _ask(harness, body={**ASK, "name": "  fichero CLI  "})
+    assert padded.status_code == 200 and padded.json()["name"] == "fichero CLI"
