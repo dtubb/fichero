@@ -40,7 +40,12 @@ final class AppPlacesStore {
         // A tick's PUT still in flight is awaited first: Continue never races it.
         while sending { try? await Task.sleep(for: .milliseconds(50)) }
         if answered { return true }
+        errorMessage = nil
         await set(.thisMac, allowed: true)  // sends the places as shown, this Mac among them
+        // A refused Continue always says why; it is never silent.
+        if !answered, errorMessage == nil {
+            errorMessage = "Fichero could not save where models may run, so it stayed on this step. Try Continue again."
+        }
         return answered
     }
 
