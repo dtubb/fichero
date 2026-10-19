@@ -151,7 +151,7 @@ def test_importer_folder_status_names_its_folder(client, db, tmp_path):
 # -- source.recipe.done-is-not-redone: correcting and finding names ---------------------------------------------
 
 
-def test_source_recipe_done_is_not_redone__correcting_and_finding_names_can_tell(client, db, pages, tmp_path):  # noqa: F811
+def test_source_recipe_done_is_not_redone__correcting_and_finding_names_can_tell(client, db, pages, tmp_path, with_material):  # noqa: F811
     """source.recipe.done-is-not-redone: "correcting and finding names can tell too: correcting, on a page with a
     reviewed transcription saved by the step's own model; finding names, on a page some entity names as a page it
     was found on.\""""

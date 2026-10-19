@@ -119,7 +119,7 @@ def test_source_onboard_auto_on_add_refusal_said(client, db, pages, tmp_path, mo
     assert engine.read == [], "the new page is not read"
 
 
-def test_source_onboard_auto_lands_on_the_run(client, db, pages, tmp_path):
+def test_source_onboard_auto_lands_on_the_run(client, db, pages, tmp_path, with_material):
     """source.onboard.auto.lands-on-the-run: "after Start, the project window shows the run: each stage, pages
     done and left, time left, and what is waiting and why (memory, a download, another run)." The recipe run's
     node in Activity (the details the app opens on) carries its stages in order, each workflow stage with its run's
@@ -205,7 +205,7 @@ def test_summary_of_no_run_is_404(client, db):
 
 
 def test_source_onboard_auto_results_summary__documents_groups_and_entries(client, db, pages, tmp_path, engine,
-                                                                           splitter):
+                                                                           splitter, with_material):
     """source.onboard.auto.results-summary (#5577): "documents and groups proposed" by Find the Documents, as its
     proposals stand, and the entries the entries stage split the pages into (#5581), as figures and as lines in the
     engine's words."""

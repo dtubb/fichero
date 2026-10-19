@@ -80,7 +80,7 @@ def _rows(done):
 
 
 def test_a_reader_that_returned_nothing_is_not_read_never_100_percent_and_never_wins(
-        client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+        client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """#5531: "a reader that returns nothing for a page is recorded as 'not read' ..., never scored as 100%".
     WHY: Hebrew, 2026-10-06: PP-OCRv6 returned 0 characters on every page, scored 100% and was named the
     winner. An empty page measures the reader's failure, not its reading; it must not be a score and must
@@ -107,7 +107,7 @@ def test_a_reader_that_returned_nothing_is_not_read_never_100_percent_and_never_
 
 
 def test_a_reader_below_the_page_share_is_not_measured_and_cannot_be_used(
-        client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+        client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """#5531: "a candidate is measured only if it read at least a stated share of the pages"; Use This only
     for a measured candidate.
     WHY: Czech, 2026-10-06: readers that read 2 of 8 pages had a CER over whatever they happened to read;
@@ -141,7 +141,7 @@ def test_a_reader_below_the_page_share_is_not_measured_and_cannot_be_used(
 
 
 def test_a_sole_measured_reader_gets_no_winner_and_the_sentence_says_why(
-        client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+        client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """#5531: "the bake-off names a winner only if at least two candidates are measured; otherwise the result
     says plainly why".
     WHY: a "winner" of a race of one is no comparison: the screen would recommend a reader on no evidence
@@ -159,7 +159,7 @@ def test_a_sole_measured_reader_gets_no_winner_and_the_sentence_says_why(
     assert "zenodo" not in done["no_winner_why"]  # the reader's name, never its card id
 
 
-def test_no_reader_read_the_pages_says_so(client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+def test_no_reader_read_the_pages_says_so(client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """#5531: "no reader read these pages".
     WHY: when every reader returned nothing (a script none of them reads, or a failing engine), the table
     must not rank the failures; it says nothing was read, so the person knows to look at the readers."""
@@ -176,7 +176,7 @@ def test_no_reader_read_the_pages_says_so(client, db, tmp_path, folder, monkeypa
     assert page_why.startswith("returned 2 characters against ") and page_why.endswith(" in the reference")
 
 
-def test_the_readers_own_reason_surfaces(client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+def test_the_readers_own_reason_surfaces(client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """#5531: "surface WHY a reader returned nothing where the reader reports it (an exception ...)".
     WHY: "returned nothing" alone sends the person hunting; Kraken's own error (it could not read the
     lines) says where to look. An error on a page is the page's reason, not the job's failure: the other
@@ -222,7 +222,7 @@ def test_kraken_names_lines_with_no_geometry_and_a_vision_model_its_empty_answer
     assert reads == [""] and why == "the model gave an empty answer for every line"
 
 
-def test_a_comparison_kept_before_the_rule_is_judged_by_it(client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+def test_a_comparison_kept_before_the_rule_is_judged_by_it(client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """#5531: "keep stored comparisons readable (old records without the new fields still load)".
     WHY: the Hebrew comparison is already kept, on the cards, in the old shape: every page scored, an empty
     one at 100%. It must still load, and read back by the same rule, so the table no longer names the
