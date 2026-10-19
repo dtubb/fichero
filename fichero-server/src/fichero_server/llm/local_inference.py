@@ -312,13 +312,13 @@ def release_idle_engine_models() -> list[str]:
     if kraken is not None and kraken._INFERENCE_LOCK.acquire(blocking=False):
         try:
             if kraken._RESIDENT:
-                kraken.release_resident_models()
+                kraken.release_resident_models("another model needs the memory")
                 released.append("Kraken")
         finally:
             kraken._INFERENCE_LOCK.release()
     embeddings = sys.modules.get("fichero_server.db.embeddings")
     if embeddings is not None:
-        released += embeddings.release_idle_embedders(idle_seconds=0)
+        released += embeddings.release_idle_embedders(idle_seconds=0, reason="another model needs the memory")
     return released
 
 

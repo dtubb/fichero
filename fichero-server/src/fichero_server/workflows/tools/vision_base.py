@@ -3734,13 +3734,21 @@ class _KrakenPageGate:
     loops and threads and never uses a thread-pool worker while a page waits."""
 
     _lock = threading.Lock()
+    #: Kraken pages inside or waiting for the gate: the model lane holds other heavy models off while any (#5846).
+    in_flight = 0
 
     async def __aenter__(self) -> None:
-        while not self._lock.acquire(blocking=False):
-            await asyncio.sleep(0.05)
+        type(self).in_flight += 1  # += on a class attribute across loops: the GIL makes the pair atomic enough
+        try:
+            while not self._lock.acquire(blocking=False):
+                await asyncio.sleep(0.05)
+        except BaseException:
+            type(self).in_flight -= 1  # cancelled while waiting
+            raise
 
     async def __aexit__(self, *exc: object) -> None:
         self._lock.release()
+        type(self).in_flight -= 1
 
 
 _KRAKEN_PAGE_GATE = _KrakenPageGate()

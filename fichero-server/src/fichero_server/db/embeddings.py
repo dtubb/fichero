@@ -203,7 +203,7 @@ def embedder_loaded() -> bool:
         return bool(_EMBEDDER_CACHE)
 
 
-def release_idle_embedders(idle_seconds: float | None = None) -> list[str]:
+def release_idle_embedders(idle_seconds: float | None = None, reason: str = "idle") -> list[str]:
     """Release every model no embed holds and none has used for `idle_seconds`; the names released."""
     idle = EMBEDDER_IDLE_SECONDS if idle_seconds is None else idle_seconds
     now = time.monotonic()
@@ -219,7 +219,7 @@ def release_idle_embedders(idle_seconds: float | None = None) -> list[str]:
         import gc  # here, not at import: the engine's import budget counts modules (#3950)
 
         gc.collect()  # the ONNX session goes with its last reference; collect now, not someday
-        logger.info("Released idle embedding model(s): %s", ", ".join(released))
+        logger.info("model-lane: unload embedder %s (%s)", ", ".join(released), reason)
     return released
 
 
@@ -267,7 +267,7 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
             )
             _EMBEDDER_CACHE[model_name] = embedder
             logger.info(
-                "Loaded embedding model (process-global): %s (threads=%d)",
+                "model-lane: load embedder %s (threads=%d)",
                 model_name,
                 threads,
             )
