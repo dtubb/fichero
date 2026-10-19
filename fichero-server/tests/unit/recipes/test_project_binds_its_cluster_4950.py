@@ -83,9 +83,9 @@ def test_a_cluster_not_set_up_here_binds_nothing(client, project, monkeypatch): 
 
 
 def _pages_may_leave(monkeypatch, allowed):
-    from fichero_server.recipes import project
+    from fichero_server.recipes import project as setup_store
 
-    monkeypatch.setattr(project, "read_project_setup", lambda library: {"answers": {"cloud_allowed": allowed},
+    monkeypatch.setattr(setup_store, "read_project_setup", lambda library: {"answers": {"cloud_allowed": allowed},
                                                                         "recipe": None})
 
 
