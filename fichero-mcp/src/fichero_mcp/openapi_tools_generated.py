@@ -6298,7 +6298,7 @@ def fichero_recipes_assemble(
     removed_jobs: Annotated[Optional[list[Any]], Field(description='steps (by job) the person took out of the plan on Ready: left out of the recipe, unless a step left in needs one (then it stays, with needed_by); listed under removed to be put back (source.onboard.plan-editable)')] = None,
     scripts: Annotated[list[Any], Field(description="ISO 15924 script codes (or a script's English name)")],
 ) -> Any:
-    "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
+    "Assemble Recipe\n\nThe recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know; and for a named project with no material yet\n(#5813).\n\nRoute: POST /api/recipes/assemble (toolset `recipes`; reads)."
     return _rt.call("POST", "/api/recipes/assemble", json=_rt.body({"cloud_allowed": cloud_allowed, "directions": directions, "faded_pages": faded_pages, "hands": hands, "job_answers": job_answers, "jobs": jobs, "languages": languages, "layers": layers, "loose_pages": loose_pages, "mac_memory_gb": mac_memory_gb, "material": material, "materials": materials, "pages": pages, "period": period, "photographs": photographs, "place": place, "purpose": purpose, "purposes": purposes, "removed_jobs": removed_jobs, "scripts": scripts}))
 
 
@@ -6376,6 +6376,20 @@ def fichero_recipes_search_languages(
 ) -> Any:
     'Search Languages\n\nSearch ISO 639-3 and Glottolog languages and dialects by name, tag or glottocode\n(`source.onboard.widget-and-search`).\n\nRoute: GET /api/recipes/languages (toolset `recipes`; reads).'
     return _rt.call("GET", "/api/recipes/languages", params={"limit": limit, "q": q})
+
+
+def fichero_recipes_get_places(
+) -> Any:
+    "Get Places\n\nWhere models may run, and this Mac's line (its memory and what it can run).\n\nRoute: GET /api/recipes/places (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/places")
+
+
+def fichero_recipes_put_places(
+    *,
+    places: Annotated[list[Any], Field(description='The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; this Mac is always one.')],
+) -> Any:
+    'Put Places\n\nAllow these places (an audited action). Every project is capped by them: stricter, never looser.\n\nRoute: PUT /api/recipes/places (toolset `recipes`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/recipes/places", json=_rt.body({"places": places}))
 
 
 def fichero_recipes_get_project_setup(
@@ -9611,6 +9625,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_htr_united_datasets", "recipes", "GET", "/api/recipes/htr-united", fichero_recipes_htr_united_datasets),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
+    GeneratedTool("fichero_recipes_get_places", "recipes", "GET", "/api/recipes/places", fichero_recipes_get_places),
+    GeneratedTool("fichero_recipes_put_places", "recipes", "PUT", "/api/recipes/places", fichero_recipes_put_places),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),
     GeneratedTool("fichero_recipes_save_project_setup", "recipes", "PUT", "/api/recipes/project", fichero_recipes_save_project_setup),
     GeneratedTool("fichero_recipes_what_runs_by_itself", "recipes", "GET", "/api/recipes/project/automatic", fichero_recipes_what_runs_by_itself),

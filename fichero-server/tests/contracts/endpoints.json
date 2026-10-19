@@ -9312,6 +9312,26 @@
       },
       {
         "method": "GET",
+        "path": "/recipes/places",
+        "operation_id": "get_places_api_recipes_places_get",
+        "summary": "Get Places",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "PlacesView"
+      },
+      {
+        "method": "PUT",
+        "path": "/recipes/places",
+        "operation_id": "put_places_api_recipes_places_put",
+        "summary": "Put Places",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "PlacesSetting",
+        "response_model": "PlacesView"
+      },
+      {
+        "method": "GET",
         "path": "/recipes/project",
         "operation_id": "get_project_setup_api_recipes_project_get",
         "summary": "Get Project Setup",

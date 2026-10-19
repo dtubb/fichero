@@ -15122,7 +15122,7 @@
           "recipes"
         ],
         "summary": "Assemble Recipe",
-        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know.",
+        "description": "The recipe the rules give for these answers, each choice with its reasons and each gap named\nonce as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).\nFor an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)\nsets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,\nscript, purpose, material, job or direction Fichero does not know; and for a named project with no material yet\n(#5813).",
         "operationId": "assemble_recipe_api_recipes_assemble_post",
         "requestBody": {
           "content": {
@@ -15146,11 +15146,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Refused, in one sentence: the named project has no material yet (`NO_MATERIAL_TO_PLAN`), or a language, script, purpose, material, job or direction Fichero does not know.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -15377,6 +15377,90 @@
         }
       }
     },
+    "/api/recipes/places": {
+      "get": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Get Places",
+        "description": "Where models may run, and this Mac's line (its memory and what it can run).",
+        "operationId": "get_places_api_recipes_places_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacesView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "recipes"
+        ],
+        "summary": "Put Places",
+        "description": "Allow these places (an audited action). Every project is capped by them: stricter, never looser.",
+        "operationId": "put_places_api_recipes_places_put",
+        "parameters": [
+          {
+            "name": "X-Fichero-Origin-Window",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Origin-Window"
+            }
+          },
+          {
+            "name": "X-Fichero-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Client"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlacesSetting"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacesView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A place Fichero does not know.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipes/project": {
       "get": {
         "tags": [
@@ -15558,11 +15642,11 @@
             }
           },
           "422": {
-            "description": "Validation Error",
+            "description": "Start is refused, in one sentence: the project has no material yet (`NO_MATERIAL`), a folder not in the project or with no pages, or the plan's refusals (a recipe that fails the check, nothing to run).",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorDetail"
                 }
               }
             }
@@ -78641,6 +78725,59 @@
           "from"
         ],
         "title": "PlaceToRun"
+      },
+      "PlacesSetting": {
+        "properties": {
+          "places": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; this Mac is always one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "places"
+        ],
+        "title": "PlacesSetting",
+        "description": "Where models may run, app-wide (`source.onboard.first-launch-three-screens`, #5828)."
+      },
+      "PlacesView": {
+        "properties": {
+          "places": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Places",
+            "description": "The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; this Mac is always one."
+          },
+          "answered": {
+            "type": "boolean",
+            "title": "Answered",
+            "description": "False until the person answers in Set Up Fichero; while false, no cap applies, and places shows this Mac only."
+          },
+          "memory_gb": {
+            "type": "number",
+            "title": "Memory Gb",
+            "description": "This Mac's memory, worked out by the engine."
+          },
+          "this_mac": {
+            "type": "string",
+            "title": "This Mac",
+            "description": "What this Mac can run, in a sentence, from its real memory."
+          }
+        },
+        "type": "object",
+        "required": [
+          "places",
+          "answered",
+          "memory_gb",
+          "this_mac"
+        ],
+        "title": "PlacesView"
       },
       "PlanCreateRequest": {
         "properties": {

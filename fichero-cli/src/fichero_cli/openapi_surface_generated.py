@@ -13455,6 +13455,34 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("get-places")
+    def recipes_get_places_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Places (GET /api/recipes/places)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/places"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-places")
+    def recipes_put_places_put(
+        ctx: typer.Context,
+        places: list[str] = typer.Option(..., '--places', help='The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; this Mac is always one. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+    ) -> None:
+        """Put Places (PUT /api/recipes/places)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/places"
+            params = None
+            payload = _build_json_payload({
+                "places": places,
+            }, {
+                "places": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Places', 'description': 'The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; this Mac is always one.', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("get-project-setup")
     def recipes_get_project_setup_get(
         ctx: typer.Context,
