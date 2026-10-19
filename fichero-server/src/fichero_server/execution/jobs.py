@@ -102,7 +102,7 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: once, so a Find Lines compare never queues behind the Read try waiting on a reader download.
 #: `search`: looking for models online (`find-models`): a few small metadata calls that must never wait behind a
 #: multi-GB download holding the network lane (#5809).
-LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "search": 2, "recipes": 1, "tries": 2}
+LANES = {"local-ml": 1, "embed": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "search": 2, "recipes": 1, "tries": 2}
 #: The one exception to the model lane's one job at a time (#5654, `compute.memory.reads-follow-memory`):
 #: calls to the engine's own model server for the model it has loaded share the lane, as many at once as
 #: that model's need and this Mac's memory allow (`local_inference.reads_at_once_for_model`, at most
@@ -110,7 +110,12 @@ LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "
 CO_RUN_KIND = "ask-a-model"
 #: The lanes whose jobs are heavy on this Mac's memory: while memory is busy they run one job at a time
 #: between them (`activity.throttle.one-heavy-when-memory-tight`, #5622).
-HEAVY_LANES = ("local-ml", "images")
+HEAVY_LANES = ("local-ml", "images", "embed")
+#: The lanes whose background jobs the Mac's state holds (battery, memory, heat) and that wait for the thumbnails.
+#: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
+#: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
+#: "local-ml"), and it is held by the same signals.
+THROTTLED_LANES = ("local-ml", "embed")
 #: What a row held so says, before what runs.
 ONE_HEAVY_REASON = "Waiting: memory is busy, so heavy work runs one job at a time"
 #: Finished jobs older than this are deleted when their library opens (spec open question 8).
@@ -1886,7 +1891,7 @@ def clear_failed(db: "Database") -> list[str]:
 _OWN_ROW_KINDS = frozenset({"run-a-recipe", "try-a-stage"})
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
-LANE_WORDS = {"local-ml": "the model lane", "images": "the thumbnail lane", "remote": "the remote lane",
+LANE_WORDS = {"local-ml": "the model lane", "embed": "the search-indexing lane", "images": "the thumbnail lane", "remote": "the remote lane",
               "database": "the database lane", "network": "the network lane", "search": "the search lane", "recipes": "the recipe lane",
               "tries": "the tries lane"}
 #: Lane work that reads for a run: its holder "is reading".
@@ -1960,7 +1965,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
         holder = _scheduler.heavy_running(besides=job_id)
         if holder is not None and memory_is_busy():
             return f"{ONE_HEAVY_REASON}: {_holder_words(db, holder)}"
-    if lane_name == "local-ml":
+    if lane_name in THROTTLED_LANES:
         from fichero_server.execution.throttle import why_wait
 
         found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
@@ -2410,7 +2415,7 @@ class _Scheduler:
             # memory`). Background jobs wait on all four signals, so while any holds, only work a
             # person is waiting for is looked at; each held row says why, and the lane looks again.
             held = None
-            if lane.name == "local-ml":
+            if lane.name in THROTTLED_LANES:
                 from fichero_server.execution.throttle import why_wait
 
                 held = why_wait(person_waiting=False)
@@ -2421,7 +2426,7 @@ class _Scheduler:
                 key, db, row = picked
                 if not lane.may_start(row[1], row[3]):
                     return None  # the lane is full: its running job's thread picks this when it ends
-                if lane.name == "local-ml":
+                if lane.name in THROTTLED_LANES:
                     # memory and heat hold even these; memory by this job's own model's need (#5654)
                     reason = why_wait(person_waiting=True, model=row[3], loaded=row[3] == lane.loaded_model)
                     if reason:
@@ -2509,7 +2514,7 @@ class _Scheduler:
         held_back = False
         # Thumbnails first (`activity.lane.thumbnails-first`, #5585): heavy local work waits for the
         # `first` jobs queued at or before it. Not while paused: those would never run.
-        first_kinds = [name for name, kind in KINDS.items() if kind.first] if lane.name == "local-ml" else []
+        first_kinds = [name for name, kind in KINDS.items() if kind.first] if lane.name in THROTTLED_LANES else []
         first_clause = ""
         if first_kinds and not is_paused():
             marks = ", ".join("?" for _ in first_kinds)

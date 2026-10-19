@@ -504,8 +504,8 @@ class TaskWorkersMixin:
 
 #: kind -> (task type, lane, model, what Activity calls it)
 TASK_JOB_KINDS = {
-    "reindex": ("local-ml", "embedder", "Reindex search"),
-    "vector_repair": ("local-ml", "embedder", "Repair search vectors"),
+    "reindex": ("embed", "embedder", "Reindex search"),
+    "vector_repair": ("embed", "embedder", "Repair search vectors"),
     "metrics": ("database", None, "Recompute library figures"),
     "repair": ("database", None, "Repair the library"),
     "kg_metrics": ("database", None, "Recompute knowledge-graph figures"),
