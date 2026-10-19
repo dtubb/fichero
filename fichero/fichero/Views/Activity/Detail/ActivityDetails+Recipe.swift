@@ -49,13 +49,13 @@ extension ActivityDetails {
         let failed: [Failed]
         let skipped: [Skipped]
         /// A step waiting on a model download that failed (#5352).
-        var downloadFailed: [DownloadFailed] = []
+        var downloadFailed: [DownloadFailure] = []
     }
 
     /// A step waiting on a failed download: Retry the download's job, or take the step's next candidate (#5352,
     /// `source.recipe.download-failure-waits`). Read from the run summary's `download_failed`, which the engine
     /// words and orders; nothing is decided here.
-    struct DownloadFailed: Equatable, Identifiable {
+    struct DownloadFailure: Equatable, Identifiable {
         struct Next: Equatable {
             let card: String
             let name: String
@@ -72,13 +72,13 @@ extension ActivityDetails {
     }
 
     /// The engine's typed `download_failed` rows; the candidate's name is the engine's, a row without a step is dropped.
-    static func downloadFailures(_ rows: [Components.Schemas.DownloadFailed]) -> [DownloadFailed] {
+    static func downloadFailures(_ rows: [Components.Schemas.DownloadFailed]) -> [DownloadFailure] {
         rows.compactMap { row in
             guard !row.steps.isEmpty else { return nil }
             let next = row.nextCandidate.map {
-                DownloadFailed.Next(card: $0.id, name: $0.name, needsPermission: $0.needsPermission)
+                DownloadFailure.Next(card: $0.id, name: $0.name, needsPermission: $0.needsPermission)
             }
-            return DownloadFailed(steps: row.steps, model: row.model, reason: row.reason,
+            return DownloadFailure(steps: row.steps, model: row.model, reason: row.reason,
                                   retryJobId: row.retryJobId, next: next)
         }
     }

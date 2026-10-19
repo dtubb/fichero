@@ -168,7 +168,8 @@ def action_tools(
     reg = reg or _global_registry
     actions = reg.all()
     if read_only:
-        actions = [action for action in actions if action.read_only]
+        # An owner-only read (mcp.call_tool) reaches the chat only by name, bound for the owner (#5761).
+        actions = [action for action in actions if action.read_only and not action.owner_only]
     return [action_tool(action) for action in actions]
 
 
