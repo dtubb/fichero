@@ -24,8 +24,10 @@ what a retry can select on.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
+import time
 from concurrent.futures import Future
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
@@ -238,6 +240,12 @@ def _emit_queue_activity(
 #: island is told it has STALLED. A page takes ~1.3s to embed, so a minute of
 #: total silence is not slowness — it is a pool with nothing moving through it.
 STALL_SECONDS = 60.0
+#: A single embed (or the model load before the first one) may legitimately outlast STALL_SECONDS: 140 s for one
+#: 233-char page on 2026-10-16 (#5807). While one is running the watchdog says what it is doing and looks again;
+#: past this ceiling with still no finish it is a hang and reports the stall.
+BUSY_CEILING_SECONDS = 900.0
+_busy: dict[str, tuple[str, float]] = {}
+_embed_model_warm = False
 _stall_timer: threading.Timer | None = None
 
 
@@ -283,7 +291,7 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
 
 
 def _emit_queue_progress(
-    library: str, done: int, total: int, *, stalled: bool = False
+    library: str, done: int, total: int, *, stalled: bool = False, working: str | None = None
 ) -> None:
     from fichero_server.api.change_stream import emit_change
 
@@ -295,6 +303,8 @@ def _emit_queue_progress(
             f"{STALL_SECONDS:.0f}s. A source on a network volume or one still "
             "copying from another Mac can block this queue."
         )
+    elif working:
+        message = f"{working} ({done} of {total} pages embedded)"
     else:
         message = f"{done} of {total} pages embedded"
     try:
@@ -349,6 +359,12 @@ def _arm_stall_watchdog(library: str) -> None:
         from fichero_server.execution import throttle
 
         if throttle.why_wait(person_waiting=False):
+            _arm_stall_watchdog(library)
+            return
+        with _progress_lock:
+            busy = _busy.get(library)
+        if busy is not None and time.monotonic() - busy[1] < BUSY_CEILING_SECONDS:
+            _emit_queue_progress(library, done, total, working=busy[0])
             _arm_stall_watchdog(library)
             return
         logger.error(
@@ -420,6 +436,29 @@ def _progress_expand(library: str, extra: int) -> None:
         done, total = state["done"], state["total"]
     _emit_queue_progress(library, done, total)
     _arm_stall_watchdog(library)
+
+
+@contextlib.contextmanager
+def _embedding(library: str | None):
+    """Mark one embed as in flight, so a long one reads as work and not as a stall (#5807)."""
+    global _embed_model_warm
+    if library is None:
+        yield
+        return
+    label = "Embedding a page" if _embed_model_warm else "Loading the search model"
+    with _progress_lock:
+        _busy[library] = (label, time.monotonic())
+    try:
+        yield
+        _embed_model_warm = True
+    finally:
+        with _progress_lock:
+            _busy.pop(library, None)
+
+
+def _embed_one(db: Database, target: Document, library: str | None) -> bool:
+    with _embedding(library):
+        return db.embed(target)
 
 
 def _progress_touch(library: str) -> None:
@@ -510,7 +549,7 @@ def _embed_document_tree(
                 # re-hogs the machine re-embedding finished pages
                 # ([[user-machine-always-useful]]).
                 embedded += 1
-            elif not db.embed(target):
+            elif not _embed_one(db, target, library):
                 outcome = getattr(db, "last_embed_outcome", None)
                 reason = getattr(outcome, "reason", None)
                 # 'unsupported'/'empty' style outcomes are not failures.

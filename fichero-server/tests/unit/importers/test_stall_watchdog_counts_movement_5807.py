@@ -63,3 +63,32 @@ def test_a_landed_thumbnail_counts_as_movement(tmp_path: Path, monkeypatch):
     derivatives._thumbnail_stage("doc-1", library)
     derivatives._embed_stage("doc-1", library)
     assert touched == [library, library]
+
+
+def test_one_long_embed_reports_the_model_loading_not_a_stall(watched, monkeypatch):
+    """10-16: one embed took 140 s with nothing else moving, and the queue was called stalled."""
+    library, warnings = watched
+    shown: list[str | None] = []
+    monkeypatch.setattr(derivatives, "_embed_model_warm", False)
+    monkeypatch.setattr(derivatives, "_emit_queue_progress", lambda *a, working=None, **k: shown.append(working))
+    with derivatives._embedding(library):
+        time.sleep(0.8)  # more than two deadlines inside one embed
+    assert warnings == []
+    assert shown and shown[-1] == "Loading the search model"
+    assert derivatives._embed_model_warm is True
+    assert library not in derivatives._busy
+
+
+def test_an_embed_that_never_returns_still_stalls(watched, monkeypatch):
+    library, warnings = watched
+    monkeypatch.setattr(derivatives, "BUSY_CEILING_SECONDS", 0.4)
+    with derivatives._embedding(library):
+        time.sleep(1.0)
+    assert warnings and "stalled at 0 of 3" in warnings[0]
+
+
+def test_a_failed_embed_clears_the_busy_mark(watched):
+    library, _ = watched
+    with pytest.raises(RuntimeError), derivatives._embedding(library):
+        raise RuntimeError("boom")
+    assert library not in derivatives._busy
