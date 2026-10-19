@@ -69,3 +69,27 @@ def test_the_built_in_run_aligns_each_page_and_a_missing_page_is_said(db, monkey
     assert seen == ["a", "b"]
     child, state, why = runner._run_align(db, ["a", "gone"])
     assert (child, state) == (None, "failed") and "1 of 2" in why
+
+
+def test_the_finder_for_a_sampled_reader_offers_vision_readers_never_a_text_search(monkeypatch):
+    """`source.disagree.one-reader-says-which-to-add`: the chooser for a step that samples one reader is the readers'
+    finder kept to models the plan can sample, and its sources are the readers' (no 'No online search for this step')."""
+    from types import SimpleNamespace
+
+    from fichero_server.recipes import discovery
+
+    sampleable = SimpleNamespace(pin={"cloud": "anthropic", "model": "claude-sonnet"})
+    kraken = SimpleNamespace(pin={"zenodo": "10.5281/zenodo.13788177"})
+    asked = {}
+
+    def readers(a, *, online, search=None, not_searched=None, job="read-a-line"):
+        asked["job"] = job
+        return [sampleable, kraken], [{"source": "hugging-face", "state": "cached", "count": 0, "detail": "x"}]
+
+    real = discovery.discover
+    monkeypatch.setattr(discovery, "discover", lambda *a, **k: real(*a, **k) if k.get("job") == "find-where-readers-disagree" else readers(*a, **k))
+    cards, sources = discovery.discover(SimpleNamespace(), online=False, job="find-where-readers-disagree")
+
+    assert asked["job"] == "read-a-line"
+    assert cards == [sampleable], "Kraken cannot be sampled as a vision model"
+    assert not [s for s in sources if s["detail"] == discovery.NO_STEP_SEARCH]

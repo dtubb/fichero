@@ -51,6 +51,9 @@ logger = logging.getLogger(__name__)
 
 #: The jobs a found reader does: a vision model reads a line's picture (the bake-off's way) or a page.
 READER_JOBS = frozenset({"read-a-line", "read-a-page"})
+#: A job whose model is one reader SAMPLED several times: its finder is the readers' (vision models only), never a
+#: text-model search (`source.disagree.one-reader-says-which-to-add`, #5812).
+SAMPLED_READER_JOBS = frozenset({"find-where-readers-disagree"})
 #: Where discovery keeps what it fetched, under the model store root.
 CACHE_FOLDER = "discovery"
 REPOSITORY_FILE = "kraken-repository.json"
@@ -1337,6 +1340,12 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     itself is a job, `find-models`). `search` is that job's row when `online` asked for one: while it runs the
     two online sources say they are being searched, and once it is done they say what it found. `not_searched`
     says why no search was made when one was asked for (no project open)."""
+    if job in SAMPLED_READER_JOBS:
+        # The readers' own finder, kept to the models a step can sample (a vision model), as the plan tests it.
+        from fichero_server.recipes.start import _override
+
+        cards, sources = discover(a, online=online, search=search, not_searched=not_searched, job="read-a-line")
+        return [c for c in cards if _override(c.pin) is not None], sources
     from fichero_server.recipes.cards import all_seed_cards
 
     seed = all_seed_cards()
