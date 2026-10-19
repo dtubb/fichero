@@ -90,6 +90,33 @@ So:
 - **Clear Failed clears what is failed**, every failed row the window shows, and says what it
   cleared (#5634). **The popover's Mac state is a row of symbols**, not a column of text (#5635).
 
+### Ruled 2026-10-19 (the maintainer, finding Activity and its logs cluttered; paraphrased)
+
+What the person sees first, top to bottom, and how the window reads. The behaviours are in section B ("The Activity
+window, ruled 2026-10-19") and the details view; where one of them replaces an older line, that line says
+*superseded by Ruled 2026-10-19*.
+
+- **What is working now comes first:** the recipe, the stage it is in and the workflow that stage runs.
+- **What it acts on:** which files and folders and how many in all ("Read: 7 of 20 pages, folder X"), with the whole
+  list of pages opening under it, each with its state. Not the next three rows.
+- **What comes next, in run order.** Waiting things look waiting (no spinner) and say what they wait for.
+- **Layout:** one live block per project at the top (Recipe › Stage › Workflow, a count of done, failed and left, the
+  folders, opening to the files); background work (thumbnails, embeddings, Run automatically) in its own group below,
+  one row per kind with its total; finished, stopped and interrupted runs fold into a History group, which Clear
+  Finished empties.
+- **Logs:** the default log is the person's: one line per page when it is done or failed, one per stage; one sentence per
+  event, in local time, never repeated, never inside another job's line. The "Node … started" lines and the like go to a
+  Developer level that is off by default.
+- **Stop and Retry:** Stop on a page skips it and the run goes on; Stop on a run stops all of it and every row agrees;
+  Retry on a page retries it within its run.
+- **The toolbar popover follows the same rules** (live Recipe › Stage › Workflow with its pages and folder, one line per
+  background kind, waits that look waiting, no stale or interrupted runs, Open Activity), and it and the window read ONE
+  engine summary, so they always agree.
+
+Issues: #5839 (order and rows), #5850 (logs), #5851 (layout: background and History groups), #5852 (one summary for the
+popover and the window), #5853 (Stop and Retry). Already in flight with the bugs lane, not re-specified here: Stop on a
+page or a run, Retry within a run, the embed after reading, one live run per project.
+
 ## Prior art (what we build on, and what we do differently)
 
 - **macOS Spotlight indexing and Photos analysis.** The model for the whole feel. Both run at
@@ -603,6 +630,48 @@ workflow by hand: a hand run is a job like any other.
 
 ### B. The window
 
+#### The Activity window, ruled 2026-10-19
+
+Engine tests under `fichero-server/tests/unit/jobs/`; app tests drive the real window through the real environment
+builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
+
+- `activity.window.live-block` — **[GAP]** (#5851, #5839) one live block per project at the top: Recipe › Stage ›
+  Workflow, a count (done, failed, left) and the folder(s), opening to the files. Supersedes the flat table of every
+  job as the first thing seen (`activity.window.table` keeps the rows underneath). (Not yet written:
+  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+- `activity.window.acts-on` — **[GAP]** (#5839) the live block says what it acts on with counts ("Read: 7 of 20 pages,
+  folder X"), and the whole list of pages expands under it, each with its state. Supersedes the next-three-rows view in
+  `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written:
+  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+- `activity.window.next-in-run-order` — **[GAP]** (#5839) what comes next is listed in run order; a waiting row has no
+  spinner and says what it waits for (`activity.waiting-says-why`). (Not yet written:
+  `fichero-server/tests/unit/jobs/test_activity_run_order.py`.)
+- `activity.window.background-group` — **[GAP]** (#5851) background work (thumbnails, embeddings, Run automatically) is a
+  group of its own below the live blocks, one row per kind with its total. Supersedes
+  `activity.window.grouped-by-project` as the way the Mac's own work is shown. (Not yet written:
+  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+- `activity.window.history-group` — **[GAP]** (#5851) finished, stopped and interrupted runs fold into a History group;
+  Clear Finished empties it (`activity.window.clear-finished`). No stale or interrupted run is in the live area or the
+  popover. (Not yet written: `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+- `activity.log.persons-log` — **[GAP]** (#5850) the default log is the person's: one line per page when it is done or
+  failed and one per stage, one sentence per event in local time, never repeated, never nested inside another job's line.
+  Supersedes `activity.details.log-filtered-newest-last` for what the log holds. (Not yet written:
+  `fichero-server/tests/unit/jobs/test_person_log_levels.py`.)
+- `activity.log.developer-level` — **[GAP]** (#5850) the "Node … started" and other debug lines are a Developer level, off
+  by default; the log shows the person's lines until it is switched on. (Not yet written:
+  `fichero-server/tests/unit/jobs/test_person_log_levels.py`.)
+- `activity.stop.page-skips-run-stops-all` — **[GAP]** (#5853) Stop on a page skips it and the run goes on; Stop on a run
+  stops all of it and every row agrees. In flight with the bugs lane. (Not yet written:
+  `fichero-server/tests/unit/jobs/test_stop_page_vs_run.py`.)
+- `activity.retry.page-within-run` — **[GAP]** (#5853) Retry on a page retries it within its run, not as a new run
+  (`activity.retry.one-row` keeps a whole failed run's Retry). In flight with the bugs lane. (Not yet written:
+  `fichero-server/tests/unit/jobs/test_retry_page_within_run.py`.)
+- `activity.popover.same-summary` — **[GAP]** (#5852) the popover and the window read ONE engine summary and always
+  agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
+  …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of
+  `activity.popover.summary`. (Not yet written: `fichero-server/tests/unit/jobs/test_activity_summary_one_source.py` and
+  `fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`.)
+
 - `activity.window.all-projects` — **[PARTIAL]** (#5354) the Activity window merges
   every open library and the global one (`ActivityMonitorWindow.swift`); unpinned.
 - `activity.window.table` — **[PARTIAL]** (#5415, #5354) the window is a table of every job of
@@ -620,6 +689,7 @@ workflow by hand: a hand run is a job like any other.
   `testActivityWindowTable_aJobOfItsOwnIsARowAndAPageOfARunIsNot`). Not yet seen in the app: no
   test drives the real window. Still a gap: ingest progress, conversion and downloads
   (`activity.window.one-surface`), and filters.
+  *Superseded by Ruled 2026-10-19 in part:* the table is no longer the first thing seen; the live block, the background group and History sit above and around it (`activity.window.live-block`, `activity.window.background-group`, `activity.window.history-group`).
 - `activity.window.expand` — **[PARTIAL]** (#5415, #5354) a row expands, with a disclosure triangle,
   into its children as `activity.jobs-follow-the-graph` defines them; a failed page shows its
   reason. **Built 2026-10-04:** a run's row opens into its steps and their pages from
@@ -627,6 +697,7 @@ workflow by hand: a hand run is a job like any other.
   (`ActivityTableTests` `testActivityWindowExpand_aRunRowOpensIntoItsStepsAndTheirPages`,
   `testActivityWindowExpand_aRunTheEngineHasNoTreeForStillHasItsRowAndIsNotAskedAgain`). Not yet
   seen in the app. Still a gap: branches skipped and remote jobs, which the tree does not carry.
+  *Superseded by Ruled 2026-10-19 in part:* for a recipe run the expansion is the live block's list of pages with each page's state (`activity.window.acts-on`).
 - `activity.window.working-on` — **[PARTIAL]** (#5415, #5354) a running row says what it is
   working on now (as defined in `activity.jobs-follow-the-graph`) and how long remains.
   **Built 2026-10-04:** a running row's state reads "Running: <step>" (the live run's step, or
@@ -786,6 +857,7 @@ workflow by hand: a hand run is a job like any other.
   library's rows in a section of its own, the global library's titled "This Mac"
   (`ActivityTableTests` `testActivityWindowGroupedByProject_eachLibraryIsAGroupAndTheGlobalOneIsTheMacs`).
   Not yet seen in the app.
+  *Superseded by Ruled 2026-10-19 in part:* the Mac's own and background work is the background group, not "This Mac" (`activity.window.background-group`).
 - `activity.window.row-shows-lane-state-reason` — **[PARTIAL]** (#5415) every row shows its state,
   its lane and, while it waits, why. Built: rows carry `state` and `reason`, and waiting rows say
   why ("Paused by you", "Waiting for Kraken", "Waiting: memory is tight", "Waiting: you're using
@@ -803,6 +875,7 @@ workflow by hand: a hand run is a job like any other.
   lane: Transcribe (Kraken) is reading" was the run waiting for itself). *Test:*
   `fichero-server/tests/unit/mcp/test_run_says_what_it_reads_5685.py`, through MCP on the real scheduler, caught
   mid-read.
+  *Superseded by Ruled 2026-10-19 in part:* the run's line is the live block's count and folder (`activity.window.acts-on`).
 - `activity.waiting-says-why` — **[PARTIAL]** (#5606) a waiting row says what it truly waits for
   now, and never has no reason: paused by you, when paused; the lane and what holds it, when the
   lane is full (#5622: it names what the row would still wait for if the person stepped away; rows
@@ -886,6 +959,7 @@ workflow by hand: a hand run is a job like any other.
   waiting job's reason (`ActivityStore.machine`; `ActivityTableTests`
   `testActivityPopoverSummary_saysThisMacsStateAndHidesAReadingTheEngineCouldNotTake`). Not yet
   seen in the app. Still a gap (#5415): nothing reads the GPU.
+  *Superseded by Ruled 2026-10-19 in part:* what the popover shows, and that it reads the window's summary, is `activity.popover.same-summary`.
 - `activity.popover.mac-state-row` — **[PARTIAL]** (#5635, ruled 2026-10-09) the popover shows this
   Mac's state as one compact row of symbols with short values, not a column of text: memory
   (`memorychip`: OK, High, Critical), heat (`thermometer.medium`: OK, Warm, Hot, Critical), power
@@ -1057,6 +1131,7 @@ and node, not by job); a retry action for failed pages.
 - `activity.details.log-filtered-newest-last` — **[OK]** (#5561) the log shows only the lines the
   engine wrote for this row and the rows under it, newest last, following the end while the row
   runs, and copies as plain text with one command. Built: `GET /api/activity/jobs/{id}/log` (pinned: `fichero-server/tests/unit/jobs/test_activity_details_5561.py`, `fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
+  *Superseded by Ruled 2026-10-19 in part:* what the log holds is the person's log, with debug lines at a Developer level (`activity.log.persons-log`, `activity.log.developer-level`).
 - `activity.details.resources` — **[OK]** (#5561, #5555, #5537) the view shows started at and
   finished at as absolute times, elapsed, tokens and cost as the table does, and the engine's and
   model servers' peak memory during the run; a figure the engine did not measure is omitted, never
@@ -1734,6 +1809,9 @@ line post-processing. For 200 handwritten pages the stages today add up rather t
 their ids. The run list is `ActivityStore.rebuildRuns` (`fichero/fichero/Models/ActivityStore.swift`),
 which merges live executions with each library's history and collects a library's load failure in
 `runLoadFailures`; `ActivityViewHelpers.swift` renders it.
+
+How the list is laid out (a live block per project, a background group, finished and interrupted runs in History) is
+*Ruled 2026-10-19* (`activity.window.live-block`, `activity.window.history-group`); the assembly rules below stand.
 
 - `activity.store-owns-run-assembly` — **[PARTIAL]** (#3231, #493) `ActivityStore.rebuildRuns` merges live
   and historical runs, sorts and dedupes; the view only renders `runs` and `runLoadFailures`. Pinned
