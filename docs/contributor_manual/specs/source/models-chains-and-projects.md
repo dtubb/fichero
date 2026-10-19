@@ -1184,11 +1184,10 @@ plan's peak memory across steps. Ready shows none of it.
   no or left unset, the recipe is unchanged. The answer is `photographs` on assemble; nothing guesses it. *Not built:*
   the question in the app's setup, and the other three faults of #5390 (cloud options listed when allowed, running an
   assembled recipe from the CLI, plain list values).
-- `source.onboard.auto.organise-is-a-stage` — **[GAP]** (#5550) Find the Documents is a recipe stage
+- `source.onboard.auto.organise-is-a-stage` — **[PARTIAL]** (#5550; built 2026-10-07, engine, as `finddocs.recipe-step`: setup's `loose_pages` adds the step after reading, names and dates, on by default for a project holding a folder of loose page images; Start runs it as its own `find-documents` card under the recipe's row; it proposes only, so nothing moves until the person accepts; pinned by `fichero-server/tests/unit/recipes/test_find_documents_step.py` and `fichero-server/tests/unit/finddocs/test_find_documents_to_spec.py::test_finddocs_proposes_only_by_default`; not seen: the proposals drawn on the canvas for review) Find the Documents is a recipe stage
   that runs after names and dates, on any material, images or text. Its proposals (boundaries, kinds as
   prototypes, groups, order) are drawn on the canvas for review. Nothing in the source moves until the
-  person accepts, and a project of loose material brings this stage by default. Today no purpose brings
-  `find-documents-in-a-folder`, and Start has no card for it.
+  person accepts, and a project of loose material brings this stage by default.
 - `source.onboard.auto.diary-entries` — **[PARTIAL]** (#5581; tested in
   `fichero-server/tests/unit/recipes/test_diary_entries_step.py`. *Not built:* an entry that runs across a
   page break is still two entries, one on each page (the splitter reads one page at a time); the entries are
