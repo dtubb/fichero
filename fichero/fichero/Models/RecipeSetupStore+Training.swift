@@ -15,12 +15,6 @@ extension RecipeSetupStore {
     /// The offers on the plan shown, in the recipe's order.
     var trainOffers: [TrainOffer] { startPlan?.trainOffers ?? [] }
 
-    /// The offers for these jobs only (a stage page's), or every offer for nil (the Train page).
-    func trainOffers(forJobs jobs: Set<String>?) -> [TrainOffer] {
-        guard let jobs else { return trainOffers }
-        return trainOffers.filter { jobs.contains($0.job) }
-    }
-
     /// The offer's need sentence ("Needs 2,000 corrected lines on at least 2 pages; …"), or nil once it is ready.
     nonisolated static func needSentence(_ offer: TrainOffer) -> String? {
         let readiness = offer.readiness.additionalProperties.value

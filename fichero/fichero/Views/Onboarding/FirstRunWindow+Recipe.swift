@@ -47,7 +47,7 @@ extension FirstRunWindow {
                         project: project
                     )
                     // Training is offered once there is enough corrected work, never before (#5804): no row, no count.
-                    if !store.trainOffers(forJobs: nil).isEmpty {
+                    if !store.trainOffers.isEmpty {
                         Divider()
                         Text("Train a model of your own").font(.headline)
                         RecipeTrainOffersFields(store: store)
