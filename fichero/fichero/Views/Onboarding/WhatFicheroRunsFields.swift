@@ -34,7 +34,9 @@ enum WhatFicheroRuns {
         }
 
         init(providers: [Components.Schemas.ProviderResponse], clusters: [String]) {
-            self.init(keys: providers.filter { $0.hasApiKey && $0.providerType != "huggingface" }.map(\.name),
+            // Cloud providers only (`place` is the company that runs the model): a local one reports a key as present
+            // because it needs none, and is no key (#5828).
+            self.init(keys: providers.filter { $0.hasApiKey && $0.place == "provider" && $0.providerType != "huggingface" }.map(\.name),
                       hasToken: providers.contains { $0.hasApiKey && $0.providerType == "huggingface" },
                       clusters: clusters)
         }
