@@ -57,3 +57,21 @@ def test_the_history_count_is_the_ended_rows_and_the_summary_rides_in_the_one_re
                                  _job("live", "workflow", "running")])
     assert sum(1 for j in listed if j.group == "earlier") == 2
     assert "activity" in BackgroundJobsResponse.model_fields  # the window and the popover read this one field
+
+
+def test_a_live_block_reuses_the_status_the_list_already_read(monkeypatch):
+    """Review 297: the summary re-ran `_recipe_state` for each live recipe run the list had already derived."""
+    import asyncio
+
+    from fichero_server.api.routes.system import activity
+
+    async def not_again(*_a, **_k):
+        raise AssertionError("_recipe_state ran again")
+
+    monkeypatch.setattr(activity, "_recipe_state", not_again)
+    monkeypatch.setattr(activity, "get_activity_tracker", lambda _p: type("T", (), {"store": type(
+        "S", (), {"get_workflow_run": staticmethod(lambda _i: asyncio.sleep(0, None))})()})())
+    status = {"state": "running", "reason": None, "waiting_for": None, "steps": []}
+    db = type("Db", (), {"path": "/tmp/x/library.duckdb"})()
+    blocks = asyncio.run(activity.live_blocks(db, [_job("rec", "run-a-recipe", "running")], {"rec": status}))
+    assert [b.id for b in blocks] == ["rec"]
