@@ -238,6 +238,8 @@ def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
     return {"workflow": name, "workflow_id": workflow_id, "provider_override": provider, "model_override": model}
 
 
+#: What the plan says of the disagree step when its readers are already in the plan: nothing runs, nothing is stored.
+BUILT_IN_DISAGREE = "built in: worked out when you open a page, from the readers above; there is nothing to run"
 #: The jobs whose steps are a reader of the lines (or the page) in a plan.
 READER_STEP_JOBS = frozenset({"read-a-line", "read-a-page", "correct"})
 
@@ -258,10 +260,10 @@ def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, An
     pins = [p for p in settings.get("readers") or [] if isinstance(p, dict)]
     temperature = settings.get("temperature", DISAGREE_TEMPERATURE)
     if not pins and not step.get("model") and _readers_in_plan(recipe) >= 2:
-        # Two readers already in the plan: the disagreement is the alignment of the readings they make, run built in
-        # with no model (`source.disagree.built-in-with-two-readers`, #5812).
-        return [({"steps": [step.get("id", "?")], "job": DISAGREE_JOB, "card": "align",
-                  "runs_on": "this-mac"}, False)], None
+        # Two readers already in the plan: the disagreement is the alignment of the readings they make, and the page
+        # worked out when it is opened (`GET /api/documents/{id}/disagreement` is read-only and keeps nothing), so the
+        # step has nothing to run and no model (`source.disagree.built-in-with-two-readers`, #5812, #5816).
+        return [], BUILT_IN_DISAGREE
     if not pins:
         pin = step.get("model") or next((s.get("model") for s in recipe.get("steps") or []
                                          if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)

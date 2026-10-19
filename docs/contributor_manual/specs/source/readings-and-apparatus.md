@@ -434,11 +434,13 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   `find-where-readers-disagree`, stage Read): it reads the project's pages with the readers the step names, or
   one reader sampled N times at a temperature (5 at 0.7 by default), keeps every reading as a reading of the
   line (`source.reading.set`; none counts over another by being compared), and works out the disagreement.
-- `source.disagree.built-in-with-two-readers` — **[OK]** (#5812; `start.disagreement_runs`, card `align`, `runner._run_align`; tested in
+- `source.disagree.built-in-with-two-readers` — **[OK]** (#5812, #5816; `start.disagreement_runs`; tested in
   `fichero-server/tests/unit/recipes/test_disagree_needs_no_model_5812.py`) when the plan already has two or more readers of the
   lines (a line reader and a Correct step, or two `readers` pinned on the step), "Find where the readers disagree" needs
-  no model: it is the line-by-line alignment of the readings the plan makes (`source.disagree.medoid-aligned`), run built in.
-  Its page says "uses your readers above; built in". No model is searched for, asked for, or warned about.
+  no model and has nothing to run: the disagreement is the line-by-line alignment of the readings the plan makes
+  (`source.disagree.medoid-aligned`), worked out when a page is opened (`source.disagree.route` is read-only and keeps
+  nothing; Review does not need it stored). The plan says so ("built in: worked out when you open a page, from the
+  readers above; there is nothing to run"). No model is searched for, asked for, or warned about.
 - `source.disagree.one-reader-says-which-to-add` — **[OK]** (#5812; same tests) with one reader in the plan the step
   cannot compare anything unless that reader is sampled. A vision reader is sampled (`source.disagree.recipe-step`); a reader
   that cannot be (Kraken) is not a reason to choose a model for THIS step: the line names the reader to add ("add a second
