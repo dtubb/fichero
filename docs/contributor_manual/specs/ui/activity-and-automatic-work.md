@@ -1201,7 +1201,14 @@ and node, not by job); a retry action for failed pages.
   Kraken's resident models first, and leaving the embedder for Kraken frees the embedder; a
   background job for another heavy model waits for 20 s of quiet on the loaded one, so bursts do
   not swap models page by page, while work a person waits for switches at once
-  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Pages read by a model served on this Mac hold the same lane
+  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). The quiet spell is not the only hold (#5846,
+  `fichero-server/tests/unit/jobs/test_model_lane_affinity_5846.py`): while Kraken is loaded and a Kraken page
+  waits in any open project, or a run has one at the page gate, no other heavy model takes the lane, so Kraken loads
+  once for a run. Over a whole Kraken run that means the embeds for search (an import's, or one a person starts
+  without waiting on it) wait for the run's pages; they go ahead 5 minutes after Kraken last ran, so queued Kraken
+  work that cannot run never holds them for good. Work a person waits for, and a try a step hands in, switch at
+  once. Every model load and unload is one engine log line, `model-lane: load …` or `model-lane: unload … (why)`,
+  so reloads can be counted. Pages read by a model served on this Mac hold the same lane
   (`fichero-server/tests/unit/jobs/test_local_model_pages_on_the_lane.py`). Still a gap: stopping a local model server on a switch (its restart costs
   30-300 s). A text model served on this Mac holds the lane like a page, called in a run
   (`fichero-server/tests/unit/jobs/test_text_calls_on_the_lane.py`) or by chat (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`).
@@ -1350,6 +1357,19 @@ and node, not by job); a retry action for failed pages.
   place in the list (`workflow_execution.core.read_again`, shared with Read Again). Before, Retry on an interrupted
   workflow run's row was refused as "work a workflow run handed in", though the row was the run. Pinned by
   `fichero-server/tests/unit/jobs/test_retry_is_one_row.py` and `test_a_job_that_dies_with_the_engine.py`.
+  A retried run reads with the nodes (their settings, provider and model) the original run ran with, kept on its
+  record, not with the workflow as it is stored now: a workflow edited after the failure is not what Retry runs, and a
+  recipe step's settings carry over, so the retry has the same reader as the recipe and joins a live read of the same
+  pages rather than reading them again (`activity.run.one-live-read-per-page`, #5848). The record keeps a node's id,
+  tool, label, settings, inputs and provider and model names; anything else on a node is not carried.
+- `activity.run.one-live-read-per-page` — **[OK]** (#5848) A page is read by one live run at a time. A run of the same
+  workflow with the same reader (every node's settings, the provider and the model) on pages a live run reads
+  joins that run for those pages: a Start, a Retry or a resumed recipe step does not read them again, and reads
+  only the rest if the live run covers some of them; a start that is wholly covered answers with the live run.
+  A recipe step waits for the run it joined, then reports its outcome, naming the run by its workflow. A paused run
+  is not live (Pause then Start reads), and a different model or setting is a different read, never joined. Matched
+  by the page ids each run recorded: a run started on a folder and one on its pages do not match.
+  Pinned by `fichero-server/tests/unit/recipes/test_one_live_read_per_page_5848.py`.
 - `activity.durable.paused-stays-paused` — **[OK]** (#5357) a paused job is still
   paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`) and,
   since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only
