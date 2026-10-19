@@ -2203,9 +2203,16 @@ def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
 _current = threading.local()
 
 
+#: Whether a person started the RUN the code now executing is of, set by `process_vision` from `person_waits_on`. A
+#: workflow thread has no `_current`; a context variable follows the run into its tasks and `asyncio.to_thread` (review 344).
+_run_is_a_persons: ContextVar[bool | None] = ContextVar("_run_is_a_persons", default=None)
+
+
 def current_job_is_a_persons() -> bool:
-    """The job this thread is running is work a person started or watches (`_PERSON_WAITS_SQL`): it runs flat out."""
-    return bool(getattr(_current, "person", False))
+    """The job this thread is running is work a person started or watches (`_PERSON_WAITS_SQL`): it runs flat out.
+    A run that says who started it (`_run_is_a_persons`) is believed over the thread's job, which a workflow thread lacks."""
+    run = _run_is_a_persons.get()
+    return run if run is not None else bool(getattr(_current, "person", False))
 
 
 def current_job_id() -> str | None:
@@ -2213,11 +2220,21 @@ def current_job_id() -> str | None:
     return getattr(_current, "job_id", None)
 
 
-def _kraken_busy() -> bool:
+def _kraken_pages_at_once() -> int:
+    """How many Kraken pages the lane may run together for a person's run now: r1's rule (`kraken_runtime.pages_at_once`: fast
+    priority, cores, memory), the same number the gate lets in. 1 when Kraken is not loaded yet."""
+    runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
+    return runtime.pages_at_once(True) if runtime is not None else 1
+
+
+def _kraken_busy(queued: int = 0) -> bool:
+    """A Kraken page outside the queue is reading, or the gate is held whole. `queued` is how many Kraken jobs the model
+    lane itself runs beside the one asking: with two pages together (`activity.lane.same-model-pages-together`) they are
+    in the gate, and are not "another page"."""
     # Only if the module is loaded: when it is not, no Kraken page can be running, and importing
     # it here would cost the engine its startup time.
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
-    return runtime is not None and runtime._INFERENCE_LOCK.locked()
+    return runtime is not None and runtime._INFERENCE_LOCK.held_beside(queued)
 
 
 def _release_kraken(reason: str = "another heavy model takes the lane") -> None:
@@ -2370,12 +2387,17 @@ class _Lane:
 
         return max(self.slots, LOCAL_READS_CEILING)
 
-    def may_start(self, kind: str, model: str | None) -> bool:
+    def may_start(self, kind: str, model: str | None, is_person: Callable[[], bool] = lambda: False) -> bool:
         """Whether a job may start now: a free slot, or on the model lane a call to the engine's own
         model server joining the calls to the same model already running, up to its reads at once."""
         running = dict(self.running)
         if len(running) < self.slots:
             return True
+        if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
+                and set(running.values()) == {model}):
+            # A second page of the model already running, for a person's run, when memory holds both
+            # (`activity.lane.same-model-pages-together`).
+            return len(running) < _kraken_pages_at_once() and is_person()
         if self.name != "local-ml" or kind != CO_RUN_KIND or not (model or "").startswith("omlx:"):
             return False
         if set(running) - self.calls or set(running.values()) != {model}:
@@ -2642,7 +2664,7 @@ class _Scheduler:
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             while (picked := self._next(lane, background=held is None)) is not None:
                 key, db, row = picked
-                if not lane.may_start(row[1], row[3]):
+                if not lane.may_start(row[1], row[3], lambda: person_waits_on(db, row[0])):
                     return None  # the lane is full: its running job's thread picks this when it ends
                 if lane.name in THROTTLED_LANES:
                     # memory and heat hold even these; memory by this job's own model's need (#5654)
@@ -2924,9 +2946,11 @@ class _Scheduler:
         job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
         if lane.name == "local-ml":
-            if _kraken_busy():  # a Kraken page outside the queue: no second heavy model beside it
+            queued = sum(1 for other, m in list(lane.running.items())
+                         if other != job_id and (m or "").startswith(KRAKEN_MODEL_PREFIX))
+            if _kraken_busy(queued):  # a Kraken page outside the queue: no second heavy model beside it
                 wait_on(db, job_id, "Waiting for Kraken (another page is using it)")
-                while _kraken_busy():
+                while _kraken_busy(queued):
                     time.sleep(self.KRAKEN_POLL_SECONDS)
                 wait_over(db, job_id)
             if _heavy_switch(lane.loaded_model, model):

@@ -3744,10 +3744,13 @@ def _frame_true_background_removed_path(
 
 class _KrakenPageGate:
     """ONE gate for the whole engine process (#5846, review 246): transcribe fans out one file per `process_vision`
-    call, so a gate made per call let four pages in. A `threading.Lock` taken by polling, so it holds across event
-    loops and threads and never uses a thread-pool worker while a page waits."""
+    call, so a gate made per call let four pages in. It lets in as many pages as the seam does
+    (`kraken_runtime.pages_at_once`: two for a person's run when memory holds two, else one; review 341), counted under
+    a `threading.Lock`, taken by polling, so it holds across event loops and threads and never uses a thread-pool worker
+    while a page waits."""
 
-    _lock = threading.Lock()
+    #: Kraken pages inside the gate now.
+    _inside = 0
     #: Kraken pages inside or waiting for the gate: the model lane holds other heavy models off while any (#5846).
     in_flight = 0
     #: Who waits, in the order they came: pages take the gate first come, first served, so a run reads its pages in
@@ -3756,16 +3759,21 @@ class _KrakenPageGate:
     _queue_guard = threading.Lock()
 
     async def __aenter__(self) -> None:
+        from fichero_server.execution import jobs
+        from fichero_server.llm import kraken_runtime
+
         cls = type(self)
         ticket = object()
+        allowed = max(1, kraken_runtime.pages_at_once(jobs.current_job_is_a_persons()))  # asked once per page
         with cls._queue_guard:
             cls._queue.append(ticket)
             cls.in_flight += 1
         try:
             while True:
                 with cls._queue_guard:
-                    if cls._queue[0] is ticket and self._lock.acquire(blocking=False):
+                    if cls._queue[0] is ticket and cls._inside < allowed:
                         cls._queue.popleft()
+                        cls._inside += 1
                         return
                 await asyncio.sleep(0.05)
         except BaseException:
@@ -3776,8 +3784,8 @@ class _KrakenPageGate:
             raise
 
     async def __aexit__(self, *exc: object) -> None:
-        self._lock.release()
         with type(self)._queue_guard:
+            type(self)._inside -= 1
             type(self).in_flight -= 1
 
 
@@ -3785,11 +3793,25 @@ _KRAKEN_PAGE_GATE = _KrakenPageGate()
 
 
 def one_page_at_a_time(vision_mode: str | None):
-    """A factory of async context managers: with Kraken, at most ONE page inside at a time across the whole process;
+    """A factory of async context managers: with Kraken, at most `pages_at_once` pages inside at a time across the whole process;
     with any other reader, no extra limit (`vision_slot` still bounds it)."""
     import contextlib
 
     return (lambda: _KRAKEN_PAGE_GATE) if vision_mode == "kraken" else contextlib.nullcontext
+
+
+def note_who_started_the_run(task_id: str | None, library_path: str | None) -> None:
+    """The gate and the seam ask who started the RUN (`person_waits_on`): a workflow thread has no job of its own, so
+    its thread-local says nobody (review 344). Set for this context; its tasks and `to_thread` calls inherit it."""
+    if not (task_id and library_path):
+        return
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.execution import jobs
+
+        jobs._run_is_a_persons.set(jobs.person_waits_on(db_manager.get_database(library_path), task_id))
+    except Exception:  # an unknown run reads as automatic: one page at a time
+        logger.debug("run starter unknown for %s", task_id, exc_info=True)
 
 
 async def process_vision(
@@ -5988,6 +6010,8 @@ async def process_vision(
     # Kraken reads one page at a time (its own lock already serialises the reading; this stops four pages at once
     # loading and decoding images beside it, #5846).
     _page_gate = one_page_at_a_time(vision_mode)
+    if vision_mode == "kraken":
+        note_who_started_the_run(task_id, library_path)
 
     async def _run_one(file_index: int, file_path: str) -> dict:
         activity_scope = _vision_activity_db_path.set(activity_db_path)

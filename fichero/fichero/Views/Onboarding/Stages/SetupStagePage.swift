@@ -70,7 +70,7 @@ struct SetupStagePage: View {
                         useSmaller: useSmaller
                     )
                 }
-                SetupStageSamples(store: tryStore)
+                SetupStageSamples(store: tryStore, useThis: useThis)
                     .id(stage.id)
                     // The samples' thumbnails come from this project's storage (Organise's strip).
                     .environment(project?.storageService)
