@@ -342,6 +342,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 "refusals": ["this project has no recipe yet: run setup first"]}
     runs: list[dict[str, Any]] = []
     skipped: list[dict[str, str | None]] = []
+    #: Steps that run nothing on purpose, each with its sentence: shown as built in, never among the skipped (#5816).
+    built_in: list[dict[str, str]] = []
     offered: list[str] = []
     #: Steps that run their next candidate because the first cannot (a missing key), each saying which and why.
     fallbacks: list[dict[str, Any]] = []
@@ -370,7 +372,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             continue
         if job == DISAGREE_JOB:
             sampled, why = disagreement_runs(step, recipe)
-            if why:
+            if why == BUILT_IN_DISAGREE:
+                built_in.append({"step": sid, "sentence": why})  # part of the plan, not a problem (#5816)
+            elif why:
                 skip(sid, f"{label}: {why}")
             elif stays_local and any(leaves for _run, leaves in sampled):
                 skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here",
@@ -627,7 +631,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         refusals.append("What runs by itself is “Nothing runs automatically”: new material waits for a run by hand"
                         if nothing else "nothing in this recipe can run yet: every step is skipped (see why)")
     return {"runs": runs, "workflows": [r for r in runs if r["card"] == "workflow"], "skipped": skipped,
-            "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
+            "built_in": built_in, "offered": offered, "refusals": refusals, "downloads": downloads, "elsewhere": elsewhere,
             "waiting": waiting, "start_downloads": start_downloads(downloads), "fallbacks": fallbacks}
 
 
