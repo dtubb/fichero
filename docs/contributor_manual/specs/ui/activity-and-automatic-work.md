@@ -107,14 +107,15 @@ window, ruled 2026-10-19") and the details view; where one of them replaces an o
 - **Logs:** the default log is the person's: one line per page when it is done or failed, one per stage; one sentence per
   event, in local time, never repeated, never inside another job's line. The "Node … started" lines and the like go to a
   Developer level that is off by default.
-- **Stop and Retry:** Stop on a page skips it and the run goes on; Stop on a run stops all of it and every row agrees;
-  Retry on a page retries it within its run.
+- **Stop and Retry:** Stop on a page skips it and the run goes on; Stop on a run stops all of it and every row agrees
+  (`activity.stop.page-skips-run-stops-children`, the bugs lane's); Retry on a page retries it within its run
+  (`activity.retry.page-within-run`).
 - **The toolbar popover follows the same rules** (live Recipe › Stage › Workflow with its pages and folder, one line per
   background kind, waits that look waiting, no stale or interrupted runs, Open Activity), and it and the window read ONE
   engine summary, so they always agree.
 
 Issues: #5839 (order and rows), #5850 (logs), #5851 (layout: background and History groups), #5852 (one summary for the
-popover and the window), #5853 (Stop and Retry). Already in flight with the bugs lane, not re-specified here: Stop on a
+popover and the window), #5853 (Stop and Retry; Stop is the bugs lane's entry). Already in flight with the bugs lane, not re-specified here: Stop on a
 page or a run, Retry within a run, the embed after reading, one live run per project.
 
 ## Prior art (what we build on, and what we do differently)
@@ -645,7 +646,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
 - `activity.window.next-in-run-order` — **[GAP]** (#5839) what comes next is listed in run order; a waiting row has no
   spinner and says what it waits for (`activity.waiting-says-why`). (Not yet written:
-  `fichero-server/tests/unit/jobs/test_activity_run_order.py`.)
+  `fichero-server/tests/unit/jobs/test_activity_run_order.py`, and for the no-spinner row
+  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
 - `activity.window.background-group` — **[GAP]** (#5851) background work (thumbnails, embeddings, Run automatically) is a
   group of its own below the live blocks, one row per kind with its total. Supersedes
   `activity.window.grouped-by-project` as the way the Mac's own work is shown. (Not yet written:
@@ -660,11 +662,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
 - `activity.log.developer-level` — **[GAP]** (#5850) the "Node … started" and other debug lines are a Developer level, off
   by default; the log shows the person's lines until it is switched on. (Not yet written:
   `fichero-server/tests/unit/jobs/test_person_log_levels.py`.)
-- `activity.stop.page-skips-run-stops-all` — **[GAP]** (#5853) Stop on a page skips it and the run goes on; Stop on a run
-  stops all of it and every row agrees. In flight with the bugs lane. (Not yet written:
-  `fichero-server/tests/unit/jobs/test_stop_page_vs_run.py`.)
 - `activity.retry.page-within-run` — **[GAP]** (#5853) Retry on a page retries it within its run, not as a new run
-  (`activity.retry.one-row` keeps a whole failed run's Retry). In flight with the bugs lane. (Not yet written:
+  (`activity.retry.one-row` keeps a whole failed run's Retry). No other entry owns it: it is the bugs lane's next item
+  (c, `briefs/speed-split-2026-10-19.md`), to take over with its test. (Not yet written:
   `fichero-server/tests/unit/jobs/test_retry_page_within_run.py`.)
 - `activity.popover.same-summary` — **[GAP]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
