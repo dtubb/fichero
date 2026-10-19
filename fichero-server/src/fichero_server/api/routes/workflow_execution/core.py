@@ -720,7 +720,34 @@ async def read_pages_again(
         pages=pages, stream_url=f"{base_url}/api/workflow-execution/stream/{new_thread}")
 
 
-async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
+async def retry_page_in_run(db: Database, page_job_id: str) -> tuple[str, str]:
+    """Retry on a page a run handed in: the page is read again WITHIN its run, not as a new run
+    (`activity.retry.page-within-run`). A run that has ended reopens for that page: the same run id goes back to running
+    and reads the page. A run still going takes the page into its queue: the page row waits ("Retried by you; waits in
+    its run") and the run reads it as soon as its pass ends, so there is no 409 for a live run. Returns (run id, "reopened"
+    or "queued"). HTTPException 404 for a page that is no run's."""
+    from fichero_server.execution import jobs as job_queue  # noqa: PLC0415
+
+    run_id = job_queue.run_of_page(db, page_job_id)
+    if run_id is None:
+        raise HTTPException(status_code=404, detail=f"{page_job_id} is not a page of a run")
+    document = job_queue.read_job(db, page_job_id)["subject"]  # a page job's subject is its document
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(run_id)
+    status = ((run.status if run else "") or "").lower()
+    if status in ("running", "accepted", "paused") or run_id in job_queue.live_run_ids():
+        job_queue.queue_page_retry(db, page_job_id, run_id, document)
+        return run_id, "queued"
+    await read_again(db, run_id, documents=[document], reopen=True)
+    return run_id, "reopened"
+
+
+async def reopen_run_for_pages(db: Database, run_id: str, documents: list[str]) -> None:
+    """A run that took retried pages into its queue has ended: it reopens for them (the same run id)."""
+    await read_again(db, run_id, documents=documents, reopen=True)
+
+
+async def read_again(db: Database, thread_id: str, *, documents: list[str] | None = None,
+                     reopen: bool = False) -> tuple[str, Any, int]:
     """Start a run that reads the pages a run did not do: (its thread id, the workflow, how many pages). The one way a
     run is run again, from `read-again` and from Retry on the run's row in Activity (`activity.retry.one-row`).
     HTTPException 404 for no such run or workflow, 409 for a run with nothing to read again."""
@@ -732,7 +759,7 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
     if run is None:
         raise HTTPException(status_code=404, detail=f"No run {thread_id} in this project")
     account = await accounts.run_account(db, thread_id, run=run)
-    if account is None or account.offer is None:
+    if not reopen and (account is None or account.offer is None):
         state = account.state if account else "unknown"
         raise HTTPException(status_code=409, detail=(
             f"The run is still {state}; read its pages again when it ends"
@@ -749,8 +776,8 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
                                                "edges": snapshot.get("edges") or workflow.edges})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
-    inputs["selected_doc_ids"] = account.not_done_ids
-    new_thread = f"thread-{uuid4().hex[:12]}"
+    inputs["selected_doc_ids"] = list(documents) if documents is not None else account.not_done_ids
+    new_thread = thread_id if reopen else f"thread-{uuid4().hex[:12]}"  # a reopened run keeps its id
     request = ExecuteWorkflowRequest(
         workflow_id=workflow.id, inputs=inputs, thread_id=new_thread,
         provider_override=started_with.get("provider_override"),
@@ -760,11 +787,12 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
     )
     _validate_workflow_for_execution(workflow, request, db)
     try:
-        await start_run(db, workflow, request, new_thread, started_by=f"{READ_AGAIN_PREFIX}{thread_id}")
+        await start_run(db, workflow, request, new_thread,
+                        started_by=None if reopen else f"{READ_AGAIN_PREFIX}{thread_id}")
     except AlreadyReading as live:  # a live run already reads these pages: Retry joins it (#5848)
         new_thread = live.thread_id
     accounts.forget(thread_id)
-    return new_thread, workflow, len(account.not_done_ids)
+    return new_thread, workflow, len(inputs["selected_doc_ids"])
 
 
 #: How a run started by reading another's pages again says so (`started_by`): the run it reads again follows.

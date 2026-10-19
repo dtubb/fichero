@@ -478,6 +478,8 @@ def record_run(db_path: str | Path, thread_id: str, *, status: str, name: str | 
             reason=reason, name=name)
     if _RUN_STATES[status] == "cancelled":
         settle_stopped_children(db, thread_id)
+    elif status in ("completed", "failed"):
+        _reopen_for_queued_retries(db, thread_id)  # pages retried while it ran are read now, within this run
 
 
 def settle_stopped_children(db: "Database", run_id: str) -> int:
@@ -1681,6 +1683,55 @@ def queue_tree(db: "Database", job_id: str) -> dict[str, Any] | None:
 
 #: How many of a queue's running and newest finished jobs its tree shows under each stage.
 QUEUE_PAGES_SHOWN = 8
+
+
+#: Pages a person retried while their run was still going: run id -> document ids, read when the run's pass ends.
+_PAGE_RETRIES: dict[str, list[str]] = {}
+_PAGE_RETRIES_LOCK = threading.Lock()
+QUEUED_RETRY = "Retried by you; waits in its run"
+
+
+def live_run_ids() -> list[str]:
+    """The workflow runs this engine is running now."""
+    from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
+
+    return [t for t, state in list(_running_workflows.items()) if (state.get("status") or "") in ("accepted", "running")]
+
+
+def queue_page_retry(db: "Database", page_job_id: str, run_id: str, document: str) -> None:
+    """Take a retried page into its live run's queue: its row waits, and the run reads it when its pass ends."""
+    with _PAGE_RETRIES_LOCK:
+        queued = _PAGE_RETRIES.setdefault(run_id, [])
+        if document not in queued:
+            queued.append(document)
+    db.execute("UPDATE jobs SET state = 'waiting', reason = ?, finished_at = NULL WHERE id = ? "
+               "AND state IN ('failed', 'cancelled')", [QUEUED_RETRY, page_job_id])
+
+
+def _reopen_for_queued_retries(db: "Database", run_id: str) -> None:
+    with _PAGE_RETRIES_LOCK:
+        documents = _PAGE_RETRIES.pop(run_id, [])
+    if not documents:
+        return
+    from fichero_server.api.routes.workflow_execution.core import reopen_run_for_pages  # noqa: PLC0415
+    from fichero_server.execution.runner import on_background_loop  # noqa: PLC0415
+
+    on_background_loop(reopen_run_for_pages(db, run_id, documents))
+
+
+def run_of_page(db: "Database", job_id: str) -> str | None:
+    """The workflow run (its thread id) a page job belongs to, following the parents (page, step, run), or None."""
+    seen: set[str] = set()
+    current: str | None = job_id
+    while current and current not in seen:
+        seen.add(current)
+        row = db.execute_fetchone("SELECT kind, parent_id FROM jobs WHERE id = ?", [current])
+        if row is None:
+            return None
+        if row[0] == "workflow" and current != job_id:
+            return current
+        current = row[1]
+    return None
 
 
 def retry_job(db: "Database", job_id: str) -> str:

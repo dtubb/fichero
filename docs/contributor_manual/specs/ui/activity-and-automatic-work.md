@@ -674,10 +674,13 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
 - `activity.log.developer-level` — **[GAP]** (#5850) the "Node … started" and other debug lines are a Developer level, off
   by default; the log shows the person's lines until it is switched on. (Not yet written:
   `fichero-server/tests/unit/jobs/test_person_log_levels.py`.)
-- `activity.retry.page-within-run` — **[GAP]** (#5853) Retry on a page retries it within its run, not as a new run
-  (`activity.retry.one-row` keeps a whole failed run's Retry). No other entry owns it: it is the bugs lane's next item
-  (c, `briefs/speed-split-2026-10-19.md`), to take over with its test. (Not yet written:
-  `fichero-server/tests/unit/jobs/test_retry_page_within_run.py`.)
+- `activity.retry.page-within-run` — **[OK]** (#5853) Retry on a page retries it within its run, not as a new run
+  (`activity.retry.one-row` keeps a whole failed run's Retry). A run that has ended reopens for the page: the same run id
+  goes back to running and reads that page. A run still going takes the page into its queue (no 409): the page row waits
+  ("Retried by you; waits in its run") and the run reopens for it as soon as its pass ends. Pinned by
+  `fichero-server/tests/unit/jobs/test_retry_page_within_run.py`. Limits: the reopened run is verified with its
+  reading stubbed (no real LangGraph re-entry on the same thread id has been run), and its counts follow the reopened
+  pass, so they may read the retried pages, not the whole folder, until the run's account is changed to keep the earlier pages.
 - `activity.popover.same-summary` — **[GAP]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
   …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of
