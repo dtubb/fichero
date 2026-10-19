@@ -20,7 +20,7 @@ APPLE_LINES = {"builtin": "apple-vision-lines"}
 def _shipped_cards_only(tmp_path, monkeypatch):
     monkeypatch.setenv("FICHERO_MODEL_STORE_ROOT", str(tmp_path / "store"))
     monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
-    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
     monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])
 
 

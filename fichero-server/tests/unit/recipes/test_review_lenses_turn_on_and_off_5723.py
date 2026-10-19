@@ -49,7 +49,7 @@ def test_a_pass_through_several_lenses_keeps_only_those_on():
 
 
 def test_the_steps_lenses_reach_its_run_in_the_profiles_order(monkeypatch):
-    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
     plan = plan_start(_recipe(LINES, READ, CLOUD_CORRECT), stays_local=False,
                       job_answers={"review_lenses": ["names-and-dates", "abbreviations"]})
     [run] = [r for r in plan["runs"] if "correct" in r["steps"]]
@@ -57,7 +57,7 @@ def test_the_steps_lenses_reach_its_run_in_the_profiles_order(monkeypatch):
 
 
 def test_every_lens_off_skips_the_step_and_says_so(monkeypatch):
-    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
     plan = plan_start(_recipe(LINES, READ, CLOUD_CORRECT), stays_local=False, job_answers={"review_lenses": []})
     assert not [r for r in plan["runs"] if "correct" in r["steps"]]
     assert any(s["step"] == "correct" and "lens" in s["why"] for s in plan["skipped"]), plan["skipped"]
