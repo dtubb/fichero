@@ -1477,8 +1477,8 @@ class PlacesSetting(BaseModel):
 
 
 class PlacesView(PlacesSetting):
-    answered: bool = Field(description="False until the person answers in Set Up Fichero; then no cap applies, and "
-                                       "places shows this Mac only.")
+    answered: bool = Field(description="False until the person answers in Set Up Fichero; while false, no cap applies, "
+                                       "and places shows this Mac only.")
     memory_gb: float = Field(description="This Mac's memory, worked out by the engine.")
     this_mac: str = Field(description="What this Mac can run, in a sentence, from its real memory.")
 
