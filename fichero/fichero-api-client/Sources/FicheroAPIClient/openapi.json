@@ -332,6 +332,77 @@
         }
       }
     },
+    "/api/activity/jobs/kind/{kind}/items": {
+      "get": {
+        "tags": [
+          "activity",
+          "activity"
+        ],
+        "summary": "List Queued Items",
+        "description": "The pages of one kind's row (`activity.window.expands-to-pages`, #5839): its queued jobs, each a line, in the\norder the lane will pick them, running first.",
+        "operationId": "list_queued_items_api_activity_jobs_kind__kind__items_get",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QueuedItem"
+                  },
+                  "title": "Response List Queued Items Api Activity Jobs Kind  Kind  Items Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/activity/jobs/{job_id}": {
       "get": {
         "tags": [
@@ -407,6 +478,22 @@
               "type": "string",
               "title": "Job Id"
             }
+          },
+          {
+            "name": "detail",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "person",
+                "developer"
+              ],
+              "type": "string",
+              "description": "developer adds the debug lines",
+              "default": "person",
+              "title": "Detail"
+            },
+            "description": "developer adds the debug lines"
           }
         ],
         "responses": {
@@ -15403,39 +15490,17 @@
           "recipes"
         ],
         "summary": "Put Places",
-        "description": "Allow these places (an audited action). Every project is capped by them: stricter, never looser.",
+        "description": "Allow these places, with no project open (the setting is the app's, so is its audit row). Every project is\ncapped by them: stricter, never looser. Owner only: it decides where every project's pages may go.",
         "operationId": "put_places_api_recipes_places_put",
-        "parameters": [
-          {
-            "name": "X-Fichero-Origin-Window",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Origin-Window"
-            }
-          },
-          {
-            "name": "X-Fichero-Client",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true,
-              "title": "X-Fichero-Client"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PlacesSetting"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -48586,6 +48651,32 @@
         "title": "ActivityStatsResponse",
         "description": "Response model for activity statistics."
       },
+      "ActivitySummary": {
+        "properties": {
+          "live": {
+            "items": {
+              "$ref": "#/components/schemas/LiveBlock"
+            },
+            "type": "array",
+            "title": "Live"
+          },
+          "background": {
+            "items": {
+              "$ref": "#/components/schemas/BackgroundLine"
+            },
+            "type": "array",
+            "title": "Background"
+          },
+          "history": {
+            "type": "integer",
+            "title": "History",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "ActivitySummary",
+        "description": "The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):\nthe live blocks, the background group, and how many ended runs are folded into History."
+      },
       "AgentNote": {
         "properties": {
           "id": {
@@ -51772,6 +51863,15 @@
           "remote": {
             "$ref": "#/components/schemas/RemoteRunRow",
             "nullable": true
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "live",
+              "earlier"
+            ],
+            "title": "Group",
+            "default": "live"
           }
         },
         "type": "object",
@@ -51836,6 +51936,14 @@
           },
           "machine": {
             "$ref": "#/components/schemas/MachineState"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/QueueSummary",
+            "nullable": true
+          },
+          "activity": {
+            "$ref": "#/components/schemas/ActivitySummary",
+            "nullable": true
           }
         },
         "type": "object",
@@ -51846,6 +51954,45 @@
         ],
         "title": "BackgroundJobsResponse",
         "description": "Snapshot of running background jobs + rough process CPU usage."
+      },
+      "BackgroundLine": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name",
+          "state"
+        ],
+        "title": "BackgroundLine",
+        "description": "One kind of background work and its total (`activity.window.background-group`, #5851)."
       },
       "BackgroundModeRequest": {
         "properties": {
@@ -69392,6 +69539,16 @@
             "type": "string",
             "title": "Job Id",
             "description": "the row the line is about: the job asked for or one under it"
+          },
+          "detail": {
+            "type": "string",
+            "enum": [
+              "person",
+              "developer"
+            ],
+            "title": "Detail",
+            "description": "person: a page or stage done or failed, the person's log; developer: the debug lines (Node started, a row's start, what a row waits for now, a server's output), off unless asked for",
+            "default": "person"
           }
         },
         "type": "object",
@@ -72497,6 +72654,79 @@
         ],
         "title": "LinkTypeRead"
       },
+      "LiveBlock": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the run's row id: the recipe run, or a workflow run outside any recipe"
+          },
+          "recipe": {
+            "type": "string",
+            "nullable": true,
+            "title": "Recipe",
+            "description": "null for a workflow run started on its own"
+          },
+          "stage": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stage",
+            "description": "what the running stage does, in words"
+          },
+          "workflow": {
+            "type": "string",
+            "nullable": true,
+            "title": "Workflow"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason",
+            "description": "what it waits for, when it waits (a waiting block looks waiting)"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done",
+            "default": 0
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
+          },
+          "left": {
+            "type": "integer",
+            "title": "Left",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "folders_done": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Folders Done"
+          },
+          "folders_total": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Folders Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "LiveBlock",
+        "description": "What is working right now (`activity.window.live-block`, `activity.popover.same-summary`; #5839, #5851, #5852):\nthe recipe, the stage it is in and the workflow that stage runs, with the pages done, failed and left."
+      },
       "LocalClientDecision": {
         "properties": {
           "allow": {
@@ -74816,6 +75046,24 @@
             "$ref": "#/components/schemas/ModelFit",
             "nullable": true,
             "description": "for an MLX model: whether it fits this Mac to read with ('fits', 'tight', 'won't fit') and why, by the rule the load applies (#5641); null for any other model"
+          },
+          "compared_by_default": {
+            "type": "boolean",
+            "title": "Compared By Default",
+            "description": "with `step`: Compare on These Pages runs it when none is ticked (the step's own model and the next runnable ones), so the page can name them before it runs (#5808)",
+            "default": false
+          },
+          "link": {
+            "type": "string",
+            "nullable": true,
+            "title": "Link",
+            "description": "the page of its model (Hugging Face, Zenodo's DOI); null where it has none (#5808)"
+          },
+          "other_period": {
+            "type": "boolean",
+            "title": "Other Period",
+            "description": "made for another period than the project's (`answers.period`): the app lists it under 'Other periods', not beside the fitting ones (#5808)",
+            "default": false
           },
           "chosen": {
             "type": "boolean",
@@ -80901,6 +81149,59 @@
         "title": "QueueListResponse",
         "description": "Response from queue list endpoint."
       },
+      "QueueSummary": {
+        "properties": {
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "left": {
+            "type": "integer",
+            "title": "Left"
+          },
+          "seconds_left": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Seconds Left",
+            "description": "about how long is left, from the measured time per item; absent when nothing queued has been measured"
+          }
+        },
+        "type": "object",
+        "required": [
+          "done",
+          "left"
+        ],
+        "title": "QueueSummary",
+        "description": "The whole queue in one line (`activity.window.queue-summary`, #5839)."
+      },
+      "QueuedItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject",
+          "state"
+        ],
+        "title": "QueuedItem"
+      },
       "QuotationKind": {
         "type": "string",
         "enum": [
@@ -85625,6 +85926,18 @@
             "type": "string",
             "title": "Why",
             "description": "why it is a sample: your first page, the largest image, chosen by you\u2026"
+          },
+          "yours": {
+            "type": "boolean",
+            "title": "Yours",
+            "description": "a page of this project, marked as the person's own: never the shipped example image (#5808)",
+            "default": true
+          },
+          "thumbnail": {
+            "type": "boolean",
+            "title": "Thumbnail",
+            "description": "whether the page's thumbnail is made yet (`GET /api/storage/thumbnail/{id}`), so the stage page can draw it (#5808)",
+            "default": false
           }
         },
         "type": "object",

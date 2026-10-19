@@ -412,6 +412,29 @@
         "response_model": "ClearFailedResponse"
       },
       {
+        "method": "GET",
+        "path": "/activity/jobs/kind/{kind}/items",
+        "operation_id": "list_queued_items_api_activity_jobs_kind__kind__items_get",
+        "summary": "List Queued Items",
+        "path_params": [
+          "kind"
+        ],
+        "query_params": [
+          {
+            "name": "limit",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "request_model": null,
+        "response_model": "[QueuedItem]"
+      },
+      {
         "method": "PUT",
         "path": "/activity/jobs/mode",
         "operation_id": "set_background_mode_api_activity_jobs_mode_put",
@@ -469,7 +492,13 @@
         "path_params": [
           "job_id"
         ],
-        "query_params": [],
+        "query_params": [
+          {
+            "name": "detail",
+            "required": false,
+            "type": "string"
+          }
+        ],
         "request_model": null,
         "response_model": "JobLog"
       },
