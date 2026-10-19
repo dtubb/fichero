@@ -116,8 +116,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
 
     /// The questions a ticked purpose opens under it on What you want to do (`answers.job_answers`).
     struct JobAnswers: Codable, Equatable {
-        /// Entities (`find-names-tag-words`): the kinds to find.
-        var entityKinds: [String] = ["people", "places"]
+        /// Entities (`find-names-tag-words`): the kinds to find; none named is every kind (#5805).
+        var entityKinds: [String] = []
         /// Translate or normalise › Into what (#5660 item 1): the reading levels to write, each its own run, in the
         /// engine's spelling (`as_written`, `expanded`, `regularised`, `modernised`), and at most one
         /// `translation:<language tag>`.
