@@ -26,6 +26,7 @@ from fichero_server.workflows.tools.vision_base import (
 )
 from fichero_server.llm import LLMConfig
 from fichero_server.llm.language_policy import (
+    LEVEL_PROJECT,
     UNKNOWN,
     LanguageResolution,
     configured_policy,
@@ -489,6 +490,11 @@ async def transcribe(
         # claim about the document, and unlike the prompt above it does not
         # instruct a model to read Spanish as English.
         language=normalize_vision_language(resolution.language),
+        # The page's own language can be refused for that page alone; the project's or the node's holds for every page.
+        language_source=(
+            "run" if resolution.level == LEVEL_PROJECT
+            or str(inputs.get("language") or "").strip().lower() not in ("", "auto", "unknown", "und")
+            else "page"),
         max_image_dimension=inputs.get("max_image_dimension", 2048),
         force_ocr=force_ocr,
         # Inherited from BASE_CONFIG

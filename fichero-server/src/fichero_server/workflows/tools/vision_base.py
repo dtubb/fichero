@@ -2545,6 +2545,20 @@ _LANGUAGE_WORDS = {"en": "English", "es": "Spanish", "fr": "French", "de": "Germ
                    "ja": "Japanese", "ko": "Korean", "ar": "Arabic", "la": "Latin", "tr": "Turkish", "cy": "Welsh"}
 
 
+class VisionLocaleRefused(ValueError):
+    """This Mac's Vision cannot read a locale. `source` says where the locale came from: "page" (that page's own
+    language, so another page may read fine) or "run" (the project's or the node's, the same for every page)."""
+
+    def __init__(self, message: str, *, locale: str, source: str) -> None:
+        super().__init__(message)
+        self.locale = locale
+        self.source = source
+
+
+#: Where the language handed to this run's pages came from (`VisionLocaleRefused.source`); set by `process_vision`.
+_language_source: ContextVar[str] = ContextVar("_language_source", default="run")
+
+
 def _language_word(language: str | None) -> str:
     """A language as a person says it ('Spanish' for es-ES); the code as given when it is not one of the common few."""
     raw = str(language or "")
@@ -2577,8 +2591,8 @@ def validate_vision_language(language: str | None) -> str:
         # In words, once; the supported list is in the log, not on the card.
         logger.warning("Apple Vision cannot recognize with %r (resolved to %r); this macOS supports: %s",
                        language, locale, ", ".join(sorted(supported)))
-        raise ValueError(f"Apple Vision can't read {_language_word(language)} on this Mac. "
-                         "Choose another reader for this step.")
+        raise VisionLocaleRefused(f"Apple Vision can't read {_language_word(language)} on this Mac. "
+                                  "Choose another reader for this step.", locale=locale, source=_language_source.get())
     return locale
 
 
@@ -3852,6 +3866,7 @@ async def process_vision(
     # Vision-specific (from VISION_CONFIG_SCHEMA)
     vision_mode: str = "llm",
     language: str = "en",
+    language_source: str = "run",
     max_image_dimension: int = 2048,
     force_ocr: bool = False,
     # LLM parameters (from BASE_CONFIG_SCHEMA)
@@ -3913,6 +3928,7 @@ async def process_vision(
     from fichero_server.llm import vision, LLMConfig
 
     language = normalize_vision_language(language)
+    _language_source.set(language_source)
 
     if isinstance(files, str):
         files = [files]
@@ -5971,7 +5987,9 @@ async def process_vision(
                 logger.error(msg, exc_info=True)
                 _log_vision_warning(msg, file_path)
             results.append(
-                {"file": file_path, "text": "", "value": None, "error": err}
+                {"file": file_path, "text": "", "value": None, "error": err,
+                 **({"refusal": {"locale": e.locale, "source": e.source}}
+                    if isinstance(e, VisionLocaleRefused) else {})}
             )
             texts.append("")
             values.append(None)
@@ -6083,7 +6101,9 @@ async def process_vision(
             )
             return {
                 "results": [
-                    {"file": file_path, "text": "", "value": None, "error": err}
+                    {"file": file_path, "text": "", "value": None, "error": err,
+                     **({"refusal": {"locale": exc.locale, "source": exc.source}}
+                        if isinstance(exc, VisionLocaleRefused) else {})}
                 ],
                 "texts": [""],
                 "values": [None],

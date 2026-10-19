@@ -1,6 +1,6 @@
-"""A refusal that holds for every page (Apple Vision cannot read the project's language here) fails the node at once:
-the pages not yet started do not try (owner, 2026-10-19; `source.read.vision-locale`). Before, every page tried and
-failed, then the run said '5 consecutive failures' with the first page's words."""
+"""A refusal of the RUN's language (the project's or the node's: Apple Vision cannot read it here) holds for every page, so
+the node fails at the first and the pages not yet started do not try; a refusal of one PAGE's own language (a Latin page
+among Spanish ones) stops that page alone (owner, 2026-10-19; review 359; `source.read.vision-locale`)."""
 from __future__ import annotations
 
 import asyncio
@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from fichero_server.workflows import page_retry
 from fichero_server.workflows.builder import SystemicErrorDetected, build_graph
+from fichero_server.workflows.tools import vision_base
 from tests.unit.workflows.test_parallel_fanout_no_semaphore_deadlock import (
     PAGE_COUNT,
     _fan_out_workflow,
@@ -17,23 +17,27 @@ from tests.unit.workflows.test_parallel_fanout_no_semaphore_deadlock import (
     _library,
 )
 
-REFUSAL = "Apple Vision can't read Spanish on this Mac. Choose another reader for this step."
+SPANISH = "Apple Vision can't read Spanish on this Mac. Choose another reader for this step."
+LATIN = "Apple Vision can't read Latin on this Mac. Choose another reader for this step."
 
 
-def test_the_refusal_is_known_to_hold_for_every_page_and_a_passing_cause_is_not():
-    assert page_retry.is_refusal_for_every_page(REFUSAL)
-    assert not page_retry.is_refusal_for_every_page("the model server is not ready")
-    assert not page_retry.is_passing_cause(REFUSAL)  # and no second read of the page is ever made for it
+def test_a_refused_locale_is_typed_with_where_it_came_from(monkeypatch):
+    monkeypatch.setattr(vision_base, "_supported_vision_locales", lambda: frozenset({"en-US"}))
+    for source in ("page", "run"):
+        vision_base._language_source.set(source)
+        with pytest.raises(vision_base.VisionLocaleRefused) as caught:
+            vision_base.validate_vision_language("es")
+        assert (caught.value.locale, caught.value.source) == ("es-ES", source)
+    vision_base._language_source.set("run")
 
 
-@pytest.mark.asyncio
-async def test_pages_not_yet_started_do_not_try_after_a_refusal_for_every_page(tmp_path):
+async def _run(tmp_path, answer):
     calls: list[int] = []
 
-    async def refuses(**kwargs):
+    async def process_vision(**kwargs):
         calls.append(1)
         await asyncio.sleep(0)
-        raise ValueError(REFUSAL)
+        return answer(len(calls), kwargs)
 
     library_path, _pdf, db = _library(tmp_path)
     graph = build_graph(_fan_out_workflow(), skip_cache=True)
@@ -42,9 +46,32 @@ async def test_pages_not_yet_started_do_not_try_after_a_refusal_for_every_page(t
     with (
         patch("fichero_server.workflows.tools.sources.db_manager.get_database", return_value=db),
         patch("fichero_server.db.db_manager.get_database", return_value=db),
-        patch("fichero_server.workflows.tools.transcribe.process_vision", new=refuses),
+        patch("fichero_server.workflows.tools.transcribe.process_vision", new=process_vision),
     ):
-        with pytest.raises(SystemicErrorDetected) as stopped:
+        try:
             await asyncio.wait_for(graph.ainvoke(state), timeout=60)
-    assert REFUSAL in str(stopped.value)
+            return calls, None
+        except SystemicErrorDetected as stopped:
+            return calls, stopped
+
+
+def _failure(words: str, source: str) -> dict:
+    return {"text": "", "results": [{"file": "p", "text": "", "error": words, "refusal": {"locale": "x", "source": source}}]}
+
+
+@pytest.mark.asyncio
+async def test_the_runs_own_language_refused_stops_the_pages_not_yet_started(tmp_path):
+    calls, stopped = await _run(tmp_path, lambda n, kw: _failure(SPANISH, "run"))
+    assert stopped is not None and SPANISH in str(stopped)
     assert len(calls) < PAGE_COUNT, f"{len(calls)} of {PAGE_COUNT} pages tried after the first refusal"
+
+
+@pytest.mark.asyncio
+async def test_one_latin_page_refused_does_not_stop_the_spanish_pages(tmp_path):
+    """The first page is Latin (its own language, refused); every other page is Spanish and reads."""
+    def answer(n, kwargs):
+        return _failure(LATIN, "page") if n == 1 else {"text": "ok", "results": [{"file": "p", "text": "ok"}]}
+
+    calls, stopped = await _run(tmp_path, answer)
+    assert stopped is None, "a page's own refused language must not stop the others"
+    assert len(calls) == PAGE_COUNT, f"only {len(calls)} of {PAGE_COUNT} pages were tried"
