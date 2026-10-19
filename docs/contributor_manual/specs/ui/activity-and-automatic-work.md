@@ -679,13 +679,12 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   failed and one per stage, one sentence per event in local time, never repeated, never nested inside another job's line.
   Supersedes `activity.details.log-filtered-newest-last` for what the log holds. Engine side: `GET /api/activity/jobs/{id}/log`
   returns only `detail` = "person" lines by default (a row's end, warnings and errors, a failed node), each sentence once
-  per row (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Today this is every activity event that is not a Node start or finish, plus a row's end, deduped: the "one line per page done or failed, one per stage" is not enforced yet. Not yet: the window shows the time in local time
-  (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
+  per row (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Today this is every activity event that is not a Node start or finish, plus a row's end, deduped: the "one line per page done or failed, one per stage" is not enforced yet. The window shows each line's time in this Mac's local time (`ActivityJobLogLine.plainText`, already built).
 - `activity.log.developer-level` — **[PARTIAL]** (#5850) the "Node … started" and other debug lines are a Developer level, off
   by default; the log shows the person's lines until it is switched on. Engine side: `?detail=developer` adds the debug lines
   ("Node 'x' started", "completed in", a row's start, what a row waits for now, a server's output), each line tagged
-  `detail` (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the Developer switch in the details view
-  (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
+  `detail` (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). The details view's log has a Developer switch (`ActivityDetailsLog`, off by default, remembered; needs compile)
+  (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`).
 - `activity.retry.page-within-run` — **[OK]** (#5853) Retry on a page retries it within its run, not as a new run
   (`activity.retry.one-row` keeps a whole failed run's Retry). Retry is for a page that failed or was stopped; a done
   page answers in words ("This page is already read") and does nothing. A run that has ended reopens for the page: the

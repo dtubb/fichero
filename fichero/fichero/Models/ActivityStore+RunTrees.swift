@@ -239,9 +239,9 @@ extension ActivityStore {
 
     /// Read one row's log; the details call it when the row's node changes.
     /// A failed read keeps the lines already shown.
-    func loadJobLog(jobId: String) async {
+    func loadJobLog(jobId: String, developer: Bool = false) async {
         do {
-            let lines = try await activityService.getJobLog(id: jobId) ?? []
+            let lines = try await activityService.getJobLog(id: jobId, developer: developer) ?? []
             if jobLogs[jobId] != lines { jobLogs[jobId] = lines }
         } catch {
             log.debug("ActivityStore: log for \(jobId, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
