@@ -89952,8 +89952,9 @@
           },
           "calls_per_page": {
             "type": "integer",
+            "nullable": true,
             "title": "Calls Per Page",
-            "description": "model calls each page takes: the review makes one for each pass it runs, one a lens on (#5723); any other run, one",
+            "description": "model calls each page takes: the review makes one for each pass it runs, one a lens on (#5723); any other run, one; null when a review's passes cannot be counted, and then `cost_usd` is null too, never $0",
             "default": 1
           },
           "lenses": {
