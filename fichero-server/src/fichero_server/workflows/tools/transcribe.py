@@ -124,9 +124,25 @@ TRANSCRIBE_CONFIG = {
 # =============================================================================
 
 
+def _project_language(state: Any) -> str | None:
+    """The project's own language (Set Up's answer), so a page that states none is read as the project says (es, not
+    'auto'); None when the project says nothing or the library cannot be read."""
+    library = state.get("library_path", "") if state else ""
+    if not library:
+        return None
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.models.source_declarations import project_facts
+
+        return project_facts(db_manager.get_database(library)).language
+    except Exception:  # noqa: BLE001 -- no project language is the old behaviour
+        return None
+
+
 def _resolve_transcribe_language(
     requested: str | None,
     documents: list[Any] | None,
+    project_language: str | None = None,
 ) -> LanguageResolution:
     """Decide what language this transcription run is in (#2092).
 
@@ -148,10 +164,11 @@ def _resolve_transcribe_language(
     docs = list(documents or [])
 
     if not docs:
-        return resolve_language(requested=requested, policy=policy, detect=False)
+        return resolve_language(requested=requested, policy=policy, detect=False, project_language=project_language)
 
     resolutions = [
-        resolve_language(requested=requested, document=doc, policy=policy, detect=False)
+        resolve_language(requested=requested, document=doc, policy=policy, detect=False,
+                         project_language=project_language)
         for doc in docs
     ]
     distinct = {r.language for r in resolutions if r.is_known}
@@ -370,7 +387,7 @@ async def transcribe(
     # i.e. English unless the node said otherwise, with the library's language
     # policy never consulted. Now the node value is a REQUEST that the policy
     # resolves; an explicit locale on the node still wins.
-    resolution = _resolve_transcribe_language(inputs.get("language"), documents)
+    resolution = _resolve_transcribe_language(inputs.get("language"), documents, _project_language(state))
     language = resolution.language or UNKNOWN
     return_boxes = inputs.get("return_boxes", False)
     update_page_content = inputs.get("update_page_content", True)
