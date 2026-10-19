@@ -82,9 +82,6 @@ struct FirstLaunchLooksRightTests {
 
     @Test("an empty folder: blank in every mode (no header, no placeholder rows, #5826), '0 items', no words")
     func emptyFolder() {
-        for mode in [ViewDisplayMode.list, .table, .icon] {
-            #expect(!LibraryEmptyFolder.showsTable(mode))
-        }
         #expect(LibraryEmptyFolder.footer(count: 0) == "0 items")
         #expect(LibraryEmptyFolder.footer(count: 1) == "1 item")
         #expect(LibraryEmptyFolder.looksLikeAnEmptyFolder(.noCollectionSelected), "a folder being browsed")

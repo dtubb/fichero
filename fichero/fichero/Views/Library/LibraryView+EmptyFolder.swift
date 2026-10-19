@@ -17,9 +17,6 @@ enum LibraryEmptyFolder {
     static func looksLikeAnEmptyFolder(_ reason: LibraryEmptyReason) -> Bool {
         reason.offersImport
     }
-
-    /// Whether the empty pane draws the table's header and empty rows: never, in any mode (#5826).
-    static func showsTable(_ mode: ViewDisplayMode) -> Bool { false }
 }
 
 struct LibraryEmptyFolderFooter: View {
@@ -43,14 +40,8 @@ extension LibraryView {
     @ViewBuilder
     var emptyFolderView: some View {
         VStack(spacing: 0) {
-            Group {
-                if LibraryEmptyFolder.showsTable(displayMode) {
-                    tableView
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             LibraryEmptyFolderFooter(count: 0)
         }
         // Right-click anywhere in it offers the import, as the empty state did (#4449).
