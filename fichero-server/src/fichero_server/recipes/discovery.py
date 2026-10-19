@@ -182,7 +182,7 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
             pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=READER_JOBS, scripts=None, languages=languages, material=frozenset(),
             open_licence=open_licence, size_gb=round(gib(spec.download_size_bytes), 3),
-            memory_gb=round(memory / 1024**3, 2), trainable=True, licence=licence,
+            memory_gb=round(gib(memory), 2), trainable=True, licence=licence,
             note=spec.display_name, source="installed", offered_because=why, installed=True,
         )
     return sorted(out.values(), key=lambda c: c.id)
@@ -211,11 +211,12 @@ def installed_spacy_cards(languages: frozenset[str], seed: tuple[Card, ...] | li
         lang = str(info.get("language") or "")
         if name in pinned or (asked and lang not in asked) or not spacy_pipeline_available(name):
             continue
+        # disk_mb is decimal MB at its source (local_models.py), so it goes through bytes to GiB.
         out.append(Card(
             id=f"spacy:pkg/{name}@installed", pin={"spacy": name, "version": "installed"},
             jobs=frozenset({"find-names-tag-words"}), scripts=None, languages=frozenset({lang}) if lang else None,
             material=frozenset(), open_licence=True, licence=str(info.get("licence") or ""),
-            size_gb=round(float(info.get("disk_mb") or 0) / 1000, 3), note=f"spaCy {name}", source="installed",
+            size_gb=round(float(info.get("disk_mb") or 0) * 1_000_000 / GIB, 3), note=f"spaCy {name}", source="installed",
             installed=True, offered_because=f"installed on this Mac: the spaCy pipeline {name}",
         ))
     return out

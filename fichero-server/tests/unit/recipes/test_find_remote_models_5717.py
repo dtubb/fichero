@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from fichero_server.llm.local_model_facts import GIB
 from fichero_server.recipes import discovery
 from fichero_server.recipes.assemble import Answers
 from fichero_server.training import hf_jobs
@@ -48,7 +49,7 @@ def _found(remote, monkeypatch):
 def test_a_vision_model_with_no_mlx_conversion_is_listed_as_running_on_remote_compute(hub, monkeypatch):
     card = _found(RUNS, monkeypatch)
     assert card.runs_on == "cloud:huggingface-jobs" and card.runs_here and card.offered_only
-    assert card.size_gb == 144.0  # 72 billion weights at two bytes each
+    assert card.size_gb == round(72_000_000_000 * 2 / GIB, 1)  # 72 billion weights at two bytes each
     words = card.offered_because
     assert "runs on remote compute" in words and "Hugging Face Jobs" in words and "$0.40 an hour" in words
     assert "pages leave this Mac" in words
@@ -69,7 +70,7 @@ def test_a_remote_model_is_kept_offered_to_the_person_and_never_to_the_rules_or_
     discovery.keep_hub([card], frozenset({"es"}))
     kept = [c for c in discovery.hub_cards(frozenset({"es"}), runnable_only=False) if c.pin["hf"] == BIG]
     assert len(kept) == 1 and kept[0].runs_on == "cloud:huggingface-jobs" and kept[0].offered_only
-    assert kept[0].id == f"remote:hf/{BIG}@main" and kept[0].size_gb == 144.0
+    assert kept[0].id == f"remote:hf/{BIG}@main" and kept[0].size_gb == round(72_000_000_000 * 2 / GIB, 1)
     assert "$0.40 an hour" in kept[0].offered_because
     # The rules' own view of the Hub readers has none of it, and nothing offers to download it to this Mac.
     assert [c for c in discovery.hub_cards(frozenset({"es"})) if c.pin["hf"] == BIG] == []
