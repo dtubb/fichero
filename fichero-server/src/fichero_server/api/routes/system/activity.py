@@ -175,6 +175,31 @@ class BackgroundJob(BaseModel):
     # (`activity.remote-under-its-step`): target, far-side state, shards done of total, pages landed, and what the
     # row offers (Cancel, Retry failed shards, Catch up). Null for any other row.
     remote: Optional[RemoteRunRow] = None
+    # Where Activity puts the row (`activity.window.history-group`): "live" is the run going now and the queues
+    # beside it, shown at the top; "earlier" is a run that is stopped, interrupted, failed or old, folded below.
+    # The list is already in this order.
+    group: Literal["live", "earlier"] = "live"
+
+
+#: A row in one of these states has ended: stopped, interrupted, failed or done.
+_ENDED_STATES = ("failed", "cancelled", "done", "interrupted", "stopped", "completed")
+#: The kinds that are a run of their own (a workflow, a batch, a recipe run, a try): the live block.
+_RUN_TASK_TYPES = ("workflow", "batch", "run-a-recipe", "try-a-stage")
+
+
+def order_for_activity(jobs: "list[BackgroundJob]") -> "list[BackgroundJob]":
+    """Every row ranked by its state (`activity.window.history-group`, `activity.window.next-in-run-order`; #5839, #5851):
+    a live run first, then the queues beside it, then whatever has ended (a stopped, interrupted or failed run, batch,
+    recipe run, try or queue row), folded as History. Each keeps the order it came in (a run list is newest first).
+    Marks each row's `group`."""
+    def rank(job: "BackgroundJob") -> int:
+        if job.state in _ENDED_STATES:
+            return 2
+        return 0 if job.task_type in _RUN_TASK_TYPES else 1
+
+    for job in jobs:
+        job.group = "earlier" if rank(job) == 2 else "live"
+    return sorted(jobs, key=rank)  # stable
 
 
 def _remote_row(db, row: dict) -> "RemoteRunRow | None":
@@ -606,6 +631,7 @@ async def list_background_jobs(
         )
 
     usage = process_tree_rusage()  # once per poll, shared by memory and energy (#5358)
+    jobs = order_for_activity(jobs)
     return BackgroundJobsResponse(
         jobs=jobs,
         count=len(jobs),

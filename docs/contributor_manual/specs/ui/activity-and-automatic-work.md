@@ -656,17 +656,22 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   folder X"), and the whole list of pages expands under it, each with its state. Supersedes the next-three-rows view in
   `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written:
   `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
-- `activity.window.next-in-run-order` — **[GAP]** (#5839) what comes next is listed in run order; a waiting row has no
-  spinner and says what it waits for (`activity.waiting-says-why`). (Not yet written:
-  `fichero-server/tests/unit/jobs/test_activity_run_order.py`, and for the no-spinner row
-  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+- `activity.window.next-in-run-order` — **[PARTIAL]** (#5839) what comes next is listed in run order; a waiting row has no
+  spinner and says what it waits for (`activity.waiting-says-why`). Engine side: `GET /api/activity/jobs` ranks every row
+  by its state, a live run first, then the queues beside it, then what has ended, and gives each row `group` ("live" or
+  "earlier"); pinned by `fichero-server/tests/unit/api/test_activity_order_live_run_first.py`. Not yet: a run's steps in
+  run order and each step's pages in reading order from the job tree, and the no-spinner row
+  (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`).
 - `activity.window.background-group` — **[GAP]** (#5851) background work (thumbnails, embeddings, Run automatically) is a
   group of its own below the live blocks, one row per kind with its total. Supersedes
   `activity.window.grouped-by-project` as the way the Mac's own work is shown. (Not yet written:
   `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
-- `activity.window.history-group` — **[GAP]** (#5851) finished, stopped and interrupted runs fold into a History group;
+- `activity.window.history-group` — **[PARTIAL]** (#5851) finished, stopped and interrupted runs fold into a History group;
   Clear Finished empties it (`activity.window.clear-finished`). No stale or interrupted run is in the live area or the
-  popover. (Not yet written: `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+  popover. Engine side: every ended row, of any kind (a stopped or failed workflow, batch, recipe run, try or queue row),
+  comes back with `group` = "earlier" and last, so none stays in the live area
+  (`fichero-server/tests/unit/api/test_activity_order_live_run_first.py`). Not yet: the window's History group and Clear
+  Finished (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`, Swift after the regen).
 - `activity.log.persons-log` — **[GAP]** (#5850) the default log is the person's: one line per page when it is done or
   failed and one per stage, one sentence per event in local time, never repeated, never nested inside another job's line.
   Supersedes `activity.details.log-filtered-newest-last` for what the log holds. (Not yet written:
