@@ -34,6 +34,7 @@ pattern slice 7 set.
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime
 from typing import Any, Optional
 
@@ -43,6 +44,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.core.single_flight import single_flight
 from fichero_server.db import Database
 from fichero_server.llm.read_guard import read_flag_of
 from fichero_server.llm.language_policy import (
@@ -1930,6 +1932,26 @@ def document_text(
     )
 
 
+_TEXT_DERIVATION = threading.Lock()
+
+
+def _derive_text_alone(*args: Any, **kwargs: Any) -> "DerivedText":
+    """One derivation at a time: it is numpy and DuckDB work that holds the GIL, and three at once beside a Kraken read
+    starved the read (blla is mostly single-threaded; r1's profile, `activity.read.page-read-once`)."""
+    with _TEXT_DERIVATION:
+        return document_text(*args, **kwargs)
+
+
+@single_flight
+async def _shared_text(*, db: Database, document_id: str, pass_id: Optional[str], order: Optional[str],
+                       kind: str, include_furniture: bool) -> "DerivedText":
+    """Callers asking for the same page's text at once share ONE derivation (`single_flight`), on a worker thread."""
+    return await asyncio.to_thread(
+        _derive_text_alone, db, document_id,
+        pass_id=pass_id, order=order, kind=kind, include_furniture=include_furniture,
+    )
+
+
 @router.get("/document/{document_id}/text", response_model=DerivedText)
 async def get_document_text(
     document_id: str,
@@ -1955,15 +1977,9 @@ async def get_document_text(
     the same page give different texts, which is the whole point of naming them.
     """
     try:
-        # Off the event loop: the derivation is library-DB work, and the library lock sits behind the model lane's
-        # writes; run on the loop it held every request 8-10 s and the engine was judged dead (owner 20:24).
-        return await asyncio.to_thread(
-            document_text,
-            db,
-            document_id,
-            pass_id=pass_id,
-            order=order,
-            kind=kind,
+        # Off the event loop, once at a time, and shared by callers asking for the same text (see `_shared_text`).
+        return await _shared_text(
+            db=db, document_id=document_id, pass_id=pass_id, order=order, kind=kind,
             include_furniture=include_furniture,
         )
     except Exception as exc:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 
 from fichero_server.api.routes.document import segment_readings
@@ -29,21 +30,79 @@ def test_opening_a_pages_text_starts_no_recognise(db, monkeypatch):
     assert derived.text == ""  # nothing read yet: the page's stored text stands, nothing is started
 
 
+def _ask(**overrides):
+    kwargs = dict(pass_id=None, order=None, kind="transcription", include_furniture=False, db=_Db())
+    kwargs.update(overrides)
+    return segment_readings.get_document_text(**kwargs)
+
+
+class _Db:
+    """Stands in for a library database (the route only passes it on)."""
+    path = "/lib/x.duckdb"
+    execute = None
+
+
 def test_the_text_route_derives_off_the_event_loop(monkeypatch):
-    def slow(*_a, **_k):
-        time.sleep(1.5)  # the library lock behind a lane write
+    """The loop's longest stall while the route runs (a ticker beside it), not a timing taken after the block: the old
+    `async def` that derived on the loop stalls it for the whole 1.5 s."""
+    monkeypatch.setattr(segment_readings, "document_text", lambda *_a, **_k: (time.sleep(1.5), "derived")[1])
+    gaps: list[float] = []
+
+    async def go():
+        async def ticker():
+            last = time.monotonic()
+            while True:
+                await asyncio.sleep(0.02)
+                now = time.monotonic()
+                gaps.append(now - last)
+                last = now
+
+        tick = asyncio.ensure_future(ticker())
+        await asyncio.sleep(0.1)
+        result = await _ask(document_id="doc")
+        tick.cancel()
+        return result
+
+    assert asyncio.run(go()) == "derived"
+    assert max(gaps) < 0.5, f"the event loop stalled {max(gaps):.2f} s while the text was derived"
+
+
+def test_three_gets_for_one_page_derive_it_once(monkeypatch):
+    calls = []
+
+    def derive(*_a, **_k):
+        calls.append(1)
+        time.sleep(0.3)
         return "derived"
 
-    monkeypatch.setattr(segment_readings, "document_text", slow)
+    monkeypatch.setattr(segment_readings, "document_text", derive)
 
-    async def go() -> float:
-        work = asyncio.ensure_future(segment_readings.get_document_text(
-            "doc", pass_id=None, order=None, kind="transcription", include_furniture=False, db=object()))
-        await asyncio.sleep(0.2)
-        started = time.monotonic()
-        await asyncio.sleep(0)
-        took = time.monotonic() - started
-        assert await work == "derived"
-        return took
+    async def go():
+        db = _Db()
+        return await asyncio.gather(*(_ask(document_id="doc", db=db) for _ in range(3)))
 
-    assert asyncio.run(go()) < 1.0
+    assert asyncio.run(go()) == ["derived"] * 3
+    assert len(calls) == 1
+
+
+def test_derivations_of_different_pages_never_overlap(monkeypatch):
+    running, most = [0], [0]
+    guard = threading.Lock()
+
+    def derive(*_a, **_k):
+        with guard:
+            running[0] += 1
+            most[0] = max(most[0], running[0])
+        time.sleep(0.15)
+        with guard:
+            running[0] -= 1
+        return "derived"
+
+    monkeypatch.setattr(segment_readings, "document_text", derive)
+
+    async def go():
+        db = _Db()
+        return await asyncio.gather(*(_ask(document_id=f"doc-{n}", db=db) for n in range(3)))
+
+    asyncio.run(go())
+    assert most[0] == 1, "two text derivations ran at once beside a read"
