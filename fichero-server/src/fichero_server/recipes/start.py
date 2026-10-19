@@ -1113,25 +1113,38 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
     assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
     """
-    from fichero_server.workflows.model_comparison import estimate_cost
+    from fichero_server.recipes.review_profiles import lens_ids, review_passes
 
     rows, total = [], 0.0
     for w in workflows:
         runs_on = str(w["runs_on"])
-        # Only this Mac is free by its own word; a cloud call is priced by the model's listed rate; any
-        # other place (a cluster, a person's other machine) is unpriced, never $0 (#5590).
-        if runs_on.startswith("cloud"):
-            cost = estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
-                                 provider=w["provider_override"] or "")
-        elif runs_on in ("this-mac", ""):
-            cost = 0.0
-        else:
-            cost = None
+        review = w.get("job") == "correct"
+        # The review makes a call a page for each pass it runs, one a lens on (#5723); any other run, one.
+        # By the run's own workflow (review 160); a review whose passes cannot be counted is unpriced (#5590).
+        calls = review_passes(w["workflow"], w.get("lenses")) if review else 1
+        cost = _priced(w, pages * calls) if calls is not None else None
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
+        # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
+        per_lens = _priced(w, 1) if review and calls is not None else None
+        lenses = [{"lens": lens, "on": w.get("lenses") is None or lens in w["lenses"], "cost_per_page_usd": per_lens}
+                  for lens in lens_ids()] if review else []
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
-                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w)})
+                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
+                     "calls_per_page": calls, "lenses": lenses})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
+
+
+def _priced(run: dict[str, Any], calls: int) -> float | None:
+    """What `calls` model calls of `run` cost. Only this Mac is free by its own word; a cloud call is priced by the
+    model's listed rate; any other place (a cluster, a person's other machine) is unpriced, never $0 (#5590)."""
+    from fichero_server.workflows.model_comparison import estimate_cost
+
+    runs_on = str(run["runs_on"])
+    if runs_on.startswith("cloud"):
+        return estimate_cost(run["model_override"] or "", calls * _TOKENS_IN, calls * _TOKENS_OUT,
+                             provider=run["provider_override"] or "")
+    return 0.0 if runs_on in ("this-mac", "") else None
 
 
 def _local_memory(run: dict[str, Any]) -> str | None:
