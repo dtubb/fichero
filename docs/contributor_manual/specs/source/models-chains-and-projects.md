@@ -1066,7 +1066,7 @@ plan's peak memory across steps. Ready shows none of it.
   named; Find statements: statements) or that are not zero, so a run without them no longer says "0 pages dated · 0 dates named ·
   0 statements". Pinned by `fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`.
   **Built 2026-10-18 (engine):** a run with a review step counts what the review did, "Reviewed 12 lines on 2
-  pages: 3 corrected, 1 it could not read and left as read" (`run_view.reviewed`: each page's newest review, the
+  pages: 3 corrected, 1 it could not read and left as read" (`run_view.reviewed`, three queries over all the run's pages: each page's newest review, the
   lines it answered by id, those given a new reading, those flagged unreadable; `pages_reviewed`, `lines_reviewed`,
   `lines_corrected`, `lines_review_unreadable`, null for a run without one), pinned by
   `fichero-server/tests/unit/recipes/test_run_summary_counts_the_reviewed_lines.py` (R3 live exit step 6).
@@ -3504,7 +3504,7 @@ Setup
   files, the app's Mark as Ground Truth, plain text named after its image as page-level ground truth.*
   Corrected transcriptions given at setup (PAGE, ALTO, TEI, or plain text named after its image) come
   in through the one import path as person-made passes marked ground truth, and the bake-off uses them.
-- `source.onboard.existing-library` — **[GAP]** (#4951) setup on an existing library takes samples
+- `source.onboard.existing-library` — **[PARTIAL]** (#4951; built: setup on a library with pages takes its samples from them (`fichero-server/tests/unit/recipes/test_setup_samples_5668.py`) and the bake-off its ground truth from their corrected lines; saving the setup runs nothing, and Start, its own job, shows the plan with the page count and estimate before anything runs (`fichero-server/tests/unit/api/test_start_is_the_first_yes.py::test_the_plan_is_shown_before_anything_runs_with_the_page_count`) and never redoes what is done (`source.recipe.done-is-not-redone`); saving the setup again on a library already read leaves every page, segment and reading as it was (`fichero-server/tests/unit/recipes/test_setup_rewrites_nothing_on_a_read_library_4951.py`). Not built: an offer, worded as such, to run the recipe over the existing pages) setup on an existing library takes samples
   and ground truth from its pages, rewrites nothing, and offers running the recipe over its
   existing pages as a separate job with its page count and estimate.
 - `source.onboard.search-triggered` — **[GAP]** (#4948, #4951) once scripts, languages and period
