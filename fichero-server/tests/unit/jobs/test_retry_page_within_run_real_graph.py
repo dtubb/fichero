@@ -69,13 +69,14 @@ def test_retry_on_a_failed_page_reopens_the_same_run_and_keeps_its_earlier_pages
     assert ids.count(run) == 1  # one record for the run: reopened, not duplicated
 
 
-def test_retry_in_a_stopped_run_keeps_the_runs_record_and_reads_one_page(client, db, workflow, pages, cloud):
-    """The stopped branch (review 305): a run stopped with one page not read. Retry on that page must read exactly it,
-    leave the run's checkpoint (so its account still counts every page) and end with done == total == all pages."""
-    failing = {"left": 1}
+def test_retry_in_a_stopped_run_reads_the_retried_page_and_not_the_never_read_one(client, db, workflow, pages, cloud):
+    """The stopped branch (reviews 305, 307): three pages, one read (done), one stopped, one never read. Retry on the
+    stopped page reads exactly that page: the model is called once, the never-read page is NOT read, and the run keeps
+    its checkpoint (its account still counts all three pages, the never-read one as not done)."""
+    failing = {"left": 2}  # two of the three pages are not read: the stopped one and the one that never was
     reads = cloud.__call__
 
-    async def one_page_fails(images, prompt, config, **kwargs):
+    async def two_pages_unread(images, prompt, config, **kwargs):
         if failing["left"]:
             failing["left"] -= 1
             raise RuntimeError("stopped before this page was read")
@@ -83,28 +84,33 @@ def test_retry_in_a_stopped_run_keeps_the_runs_record_and_reads_one_page(client,
 
     import fichero_server.llm as llm
 
-    llm.vision = one_page_fails
+    llm.vision = two_pages_unread
     r = client.post("/api/workflow-execution/execute", json={
         "workflow_id": workflow.id, "inputs": {"selected_doc_ids": [d.id for d in pages]}})
     assert r.status_code == 202, r.text
     run = r.json()["thread_id"]
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"), 120)
-    # What a Stop leaves: the run says cancelled and the page that was not read says cancelled (not failed).
-    asyncio.run(_mark_stopped(db, run))
+    asyncio.run(_mark_stopped(db, run))  # what a Stop leaves: the run and its two unread pages say cancelled
     before = _account(db, run)
-    assert before.pages_total == len(pages), "the run's account is built from its checkpoint, still there"
-    page = db.execute_fetchone("SELECT id FROM jobs WHERE state = 'cancelled' AND kind NOT IN ('workflow', 'workflow-step') LIMIT 1")
-    assert page is not None
+    assert before.pages_total == len(pages) and before.pages_done == 1, "one page read; the account is from the checkpoint"
+    unread = [row[0] for row in db.execute_fetchall(
+        "SELECT id FROM jobs WHERE state = 'cancelled' AND kind NOT IN ('workflow', 'workflow-step') ORDER BY id")]
+    assert len(unread) == 2
+    retried, never_read = unread
     calls = cloud.calls
 
-    r = client.post(f"/api/activity/jobs/{page[0]}/retry")
+    r = client.post(f"/api/activity/jobs/{retried}/retry")
 
     assert r.status_code == 200, r.text
     assert _wait_for(lambda: cloud.calls > calls, 120)
-    assert _wait_for(lambda: _status(client, run) == "completed" and _account(db, run).pages_failed == 0, 120)
-    assert cloud.calls - calls == 1, "only the retried page is read"
+    assert _wait_for(lambda: _status(client, run) in ("completed", "failed"), 120)
+    assert cloud.calls - calls == 1, "only the retried page is read, not the never-read one"
     after = _account(db, run)
-    assert after.pages_total == len(pages) and after.pages_done == len(pages)
+    assert after.pages_failed == 0, "a page the reopen left out is neither done nor failed"
+    assert _status(client, run) != "failed", f"the run ended {_status(client, run)}: a left-out page must not fail it"
+    assert after.pages_total == len(pages), "the run's record is intact"
+    assert after.pages_done == 2 and len(after.not_done_ids) == 1, "two pages read now; the never-read one still is not"
+    assert db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [never_read])[0] == "cancelled"
 
 
 async def _mark_stopped(db, run):

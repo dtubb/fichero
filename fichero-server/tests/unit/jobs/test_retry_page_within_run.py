@@ -125,3 +125,40 @@ def test_retry_in_a_stopped_run_reopens_over_the_done_pages_plus_this_one_and_ke
     assert asyncio.run(core.retry_page_in_run(run, "page-1")) == ("run-1", "reopened")
     assert reopened == [("run-1", ["doc-1", "doc-2", "doc-7"], True, True)]
     assert "adelete_thread" not in __import__("inspect").getsource(core.retry_page_in_run)
+
+
+def test_a_reopen_narrowed_to_some_documents_skips_the_other_files_of_the_runs_old_list():
+    """The M4's 3-page stopped test (72fd084a9): narrowing `selected_doc_ids` did not narrow, because the checkpoint keeps the
+    run's file list; `only_doc_ids` is carried to every file's branch, which skips a file whose document is not named."""
+    import inspect
+
+    from fichero_server.workflows import builder, runtime
+
+    assert runtime.build_initial_state({"only_doc_ids": ["a"]})["only_doc_ids"] == ["a"]
+    assert runtime.build_initial_state({})["only_doc_ids"] == []
+    source = inspect.getsource(builder)
+    assert source.count('"only_doc_ids": state.get("only_doc_ids") or []') == 2  # both fan-outs pass it on
+    assert "not part of this reopen" in source  # and the per-file branch skips the others
+
+
+def test_only_doc_ids_from_an_earlier_retry_never_narrows_the_next_one():
+    """Review 311: the snapshot's inputs carry the last Retry's `only_doc_ids`; a second Retry, of a different page, must not
+    inherit it (it would skip the newly retried page)."""
+    from fichero_server.api.routes.workflow_execution.core import run_inputs
+
+    snapshot = {"selected_doc_ids": ["a", "b", "c"], "only_doc_ids": ["a", "b"]}  # left by the first Retry
+    second = run_inputs(snapshot, documents=["a", "c"], reopen=True, only_these=True, not_done=[])
+    assert second["only_doc_ids"] == ["a", "c"] and second["selected_doc_ids"] == ["a", "b", "c"]
+    whole = run_inputs(snapshot, documents=["c"], reopen=True, only_these=False, not_done=[])
+    assert "only_doc_ids" not in whole  # an ordinary reopen reads the whole run, cache on
+    fresh = run_inputs(snapshot, documents=None, reopen=False, only_these=False, not_done=["c"])
+    assert "only_doc_ids" not in fresh and fresh["selected_doc_ids"] == ["c"]
+
+
+def test_a_skipped_file_is_not_counted_by_the_aggregator():
+    import inspect
+
+    from fichero_server.workflows import builder
+
+    source = inspect.getsource(builder)
+    assert '"skipped": True' in source and 'if not r.get("skipped")' in source
