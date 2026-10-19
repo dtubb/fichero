@@ -13,6 +13,7 @@ import threading
 from typing import Any, Callable
 
 from fichero_server.llm.mlx_runtime import get_mlx_runtime
+from fichero_server.llm.local_model_facts import GIB, gib
 from fichero_server.db.paths import model_store_root
 from fichero_server.llm.providers import ProviderType
 
@@ -59,7 +60,7 @@ DOWNLOAD_PROGRESS_POLL_SECONDS = 1.0
 
 
 def _format_bytes(count: int) -> str:
-    return f"{count / 1e9:.1f} GB" if count >= 1e8 else f"{count / 1e6:.0f} MB"
+    return f"{gib(count):.1f} GB" if count >= GIB / 10 else f"{count / 1024**2:.0f} MB"
 
 
 @dataclass
@@ -614,7 +615,7 @@ class MLXModelStore:
         return ManagedModelSpec(
             model_id=repo_id, repo_id=repo_id, revision=snapshot.name,
             display_name=repo_id.split("/")[-1], download_size_bytes=weights, min_memory_bytes=weights,
-            memory_class=f"needs at least {weights / 1e9:.1f} GB unified memory (its weights)",
+            memory_class=f"needs at least {gib(weights):.1f} GB unified memory (its weights)",
             capabilities=("text", "vision") if "vision_config" in config else ("text",),
             note="Found in your model store, not from the Fichero catalogue: its card is made from its own "
                  "config. Not measured here yet.",

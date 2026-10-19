@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fichero_server.recipes.assemble import Answers, Card
+from fichero_server.llm.local_model_facts import GIB, gib
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +181,8 @@ def installed_cards(seed: tuple[Card, ...] | list[Card]) -> list[Card]:
             id=f"mlx:installed/{spec.repo_id}@{spec.revision}",
             pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=READER_JOBS, scripts=None, languages=languages, material=frozenset(),
-            open_licence=open_licence, size_gb=round(spec.download_size_bytes / 1e9, 3),
-            memory_gb=round(memory / 1024**3, 2), trainable=True, licence=licence,
+            open_licence=open_licence, size_gb=round(gib(spec.download_size_bytes), 3),
+            memory_gb=round(gib(memory), 2), trainable=True, licence=licence,
             note=spec.display_name, source="installed", offered_because=why, installed=True,
         )
     return sorted(out.values(), key=lambda c: c.id)
@@ -210,11 +211,12 @@ def installed_spacy_cards(languages: frozenset[str], seed: tuple[Card, ...] | li
         lang = str(info.get("language") or "")
         if name in pinned or (asked and lang not in asked) or not spacy_pipeline_available(name):
             continue
+        # disk_mb is decimal MB at its source (local_models.py), so it goes through bytes to GiB.
         out.append(Card(
             id=f"spacy:pkg/{name}@installed", pin={"spacy": name, "version": "installed"},
             jobs=frozenset({"find-names-tag-words"}), scripts=None, languages=frozenset({lang}) if lang else None,
             material=frozenset(), open_licence=True, licence=str(info.get("licence") or ""),
-            size_gb=round(float(info.get("disk_mb") or 0) / 1000, 3), note=f"spaCy {name}", source="installed",
+            size_gb=round(float(info.get("disk_mb") or 0) * 1_000_000 / GIB, 3), note=f"spaCy {name}", source="installed",
             installed=True, offered_because=f"installed on this Mac: the spaCy pipeline {name}",
         ))
     return out
@@ -256,7 +258,7 @@ def local_text_cards(seed: tuple[Card, ...] | list[Card] = ()) -> list[Card]:
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(),
             open_licence=open_licence, licence=licence,
-            size_gb=round(spec.download_size_bytes / 1e9, 3),
+            size_gb=round(gib(spec.download_size_bytes), 3),
             memory_gb=local_memory_gb(spec),  # the load gate's number (#5537)
             note=spec.display_name, source="installed", installed=True,
             offered_because=f"installed on this Mac: {spec.display_name}, in your model store; it reads text",
@@ -303,7 +305,7 @@ def other_text_cards() -> list[Card]:
         out.append(Card(
             id=f"mlx:text/{spec.repo_id}@{spec.revision}", pin={"hf": spec.repo_id, "revision": spec.revision},
             jobs=TEXT_MODEL_JOBS, scripts=None, languages=None, material=frozenset(), open_licence=True,
-            licence="", size_gb=round(spec.download_size_bytes / 1e9, 3),
+            licence="", size_gb=round(gib(spec.download_size_bytes), 3),
             memory_gb=local_memory_gb(spec), note=spec.display_name, source="shipped", offered_only=True,
             installed=False, offered_because=f"{spec.display_name}, an MLX model to download to this Mac; it reads text",
         ))
@@ -757,7 +759,7 @@ def repository_cards(rows: list[dict[str, Any]], seed: tuple[Card, ...] | list[C
         out.append(Card(
             id=f"kraken:zenodo/{row['doi']}@pinned", pin={"zenodo": row["doi"]}, jobs=frozenset({"read-a-line"}),
             scripts=_row_scripts(row) or None, languages=langs, material=_row_material(row),
-            open_licence=_is_open(row["licence"]), size_gb=round(row["size_bytes"] / 1e9, 4),
+            open_licence=_is_open(row["licence"]), size_gb=round(gib(row["size_bytes"]), 4),
             trainable=True, cer_published=cer if matches else None, licence=row["licence"],
             note=row["summary"] or row["doi"], source="kraken-repository", offered_because=why,
         ))
@@ -936,10 +938,10 @@ def _remote_card(model: dict[str, Any], what: str, remote: dict[str, Any], wante
     how = (f"runs on remote compute ({remote['where']}, {remote['flavor']}, "
            + (f"about ${price:.2f} an hour" if price is not None else "price not listed")
            + "); the pages leave this Mac"
-           + (f"; about {weights * 2 / 1e9:.0f} GB of weights" if weights else "; size not stated"))
+           + (f"; about {gib(weights * 2):.0f} GB of weights" if weights else "; size not stated"))
     card = _hf_card(model, what, how, wanted)
     return replace(card, id=card.id.replace("mlx:hf/", "remote:hf/"), runs_on=REMOTE_RUNS_ON, trainable=False,
-                   offered_only=True, size_gb=round(weights * 2 / 1e9, 1) if weights else 0.0,
+                   offered_only=True, size_gb=round(gib(weights * 2), 1) if weights else 0.0,
                    runs_here=bool(remote["available"]),
                    cannot_run_because="" if remote["available"] else remote["why"])
 
@@ -1197,12 +1199,12 @@ def hub_spec(repo_id: str) -> Any:
         row, text_only = _step_hub_row(repo_id or ""), True  # an MLX text build a step's search found (#5668)
         if row is None:
             return None
-    size = int(float(row.get("size_gb") or 0) * 1e9)
+    size = int(float(row.get("size_gb") or 0) * GIB)
     return ManagedModelSpec(
         model_id=repo_id, repo_id=repo_id, revision="main", display_name=str(row.get("note") or repo_id),
         download_size_bytes=size, min_memory_bytes=size,
         memory_class="memory not stated until it is downloaded" if not size else
-        f"needs at least {size / 1e9:.1f} GB unified memory (its weights)",
+        f"needs at least {gib(size):.1f} GB unified memory (its weights)",
         capabilities=("text",) if text_only else ("text", "vision"),
         note=f"Found on Hugging Face by Fichero's model search: {row.get('offered_because') or row.get('job')}. "
              "Not measured here yet.",

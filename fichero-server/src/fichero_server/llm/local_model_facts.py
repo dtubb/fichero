@@ -67,9 +67,16 @@ class LocalInferenceCapabilities(BaseModel):
     macos_version: str | None = None
 
 
+GIB = 1024**3
+
+
+def gib(n_bytes: float) -> float:
+    """Bytes as the GB the Mac says (powers of 1024): the one conversion for memory and model sizes (#5833)."""
+    return n_bytes / GIB
+
+
 def _memory_gb_label(memory_bytes: int) -> str:
-    gib = max(1, round(memory_bytes / (1024**3)))
-    return f"{gib} GB"
+    return f"{max(1, round(gib(memory_bytes)))} GB"
 
 
 def _required_memory_label(min_memory_bytes: int) -> str:
