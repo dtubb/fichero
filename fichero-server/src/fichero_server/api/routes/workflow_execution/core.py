@@ -782,6 +782,26 @@ async def reopen_run_for_pages(db: Database, run_id: str, documents: list[str]) 
     await read_again(db, run_id, documents=documents, reopen=True)
 
 
+def run_inputs(snapshot_inputs: Any, *, documents: list[str] | None, reopen: bool, only_these: bool,
+               not_done: list[str]) -> dict[str, Any]:
+    """The inputs a run read again starts with: the snapshot's, then the ones this reading sets. `only_doc_ids` is the
+    snapshot's from an earlier Retry of a stopped run, so it is dropped first: it must never narrow the next one."""
+    inputs = dict(snapshot_inputs) if isinstance(snapshot_inputs, dict) else {}
+    inputs.pop("only_doc_ids", None)
+    if reopen and only_these:
+        # A stopped run's retried page with the pages it read: the run's own selection stays (its checkpoint keeps the
+        # file list), and the fan-out is told to read only these (`State.only_doc_ids`), the done ones as cache hits.
+        inputs["only_doc_ids"] = list(documents or [])
+    elif reopen:
+        # A reopened run is the SAME run over ALL its pages, with the node cache on: the pages it did are cache hits
+        # (no model call, their readings and the run's counts stay), and only the retried page, which has no result
+        # yet, is read.
+        inputs["selected_doc_ids"] = list(inputs.get("selected_doc_ids") or documents or [])
+    else:
+        inputs["selected_doc_ids"] = list(documents) if documents is not None else not_done
+    return inputs
+
+
 def edges_among(edges: list[dict[str, Any]], nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The workflow's own edges whose endpoints (and route targets) are all among the nodes a run ran with: a workflow
     edited since its run (a node removed or renamed) must not hand validation an edge to a node that is no longer there."""
@@ -827,19 +847,8 @@ async def read_again(db: Database, thread_id: str, *, documents: list[str] | Non
         workflow = workflow.model_copy(update={"nodes": snapshot["nodes"],
                                                "edges": edges_among(workflow.edges, snapshot["nodes"])})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
-    inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
-    if reopen and only_these:
-        # A stopped run's retried page with the pages it read: the run's own selection stays (its checkpoint keeps the
-        # file list), and the fan-out is told to read only these (`State.only_doc_ids`), the done ones as cache hits.
-        inputs["only_doc_ids"] = list(documents or [])
-    elif reopen:
-        # A reopened run is the SAME run over ALL its pages, with the node cache on: the pages it did are cache hits
-        # (no model call, their readings and the run's counts stay), and only the retried page, which has no result
-        # yet, is read. Narrowing the run to `documents` re-entered the thread's checkpoint, which kept the old files
-        # and read every page again (the M4 real-graph retry: three model calls, not one).
-        inputs["selected_doc_ids"] = list(inputs.get("selected_doc_ids") or documents or [])
-    else:
-        inputs["selected_doc_ids"] = list(documents) if documents is not None else account.not_done_ids
+    inputs = run_inputs(snapshot.get("inputs"), documents=documents, reopen=reopen, only_these=only_these,
+                        not_done=account.not_done_ids if account is not None else [])
     new_thread = thread_id if reopen else f"thread-{uuid4().hex[:12]}"  # a reopened run keeps its id
     request = ExecuteWorkflowRequest(
         workflow_id=workflow.id, inputs=inputs, thread_id=new_thread,

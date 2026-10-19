@@ -692,7 +692,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   page answers in words ("This page is already read") and does nothing. A run that has ended reopens for the page: the
   same run id goes back to running over all its pages with the node cache on, so only the retried page calls the model
   and the other pages keep their readings and counts; a STOPPED run, whose other pages were never read, reopens over
-  the pages it read plus this one (the done pages are cache hits, the never-read ones are skipped by name, `only_doc_ids`: the
+  the pages it read plus this one (the done pages are cache hits, the never-read ones are skipped by name, `only_doc_ids`, and are neither done nor failed nor counted by the step's
+  aggregator, and the list is dropped from the snapshot before the next Retry: the
   checkpoint keeps the run's whole file list, so selecting fewer documents does not narrow it) and its checkpoint is
   never touched, since its account and its offer to read the rest are built from it. A run still going takes the page into its queue (no 409): the page row waits
   ("Retried by you; waits in its run") and the run reopens for it when its pass ends. Pinned by
