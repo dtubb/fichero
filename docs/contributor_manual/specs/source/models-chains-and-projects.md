@@ -1428,6 +1428,9 @@ section disagree, this section holds; 7c's stage pages, samples and engine run s
 - **Library-scoped loads wait for their library** (#5822): the sidebar's automation and activity loads ask only
   libraries the engine has loaded (`librariesReadyToLoad`); before that they show nothing, not an error, and they run
   again when a library loads. After it loads, a real error still shows with Retry.
+- **The sidebar + menu always has a project to act on** (#5817): New Folder and Import land in the selected item's
+  project, else this window's, else the Global one (`sidebarCreationLibraryId`); with none open, New Folder says so
+  in its alert instead of doing nothing.
 - **Fichero › Set Up Fichero… reaches the key window** (#5821): the menu item runs on the window that is key, which
   becomes the front one and presents the welcome (`FirstRunWindow(.firstRun)`), whatever its project holds; the request
   clears when the welcome closes. It never relies on which project was last opened.
