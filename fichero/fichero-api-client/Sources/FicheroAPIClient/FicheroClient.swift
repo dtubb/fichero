@@ -117,7 +117,7 @@ public final class FicheroClient: ObservableObject {
     /// Retained so `rebuildClient()` selects the same transport on every
     /// library-path / baseURL change. `internal` (not `private`) so the streaming
     /// extension can pick the matching server URL for `.uds` vs `.https`.
-    let transportMode: TransportMode
+    private(set) var transportMode: TransportMode
 
     /// The concrete `ClientTransport` the generated `Client` dials with
     /// (URLSession for `.https`, AsyncHTTPClient for `.uds`). Built once and
@@ -127,7 +127,7 @@ public final class FicheroClient: ObservableObject {
     /// UDS-only or socket-less engine, where a raw `URLSession` to
     /// `127.0.0.1:8765` would fail. `internal` so the streaming extension can
     /// reach it.
-    let transport: any ClientTransport
+    private(set) var transport: any ClientTransport
 
     /// The transport long-lived SSE subscriptions dial with (#4349).
     ///
@@ -141,7 +141,7 @@ public final class FicheroClient: ObservableObject {
     /// libraries are open. See ``LocalTransportPool``.
     ///
     /// `internal` so the streaming extension can reach it.
-    let streamTransport: any ClientTransport
+    private(set) var streamTransport: any ClientTransport
 
     /// The auth + library-path middleware stack the generated `Client` runs.
     /// Both middlewares read their state LIVE per request, so a single instance
@@ -283,6 +283,21 @@ public final class FicheroClient: ObservableObject {
     public func reconfigure(baseURL: URL) {
         guard self.baseURL != baseURL else { return }
         self.baseURL = baseURL
+        rebuildClient()
+    }
+
+    /// Re-resolve the endpoint: the host AND how to dial it. An engine that restarted under a new socket path (or
+    /// moved between its socket and its https listener, as turning Sharing on does) is not reached by the transport
+    /// built at the first connect; a changed mode gets new transports (and their connection pools), the same
+    /// session, the same middlewares. Nothing changes when neither differs.
+    public func reconfigure(baseURL: URL, transportMode newMode: TransportMode) {
+        guard self.baseURL != baseURL || transportMode != newMode else { return }
+        self.baseURL = baseURL
+        if transportMode != newMode {
+            transportMode = newMode
+            transport = Self.makeTransport(session: configuredSession, transportMode: newMode)
+            streamTransport = Self.makeTransport(session: configuredSession, transportMode: newMode, usage: .stream)
+        }
         rebuildClient()
     }
 

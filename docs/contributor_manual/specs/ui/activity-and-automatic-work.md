@@ -1384,7 +1384,7 @@ and node, not by job); a retry action for failed pages.
   person doing anything: a jobs read that finds the engine not there (a `URLError`, or the socket layer's `NIOCore.IOError`,
   "error 1") says so in the footer in words ("Couldn't load activity: the engine could not be reached"), never the raw socket
   text; reads again after 2, 4, 8, 16, then every 30 s; and when one answers, the footer line clears and the run list is
-  read again (`ActivityStore.jobsPollFailed` / `jobsPollSucceeded`, the window reloads on `refreshToken`)
+  read again (`ActivityStore.jobsPollFailed` / `jobsPollSucceeded`, the window reloads on `refreshToken`); and each failed read re-resolves the endpoint (`FicheroClient.reconfigure(baseURL:transportMode:)` from `EngineConfig`: a changed socket path, or a move between the socket and the https listener, gets a new transport and pool instead of redialling the first connect's) (`fichero/fichero-api-client/Tests/FicheroAPIClientTests/TransportModeTests.swift`)
   (`fichero/Tests/Unit/general/Models/ActivityReconnectTests.swift`; needs compile). NOT shown to be the cause: why the
   requests never reached the engine at all (the log has none after the restart); this makes the app keep trying and say so, it does
   not explain an `EPERM` on a stale or sandboxed dial. Open: should turning Sharing on restart the engine (its graceful shutdown
