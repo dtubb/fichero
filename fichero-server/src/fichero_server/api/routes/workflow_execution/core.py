@@ -829,7 +829,9 @@ async def read_again(db: Database, thread_id: str, *, documents: list[str] | Non
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
     if reopen and only_these:
-        inputs["selected_doc_ids"] = list(documents or [])  # a stopped run's page alone (its checkpoint was dropped)
+        # A stopped run's retried page with the pages it read: the run's own selection stays (its checkpoint keeps the
+        # file list), and the fan-out is told to read only these (`State.only_doc_ids`), the done ones as cache hits.
+        inputs["only_doc_ids"] = list(documents or [])
     elif reopen:
         # A reopened run is the SAME run over ALL its pages, with the node cache on: the pages it did are cache hits
         # (no model call, their readings and the run's counts stay), and only the retried page, which has no result
