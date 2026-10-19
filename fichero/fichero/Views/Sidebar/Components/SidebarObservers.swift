@@ -5,6 +5,13 @@ import SwiftUI
 /// Structured logger for sidebar observer operations
 private let logger = Logger(subsystem: "app.fichero.fichero", category: "SidebarObservers")
 
+/// The open libraries a library-scoped load may ask now (#5822). The engine answers "no project" (404) for a
+/// library it has not opened yet, which is not a failure: the load waits, and runs again when the library loads
+/// (`LibraryManager.librariesLoadVersion`). Once loaded, a real error shows.
+func librariesReadyToLoad(open: [UUID], loaded: Set<UUID>) -> [UUID] {
+    open.filter { loaded.contains($0) }
+}
+
 // MARK: - Service Observers and Data Loading Extension
 
 extension SidebarView {
@@ -73,9 +80,10 @@ extension SidebarView {
         automationLoadError = nil
 
         do {
-            guard let library = libraryManager.openLibraries.first else {
-                logger.warning("No library available to load automation data")
-                automationLoadError = "No project available for Automation."
+            // Before any library has loaded there is nothing to ask and nothing to show (#5822).
+            let ready = librariesReadyToLoad(open: libraryManager.openLibraries.map(\.id),
+                                             loaded: libraryManager.loadedLibraryIds)
+            guard let library = libraryManager.openLibraries.first(where: { $0.id == ready.first }) else {
                 return
             }
             let automationService = library.automationService
@@ -110,7 +118,9 @@ extension SidebarView {
         var failures: [String] = []
 
         // Load activity from each open library
-        for library in libraryManager.openLibraries {
+        let ready = librariesReadyToLoad(open: libraryManager.openLibraries.map(\.id),
+                                         loaded: libraryManager.loadedLibraryIds)
+        for library in libraryManager.openLibraries where ready.contains(library.id) {
             guard !Task.isCancelled else { return }
 
             do {
