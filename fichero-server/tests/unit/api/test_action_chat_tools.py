@@ -374,7 +374,6 @@ class TestReadOnlyGate:
             "claim_get",
             "workflow_list",
             "provider_list",
-            "mcp_call_tool",  # read-only, owner-only; never offered under this name (CHAT_HIDDEN_ACTIONS, #5761)
         }
 
     def test_action_tools_read_only_filters_to_flagged_actions(self):
