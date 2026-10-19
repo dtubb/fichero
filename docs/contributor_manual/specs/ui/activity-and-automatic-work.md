@@ -1388,6 +1388,13 @@ and node, not by job); a retry action for failed pages.
   writes) ON the event loop; it runs on a worker thread now, one derivation at a time, and callers asking for the same page's text at once share one (`single_flight`): three GETs beside a Kraken read starved the GIL (blla is mostly single-threaded; r1's profile). Same test file, with the loop's longest stall measured beside the call. NOT built: the owner's "the view shows the page as
   waiting or reading in that run, and a page nothing covers queues one de-duplicated job on the model lane". The text view has no
   such state today (a page with no pass answers an empty text); it needs the product shape first.
+- `activity.read.get-runs-no-model` — **[PARTIAL]** (manager ruling, 2026-10-19) a GET never runs a model: it never starts a read, an
+  embedding or any derivation that loads one. It returns what is stored, or says it isn't ready. Built: the claim-similarity read
+  (`GET /api/claims/{id}/similar`) used to embed the claim's text on request; it reads the claim's STORED vector and answers 503 "This claim
+  isn't embedded yet" without one. Pinned by a scan that fails when a GET handler calls a model entry point (`recognize_*`,
+  `segment_to_geometry`, `apple_vision_ocr*`, `_embed_text*`, `get_embedder`, `run_on_lane`, `.encode(`)
+  (`fichero-server/tests/unit/api/test_no_model_work_in_gets.py`). Limit: the scan reads each GET handler's own body; a model
+  loaded two calls down is not seen. Not yet: the bench (GETs firing during a read, before and after, on the M4).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a

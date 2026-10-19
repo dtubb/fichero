@@ -5860,6 +5860,15 @@ class Database(DatabaseEmbeddingMixin):
                     results[name] = False
         return results
 
+    def stored_vector(self, table_name: str, row_id: str) -> list[float] | None:
+        """The vector a row already has in a LanceDB table, or None (no table, no row). Reads; never embeds."""
+        if table_name not in self._lance_tables():
+            return None
+        safe_id = row_id.replace("'", "''")
+        rows = self.lance.open_table(table_name).search().where(f"id = '{safe_id}'").limit(1).to_list()
+        vector = rows[0].get("vector") if rows else None
+        return list(vector) if vector is not None else None
+
     def search_vectors(
         self, table_name: str, query_vector: list[float], limit: int = 10
     ) -> list[dict]:

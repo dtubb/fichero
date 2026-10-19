@@ -53,47 +53,50 @@ def test_entity_dedup_find_similar_uses_passage_role() -> None:
 
 
 @pytest.mark.anyio
-async def test_find_similar_claims_uses_passage_role() -> None:
-    """find_similar_claims must call _embed_text with role='passage'."""
+async def test_find_similar_claims_uses_the_stored_vector_and_embeds_nothing() -> None:
+    """A GET never runs a model (`activity.read.get-runs-no-model`): the claim's stored passage vector is the probe."""
     from fichero_server.api.routes.kg_claim_search import find_similar_claims
     from fichero_server.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
 
-    captured: list[str] = []
-
     claim = KnowledgeClaim(
-        id="c1",
-        text="Leidy founded the organization in 1990.",
-        source_document_id="doc1",
-        claim_type=ClaimType.fact,
-        curation_state=ClaimCurationState.unreviewed,
-        entity_ids=[],
+        id="c1", text="Leidy founded the organization in 1990.", source_document_id="doc1",
+        claim_type=ClaimType.fact, curation_state=ClaimCurationState.unreviewed, entity_ids=[],
     )
-
     db = MagicMock()
-    db._lance_tables.return_value = ["kg_claim_embeddings"]
     db.get.return_value = claim
     db.all.return_value = []
+    db.stored_vector.return_value = [0.1, 0.2, 0.3, 0.4]
     db.search_vectors.return_value = []
+    embedded: list[str] = []
+    db._embed_text = lambda *a, **k: embedded.append("sync")
 
-    def fake_embed(text, *, role="query"):
-        captured.append(role)
-        return [0.0] * 4
+    async def embed_async(*a, **k):
+        embedded.append("async")
 
-    db._embed_text = fake_embed
-    # Route now calls the async offload variant (#2231); wire it to the same capture fn
-    async def fake_embed_async(text, *, role="query"):
-        captured.append(role)
-        return [0.0] * 4
+    db._embed_text_async = embed_async
 
-    db._embed_text_async = fake_embed_async
-
-    # Pass limit explicitly — Query() default doesn't resolve outside FastAPI
     await find_similar_claims("c1", limit=10, db=db)
 
-    assert captured, "_embed_text was not called"
-    assert captured[0] == "passage", (
-        f"find_similar_claims should embed with role='passage'; got {captured[0]!r}"
+    assert embedded == [], "the similar-claims read embedded the claim's text"
+    assert db.search_vectors.call_args.args[1] == [0.1, 0.2, 0.3, 0.4]
+
+
+@pytest.mark.anyio
+async def test_find_similar_claims_says_it_is_not_embedded_without_embedding() -> None:
+    from fichero_server.api.routes.kg_claim_search import find_similar_claims
+    from fichero_server.models.knowledge import ClaimCurationState, ClaimType, KnowledgeClaim
+
+    claim = KnowledgeClaim(
+        id="c1", text="x", source_document_id="doc1", claim_type=ClaimType.fact,
+        curation_state=ClaimCurationState.unreviewed, entity_ids=[],
     )
+    db = MagicMock()
+    db.get.return_value = claim
+    db.stored_vector.return_value = None
+    with pytest.raises(HTTPException) as caught:
+        await find_similar_claims("c1", limit=10, db=db)
+    assert caught.value.status_code == 503 and "isn't embedded yet" in caught.value.detail
+    db._embed_text_async.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
