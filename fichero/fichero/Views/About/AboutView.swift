@@ -260,8 +260,12 @@ struct AboutView: View {
                 Button("Acknowledgements") {
                     isAcknowledgementsPresented = true
                 }
-                // A link like its two neighbours, full label (#5827).
+                // A link like its two neighbours, full label (#5827); .link is macOS only.
+                #if os(macOS)
                 .buttonStyle(.link)
+                #else
+                .buttonStyle(.borderless)
+                #endif
                 .help("View the open-source projects Fichero is built on")
                 .accessibilityIdentifier("about.button.acknowledgements")
             }
