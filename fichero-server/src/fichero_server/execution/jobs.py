@@ -102,7 +102,7 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: once, so a Find Lines compare never queues behind the Read try waiting on a reader download.
 #: `search`: looking for models online (`find-models`): a few small metadata calls that must never wait behind a
 #: multi-GB download holding the network lane (#5809).
-LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "search": 2, "recipes": 1, "tries": 2}
+LANES = {"local-ml": 1, "embed": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "search": 2, "recipes": 1, "tries": 2}
 #: The one exception to the model lane's one job at a time (#5654, `compute.memory.reads-follow-memory`):
 #: calls to the engine's own model server for the model it has loaded share the lane, as many at once as
 #: that model's need and this Mac's memory allow (`local_inference.reads_at_once_for_model`, at most
@@ -111,6 +111,11 @@ CO_RUN_KIND = "ask-a-model"
 #: The lanes whose jobs are heavy on this Mac's memory: while memory is busy they run one job at a time
 #: between them (`activity.throttle.one-heavy-when-memory-tight`, #5622).
 HEAVY_LANES = ("local-ml", "images")
+#: The lanes whose background jobs the Mac's state holds (battery, memory, heat) and that wait for the thumbnails.
+#: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
+#: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
+#: "local-ml"), and it is held by the same signals.
+THROTTLED_LANES = ("local-ml", "embed")
 #: What a row held so says, before what runs.
 ONE_HEAVY_REASON = "Waiting: memory is busy, so heavy work runs one job at a time"
 #: Finished jobs older than this are deleted when their library opens (spec open question 8).
@@ -1286,12 +1291,16 @@ def resume(db: "Database") -> None:
         "DELETE FROM jobs WHERE state IN ('done', 'cancelled') AND finished_at < ?",
         [utc_now() - timedelta(days=KEEP_FINISHED_DAYS)],
     )
+    # A job one of this engine's lane threads runs right now is not one an earlier engine left: a library opened again
+    # while a page runs must leave it running, in every update below (review 278: an attached Kraken page was cancelled).
+    live = _scheduler.running_ids()
+    not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
     attached = [name for name in KINDS if _is_attached(name)]
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
         f"reason = 'Its workflow run stopped before this page was done' "
-        f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)})",
-        [utc_now(), *attached],
+        f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)}){not_live}",
+        [utc_now(), *attached, *live],
     )
     # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
     # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
@@ -1299,8 +1308,8 @@ def resume(db: "Database") -> None:
     for job_id, attempts, started_at in db.execute_fetchall(
         "SELECT id, attempts, started_at FROM jobs "
         "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs' "
-        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)})",
-        [MAX_ATTEMPTS, *FAR_SIDE_KINDS],
+        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}){not_live}",
+        [MAX_ATTEMPTS, *FAR_SIDE_KINDS, *live],
     ):
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
@@ -1309,11 +1318,13 @@ def resume(db: "Database") -> None:
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-        f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})",
-        [utc_now(), STOPPING, *RUN_KINDS],
+        f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)}){not_live}",
+        [utc_now(), STOPPING, *RUN_KINDS, *live],
     )
+    # (Same rule: only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
     db.execute(
-        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} WHERE state = 'running'"
+        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+        f"WHERE state = 'running'{not_live}", live
     )
     # A page whose thumbnail is already there needs no job: one left queued, interrupted just now, or set aside after
     # its kills, would hold the heavy work queued after it for good (#5845). After the reset above, so a thumbnail job
@@ -1880,7 +1891,7 @@ def clear_failed(db: "Database") -> list[str]:
 _OWN_ROW_KINDS = frozenset({"run-a-recipe", "try-a-stage"})
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
-LANE_WORDS = {"local-ml": "the model lane", "images": "the thumbnail lane", "remote": "the remote lane",
+LANE_WORDS = {"local-ml": "the model lane", "embed": "the small-model lane", "images": "the thumbnail lane", "remote": "the remote lane",
               "database": "the database lane", "network": "the network lane", "search": "the search lane", "recipes": "the recipe lane",
               "tries": "the tries lane"}
 #: Lane work that reads for a run: its holder "is reading".
@@ -1941,6 +1952,11 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     lane = _scheduler.lanes.get(lane_name)
     words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
     running = [r for r in list(lane.running) if r != job_id] if lane is not None else []
+    if running:  # only a job that is running holds a lane: never name one whose row says otherwise
+        marks = ", ".join("?" for _ in running)
+        not_running = {row[0] for row in db.execute_fetchall(
+            f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running)}
+        running = [r for r in running if r not in not_running]
     if lane is not None and len(running) >= lane.slots:
         return f"Waiting for {words}: {_holder_words(db, running[0])}"
     if lane_name in HEAVY_LANES:
@@ -1949,7 +1965,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
         holder = _scheduler.heavy_running(besides=job_id)
         if holder is not None and memory_is_busy():
             return f"{ONE_HEAVY_REASON}: {_holder_words(db, holder)}"
-    if lane_name == "local-ml":
+    if lane_name in THROTTLED_LANES:
         from fichero_server.execution.throttle import why_wait
 
         found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
@@ -2131,21 +2147,27 @@ LOADED_WORK_HOLD_SECONDS = 300.0
 
 
 def _loaded_work_queued(keys: list[str], lane: "_Lane") -> bool:
-    """Whether a page for the model the lane has loaded waits, in any of its libraries (background embeds wait for it)."""
+    """Whether a page for the model the lane has loaded waits, in any of its libraries (every other heavy model's
+    background work waits for it): the pages queued by this family's models, and the pages a run has taken up but not
+    yet queued (a Kraken run's, counted by its page gate)."""
     from fichero_server.db.manager import db_manager
 
     family = _family(lane.loaded_model)
-    prefix = KRAKEN_MODEL_PREFIX if family == "kraken" else None
-    if prefix is None:
+    if family == "kraken":
+        vision = sys.modules.get("fichero_server.workflows.tools.vision_base")
+        if vision is not None and vision._KrakenPageGate.in_flight > 0:
+            return True
+    prefixes = ([KRAKEN_MODEL_PREFIX] if family == "kraken" else
+                [f"{p}:" for p in sorted(LOCAL_MODEL_SERVERS)] if family == "local-model" else
+                [family] if family else [])
+    if not prefixes:
         return False
-    vision = sys.modules.get("fichero_server.workflows.tools.vision_base")  # pages a run has taken up, not yet queued
-    if vision is not None and vision._KrakenPageGate.in_flight > 0:
-        return True
+    like = " OR ".join("COALESCE(model, '') LIKE ?" for _ in prefixes)
     for key in keys:
         db = db_manager.open_database(key)
         if db is not None and db.execute_fetchone(
-                "SELECT 1 FROM jobs WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) "
-                "AND COALESCE(model, '') LIKE ? LIMIT 1", [utc_now(), prefix + "%"]):
+                f"SELECT 1 FROM jobs WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) "
+                f"AND ({like}) LIMIT 1", [utc_now(), *[p + "%" for p in prefixes]]):
             return True
     return False
 
@@ -2153,6 +2175,37 @@ def _loaded_work_queued(keys: list[str], lane: "_Lane") -> bool:
 def _heavy_switch(loaded: str | None, model: str | None) -> bool:
     return (_family(loaded) in _RELEASE and _family(model) in _RELEASE
             and _family(loaded) != _family(model))
+
+
+def is_light(model: str | None) -> bool:
+    """A small model (the embedder, spaCy): it runs beside the big ones, and is never "the loaded model" the lane
+    groups its pages by. (Apple Vision is built in and returns before any lane.)"""
+    return model in ("embedder", "spacy")
+
+
+def _model_need_bytes(model: str | None) -> int | None:
+    """What loading this heavy model needs free, from the throttle's one rule: Kraken's (the small working need when its
+    models are resident, else the cold 2.5 GB), a served model's own size; None when nobody sizes it."""
+    if _family(model) == "kraken":
+        from fichero_server.llm import kraken_runtime
+
+        sized = getattr(kraken_runtime, "kraken_need_bytes", None)  # resident-aware, when this build has it
+        return sized() if sized is not None else kraken_runtime._kraken_memory_need_bytes()
+    from fichero_server.execution.throttle import model_need
+
+    return model_need(model).get("need_bytes")
+
+
+def _fits_beside(model: str | None) -> tuple[bool, str]:
+    """Whether `model` loads without freeing the loaded one: this Mac's free memory covers its need. Unknown sizes or
+    an unreadable memory say no (the old behaviour: swap). The words are the reason the swap or the keep is logged with."""
+    from fichero_server.execution.throttle import memory_available_bytes
+
+    need, free = _model_need_bytes(model), memory_available_bytes()
+    if need is None or free is None:
+        return False, f"{model} cannot be sized, so the loaded model is freed"
+    gib = 1024**3
+    return free >= need, f"{model} needs {need / gib:.1f} GiB, {free / gib:.1f} GiB is free"
 
 
 class _Lane:
@@ -2367,6 +2420,10 @@ class _Scheduler:
                 thread.join(max(0.0, deadline - time.monotonic()))
         return [t for t in ending if t.is_alive()]
 
+    def running_ids(self) -> list[str]:
+        """The jobs this engine's lane threads are running now, on every lane."""
+        return [job_id for lane in self.lanes.values() for job_id in list(lane.running)]
+
     def heavy_running(self, besides: str | None = None) -> str | None:
         """A job running on a heavy lane now (its id), other than `besides`, or None."""
         for name in HEAVY_LANES:
@@ -2395,7 +2452,7 @@ class _Scheduler:
             # memory`). Background jobs wait on all four signals, so while any holds, only work a
             # person is waiting for is looked at; each held row says why, and the lane looks again.
             held = None
-            if lane.name == "local-ml":
+            if lane.name in THROTTLED_LANES:
                 from fichero_server.execution.throttle import why_wait
 
                 held = why_wait(person_waiting=False)
@@ -2406,7 +2463,7 @@ class _Scheduler:
                 key, db, row = picked
                 if not lane.may_start(row[1], row[3]):
                     return None  # the lane is full: its running job's thread picks this when it ends
-                if lane.name == "local-ml":
+                if lane.name in THROTTLED_LANES:
                     # memory and heat hold even these; memory by this job's own model's need (#5654)
                     reason = why_wait(person_waiting=True, model=row[3], loaded=row[3] == lane.loaded_model)
                     if reason:
@@ -2494,7 +2551,7 @@ class _Scheduler:
         held_back = False
         # Thumbnails first (`activity.lane.thumbnails-first`, #5585): heavy local work waits for the
         # `first` jobs queued at or before it. Not while paused: those would never run.
-        first_kinds = [name for name, kind in KINDS.items() if kind.first] if lane.name == "local-ml" else []
+        first_kinds = [name for name, kind in KINDS.items() if kind.first] if lane.name in THROTTLED_LANES else []
         first_clause = ""
         if first_kinds and not is_paused():
             marks = ", ".join("?" for _ in first_kinds)
@@ -2521,14 +2578,13 @@ class _Scheduler:
             if full:
                 share_clause = " AND NOT (" + " OR ".join("COALESCE(model, '') LIKE ?" for _ in full) + ")"
                 share_params = [f"{provider}:%" for provider in full]
-        # The quiet spell: while the loaded heavy model has had work recently, background jobs for
-        # ANOTHER heavy model are left where they are -- excluded, so the work behind them (a
-        # light model's, or a page someone waits for) still runs.
+        # One model at a time (owner ruling, 2026-10-19; #5846's affinity for every model): the lane's next background job is
+        # the oldest for the model already loaded, and it switches to another heavy model only when the loaded one has
+        # nothing queued (a short grace after its last page covers a run's next page, handed in a moment later). Work a
+        # person started or watches goes first, at a page boundary, and its own model then becomes the loaded one, so
+        # its queued pages follow it.
         quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
         others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
-        # And while pages for the loaded model are still queued (a slow page outlasts the spell): the queued pages
-        # finish before another heavy model takes the lane, so Kraken loads once for a run (#5846). Capped, so
-        # queued work that cannot run (held, out of memory) never starves the others for good.
         loaded_work = (_family(lane.loaded_model) in _RELEASE and time.monotonic() < lane.loaded_used_at + LOADED_WORK_HOLD_SECONDS
                        and _loaded_work_queued(keys, lane))
         if loaded_work:
@@ -2545,11 +2601,12 @@ class _Scheduler:
                     held_parts.append("COALESCE(model, '') = ?")
                     held_params.append(f)
             held = " OR ".join(held_parts)
+            person_first = f"{_PERSON_RANK_SQL} > 0"  # a person's job is never held for the loaded model's batch
             if attached:
-                where += f" AND (id IN ({', '.join('?' for _ in attached)}) OR NOT ({held}))"
+                where += f" AND (id IN ({', '.join('?' for _ in attached)}) OR {person_first} OR NOT ({held}))"
                 params += [*attached, *held_params]
             else:
-                where += f" AND NOT ({held})"
+                where += f" AND ({person_first} OR NOT ({held}))"
                 params += held_params
             lane.look_again_at = quiet_from  # look again when the spell ends
             # Held jobs are waiting, not absent: the library stays on the lane so its thread is still
@@ -2637,8 +2694,27 @@ class _Scheduler:
                 if stopped:
                     raise JobCancelled(stopped) from exc
                 wait_on(db, job_id, str(exc))
-                time.sleep(THROTTLE_LOOK_AGAIN_SECONDS)
+                self._wait_until_memory_fits(db, job_id)
                 wait_over(db, job_id)
+
+    #: How often a page held for memory asks again, inside the `THROTTLE_LOOK_AGAIN_SECONDS` it may wait.
+    MEMORY_POLL_SECONDS = 0.25
+
+    def _wait_until_memory_fits(self, db: "Database", job_id: str) -> None:
+        """A page held for memory goes on the moment the throttle's one decision (`decide`, which sizes a resident
+        model by its small working need) lets it, not after a fixed 5 s: it asked once and the answer was already
+        "go" for a resident model, or memory freed a moment later. Gives up after the look-again time and lets the
+        page try again, as before."""
+        from fichero_server.execution.throttle import decide
+
+        found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
+        model = found[0] if found else None
+        loaded = model is not None and model == self.lanes["local-ml"].loaded_model
+        deadline = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+        while decide(True, model=model, loaded=loaded).action == "hold":
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(self.MEMORY_POLL_SECONDS)
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
@@ -2652,8 +2728,12 @@ class _Scheduler:
                     time.sleep(self.KRAKEN_POLL_SECONDS)
                 wait_over(db, job_id)
             if _heavy_switch(lane.loaded_model, model):
-                _RELEASE[_family(lane.loaded_model)](f"the lane switches to {_family(model)} for job {job_id}")
-            if model is not None:
+                fits, why = _fits_beside(model)
+                if fits:
+                    logger.info("model-lane: keep %s loaded beside %s (%s)", _family(lane.loaded_model), _family(model), why)
+                else:
+                    _RELEASE[_family(lane.loaded_model)](f"memory: {why}; the lane switches to {_family(model)} for job {job_id}")
+            if model is not None and not is_light(model):
                 lane.loaded_model = model
         if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
             watched = handed_in is None and db.execute_fetchone(
