@@ -16,6 +16,10 @@ from fichero_cli import client as client_module
 runner = CliRunner()
 
 
+#: The engine the fake client dials; sessions are kept per engine as "<user>@<engine>" (#5757).
+ENGINE = "app-backed-test-engine"
+
+
 class _AppBackedClient:
     test_client: TestClient | None = None
 
@@ -23,6 +27,8 @@ class _AppBackedClient:
         self.token = token
         self.library_path = library_path
         self.as_user = as_user
+        # A real client names the engine it talks to, and the CLI keeps one session per engine (#5757): the fake is one.
+        self.engine_key = ENGINE
 
     def __enter__(self):
         return self
@@ -35,7 +41,8 @@ class _AppBackedClient:
 
     def request(self, method, path, *, params=None, json=None, files=None):
         headers = {}
-        token = self.token if self.token is not None else client_module._read_token(as_user=self.as_user)
+        token = self.token if self.token is not None else client_module._read_token(
+            as_user=self.as_user, engine=self.engine_key)
         if token:
             headers["Authorization"] = f"Bearer {token}"
         if self.library_path:
@@ -93,7 +100,7 @@ def test_auth_login_stores_session_file_and_whoami_uses_it(monkeypatch, app_db, 
         session_path = client_module._CLI_SESSION_PATH
         session_payload = json.loads(session_path.read_text(encoding="utf-8"))
         assert session_payload["current_user"] == "alice"
-        assert session_payload["sessions"]["alice"]["session_token"]
+        assert session_payload["sessions"][f"alice@{ENGINE}"]["session_token"]
         assert (session_path.stat().st_mode & 0o777) == 0o600
 
         whoami = runner.invoke(cli.app, ["auth", "whoami"])
@@ -119,7 +126,7 @@ def test_auth_logout_revokes_session_and_deletes_file(monkeypatch, app_db, tmp_p
         assert runner.invoke(cli.app, ["auth", "login", "alice"]).exit_code == 0
         session_token = json.loads(
             client_module._CLI_SESSION_PATH.read_text(encoding="utf-8")
-        )["sessions"]["alice"]["session_token"]
+        )["sessions"][f"alice@{ENGINE}"]["session_token"]
 
         logout = runner.invoke(cli.app, ["auth", "logout"])
         assert logout.exit_code == 0
@@ -154,7 +161,7 @@ def test_auth_login_preserves_multiple_user_sessions(monkeypatch, app_db, tmp_pa
 
         session_payload = json.loads(client_module._CLI_SESSION_PATH.read_text(encoding="utf-8"))
         assert session_payload["current_user"] == "bob"
-        assert set(session_payload["sessions"]) == {"alice", "bob"}
+        assert set(session_payload["sessions"]) == {f"alice@{ENGINE}", f"bob@{ENGINE}"}
 
         whoami = runner.invoke(cli.app, ["--as-user", "alice", "auth", "whoami"])
         assert whoami.exit_code == 0
