@@ -104,11 +104,7 @@ enum SetupPreviewFixtures {
                                              initialStep: .stage("organise")))
 }
 
-#Preview("10 Train") {
-    SetupPreviewFixtures.page(FirstRunWindow(mode: .setUp, project: SetupPreviewFixtures.project, initialStep: .ready))
-}
-
-#Preview("11 Ready") {
+#Preview("10 Ready") {
     SetupPreviewFixtures.page(FirstRunWindow(mode: .setUp, project: SetupPreviewFixtures.project, initialStep: .ready))
 }
 #endif
