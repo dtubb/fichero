@@ -33,9 +33,15 @@ struct SetupFooter: Equatable {
     let showsBack: Bool
     /// The default button, far right.
     let primary: Choice
+    /// Why the default button waits, said beside it; nil when it can be pressed (#5813).
+    var waitsFor: String?
 
+    /// Your Material's Continue waits for material, and says so (#5813, ruled 2026-10-19).
+    static let addYourPages = "Add your pages to continue"
+
+    /// `hasMaterial`: the project has material (a file or folder added, or pages already counted).
     static func of(_ step: SetupStep, in steps: [SetupStep], mode: FirstRunWindow.Mode,
-                   projectChosen: Bool) -> SetupFooter {
+                   projectChosen: Bool, hasMaterial: Bool = true) -> SetupFooter {
         let isLast = step == steps.last
         let primary: Choice
         var leading: Choice?
@@ -63,6 +69,10 @@ struct SetupFooter: Equatable {
             leading = Choice(title: "Not Now", action: .skip)
         case .ready:
             primary = Choice(title: "Start", action: .start)
+        case .addMaterial:
+            primary = Choice(title: "Continue", action: .advance)
+            // Leaving here leaves Set Up: the stages have nothing to read without material (#5813).
+            if mode == .firstRun { leading = Choice(title: "Not Now", action: .close) }
         default:
             primary = Choice(title: isLast ? "Done" : "Continue", action: .advance)
         }
@@ -70,6 +80,7 @@ struct SetupFooter: Equatable {
         if leading == nil, mode != .firstRun {
             leading = Choice(title: mode == .setUp ? "Close" : "Cancel", action: .close)
         }
-        return SetupFooter(leading: leading, showsBack: step != steps.first, primary: primary)
+        return SetupFooter(leading: leading, showsBack: step != steps.first, primary: primary,
+                           waitsFor: step == .addMaterial && !hasMaterial ? addYourPages : nil)
     }
 }

@@ -161,6 +161,8 @@ struct RecipeMaterialSourceFields: View {
             guard case .success(let urls) = result else { return }
             add(urls)
         }
+        // A project reopened with pages already in it can continue at once (#5813: Continue waits for material).
+        .task { if store.startPlan == nil { await store.countPages() } }
     }
 
     /// The Mac's own open panel (2026-10-11): the importer inside setup's sheet did not hand back what was chosen,
