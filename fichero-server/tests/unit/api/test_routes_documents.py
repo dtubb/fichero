@@ -1450,6 +1450,9 @@ class TestRestoreAndPurgeDocument:
         assert refreshed.deleted_by is None
         assert client.get(f"/api/documents/{doc.id}").status_code == 200
 
+    # Known failure (manager's OK, 2026-10-19): 503 'no snapshot could be taken', since CHECKPOINT meets an open write
+    # transaction; pre-existing on 1aae82b45. #5858, bugs lane.
+    @pytest.mark.xfail(reason="#5858: purge's snapshot CHECKPOINT meets an open write transaction (503)", strict=False)
     def test_purge_hard_deletes_document_and_kg_rows(self, client, db):
         from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity, MutationLog
 

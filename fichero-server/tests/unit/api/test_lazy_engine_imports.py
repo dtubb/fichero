@@ -101,7 +101,8 @@ HEAVY_MODULES = [
 # a watcher starts. 797 after; the budget sits just above, and `watchdog` joins HEAVY_MODULES.
 # 2026-10-18: raised to 820 (manager's OK). The api dir did not collect from 03:51 that day, so the count grew unseen
 # to 896; the MCP knowledge-route retirement brought it to 817. #5798 trims it back under 800 and restores 800.
-MODULE_BUDGET = 820
+# 2026-10-19: raised to 821 (manager's OK). 1aae82b45 and 325561028 import the identical 821 modules: it was already over.
+MODULE_BUDGET = 821
 
 
 def _run(code: str) -> str:
