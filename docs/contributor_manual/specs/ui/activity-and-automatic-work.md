@@ -687,7 +687,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   ("Node 'x' started", "completed in", a row's start, what a row waits for now, a server's output), each line tagged
   `detail` (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the Developer switch in the details view
   (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
-- `activity.retry.page-within-run` — **[PARTIAL]** (#5853) Retry on a page retries it within its run, not as a new run
+- `activity.retry.page-within-run` — **[OK]** (#5853) Retry on a page retries it within its run, not as a new run
   (`activity.retry.one-row` keeps a whole failed run's Retry). Retry is for a page that failed or was stopped; a done
   page answers in words ("This page is already read") and does nothing. A run that has ended reopens for the page: the
   same run id goes back to running over all its pages with the node cache on, so only the retried page calls the model
@@ -698,8 +698,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   never touched, since its account and its offer to read the rest are built from it. A run still going takes the page into its queue (no 409): the page row waits
   ("Retried by you; waits in its run") and the run reopens for it when its pass ends. Pinned by
   `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` and, against the real graph (one model call, the run
-  id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (both branches). [PARTIAL] until that test is green
-  on the M4, the stopped branch's included.
+  id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (both branches), green on the M4 at `c7cc86d09` (REALGRAPH, 3-page stopped test included).
 - `activity.engine.keychain-cached` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun while `keychain.lookup_api_key` ran a
   `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 5 minutes, so a repeated lookup
   spawns no subprocess (a stale one is returned at once and re-read on a thread); a refusal is never kept; saving or deleting a key
