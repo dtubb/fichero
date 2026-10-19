@@ -675,7 +675,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   popover. Engine side: every ended row, of any kind (a stopped or failed workflow, batch, recipe run, try or queue row),
   comes back with `group` = "earlier" and last, so none stays in the live area
   (`fichero-server/tests/unit/api/test_activity_order_live_run_first.py`). Not yet: the window's History group and Clear
-  Finished (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`). Swift so far (needs compile): the store splits its one read into `liveJobs` and `historyJobs` on the engine's `group` (`fichero/Tests/Unit/general/Models/ActivityHistoryGroupTests.swift`); the window's History group view is not drawn yet.
+  Finished (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`). Swift so far (needs compile): the store splits its one read into `liveJobs` and `historyJobs` on the engine's `group` (`fichero/Tests/Unit/general/Models/ActivityHistoryGroupTests.swift`); the window lists `liveJobs` in its groups and the engine's ended job rows under a "History" heading (`ActivityMonitorWindow`, needs compile). Not yet: the workflow runs in the window's own run list (from `store.runs`) are not moved into History, and Clear Finished does not yet empty it.
 - `activity.log.persons-log` — **[PARTIAL]** (#5850) the default log is the person's: one line per page when it is done or
   failed and one per stage, one sentence per event in local time, never repeated, never nested inside another job's line.
   Supersedes `activity.details.log-filtered-newest-last` for what the log holds. Engine side: `GET /api/activity/jobs/{id}/log`

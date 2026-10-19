@@ -163,6 +163,14 @@ struct ActivityMonitorWindow: View {
             } else {
                 OutlineGroup(sortedRows, children: \.children) { row in TableRow(row) }
             }
+            // Ended, stopped and interrupted jobs the engine folded away (`activity.window.history-group`, #5851).
+            if !historyRows.isEmpty {
+                Section {
+                    OutlineGroup(historyRows, children: \.children) { row in TableRow(row) }
+                } header: {
+                    Text("History").accessibilityIdentifier("activity.group.history")
+                }
+            }
         }
         .accessibilityIdentifier("activity.table")
         .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
@@ -209,9 +217,20 @@ struct ActivityMonitorWindow: View {
                 libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
                 runRows: store.runs.map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
-                jobs: store.backgroundJobs
+                jobs: store.liveJobs
             )
         }
+    }
+
+    /// The jobs the engine put in History (`ActivityStore.historyJobs`), listed under their own heading.
+    private var historyRows: [ActivityMonitorRow] {
+        ActivityMonitorRow.sorted(libraries.flatMap { library in
+            ActivityMonitorRow.group(
+                libraryId: library.id, libraryName: library.displayName,
+                isMac: library.id == libraryManager.globalLibrary?.id,
+                runRows: [], jobs: library.activityStore.historyJobs
+            ).rows
+        }, using: sortOrder)
     }
 
     private var sortedRows: [ActivityMonitorRow] {
