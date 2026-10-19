@@ -132,6 +132,10 @@ def start(db: Any, request: _TrainRequest, *, started_by: str,
         where = "Hugging Face" if place == TARGET else f"the cluster {place}"
         raise PagesMayNotLeave(f"Training on {where} sends this project's pages there. "
                                "Say yes for this project first (pages_may_leave).")
+    from fichero_server.recipes import places
+
+    if (no := places.refusal("huggingface" if place == TARGET else "acenet")):
+        raise PagesMayNotLeave(no)  # the app's places cap the request's yes (#5831)
     if not request.scope_ids:
         raise ValueError("name the folders or pages to train on")
     if isinstance(request, TrainKrakenRequest) and request.base:
