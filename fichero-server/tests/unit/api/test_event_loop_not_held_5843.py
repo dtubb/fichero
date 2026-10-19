@@ -67,3 +67,50 @@ def test_vision_locales_are_never_loaded_on_the_loop(monkeypatch):
     assert _loop_turn_during(on_loop) < 1.0
     assert calls == []  # the loop did not ask; a worker thread still can
     assert evaluation.apple_vision_here() is True and calls == [1]
+
+
+def test_the_activity_poll_reads_the_job_table_off_the_loop(monkeypatch):
+    from fichero_server.api.routes.system import activity
+
+    def slow_snapshot(_db):
+        time.sleep(1.5)  # waiting on the transaction gate behind a write
+        return []
+
+    monkeypatch.setattr(jobs, "snapshot", slow_snapshot)
+    monkeypatch.setattr(jobs, "waiting_reason_of", lambda *_a, **_k: None)
+    monkeypatch.setattr("fichero_server.importers.derivatives.background_jobs_snapshot", lambda _lib: [])
+    db = SimpleNamespace(path="/lib/x.duckdb")
+    monkeypatch.setattr(activity, "get_activity_tracker", lambda _p: (_ for _ in ()).throw(RuntimeError("skip")))
+    assert _loop_turn_during(lambda: activity.list_background_jobs(db)) < 1.0
+
+
+def test_the_job_tree_reads_off_the_loop(monkeypatch):
+    from fichero_server.api.routes.system import activity
+
+    def slow_tree(_db, _id):
+        time.sleep(1.5)
+        return None  # 404 after the wait; the loop was free meanwhile
+
+    monkeypatch.setattr(jobs, "queue_of", lambda _id: False)
+    monkeypatch.setattr(jobs, "tree", slow_tree)
+
+    async def call():
+        try:
+            await activity.get_job_tree("j", None, SimpleNamespace())
+        except Exception:  # noqa: BLE001 -- the HTTPException 404
+            pass
+
+    assert _loop_turn_during(call) < 1.0
+
+
+def test_a_cold_apple_vision_answer_on_the_loop_says_it_is_warming_up(monkeypatch):
+    from fichero_server.recipes import bakeoff
+
+    monkeypatch.setattr(vision_base, "supported_locales_are_known", lambda: False)
+    monkeypatch.setattr(evaluation, "on_this_mac", lambda *_a, **_k: False)
+    card = SimpleNamespace(runs_here=True, open_licence=True)
+
+    async def ask():
+        return bakeoff._not_scored_because(card, "vision", evaluation.APPLE_VISION, "apple")
+
+    assert "starting up" in asyncio.run(ask())

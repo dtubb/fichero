@@ -545,7 +545,8 @@ async def list_background_jobs(
 
     from fichero_server.recipes import runner as recipe_runner
 
-    for row in job_queue.snapshot(db):
+    # Off the loop (#5843): the SELECT, the done counts and the waiting reasons each wait on the transaction gate.
+    for row in await asyncio.to_thread(job_queue.snapshot, db):
         state, reason = row["state"], row["reason"]
         name, current, total = job_queue.kind_name(row["kind"]), 0, row["count"]
         if row["kind"] == RECIPE_KIND and row["count"] == 1:
@@ -611,7 +612,9 @@ async def get_job_tree(
 
     # A row that stands for many jobs (the import's "Processing imported pages", one kind's counted
     # waiting jobs) reads as a tree of its stages (`activity.details.what-it-works-on-now`, #5623).
-    found = job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id)
+    # Off the loop (#5843): the tree's reads wait on the transaction gate behind a write.
+    found = await asyncio.to_thread(
+        lambda: job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id))
     if found is None:
         raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
     if found["kind"] == "workflow":
@@ -635,11 +638,14 @@ async def get_job_tree(
         _cut(found, depth)
     # A waiting job under it says what the list says it waits for, from the one place (#5606), never the
     # reason an earlier scan left on its row. Only the rows returned are asked.
-    for node in _walk(found):
-        if node["state"] == "waiting" and node["kind"] not in job_queue.RUN_KINDS and node["kind"] != "run-a-recipe":
-            now = job_queue.state_and_reason(db, node["id"])
-            if now is not None:
-                node["reason"] = now[1]
+    def ask_waiting() -> None:
+        for node in _walk(found):
+            if node["state"] == "waiting" and node["kind"] not in job_queue.RUN_KINDS and node["kind"] != "run-a-recipe":
+                now = job_queue.state_and_reason(db, node["id"])
+                if now is not None:
+                    node["reason"] = now[1]
+
+    await asyncio.to_thread(ask_waiting)
     return JobTree.model_validate(found)
 
 

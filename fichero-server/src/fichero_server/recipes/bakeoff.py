@@ -106,6 +106,10 @@ def _not_scored_because(card: Card, reader: str | None, model: str | None, provi
     if reader not in ("kraken", "vision") or model is None:
         return "the evaluation job cannot read with this kind of model yet"
     if reader == "vision" and provider == "apple" and not on_this_mac(model, reader, provider):
+        from fichero_server.training.evaluation import apple_vision_warming_up
+
+        if apple_vision_warming_up():
+            return "Apple Vision is still starting up on this Mac: ask again in a moment"
         return "Apple Vision's text recognition is not available on this Mac"
     if reader == "vision" and provider not in LOCAL_PROVIDERS:
         return None if remote_allowed else "this project keeps its pages on this Mac: priced, not scored"
