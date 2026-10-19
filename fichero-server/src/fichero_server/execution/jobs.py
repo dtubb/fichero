@@ -110,7 +110,7 @@ LANES = {"local-ml": 1, "embed": 1, "images": 2, "remote": 2, "database": 1, "ne
 CO_RUN_KIND = "ask-a-model"
 #: The lanes whose jobs are heavy on this Mac's memory: while memory is busy they run one job at a time
 #: between them (`activity.throttle.one-heavy-when-memory-tight`, #5622).
-HEAVY_LANES = ("local-ml", "images", "embed")
+HEAVY_LANES = ("local-ml", "images")
 #: The lanes whose background jobs the Mac's state holds (battery, memory, heat) and that wait for the thumbnails.
 #: "embed" is the search embedder, a child process since #5847: it has a lane of its own so that an embed beside a
 #: Kraken page neither unloads Kraken's models nor reloads them for the next step (`_heavy_switch` only looks at
@@ -996,8 +996,6 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     the row holds no recipe for the work, and the caller's run resumes or fails on its own, so
     `resume` cancels it."""
     _ensure(db)
-    if is_native(model):
-        lane = "search"  # Apple Vision holds no model of ours: never the heavy lane
     future: Future = Future()
     job_id = _insert(db, kind, subject, model, started_by, watched=_person_waiting.get())
     parent = _current_step()
@@ -1152,8 +1150,6 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
         forget_call_row()
         yield
         return
-    if is_native(model):
-        lane = "search"
     loop = asyncio.get_running_loop()
     granted: asyncio.Future = loop.create_future()
     release = threading.Event()
@@ -2181,15 +2177,10 @@ def _heavy_switch(loaded: str | None, model: str | None) -> bool:
             and _family(loaded) != _family(model))
 
 
-def is_native(model: str | None) -> bool:
-    """Apple's own frameworks (Vision): no model of ours to hold, so no heavy lane and no eviction."""
-    return (model or "").startswith("apple:")
-
-
 def is_light(model: str | None) -> bool:
-    """A small model (the embedder, spaCy) or a system framework: it runs beside the big ones, and is never "the loaded
-    model" the lane groups its pages by."""
-    return model in ("embedder", "spacy") or is_native(model)
+    """A small model (the embedder, spaCy): it runs beside the big ones, and is never "the loaded model" the lane
+    groups its pages by. (Apple Vision is built in and returns before any lane.)"""
+    return model in ("embedder", "spacy")
 
 
 def _model_need_bytes(model: str | None) -> int | None:
