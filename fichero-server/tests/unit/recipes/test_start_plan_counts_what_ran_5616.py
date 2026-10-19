@@ -72,7 +72,7 @@ def test_a_step_the_last_run_left_unfinished_says_how_it_ended(client, db, pages
     by_step = {sid: r for r in plan["runs"] for sid in r["steps"]}
     for sid in ("correct", "names"):
         assert by_step[sid]["last_run"] == "not run", (sid, by_step[sid])
-        assert by_step[sid]["last_why"] and "Interrupted 3 times" in by_step[sid]["last_why"]
+        assert by_step[sid]["last_why"] and "Stopped 3 times" in by_step[sid]["last_why"]
         assert by_step[sid]["note"].startswith("not run last time")
     detail = json.loads(jobs.read_job(db, job_id)["detail"])
     assert detail["title"] == "Transcribe + names" and detail["pages"] == 2

@@ -46,6 +46,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
@@ -1110,6 +1111,8 @@ def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
     failed = db.execute_fetchall(
         f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND reason IS NOT NULL "
         f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4", [*first_kinds, since])
+    if any(is_set_aside(r[0]) for r in failed):  # its own row says why, once; this one only says it is waiting on it
+        return "Waiting for thumbnails (set aside)"
     return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
@@ -1210,27 +1213,33 @@ def _stop_requested(run_id: str) -> bool:
     return cancellation_requested(run_id)
 
 
-#: How a job set aside after its interruptions begins its reason; such a row offers Resume (#5615).
-INTERRUPTED = "Interrupted "
+#: A job set aside after its interruptions says so once, short (#5844): "Stopped 3 times by the engine stopping; set
+#: aside. Resume to carry on." Such a row offers Resume (#5615). Rows stored before #5844 begin "Interrupted 3 times".
+_SET_ASIDE = re.compile(r"^(Stopped \d+ times? by the engine stopping|Interrupted \d+ times?)")
+
+
+def is_set_aside(reason: str | None) -> bool:
+    """Whether this is the reason of a job set aside after its interruptions."""
+    return bool(reason and _SET_ASIDE.match(reason))
 #: What a set-aside row offers: Retry (`POST /api/activity/jobs/{id}/retry`) carries it on from where it was.
 RESUME = "Resume"
 
 
 def _clock(at: Any) -> str:
-    return ensure_utc(at).strftime("%Y-%m-%d %H:%M UTC") if at is not None else "at a time not recorded"
+    """A time as the person reads it: the Mac's local clock, never UTC (#5844)."""
+    return ensure_utc(at).astimezone().strftime("%Y-%m-%d %H:%M") if at is not None else "at a time not recorded"
 
 
-def set_aside_reason(attempts: int, started_at: Any, found_at: Any) -> str:
-    """Why a job was set aside, in words (#5615): what interrupted it, when, and what carries it on. Only the
-    engine stopping (the app quit, or the engine or the Mac stopped) leaves a job running at an open."""
-    return (f"{INTERRUPTED}{attempts} times: the engine stopped while it ran (the app was quit, or the engine or "
-            f"the Mac stopped). Its last try started {_clock(started_at)} and was found stopped when the project "
-            f"was opened at {_clock(found_at)}; set aside. Resume carries it on from where it was")
+def set_aside_reason(attempts: int, started_at: Any = None, found_at: Any = None) -> str:
+    """Why a job was set aside, said once and short (#5844): what stopped it, that it is set aside, what carries it
+    on. Only the engine stopping (the app quit, or the engine or the Mac stopped) leaves a job running at an open;
+    the times are in the job's log, not its row."""
+    return f"Stopped {attempts} times by the engine stopping; set aside. Resume to carry on."
 
 
 def offer_for(kind: str, state: str, reason: str | None) -> str | None:
     """What a row offers: Resume for a job set aside after its interruptions that can be run again; else None."""
-    if state != "failed" or not (reason or "").startswith(INTERRUPTED):
+    if state != "failed" or not is_set_aside(reason):
         return None
     if kind not in KINDS:
         load_kinds()
