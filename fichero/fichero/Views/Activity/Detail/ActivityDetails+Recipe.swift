@@ -144,7 +144,7 @@ extension ActivityDetails {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
         let download = downloadFailures((summary.downloadFailed ?? []).map { row in
-            row.value.compactMapValues { $0 }.mapValues { $0 as Any }
+            row.additionalProperties.value.compactMapValues { $0 }.mapValues { $0 as Any }
         })
         return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download)
     }
