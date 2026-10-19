@@ -74,7 +74,7 @@ def test_faded_is_measured_and_a_blank_page_is_not_faded(tmp_path):
     assert not prepare.is_faded(None) and not prepare.is_faded(str(tmp_path / "missing.png"))
 
 
-def test_faded_pages_add_the_step_before_lines(client):
+def test_faded_pages_add_the_step_before_lines(client, with_material):
     """"image preparation (contrast, deskew) is proposed as a step [...]. It runs before lines": the step has no model
     to choose (Fichero's own), runs on this Mac, and comes after splitting and before lines."""
     plain = _assemble(client, purposes=["transcribe"], faded_pages=False)

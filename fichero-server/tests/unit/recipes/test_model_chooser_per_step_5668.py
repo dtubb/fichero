@@ -52,7 +52,7 @@ def test_find_statements_never_lists_a_reader_and_find_regions_lists_layout_mode
 # --- prep.regions.open-default ------------------------------------------------------------------------------------
 
 
-def test_find_regions_defaults_to_krakens_open_segmenter_and_yolo_stays_a_choice(client):
+def test_find_regions_defaults_to_krakens_open_segmenter_and_yolo_stays_a_choice(client, with_material):
     """"Find Regions' default is Kraken's built-in segmenter (Apache-2.0 …). The YOLO DocLayNet model (AGPL-3.0)
     stays a candidate to choose, with its licence sheet.\""""
     r = client.post("/api/recipes/assemble", json={"languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 16,

@@ -100,7 +100,7 @@ def test_an_embedder_is_never_a_card_for_statements(client, mac, ollama):
     assert not any("embed" in str(i["pin"].get("model")) for i in items)
 
 
-def test_an_ollama_on_another_machine_is_free_but_its_pages_leave(client, mac, app_db):
+def test_an_ollama_on_another_machine_is_free_but_its_pages_leave(client, with_material, mac, app_db):
     """"… one on another machine of the person's own is free but its pages leave this Mac": it is offered as a
     candidate, but it is not installed here, so the rules keep the free parser (`source.job.find-statements.
     candidates`, #5637) whether or not pages may leave."""
@@ -113,7 +113,7 @@ def test_an_ollama_on_another_machine_is_free_but_its_pages_leave(client, mac, a
     assert candidate["runs_where"] == "own_machine" and candidate["download"] is None
 
 
-def test_an_mlx_model_in_the_store_finds_the_statements(client, mac):
+def test_an_mlx_model_in_the_store_finds_the_statements(client, with_material, mac):
     """"every MLX model complete in this Mac's model store that reads text (its card made from the store's own
     facts, licence included)": with no Ollama, the installed Qwen3 4B Instruct, a text model, does Find statements.
     A reader in the store (Qwen2.5-VL 7B, a vision model) never does: it reads pages (#5668,
@@ -131,7 +131,7 @@ def test_an_mlx_model_in_the_store_finds_the_statements(client, mac):
     assert any("already on this Mac" in why for why in step["reasons"])
 
 
-def test_with_no_text_model_here_the_free_parser_runs_and_the_finder_is_offered(client, mac):
+def test_with_no_text_model_here_the_free_parser_runs_and_the_finder_is_offered(client, with_material, mac):
     """With nothing installed the step runs the free parser (#5637) and says a text model can be chosen instead,
     through the finder (Choose a model…), never a dead end."""
     step = _step(_assemble(client, purposes=["statements"]), "find-statements")

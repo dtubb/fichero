@@ -110,7 +110,9 @@ def _plan(db: Any) -> dict[str, Any]:
 
     setup = read_project_setup(_library(db))
     answers = setup["answers"] or {}
-    stays_local = not answers.get("cloud_allowed", False)
+    from fichero_server.recipes import places
+
+    stays_local = not places.may_leave_to(answers, "cloud")
     # New material runs only what What runs by itself ticks; with Nothing runs automatically, nothing (#5478).
     return plan_start(setup["recipe"], stays_local=stays_local, automatic=answers.get("automatic"),
                       job_answers=answers.get("job_answers"), db=db)
@@ -534,7 +536,9 @@ def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: s
     from fichero_server.recipes.project import read_project_setup
     from fichero_server.remote_read import job as read_job
 
-    if not (read_project_setup(_library(db))["answers"] or {}).get("cloud_allowed"):
+    from fichero_server.recipes import places
+
+    if not places.may_leave_to(read_project_setup(_library(db))["answers"], "acenet"):
         return None, "failed", f"pages may not leave this Mac; this step was placed on {card['target']}"
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],

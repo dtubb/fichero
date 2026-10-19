@@ -24,7 +24,7 @@ def _jobs(recipe) -> list[str]:
     return [s["job"] for s in recipe["steps"]]
 
 
-def test_text_material_gets_no_reading_step_and_starts_at_search(client):
+def test_text_material_gets_no_reading_step_and_starts_at_search(client, with_material):
     """"material that is already text [...] gets no reading step: the plan goes straight to search and whatever else
     was ticked, and Ready says the notes are already text": no lines, readers or corrections, not even training at
     10,000 pages; the recipe passes the check, because text is what it starts from."""
@@ -38,7 +38,7 @@ def test_text_material_gets_no_reading_step_and_starts_at_search(client):
     assert r.status_code == 200 and r.json()["problems"] == []
 
 
-def test_read_material_still_reads_and_a_mix_reads_only_what_needs_reading(client):
+def test_read_material_still_reads_and_a_mix_reads_only_what_needs_reading(client, with_material):
     """Handwriting is read as before; handwriting beside text gets readers for the handwriting only."""
     hand = _assemble(client, purposes=["search"], materials=["handwriting"])
     assert {"find-lines", "read-a-line"} <= set(_jobs(hand)) and hand.get("already_text") is None

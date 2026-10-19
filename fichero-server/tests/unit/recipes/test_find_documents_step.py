@@ -26,7 +26,7 @@ def _assemble(client, **answers):
     return r.json()
 
 
-def test_loose_pages_add_the_step_after_reading_with_its_default(client):
+def test_loose_pages_add_the_step_after_reading_with_its_default(client, with_material):
     plain = _assemble(client, purposes=["transcribe"])
     assert "find-documents-in-a-folder" not in [s["job"] for s in plain["steps"]]
     loose = _assemble(client, purposes=["transcribe"], loose_pages=True)
@@ -45,7 +45,7 @@ def test_loose_pages_add_the_step_after_reading_with_its_default(client):
     assert "find-documents-in-a-folder" not in [s["job"] for s in _assemble(client, loose_pages=True)["steps"]]
 
 
-def test_start_plan_runs_it_as_its_own_card(client):
+def test_start_plan_runs_it_as_its_own_card(client, with_material):
     recipe = _assemble(client, purposes=["transcribe"], loose_pages=True)
     plan = plan_start(recipe, stays_local=True)
     (card,) = [r for r in plan["runs"] if r["job"] == "find-documents-in-a-folder"]

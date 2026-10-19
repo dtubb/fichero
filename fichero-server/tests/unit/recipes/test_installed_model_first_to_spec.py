@@ -109,7 +109,7 @@ def test_use_instead_refuses_a_choice_the_plan_does_not_offer(client, db, pages,
     assert r.status_code == 422 and "not a model this project's Start waits to download" in r.json()["detail"]
 
 
-def test_source_onboard_auto_installed_model_first_when_proposing(client, mac, monkeypatch):
+def test_source_onboard_auto_installed_model_first_when_proposing(client, with_material, mac, monkeypatch):
     """source.onboard.auto.installed-model-first (1): "When the rules propose a recipe, a model already on this Mac
     wins over one that must be downloaded, among the cards the rules accept for the step, after accuracy … the
     reason says 'already on this Mac'." With the 3B's licence accepted (so the rules accept both Qwen cards for

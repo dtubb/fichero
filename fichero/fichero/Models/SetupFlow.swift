@@ -27,7 +27,7 @@ enum SetupStep: Hashable, Identifiable {
     func title(stageTitles: [String: String] = [:]) -> String {
         switch self {
         case .welcome: "Welcome"
-        case .whatFicheroRuns: "Where the work runs"
+        case .whatFicheroRuns: "AI and ML Models"
         case .handOff: "Your First Project"
         case .project: "Your Project"
         case .addMaterial: "Add Material"

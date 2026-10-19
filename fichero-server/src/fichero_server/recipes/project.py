@@ -27,7 +27,9 @@ def _path(library: Path, part: str) -> Path:
 def read_project_setup(library: Path) -> dict[str, Any]:
     """`{"answers": ..., "recipe": ...}`, each None when the project has not saved one. The answers
     are read in today's shape (`recipes/answers.py`): a project saved with one `purpose` reads as a
-    list of one, a language name as its tag where it resolves; nothing is lost."""
+    list of one, a language name as its tag where it resolves; nothing is lost. What the project saved, never
+    narrowed by the app's places (`recipes/places.py`): those cap at USE (`places.may_leave_to`), so no save can
+    narrow a stored answer."""
     import yaml
 
     from fichero_server.recipes.answers import normalise

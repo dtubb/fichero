@@ -109,7 +109,7 @@ def _assembled(client):
     return r.json()
 
 
-def test_a_recipe_the_app_saves_from_assemble_is_a_whole_recipe(client):
+def test_a_recipe_the_app_saves_from_assemble_is_a_whole_recipe(client, with_material):
     """Gap 5: the assemble answer carries the schema, version and suits, so what the app saves
     passes the same check as a recipe folder, and Start can record which version it ran."""
     recipe = _assembled(client)

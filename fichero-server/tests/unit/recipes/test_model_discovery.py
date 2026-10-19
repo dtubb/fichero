@@ -138,7 +138,7 @@ def test_an_installed_vision_model_is_a_reader_candidate_with_a_card_from_its_ow
 
 
 def test_a_model_fichero_trained_is_a_candidate_and_the_recipe_chooses_an_installed_reader_for_japanese(
-        client, store):
+        client, with_material, store):
     trained = store.cache_dir / "models--fichero-trained--kuzushiji" / "snapshots" / "trained"
     trained.mkdir(parents=True)
     (trained / "fichero-card.json").write_text(json.dumps({"display_name": "Kuzushiji reader",
@@ -206,7 +206,7 @@ def test_kraken_repository_readers_for_fraktur_are_found_cached_and_ranked(clien
     assert "not your languages" in again["kraken:zenodo/10.5281/zenodo.20702142@pinned"]["offered_because"]
 
 
-def test_after_a_search_the_recipe_has_a_fraktur_and_a_kuzushiji_reader_instead_of_a_gap(client, db, store,
+def test_after_a_search_the_recipe_has_a_fraktur_and_a_kuzushiji_reader_instead_of_a_gap(client, with_material, db, store,
                                                                                           repository):
     gap = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["ja"],
                                                      "scripts": ["Jpan"], "mac_memory_gb": 32}).json()

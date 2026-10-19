@@ -33,7 +33,7 @@ def test_a_reader_made_for_the_period_ranks_first(client, mac):
     assert twelfth[MCCATMUS]["rule_rank"] > twelfth[CATMUS_MEDIEVAL]["rule_rank"]
 
 
-def test_the_recipe_reads_the_saved_period(client, mac):
+def test_the_recipe_reads_the_saved_period(client, with_material, mac):
     answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
                "mac_memory_gb": 32, "period": "16th century", "place": "Popayán"}
     r = client.post("/api/recipes/assemble", json=answers)

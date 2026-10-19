@@ -17,24 +17,24 @@ struct SetupFooterTests {
     }
 
     private func footer(_ step: SetupStep, _ steps: [SetupStep], _ mode: FirstRunWindow.Mode = .firstRun,
-                        projectChosen: Bool = false) -> SetupFooter {
-        SetupFooter.of(step, in: steps, mode: mode, projectChosen: projectChosen)
+                        projectChosen: Bool = false, hasMaterial: Bool = true) -> SetupFooter {
+        SetupFooter.of(step, in: steps, mode: mode, projectChosen: projectChosen, hasMaterial: hasMaterial)
     }
 
     /// WHY: Daniel's screenshot: a centred full-width capsule, a "Skip" and a disabled Back on the first page.
-    @Test("the welcome: Start Without a Project at the left, Set Up a New Project… the default, and no Back at all")
+    @Test("the welcome: Continue the default, nothing at the left, and no Back at all (#5828)")
     func welcome() {
         let welcome = footer(.welcome, firstRun)
-        #expect(welcome.leading == .init(title: "Start Without a Project", action: .startWithoutProject))
-        #expect(welcome.primary == .init(title: "Set Up a New Project…", action: .setUpNewProject))
+        #expect(welcome.leading == nil)
+        #expect(welcome.primary == .init(title: "Continue", action: .advance))
         #expect(!welcome.showsBack, "the first page has no Back: hidden, not disabled")
     }
 
-    @Test("Skip is gone: Not Now on Models & Services, Skip This Stage on a stage, nothing where a page can't be skipped")
+    @Test("Skip is gone: Skip This Stage on a stage, nothing where a page can't be skipped")
     func leftHandChoices() {
-        #expect(footer(.whatFicheroRuns, firstRun).leading?.title == "Not Now")
+        #expect(footer(.whatFicheroRuns, firstRun).leading == nil, "Continue and Back only (#5828)")
         #expect(footer(.stage("read"), newProject, .firstRun).leading?.title == "Skip This Stage")
-        for step in [SetupStep.project, .addMaterial, .aboutMaterial, .stages, .ready] {
+        for step in [SetupStep.project, .aboutMaterial, .stages, .ready] {  // Your Material leaves Set Up (#5813)
             #expect(footer(step, newProject, .firstRun).leading == nil, "\(step.id) cannot be skipped")
         }
         let all = (firstRun + newProject).map { footer($0, firstRun + newProject).leading?.title }
@@ -55,9 +55,8 @@ struct SetupFooterTests {
         #expect(footer(.stages, newProject).primary.title == "Continue")
         #expect(footer(.ready, newProject).primary == .init(title: "Start", action: .start))
         let handOff = footer(.handOff, firstRun, projectChosen: false)
-        #expect(handOff.primary == .init(title: "Start", action: .finish), "the app's last page says what it does")
-        #expect(handOff.leading == .init(title: "Set Up a New Project…", action: .addAProject))
-        #expect(footer(.handOff, firstRun, projectChosen: true).primary.title == "Continue")
+        #expect(handOff.primary == .init(title: "Set Up a New Project…", action: .setUpNewProject))
+        #expect(handOff.leading == .init(title: "Start Without a Project", action: .finish))
     }
 
     @Test("a setup opened on purpose can always be closed from the left, where its page has no other choice")
@@ -68,36 +67,41 @@ struct SetupFooterTests {
                 "the page's own choice wins")
     }
 
-    @Test("the step list and the page say Where the work runs")
+    /// WHY (#5813, the owner's test of c13efa580): Continue on Your Material went on to the stages with nothing to read.
+    @Test("Your Material: Continue waits for material and says why; one file lets it on; Not Now leaves Set Up")
+    func continueWaitsForMaterial() {
+        let empty = footer(.addMaterial, newProject, .firstRun, hasMaterial: false)
+        #expect(empty.waitsFor == "Add your pages to continue")
+        #expect(empty.primary == .init(title: "Continue", action: .advance))
+        #expect(footer(.addMaterial, newProject, .firstRun, hasMaterial: true).waitsFor == nil, "one file is enough")
+        for mode in [FirstRunWindow.Mode.firstRun, .newProject, .setUp] {
+            #expect(footer(.addMaterial, newProject, mode, hasMaterial: false).leading?.action == .close,
+                    "leaving Your Material leaves Set Up, never goes on to the stages")
+        }
+        #expect(footer(.aboutMaterial, newProject, .firstRun, hasMaterial: false).waitsFor == nil,
+                "only Your Material waits")
+    }
+
+    @Test("the step list and the page say AI and ML Models")
     func modelsAndServicesName() {
-        #expect(SetupStep.whatFicheroRuns.title() == "Where the work runs")
-        #expect(WhatFicheroRuns.title == "Where the work runs")
+        #expect(SetupStep.whatFicheroRuns.title() == "AI and ML Models")
+        #expect(WhatFicheroRuns.title == "AI and ML Models")
     }
 
-    @Test("Models & Services explains local and cloud in Daniel's words, and lists only what runs on this Mac")
-    func modelsAndServicesCopy() {
-        #expect(WhatFicheroRuns.intro.hasPrefix("Fichero does its work with models"))
-        #expect(WhatFicheroRuns.places.map(\.title) == ["On this Mac", "In the cloud"])
-        #expect(WhatFicheroRuns.places.map(\.symbol) == ["laptopcomputer", "cloud"])
+    @Test("AI and ML Models: five cards in the owner's order; every named thing is a link; Connect... is hidden (#5830)")
+    func modelsCards() {
+        #expect(WhatFicheroRuns.places.map(\.place) == [.thisMac, .anotherMac, .cloud, .acenet, .huggingface])
+        #expect(WhatFicheroRuns.places.map(\.title) == [
+            "On this Mac", "Another Mac of mine", "In the cloud", "ACENET", "Hugging Face"])
+        #expect(WhatFicheroRuns.places.map(\.button) == [nil, nil, "Add a Key…", "Sign In…", "Add a Token…"],
+                "Another Mac has no Connect... until pairing for reading exists (#5830)")
         #expect(WhatFicheroRuns.places[0].body.hasPrefix("Free and private: your pages never leave this Mac."))
-        #expect(WhatFicheroRuns.places[1].body.hasSuffix("says what it will cost."))
-        #expect(WhatFicheroRuns.accounts.map(\.purpose) == [
-            "A free account. Fichero uses it to find and download models for your material.",
-            "One account for many cloud models, paid as you go. Pages leave this Mac."
-        ])
-        #expect(WhatFicheroRuns.addAnother == "Add Another Provider…")
-        #expect(WhatFicheroRuns.accountsFootnote == "You can add accounts later in Settings › AI.")
-    }
-
-    /// WHY: an added account showed nothing; now it shows its name, and Add… only where there is none.
-    @Test("the account rows reflect the providers list: an added one shows its account name in place of Add…")
-    func accountRows() throws {
-        let json = #"[{"id":"1","name":"HF (dtubb)","provider_type":"huggingface","api_base":null,"enabled":true,"#
-            + #""sort_order":0,"has_api_key":true,"created_at":"2026-10-11T12:00:00Z"}]"#
-        let providers = try JSONDecoder().decode([Components.Schemas.ProviderResponse].self, from: Data(json.utf8))
-        let rows = WhatFicheroRuns.accountRows(providers: providers)
-        #expect(rows.map(\.account.title) == ["Hugging Face", "OpenRouter"])
-        #expect(rows.map(\.addedAs) == ["HF (dtubb)", nil])
+        for link in ["https://kraken.re", "https://developer.apple.com/documentation/vision",
+                     "https://huggingface.co/models", "https://github.com/ml-explore/mlx"] {
+            #expect(WhatFicheroRuns.places[0].body.contains("(\(link))"), link)
+        }
+        #expect(WhatFicheroRuns.places[2].body.hasSuffix("says what it will cost."))
+        #expect(WhatFicheroRuns.footnote == "You can change this later in Settings, and for each project.")
     }
 
     @Test("Add… opens Settings' own sheet on that provider; Add Another Provider… opens it to choose")
@@ -107,14 +111,13 @@ struct SetupFooterTests {
         #expect(AddProviderSheet.firstStep(preselectedType: nil) == 1, "unfiltered: the list to choose from")
     }
 
-    @Test("the welcome and the hand-off say what Fichero and a project are, in Daniel's words")
+    @Test("the welcome and the first project say what Fichero and a project are, in the owner's words")
     func copy() {
         #expect(FirstLaunchChoices.welcomeParagraphs.count == 3)
-        #expect(FirstLaunchChoices.welcomeParagraphs[0].hasPrefix("Fichero is a workbench for historians and archivists."))
-        #expect(FirstLaunchChoices.welcomeParagraphs[1].hasPrefix("Everything runs on this Mac unless you choose otherwise."))
-        #expect(FirstLaunchChoices.handOffIntro == "Setting up a project takes a few minutes:")
-        #expect(FirstLaunchChoices.handOffSteps.count == 4)
-        #expect(FirstLaunchChoices.handOffSteps[0] == "Name it and choose where it's kept.")
-        #expect(FirstLaunchChoices.handOffClosing.hasSuffix("with Project › Set Up…."))
+        #expect(FirstLaunchChoices.welcomeParagraphs[0].hasPrefix("Fichero is a Mac app to read and work with archives, historical documents, and manuscripts."))
+        #expect(FirstLaunchChoices.welcomeParagraphs[2].hasSuffix("Your originals are never changed."))
+        #expect(FirstLaunchChoices.handOffParagraphs[0].hasPrefix("Your work lives in projects."))
+        #expect(FirstLaunchChoices.handOffParagraphs[1].hasSuffix("before any work starts."))
+        #expect(FirstLaunchChoices.setUpNewProject == "Set Up a New Project…")
     }
 }

@@ -187,8 +187,8 @@ final class ProjectNamingTests: XCTestCase {
         // The welcome's two choices are its footer's (ruled 2026-10-11, the Mac setup assistant's chrome).
         let steps = FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps
         let footer = SetupFooter.of(.welcome, in: steps, mode: .firstRun, projectChosen: false)
-        XCTAssertEqual(footer.primary.title, FirstLaunchChoices.setUpNewProject)
-        XCTAssertEqual(footer.leading?.title, FirstLaunchChoices.startWithoutProject)
+        XCTAssertEqual(footer.primary.title, "Continue")
+        XCTAssertNil(footer.leading, "the welcome only continues (#5828); Set Up a New Project… is on Your First Project")
         XCTAssertNotEqual(footer.leading?.title, "Use My Project for Now", "Use My Project for Now is retired")
     }
 

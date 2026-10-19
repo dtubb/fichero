@@ -32,7 +32,7 @@ def _vector_step(client):
     return next(s for s in r.json()["steps"] if s["job"] == "make-a-vector")
 
 
-def test_the_search_step_keeps_the_engines_space(client, embedders_here):
+def test_the_search_step_keeps_the_engines_space(client, with_material, embedders_here):
     assert _vector_step(client)["model"]["hf"].lower() == search_embedder().lower()
 
 

@@ -87,6 +87,10 @@ class LibraryManager {
     /// opens next presents setup from Your project, and clears this.
     var newProjectSetUpRequested = false
 
+    /// The first launch's Set Up a New Project… was chosen (#5828): once the welcome sheet has closed, the front
+    /// window presents the new project's own Set Up in place, and clears this.
+    var newProjectSetUpAfterWelcome = false
+
     /// Fichero › Set Up Fichero… was chosen: the front window shows the app's welcome again (`appWelcomeIsDue`).
     var appSetUpRequested = false
 
