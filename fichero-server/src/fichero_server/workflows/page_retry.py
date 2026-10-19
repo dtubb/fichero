@@ -34,3 +34,13 @@ def is_passing_cause(cause: object) -> bool:
     """True when a page's failure names a cause that passes by itself."""
     text = str(cause or "")
     return bool(text) and bool(_PASSING.search(text)) and not _LASTING.search(text)
+
+
+#: A refusal that holds for every page of the run alike (the reader cannot read the project's language here): the
+#: first page's failure is the whole run's, so the run stops there instead of trying page after page.
+_FOR_EVERY_PAGE = re.compile(r"Apple Vision can't read .+ on this Mac", re.IGNORECASE)
+
+
+def is_refusal_for_every_page(cause: object) -> bool:
+    """True when a page's failure will be the same for every other page, and a retry cannot change it."""
+    return bool(_FOR_EVERY_PAGE.search(str(cause or "")))

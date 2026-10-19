@@ -1717,6 +1717,10 @@ def _make_parallel_node_function(
     skip_cache = workflow_config.get("skip_cache", False) if workflow_config else False
     is_cacheable = node_def.tool in CACHEABLE_TOOLS
 
+    # Set by the first page whose failure holds for every page (`page_retry.is_refusal_for_every_page`): the pages
+    # not yet read do not start, and the node fails on it at once instead of trying page after page.
+    refused_for_all: list[str] = []
+
     async def parallel_node_function(state: State) -> dict:
         """Process a single file in parallel."""
         node_id = node_def.id
@@ -2079,6 +2083,8 @@ def _make_parallel_node_function(
                             _cancelled_result(), failed=True, error="cancelled"
                         )
                     try:
+                        if refused_for_all:
+                            raise ValueError(refused_for_all[0])
                         result = await tool_fn(
                             inputs=tool_inputs,
                             state=state,
@@ -2086,6 +2092,8 @@ def _make_parallel_node_function(
                         )
                     except Exception as exc:  # noqa: BLE001 -- judged below, re-raised unless read again
                         caught = exc
+                        if page_retry.is_refusal_for_every_page(exc) and not refused_for_all:
+                            refused_for_all.append(str(exc))
 
                 # Check for errors - both top-level and in results array
                 error_msg = None
@@ -2383,6 +2391,10 @@ def _make_aggregation_function(node_id: str):
             else:
                 consecutive_errors += 1
                 max_consecutive_errors = max(max_consecutive_errors, consecutive_errors)
+                from fichero_server.workflows import page_retry  # noqa: PLC0415
+
+                if page_retry.is_refusal_for_every_page(item.get("error")):
+                    max_consecutive_errors = MAX_CONSECUTIVE_ERRORS  # the same for every page: stop at the first
                 errors.append(
                     {
                         "file": item.get("file"),
