@@ -1661,3 +1661,49 @@ def search_online_for_step(job: str, languages: frozenset[str],
     return {"job": job, "languages": sorted(languages),
             "searched_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "sources": {"hugging-face": source}}
+
+
+def model_key(card: Card) -> str:
+    """What makes two cards one model: its Hugging Face repo or Zenodo record (case-folded), else the card's own id.
+    Revisions and the source that found it do not make another model (#5808)."""
+    for name in ("hf", "zenodo"):
+        if card.pin.get(name):
+            return f"{name}:{str(card.pin[name]).strip().casefold()}"
+    return f"id:{card.id}"
+
+
+def dedupe_cards(cards: list[Card]) -> list[Card]:
+    """No model twice: the first card for a model is kept, so the order the sources are listed in (shipped, installed,
+    then what a search found) says which source keeps it."""
+    seen: set[str] = set()
+    out = []
+    for card in cards:
+        key = model_key(card)
+        if key not in seen:
+            seen.add(key)
+            out.append(card)
+    return out
+
+
+def model_link(card: Card) -> str | None:
+    """The page of a card's model: Hugging Face for a repo, doi.org for a Zenodo record; None where it has none to
+    link (a cloud model, Apple's recognition), never a guess."""
+    if card.pin.get("hf"):
+        return f"https://huggingface.co/{card.pin['hf']}"
+    if card.pin.get("zenodo"):
+        record = str(card.pin["zenodo"]).strip()
+        return record if record.startswith("http") else f"https://doi.org/{record}" if record.startswith("10.") \
+            else f"https://zenodo.org/records/{record}"
+    return None
+
+
+def step_candidates(cards: list[Card], job: str) -> list[Card]:
+    """The one list of a step's candidates (#5808, `source.find.one-candidate-source`), for Find a Reader, the stage
+    page and Compare alike: the cards naming the job, and for the line step the page readers too (a vision model or
+    Apple's recognition reads the lines' pictures: offered, the person's to choose), every model once."""
+    from dataclasses import replace
+
+    if job == "read-a-line":
+        cards = [c if job in c.jobs or "read-a-page" not in c.jobs else replace(c, jobs=c.jobs | {job}, offered_only=True)
+                 for c in cards]
+    return dedupe_cards([c for c in cards if job in c.jobs])
