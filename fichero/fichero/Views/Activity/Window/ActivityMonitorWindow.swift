@@ -406,12 +406,14 @@ private struct ActivityStateCell: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: row.phase.symbol)
-                .foregroundStyle(color)
+            // A waiting row looks waiting: a grey clock and grey words, never the running glyph (#5839).
+            Image(systemName: row.looksWaiting ? ActivityMonitorRow.Phase.waiting.symbol : row.phase.symbol)
+                .foregroundStyle(row.looksWaiting ? Color.secondary : color)
                 .accessibilityHidden(true)
             Text(row.stateText)
                 .lineLimit(1)
-                .foregroundStyle(row.phase == .failed ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+                .foregroundStyle(row.phase == .failed ? AnyShapeStyle(.red)
+                    : row.looksWaiting ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
         }
         .help([row.stateText, row.accountDetail].compactMap { $0 }.joined(separator: "\n"))
     }
@@ -432,7 +434,7 @@ private struct ActivityElapsedCell: View {
     let row: ActivityMonitorRow
 
     var body: some View {
-        if row.isLive, let started = row.started {
+        if row.isLive, !row.looksWaiting, let started = row.started {
             Text(started, style: .timer).monospacedDigit()
         } else {
             Text(row.secondsText).monospacedDigit()

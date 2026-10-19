@@ -144,6 +144,9 @@ _ADDED_COLUMNS = (
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS watched BOOLEAN DEFAULT FALSE",
     # A failed job the person cleared (`activity.window.clear-failed`, #5634): kept, no longer listed.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMP",
+    # What a running job is waiting for right now (a page for the lane, Kraken, memory): set when the wait starts,
+    # cleared when it ends. Activity lists the row as waiting by this, never by the words of its reason (#5839).
+    "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS waiting_on TEXT",
 )
 
 
@@ -280,6 +283,57 @@ _holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
 #: usage is read from its answer after the call (`llm.chat_structured`); cleared when this task's
 #: next call starts outside a slot (`forget_call_row`).
 _call_row: ContextVar[tuple[Any, str] | None] = ContextVar("_call_row", default=None)
+
+#: Set while a person is looking at the result of the code running (a stage try): the lane rows it hands in are watched,
+#: and (with `job`) the try's own row says "Waiting: ..." while its page waits for the lane (#5839).
+_person_waiting: ContextVar[bool] = ContextVar("_person_waiting", default=False)
+_waiting_job: ContextVar[tuple[Any, str, dict[str, str]] | None] = ContextVar("_waiting_job", default=None)
+
+
+@contextlib.contextmanager
+def person_is_waiting(db: "Database | None" = None, job_id: str | None = None):
+    """Every model-lane row `submit` makes inside this is watched: ahead of a bulk run's rows (#5839). With `job_id`,
+    that row (the try's own) takes on the reason its page waits for, and reads running again once the page starts."""
+    token = _person_waiting.set(True)
+    job_token = _waiting_job.set((db, job_id, {}) if db is not None and job_id else None)
+    try:
+        yield
+    finally:
+        _waiting_job.reset(job_token)
+        _person_waiting.reset(token)
+
+
+def wait_on(db: "Database", job_id: str, words: str) -> None:
+    """A running job starts waiting for something: its reason says what, and Activity lists it as waiting (#5839)."""
+    if _has_column(db, "waiting_on"):
+        db.execute("UPDATE jobs SET reason = ?, waiting_on = ? WHERE id = ?", [words, words, job_id])
+
+
+def wait_over(db: "Database", job_id: str) -> None:
+    """The wait ended: the row reads running again, its wait's words gone from its reason."""
+    if _has_column(db, "waiting_on"):
+        db.execute("UPDATE jobs SET reason = CASE WHEN reason = waiting_on THEN NULL ELSE reason END, "
+                   "waiting_on = NULL WHERE id = ?", [job_id])
+
+
+#: How often a try's row looks again at what its waiting page waits for.
+ECHO_WAIT_SECONDS = 1.0
+
+
+async def _echo_wait(db: "Database", call_id: str, job: tuple[Any, str, dict[str, str]]) -> None:
+    """Say on `job`'s row what the call row `call_id` waits for, until cancelled (the page started). Pages of one try
+    wait side by side: the first to wait owns the row's words (`claim`), the others say nothing, so they do not flicker."""
+    job_db, job_id, claim = job
+    try:
+        while True:
+            said = state_and_reason(db, call_id)
+            if said and said[0] == "waiting" and said[1] and claim.setdefault("by", call_id) == call_id:
+                wait_on(job_db, job_id, said[1] if said[1].startswith("Waiting") else f"Waiting: {said[1]}")
+            await asyncio.sleep(ECHO_WAIT_SECONDS)
+    finally:
+        if claim.get("by") == call_id:
+            del claim["by"]
+            wait_over(job_db, job_id)
 
 
 def forget_call_row() -> None:
@@ -656,9 +710,10 @@ _ALTER_FAILURES_LOGGED: set[str] = set()
 
 def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
     """Add the columns later releases gave `jobs` (idempotent). A statement that fails is logged ONCE per library
-    and statement and the rest still run. Only `cleared_at`, the newest column, has a fallback: the list shows every
-    failed job when it is missing (`_has_cleared_at`); the older columns are required, and a failure that hits all of
-    them (a read-only file, a lock) is not hidden by a list that degrades (#5814, review 204). Returns whether every
+    and statement and the rest still run. Only the two newest columns have a fallback: the list shows every failed job
+    when `cleared_at` is missing (`_has_cleared_at`) and lists no row as waiting by `waiting_on` when that is missing
+    (`wait_on` and `wait_over` do nothing); the older columns are required, and a failure that hits all of them (a
+    read-only file, a lock) is not hidden by a list that degrades (#5814, review 204, review 237). Returns whether every
     statement applied."""
     done = True
     for statement in _ADDED_COLUMNS:
@@ -685,13 +740,24 @@ def _ensure(db: "Database") -> None:
             db._jobs_columns_on = db.conn
 
 
-def _has_cleared_at(db: "Database") -> bool:
-    """Whether `jobs.cleared_at` is there; false only when its ALTER failed, and the lists then show every failed job."""
+def _has_column(db: "Database", name: str) -> bool:
+    """Whether `jobs.<name>` is there; false only when its ALTER failed (every added column was applied when this
+    connection's `_jobs_columns_on` is set)."""
     if getattr(db, "_jobs_columns_on", None) is db.conn:
         return True
     return db.execute_fetchone(
-        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = 'cleared_at'"
+        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = ?", [name]
     ) is not None
+
+
+def _has_cleared_at(db: "Database") -> bool:
+    """The lists show every failed job when `cleared_at` is missing."""
+    return _has_column(db, "cleared_at")
+
+
+def _clear_waiting_on(db: "Database") -> str:
+    """`, waiting_on = NULL` for an UPDATE's SET list when the column is there, else nothing."""
+    return ", waiting_on = NULL" if _has_column(db, "waiting_on") else ""
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
@@ -892,12 +958,13 @@ def _is_attached(kind: str) -> bool:
     return kind in KINDS and KINDS[kind].run is None
 
 
-def _insert(db: "Database", kind: str, subject: str, model: str | None, started_by: str) -> str:
+def _insert(db: "Database", kind: str, subject: str, model: str | None, started_by: str,
+            watched: bool = False) -> str:
     job_id = str(uuid.uuid4())
     db.execute(
-        "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
-        "VALUES (?, ?, ?, ?, 'waiting', 0, ?, ?)",
-        [job_id, kind, subject, model, started_by, utc_now()],
+        "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, watched, created_at) "
+        "VALUES (?, ?, ?, ?, 'waiting', 0, ?, ?, ?)",
+        [job_id, kind, subject, model, started_by, watched, utc_now()],
     )
     return job_id
 
@@ -919,7 +986,7 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     `resume` cancels it."""
     _ensure(db)
     future: Future = Future()
-    job_id = _insert(db, kind, subject, model, started_by)
+    job_id = _insert(db, kind, subject, model, started_by, watched=_person_waiting.get())
     parent = _current_step()
     if parent:  # a page of a step of a run (`activity.jobs-are-a-tree`)
         _ensure_step_row(db, parent)
@@ -1090,6 +1157,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
 
     future = submit(db, kind, subject, model=model, fn=hold, lane=lane, run_id=run_id)
     token = None
+    waiting_job = _waiting_job.get()
+    echo = asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job)) if waiting_job else None
     try:
         waiting = asyncio.wrap_future(future)
         try:
@@ -1098,6 +1167,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             # its caller is gone: the slot is not wanted
             _scheduler.withdraw(db, future, reason="Its run had ended before this page started")
             raise
+        if echo is not None:  # the page starts: the try's row reads running again
+            echo.cancel()
         token = _holding.set(True)
         _call_row.set((db, future.job_id))
         try:
@@ -1107,6 +1178,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             raise
         outcome["result"] = "done"
     finally:
+        if echo is not None:
+            echo.cancel()
         if token is not None:
             _holding.reset(token)
         release.set()
@@ -1205,7 +1278,7 @@ def resume(db: "Database") -> None:
         [utc_now(), STOPPING, *RUN_KINDS],
     )
     db.execute(
-        "UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on' WHERE state = 'running'"
+        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} WHERE state = 'running'"
     )
     if db.execute_fetchone("SELECT 1 FROM jobs WHERE state = 'waiting' LIMIT 1"):
         _scheduler.wake(_key(db))
@@ -1602,13 +1675,17 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
     cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
+    waiting_on_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
     rows = db.execute_fetchall(
-        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by FROM ("
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, "
+        f"{waiting_on_col} FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
         f"{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
-        ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        f") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
+        # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
+        f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
     )
@@ -1616,7 +1693,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     waiting: dict[tuple[str, str], dict[str, Any]] = {}
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
-    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by in rows:
+    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on in rows:
         # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
         # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
         group = (state, kind) if state in ("waiting", "paused") else None
@@ -1626,7 +1703,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             continue
         if state == "waiting":
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
-        row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
+        # A running row that is waiting for something (a try whose page waits for the lane, a page held for Kraken or
+        # memory) is listed as waiting until the wait ends: by the row's `waiting_on`, not by its reason's words (#5839).
+        shown = "waiting" if state == "running" and waiting_on else state
+        row = {"id": job_id, "kind": kind, "subject": subject, "state": shown, "reason": reason,
                "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id,
                "started_by": started_by,
                # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
@@ -1762,6 +1842,12 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
 BACKGROUND_STARTERS = ("automatic", "sync", "kept export")
 _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
                      + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS) + "))")
+
+
+#: Who goes first when a lane picks, and in the order Activity lists the waiting rows (#5839): work a person is
+#: looking at (2: a stage try, a page open on screen) ahead of work a person started and went away from (1: a
+#: bulk recipe run), ahead of background work (0).
+_PERSON_RANK_SQL = f"(CASE WHEN COALESCE(watched, FALSE) THEN 2 WHEN {_PERSON_WAITS_SQL} THEN 1 ELSE 0 END)"
 
 
 def _watched(db: "Database", job_id: str) -> bool:
@@ -2151,7 +2237,7 @@ class _Scheduler:
                     continue
                 db.execute(
                     "UPDATE jobs SET state = 'running', started_at = ?, attempts = attempts + 1, "
-                    "reason = ? WHERE id = ? AND state = 'waiting'",
+                    f"reason = ?{_clear_waiting_on(db)} WHERE id = ? AND state = 'waiting'",
                     [utc_now(), "Running although background work is paused"
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
@@ -2284,9 +2370,9 @@ class _Scheduler:
 
             def first(clause: str, extra: list[Any]) -> tuple | None:
                 return db.execute_fetchone(
-                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL} FROM jobs "
+                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL}, {_PERSON_RANK_SQL} FROM jobs "
                     f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
-                    f"ORDER BY {attached_first}{_PERSON_WAITS_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                    f"ORDER BY {attached_first}{_PERSON_RANK_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
                     f"created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
                 )
@@ -2332,7 +2418,7 @@ class _Scheduler:
             return None
         # Across libraries the same rule: within its share first, then waited-for work (handed in, then a
         # person's own), then the loaded model, then the oldest.
-        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, not c[2][5], c[2][3] != lane.loaded_model, c[2][4]))
+        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, -c[2][6], c[2][3] != lane.loaded_model, c[2][4]))
         return candidates[0][:3]
 
     def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:
@@ -2351,8 +2437,9 @@ class _Scheduler:
                 stopped = _run_stopped(handed_in[3], db)
                 if stopped:
                     raise JobCancelled(stopped) from exc
-                db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [str(exc), job_id])
+                wait_on(db, job_id, str(exc))
                 time.sleep(THROTTLE_LOOK_AGAIN_SECONDS)
+                wait_over(db, job_id)
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
@@ -2361,10 +2448,10 @@ class _Scheduler:
         kind = KINDS[kind_name]
         if lane.name == "local-ml":
             if _kraken_busy():  # a Kraken page outside the queue: no second heavy model beside it
-                db.execute("UPDATE jobs SET reason = 'Waiting for Kraken (another page is using it)' "
-                           "WHERE id = ?", [job_id])
+                wait_on(db, job_id, "Waiting for Kraken (another page is using it)")
                 while _kraken_busy():
                     time.sleep(self.KRAKEN_POLL_SECONDS)
+                wait_over(db, job_id)
             if _heavy_switch(lane.loaded_model, model):
                 _RELEASE[_family(lane.loaded_model)]()
             if model is not None:
@@ -2394,7 +2481,7 @@ class _Scheduler:
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
             if db_manager.open_database(key) is db:
-                db.execute("UPDATE jobs SET state = ?, reason = ?, attempts = attempts - 1 WHERE id = ?",
+                db.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?",
                            [state, reason, job_id])
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
@@ -2406,7 +2493,7 @@ class _Scheduler:
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
         if db_manager.open_database(key) is db:
-            db.execute("UPDATE jobs SET state = ?, reason = ?, finished_at = ? WHERE id = ?",
+            db.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(db)} WHERE id = ?",
                        [state, reason, utc_now(), job_id])
         # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:
