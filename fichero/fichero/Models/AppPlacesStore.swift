@@ -32,21 +32,35 @@ final class AppPlacesStore {
         }
     }
 
+    /// What the person last asked for, and whether a PUT is in flight: ticks are sent one at a time and the latest
+    /// wins, so two quick ticks cannot race.
+    private var wanted: Set<String>?
+    private var sending = false
+
     /// Allow or stop allowing one place; the engine keeps this Mac in, whatever is sent.
     func set(_ place: WhereTheWorkRuns, allowed: Bool) async {
-        var next = places
+        var next = wanted ?? places
         if allowed { next.insert(place.rawValue) } else { next.remove(place.rawValue) }
-        do {
-            let body = Components.Schemas.PlacesSetting(places: WhereTheWorkRuns.allCases.map(\.rawValue).filter(next.contains))
-            switch try await client.api.putPlacesApiRecipesPlacesPut(body: .json(body)) {
-            case .ok(let success): take(try success.body.json)
-            case .unprocessableContent(let error):
-                errorMessage = (try? error.body.json)?.detail ?? "That place was refused."
-            case .undocumented(let code, _): errorMessage = "Could not change where models may run (HTTP \(code))"
+        wanted = next
+        places = next  // shown at once; the engine's answer replaces it
+        guard !sending else { return }
+        sending = true
+        defer { sending = false }
+        while let sendNow = wanted {
+            wanted = nil
+            do {
+                let body = Components.Schemas.PlacesSetting(
+                    places: WhereTheWorkRuns.allCases.map(\.rawValue).filter(sendNow.contains))
+                switch try await client.api.putPlacesApiRecipesPlacesPut(body: .json(body)) {
+                case .ok(let success): if wanted == nil { take(try success.body.json) }
+                case .unprocessableContent(let error):
+                    errorMessage = (try? error.body.json)?.detail ?? "That place was refused."
+                case .undocumented(let code, _): errorMessage = "Could not change where models may run (HTTP \(code))"
+                }
+            } catch {
+                if error.isCancellationError { return }
+                errorMessage = "Could not change where models may run: \(error.localizedDescription)"
             }
-        } catch {
-            if error.isCancellationError { return }
-            errorMessage = "Could not change where models may run: \(error.localizedDescription)"
         }
     }
 

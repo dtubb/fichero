@@ -125,7 +125,7 @@ struct FirstRunWindow: View {
         }
     }
 
-    /// Set Up a New Project... on Your First Project: this welcome closes, and the front window presents the new
+    /// Set Up a New Project… on Your First Project: this welcome closes, and the front window presents the new
     /// project's own Set Up in place (#5828; no new window).
     private func setUpNewProject() {
         libraryManager.newProjectSetUpAfterWelcome = true
