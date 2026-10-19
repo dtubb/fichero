@@ -238,6 +238,25 @@ def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
     return _running_workflows.get(thread_id)
 
 
+#: A run in one of these is reading its pages now.
+LIVE_RUN_STATUSES = ("accepted", "running", "paused")
+
+
+def live_run_reading(db_path: str, workflow_id: str, documents: list[str] | None, *,
+                     exclude: str | None = None) -> str | None:
+    """The thread id of a live run of `workflow_id` in this project already reading any of `documents`, else None
+    (#5848): a second run on pages a live one reads joins or waits for it, never reads them again. A run records
+    its pages as `documents`; one that recorded none is not matched (it cannot be told to overlap)."""
+    wanted = set(documents or [])
+    if not wanted:
+        return None
+    for thread_id, state in list(_running_workflows.items()):
+        if (thread_id != exclude and state.get("db_path") == db_path and state.get("workflow_id") == workflow_id
+                and state.get("status") in LIVE_RUN_STATUSES and wanted & set(state.get("documents") or ())):
+            return thread_id
+    return None
+
+
 def close_all_event_hubs_for_shutdown() -> int:
     """End every live workflow SSE stream so uvicorn can drain and exit.
 
@@ -968,6 +987,14 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
 # =============================================================================
 
 
+class AlreadyReading(Exception):
+    """A live run is already reading these pages (#5848); `thread_id` is that run."""
+
+    def __init__(self, thread_id: str) -> None:
+        super().__init__(f"Run {thread_id} is already reading these pages")
+        self.thread_id = thread_id
+
+
 async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRequest, thread_id: str,
                     *, parent_job: str | None = None, started_by: str | None = None) -> threading.Event:
     """Start a run: the one way every run starts, by hand or as a batch's item (#5374,
@@ -976,6 +1003,12 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
     never freeze the API's loop. `parent_job` makes its job row a child of that job (a batch's).
     Returns an event set when the run's thread ends."""
     import asyncio  # noqa: PLC0415
+
+    # A second run on pages a live one reads is not started (#5848): the caller says it joined that run.
+    documents = [str(i) for i in (request.inputs or {}).get("selected_doc_ids") or []]
+    live = live_run_reading(str(db.path), request.workflow_id, documents)
+    if live:
+        raise AlreadyReading(live)
 
     # A WorkflowEventHub (#2546) fans events out to every SSE subscriber (editor + Activity, late
     # or concurrent); the producer side is thread-safe.
@@ -986,6 +1019,7 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
             "workflow_id": request.workflow_id,
             "workflow_name": workflow.name,
             "db_path": str(db.path),
+            "documents": documents,
             "status": "accepted",
             "events": event_hub,
             "error": None,

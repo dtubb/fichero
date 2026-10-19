@@ -268,7 +268,7 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         _validate_step_workflow,
     )
     from fichero_server.api.routes.workflow_execution.schemas import ExecuteWorkflowRequest
-    from fichero_server.execution.runner import WorkflowEventHub, _set_workflow_state
+    from fichero_server.execution.runner import WorkflowEventHub, _set_workflow_state, live_run_reading
 
     from fichero_server.workflows.default_workflows import resolve_shipped_workflow
 
@@ -290,8 +290,14 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         workflow = workflow.model_copy(deep=True)
         for node in workflow.nodes:
             node["config"] = {**(node.get("config") or {}), **(card["tool_config"].get(node.get("tool")) or {})}
+    # A live run already reading these pages is joined, not read beside (#5848): wait for it, and the step is what it
+    # did. A resume and a Retry, or two Starts, no longer read the same pages twice.
+    live = live_run_reading(str(db.path), workflow.id, documents)
+    if live:
+        return _join_live_run(db, live, parent)
     # Registered up front, as a chain's steps are, so the run's stream and status know the thread.
     _set_workflow_state(thread_id, {"workflow_id": workflow.id, "workflow_name": workflow.name,
+                                    "db_path": str(db.path), "documents": [str(d) for d in documents],
                                     "status": "accepted", "events": WorkflowEventHub(), "error": None,
                                     "final_state": None})
     request = ExecuteWorkflowRequest(workflow_id=workflow.id, inputs={"selected_doc_ids": documents},
@@ -314,6 +320,19 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
         return thread_id, ("done" if dead["state"] == "done" else "failed"), dead["reason"] or dead["state"]
     status, error = _step_run_outcome(thread_id)
     return thread_id, ("done" if status == "completed" else "failed"), error
+
+
+def _join_live_run(db: Any, live: str, parent: str) -> tuple[str, str, str | None]:
+    """Wait for the run already reading these pages and report its outcome as this step's (#5848); the why names it."""
+    from fichero_server.api.routes.workflow.chains import _step_run_outcome
+    from fichero_server.execution.runner import LIVE_RUN_STATUSES
+
+    while _step_run_outcome(live)[0] in LIVE_RUN_STATUSES:
+        if _stop_asked(parent):
+            break
+        time.sleep(_CHECK_POLL_SECONDS)
+    status, error = _step_run_outcome(live)
+    return live, ("done" if status == "completed" else "failed"), error or f"joined the run {live} already reading these pages"
 
 
 #: How long a step's run may go on after its row has ended (its last writes, its documents settled) before the
