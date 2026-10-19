@@ -147,8 +147,17 @@ def trained_card(candidate: EvaluationCandidate) -> dict[str, Any] | None:
 def apple_vision_here() -> bool:
     """Whether this Mac's Vision framework recognises text (the locales it offers; none off macOS)."""
     try:
-        from fichero_server.workflows.tools.vision_base import _supported_vision_locales
+        from fichero_server.workflows.tools.vision_base import _supported_vision_locales, supported_locales_are_known
 
+        if not supported_locales_are_known():
+            import asyncio
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                pass  # a worker thread: loading the bundle here holds only this thread
+            else:
+                return False  # the event loop must not load PyObjC's Vision (#5843); the startup warm-up answers soon
         return bool(_supported_vision_locales())
     except Exception:  # noqa: BLE001 -- no Vision framework here: not available, said by the caller
         return False

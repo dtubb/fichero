@@ -478,7 +478,9 @@ async def list_background_jobs(
         # waiting row does (`activity.waiting-says-why`, #5606: it sat at 100 of 406 with no reason).
         from fichero_server.execution import jobs as job_queue
 
-        held = job_queue.waiting_reason_of(
+        # Off the loop (#5843): the read waits on the database's transaction gate behind a write.
+        held = await asyncio.to_thread(
+            job_queue.waiting_reason_of,
             db, [derivatives.THUMBNAIL_KIND, derivatives.EMBED_KIND, derivatives.NLP_KIND])
         if held:
             for job in jobs:
@@ -495,7 +497,7 @@ async def list_background_jobs(
         # row, not two (`activity.retry.one-row`).
         from fichero_server.execution.jobs import read_again_runs
 
-        read_again = read_again_runs(db)
+        read_again = await asyncio.to_thread(read_again_runs, db)
         for run in runs:
             status = (run.status or "").lower()
             if status == "failed" and run.thread_id in read_again:
