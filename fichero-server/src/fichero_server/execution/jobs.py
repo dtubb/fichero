@@ -1977,11 +1977,11 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
 #: 2026-10-04; a Kraken run clicked on battery was held, 2026-10-09).
 #: Every literal `started_by=` in the engine is decided here or in `PERSON_STARTERS` (a test reads the source, so a new
 #: starter must be decided): "import" (the recipe run and downloads an import starts by itself), "schedule" and
-#: "trigger" (a scheduled workflow, a watched-folder trigger) and "correction" (the re-embed and re-read a correction
-#: queues) are nobody waiting at the Mac.
-BACKGROUND_STARTERS = ("automatic", "sync", "kept export", "import", "schedule", "trigger", "correction")
-#: The literal starters that are a person's (or an account's, agent's: `started_by_for`): not background.
-PERSON_STARTERS = ("owner", "person", "workflow")
+#: "trigger" (a scheduled workflow, a watched-folder trigger) are nobody waiting at the Mac.
+BACKGROUND_STARTERS = ("automatic", "sync", "kept export", "import", "schedule", "trigger")
+#: The literal starters that are a person's (or an account's, agent's: `started_by_for`): not background. "correction"
+#: follows the person's own edit and they wait to see the names (ruled 2026-10-19), so its re-embed and re-read go first.
+PERSON_STARTERS = ("owner", "person", "workflow", "correction")
 _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
                      + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS) + "))")
 
