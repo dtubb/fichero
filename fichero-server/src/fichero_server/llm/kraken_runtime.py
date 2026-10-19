@@ -857,17 +857,22 @@ def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
     if held is not None and held[0] == key:
         return held[1]
     _RESIDENT.pop(kind, None)  # drop the old one before loading its replacement
+    # One line per load, countable with the unloads (`model-lane:`), so a reload per page shows (#5846).
+    logger.info("model-lane: load kraken %s %s (%s)", kind, key,
+                "replacing the one held" if held is not None else "none held")
     model = load()
     _RESIDENT[kind] = (key, model)
     return model
 
 
-def release_resident_models() -> None:
+def release_resident_models(reason: str = "unspecified") -> None:
     """Free Kraken's resident models (before another heavy model loads, and when idle). Collected at
     once: a reader's line-extraction pool (two spawned processes) is only terminated when the reader
-    itself is collected (Kraken's own `weakref.finalize`)."""
+    itself is collected (Kraken's own `weakref.finalize`). `reason` is logged: one `model-lane: unload` line each."""
     import gc
 
+    if _RESIDENT:
+        logger.info("model-lane: unload kraken (%s)", reason)
     _RESIDENT.clear()
     gc.collect()
     torch = sys.modules.get("torch")
@@ -898,7 +903,7 @@ def _release_if_idle() -> None:
     if not _INFERENCE_LOCK.acquire(blocking=False):
         return  # a page is running: it re-arms the timer when it ends
     try:
-        release_resident_models()
+        release_resident_models("idle")
     finally:
         _INFERENCE_LOCK.release()
 
