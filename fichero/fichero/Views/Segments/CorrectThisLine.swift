@@ -35,6 +35,7 @@ struct CorrectThisLineModifier: ViewModifier {
         content
             .alert("Correct This Line", isPresented: Binding(get: { target != nil }, set: { if !$0 { target = nil } })) {
                 TextField("Words", text: $words)
+                    .font(BundledFonts.shared.font(.body))  // the bundled script fonts, as every line view (#5842)
                 Button("Save") {
                     let line = target
                     Task { await save(line) }
@@ -96,6 +97,7 @@ struct CorrectThisLineButton: View {
         text: "enel tþo q́ el escriuio", confidence: nil, sourceArtifactId: nil, boxIndex: 0, pageIndex: nil, metadata: nil
     )
     return Text(line.text ?? "")
+        .font(BundledFonts.shared.font(.body))
         .padding()
         .contextMenu { CorrectThisLineButton(segment: line) { _ in } }
 }
