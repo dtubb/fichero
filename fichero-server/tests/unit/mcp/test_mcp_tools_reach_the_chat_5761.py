@@ -137,3 +137,47 @@ def test_a_server_that_will_not_start_is_named_to_the_chat_with_its_error_type(c
     llm, _ = _chat(client, monkeypatch, [_resp(content="ok")])
     notes = [str(m.content) for m in llm.seen if "could not start" in str(getattr(m, "content", ""))]
     assert notes and "broken (" in notes[0], notes
+
+
+def _second_server(client):
+    made = client.post("/api/mcp-servers", json={"name": "echoer2", "transport": "stdio", "command": sys.executable,
+                                                  "args": [str(ECHO)], "enabled": True, "available_to_chat": True})
+    assert made.status_code == 200, made.text
+
+
+def test_tools_are_namespaced_and_two_servers_with_the_same_tool_name_do_not_collide(client, db, monkeypatch, server):
+    client.put(f"/api/mcp-servers/{server['id']}", json={"available_to_chat": True})
+    _second_server(client)
+    step = lambda llm: _resp(tool_calls=[{"name": "mcp__echoer2__echo", "args": {"text": "hi"}, "id": "c2"}])  # noqa: E731
+    llm, data = _chat(client, monkeypatch, [step, _resp(content="done")])
+    names = _names(llm)
+    assert "mcp__echoer__echo" in names and "mcp__echoer2__echo" in names, names
+    (call,) = data["tool_calls"]
+    assert call["status"] == "ok", call
+    assert db.get(ActionAudit, call["audit_id"]).params["server"] == "echoer2"
+
+
+def test_an_external_tool_never_shadows_a_built_in(client, monkeypatch, server):
+    from fichero_server.actions.chat_tools import chat_agent_tools
+    from fichero_server.actions.mcp_chat import tool_key
+
+    client.put(f"/api/mcp-servers/{server['id']}", json={"available_to_chat": True})
+    builtin = [t["function"]["name"] for t in chat_agent_tools()]
+    assert not [n for n in builtin if n.startswith("mcp__")], "a built-in tool owns the mcp__ namespace"
+    llm, _ = _chat(client, monkeypatch, [_resp(content="ok")])
+    external = [n for n in _names(llm) if n not in builtin]
+    assert external and all(n.startswith("mcp__") for n in external), external
+    assert tool_key("fichero", "documents.list").startswith("mcp__")
+
+
+def test_a_chat_whose_actor_is_not_the_owner_is_offered_no_mcp_tools(client, db, monkeypatch, server):
+    import asyncio
+
+    from fichero_server.actions.registry import ActionContext
+    from fichero_server.api.routes.system.chat import _run_chat_tools_loop
+
+    client.put(f"/api/mcp-servers/{server['id']}", json={"available_to_chat": True})
+    llm = _ScriptedToolLLM([_resp(content="ok")])
+    ctx = ActionContext(actor="an-editor", library_path=None)
+    asyncio.run(_run_chat_tools_loop(llm, [], db=db, ctx=ctx))
+    assert not [n for n in _names(llm) if n.startswith("mcp__")], _names(llm)

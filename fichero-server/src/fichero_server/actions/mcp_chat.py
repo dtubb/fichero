@@ -8,6 +8,7 @@ an `ActionAudit` row and shows in Activity. A server that is off contributes not
 from __future__ import annotations
 
 import asyncio
+import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -47,18 +48,37 @@ async def _chat_tools_by_server(unavailable: dict[str, str] | None = None) -> li
     return found
 
 
+def tool_key(server: str, tool: str) -> str:
+    """The name the model sees: `mcp__<server>__<tool>`, so an external tool never shadows a built-in one and two
+    servers may each have a tool of the same name."""
+    return "mcp__" + "__".join(re.sub(r"[^A-Za-z0-9_-]", "_", part) for part in (server, tool))
+
+
+def may_use_mcp_tools(ctx: ActionContext) -> bool:
+    """External tools are the owner's: only a chat whose actor is the owner (or the owner's loopback key) is offered them."""
+    if ctx.is_bootstrap:
+        return True
+    from fichero_server.security import authz
+
+    try:
+        authz.require_owner(ctx.actor, ctx.library_path)
+    except authz.AuthorizationError:
+        return False
+    return True
+
+
 async def chat_mcp_tools(unavailable: dict[str, str] | None = None) -> dict[str, tuple[str, Any]]:
-    """tool name -> (server name, tool) for what the chat agent may be offered now."""
-    return {tool.name: (name, tool) for name, tool in await _chat_tools_by_server(unavailable)}
+    """`mcp__<server>__<tool>` -> (server name, tool) for what the chat agent may be offered now."""
+    return {tool_key(name, tool.name): (name, tool) for name, tool in await _chat_tools_by_server(unavailable)}
 
 
-def tool_definition(tool: Any) -> dict:
-    """One OpenAI/LiteLLM function-tool definition for an MCP tool."""
+def tool_definition(key: str, tool: Any) -> dict:
+    """One OpenAI/LiteLLM function-tool definition for an MCP tool, under its namespaced `key`."""
     schema = tool.args_schema
     if not isinstance(schema, dict):
         schema = schema.model_json_schema() if schema is not None else {"type": "object", "properties": {}}
     return {"type": "function", "function": {
-        "name": tool.name, "description": (tool.description or tool.name).strip().split("\n\n", 1)[0], "parameters": schema}}
+        "name": key, "description": (tool.description or tool.name).strip().split("\n\n", 1)[0], "parameters": schema}}
 
 
 class McpCallParams(BaseModel):
@@ -76,11 +96,11 @@ def _run(coro):
         return pool.submit(asyncio.run, coro).result()
 
 
-@action("mcp.call_tool", McpCallParams, domains=["mcp"], read_only=True)
+@action("mcp.call_tool", McpCallParams, domains=["mcp"], read_only=True, owner_only=True)
 def _mcp_call_tool(_db, params: McpCallParams, _ctx: ActionContext):
     """Call one read-only tool of an MCP server the owner made available to chat."""
-    offered = _run(chat_mcp_tools()).get(params.tool)  # a fresh view: a switch turned off a moment ago holds
-    if offered is None or offered[0] != params.server:
+    offered = _run(chat_mcp_tools()).get(tool_key(params.server, params.tool))  # fresh: a switch turned off a moment ago holds
+    if offered is None:
         raise ValueError(f"'{params.tool}' is not a read-only tool of a server available to chat")
     _, tool = offered
     output = _run(tool.ainvoke(params.arguments))

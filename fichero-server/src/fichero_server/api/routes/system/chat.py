@@ -646,8 +646,8 @@ async def _run_chat_tools_loop(
 
     # External MCP tools the owner has made available to chat (#5761): read-only ones, off unless switched on.
     unavailable: dict[str, str] = {}
-    mcp_tools = await mcp_chat.chat_mcp_tools(unavailable)
-    tools = chat_agent_tools() + [mcp_chat.tool_definition(tool) for _, tool in mcp_tools.values()]
+    mcp_tools = await mcp_chat.chat_mcp_tools(unavailable) if mcp_chat.may_use_mcp_tools(ctx) else {}
+    tools = chat_agent_tools() + [mcp_chat.tool_definition(key, tool) for key, (_, tool) in mcp_tools.items()]
     try:
         bound = llm.bind_tools(tools) if tools else llm
     except (AttributeError, NotImplementedError, ValueError) as exc:
@@ -686,12 +686,12 @@ async def _run_chat_tools_loop(
 
             # An external MCP tool: the call is the audited action `mcp.call_tool`, nothing else.
             if raw_name in mcp_tools:
-                server_name = mcp_tools[raw_name][0]
-                mcp_args = {"server": server_name, "tool": raw_name, "arguments": args}
+                server_name, mcp_tool = mcp_tools[raw_name]
+                mcp_args = {"server": server_name, "tool": mcp_tool.name, "arguments": args}
                 try:
                     result = dispatch_tool_call(
                         db, "mcp.call_tool", mcp_args, actor=actor, origin_window=ctx.origin_window,
-                        run_id=ctx.run_id, library_path=ctx.library_path,
+                        run_id=ctx.run_id, library_path=ctx.library_path, is_bootstrap=ctx.is_bootstrap,
                     )
                     tool_calls.append(ToolCall(id=call_id, action_name="mcp.call_tool", params=mcp_args, actor=actor,
                                                audit_id=result.audit_id, is_mutation=False, status="ok"))
