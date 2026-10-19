@@ -716,6 +716,13 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   A try's page in its scratch library resolves to a person through `person_waits_on` (its run row's starter, the try's job
   being in the project's database). Pinned by `fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py`.
   [PARTIAL] until the M4 run; the stuck DuckDB call itself is not explained (see bugs-ready.md).
+- `activity.engine.app-db-lock-names-its-holder` — **[GAP]** (owner, 2026-10-19 18:12; `briefs/lock-holder-5d323cf97-1812.md`: a lane
+  thread waited on `AppDatabase._lock` holding `_heavy_pick`, and no thread was visible inside it) every wait on the app-DB lock
+  that lasts more than 5 s logs one warning per 5 s naming the thread that holds it and its stack (or that no Python thread
+  holds it), and keeps waiting; the next hang names its holder. `get_setting` reads each key from the database once and then
+  from memory (`set_setting` / `delete_setting`, its only writers, replace the cached value), so none of its 28 callers
+  (`_use_multiuser_auth` runs on the event loop for every request) waits on the lock again
+  (`fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py`).
 - `activity.throttle.person-heavy-first` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun for ever while the
   project's thumbnails, 47-61 s each, took every heavy slot in turn) while memory is busy and only one heavy job runs at a time,
   a heavy lane's background work steps aside for a page handed in on another heavy lane whose run a PERSON started and that the

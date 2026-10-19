@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 
 import pytest
 from starlette.requests import Request
@@ -164,3 +165,54 @@ def test_a_busy_database_answers_503_through_the_middleware_without_stalling_the
         release.set()
     assert response.status_code == 503 and response.json()["code"] == "app_db_busy"
     assert max(lags, default=0) < 0.3, f"the event loop stalled {max(lags):.2f} s behind the app-DB wait"
+
+
+def test_a_long_wait_on_the_app_db_lock_logs_who_holds_it(app_db, monkeypatch, caplog):
+    """Briefs/lock-holder-5d323cf97-1812: the dumps showed a waiter and no holder. The wait now names the holder."""
+    import logging
+
+    monkeypatch.setattr(app_db._lock, "log_after", 0.1)
+    held, release = threading.Event(), threading.Event()
+
+    def hold_the_lock_here():
+        with app_db._lock:
+            held.set()
+            release.wait(10)
+
+    holder = threading.Thread(target=hold_the_lock_here, name="the-holder", daemon=True)
+    holder.start()
+    assert held.wait(5)
+    waiter = threading.Thread(target=lambda: app_db.list_devices(), name="the-waiter", daemon=True)
+    with caplog.at_level(logging.WARNING, logger="fichero_server.db.app"):
+        waiter.start()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not any("the-holder" in r.getMessage() for r in caplog.records):
+            time.sleep(0.02)
+    release.set()
+    waiter.join(5)
+    holder.join(5)
+    said = next(r.getMessage() for r in caplog.records if "the-holder" in r.getMessage())
+    assert "the-waiter" in said and "hold_the_lock_here" in said  # who waited, who holds, and where it sits
+    assert not waiter.is_alive()  # it kept waiting and finished once the holder let go
+
+
+def test_get_setting_reads_the_database_once_and_never_waits_on_the_lock_again(app_db):
+    app_db.set_setting("some_flag", "1")
+    assert app_db.get_setting("some_flag") == "1"
+    held, release = threading.Event(), threading.Event()
+
+    def hold():
+        with app_db._lock:
+            held.set()
+            release.wait(10)
+
+    threading.Thread(target=hold, daemon=True).start()
+    assert held.wait(5)
+    try:
+        assert app_db.get_setting("some_flag") == "1"  # from memory: the held lock does not matter
+    finally:
+        release.set()
+    app_db.set_setting("some_flag", "0")
+    assert app_db.get_setting("some_flag") == "0"  # the write replaced it
+    app_db.delete_setting("some_flag")
+    assert app_db.get_setting("some_flag") is None
