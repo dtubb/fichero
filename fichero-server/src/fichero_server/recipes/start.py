@@ -103,7 +103,17 @@ def download_sentence(download: dict[str, Any]) -> str:
     return f"{name} is not on this Mac yet ({size}): Start downloads it, and its steps wait for it."
 
 
-_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder", "prepare-the-image"})
+
+
+def _needs_a_model(job: str) -> bool:
+    """Whether a step of this job needs a model of its own: the registry's answer (`Job.needs_a_model`, #5812);
+    a job the registry does not know is asked for one, as before."""
+    from fichero_server.recipes.jobs import get_job
+
+    registered = get_job(job)
+    return True if registered is None else bool(registered.needs_a_model)
+
+
 #: Search: the page's text embedded by the embed job that also follows every correction
 #: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
 EMBED_JOB = "make-a-vector"
@@ -227,6 +237,15 @@ def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
     return {"workflow": name, "workflow_id": workflow_id, "provider_override": provider, "model_override": model}
 
 
+#: The jobs whose steps are a reader of the lines (or the page) in a plan.
+READER_STEP_JOBS = frozenset({"read-a-line", "read-a-page", "correct"})
+
+
+def _readers_in_plan(recipe: dict) -> int:
+    """How many readers the recipe's steps already make (a line reader, a page reader, a Correct step)."""
+    return sum(1 for s in recipe.get("steps") or [] if s.get("job") in READER_STEP_JOBS)
+
+
 def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, Any], bool]], str | None]:
     """The runs of a Find where the readers disagree step (`source.disagree.recipe-step`, #5665), each with whether
     it sends pages off this Mac, or why it has none. With `readers` (pins) in its settings, one run per reader;
@@ -237,12 +256,17 @@ def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, An
     settings = dict(step.get("settings") or {})
     pins = [p for p in settings.get("readers") or [] if isinstance(p, dict)]
     temperature = settings.get("temperature", DISAGREE_TEMPERATURE)
+    if not pins and not step.get("model") and _readers_in_plan(recipe) >= 2:
+        # Two readers already in the plan: the disagreement is the alignment of the readings they make, run built in
+        # with no model (`source.disagree.built-in-with-two-readers`, #5812).
+        return [({"steps": [step.get("id", "?")], "job": DISAGREE_JOB, "card": "align",
+                  "runs_on": "this-mac"}, False)], None
     if not pins:
         pin = step.get("model") or next((s.get("model") for s in recipe.get("steps") or []
                                          if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
         if not isinstance(pin, dict) or _override(pin) is None:
-            return [], ("it samples a vision model, and none is named: choose one for this step, or a vision model "
-                        "for the line reader")
+            return [], ("it compares readers, and the plan has one that cannot be sampled: add a second reader, such "
+                        "as a Correct step or a second reader pinned on this step")
         pins = [pin] * max(int(settings.get("samples", DISAGREE_SAMPLES)), 2)
     name, workflow_id = _shipped(READ_LINES_WITH_A_MODEL)
     out = []
@@ -360,14 +384,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if job == DISAGREE_JOB:
             sampled, why = disagreement_runs(step, recipe)
             if why:
-                skip(sid, f"{label}: {why}", "choose-model")
+                skip(sid, f"{label}: {why}")
             elif stays_local and any(leaves for _run, leaves in sampled):
                 skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here",
                      "allow-cloud")
             else:
                 runs.extend(run for run, _leaves in sampled)
             continue
-        if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
+        if _needs_a_model(job) and (step.get("gap") or not step.get("model")):
             # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused
             # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
             said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"

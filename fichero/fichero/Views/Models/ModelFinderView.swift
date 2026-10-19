@@ -78,7 +78,7 @@ struct ModelFinderView: View {
     /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
     /// online; any other job's model is one already on this Mac or on a server of yours (#5619).
     static func nothingFound(job: String) -> String {
-        job == ModelFinderStore.readingJob || job == "read-a-page"
+        job == ModelFinderStore.readingJob || job == "read-a-page" || job == "find-where-readers-disagree"
             ? "No reader was found for these answers yet. Search Online looks further."
             : "No model on this Mac does this yet. A text model in your MLX store, or on an Ollama or LM Studio "
               + "server of yours (Settings › AI), is offered here once it is there."

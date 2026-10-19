@@ -2855,9 +2855,9 @@ Profiles (the defaults section of a recipe)
   `fichero-server/tests/unit/importers/test_dataless_sources.py` (a directory is not dataless) and
   `fichero-server/tests/unit/importers/test_onboarding_e2e_5668.py` (a Copy import of a folder warns of nothing).
 - `source.onboard.correct-off-unless-a-corrector-is-here` — **[PARTIAL]** (#5677; ruled Q3 2026-10-17: with a cloud key set, Correct is OFFERED at Ready with its cost, never on by itself. *Built: the off line names a cloud and its price only when that provider has a key set here (`Answers.cloud_keys`), and carries it as `offered` (card, provider, pages, cost), `fichero-server/tests/unit/recipes/test_correct_offered_with_a_key_5677.py`. The corrector offered is the person's own: a cloud vision reader from their Settings › AI rows whose provider has a key, priced per page from the price list (`recipes._cloud_correctors`, passed to `assemble` as `offered`, never among the rules' cards); one that lists no language of the project's is offered saying so ("try it on a few pages first"), and one with no known price is not offered. Taken through `POST /api/recipes/project/steps/use-candidate` (step `correct`, the offered `card`) once the answers turn Correct on. Not built: Ready's button that turns it on from the offer (app)*) Correct (a second model checking the
-  reading) is in a purpose's recipe only when a corrector is already available: a model for it already on this Mac
-  (or one that ships with Fichero), or a cloud model the project allows; or when the person asks for it (ticks
-  Correct, or answers yes to "Correct with a second model?"). Otherwise it is off, and the recipe (`left_off`) and the
+  reading) is in a purpose's recipe only when the person asks for it (ticks Correct, or answers yes to "Correct with a
+  second model?"); a corrector already at hand does not put it in (owner ruling 2026-10-19, #5812,
+  `source.recipe.optional-steps-wait-to-be-asked`). Otherwise it is off, and the recipe (`left_off`) and the
   Start plan (`left_off`) say so in one line with what turning it on would cost: the download ("Turning it on
   downloads Qwen2.5-VL 7B (OCR), 5.7 GB") or the cloud's price for the project's pages; where no corrector fits at
   all, the line says why in the rules' words (the Mac's memory, a language no corrector knows). Saying no to the
