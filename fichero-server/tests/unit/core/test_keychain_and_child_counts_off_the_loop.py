@@ -70,3 +70,72 @@ def test_get_children_counts_children_off_the_loop(monkeypatch):
     monkeypatch.setattr(documents, "_with_child_counts", counts)
     asyncio.run(documents._child_counts_off_the_loop(None, []))
     assert seen == [True]
+
+
+def test_a_stale_answer_is_returned_at_once_and_refreshed_on_a_thread(monkeypatch):
+    """Review 306: the first lookup every 5 minutes ran `security` on the loop."""
+    calls = _security(monkeypatch, [(0, "sk-1\n", "")])
+    keychain.lookup_api_key("openai")
+    monkeypatch.setattr(keychain, "_LOOKUP_SECONDS", -1.0)  # everything kept is now stale
+    main = threading.get_ident()
+    seen: list[bool] = []
+    done = threading.Event()
+    real = keychain._read_api_key
+
+    def read(provider):
+        seen.append(threading.get_ident() != main)
+        try:
+            return real(provider)
+        finally:
+            done.set()
+
+    monkeypatch.setattr(keychain, "_read_api_key", read)
+    assert keychain.lookup_api_key("openai").key == "sk-1"  # the stale answer, no wait
+    assert done.wait(10) and seen == [True]  # re-read on a thread of its own
+
+
+def test_warming_reads_each_provider_once(monkeypatch):
+    calls = _security(monkeypatch, [(44, "", "none")])
+    keychain.warm_api_keys(["a", "b"])
+    keychain.lookup_api_key("a")
+    assert len(calls) == 2
+
+
+def test_a_read_begun_before_a_save_never_stores_its_old_answer(monkeypatch):
+    """Review 309 LOW: a refresh in flight when a key is saved or deleted must not put the old answer back."""
+    started, release = threading.Event(), threading.Event()
+
+    def slow_security(*args, input_data=None):
+        started.set()
+        release.wait(10)
+        return (0, "old-key\n", "")
+
+    monkeypatch.setattr(keychain, "_run_security", slow_security)
+    out = []
+    reader = threading.Thread(target=lambda: out.append(keychain.lookup_api_key("openai")))
+    reader.start()
+    assert started.wait(10)
+    keychain.forget_cached_lookups("openai")  # the key was saved while the read ran
+    release.set()
+    reader.join(10)
+    assert out[0].key == "old-key"  # that caller still gets what it read...
+    assert "openai" not in keychain._LOOKUPS  # ...but it was not kept for the next one
+
+
+def test_startup_warms_only_the_providers_the_person_has_set_up(monkeypatch):
+    """Review 309: never probe every provider type (a Keychain dialog per unread legacy item)."""
+    from types import SimpleNamespace as NS
+
+    from fichero_server.api import main
+    from fichero_server.db import app as app_module
+
+    warmed: list[list[str]] = []
+    monkeypatch.setattr(keychain, "warm_api_keys", lambda names: warmed.append(list(names)))
+    rows = [NS(provider_type=NS(value="openai"), enabled=True), NS(provider_type=NS(value="anthropic"), enabled=False),
+            NS(provider_type=NS(value="mlx"), enabled=True)]
+    monkeypatch.setattr(app_module, "get_app_db", lambda: NS(list_providers=lambda: rows))
+    from fichero_server.llm import providers
+
+    monkeypatch.setattr(providers, "get_provider_info", lambda t: NS(is_local=(t == "mlx")))
+    main._warm_configured_provider_keys()
+    assert warmed == [["openai"]]  # enabled and not on-device; the disabled and the local ones are not asked

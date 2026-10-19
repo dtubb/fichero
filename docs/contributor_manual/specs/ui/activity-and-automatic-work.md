@@ -700,7 +700,9 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   on the M4, the stopped branch's included.
 - `activity.engine.keychain-cached` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun while `keychain.lookup_api_key` ran a
   `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 5 minutes, so a repeated lookup
-  spawns no subprocess; a refusal is never kept; saving or deleting a key drops its entry
+  spawns no subprocess (a stale one is returned at once and re-read on a thread); a refusal is never kept; saving or deleting a key
+  drops its entry, and a read begun before it never stores its old answer; at startup only the providers the person has set up (the
+  app's own record, enabled and not on-device) are read, never every provider type (#4534: a Keychain dialog per unread item)
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (same test).
