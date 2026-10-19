@@ -3728,6 +3728,17 @@ def _frame_true_background_removed_path(
     return frame_true_rendition_path(library_path, doc_id, READ_FROM_ROLES)
 
 
+def one_page_at_a_time(vision_mode: str | None):
+    """A factory of async context managers: with Kraken, at most ONE page inside at a time; with any other reader, no
+    extra limit (`vision_slot` still bounds it)."""
+    import contextlib
+
+    if vision_mode != "kraken":
+        return contextlib.nullcontext
+    gate = asyncio.Semaphore(1)
+    return lambda: gate
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -5921,10 +5932,14 @@ async def process_vision(
                 exc,
             )
 
+    # Kraken reads one page at a time (its own lock already serialises the reading; this stops four pages at once
+    # loading and decoding images beside it, #5846).
+    _page_gate = one_page_at_a_time(vision_mode)
+
     async def _run_one(file_index: int, file_path: str) -> dict:
         activity_scope = _vision_activity_db_path.set(activity_db_path)
         try:
-            async with vision_slot():
+            async with vision_slot(), _page_gate():
                 return await _process_file(file_index, file_path)
         except TypeError as exc:
             # The inner handler deliberately re-raises a malformed CALL (#4504).

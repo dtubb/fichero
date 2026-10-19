@@ -675,6 +675,36 @@ def require_installed() -> None:
 
 _INFERENCE_LOCK = threading.Lock()
 
+#: The environment variables the thread pools around torch read when they load.
+_THREAD_POOL_ENV = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
+
+
+def bound_native_thread_pools(threads: int) -> None:
+    """Cap the OpenMP and BLAS pools at the lane's thread count (#5846): torch's own count does not reach them, so a
+    page could run ~every core while the person works. `setdefault`: a person's own setting wins."""
+    import os
+
+    for name in _THREAD_POOL_ENV:
+        os.environ.setdefault(name, str(max(1, threads)))
+
+
+class _CoremlPredictWarning(logging.Filter):
+    """coremltools says "You will not be able to run predict() on this Core ML model" when its native predictor does not
+    load. Fichero never runs a Core ML model through it: Kraken reads with torch on the CPU (`torch_accelerator`), so
+    the warning names a backend that is not in use. Dropped, with this as its cause."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "run predict() on this Core ML model" not in record.getMessage()
+
+
+def quiet_coreml_warning() -> None:
+    """Attach the filter to every coremltools logger that exists (imported with torch/kraken)."""
+    for name in list(logging.root.manager.loggerDict):
+        if name == "coremltools" or name.startswith("coremltools."):
+            logger_ = logging.getLogger(name)
+            if not any(isinstance(f, _CoremlPredictWarning) for f in logger_.filters):
+                logger_.addFilter(_CoremlPredictWarning())
+
 
 def _kraken_call(op: Callable[[], _T]) -> _T:
     """Run one Kraken operation in-process, one at a time, off the main
@@ -712,11 +742,19 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             from fichero_server.core.compute_preferences import apply_to_this_thread, compute_preferences
 
             threads = apply_to_this_thread(compute_preferences()["priority"])
+            # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
+            # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
+            bound_native_thread_pools(threads)
             try:
                 import torch
 
                 # Process-wide in torch: balanced never pegs the machine, fast may.
                 torch.set_num_threads(threads)
+                try:
+                    torch.set_num_interop_threads(1)  # one page at a time: no inter-op parallelism to pay for
+                except RuntimeError:
+                    pass  # torch allows it once, before any parallel work: a later call is already bound
+                quiet_coreml_warning()
             except (ImportError, RuntimeError):
                 # Narrow on purpose: a throttle that crashes the work is
                 # worse than an unthrottled page, but nothing else may be
