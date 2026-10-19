@@ -141,7 +141,6 @@ _ADDED_COLUMNS = (
     # A failed job the person cleared (`activity.window.clear-failed`, #5634): kept, no longer listed.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMP",
 )
-_ENSURED: set[str] = set()
 
 
 class JobCancelled(Exception):
@@ -650,11 +649,13 @@ def _still_open(db: "Database") -> bool:
 
 def _ensure(db: "Database") -> None:
     db.execute(_SCHEMA)
-    key = str(db.path)
-    if key not in _ENSURED:
+    # Once per CONNECTION, not per path (#5814): a reconnect after an invalidated connection (an ALTER that
+    # was never committed is gone) or a library opened afresh at the same path starts from the file's
+    # real columns, and a path-keyed cache skipped the ALTER there, so every read said "column not found".
+    if getattr(db, "_jobs_columns_on", None) is not db.conn:
         for statement in _ADDED_COLUMNS:
             db.execute(statement)
-        _ENSURED.add(key)
+        db._jobs_columns_on = db.conn
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
