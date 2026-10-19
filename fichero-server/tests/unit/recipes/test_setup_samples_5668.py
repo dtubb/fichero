@@ -39,7 +39,7 @@ def test_the_hands_offered_follow_the_script_and_the_century(client):
     assert listed["period_years"] == [1701, 1800] and listed["not_sure"] == "not-sure"
 
 
-def test_the_period_and_hand_are_saved_with_the_answers(client):
+def test_the_period_and_hand_are_saved_with_the_answers(client, with_material):
     answers = {"purposes": ["transcribe"], "languages": ["de"], "scripts": ["Latn"], "materials": ["handwriting"],
                "period": "1650–1700", "place": "Istmina, Chocó", "hands": ["kurrent", "a hand of my own", "not-sure"]}
     recipe = client.post("/api/recipes/assemble", json=answers)

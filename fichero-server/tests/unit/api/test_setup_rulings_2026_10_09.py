@@ -48,7 +48,7 @@ def test_the_knowledge_graph_holds_every_job_of_its_options(client):
     assert items["entities"] <= items["knowledge-graph"] and items["statements"] <= items["knowledge-graph"]
 
 
-def test_an_option_is_still_a_purpose_of_its_own(client):
+def test_an_option_is_still_a_purpose_of_its_own(client, with_material):
     """WHY: Entities alone (names found, no graph) must stay possible: grouping changes where it is listed, not
     what it does."""
     r = _assemble(client, purposes=["entities"])
@@ -94,7 +94,7 @@ def test_every_usual_script_is_a_known_script():
 # --- Ready: the plan can be edited (#5627, source.onboard.plan-editable) -----------------------------------
 
 
-def test_a_step_taken_out_leaves_the_plan_and_is_offered_back(client):
+def test_a_step_taken_out_leaves_the_plan_and_is_offered_back(client, with_material):
     """WHY: a person who does not want search vectors takes that step out on Ready; proposing the plan again
     (any change of answer re-assembles it) must not bring it back, and Ready must be able to put it back."""
     r = _assemble(client, purposes=["transcribe", "search"], removed_jobs=["make-a-vector"])
@@ -105,7 +105,7 @@ def test_a_step_taken_out_leaves_the_plan_and_is_offered_back(client):
     assert not r.json()["problems"]
 
 
-def test_a_step_another_needs_stays_and_says_which(client):
+def test_a_step_another_needs_stays_and_says_which(client, with_material):
     """WHY: taking out Find lines would leave Read each line with nothing to read; the plan would fail its own
     check at Start. Such a step stays, carrying the steps that need it, and is never listed as taken out."""
     r = _assemble(client, purposes=["transcribe"], removed_jobs=["find-lines"]).json()
@@ -116,7 +116,7 @@ def test_a_step_another_needs_stays_and_says_which(client):
     assert not last.get("needed_by")  # the last step can always go
 
 
-def test_taking_out_a_step_and_the_one_that_needed_it_frees_both(client):
+def test_taking_out_a_step_and_the_one_that_needed_it_frees_both(client, with_material):
     """WHY: removing Find names and Find statements together (statements need names) must take out both, not
     keep names because statements were still there when names were looked at."""
     r = _assemble(client, purposes=["statements"], removed_jobs=["find-names-tag-words", "find-statements"]).json()
@@ -124,7 +124,7 @@ def test_taking_out_a_step_and_the_one_that_needed_it_frees_both(client):
     assert [t["job"] for t in r["removed"]] == ["find-names-tag-words", "find-statements"]
 
 
-def test_the_removed_steps_are_saved_with_the_project_and_start_runs_the_edited_plan(client):
+def test_the_removed_steps_are_saved_with_the_project_and_start_runs_the_edited_plan(client, with_material):
     """WHY: the edit is kept with the project's setup, so Set Up… reopens with it and Start runs what Ready
     showed, not the plan from before the edit."""
     answers = {"purposes": ["transcribe", "search"], "languages": ["es"], "scripts": ["Latn"],

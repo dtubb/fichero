@@ -13,7 +13,7 @@ def _shipped_cards_only(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("material", ["print", "handwriting"])
-def test_a_fraktur_project_gets_a_reader_not_a_gap(client, material):
+def test_a_fraktur_project_gets_a_reader_not_a_gap(client, with_material, material):
     body = {"purposes": ["transcribe"], "languages": ["de"], "scripts": ["Latf"], "materials": [material],
             "mac_memory_gb": 32}
     r = client.post("/api/recipes/assemble", json=body)

@@ -44,7 +44,7 @@ def test_a_typed_kind_is_kept_as_typed_and_an_old_text_answer_is_read_as_a_list(
     assert _question(items, "structured-data", "fields")["answer"] == ["buyer", "seller", "price"]
 
 
-def test_a_typed_kind_reaches_the_plan(client):
+def test_a_typed_kind_reaches_the_plan(client, with_material):
     answers = {"purposes": ["entities"], "languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 64,
                "job_answers": {"entity_kinds": ["ships", "people"]}}
     assembled = client.post("/api/recipes/assemble", json=answers).json()

@@ -25,7 +25,7 @@ def _jobs(recipe) -> list[str]:
     return [s["job"] for s in recipe["steps"]]
 
 
-def test_with_no_corrector_here_correct_is_off_and_says_what_it_would_cost(client, mac):
+def test_with_no_corrector_here_correct_is_off_and_says_what_it_would_cost(client, with_material, mac):
     recipe = _assemble(client)
     assert "correct" not in _jobs(recipe), recipe["steps"]
     (off,) = [o for o in recipe["left_off"] if o["job"] == "correct"]
@@ -33,7 +33,7 @@ def test_with_no_corrector_here_correct_is_off_and_says_what_it_would_cost(clien
     assert "read-a-line" in _jobs(recipe) or "read-a-page" in _jobs(recipe), "reading stays"
 
 
-def test_with_a_corrector_already_here_correct_is_still_out_until_asked(client, mac):
+def test_with_a_corrector_already_here_correct_is_still_out_until_asked(client, with_material, mac):
     """#5812 (0d2ddeeff) reversed this test's first form: a corrector at hand no longer puts Correct in; the
     answer drives the plan. What it changes is the cost line: nothing to download."""
     mac.installed.update({"Qwen2.5-VL-7B", "Qwen2.5-VL-3B"})
@@ -43,7 +43,7 @@ def test_with_a_corrector_already_here_correct_is_still_out_until_asked(client, 
     assert "already" in off["sentence"], off
 
 
-def test_asked_for_it_is_in_even_to_download(client, mac):
+def test_asked_for_it_is_in_even_to_download(client, with_material, mac):
     asked = _assemble(client, job_answers={"correct_with_a_second_model": True})
     assert "correct" in _jobs(asked)
     ticked = _assemble(client, jobs=["correct"])

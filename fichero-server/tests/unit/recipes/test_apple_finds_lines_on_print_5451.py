@@ -32,7 +32,7 @@ def _lines_step(client, material: str) -> dict:
     return next(s for s in r.json()["steps"] if s["job"] == "find-lines")
 
 
-def test_print_gets_apple_for_its_lines_and_handwriting_gets_kraken(client):
+def test_print_gets_apple_for_its_lines_and_handwriting_gets_kraken(client, with_material):
     """source.recipe.apple-finds-lines-on-print: "for print and typescript a recipe's Find lines step runs Apple
     Vision for its line finding only ... A handwriting page goes to Kraken"."""
     assert _lines_step(client, "print")["model"] == APPLE_LINES

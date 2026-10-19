@@ -12,7 +12,7 @@ ANSWERS = {"purposes": ["transcribe", "map-places", "search"], "languages": ["es
 READERS = {"read-a-line", "read-a-page"}
 
 
-def test_only_a_reader_speaks_of_material_cer_and_bake_offs(client):
+def test_only_a_reader_speaks_of_material_cer_and_bake_offs(client, with_material):
     r = client.post("/api/recipes/assemble", json=ANSWERS)
     assert r.status_code == 200, r.text
     steps = {s["job"]: s for s in r.json()["steps"] if s.get("reasons")}

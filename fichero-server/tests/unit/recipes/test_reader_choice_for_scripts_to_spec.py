@@ -113,7 +113,7 @@ def _start_plan(client, recipe: dict, answers: dict) -> dict:
 # --- source.recipe.script-reader-first ------------------------------------------------------------------
 
 
-def test_source_recipe_script_reader_first_fraktur_gets_a_fraktur_card_not_the_multilingual_base(client, store):
+def test_source_recipe_script_reader_first_fraktur_gets_a_fraktur_card_not_the_multilingual_base(client, with_material, store):
     """source.recipe.script-reader-first: "one made for the asked script comes before a generic one … A generic
     multilingual card never outranks it, however low its own CER … the same generic card is not chosen for print
     and handwriting alike." Fraktur print gets the German-prints card, Fraktur handwriting the manuscripts card;
@@ -132,14 +132,14 @@ def test_source_recipe_script_reader_first_fraktur_gets_a_fraktur_card_not_the_m
     assert ranks[GERMAN_PRINTS] == 1 and ranks[PARTY] is not None and ranks[PARTY] > 1
 
 
-def test_source_recipe_script_reader_first_printed_ottoman_beats_the_base_model_and_pp_ocr(client, store):
+def test_source_recipe_script_reader_first_printed_ottoman_beats_the_base_model_and_pp_ocr(client, with_material, store):
     """The Ottoman print card, made for Arabic script and listing Ottoman Turkish, comes before the Party base model
     and the shipped multilingual PP-OCRv6 card, both trained on many scripts."""
     step = _reader(_assemble(client, ["ota"], ["Arab"], "print"))
     assert step["card"]["id"] == OTTOMAN_PRINT, step
 
 
-def test_source_recipe_script_reader_first_keeps_pp_ocr_for_spanish(client, store):
+def test_source_recipe_script_reader_first_keeps_pp_ocr_for_spanish(client, with_material, store):
     """A Latin-script project with no Latin-only card that states a CER for its language keeps PP-OCRv6, the
     reader with a published CER (the flagship's choice is unchanged by the tier)."""
     step = _reader(_assemble(client, ["es"], ["Latn"], "handwriting"))
@@ -149,7 +149,7 @@ def test_source_recipe_script_reader_first_keeps_pp_ocr_for_spanish(client, stor
 # --- source.recipe.no-cross-script-reader + source.onboard.nothing-fits-names-nearest -------------------
 
 
-def test_source_recipe_no_cross_script_reader_classical_chinese_is_not_given_the_japanese_reader(client, db, store):
+def test_source_recipe_no_cross_script_reader_classical_chinese_is_not_given_the_japanese_reader(client, with_material, db, store):
     """source.recipe.no-cross-script-reader: "a Japanese card covers Han, kana and Japanese, never Traditional or
     Simplified Chinese." source.onboard.nothing-fits-names-nearest: the step says nothing reads Traditional Han, in
     one short sentence naming the nearest reader by name, never an id; the Start plan says the same."""
@@ -172,7 +172,7 @@ def test_source_recipe_no_cross_script_reader_classical_chinese_is_not_given_the
     assert "Kuzushiji" in skipped["why"] and "zenodo" not in skipped["why"]
 
 
-def test_source_onboard_nothing_fits_names_nearest_keeps_the_refusals_out_of_the_sentence(client, store):
+def test_source_onboard_nothing_fits_names_nearest_keeps_the_refusals_out_of_the_sentence(client, with_material, store):
     """"`detail` is one short line; every refused card and why stays in the structured `refused` list." A Coptic
     project, which no card reads: the sentence is the one plain sentence, the detail counts the refusals by reason
     instead of listing ~45 card ids (it names two per reason), and `refused` names each card."""
@@ -189,7 +189,7 @@ def test_source_onboard_nothing_fits_names_nearest_keeps_the_refusals_out_of_the
 
 
 def test_source_find_found_reader_downloads_a_tamil_reader_found_online_is_offered_in_the_plan(
-        client, db, store, hub):
+        client, with_material, db, store, hub):
     """source.find.found-reader-downloads: "a Hugging Face reader found by the online search is kept … joins the
     rules for the languages it was found for (never the network at assembly), and where the rules choose it the
     Start plan offers it as a download … a size the Hub did not state is said to be unknown, never zero.\""""
