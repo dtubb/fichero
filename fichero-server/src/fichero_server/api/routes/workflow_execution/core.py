@@ -731,7 +731,14 @@ async def retry_page_in_run(db: Database, page_job_id: str) -> tuple[str, str]:
     run_id = job_queue.run_of_page(db, page_job_id)
     if run_id is None:
         raise HTTPException(status_code=404, detail=f"{page_job_id} is not a page of a run")
-    document = job_queue.read_job(db, page_job_id)["subject"]  # a page job's subject is its document
+    page = job_queue.read_job(db, page_job_id)
+    if page["state"] not in ("failed", "cancelled"):
+        # A done page has its reading (the cache would hit, so a retry would do nothing); a waiting or running one is
+        # already going. Said in words, not a silent no-op.
+        raise HTTPException(status_code=409, detail=(
+            "This page is already read; Retry is for a page that failed or was stopped"
+            if page["state"] == "done" else f"This page is {page['state']}; Retry is for a page that failed or was stopped"))
+    document = page["subject"]  # a page job's subject is its document
     run = await get_activity_tracker(str(db.path)).store.get_workflow_run(run_id)
     status = ((run.status if run else "") or "").lower()
     if status in ("running", "accepted", "paused") or run_id in job_queue.live_run_ids():
@@ -746,6 +753,16 @@ async def retry_page_in_run(db: Database, page_job_id: str) -> tuple[str, str]:
                 await read_again(db, run_id, documents=documents, reopen=True)
                 return run_id, "reopened"
         return run_id, "queued"
+    if status in ("cancelled", "stopped"):
+        # A stopped run never read some of its pages; reopening it over all of them would read those too. Its checkpoint
+        # is dropped so the reopen is over this page alone (its other pages' readings are saved artifacts already).
+        from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
+        checkpointer = await asyncio.to_thread(lambda: AsyncDuckDBCheckpointer.from_db_path(db.path, setup_once=True))
+        async with checkpointer:
+            await checkpointer.adelete_thread(run_id)
+        await read_again(db, run_id, documents=[document], reopen=True, only_these=True)
+        return run_id, "reopened"
     await read_again(db, run_id, documents=[document], reopen=True)
     return run_id, "reopened"
 
@@ -769,7 +786,7 @@ def edges_among(edges: list[dict[str, Any]], nodes: list[dict[str, Any]]) -> lis
 
 
 async def read_again(db: Database, thread_id: str, *, documents: list[str] | None = None,
-                     reopen: bool = False) -> tuple[str, Any, int]:
+                     reopen: bool = False, only_these: bool = False) -> tuple[str, Any, int]:
     """Start a run that reads the pages a run did not do: (its thread id, the workflow, how many pages). The one way a
     run is run again, from `read-again` and from Retry on the run's row in Activity (`activity.retry.one-row`).
     HTTPException 404 for no such run or workflow, 409 for a run with nothing to read again."""
@@ -801,7 +818,9 @@ async def read_again(db: Database, thread_id: str, *, documents: list[str] | Non
                                                "edges": edges_among(workflow.edges, snapshot["nodes"])})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
-    if reopen:
+    if reopen and only_these:
+        inputs["selected_doc_ids"] = list(documents or [])  # a stopped run's page alone (its checkpoint was dropped)
+    elif reopen:
         # A reopened run is the SAME run over ALL its pages, with the node cache on: the pages it did are cache hits
         # (no model call, their readings and the run's counts stay), and only the retried page, which has no result
         # yet, is read. Narrowing the run to `documents` re-entered the thread's checkpoint, which kept the old files
