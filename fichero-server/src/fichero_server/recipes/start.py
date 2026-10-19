@@ -99,7 +99,8 @@ _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 #: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
-                       "translate-transliterate-normalise": ("normalise_how_far", "target")}
+                       "translate-transliterate-normalise": ("normalise_how_far", "target"),
+                       "correct": ("review_lenses", "lenses")}
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
 _ENTITY_SECTIONS = {"people": "people", "places": "places", "organisations": "organizations",
                     "organizations": "organizations", "events": "events", "dates": "dates"}
@@ -518,6 +519,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      "tick a kind of name it finds under the purpose in the project's setup")
                 continue
             entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+        if job == "correct" and settings.get("lenses") is not None:
+            # The review's lenses turned on or off in setup (#5723), in the profiles' order.
+            from fichero_server.recipes.review_profiles import lens_ids
+
+            lenses = [lens for lens in lens_ids() if lens in settings["lenses"]]
+            if not lenses:
+                skip(sid, f"{label}: every lens of the review is turned off, so it has nothing to look for",
+                     "turn a lens on under the purpose in the project's setup")
+                continue
+            entry["lenses"] = lenses
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:

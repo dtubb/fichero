@@ -105,6 +105,12 @@ def normalise(raw: dict[str, Any] | None, *, strict: bool) -> dict[str, Any] | N
         levels, refused = normalise_levels(job_answers["normalise_how_far"])
         problems += refused
         out["job_answers"] = {**job_answers, "normalise_how_far": levels}
+    if isinstance(job_answers, dict) and job_answers.get("review_lenses") is not None:
+        from fichero_server.recipes.review_profiles import lens_ids
+
+        unknown = [x for x in _list(job_answers["review_lenses"]) if x not in lens_ids()]
+        if unknown:
+            problems.append(f"A review lens is {', '.join(lens_ids())}; not {', '.join(map(repr, unknown))}.")
     cap = out.get(SPEND_CAP)
     if cap is not None and (isinstance(cap, bool) or not isinstance(cap, (int, float)) or cap < 0):
         problems.append(f"The Hugging Face spend cap is an amount in dollars a month, $0 or more, not {cap!r}.")
