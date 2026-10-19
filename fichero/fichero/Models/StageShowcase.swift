@@ -71,6 +71,8 @@ struct StageShowcase: Equatable {
     /// The example's credit, shown under it ("Example: BNE · DILE, CC BY-SA 4.0"); nil on the person's own page.
     let credit: String?
     let licenceURL: URL?
+    /// The example's own page (#5803): the credit's first half links here, the licence's deed is `licenceURL`.
+    let sourceURL: URL?
 
     static func == (lhs: StageShowcase, rhs: StageShowcase) -> Bool {
         // One comparison per line: a single chain of a dozen `&&` can outrun the type checker.
@@ -241,7 +243,8 @@ struct StageShowcaseExample: Decodable, Equatable {
             picture: .bundled(imageURL), size: CGSize(width: width, height: height),
             regions: shownRegions, lines: shownLines, names: names, dates: dates, statements: shownStatements,
             passage: passage.lines, expansions: shownExpansions, translation: shownTranslation, table: shownTable,
-            search: shownSearch, credit: shortCredit, licenceURL: URL(string: licenceUrl)
+            search: shownSearch, credit: shortCredit, licenceURL: URL(string: licenceUrl),
+            sourceURL: URL(string: source)
         )
     }
 }
@@ -272,7 +275,7 @@ enum StageShowcaseSource {
         return StageShowcase(
             picture: .sample(pageId: page.id), size: nil, regions: [], lines: lines, names: names, dates: [],
             statements: statements, passage: [], expansions: [], translation: nil, table: [], search: nil,
-            credit: nil, licenceURL: nil
+            credit: nil, licenceURL: nil, sourceURL: nil
         )
     }
 

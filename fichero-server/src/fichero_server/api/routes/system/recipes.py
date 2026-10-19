@@ -410,6 +410,16 @@ class StageNeed(BaseModel):
     why: str = Field(description="in words: 'Dates & Times needs Names'")
 
 
+class ExampleCredit(BaseModel):
+    """Where a borrowed example comes from, with both links (#5803, `source.onboard.credits.link-source-and-licence`)."""
+
+    title: str
+    short_credit: str = Field(description="the credit line shown under the example")
+    licence: str
+    source_url: str = Field(description="the item's own page")
+    licence_url: str = Field(description="the licence's deed")
+
+
 class SetupStage(BaseModel):
     """One stage of Set Up, one page each (section 7c, #5668)."""
 
@@ -417,6 +427,7 @@ class SetupStage(BaseModel):
     title: str
     sentence: str = Field(description="what it does, in one sentence")
     example: str
+    example_credit: ExampleCredit = Field(description="the shipped example's credit, both links (#5803)")
     example_from_samples: Optional[str] = Field(default=None, description="an example from the person's sample pages, "
                                                 "once a try found one (Passages)")
     jobs: list[str] = Field(description="the registry jobs it carries, in step order")
