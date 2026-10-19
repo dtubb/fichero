@@ -156,6 +156,10 @@
     "prepared": null,
     "regions_found": null
    }
-  ]
+  ],
+  "pages_reviewed": null,
+  "lines_reviewed": null,
+  "lines_corrected": null,
+  "lines_review_unreadable": null
  }
 }

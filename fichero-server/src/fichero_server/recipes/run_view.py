@@ -214,6 +214,14 @@ class RecipeRunSummary(BaseModel):
     pages_with_regions: Optional[int] = Field(default=None, description=(
         "of the run's pages, the ones with regions; null when the run had neither Find Regions nor Find Lines (whose "
         "segmenter finds regions too)"))
+    pages_reviewed: Optional[int] = Field(default=None, description=(
+        "of the run's pages, the ones the review step answered for; null when the run had no review step"))
+    lines_reviewed: Optional[int] = Field(default=None, description=(
+        "the lines the review answered, each by its id; null as above"))
+    lines_corrected: Optional[int] = Field(default=None, description=(
+        "of those, the lines the review gave a new reading; null as above"))
+    lines_review_unreadable: Optional[int] = Field(default=None, description=(
+        "of those, the lines the review could not read, left as they were read; null as above"))
     lines: list[str] = Field(default_factory=list, description=(
         "the summary in the engine's words, one line per figure, shown as given"))
     failed: list[StageFailures] = Field(description="each stage's failed pages, with Read Again")
@@ -408,6 +416,31 @@ def _pages_with(db: Any, pages: list[str], kind: str) -> int:
     return sum(1 for p in pages if any(seg.kind == kind for seg in db.query(Segment, document_id=p)))
 
 
+def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
+    """What the review step did on these pages (R3's run summary): each page's newest review, the lines it answered
+    by id, those it gave a new reading, and those it could not read (`source.job.review-is-segment-native`)."""
+    from fichero_server.llm.working_lines import answer_line
+    from fichero_server.models import Artifact, ContentRepresentation
+    from fichero_server.models.segments import Segment
+
+    counted = {"pages": 0, "lines": 0, "corrected": 0, "unreadable": 0}
+    for page in pages:
+        reviews = db.query(Artifact, document_id=page, artifact_type="transcription_review")
+        if not reviews:
+            continue
+        review = max(reviews, key=lambda a: str(a.created_at or ""))
+        lines = {seg.id for seg in db.query(Segment, document_id=page) if seg.kind == "line"}
+        answered = {answer_line(text)[0] for text in (review.content or "").splitlines()} & lines
+        if not answered:  # not tied to the lines: the page's review, not a review of its lines
+            continue
+        counted["pages"] += 1
+        counted["lines"] += len(answered)
+        counted["corrected"] += len({r.segment_id for r in db.query(ContentRepresentation, document_id=page)
+                                     if r.derived_from_artifact_id == review.id and not r.retracted_at})
+        counted["unreadable"] += len(set((review.data or {}).get("unreadable_lines") or []) & answered)
+    return counted
+
+
 def _plural(count: int, noun: str, nouns: str | None = None) -> str:
     return f"{count} {noun if count == 1 else (nouns or noun + 's')}"
 
@@ -427,6 +460,13 @@ def _lines(s: RecipeRunSummary, pages_split: int, ran: set[str] | None = None) -
     if s.pages_with_lines is not None and s.pages_with_lines < s.pages:
         lines.append(f"No lines found on {_plural(s.pages - s.pages_with_lines, 'page')}")
     lines.append(f"Read {s.pages_read} of {_plural(s.pages, 'page')}")
+    if s.lines_reviewed is not None:
+        said = f"Reviewed {_plural(s.lines_reviewed, 'line')} on {_plural(s.pages_reviewed or 0, 'page')}"
+        if s.lines_reviewed:
+            said += f": {s.lines_corrected or 0} corrected"
+            if s.lines_review_unreadable:
+                said += f", {s.lines_review_unreadable} it could not read and left as read"
+        lines.append(said)
     if s.pages_read_nothing:
         lines.append(f"{_plural(s.pages_read_nothing, 'page')} the reader returned nothing for")
     if s.lines_seen_blank:
@@ -513,6 +553,10 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         made.pages_with_lines = _pages_with(db, pages, "line")
     if ran & {"find-lines", "find-regions"}:
         made.pages_with_regions = _pages_with(db, pages, "region")
+    if "correct" in ran:
+        did = reviewed(db, pages)
+        made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
+        made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
     from fichero_server.recipes.done import lines_state
     from fichero_server.recipes.project import read_project_setup
 

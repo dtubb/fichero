@@ -277,6 +277,12 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     if workflow is None:
         return thread_id, "failed", (f"the shipped workflow {card['workflow']!r} is in neither this project nor "
                                      "the shipped defaults")
+    if card.get("lenses"):
+        # The review's lenses turned on in setup (#5723): a pass whose lens is off is not run.
+        from fichero_server.recipes.review_profiles import keep_lenses
+
+        workflow = workflow.model_copy(deep=True)
+        workflow.nodes, workflow.edges = keep_lenses(workflow.nodes, workflow.edges, card["lenses"])
     if card.get("tool_config"):
         # The step's settings from setup's answers (which kinds of names, #5478), on this run's copy only.
         workflow = workflow.model_copy(deep=True)
@@ -517,6 +523,22 @@ def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
     if errors:
         return None, "failed", f"{len(errors)} of {account['asked']} units were not answered: {'; '.join(errors[:3])}"
     return None, "done", None
+
+
+def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                  started_by: str) -> tuple[str | None, str, str | None]:
+    """A read the plan placed on the project's cluster (`source.recipe.placement-by-scale`): sent there as one
+    read-at-scale run under this step, and waited on as any child; a cluster that refuses fails the step by name."""
+    from fichero_server.models.compute_requests import ReadAtScaleRequest
+    from fichero_server.remote_read import job as read_job
+
+    try:
+        child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
+                                                      target=card["target"], pages_may_leave=True,
+                                                      parent_job_id=parent), started_by=started_by)["job_id"]
+    except Exception as exc:  # noqa: BLE001 -- no key, no sign-in, a reader that cannot leave: said, never read here
+        return None, "failed", f"could not send the read to the cluster {card['target']}: {exc}"
+    return _wait(db, child, parent)
 
 
 def _wait(db: Any, child: str, parent: str) -> tuple[str, str, str | None]:
@@ -1012,7 +1034,9 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
 def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], job_id: str,
               scratch: dict[str, Any], started_by: str) -> tuple[str | None, str, str | None]:
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
-    if card["card"] == "workflow" and card.get("readers"):
+    if card.get("place") == "cluster":
+        child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
+    elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
     elif card["card"] == "workflow":
         child, state, why = _run_workflow(db, card, documents, job_id)

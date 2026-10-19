@@ -99,7 +99,10 @@ _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 #: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
-                       "translate-transliterate-normalise": ("normalise_how_far", "target")}
+                       "translate-transliterate-normalise": ("normalise_how_far", "target"),
+                       "correct": ("review_lenses", "lenses")}
+#: Job answers whose empty list says "none of them", never "not answered".
+_EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
 _ENTITY_SECTIONS = {"people": "people", "places": "places", "organisations": "organizations",
                     "organizations": "organizations", "events": "events", "dates": "dates"}
@@ -370,8 +373,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         pin = step.get("model") or {}
         settings = dict(step.get("settings") or {})
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
-        if answer and setting not in settings and (job_answers or {}).get(answer) not in (None, "", []):
-            settings[setting] = job_answers[answer]
+        given = (job_answers or {}).get(answer) if answer else None
+        # An empty list is an answer where it turns things off (every review lens off, #5723); elsewhere it is none.
+        if (answer and setting not in settings and given not in (None, "")
+                and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
+            settings[setting] = given
         runs_on = step.get("runs_on") or "this-mac"
         if job == EMBED_JOB:
             from fichero_server.db.embeddings import search_embedder
@@ -518,6 +524,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      "tick a kind of name it finds under the purpose in the project's setup")
                 continue
             entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+        if job == "correct" and settings.get("lenses") is not None:
+            # The review's lenses turned on or off in setup (#5723), in the profiles' order.
+            from fichero_server.recipes.review_profiles import lens_ids
+
+            lenses = [lens for lens in lens_ids() if lens in settings["lenses"]]
+            if not lenses:
+                skip(sid, f"{label}: every lens of the review is turned off, so it has nothing to look for",
+                     "turn a lens on under the purpose in the project's setup")
+                continue
+            entry["lenses"] = lenses
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
@@ -563,14 +579,21 @@ def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, b
                pages_per_second: float | None = None) -> list[dict[str, Any]]:
     """Each read run says where it runs (`place`, `target`, `why`) and what a run that size costs (`sizing`), for
     its step row (`source.recipe.placement-by-scale`, #5589). With no measured rate the sizing says a pilot measures
-    it. A cluster is bound to a step by nothing yet (`runs-on-binds-to-a-target`), so `bound_cluster` is None."""
+    it. `bound_cluster` is the project's cluster (`answers.cluster`, `runs-on-binds-to-a-target`), its id. ponytail:
+    only a run with one Kraken reader goes there (the runner sends it as a read-at-scale run); a vision reader's
+    cluster build, and one reader per material, stay here and say so."""
     from fichero_server.recipes.placement import place_step
     from fichero_server.remote_read.sizing import size_run
 
     for run in runs:
         if run.get("job") != "read-a-line":
             continue
-        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster))
+        sendable = run.get("provider_override") == KRAKEN_READER_PROVIDER and not run.get("readers")
+        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster if sendable else None))
+        unsent = bound_cluster and not sendable and run["place"] == "this-mac"
+        if unsent and run["why"].endswith("set up for this project"):
+            run["why"] = (f"{pages:,} pages would suit the cluster {bound_cluster}, but only a single Kraken reader is "
+                          "sent there yet, not a vision reader or one reader per material")
         try:
             run["sizing"] = size_run(pages, pages_per_second=pages_per_second or 0)
         except ValueError:

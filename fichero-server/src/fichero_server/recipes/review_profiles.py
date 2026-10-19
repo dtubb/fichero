@@ -74,6 +74,50 @@ def lens_ids() -> list[str]:
     return list(profiles()[GENERIC].lenses)
 
 
+def keep_lenses(nodes: list[dict[str, Any]], edges: list[dict[str, Any]],
+                lenses: list[str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """A review workflow with only `lenses` on (#5723): a pass through several lenses keeps those on; a pass whose
+    lens is off leaves, and what fed its `context` feeds the pass after it; a node that fed only passes that left
+    goes too. Unchanged when every lens of the workflow is on. ponytail: it assumes today's chain shape, each pass
+    taking the one before through `context` and giving `records`, and rewires only those two ports; a preset that
+    chains its passes another way needs its own rule here."""
+    on = set(lenses)
+    kept, gone = [], set()
+    for node in nodes:
+        lens = (node.get("config") or {}).get("lens") if node.get("tool") == "transcribe_review" else None
+        if not lens:
+            kept.append(node)
+            continue
+        mine = [x for x in lens.split(",") if x.strip() in on]
+        if not mine:
+            gone.add(node["id"])
+        elif len(mine) < len(lens.split(",")):
+            kept.append({**node, "config": {**node["config"], "lens": ",".join(m.strip() for m in mine)}})
+        else:
+            kept.append(node)
+    if not gone:
+        return kept, edges
+    wired = list(edges)
+    for node in [n["id"] for n in nodes if n["id"] in gone]:  # in order, so two passes off in a row chain too
+        # chain around it: what fed its context feeds whoever took its records
+        into = [e for e in wired if e["target"] == node and e.get("target_port") == "context"]
+        out = [e for e in wired if e["source"] == node and e.get("source_port") == "records"]
+        wired = [e for e in wired if node not in (e["source"], e["target"])]
+        wired += [{**o, "id": f"{i['source']}-{o['target']}-context", "source": i["source"],
+                   "source_port": i["source_port"]} for i in into for o in out]
+    fed, fed_by = {e["source"] for e in edges}, {e["target"] for e in edges}
+    while True:  # a helper (a search) that fed only passes that left, or was fed only by them
+        feeds, takes = {e["source"] for e in wired}, {e["target"] for e in wired}
+        idle = {n["id"] for n in kept if n.get("tool") != "transcribe_review"
+                and ((n["id"] in fed and n["id"] not in feeds) or (n["id"] in fed_by and n["id"] not in takes))}
+        if not idle:
+            break
+        gone |= idle
+        kept = [n for n in kept if n["id"] not in idle]
+        wired = [e for e in wired if e["source"] not in idle and e["target"] not in idle]
+    return kept, wired
+
+
 def _answers(raw: dict[str, Any] | None) -> Any:
     from fichero_server.recipes.answers import normalise
     from fichero_server.recipes.assemble import Answers
