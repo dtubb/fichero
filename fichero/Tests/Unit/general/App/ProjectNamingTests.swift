@@ -180,7 +180,7 @@ final class ProjectNamingTests: XCTestCase {
 
     @MainActor
     func testFirstLaunchSetupWelcomesAndOffersBothChoices() {
-        XCTAssertEqual(FirstLaunchChoices.setUpNewProject, "Set Up a New Project…")
+        XCTAssertEqual(FirstLaunchChoices.setUpNewProject, "Set Up a New Project...")
         XCTAssertEqual(FirstLaunchChoices.startWithoutProject, "Start Without a Project")
         XCTAssertTrue(FirstLaunchChoices.welcomeParagraphs.last?.contains("Your work lives in projects") == true)
 

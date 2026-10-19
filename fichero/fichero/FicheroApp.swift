@@ -677,21 +677,6 @@ struct FicheroApp: App {
             }
         }
 
-        Window("Set Up a New Project", id: NewProjectSetUpWindow.id) {
-            FirstRunWindow(mode: .newProject, onProjectReady: { made in
-                // The key window takes it once this one has closed; if no window does, it is dropped.
-                libraryManager.projectToShow = made
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(5))
-                    if libraryManager.projectToShow == made { libraryManager.projectToShow = nil }
-                }
-            })
-                .environment(appState)
-                .environment(libraryManager)
-        }
-        .windowResizability(.contentSize)
-        .commandsRemoved()
-
         Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
             ActivityDetailWindow()
                 .environment(appState)  // ActivityDetailsView reads it; absent, the window traps (#5811)

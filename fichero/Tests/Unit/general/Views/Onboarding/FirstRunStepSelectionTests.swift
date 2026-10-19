@@ -45,18 +45,18 @@ final class FirstRunStepSelectionTests: XCTestCase {
         let three: [SetupStep] = [.welcome, .whatFicheroRuns, .handOff]
         XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps, three)
         XCTAssertEqual(SetupStep.welcome.title(), "Welcome")
-        XCTAssertEqual(SetupStep.whatFicheroRuns.title(), "Where the work runs")
+        XCTAssertEqual(SetupStep.whatFicheroRuns.title(), "AI and ML Models")
         XCTAssertEqual(SetupStep.handOff.title(), "Your First Project")
         XCTAssertEqual(SetupStep.welcome.next(in: three), .whatFicheroRuns)
         XCTAssertEqual(SetupStep.handOff.previous(in: three), .whatFicheroRuns)
         XCTAssertEqual(SetupStep.handOff.next(in: three), .handOff, "clamped: Start finishes")
     }
 
-    /// Set Up a New Project… opens a separate window and does not touch this window's pages.
-    func testSetUpANewProjectOpensItsOwnWindowAndLeavesTheSidebarAlone() {
+    /// Set Up a New Project... opens no window: the welcome closes and the front window presents the project's Set Up.
+    func testSetUpANewProjectOpensNoWindowAndLeavesTheSidebarAlone() {
         let footer = SetupFooter.of(.handOff, in: SetupStep.appSteps, mode: .firstRun, projectChosen: false)
-        XCTAssertEqual(footer.leading, .init(title: "Set Up a New Project…", action: .openProjectSetUp))
-        XCTAssertEqual(NewProjectSetUpWindow.id, "new-project-setup")
+        XCTAssertEqual(footer.primary, .init(title: "Set Up a New Project...", action: .setUpNewProject))
+        XCTAssertEqual(footer.leading, .init(title: "Start Without a Project", action: .finish))
         XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).project, .none)
     }
 
