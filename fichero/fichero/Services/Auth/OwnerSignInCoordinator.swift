@@ -106,7 +106,12 @@ final class OwnerSignInCoordinator {
             do {
                 token = try await service.signIn()
             } catch AppSignInService.Failure.notRegistered {
-                guard let secret = EngineLaunchSecretStore.current ?? Self.devLaunchSecret() else { return }
+                #if os(macOS)
+                let handedSecret = EngineLaunchSecretStore.current
+                #else
+                let handedSecret: String? = nil  // iOS never spawns an engine, so no launch secret is handed over
+                #endif
+                guard let secret = handedSecret ?? Self.devLaunchSecret() else { return }
                 token = try await service.bootstrapOwner(
                     launchSecret: secret, displayName: Self.ownerName, clientName: "Fichero", host: Self.hostName
                 )

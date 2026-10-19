@@ -95,13 +95,15 @@ struct ProjectInspector: View {
                 if showsHostMark {
                     Label(SharedMark.hostHelp, systemImage: SharedMark.symbol)
                         .foregroundStyle(.secondary)
-                    PairedDevicesSectionView(
+                    #if canImport(AppKit)
+                    PairedDevicesSectionView(  // macOS only, like PairingCardView.swift that declares it
                         devices: activePairedDevices(from: pairedDevices),
                         isLoading: false,
                         canHostRemoteAccess: EngineConfig.engineIsLocal,
                         onRefresh: { Task { await loadDevices() } },
                         onRevoke: { id in Task { await revokeDevice(id) } }
                     )
+                    #endif
                     if let devicesError {
                         Text(devicesError).font(.caption).foregroundStyle(.orange)
                     }
