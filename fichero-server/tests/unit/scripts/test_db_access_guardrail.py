@@ -66,6 +66,9 @@ ALLOWLIST: frozenset[str] = frozenset(
         # The recipe runner's whole-project tree reads (2026-10-10): the SQL moved here FROM
         # recipes/runner.py, behind typed functions — the persistence entry point the rule asks for.
         "db/document_tree.py",
+        # The run summary's review counts (R3, #5723): the SQL moved here FROM recipes/run_view.py, behind typed
+        # functions -- the persistence entry point the rule asks for.
+        "db/run_reviews.py",
         "db/embeddings.py",
         "db/migrations/schema.py",
         "db/manager.py",
