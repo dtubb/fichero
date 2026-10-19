@@ -349,7 +349,7 @@ struct CodeTokenField: View {
     }
 
     private var field: some View {
-        TextField(title, text: $query, prompt: Text(scripts ? "e.g. Latin alphabet, Arabic, Cyrillic" : "e.g. Spanish, Latin"))
+        TextField(title, text: $query, prompt: Text(scripts ? MaterialPrompts.writingSystem : MaterialPrompts.languages))
             .labelsHidden()
             .onChange(of: query) { _, text in take(text) }
             .onSubmit {
@@ -471,4 +471,11 @@ extension View {
 #Preview("Project intake") {
     ProjectIntakeChoice(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
+}
+
+/// The example prompts in About the Material's two fields (`source.onboard.material.nothing-preselected`): examples that
+/// cannot be read as defaults, with no word in both.
+enum MaterialPrompts {
+    static let languages = "e.g. Spanish, Ottoman Turkish, Welsh"
+    static let writingSystem = "e.g. Arabic, Cyrillic, Devanagari"
 }
