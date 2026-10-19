@@ -3800,6 +3800,20 @@ def one_page_at_a_time(vision_mode: str | None):
     return (lambda: _KRAKEN_PAGE_GATE) if vision_mode == "kraken" else contextlib.nullcontext
 
 
+def note_who_started_the_run(task_id: str | None, library_path: str | None) -> None:
+    """The gate and the seam ask who started the RUN (`person_waits_on`): a workflow thread has no job of its own, so
+    its thread-local says nobody (review 344). Set for this context; its tasks and `to_thread` calls inherit it."""
+    if not (task_id and library_path):
+        return
+    try:
+        from fichero_server.db import db_manager
+        from fichero_server.execution import jobs
+
+        jobs._run_is_a_persons.set(jobs.person_waits_on(db_manager.get_database(library_path), task_id))
+    except Exception:  # an unknown run reads as automatic: one page at a time
+        logger.debug("run starter unknown for %s", task_id, exc_info=True)
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -5996,6 +6010,8 @@ async def process_vision(
     # Kraken reads one page at a time (its own lock already serialises the reading; this stops four pages at once
     # loading and decoding images beside it, #5846).
     _page_gate = one_page_at_a_time(vision_mode)
+    if vision_mode == "kraken":
+        note_who_started_the_run(task_id, library_path)
 
     async def _run_one(file_index: int, file_path: str) -> dict:
         activity_scope = _vision_activity_db_path.set(activity_db_path)
