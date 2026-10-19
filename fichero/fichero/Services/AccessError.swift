@@ -133,6 +133,11 @@ enum AccessError: LocalizedError, Equatable {
         if containsTLSFailure(error as NSError) {
             return .tlsPinFailure
         }
+        // The socket layer's own error ("NIOCore.IOError error 1" while an engine restarts under a held connection, or its
+        // sandbox refuses the dial): the engine is not there right now, in words (`activity.reconnects-after-engine-restart`).
+        if (error as NSError).domain == "NIOCore.IOError" {
+            return .engineUnreachable
+        }
         if let urlError = error as? URLError {
             switch urlError.code {
             case .cannotConnectToHost, .cannotFindHost, .timedOut,
