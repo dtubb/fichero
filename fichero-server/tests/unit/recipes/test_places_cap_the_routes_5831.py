@@ -35,7 +35,7 @@ def test_training_is_refused_when_the_place_is_off(db, only_this_mac):
     from fichero_server.models.compute_requests import TrainKrakenRequest
     from fichero_server.training import job as train_job
 
-    request = TrainKrakenRequest(scope_ids=["x"], pages_may_leave=True)
+    request = TrainKrakenRequest(scope_ids=["x"], teacher="google/gemini-3-flash-preview", pages_may_leave=True)
     with pytest.raises(train_job.PagesMayNotLeave) as refused:
         train_job.start(db, request, started_by="owner", target_factory=_never_built)
     assert "Hugging Face" in str(refused.value)
