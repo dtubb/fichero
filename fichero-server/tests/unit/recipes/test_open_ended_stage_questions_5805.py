@@ -11,6 +11,7 @@ import pytest
 
 from fichero_server.recipes.stages import STAGES, listing
 
+RECIPE = {"fichero_recipe": 1, "id": "t", "version": "0.1.0", "title": "t"}
 #: The stage questions that name kinds (stage id, answer key).
 OPEN = [("names", "entity_kinds"), ("statements", "statement_kinds"), ("dates", "calendars"),
         ("passages", "passage_kinds"), ("structured-data", "fields")]
@@ -51,12 +52,29 @@ def test_a_typed_kind_reaches_the_plan(client):
     assert names["settings"] == {"kinds": ["ships", "people"]}
 
 
-def test_each_kinds_answer_is_read_by_the_step_it_configures():
+def test_only_a_kinds_answer_a_run_reads_is_marked_read_by_a_step():
+    """Review 180: Statements' kinds, Passages' kinds and Structured Data's fields are kept with the answers; no run
+    reads them yet, so they are not marked as read (the app says so)."""
     from fichero_server.recipes.start import JOB_ANSWER_SETTINGS
 
+    mapped = {key for key, _ in JOB_ANSWER_SETTINGS.values()}
+    items = listing(None)
     for stage, key in OPEN:
-        jobs = next(s for s in STAGES if s.id == stage).jobs
-        assert any(JOB_ANSWER_SETTINGS.get(j, (None,))[0] == key for j in jobs), (stage, key)
+        assert _question(items, stage, key)["read_by_a_step"] is (key in mapped), (stage, key)
+    assert {"entity_kinds", "calendars"} <= mapped and not {"statement_kinds", "passage_kinds", "fields"} & mapped
+
+
+def test_names_given_only_typed_kinds_it_has_no_section_for_says_it_finds_every_kind():
+    from fichero_server.recipes.start import plan_start
+
+    step = {"id": "names", "job": "find-names-tag-words", "model": {"spacy": "es_core_news_sm", "version": "bundled"},
+            "settings": {"kinds": ["ships"]}}
+    plan = plan_start({**RECIPE, "steps": [step]}, stays_local=True)
+    (run,) = [r for r in plan["runs"] if r["steps"] == ["names"]]
+    assert "tool_config" not in run and "every kind" in run["how"] and "ships" in run["how"]
+    narrowed = plan_start({**RECIPE, "steps": [{**step, "settings": {"kinds": ["People", "ships"]}}]}, stays_local=True)
+    (run,) = [r for r in narrowed["runs"] if r["steps"] == ["names"]]
+    assert run["tool_config"] == {"extract_entities_only": {"entity_types": "people"}}
 
 
 def test_suggestions_hold_only_what_a_sample_try_found():
