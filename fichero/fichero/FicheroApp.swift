@@ -678,7 +678,14 @@ struct FicheroApp: App {
         }
 
         Window("Set Up a New Project", id: NewProjectSetUpWindow.id) {
-            FirstRunWindow(mode: .newProject, onProjectReady: { libraryManager.projectToShow = $0 })
+            FirstRunWindow(mode: .newProject, onProjectReady: { made in
+                // The key window takes it once this one has closed; if no window does, it is dropped.
+                libraryManager.projectToShow = made
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(5))
+                    if libraryManager.projectToShow == made { libraryManager.projectToShow = nil }
+                }
+            })
                 .environment(appState)
                 .environment(libraryManager)
         }

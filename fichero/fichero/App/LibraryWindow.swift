@@ -85,6 +85,7 @@ struct LibraryWindow: View {
     // This flag trails backend-ready by a settle beat (see the .task in `body`) so the first-run
     // sheet can only present AFTER that first toolbar layout.
     @State private var firstRunSheetArmed = false
+    @Environment(\.appearsActive) private var windowIsKey
     @State private var firstLaunchDue = false  // `firstLaunchIsDue`, decided when armed (2026-10-10)
     /// File › Set Up New Project… in this window (#5482); internal for LibraryWindow+Actions.
     @State var showingNewProjectSetUp = false
@@ -295,12 +296,10 @@ struct LibraryWindow: View {
                 .environment(appState)
         }
         .modifier(NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) })
-        // A project the separate Set Up window made (#5828) shows in the front window.
-        .onChange(of: libraryManager.projectToShow) { _, made in
-            guard let made, libraryManager.currentLibraryId == windowState.libraryId else { return }
-            libraryManager.projectToShow = nil
-            assignLibrary(id: made)
-        }
+        // A project the separate Set Up window made (#5828) shows in the KEY window: the one that is active once
+        // the Set Up window has closed (`currentLibraryId` is the last-opened project, not the key window, review 194).
+        .onChange(of: libraryManager.projectToShow) { _, _ in takeProjectToShow() }
+        .onChange(of: windowIsKey) { _, _ in takeProjectToShow() }
         // Setup for THIS window's project (#5421): Project › Set Up…, or an empty project's
         // Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
         // Armed like first run (#3163), and never gated on `firstRunCompleted`.
@@ -357,6 +356,13 @@ struct LibraryWindow: View {
     }
 
     /// #4017b: VERIFIED loaded and empty, or a first launch (2026-10-10). Read by first run and setup.
+    /// Takes the project the separate Set Up window made, if this is the key window (#5828).
+    private func takeProjectToShow() {
+        guard windowIsKey, let made = libraryManager.projectToShow else { return }
+        libraryManager.projectToShow = nil
+        assignLibrary(id: made)
+    }
+
     private var appWelcomeShowing: Bool {
         appWelcomeIsDue(
             requested: libraryManager.appSetUpRequested,
