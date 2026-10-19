@@ -326,7 +326,8 @@ def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Op
         folders_done=status.get("folders_done"), folders_total=status.get("folders_total"))
 
 
-async def live_blocks(db: Database, jobs: "list[BackgroundJob]") -> list[LiveBlock]:
+async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
+                      statuses: "dict[str, dict[str, Any]] | None" = None) -> list[LiveBlock]:
     """The live recipe runs first, then the workflow runs that belong to no recipe (a recipe's stage is its block's)."""
     blocks: list[LiveBlock] = []
     owned: set[str] = set()
@@ -335,7 +336,10 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]") -> list[LiveBlo
         if job.task_type != "run-a-recipe" or job.state not in _LIVE_STATES:
             continue
         try:
-            _state, _reason, status = await _recipe_state(db, job.id)
+            # The status the list already read for this row (one derivation per poll); read here only for a row without
+            status = (statuses or {}).get(job.id)
+            if status is None:
+                _state, _reason, status = await _recipe_state(db, job.id)
         except Exception as exc:  # noqa: BLE001 -- the block stands without its stage; said in the log
             logger.warning("activity summary: no status for recipe run %s: %s", job.id, exc)
             blocks.append(LiveBlock(id=job.id, recipe=job.name, state=job.state, reason=job.reason))
@@ -349,10 +353,11 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]") -> list[LiveBlo
     return blocks
 
 
-async def activity_summary(db: Database, jobs: "list[BackgroundJob]") -> ActivitySummary:
+async def activity_summary(db: Database, jobs: "list[BackgroundJob]",
+                           statuses: "dict[str, dict[str, Any]] | None" = None) -> ActivitySummary:
     """THE summary (`activity.popover.same-summary`): built once per poll from the ordered job list, so the popover and
     the window can only agree."""
-    return ActivitySummary(live=await live_blocks(db, jobs), background=background_lines(jobs),
+    return ActivitySummary(live=await live_blocks(db, jobs, statuses), background=background_lines(jobs),
                            history=sum(1 for j in jobs if j.group == "earlier"))
 
 
@@ -696,6 +701,7 @@ async def list_background_jobs(
 
     # Once per poll: the summary reads this one too. Off the loop (#5843): the reads wait on the transaction gate.
     listed = await asyncio.to_thread(job_queue.snapshot, db)
+    recipe_statuses: dict[str, dict[str, Any]] = {}  # each live recipe run's status, read once for the list and the summary
     for row in listed:
         state, reason = row["state"], row["reason"]
         name, current, total = job_queue.kind_name(row["kind"]), 0, row["count"]
@@ -706,6 +712,7 @@ async def list_background_jobs(
             # cannot be read still shows, with its row's own state and reason (FIX 3).
             try:
                 state, reason, status = await _recipe_state(db, row["id"])
+                recipe_statuses[row["id"]] = status
                 current = _recipe_pages_done(status)
             except Exception as exc:  # noqa: BLE001 -- the row stands, and says its stages could not be read
                 logger.warning("list_background_jobs: no status for recipe run %s: %s", row["id"], exc)
@@ -747,7 +754,7 @@ async def list_background_jobs(
         mode=job_queue.mode(),
         machine=MachineState(**throttle.machine_state()),
         summary=await asyncio.to_thread(_queue_summary, db, listed),
-        activity=await activity_summary(db, jobs),
+        activity=await activity_summary(db, jobs, recipe_statuses),
     )
 
 
