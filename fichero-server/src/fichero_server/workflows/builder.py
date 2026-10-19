@@ -2213,9 +2213,12 @@ def _make_parallel_node_function(
             })
 
         except Exception as e:
-            if isinstance(e, WorkflowCancelled) or _run_cancelled():
-                # The page was stopped with its run (Stop, or its project closing, #5608) while it waited for
-                # the lane: not done, not a page that failed.
+            from fichero_server.execution.jobs import JobCancelled
+
+            if isinstance(e, (WorkflowCancelled, JobCancelled)) or _run_cancelled():
+                # The page was stopped (with its run, or alone: a person's Stop on the page; or its project closing,
+                # #5608) while it waited for the lane: not done, not a page that failed. A page stopped alone skips,
+                # and the run's next pages go on.
                 return _with_chaining(_cancelled_result(), failed=True, error="cancelled")
             error_msg = str(e)
             print(f"[PARALLEL] [{index + 1}/{total}] ERROR: {error_msg}")

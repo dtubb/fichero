@@ -160,6 +160,12 @@ class JobCancelled(Exception):
     """Raised by a job's run when it was stopped: the row ends `cancelled`, not `failed`."""
 
 
+class PageStopped(JobCancelled):
+    """A person stopped ONE page of a run while it waited for the lane: that page is skipped (its row ends `cancelled`,
+    "Stopped by you"; it is not a failure) and the run carries on with its next page. Stop on the run raises
+    `WorkflowCancelled` instead."""
+
+
 class JobDeferred(Exception):
     """Raised by a long job's run when it stops to come back later (memory got tight, background
     work was paused, a person is waiting for other work): the row goes back to `waiting` with the
@@ -429,6 +435,8 @@ def _cancel_run(db: "Database", job_id: str) -> str:
 
 PAUSING = "Pausing at its next step"
 STOPPING = "Stopping at its next step"
+#: A running page a person stopped: its result is dropped when it returns.
+STOPPING_PAGE = "Stopping: what it reads is not kept"
 register_kind("workflow", None, model=None, name="Workflow run", cancel=_cancel_run, pause=_pause_run)
 register_kind("workflow-step", None, model=None, name="Step")
 # A batch: one workflow over many items, each item a run of the one runner, its child (#5374).
@@ -468,6 +476,33 @@ def record_run(db_path: str | Path, thread_id: str, *, status: str, name: str | 
         return
     _record(db, thread_id, kind="workflow", subject=thread_id, parent_id=None, state=_RUN_STATES[status],
             reason=reason, name=name)
+    if _RUN_STATES[status] == "cancelled":
+        settle_stopped_children(db, thread_id)
+
+
+def settle_stopped_children(db: "Database", run_id: str) -> int:
+    """Stop on a run stops everything under it, and the rows agree (owner, 2026-10-19: the run said "Stopped" while its
+    step read "Running 0 of 2" and a page was still waiting): its steps, sub-runs and waiting or paused pages end
+    `cancelled`. A page a lane thread is running right now finishes its item and settles its own row. Returns how many."""
+    _ensure(db)
+    live = _scheduler.running_ids()
+    found: list[str] = []
+    frontier = [run_id]
+    while frontier:  # the run's descendants: steps, sub-runs under them, pages
+        marks = ", ".join("?" for _ in frontier)
+        children = [r[0] for r in db.execute_fetchall(f"SELECT id FROM jobs WHERE parent_id IN ({marks})", frontier)]
+        found += children
+        frontier = [c for c in children if c not in found[: len(found) - len(children)]]
+    ended = [i for i in found if i not in live]
+    if not ended:
+        return 0
+    marks = ", ".join("?" for _ in ended)
+    before = db.execute_fetchone(
+        f"SELECT count(*) FROM jobs WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')", ended)[0]
+    db.execute(f"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ?{_clear_waiting_on(db)} "
+               f"WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
+               [stopped_by(run_id), utc_now(), *ended])
+    return int(before)
 
 
 #: The batch record's words for its state -> the job table's.
@@ -1048,13 +1083,19 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
     while True:
         done, _ = await asyncio.wait({signal}, timeout=STOP_POLL_SECONDS)
         if done:
-            if signal.cancelled() and run_id:  # the scheduler withdrew it: its run stopped or paused
+            if signal.cancelled():  # the scheduler withdrew it: its run stopped or paused, or this page alone was stopped
                 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 
-                if _stop_requested(run_id):
+                if run_id and _stop_requested(run_id):
                     raise WorkflowCancelled(run_id)
-                if _pause_requested(run_id):
+                if run_id and _pause_requested(run_id):
                     raise WorkflowPaused(run_id)
+                job_id = getattr(future, "job_id", None)
+                found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
+                said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
+                if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
+                    raise JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
+                raise PageStopped(said)  # skip this page; the run goes on
             return signal.result()
         if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
             from fichero_server.execution.cancellation import WorkflowCancelled
@@ -1119,6 +1160,9 @@ def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
     if any(is_set_aside(r[0]) for r in failed):  # its own row says why, once; this one only says it is waiting on it
         return "Waiting for thumbnails (set aside)"
     return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
+#: The page jobs that read: the text the embedder and spaCy work on comes out of them.
+READING_KINDS = ("find-lines", "read-a-line", "read-a-page", "ask-a-model")
+READING_FIRST_REASON = "Waiting for reading to finish"
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
 
@@ -1190,6 +1234,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             outcome["result"] = str(exc) or type(exc).__name__
             raise
         outcome["result"] = "done"
+        if _scheduler.is_stopping(future.job_id):
+            raise PageStopped(stopped_by(future.job_id))  # stopped while it ran: the caller's next step is skipped
     finally:
         if echo is not None:
             echo.cancel()
@@ -1483,6 +1529,12 @@ def cancel_job(db: "Database", job_id: str) -> str:
         db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
                    "WHERE id = ? AND state = 'failed'", [stopped_by(job_id), utc_now(), job_id])
         return "cancelled"
+    if state == "running" and _is_attached(kind) and job_id in _scheduler.running_ids():
+        # A page a run is waiting for, mid-read: nothing can interrupt the model midway, so it is marked stopping, its
+        # result is dropped when it returns (nothing saved), and the run goes on to its next page
+        # (`activity.stop.page-skips-run-stops-children`, review 284).
+        _scheduler.mark_stopping(db, job_id)
+        return "stopping"
     if state not in ("waiting", "paused"):
         return state
     with _scheduler._lock:
@@ -2275,6 +2327,7 @@ class _Scheduler:
         self._kinds_loaded = False
         #: Work handed in by waiting callers, by job id: (the work, the caller's future).
         self._attached: dict[str, tuple[Callable[[], Any], Future]] = {}
+        self._stopping: set[str] = set()  # running pages a person stopped: their result is dropped
         #: Futures waiting on stored jobs, by job id (`enqueue_many`).
         self._watchers: dict[str, list[Future]] = {}
         _SCHEDULERS.add(self)
@@ -2420,6 +2473,16 @@ class _Scheduler:
                 thread.join(max(0.0, deadline - time.monotonic()))
         return [t for t in ending if t.is_alive()]
 
+    def mark_stopping(self, db: "Database", job_id: str) -> None:
+        """A person stopped this running page: say so on its row, and drop its result when it returns."""
+        with self._lock:
+            self._stopping.add(job_id)
+        db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING_PAGE, job_id])
+
+    def is_stopping(self, job_id: str) -> bool:
+        with self._lock:
+            return job_id in self._stopping
+
     def running_ids(self) -> list[str]:
         """The jobs this engine's lane threads are running now, on every lane."""
         return [job_id for lane in self.lanes.values() for job_id in list(lane.running)]
@@ -2560,6 +2623,20 @@ class _Scheduler:
             waiting_on_first = (f"{where} AND {first_clause}", [*params, *first_kinds])
             where += f" AND NOT {first_clause}"
             params += first_kinds
+        # Embedding and name-reading work on the TEXT, so they come after the reading (owner, 2026-10-19 16:27): a
+        # background text job waits while any reading page of the library is queued or running, whatever was queued
+        # first. A person's own (a correction's re-embed) never waits behind background reading.
+        text_kinds = ([name for name, kind in KINDS.items() if kind.run is not None and kind.lane == "embed"
+                       and is_light(kind.model)] if lane.name == "embed" else [])
+        text_held_sql = ""
+        text_params: list[Any] = []
+        if text_kinds:
+            text_held_sql = (f"(kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0 AND EXISTS "
+                             f"(SELECT 1 FROM jobs AS r WHERE r.kind IN ({', '.join('?' for _ in READING_KINDS)}) "
+                             f"AND r.state IN ('waiting', 'running')))")
+            text_params = [*text_kinds, *READING_KINDS]
+            where += f" AND NOT {text_held_sql}"
+            params += text_params
         # One provider's calls never take the whole network lane while another provider's call is
         # waiting (`activity.run.lane-cap-per-mac`, the cap per provider): a provider stuck on a rate
         # limit leaves a slot for the others. Work-conserving: with no other provider's call waiting,
@@ -2648,6 +2725,13 @@ class _Scheduler:
                            f"AND reason IS DISTINCT FROM ?", [said_first, *waiting_on_first[1], said_first])
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
+            if text_held_sql and db.execute_fetchone(
+                    f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {text_held_sql} LIMIT 1", text_params):
+                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql} "
+                           f"AND reason IS DISTINCT FROM ?", [READING_FIRST_REASON, *text_params, READING_FIRST_REASON])
+                due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
+                lane.look_again_at = min(lane.look_again_at or due, due)
+                held_back = True  # waiting, not absent: the library stays on the lane
             row = first(share_clause, share_params) if share_clause else None
             # Only a provider at its share is waiting here: it may take the spare slot, after any
             # other library's call that is within its share.
@@ -2745,6 +2829,11 @@ class _Scheduler:
         _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
+            with self._lock:
+                stopping = job_id in self._stopping
+            if stopping:  # a person stopped this page while it ran: what it made is dropped, and its run goes on
+                result = None
+                raise PageStopped(stopped_by(job_id))
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except JobDeferred as exc:
@@ -2757,6 +2846,8 @@ class _Scheduler:
         finally:
             _current.job_id = None
             _current.person = False
+            with self._lock:
+                self._stopping.discard(job_id)
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
