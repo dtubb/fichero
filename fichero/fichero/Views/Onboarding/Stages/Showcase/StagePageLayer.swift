@@ -106,18 +106,35 @@ extension View {
 }
 
 /// The example's credit under it (CC BY-SA asks for it where the person sees the page): "Example: BNE · DILE,
-/// CC BY-SA 4.0", linked to the licence. Nothing on the person's own page.
+/// CC BY-SA 4.0", the source half linked to the item's own page and the licence half to its deed (#5803). Nothing on
+/// the person's own page.
 struct ShowcaseCredit: View {
     let showcase: StageShowcase
 
     var body: some View {
         if let credit = showcase.credit {
-            if let url = showcase.licenceURL {
-                Link(credit, destination: url).font(.caption2).foregroundStyle(.secondary)
-            } else {
-                Text(credit).font(.caption2).foregroundStyle(.secondary)
+            let halves = Self.halves(of: credit)
+            HStack(spacing: 0) {
+                link(halves.source, showcase.sourceURL)
+                if let licence = halves.licence {
+                    Text(", ")
+                    link(licence, showcase.licenceURL)
+                }
             }
+            .font(.caption2).foregroundStyle(.secondary)
         }
+    }
+
+    @ViewBuilder
+    private func link(_ words: String, _ url: URL?) -> some View {
+        if let url { Link(words, destination: url) } else { Text(words) }
+    }
+
+    /// "Example: BNE · DILE, CC BY-SA 4.0" as ("Example: BNE · DILE", "CC BY-SA 4.0"): the last comma divides the
+    /// source from the licence; a credit with no comma is all source.
+    static func halves(of credit: String) -> (source: String, licence: String?) {
+        guard let comma = credit.range(of: ", ", options: .backwards) else { return (credit, nil) }
+        return (String(credit[..<comma.lowerBound]), String(credit[comma.upperBound...]))
     }
 }
 
