@@ -1771,6 +1771,13 @@ class HfSpend(BaseModel):
     sentence: str
 
 
+class BuiltInStep(BaseModel):
+    """A step that is built in: it runs nothing and needs nothing (#5816)."""
+
+    step: str
+    sentence: str = Field(description="why it runs nothing, in the engine's words: it is part of the plan, not a problem")
+
+
 class StartPlan(BaseModel):
     """What pressing Start would run, on how many pages, and every reason it cannot yet."""
 
@@ -1778,6 +1785,9 @@ class StartPlan(BaseModel):
     runs: list[StartRun] = Field(description="what Start runs, in order")
     workflows: list[StartWorkflow]
     skipped: list[SkippedStep] = Field(description="steps Start skips, each with why; the others still run")
+    built_in: list[BuiltInStep] = Field(default_factory=list, description=(
+        "steps that run nothing on purpose, each with the engine's sentence: shown as built in, never as a problem "
+        "(#5816)"))
     offered: list[str] = Field(description="steps offered later (training), never run at Start")
     left_off: list[str] = Field(default_factory=list, description=(
         "steps the recipe left off until turned on, one line each with what turning it on would cost (#5677)"))

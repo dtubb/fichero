@@ -266,6 +266,7 @@ struct RecipeStartFields: View {
                 }
                 RecipeElsewhereRows(store: store)
                 RecipeSkippedRows(store: store, onFix: onFix, project: project)
+                RecipeBuiltInRows(store: store)
                 // Steps left off until turned on, each with what it would cost and Turn On (#5677).
                 RecipeLeftOffRows(store: store)
             } else if store.recipe != nil, store.errorMessage == nil {

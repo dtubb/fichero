@@ -338,6 +338,10 @@ final class RecipeSetupStore {
     /// The steps Start skips, each with the engine's why and its fix (`fix`), as the plan has them.
     var skippedSteps: [Components.Schemas.SkippedStep] { startPlan?.skipped ?? [] }
 
+    /// The steps that run nothing on purpose, each with the engine's sentence (#5816): shown as built in, never as a
+    /// problem. Absent in an older engine's plan, so none.
+    var builtInSteps: [Components.Schemas.BuiltInStep] { startPlan?.builtIn ?? [] }
+
     /// The models the plan's steps need that are not on this Mac, each with its size and the download.
     var downloads: [Components.Schemas.StartDownload] { startPlan?.downloads ?? [] }
 

@@ -20,13 +20,15 @@ def _recipe(*steps):
     return {"fichero_recipe": 1, "id": "t/disagree", "version": "0.1.0", "title": "t", "steps": list(steps)}
 
 
-def test_a_plan_with_two_readers_has_no_run_for_the_step_and_says_when_it_is_worked_out(mac):
+def test_a_plan_with_two_readers_has_no_run_and_lists_the_step_as_built_in_never_as_skipped(mac):
+    """#5816, owner ruling: built in is never a warning. The step is in `built_in` with its sentence, not in `skipped`
+    (which the app draws as problems), and nothing else about the plan calls it off this Mac or without a model."""
     plan = plan_start(_recipe(LINES, KRAKEN_READS, CORRECT, DOUBT), stays_local=True)
 
-    assert not [r for r in plan["runs"] if r["job"] == DISAGREE_JOB], "nothing runs and nothing is stored (#5816)"
-    (said,) = [s for s in plan["skipped"] if s["step"] == "doubt"]
-    assert "worked out when you open a page" in said["why"] and said["fix"] is None
-    assert not [s for s in plan["skipped"] if "off this Mac" in s["why"] or "has no model" in s["why"]]
+    assert not [r for r in plan["runs"] if r["job"] == DISAGREE_JOB], "nothing runs and nothing is stored"
+    assert not [s for s in plan["skipped"] if s["step"] == "doubt"]
+    (built,) = plan["built_in"]
+    assert built["step"] == "doubt" and "worked out when you open a page" in built["sentence"]
 
 
 def test_a_step_that_names_its_own_model_is_still_sampled(mac):
@@ -41,6 +43,7 @@ def test_one_reader_that_cannot_be_sampled_says_which_reader_to_add_and_offers_n
     plan = plan_start(_recipe(LINES, KRAKEN_READS, DOUBT), stays_local=True)
 
     (skipped,) = [s for s in plan["skipped"] if s["step"] == "doubt"]
+    assert not plan["built_in"], "one reader that cannot be sampled is a problem to fix, not a built-in step"
     assert "add a second reader" in skipped["why"]
     assert skipped["fix"] is None, "no Choose a model for a step that needs none"
     assert not plan.get("needs_a_model")

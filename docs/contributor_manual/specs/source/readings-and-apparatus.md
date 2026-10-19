@@ -439,8 +439,10 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   lines (a line reader and a Correct step, or two `readers` pinned on the step), "Find where the readers disagree" needs
   no model and has nothing to run: the disagreement is the line-by-line alignment of the readings the plan makes
   (`source.disagree.medoid-aligned`), worked out when a page is opened (`source.disagree.route` is read-only and keeps
-  nothing; Review does not need it stored). The plan says so ("built in: worked out when you open a page, from the
-  readers above; there is nothing to run"). No model is searched for, asked for, or warned about.
+  nothing; Review does not need it stored). The plan lists it under `built_in` (`{step, sentence}`: "built in: worked out
+  when you open a page, from the readers above; there is nothing to run"), never under `skipped`, and Ready shows it under
+  "Built in" in the plain style of any line (owner ruling: built in is never a warning; Swift test `RecipeRunVisibleTests`,
+  `testReady_listsABuiltInStepAsBuiltIn_neverAmongTheSkipped`). No model is searched for, asked for, or warned about.
 - `source.disagree.one-reader-says-which-to-add` — **[OK]** (#5812; same tests) with one reader in the plan the step
   cannot compare anything unless that reader is sampled. A vision reader is sampled (`source.disagree.recipe-step`); a reader
   that cannot be (Kraken) is not a reason to choose a model for THIS step: the line names the reader to add ("add a second

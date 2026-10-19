@@ -116,6 +116,27 @@ final class RecipeRunVisibleTests: XCTestCase {
 
     private static let libraryId = UUID(uuidString: "55765576-5576-5576-5576-557655765576")!
 
+    // MARK: - built in is never a warning (#5816)
+
+    func testReady_listsABuiltInStepAsBuiltIn_neverAmongTheSkipped() async throws {
+        // WHY: the engine put a deliberate built-in step (Find where the readers disagree, worked out when a page is
+        // opened) in `skipped`, which Ready draws under "Will not run" as a problem. Owner ruling: built in is never a
+        // warning. The plan now carries `built_in`; the store reads it apart from `skipped`.
+        var plan = try Self.object(try Self.recorded("start_plan_skips_and_downloads"))
+        plan["built_in"] = [["step": "doubt", "sentence": "built in: worked out when you open a page, from the readers above; there is nothing to run"]]
+        let store = RecipeSetupStore(client: Self.client())
+        MockTransportURLProtocol.reset([
+            Stub(path: "/api/recipes/project/start", method: "GET", status: 200,
+                 body: try JSONSerialization.data(withJSONObject: plan))
+        ])
+        await store.loadStartPlan()
+
+        XCTAssertEqual(store.builtInSteps.map(\.step), ["doubt"])
+        XCTAssertTrue(store.builtInSteps[0].sentence.contains("worked out when you open a page"))
+        XCTAssertFalse(store.skippedSteps.contains { $0.step == "doubt" }, "built in is not a skipped step")
+        XCTAssertEqual(RecipeBuiltInRows.heading, "Built in")
+    }
+
     // MARK: - source.onboard.auto.plan-shows-what-will-not-run (#5573)
 
     func testReady_showsEverySkippedStepWithWhyAndFix_andWhatStartWillFetch() async throws {

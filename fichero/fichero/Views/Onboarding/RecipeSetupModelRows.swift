@@ -170,6 +170,28 @@ struct RecipeSkippedRows: View {
     }
 }
 
+/// The steps that are built in (#5816): part of the plan, with the engine's sentence, in the plain secondary style of
+/// any other line (no warning colour, no icon, no button). Never listed under "Will not run".
+struct RecipeBuiltInRows: View {
+    static let heading = "Built in"
+
+    let store: RecipeSetupStore
+
+    var body: some View {
+        if !store.builtInSteps.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Self.heading).font(.subheadline.weight(.semibold))
+                ForEach(store.builtInSteps, id: \.step) { built in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.title(ofStepId: built.step)).font(.callout.weight(.medium))
+                        Text(built.sentence).font(.callout).foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
 #Preview("What Start will fetch") {
     RecipeDownloadRows(store: RecipeSetupStore(client: FicheroClient(libraryPath: nil)))
         .padding()
