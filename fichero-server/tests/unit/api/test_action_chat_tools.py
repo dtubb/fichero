@@ -423,6 +423,8 @@ class TestWriteAllowlist:
         # an off-list mutation is NEVER offered to the model
         assert "entity_delete" not in offered
         assert "claim_delete" not in offered
+        # the MCP call action is reached only through its namespaced tools in an owner's chat (#5761)
+        assert "mcp_call_tool" not in offered
 
     def test_read_only_action_still_dispatches_through_audit(self, db):
         reg = _make_read_write_registry()
