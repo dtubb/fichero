@@ -39,8 +39,12 @@ def lanes(monkeypatch):
             gate.wait(30)
 
     monkeypatch.setitem(jobs.KINDS, PAGE, jobs.Kind(run=page, model="kraken:blla", lane="local-ml", name="Read a page"))
-    monkeypatch.setitem(jobs.KINDS, EMBED, jobs.Kind(run=lambda db, subject: events.append(f"embed:{subject}"),
-                                                     model="embedder", lane="embed", name="Embed for search"))
+    def embed(db, subject):
+        events.append(f"embed:{subject}")
+        if subject == "hold":
+            gate.wait(30)
+
+    monkeypatch.setitem(jobs.KINDS, EMBED, jobs.Kind(run=embed, model="embedder", lane="embed", name="Embed for search"))
     monkeypatch.setitem(jobs._RELEASE, "kraken", lambda reason="": unloaded.append(reason))
     monkeypatch.setitem(jobs._RELEASE, "embedder", lambda reason="": events.append("embedder-released"))
     yield type("Lanes", (), {"events": events, "unloaded": unloaded, "gate": gate})
@@ -74,7 +78,7 @@ def test_the_real_embed_kinds_are_on_the_embed_lane_and_stay_background():
     for kind in (derivatives.EMBED_KIND, page_text_cache.REEMBED_KIND):
         assert jobs.KINDS[kind].lane == "embed" and jobs.KINDS[kind].model == "embedder"
         assert jobs.KINDS[kind].qos is set_background_qos  # background class
-    assert "embed" in jobs.THROTTLED_LANES and "embed" in jobs.HEAVY_LANES  # held by battery/memory/heat like the model lane
+    assert "embed" in jobs.THROTTLED_LANES and "embed" not in jobs.HEAVY_LANES  # held by battery/memory/heat, but never one-heavy-at-a-time
 
 
 # --- 3c: a page held for memory goes on as soon as the throttle's decision lets it ---------------------------------------
@@ -121,3 +125,15 @@ def test_a_page_really_held_for_memory_goes_the_moment_it_fits(db, lanes, monkey
     started = time.monotonic()
     assert jobs.submit(db, PAGE, "p", model="kraken:blla", fn=fn).result(timeout=30) == "read"
     assert 0.4 < attempts[1] - started < 3.0  # it waited while memory was short, then went: not a fixed 5 s
+
+
+def test_under_warn_pressure_a_kraken_page_runs_while_an_embed_runs(db, lanes, monkeypatch):
+    """Review 280: "embed" in HEAVY_LANES made Kraken wait "one heavy at a time: Embed for search is running"."""
+    from fichero_server.execution import throttle
+
+    monkeypatch.setattr(throttle, "memory_is_busy", lambda: True)  # memory pressure at warn
+    jobs.enqueue(db, EMBED, "hold")
+    assert _wait_for(lambda: "embed:hold" in lanes.events)
+    jobs.enqueue(db, PAGE, "p1")
+    assert _wait_for(lambda: "page:p1" in lanes.events, 10)  # the embed still runs; Kraken does not wait for it
+    assert lanes.unloaded == []
