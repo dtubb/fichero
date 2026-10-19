@@ -152,7 +152,8 @@ def _ways(job: str, *, stays_local: bool, counts: dict[str, Any] | None = None, 
                          "first_run": list(CLUSTER_FIRST_RUN)} for name in clusters]
         why = way.get("why")
         if way["targets"] and not targets:
-            why = "this project keeps its pages on this Mac, and this training runs only on Hugging Face Jobs"
+            why = ("Your pages stay on this Mac, and this training runs only on Hugging Face Jobs. Allow this project's "
+                   "pages to leave this Mac for Hugging Face, or choose a training that runs here.")
         out.append({"method": way["method"], "how": way["how"], "says": way["says"], "targets": targets,
                     "available": bool(targets), "why": why})
     return out
@@ -237,6 +238,29 @@ def train_offers(recipe: dict | None, counts: dict[str, Any], *, stays_local: bo
         offers.append({"step": step.get("id", job), "job": job, "title": TITLE, "ways": ways, "readiness": ready,
                        "setting": setting, "does": _does(setting["mode"]), "noise_band": noise_band})
     return offers
+
+
+def offered(offers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What the Start plan shows (`source.recipe.train-offered-once-ready`, #5804): an offer only once its step has enough
+    corrected work (below that, nothing: no greyed row, no count), each way once, and no way for a trainer Fichero does
+    not have. A way the where-it-runs answers refuse stays, with its sentence. `train_offers` is the full list the
+    engine starts from (`due_starts`)."""
+    out = []
+    for offer in offers:
+        if not offer["readiness"].get("ready"):
+            continue
+        seen: set[tuple[str, str]] = set()
+        ways = []
+        for way in offer["ways"]:
+            key = (way["method"], way["how"])
+            has_trainer = any(w["targets"] for w in WAYS[offer["job"]] if (w["method"], w["how"]) == key)
+            if key in seen or not has_trainer:
+                continue
+            seen.add(key)
+            ways.append(way)
+        if ways:
+            out.append({**offer, "ways": ways})
+    return out
 
 
 #: The jobs a start on this Mac makes; one that is waiting, running, paused or done means training has started.
