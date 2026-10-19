@@ -62,3 +62,12 @@ def test_the_review_is_priced_by_its_own_workflow():
     assert review_passes("Paleographer Review", None) == 3  # the name a run carries
     assert review_passes("transcribe_paleography_review", ["orthography"]) == 1  # or the preset's key
     assert review_passes("No Such Preset", None) is None
+    assert review_passes("transcribe_paleography_review", []) == 0  # every lens off: no call
+
+
+def test_a_preset_with_no_review_pass_is_one_call_a_page():
+    """Review 163: it reads, so it is priced, as any other run is: one call a page, never unpriced."""
+    from fichero_server.recipes.review_profiles import review_passes
+    from fichero_server.recipes.start import WORKFLOW_FOR_JOB
+
+    assert review_passes(WORKFLOW_FOR_JOB["read-a-line"], None) == 1
