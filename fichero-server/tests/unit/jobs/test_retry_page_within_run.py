@@ -85,3 +85,16 @@ def test_a_retry_queued_just_as_the_run_ends_is_not_left_waiting_forever(run, mo
 def test_the_queued_pages_are_taken_once(run):
     jobs.queue_page_retry(run, "page-1", "run-1", "doc-7")
     assert jobs.take_page_retries("run-1") == ["doc-7"] and jobs.take_page_retries("run-1") == []
+
+
+def test_a_workflow_edited_since_its_run_hands_validation_only_edges_among_the_runs_nodes():
+    """Review 302: reopening validates the run's nodes with edges that must match them; an edge to a node the edit
+    removed is dropped, and the run's own edges stay."""
+    from fichero_server.api.routes.workflow_execution.core import edges_among
+
+    nodes = [{"id": "files-source"}, {"id": "transcribe"}]
+    edges = [{"source": "files-source", "target": "transcribe", "source_port": "files", "target_port": "files"},
+             {"source": "files-source", "target": "added-since", "source_port": "files", "target_port": "files"},
+             {"source": "gone", "target": "transcribe"},
+             {"source": "files-source", "route_map": {"a": "transcribe", "b": "added-since"}}]
+    assert edges_among(edges, nodes) == [edges[0]]
