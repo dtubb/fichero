@@ -648,10 +648,12 @@ workflow by hand: a hand run is a job like any other.
 Engine tests under `fichero-server/tests/unit/jobs/`; app tests drive the real window through the real environment
 builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
 
-- `activity.window.live-block` — **[GAP]** (#5851, #5839) one live block per project at the top: Recipe › Stage ›
+- `activity.window.live-block` — **[PARTIAL]** (#5851, #5839) one live block per project at the top: Recipe › Stage ›
   Workflow, a count (done, failed, left) and the folder(s), opening to the files. Supersedes the flat table of every
-  job as the first thing seen (`activity.window.table` keeps the rows underneath). (Not yet written:
-  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+  job as the first thing seen (`activity.window.table` keeps the rows underneath). Engine side: `activity.live` in the jobs
+  response is one `LiveBlock` per live recipe run (recipe, the stage running, its workflow, done / failed / left, folders done
+  of total) and per workflow run outside a recipe (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`).
+  Not yet: the window draws it and opens it to the files (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`, after the regen).
 - `activity.window.acts-on` — **[GAP]** (#5839) the live block says what it acts on with counts ("Read: 7 of 20 pages,
   folder X"), and the whole list of pages expands under it, each with its state. Supersedes the next-three-rows view in
   `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written:
@@ -662,10 +664,12 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   "earlier"); pinned by `fichero-server/tests/unit/api/test_activity_order_live_run_first.py`. Not yet: a run's steps in
   run order and each step's pages in reading order from the job tree, and the no-spinner row
   (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`).
-- `activity.window.background-group` — **[GAP]** (#5851) background work (thumbnails, embeddings, Run automatically) is a
+- `activity.window.background-group` — **[PARTIAL]** (#5851) background work (thumbnails, embeddings, Run automatically) is a
   group of its own below the live blocks, one row per kind with its total. Supersedes
-  `activity.window.grouped-by-project` as the way the Mac's own work is shown. (Not yet written:
-  `fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`.)
+  `activity.window.grouped-by-project` as the way the Mac's own work is shown. Engine side: `activity.background` is one
+  `BackgroundLine` per kind (state, the reason a wait gives, done, total), never a run or an ended row
+  (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`). Not yet: the window's group
+  (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`, after the regen).
 - `activity.window.history-group` — **[PARTIAL]** (#5851) finished, stopped and interrupted runs fold into a History group;
   Clear Finished empties it (`activity.window.clear-finished`). No stale or interrupted run is in the live area or the
   popover. Engine side: every ended row, of any kind (a stopped or failed workflow, batch, recipe run, try or queue row),
@@ -691,12 +695,13 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   until the real-graph test `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (the same thread id
   re-entered with the real LangGraph runner: the run record kept, the earlier pages kept) is run green on the M4; its counts may read
   only the reopened pass until then.
-- `activity.popover.same-summary` — **[GAP]** (#5852) the popover and the window read ONE engine summary and always
+- `activity.popover.same-summary` — **[PARTIAL]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
   …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of
-  `activity.popover.summary`. (Not yet written: `fichero-server/tests/unit/jobs/test_activity_summary_one_source.py` and
-  `fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`.)
-
+  `activity.popover.summary`. Engine side: `activity` (live blocks, background lines, the History count) is built once from the
+  ordered job list and rides in the one jobs response both read
+  (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`). Not yet: the popover reads it
+  (`fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`, after the regen).
 - `activity.window.all-projects` — **[PARTIAL]** (#5354) the Activity window merges
   every open library and the global one (`ActivityMonitorWindow.swift`); unpinned.
 - `activity.window.table` — **[PARTIAL]** (#5415, #5354) the window is a table of every job of
