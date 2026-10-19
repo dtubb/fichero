@@ -771,6 +771,7 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
         offered = {"card": cloud.id, "runs_on": provider, "pages": pages, "calls_per_page": passes,
                    "cost_usd": round(cloud.cost_per_page * passes * pages, 2) if passes else None}
         price = (f"at about ${offered['cost_usd']:.2f}" if offered["cost_usd"] is not None
+                 else "with nothing to look for, as every lens of the review is off" if passes == 0
                  else "at a price Fichero cannot work out (its review passes could not be counted)")
         cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} {price} "
                  f"for {pages} {'page' if pages == 1 else 'pages'}" + (f" ({unlisted})" if unlisted else ""))
