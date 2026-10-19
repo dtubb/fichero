@@ -956,6 +956,13 @@ async def retry_job(
 
         new_thread, _workflow, _pages = await read_again(db, job_id)
         return RetryResponse(id=new_thread, state="running", replaces=job_id)
+    if kind is not None and job_queue._is_attached(kind) and job_queue.run_of_page(db, job_id):
+        # A page a run handed in: Retry reads it again WITHIN its run (`activity.retry.page-within-run`): a run that has
+        # ended reopens for it, a run still going takes it into its queue. Never a new run, never a 409 for a live one.
+        from fichero_server.api.routes.workflow_execution.core import retry_page_in_run
+
+        _run_id, how = await retry_page_in_run(db, job_id)
+        return RetryResponse(id=job_id, state="running" if how == "reopened" else "waiting")
     return RetryResponse(**_control_job(db, ctx, "job.retry", {"job_id": job_id}).model_dump())
 
 
