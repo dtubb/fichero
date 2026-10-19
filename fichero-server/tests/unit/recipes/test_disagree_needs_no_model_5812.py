@@ -71,3 +71,56 @@ def test_the_finder_for_a_sampled_reader_offers_vision_readers_never_a_text_sear
     assert asked["job"] == "read-a-line"
     assert cards == [sampleable], "Kraken cannot be sampled as a vision model"
     assert not [s for s in sources if s["detail"] == discovery.NO_STEP_SEARCH]
+
+
+def _assembled(*jobs):
+    from fichero_server.recipes.assemble import Answers, assemble
+    from tests.unit.recipes.test_assemble_by_rule import CARDS
+
+    return assemble(Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
+                            materials=("handwriting",), jobs=tuple(jobs)), CARDS)
+
+
+def test_ticked_with_one_reader_the_step_is_built_in_says_it_needs_a_second_reader_and_never_blocks_start(mac):
+    """`source.disagree.built-in-needs-second-reader` (#5812): never "has no model", never a Choose a model, Start goes."""
+    recipe = _assembled(DISAGREE_JOB)
+    (step,) = [s for s in recipe["steps"] if s["job"] == DISAGREE_JOB]
+    assert step["built_in"] and not step.get("gap") and not step.get("problem")
+    assert step["needs"] == "needs a second reader: tick one in Read"
+    assert not [g for g in recipe["gaps"] if DISAGREE_JOB in g]
+    assert not step.get("needed_by"), "Remove from Plan always works for the comparison"
+
+    plan = plan_start(recipe, stays_local=True)
+    (skipped,) = [s for s in plan["skipped"] if s["step"] == DISAGREE_JOB]
+    assert "second reader" in skipped["why"] and skipped["fix"] is None
+    assert not plan.get("needs_a_model") and plan["runs"], "the other steps still start"
+
+
+def test_ticked_with_two_readers_the_step_names_them_and_is_built_in(mac):
+    recipe = _assembled(DISAGREE_JOB, "correct")
+    (step,) = [s for s in recipe["steps"] if s["job"] == DISAGREE_JOB]
+    assert step["built_in"] and "needs" not in step and len(step["compares"]) == 2
+    assert not step.get("needed_by"), "Remove from Plan always works for the comparison"
+    assert step["reasons"][0].startswith("Compares ") and step["compares"][0] in step["reasons"][0]
+    plan = plan_start(recipe, stays_local=True)
+    assert [b["step"] for b in plan["built_in"]] == [DISAGREE_JOB] and not plan["skipped"]
+
+
+def test_one_vision_reader_is_still_sampled_and_one_kraken_reader_needs_a_second(mac):
+    """Review 316: `needs a second reader` is said only when the one reader cannot be sampled (Kraken); a vision reader
+    is read again several times at a temperature, as `source.disagree.recipe-step` has it."""
+    from fichero_server.recipes.assemble import _disagree_step
+
+    built_in = {**DOUBT, "built_in": True, "model": {"builtin": "reader-comparison"}}
+    vision = {"id": "read", "job": "read-a-line", "model": SEVEN, "runs_on": "this-mac"}
+
+    sampled = plan_start(_recipe(LINES, vision, built_in), stays_local=True)
+    assert len([r for r in sampled["runs"] if r["job"] == DISAGREE_JOB]) == 5 and not sampled["skipped"]
+
+    kraken = plan_start(_recipe(LINES, KRAKEN_READS, built_in), stays_local=True)
+    (skipped,) = [s for s in kraken["skipped"] if s["step"] == "doubt"]
+    assert "second reader" in skipped["why"] and skipped["fix"] is None
+
+    # The plan's own words follow the same rule.
+    assert "needs" not in _disagree_step([{**vision, "card": {"note": "Qwen"}}])
+    assert "second reader" in _disagree_step([{**KRAKEN_READS, "card": {"note": "Kraken"}}])["needs"]
