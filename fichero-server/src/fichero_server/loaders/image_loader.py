@@ -6,7 +6,7 @@ Special handling: HEIC (pillow-heif), JXL (macOS ImageIO), RAW (rawpy), all bund
 """
 
 import logging
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 import tempfile
 import warnings
 from pathlib import Path
@@ -132,6 +132,7 @@ class ImageLoader(MediaLoader):
     def _load_jxl(self, path: Path) -> Image.Image:
         """JPEG XL through macOS's own ImageIO (macOS 14+ decodes it), via the bundled pyobjc Quartz:
         decoded to a temporary PNG, then opened with the usual checks. Never a Homebrew tool."""
+        quartz_warm.warm()
         import Quartz
         from Foundation import NSURL
 

@@ -14,6 +14,35 @@ private struct UnstartedEngineProcess: @unchecked Sendable {
     let process: Process
 }
 
+/// The launch secret for one spawned engine and the pipe it travels on (#5797). The secret is never in the
+/// environment or argv: the child gets a flag saying "read one line of stdin", and `deliver()` writes it once.
+struct LaunchSecretHandover: @unchecked Sendable {
+    let secret: String
+    let pipe: Pipe
+
+    /// Gives `process` a stdin pipe and the flag that tells the engine to read the secret from it.
+    static func attach(to process: Process, secret: String) -> LaunchSecretHandover {
+        let pipe = Pipe()
+        process.standardInput = pipe
+        process.environment?["FICHERO_LAUNCH_SECRET_STDIN"] = "1"
+        return LaunchSecretHandover(secret: secret, pipe: pipe)
+    }
+
+    /// After `run()`: write the secret and a newline, then close both ends so the engine sees EOF.
+    func deliver() {
+        try? pipe.fileHandleForWriting.write(contentsOf: Data((secret + "\n").utf8))
+        try? pipe.fileHandleForWriting.close()
+        try? pipe.fileHandleForReading.close()
+    }
+}
+
+/// The launch secret of the engine this app last spawned, for the one first-run call that needs it (#5797).
+/// In memory only; an adopted external engine leaves it nil.
+@MainActor
+enum EngineLaunchSecretStore {
+    static var current: String?
+}
+
 extension EmbeddedBackendService {
     /// The two places the nested engine can live, in the order we look (#3749).
     ///
@@ -55,6 +84,7 @@ extension EmbeddedBackendService {
         // Launch the process
         process.environment?["FICHERO_SPAWNED_AT"] = String(Date().timeIntervalSince1970)
         try process.run()
+        launchSecretHandover?.deliver()
         // The gap between "engine spawn requested" and this marker is everything
         // the app does BEFORE the engine gets to start: the port pre-flight and
         // the TLS material prep (#3936/#3928). That cost was invisible.
@@ -100,12 +130,14 @@ extension EmbeddedBackendService {
             executablePath: executablePath, accessMaterial: accessMaterial, publicBaseURL: publicBaseURL
         )
         let unstarted = UnstartedEngineProcess(process: process)
+        let handover = launchSecretHandover
         let started = try await Task.detached(priority: .userInitiated) { () throws -> Bool in
             Self.sweepOrphanEnginesIfAllowed()
             LaunchProfile.milestone("orphan engine sweep finished (off-main)")
             if EngineSocketConflict.isLive(socketPath: socketPath) { return false }
             unstarted.process.environment?["FICHERO_SPAWNED_AT"] = String(Date().timeIntervalSince1970)
             try unstarted.process.run()
+            handover?.deliver()
             LaunchProfile.milestone("engine process launched", detail: "pid \(unstarted.process.processIdentifier)")
             return true
         }.value
@@ -158,6 +190,11 @@ extension EmbeddedBackendService {
             accessMaterial: accessMaterial,
             publicBaseURL: publicBaseURL
         )
+
+        // The first-run secret rides the stdin pipe, never the environment or argv (#5797).
+        let handover = LaunchSecretHandover.attach(to: process, secret: Self.generateLaunchSecret())
+        launchSecretHandover = handover
+        EngineLaunchSecretStore.current = handover.secret
 
         // Diagnostic (#757): capture engine stdout/stderr to a tail-able file
         // in ~/Library/Logs/ so Release-build engine failures surface instead
@@ -311,9 +348,12 @@ extension EmbeddedBackendService {
         environment["FICHERO_UDS_PATH"] = EngineConfig.udsSocketPath
         if RemoteAccessConfig.hostingEnabled {
             environment["FICHERO_TCP_TLS_ALSO"] = "1"
-            if let host = RemoteAccessConfig.publicBaseURL?.host,
-               host.hasSuffix(".local") {
+            if let host = RemoteAccessConfig.lanListenerHost(publicHost: RemoteAccessConfig.publicBaseURL?.host) {
                 environment["FICHERO_LAN_HOST"] = host
+            }
+            // Only an explicit choice is passed; unset, the engine keeps the listener while a device is paired.
+            if let choice = RemoteAccessConfig.thisNetworkChoice {
+                environment["FICHERO_THIS_NETWORK"] = choice ? "1" : "0"
             }
         }
         if let publicBaseURL {

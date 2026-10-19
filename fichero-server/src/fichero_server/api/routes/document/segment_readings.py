@@ -1548,7 +1548,9 @@ def _why_omitted(
 #: 15: what search reads beside the page's text opens a corpus's abbreviation markup (`dha$.dicha` is searched
 #:     as `dicha`, #5651); the derivation itself is unchanged, the bump re-derives every page once (a page
 #:     with no markup gains only the stamp, and is not re-embedded).
-DERIVATION_VERSION = 15
+#: 16: a pass of words never takes the page from a pass of read lines (#5648); that changed which text a page
+#:     comes out as and shipped without a bump, so pages cached before it re-derive once (#5778).
+DERIVATION_VERSION = 16
 #: sha256 of the derivation's source (`derivation_source_digest`), pinned beside the version so a
 #: change to the code without a bump fails `test_derivation_version.py`.
 #: Re-pinned without a bump for #5467: the working pass is read through `working_pass`; a page
@@ -1556,7 +1558,7 @@ DERIVATION_VERSION = 15
 #: unconverted result derives nothing the cache stores (`page_text_cache._derives_text`).
 #: Re-pinned without a bump for #5522: a pass whose result the read checker flagged waits to be
 #: chosen. No result carried a flag before #5522, so no cached page's text changes.
-DERIVATION_SOURCE_SHA256 = "0adf17d779f0f94fbaf7c082d6f7532de3c0b29d814d9a9782ca31e977f217f7"
+DERIVATION_SOURCE_SHA256 = "f369f5f01ead3bda96ed177ddc05557f13d55ed31a2a72b88dbd5695f80f21cb"
 
 
 def derivation_source_digest() -> str:

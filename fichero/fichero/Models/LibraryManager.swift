@@ -66,6 +66,11 @@ class LibraryManager {
     /// populates on iPhone even when its .task fires before loadCollections() (#2472).
     var librariesLoadVersion: Int = 0
 
+    /// One sentence shown after a host stopped sharing a library this Mac had open (#5731); cleared by the view.
+    var sharingStoppedNotice: String?
+    /// Shared projects whose host turned Sharing off: greyed in the sidebar until Forgotten (#5739).
+    var hostGoneRows: [HostGoneRow] = []
+
     /// The project `createProject(at:)` made last. The sidebar selects its row when this changes
     /// (`create.project.appears-and-is-selected`, #5430).
     var createdProjectId: UUID?
@@ -391,6 +396,11 @@ class LibraryManager {
             // so leave the router nil there to avoid double-applying (#3159 emits
             // the folded frames unconditionally, on local as well as remote).
             if !self.host.isLocal {
+                // The host turned Sharing off: say so once and close this project (#5731).
+                stream.onSharingStopped = { [weak self] in
+                    guard let self else { return }
+                    LibraryManager.shared.hostStoppedSharing(libraryId: self.id, hostName: self.host.url.host ?? "")
+                }
                 self.activityStore.changeRouter = { [weak stream] event in
                     stream?.ingest(event)
                 }

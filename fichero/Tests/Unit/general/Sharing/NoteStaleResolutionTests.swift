@@ -18,4 +18,13 @@ import Testing
         #expect(NoteStaleResolution.decide(keepMine: false, currentUpdatedAt: now) == .copyAndTakeTheirs)
         #expect(NoteStaleResolution.decide(keepMine: false, currentUpdatedAt: nil) == .copyAndTakeTheirs)
     }
+
+    @Test func compareShowsBothTexts() {
+        let c = NoteStaleResolution.comparison(mine: "my text", theirs: "their text")
+        #expect(c == NoteStaleComparison(mine: "my text", theirs: "their text"))
+    }
+
+    @Test func compareHasNothingToShowWhenTheNoteWasDeletedElsewhere() {
+        #expect(NoteStaleResolution.comparison(mine: "my text", theirs: nil) == nil)
+    }
 }

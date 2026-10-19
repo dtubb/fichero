@@ -35,6 +35,12 @@ from collections.abc import Iterator
 
 import httpx
 
+if TYPE_CHECKING:
+    from fichero_server.api.routes.document.segments import (
+        SegmentDetailResponse,
+        SegmentReferenceResponse,
+    )
+
 from fichero_server.api.routes.system.activity import ActivityResponse
 from fichero_server.api.routes.document.artifacts import ArtifactResponse
 from fichero_server.api.routes.document.compare_readings import CompareReadingsResponse

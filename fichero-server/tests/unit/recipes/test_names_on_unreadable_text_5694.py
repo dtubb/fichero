@@ -28,6 +28,7 @@ def _read(db, page, sure: float) -> None:
 
 
 def test_names_skips_a_page_read_too_uncertainly_and_says_why(db, tmp_path, monkeypatch):
+    """source.job.names-warn-on-unreadable: Find Names skips a too-uncertain page and the step says which and why."""
     from fichero_server.models import DocType, Document
     from fichero_server.recipes.run_view import summary
 

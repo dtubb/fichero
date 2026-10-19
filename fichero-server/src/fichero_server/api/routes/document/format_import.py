@@ -1095,22 +1095,7 @@ def _as_http_error(exc: Exception) -> HTTPException:
 router = APIRouter()
 
 
-class ErrorDetail(BaseModel):
-    """The body this route's refusals actually send: `{"detail": "<a sentence>"}`.
-
-    **Declared because it was not, and the omission ate the sentence** (#5089). Without
-    a `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose
-    `detail` is an ARRAY of field errors — and the generated Swift client decodes the
-    body while producing the response, so a person picking the wrong file got a client
-    decoding error instead of *"nothing recognises 'x.xml'. This build reads: …"*.
-    **That sentence is the whole value of the refusal**: a scholar who chose the wrong
-    file needs to be told what this build can read.
-
-    The 409 is declared for the same reason even though it works today: it works only
-    because nothing declared it, which is the same accident facing the other way.
-    """
-
-    detail: str
+from fichero_server.api.errors import ErrorDetail  # noqa: E402,F401  (one shared body, #5094)
 
 
 #: The files a YOLO dataset keeps its class names in (`formats.yolo.class_names_beside`).

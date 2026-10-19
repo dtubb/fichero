@@ -38,6 +38,7 @@ def test_an_offer_says_the_steps_own_verb():
 
 def test_a_page_a_step_ran_on_and_found_nothing_on_is_done_next_time(db, tmp_path, jobs_run_by_the_test,
                                                                      monkeypatch):
+    """source.recipe.step-counts-its-pages: a step that left no trace on a page still keeps the page as done."""
     pages = istmina_box()[0][:4]
     _folder, ids = _project(db, tmp_path, pages)
     written = [ids[p.id] for p in pages if not p.blank]

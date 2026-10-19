@@ -95,7 +95,7 @@ def create_compiled_app(
     """
     workflow_def = to_workflow_def(workflow_def)
     workflow_def = apply_default_provider_model(workflow_def)
-    checkpointer = AsyncDuckDBCheckpointer.from_db_path(db_path)
+    checkpointer = AsyncDuckDBCheckpointer.from_db_path(db_path, keep_last_only=True)
     app_or_graph = build_graph(
         workflow_def,
         enable_parallel=enable_parallel,

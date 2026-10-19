@@ -175,3 +175,19 @@ def normalise_levels(value: Any) -> tuple[list[str], list[str]]:
         levels.append(level)
     ordered = [lv for lv in NORMALISE_LEVELS if lv in levels] + [lv for lv in levels if lv not in NORMALISE_LEVELS]
     return list(dict.fromkeys(ordered + translations)), problems
+
+
+#: Each reading level's title, as Set Up and the Start plan name its run.
+NORMALISE_TITLES = {"as_written": "As written", "expanded": "Abbreviations expanded",
+                    "regularised": "Normalised spelling", "modernised": "Modernised"}
+
+
+def normalise_run_titles(target: Any) -> list[str]:
+    """The Normalise step's runs by title, in the order Start makes them (`recipes/start.py`, #5795): one for each level
+    asked, one for a translation ("Translation into English"); nothing asked writes regularised, and a level Fichero
+    does not know has no run, so no title."""
+    from fichero_server.recipes.names import language_name
+
+    asked, _ = normalise_levels(target or ["regularised"])
+    return [f"Translation into {language_name(t[len(TRANSLATION_PREFIX):])}" if t.startswith(TRANSLATION_PREFIX)
+            else NORMALISE_TITLES[t] for t in asked if t.startswith(TRANSLATION_PREFIX) or t in NORMALISE_TITLES]

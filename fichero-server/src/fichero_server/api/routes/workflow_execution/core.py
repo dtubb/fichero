@@ -459,6 +459,8 @@ async def resume_workflow(
         # (`activity.run.resume-once`, #5373).
         from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
 
+        # ponytail: checks this process's registry only, so a race between two near-simultaneous
+        # resumes can still pass both; a lock per thread id if that is ever seen.
         live = _running_workflows.get(thread_id)
         if live and live.get("status") in ("accepted", "running"):
             raise HTTPException(status_code=409, detail=f"The run {thread_id} is already running")
@@ -516,6 +518,7 @@ async def resume_workflow(
             {
                 "workflow_id": workflow_id,
                 "workflow_name": workflow.name,
+                "db_path": str(db.path),
                 "status": "accepted",
                 "events": event_hub,
                 "error": None,
@@ -527,6 +530,10 @@ async def resume_workflow(
         # (`activity.run.resume-keeps-model`, #5373), as read-again does.
         started = await activity_tracker.store.get_workflow_run(thread_id)
         snapshot = started.workflow_snapshot if started and isinstance(started.workflow_snapshot, dict) else {}
+        # ... and the graph it started with, from the same snapshot (`activity.run.resume-from-snapshot`, #5373).
+        from fichero_server.workflows.resume_snapshot import as_started  # noqa: PLC0415
+
+        workflow = as_started(workflow, snapshot)
         started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
         exec_request = ExecuteWorkflowRequest(
             workflow_id=workflow_id,

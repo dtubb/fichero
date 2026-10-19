@@ -25,6 +25,7 @@ from fichero_server.execution.cancellation import (
     clear_pause,
     pause_requested,
 )
+from fichero_server.execution.run_log import BoundedLog, bounded_final_state
 from fichero_server.models import Workflow
 from fichero_server.workflows.activity import get_activity_tracker
 from fichero_server.workflows.run_steps import close_open_steps
@@ -154,6 +155,12 @@ class WorkflowEventHub:
         self._lock = threading.Lock()
         self._subscribers: list["queue.Queue"] = []
         self._buffer: list[Any] = []
+        # The run's record (#5376, `activity.run.record-keeps-all-history`): every event but the log lines, in order, for
+        # the saved timeline; `_buffer_seq` numbers the replay window so the two merge. ponytail: no cap, an event is
+        # a few hundred bytes and a 10,000-page run emits tens of thousands; cap if a run ever outgrows memory.
+        self._seq = 0
+        self._buffer_seq: list[int] = []
+        self._record: list[tuple[int, Any]] = []
         self._closed = False
         self._replay_limit = (
             replay_limit if replay_limit is not None else self._REPLAY_LIMIT
@@ -170,10 +177,15 @@ class WorkflowEventHub:
             if event is None:
                 self._closed = True
             else:
+                self._seq += 1
                 self._buffer.append(event)
+                self._buffer_seq.append(self._seq)
+                if getattr(event, "event", None) != "log":
+                    self._record.append((self._seq, event))
                 if len(self._buffer) > self._replay_limit:
                     # Drop oldest; keep the most recent window.
                     del self._buffer[: -self._replay_limit]
+                    del self._buffer_seq[: -self._replay_limit]
             for subscriber in self._subscribers:
                 subscriber.put(event)
 
@@ -211,6 +223,14 @@ class WorkflowEventHub:
         """Return the currently buffered replay events."""
         with self._lock:
             return list(self._buffer)
+
+    def record(self) -> list[Any]:
+        """The run's whole record in order: every step and page event from the start, and the log lines still in the
+        replay window (#5376)."""
+        with self._lock:
+            merged = dict(self._record)
+            merged.update(zip(self._buffer_seq, self._buffer))
+            return [merged[k] for k in sorted(merged)]
 
 
 def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
@@ -258,10 +278,59 @@ def close_all_event_hubs_for_shutdown() -> int:
     return closed
 
 
+#: The reason a quit records on the runs it pauses; the next launch resumes the runs that carry it (#5357).
+QUIT_PAUSED_ERROR = "Paused: the app quit"
+#: How long a quit waits for paused runs to reach their boundary (the app kills the engine soon after).
+BOUNDARY_GRACE_SECONDS = 1.0
+
+
+async def pause_live_runs_for_shutdown() -> int:
+    """Quit pauses the runs in flight, they do not fail (#5357, `activity.run.quit-pauses`): each live run that has a
+    checkpoint on disk is asked to pause (the pause request every run checks at its boundary, so it settles as `paused`
+    through its own path) and is recorded `paused` here as the fallback for a worker that does not reach a boundary
+    before the process ends. A run with no checkpoint yet has nothing to resume from and is left for the reopen sweep.
+    Returns how many."""
+    import asyncio  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    from fichero_server.execution.cancellation import pause_requested, request_pause  # noqa: PLC0415
+    from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
+
+    asked: list[str] = []
+    checkpointers: dict[str, AsyncDuckDBCheckpointer] = {}
+    try:
+        for thread_id, state in list(_running_workflows.items()):
+            db_path = state.get("db_path")
+            if not db_path or state.get("status") not in ("accepted", "running"):
+                continue
+            if db_path not in checkpointers:
+                checkpointers[db_path] = AsyncDuckDBCheckpointer.from_db_path(db_path)
+            saved = await checkpointers[db_path].aget_tuple(
+                {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
+            if saved is None:
+                continue
+            # A pause the person already asked for is theirs: no marker, so the next open leaves it for Resume.
+            by_person = pause_requested(thread_id)
+            request_pause(thread_id)
+            await get_activity_tracker(db_path).store.update_workflow_run(
+                thread_id=thread_id, status="paused", error=None if by_person else QUIT_PAUSED_ERROR)
+            asked.append(thread_id)
+    finally:
+        for checkpointer in checkpointers.values():
+            checkpointer.__exit__(None, None, None)  # closes its own connection under its lock
+    # Give the workers their boundary: the app kills the engine after a short grace, so the wait is bounded, and a
+    # worker that has not stopped by then is covered by the `paused` record written above.
+    deadline = time.monotonic() + BOUNDARY_GRACE_SECONDS
+    while time.monotonic() < deadline and any(
+            _running_workflows.get(t, {}).get("status") in ("accepted", "running") for t in asked):
+        await asyncio.sleep(0.05)
+    return len(asked)
+
+
 def _workflow_event_timeline(events: WorkflowEventHub) -> list[dict[str, Any]]:
     """Serialize the buffered SSE events for run replay."""
     timeline: list[dict[str, Any]] = []
-    for event in events.snapshot():
+    for event in events.record():
         if event is None:
             continue
         timeline.append(event.model_dump(mode="json"))
@@ -280,14 +349,18 @@ def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
 def _cap_workflow_state_registry() -> None:
     """Bound the in-memory workflow state registry."""
     while len(_running_workflows) > _RUNNING_WORKFLOWS_LIMIT:
+        # Only a run that has exited is dropped: a live one is never evicted
+        # (`activity.run.live-run-never-evicted`, #5376), or the reopen sweep fails it.
         evict_id = next(
             (
                 tid
                 for tid, state in _running_workflows.items()
                 if state.get("status") in _EXITED_WORKFLOW_STATUSES
             ),
-            next(iter(_running_workflows)),
+            None,
         )
+        if evict_id is None:
+            return
         _running_workflows.pop(evict_id, None)
 
 
@@ -912,6 +985,7 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
         {
             "workflow_id": request.workflow_id,
             "workflow_name": workflow.name,
+            "db_path": str(db.path),
             "status": "accepted",
             "events": event_hub,
             "error": None,
@@ -1073,7 +1147,7 @@ async def _run_workflow_in_background(
     activity_tracker = get_activity_tracker(str(db.path))
     start_time = datetime.now(timezone.utc)
     node_start_times: dict[str, datetime] = {}
-    execution_log_lines: list[str] = []  # Collect execution logs
+    execution_log_lines = BoundedLog()  # the run's log, bounded in memory (#5376)
     # How many of those lines the node-boundary flush has written (#5645): None until the first flush, which replaces
     # the stored log as before; each later flush appends only the lines since, so a flush stays the same size however
     # long the run's log grows.
@@ -1234,7 +1308,7 @@ async def _run_workflow_in_background(
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="cancelled",
-            execution_log="\n".join(execution_log_lines),
+            execution_log=execution_log_lines.text(),
             progress_timeline=progress_timeline,
             duration_ms=(
                 datetime.now(timezone.utc) - start_time
@@ -1341,7 +1415,7 @@ async def _run_workflow_in_background(
         await activity_tracker.store.update_workflow_run(
             thread_id=thread_id,
             status="paused",
-            execution_log="\n".join(execution_log_lines),
+            execution_log=execution_log_lines.text(),
             progress_timeline=progress_timeline,
             run_usage=_run_usage_record(),
         )
@@ -2229,14 +2303,15 @@ async def _run_workflow_in_background(
                     # must never fail the run.
                     try:
                         flushed = log_lines_flushed[0]
-                        lines = list(execution_log_lines)
+                        count = len(execution_log_lines)
                         await activity_tracker.store.flush_node_boundary(
                             thread_id,
                             progress_timeline=progress_timeline,
-                            log_text="\n".join(lines if flushed is None else lines[flushed:]),
+                            log_text=(execution_log_lines.text() if flushed is None
+                                      else "\n".join(execution_log_lines.since(flushed))),
                             replace=flushed is None,
                         )
-                        log_lines_flushed[0] = len(lines)
+                        log_lines_flushed[0] = count
                     except Exception as flush_exc:
                         logger.warning(
                             "progress_timeline node-boundary flush failed for "
@@ -2438,12 +2513,12 @@ async def _run_workflow_in_background(
                 await log_execution(f"Model fallback — {summary}")
 
         # Save execution log and progress timeline to workflow run
-        execution_log = "\n".join(execution_log_lines)
+        execution_log = execution_log_lines.text()
         complete_data: dict = {
             "checkpoint_id": checkpoint_tuple.checkpoint["id"]
             if checkpoint_tuple
             else None,
-            "final_state": final_state,
+            "final_state": bounded_final_state(final_state),
             "duration_ms": total_duration_ms,
         }
         if completion_metadata.get("empty_output"):
@@ -2534,7 +2609,7 @@ async def _run_workflow_in_background(
         )
 
         # Save execution log and progress timeline to workflow run
-        execution_log = "\n".join(execution_log_lines)
+        execution_log = execution_log_lines.text()
         event_queue.put(
             SSEEvent(
                 event="systemic_error",
@@ -2591,7 +2666,7 @@ async def _run_workflow_in_background(
         )
 
         # Save execution log and progress timeline to workflow run
-        execution_log = "\n".join(execution_log_lines)
+        execution_log = execution_log_lines.text()
         event_queue.put(
             SSEEvent(
                 event="error",

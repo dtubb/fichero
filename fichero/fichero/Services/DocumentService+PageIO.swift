@@ -62,11 +62,11 @@ extension DocumentService {
         // what to do -- and the app was replacing it with a word that names nothing. Declaring the
         // bodies (#5089's sibling) is what makes them readable; reading them is this half.
         case .notFound(let error):
-            throw DocumentServiceError.serverError(try error.body.json.detail)
+            throw DocumentServiceError.serverError(try error.body.json.detail.sentence)
         case .conflict(let error):
-            throw DocumentServiceError.serverError(try error.body.json.detail)
+            throw DocumentServiceError.serverError(try error.body.json.detail.sentence)
         case .unprocessableContent(let error):
-            throw DocumentServiceError.serverError(try error.body.json.detail)
+            throw DocumentServiceError.serverError(try error.body.json.detail.sentence)
         case .undocumented(let statusCode, let payload):
             // Still here, and still last: a status the contract does not declare is exactly what
             // this branch is for, and silently succeeding on one would be worse than saying so.
@@ -142,14 +142,14 @@ extension DocumentService {
             // NOT a failure, and it stopped being `.undocumented` when the route declared
             // its error bodies (#5089). It used to work only because nothing declared the
             // 409 -- the same accident facing the other way -- and it now arrives typed.
-            return .alreadyImported(detail: try answer.body.json.detail)
+            return .alreadyImported(detail: try answer.body.json.detail.sentence)
         case .notFound(let error):
-            throw DocumentServiceError.serverError(try error.body.json.detail)
+            throw DocumentServiceError.serverError(try error.body.json.detail.sentence)
         case .unprocessableContent(let error):
-            // `ErrorDetail.detail` is a required String, so there is no optional to
-            // unwrap and no "Validation error" placeholder to fall back to. That
-            // placeholder was the thing #5089 existed to remove.
-            throw DocumentServiceError.serverError(try error.body.json.detail)
+            // `ErrorDetail.detail` is required (a sentence, or an object for the structured
+            // refusals, #5094), so there is no "Validation error" placeholder to fall back to.
+            // That placeholder was the thing #5089 existed to remove.
+            throw DocumentServiceError.serverError(try error.body.json.detail.sentence)
         case .undocumented(let statusCode, let payload):
             let detail = await Self.errorDetail(from: payload.body)
             throw DocumentServiceError.serverError(detail ?? "The engine answered \(statusCode).")

@@ -135,13 +135,11 @@ def test_real_pbxproj_has_no_version_literals_and_wires_the_xcconfig() -> None:
         )
     # The xcconfig must actually be wired in, or the app would build versionless.
     assert "Version.xcconfig" in pbx
-    # Pinned to 5, the real count after 917592673 (2026-09-09, "arm64-only,
-    # embedded test plan, prune redundant schemes/configs") removed redundant
-    # Local scheme variants and orphan project configs/targets — the old
-    # threshold of 8 predated that deliberate pruning and went stale the same
-    # day. Still exact, not `>=`: every REMAINING project-level config must
-    # carry the reference, so a config added later without one is still caught.
-    assert pbx.count("baseConfigurationReference") == 5  # all project-level configs
+    # Pinned to 6, the real count: the six project-level configs (Debug, Release,
+    # Dev/Alpha/Beta Embedded, App Store). The App Store one arrived with 2a44dbb97
+    # (#5730) and carries the reference like the rest. Pinned exact, not `>=`:
+    # a project config added later without the reference is still caught.
+    assert pbx.count("baseConfigurationReference") == 6  # all project-level configs
 
 
 def test_version_xcconfig_is_unquoted_and_complete() -> None:

@@ -20,7 +20,6 @@ from fichero_server.knowledge.paragraph import (
     ParagraphRenderResponse,
     render_paragraph_claims,
 )
-from fichero_server.knowledge.readable import render_entry
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +124,16 @@ async def get_entity_readable(
     """Read-only: the deterministic readable paragraph for one entity."""
     if db.get(KnowledgeEntity, entity_id) is None:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+
+    # Imported here, not at module load: a broken knowledge/readable.py must cost this route, not the engine's
+    # start (#4875, `engine.readable-py-import-is-a-startup-single-point-of-failure`).
+    try:
+        from fichero_server.knowledge.readable import render_entry
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"The readable paragraph is unavailable: fichero_server.knowledge.readable did not load ({exc}).",
+        ) from exc
 
     sentences = render_entry(db, entity_id)
     paragraph = " ".join(s["text"] for s in sentences)

@@ -39,6 +39,7 @@ def _finish(agent, run_id):  # noqa: F811
 
 def test_a_kraken_reading_keeps_its_certainty_is_written_once_and_the_newest_shows(  # noqa: F811
         agent, client, db, tmp_path, test_package, _engine, monkeypatch):
+    """source.read.kraken-confidence-kept: each line's certainty stays on its reading, a reading is written once."""
     from fichero_server.api.routes.document.segment_readings import document_text
     from fichero_server.workflows.default_workflows import seed_default_workflows
 

@@ -619,7 +619,7 @@ Structure
   segment with a kind.
 - `source.segment.open-kinds` — **[OK]** (#4921; pinned by `tests/unit/api/test_segments_write_actions.py::TestOnePrimitiveOpenKinds::test_region_line_word_picture_all_segments_unknown_kind_roundtrips_kind_raw_kept`) kinds come from a standard list a project can extend; a model's
   own label is kept beside the tidy kind.
-- `source.segment.levels-optional` — **[GAP]** (#4927) any level may be absent; adding word segments under a
+- `source.segment.levels-optional` — **[OK]** (#4927; pinned by `fichero-server/tests/unit/api/test_segment_levels_optional_to_spec.py::test_source_segment_levels_optional__words_added_under_a_line_change_nothing_of_the_line_or_its_region`) any level may be absent; adding word segments under a
   line changes no id, shape or reading of the line or its region.
 - `source.segment.physical-and-logical` — **[GAP]** (#4927) a segment can sit in the physical ladder and in a
   logical unit that crosses pages or documents.
@@ -989,7 +989,7 @@ Storage
   and `fichero-server/tests/unit/api/test_live_geometry_projection.py`. "One order" is load-bearing and is
   not the same order as the derived text's — see the three orderings named in
   `segment_readings.py::_segment_order_key`; a fourth would break exactly this behaviour.
-- `source.store.conversion-reports-exact-matches` — **[GAP]** (#4924) the converting action lists each reading,
+- `source.store.conversion-reports-exact-matches` — **[OK]** (#4924; pinned by `fichero-server/tests/unit/api/test_segment_conversion_action.py::TestSliceSixRepointsNothing::test_all_four_anchored_kinds_are_found_and_reported`, with `test_no_record_is_written_to_at_all` and `test_a_record_that_only_nearly_matches_is_not_reported` in the same class) the converting action lists each reading,
   mark, support and claim whose rectangle matches a converted box exactly, with the segment id
   it would take, and changes none of them. (Replaces `…conversion-repoints-exact-matches`,
   2026-09-20: there is nowhere lawful to write the id until `source.point.anchor-names-its-segment`.)

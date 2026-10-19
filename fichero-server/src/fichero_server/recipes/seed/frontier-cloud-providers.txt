@@ -1,0 +1,8 @@
+# Cloud providers whose models count as multilingual (#5718, ruled 2026-10-18): a model of one of these is never
+# refused for a language it is not listed with, so it may be offered for Correct in any language. One provider type
+# per line. This is a default the owner can change: delete a line to stop counting that provider's models as
+# multilingual (they are then refused a rewrite in a language their card does not list).
+anthropic
+google
+openai
+openrouter

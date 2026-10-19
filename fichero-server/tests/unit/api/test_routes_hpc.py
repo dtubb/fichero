@@ -5,6 +5,16 @@ dry-run Test-connection probe, and dry-run-submit a workflow run as a Slurm
 array job spec — all without a real cluster.
 """
 
+import importlib.util
+from pathlib import Path
+
+# scripts/ is not a package: load the repo's scan helper by path (see test_scan_files_skips_nested_worktrees).
+_SCAN = Path(__file__).resolve().parents[4] / "scripts" / "_scan_files.py"
+_spec = importlib.util.spec_from_file_location("_scan_files", _SCAN)
+assert _spec and _spec.loader
+scan_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(scan_files)
+
 
 def _cluster_body(**overrides):
     body = {
@@ -244,7 +254,7 @@ class TestThePrivateKeyStaysInTheEngineFolder:
         allowed = {"remote_read/ssh_prompts.py", "api/routes/ai/hpc.py"}
         users = {
             str(p.relative_to(root))
-            for p in root.rglob("*.py")
+            for p in scan_files.scan_rglob(root, "*.py")
             if any(w in p.read_text() for w in ("hpc-keys", "cluster_key_path", "store_cluster_key"))
         }
         assert users <= allowed, f"another module reaches the private keys (export, sync or backup?): {users - allowed}"

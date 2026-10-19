@@ -220,10 +220,9 @@ struct PairingCardView: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(6)
-                .background(Color(.textBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .background(.quaternary, in: RoundedRectangle(cornerRadius: 4))
                 .accessibilityLabel("Pairing link, selectable text")
-            Text("On the device: Enter Link Manually → paste this.")
+            Text("On the other device, choose Enter Link Manually and paste this.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -240,16 +239,6 @@ struct PairingCardView: View {
 
         Text("This link lets a device connect to your project — share only with people you trust.")
             .font(.caption)
-            .foregroundStyle(.secondary)
-
-        // Saves the next person an hour (#3774): the Simulator runs on the Mac's own
-        // network stack, so the Mac's loopback engine is reachable from it directly.
-        // A real iPhone is a different machine — 127.0.0.1 there means the phone
-        // itself, so it must pair to this Mac's address instead.
-        Text("iOS Simulator: it shares this Mac's network, so it can reach a local "
-             + "engine directly at https://127.0.0.1:8765. A real iPhone or iPad "
-             + "cannot — it needs this Mac's address above.")
-            .font(.caption2)
             .foregroundStyle(.secondary)
     }
 
@@ -293,22 +282,9 @@ struct PairedDevicesSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Connected Devices")
-                    .font(.headline)
-                Spacer()
-                Button(isLoading ? "Refreshing…" : "Refresh", action: onRefresh)
-                    .disabled(isLoading || !canHostRemoteAccess)
-                    .buttonStyle(.bordered)
-            }
-
             if devices.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("No devices have joined yet.")
-                    Text("Devices that scan the QR code will appear here.")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("No devices have joined yet.")
+                    .foregroundStyle(.secondary)
             } else {
                 ForEach(devices) { device in
                     HStack(alignment: .top) {
@@ -327,6 +303,8 @@ struct PairedDevicesSectionView: View {
                     }
                 }
             }
+            Button(isLoading ? "Refreshing…" : "Refresh", action: onRefresh)
+                .disabled(isLoading || !canHostRemoteAccess)
         }
         .confirmationDialog(
             pendingRevoke.map { "Remove \($0.name)?" } ?? "",
@@ -342,5 +320,37 @@ struct PairedDevicesSectionView: View {
                  : "It will no longer be able to connect. It paired \(also.map(\.name).formatted()), which will be removed too.")
         }
     }
+}
+
+#Preview("Pairing card: engine not running") {
+    PairingCardView(
+        pairingCode: nil, qrCodeImage: nil, publicURL: nil, inviteLink: nil,
+        isGeneratingPairingCode: false, blocker: .engineNotRunning, errorMessage: nil,
+        isResolving: false, onResolve: { _ in }, copiedInvite: false, onCopyInvite: {}
+    )
+    .padding()
+    .frame(width: 420)
+}
+
+#Preview("Pairing card: working") {
+    PairingCardView(
+        pairingCode: nil, qrCodeImage: nil, publicURL: nil, inviteLink: nil,
+        isGeneratingPairingCode: true, blocker: nil, errorMessage: nil,
+        isResolving: false, onResolve: { _ in }, copiedInvite: false, onCopyInvite: {}
+    )
+    .padding()
+    .frame(width: 420)
+}
+
+#Preview("Connected devices: empty") {
+    Form {
+        Section("Connected Devices") {
+            PairedDevicesSectionView(
+                devices: [], isLoading: false, canHostRemoteAccess: true, onRefresh: {}, onRevoke: { _ in }
+            )
+        }
+    }
+    .formStyle(.grouped)
+    .frame(width: 420)
 }
 #endif

@@ -19,10 +19,14 @@ under time pressure, often in files nobody re-reads. ``git status`` shows
 gone and the markers look like ordinary lines in a diff nobody scrolls
 through. A structural check costs milliseconds and never forgets to look.
 
-SCOPE: text source files under version control. Binary files, and files whose
+SCOPE: every text file under version control, whatever its name. Binary files, and files whose
 own subject matter is conflict markers (this script, and the test that proves
 it fires), are exempt -- an exemption list of two, both named explicitly,
 rather than a pattern that could quietly grow.
+
+Text is decided by the bytes, not the name: a list of suffixes once read `.pbxproj` but never `.xcfilelist`, and markers
+from the cb732e67c merge sat in `FicheroEngineEmbedInputs.xcfilelist` for a day while this passed (#5796). A file is
+read when it has no NUL byte and decodes as UTF-8 (git's own test for binary, plus a strict decode).
 """
 
 from __future__ import annotations
@@ -63,17 +67,10 @@ EXEMPT = {
     "fichero-server/tests/unit/scripts/test_check_no_conflict_markers.py",
 }
 
-# Extensions worth reading. Anything else is treated as binary and skipped;
-# a conflict marker inside a PNG is not a thing anyone can act on.
-TEXT_SUFFIXES = {
-    ".py", ".swift", ".sh", ".bash", ".zsh", ".js", ".ts", ".json", ".yaml",
-    ".yml", ".toml", ".cfg", ".ini", ".md", ".txt", ".html", ".css", ".xml",
-    ".plist", ".pbxproj", ".entitlements", ".xcconfig", ".sql", ".rst",
-}
 
 
 def tracked_text_files() -> list[Path]:
-    """Every tracked file git knows about, filtered to readable source.
+    """Every tracked file git knows about (whether it is text is decided when it is read, `_text`).
 
     Uses ``git ls-files`` rather than rglob so the scan matches what is
     actually COMMITTED -- an untracked scratch file with markers in it is not
@@ -89,22 +86,31 @@ def tracked_text_files() -> list[Path]:
     for rel in out.split("\0"):
         if not rel or rel in EXEMPT:
             continue
-        p = Path(rel)
-        if p.suffix.lower() in TEXT_SUFFIXES:
-            paths.append(p)
+        paths.append(Path(rel))
     return paths
+
+
+def _text(rel: Path) -> str | None:
+    """The file's text, or None when it is binary (a NUL byte) or not UTF-8: a conflict marker inside a PNG is not a
+    thing anyone can act on. Unreadable is not an offence -- but not proof of cleanliness either, so it does not count
+    toward the scanned population."""
+    try:
+        raw = (REPO_ROOT / rel).read_bytes()
+    except OSError:
+        return None
+    if b"\0" in raw:
+        return None
+    try:
+        return raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return None
 
 
 def offenders(files: list[Path]) -> list[tuple[str, int, str]]:
     found = []
     for rel in files:
-        full = REPO_ROOT / rel
-        try:
-            text = full.read_text(encoding="utf-8", errors="strict")
-        except (OSError, UnicodeDecodeError):
-            # Unreadable or not really text. Not an offence -- but not proof
-            # of cleanliness either, so it simply does not count toward the
-            # scanned population below.
+        text = _text(rel)
+        if text is None:
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             if line.startswith(MARKERS):
@@ -115,13 +121,7 @@ def offenders(files: list[Path]) -> list[tuple[str, int, str]]:
 def main() -> int:
     files = tracked_text_files()
 
-    readable = 0
-    for rel in files:
-        try:
-            (REPO_ROOT / rel).read_text(encoding="utf-8", errors="strict")
-            readable += 1
-        except (OSError, UnicodeDecodeError):
-            continue
+    readable = sum(1 for rel in files if _text(rel) is not None)
 
     # Floor on what was READ, not on what was found wrong. If this collapses,
     # the check is blind and must say so rather than reporting a clean tree.

@@ -204,6 +204,8 @@ class Card:
     #: a catalogue text model still to download, a cloud model): the finder gives it no rule rank, so a model the
     #: person already has keeps rank 1 (`source.recipe.local-text-models-are-cards`).
     offered_only: bool = False
+    #: A frontier cloud model counted as multilingual (#5718): not refused a rewrite for a language it does not list.
+    multilingual: bool = False
     #: Whether its model is already on this Mac (#5583): True or False for a model a person downloads before
     #: Start (an MLX model in this Mac's store), None where that does not apply (a Kraken reader the run fetches,
     #: a built-in, a cloud model). A model already here wins over one to download (`_rank_key`).
@@ -263,6 +265,9 @@ class Answers:
     #: The cloud providers with a key set here (`derived._providers_with_keys`): only their models are offered as a
     #: way to turn a step on (#5677, ruled Q3 2026-10-17). Names only, never the keys.
     cloud_keys: tuple[str, ...] = ()
+    #: The CER difference inside which two readers measured on the person's pages tie (`source.train.noise-band-per-
+    #: project`, #5692): the project's own once an evaluation measured it, else one point.
+    noise_band: float = 0.01
 
     def __post_init__(self) -> None:
         # In the order setup offers them, so the same purposes ticked in any order give the same recipe.
@@ -310,7 +315,7 @@ def _refusal(job: str, card: Card, a: Answers, material: str) -> tuple[str, str]
         return "no-model-for-script", "its card does not cover the project's script"
     if job in LANGUAGE_JOBS and card.languages is not None and not (a.languages <= card.languages):
         return "no-model-for-language", "its card does not list the project's language"
-    if job in REWRITING_JOBS and card.languages is None:
+    if job in REWRITING_JOBS and card.languages is None and not card.multilingual:
         return "no-model-for-language", "a model that does not list the language would rewrite it into one it knows"
     if material == "handwriting" and card.material and "handwriting" not in card.material:
         return "no-reader-for-material", "it is made for print or typescript, never handwriting"
@@ -345,6 +350,16 @@ _FIXES = {
     "licence-not-accepted": ["accept-licence", "choose-model"],
     "cloud-not-allowed": ["allow-cloud", "choose-model"],
     "not-enough-memory": ["choose-cloud", "choose-model"],
+}
+
+#: What each fix does when the person presses it: (the route the app calls, or "") and (why it cannot act, or ""),
+#: exactly one set (`source.onboard.every-setup-button-acts-or-says-why`, #5790; a test fails on a fix in neither).
+FIX_ACTIONS: dict[str, tuple[str, str]] = {
+    "download": ("POST /api/local-models/download/{model_type}/{model_id:path}", ""),
+    "choose-cloud": ("POST /api/recipes/project/steps/use-candidate", ""),
+    "choose-model": ("GET /api/recipes/candidates", ""),
+    "allow-cloud": ("PUT /api/recipes/project", ""),
+    "accept-licence": ("POST /api/recipes/project/steps/use-candidate", ""),
 }
 
 
@@ -471,9 +486,15 @@ def _problem(job: str, cards: list[Card], a: Answers, material: str, detail: str
     if nearest:
         sentence += " Nearest: " + "; ".join(f"{n['name']} ({n['why']})" for n in nearest) + "."
     # `kind`, not `code`: a recipe refuses any key named code (`recipe._FORBIDDEN_KEYS`), and this one is saved.
-    return {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
+    out = {"kind": code, "sentence": sentence, "fix": fixes[0], "fixes": fixes, "detail": detail,
             "nearest": nearest,
             "refused": [{"card": c.id, "why": r[1]} for c, r in sorted(refusals, key=lambda cr: cr[0].id)]}
+    if code == "licence-not-accepted":
+        # The licence "Review the licence…" opens: the nearest card refused for it, named and worded.
+        card = next((c for c, r in sorted(refusals, key=lambda cr: cr[0].id) if r[0] == code), None)
+        if card:
+            out["licence"] = {"card": card.id, "name": card.licence, "words": _licence_words(card.licence)}
+    return out
 
 
 #: Licences that are open and copyleft: said so, never "not open" (#5687).
@@ -529,14 +550,15 @@ def _material_rank(card: Card, material: str) -> int:
 
 def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
     """The fixed order (section 8, `source.recipe.script-reader-first`): a measurement on the project's pages in
-    one-point bands first; then a reader made for the project's script before a generic one; then one whose card
-    states the material, then one that states none; then the published CER in one-point bands, so a published
+    bands of the project's noise band (one point until measured) first; then a reader made for the project's
+    script before a generic one; then one whose card states the material, then one that states none; then the published CER in one-point bands, so a published
     CER only ranks cards of the same script tier and material; then a model already on this Mac before one to
     download (`source.onboard.auto.installed-model-first`, #5583), local before remote, cheaper, faster, lower
     carbon, trainable, smaller, and the card id so ties are deterministic. Without answers (the bake-off's own
     rows) every card is one tier."""
-    measured = int(card.cer_measured_here * 100) if card.cer_measured_here is not None else 100
-    band = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
+    band = a.noise_band if a is not None and a.noise_band > 0 else 0.01
+    measured = int(card.cer_measured_here / band + 1e-9) if card.cer_measured_here is not None else 1_000_000
+    published = int((card.cer_published if card.cer_published is not None else 1.0) * 100)
     return (
         measured,
         0 if made_for_script(card, a) else 1,
@@ -544,7 +566,7 @@ def _rank_key(card: Card, material: str, a: Answers | None = None) -> tuple:
         _language_rank(card, a),
         _period_rank(card, a),
         _material_rank(card, material),
-        band,
+        published,
         1 if card.installed is False else 0,
         0 if card.local else 1,
         card.cost_per_page,
@@ -704,7 +726,8 @@ def _model_words(card: Card) -> str:
     return named or card.note or card.id
 
 
-def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
+def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple[Card, ...] = ()
+                      ) -> dict[str, str] | None:
     """Why Correct is off, in one line with what turning it on would cost, or None when it stays in (#5677): it stays
     when the person asked for it (ticked it, or said yes to the question) or when a corrector is already at hand."""
     from fichero_server.recipes.discovery import size_words
@@ -728,9 +751,15 @@ def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
         cost = f"turning it on runs {_model_words(card)} at {card.runs_on.split(':', 1)[-1]}"
     # Ruled Q3 (2026-10-17): a cloud corrector whose provider has a key set here is OFFERED at Ready with its cost,
     # never turned on by itself; with no key, no cloud is named.
-    keyed = [c for c in cards if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys]
+    def keyed(among: list[Card] | tuple[Card, ...]) -> list[Card]:
+        return [c for c in among if c.runs_on.startswith("cloud:") and c.runs_on.split(":", 1)[1] in a.cloud_keys]
+
     allowed = Answers(**{**a.__dict__, "cloud_allowed": True})
-    cloud = _choose(CORRECT, keyed, allowed).card if keyed else None
+    cloud = _choose(CORRECT, keyed(cards), allowed).card if keyed(cards) else None
+    unlisted = None
+    if cloud is None and keyed(offered):  # the person's own cloud models list no languages: the cheapest, said so
+        cloud = min(keyed(offered), key=lambda c: c.cost_per_page)
+        unlisted = f"{cloud.note or cloud.id} does not list {', '.join(sorted(a.languages))}: try it on a few pages first"
     offered = None
     if cloud is not None and cloud.cost_per_page:
         pages = max(a.pages, 1)
@@ -738,7 +767,8 @@ def _correct_left_off(cards: list[Card], a: Answers) -> dict[str, str] | None:
         offered = {"card": cloud.id, "runs_on": provider, "pages": pages,
                    "cost_usd": round(cloud.cost_per_page * pages, 2)}
         cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} at about "
-                 f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}")
+                 f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}"
+                 + (f" ({unlisted})" if unlisted else ""))
     return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 
 
@@ -758,8 +788,9 @@ def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dic
     return jobs_in_order, sorted(taken_out, key=lambda t: STEP_ORDER.index(t["job"]))
 
 
-def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
-    """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. A job Start
+def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ...] = ()) -> dict[str, Any]:
+    """The recipe for these answers, as recipe.yaml data, with each step's reasons and any gaps. `offered`: cards a
+    step may be offered with at Ready but the rules never choose (the person's keyed cloud correctors, #5677). A job Start
     cannot run by itself is never a step: it is listed under `by_hand`, with why and the tool that does it by hand
     (`source.onboard.auto.every-proposed-step-runs`, #5574)."""
     from fichero_server.recipes.start import JOB_ANSWER_SETTINGS, by_hand, start_runs
@@ -789,7 +820,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
     jobs_in_order, taken_out = _take_out(jobs_in_order, a)
     left_off: list[dict[str, str]] = []
     if CORRECT in jobs_in_order:
-        off = _correct_left_off(cards, a)
+        off = _correct_left_off(cards, a, offered)
         if off is not None:  # `source.onboard.correct-off-unless-a-corrector-is-here` (#5677)
             jobs_in_order.remove(CORRECT)
             left_off.append(off)
@@ -843,6 +874,15 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+    from fichero_server.recipes.jobs import get_job
+
+    for step in steps:
+        known = get_job(step["job"])
+        step.setdefault("layer", known.layer if known else step["job"])  # `source.recipe.steps-name-layers`
+    # What the purpose (or a layer added later) turns on by itself, in step order, never written by hand.
+    brought = set(purpose_jobs(a.purposes)) | {j for layer in a.layers for j in layer_jobs(layer)}
+    automatic = [{"id": s["id"], "layer": s["layer"], "uses_cloud": bool(s.get("uses_cloud"))}
+                 for s in steps if s["job"] in brought]
     for step in steps:
         if needs.get(step["job"]):
             # Ready offers no Remove for a step a later one needs, and says which (#5627).
@@ -864,6 +904,7 @@ def assemble(a: Answers, cards: list[Card]) -> dict[str, Any]:
         "suits": {"scripts": sorted(a.scripts), "languages": sorted(a.languages), "material": list(a.materials)},
         "purposes": list(a.purposes),
         "steps": steps,
+        "automatic": automatic,
         "by_hand": left_by_hand,
         "removed": taken_out,
         "left_off": left_off,

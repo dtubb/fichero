@@ -33,3 +33,12 @@ def test_a_wrong_password_pairs_nothing(harness, monkeypatch):
 
 def test_choosing_a_person_needs_multi_user_on(harness):
     assert _pair(harness, username="alice", password="x").status_code == 422
+
+
+def test_multi_user_on_a_pairing_that_names_no_person_is_asked_who_it_is(harness, monkeypatch):
+    # S8: the Mac drawer reveals username/password on exactly this answer.
+    _multiuser_on(harness, monkeypatch)
+    refused = _pair(harness)
+    assert refused.status_code == 401
+    assert refused.json()["detail"] == "person required: this library uses Multi-user, sign in as a person"
+    assert harness.app_db.list_devices() == []

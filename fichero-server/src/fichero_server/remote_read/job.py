@@ -114,7 +114,8 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     from fichero_server.training.hf_jobs import HfJobsTarget
 
     if not request.pages_may_leave:
-        raise PagesMayNotLeave("Reading on Hugging Face sends these pages (or their IIIF addresses) there. "
+        where = "Hugging Face" if request.target == TARGET else f"the cluster {request.target}"
+        raise PagesMayNotLeave(f"Reading on {where} sends these pages (or their IIIF addresses) there. "
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
@@ -128,7 +129,7 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     detail = {"request": request.model_dump(), "step": step, "flavor": request.flavor,
               "price_per_hour_usd": target.price_per_hour(request.flavor),
               "yes": {"by": started_by, "at": _now(), "to": request.target}, "phase": "waiting"}
-    job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
+    job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=request.target, detail=json.dumps(detail),
                                  reason="Waiting to send to Hugging Face" if request.target == TARGET else "Waiting to send to the cluster",
                                  started_by=started_by)
     if request.parent_job_id:
@@ -276,9 +277,26 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     words = f"Done: {counts['landed']} of {total} shards landed, {detail['landing']['landed']} pages read"
     if counts["failed"]:
         words += f"; {counts['failed']} shards failed (re-send them)"
+    elif hasattr(target, "remove"):  # a cluster; Hugging Face keeps nothing of a finished Job
+        words += copies_left(db, target, job_id)
     detail.pop("catch_up", None)  # a request made as the run ended has nothing left to hurry
     _save(db, job_id, detail, reason=words, keep_catch_up=False)
     return counts
+
+
+def copies_left(db: Any, target: Any, job_id: str) -> str:
+    """`source.onboard.copies-may-stay-on-cluster`: the run's working copies stay for re-runs only when the project
+    said so; otherwise they leave once every shard has landed (with failed shards they wait for the re-send)."""
+    from fichero_server.recipes.answers import copies_may_stay
+    from fichero_server.recipes.project import read_project_setup
+
+    if copies_may_stay(read_project_setup(Path(db.path).parent)["answers"]):
+        return "; the working copies stay on the cluster for re-runs"
+    try:
+        target.remove(job_id)
+    except Exception as exc:  # the pages are read and home; a folder left behind is said, not a failed run
+        return f"; the working copies could not be removed from the cluster ({exc})"
+    return "; the working copies were removed from the cluster"
 
 
 def _out_of_reach_if_running_there(db: Any, job_id: str, detail: dict[str, Any], exc: Exception) -> None:
@@ -390,7 +408,17 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
                       "gpu_hours": sum(seconds) / 3600 if seconds else None},
            **{k: v for k, v in detail.items() if k in ("package", "landing", "flavor", "price_per_hour_usd", "step")}}
     out["far_state"] = far_state(out)
+    out["hf_spend"] = _hf_spend(db) if out["target"] == TARGET else None
     return out
+
+
+def _hf_spend(db: Any) -> dict[str, Any]:
+    """This month's Hugging Face spend against the project's cap, for the run's Inspector (`source.onboard.spend-cap`)."""
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.project import read_project_setup
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    return spend_this_month(db, cap=spend_cap(read_project_setup(Path(db.path).parent)["answers"]))
 
 
 def register_job_kinds() -> None:

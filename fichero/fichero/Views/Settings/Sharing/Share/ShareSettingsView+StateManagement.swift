@@ -37,9 +37,30 @@ extension ShareSettingsView {
             set: { newValue in
                 multiuserEnabled = newValue
                 guard newValue != backendMultiuser else { return }
-                Task { await applySharing() }
+                if backendService.isUsingExternalBackend {
+                    Task { await setMultiuserOnEngine(newValue) }
+                } else {
+                    Task { await applySharing() }
+                }
             }
         )
+    }
+
+    /// An engine this app did not start (so it cannot restart it with the flag) takes the switch
+    /// through the audited action; the Settings window has no project steps, so ⌘Z is the audit
+    /// row's, reachable from the CLI and MCP (#5751).
+    func setMultiuserOnEngine(_ enabled: Bool) async {
+        isApplyingChange = true
+        shareError = nil
+        defer { isApplyingChange = false }
+        do {
+            try await MultiuserSwitch.set(
+                enabled, pairing: PairingService(apiRoot: EngineConfig.host), service: nil, steps: nil)
+            await appState.checkBackendHealth()
+        } catch {
+            multiuserEnabled = backendMultiuser
+            shareError = error.localizedDescription
+        }
     }
 
     func applySharing() async {
@@ -100,9 +121,11 @@ extension ShareSettingsView {
         }
     }
 
-    func refreshDetectedTailnet() async {
+    func refreshSharingState() async {
         guard EngineConfig.engineIsLocal else { return }
-        detectedTailnetURL = try? await PairingService(apiRoot: EngineConfig.host).detectedTailnetURL()
+        let pairing = PairingService(apiRoot: EngineConfig.host)
+        sharingState = try? await pairing.sharingState()
+        detectedTailnetURL = try? await pairing.detectedTailnetURL()
     }
 
     func refreshConnectedClients() async {

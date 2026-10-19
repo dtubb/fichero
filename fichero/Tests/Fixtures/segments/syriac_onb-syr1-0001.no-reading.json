@@ -24,6 +24,7 @@
     "working": true,
     "working_basis": "human-touched",
     "drawn": true,
+    "shapeless": false,
     "rank": 0
    }
   ],
@@ -1872,6 +1873,7 @@
     "working": true,
     "working_basis": "human-touched",
     "drawn": true,
+    "shapeless": false,
     "rank": 0
    }
   ],

@@ -20,7 +20,7 @@ Everything here is pure geometry on numbers and arrays except `detect_document_o
 Apple Vision and returns None where it is unavailable, so the split degrades to the whole frame.
 """
 from __future__ import annotations
-from fichero_server.media import quartz_warm  # noqa: F401  (#5745: resolve Quartz names before threads)
+from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 from dataclasses import dataclass
 from typing import Any
@@ -134,6 +134,7 @@ def detect_document_outline(path: str) -> Outline | None:
     finds nothing it is sure of. Coordinates are in the file's own pixel frame (EXIF not applied),
     the frame `region_in_parent` is measured against."""
     try:
+        quartz_warm.warm()
         import Vision  # type: ignore[import-not-found]
         from Foundation import NSURL  # type: ignore[import-not-found]
         from Quartz import (  # type: ignore[import-not-found]

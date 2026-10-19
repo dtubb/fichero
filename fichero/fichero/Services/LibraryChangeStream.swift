@@ -50,6 +50,10 @@ struct ChangeEvent: Decodable, Sendable {
     let runId: String?
     let actor: String
     let originWindow: String?
+    /// The account that made the change and the paired Mac it came from (nil for the host's own
+    /// edit), so a window can say who edited (`sharing.names-on-edits`, #5735).
+    let person: String?
+    let device: String?
     let timestamp: String?
 
     /// `"entity"` from `"entity.updated"`.
@@ -76,6 +80,8 @@ struct ChangeEvent: Decodable, Sendable {
         case runId = "run_id"
         case actor
         case originWindow = "origin_window"
+        case person
+        case device
         case timestamp = "ts"
     }
 
@@ -94,6 +100,8 @@ struct ChangeEvent: Decodable, Sendable {
         runId = try container.decodeIfPresent(String.self, forKey: .runId)
         actor = try container.decodeIfPresent(String.self, forKey: .actor) ?? "system"
         originWindow = try container.decodeIfPresent(String.self, forKey: .originWindow)
+        person = try container.decodeIfPresent(String.self, forKey: .person)
+        device = try container.decodeIfPresent(String.self, forKey: .device)
         timestamp = try container.decodeIfPresent(String.self, forKey: .timestamp)
     }
 
@@ -128,7 +136,19 @@ struct ChangeEvent: Decodable, Sendable {
         // self-echo de-dup (route) is a no-op here; the store-level own-write
         // guard (#2478) still drops a device's echo of its own writes.
         originWindow = nil
+        person = nil
+        device = nil
         timestamp = metadata["ts"]
+    }
+}
+
+/// The host's typed "Sharing is off" event and the one sentence a guest shows for it.
+enum SharingStopped {
+    static let eventType = "sharing.stopped"
+
+    static func sentence(host: String) -> String {
+        let name = host.trimmingCharacters(in: .whitespaces)
+        return "\(name.isEmpty ? "The host" : name) stopped sharing this library."
     }
 }
 
@@ -190,6 +210,13 @@ final class LibraryChangeStream {
     /// (#2518 — no-silent-fallback). Cleared on every successful (re)connect.
     /// Observed (not `@ObservationIgnored`) so views react to it.
     private(set) var liveUpdatesUnavailable = false
+
+    /// True once the host sent the typed `sharing.stopped` event: the host turned Sharing off, so
+    /// this stream ends for good and never reconnects (`sharing.off-closes-the-guest`, #5731).
+    private(set) var sharingStopped = false
+
+    /// Called once, on the main actor, when `sharing.stopped` arrives.
+    @ObservationIgnored var onSharingStopped: (() -> Void)?
 
     /// The SSE transport. Production injects `FicheroClientChangeStreamTransport`
     /// (routing through the shared `FicheroClient` transport so the stream works
@@ -340,7 +367,7 @@ final class LibraryChangeStream {
         var backoffNanos = Self.initialBackoffNanos
         var hasConnectedBefore = false
         var consecutiveUnavailableCycles = 0
-        while !Task.isCancelled {
+        while !Task.isCancelled && !sharingStopped {
             do {
                 if hasConnectedBefore, let beforeReconnect {
                     await beforeReconnect()
@@ -430,6 +457,7 @@ final class LibraryChangeStream {
             if line.isEmpty || line.hasPrefix(":") || line.hasPrefix("event:") {
                 continue  // keepalive comment / blank / event-type line
             }
+            if sharingStopped { break }
             if line.hasPrefix("data:") {
                 let json = String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
                 if let event = decode(json) {
@@ -452,6 +480,12 @@ final class LibraryChangeStream {
     }
 
     private func route(_ event: ChangeEvent) {
+        if event.type == SharingStopped.eventType {
+            guard !sharingStopped else { return }
+            sharingStopped = true
+            onSharingStopped?()
+            return
+        }
         // Self-echo de-dup seam (spec §3.5): drop events this window initiated.
         if let origin = event.originWindow, origin == windowId { return }
         let domain = event.domain

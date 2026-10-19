@@ -58,10 +58,13 @@ extension SidebarView {
                     alwaysThereProjectItems(top)
                 }
             }
-            if !sections.projects.isEmpty {
+            if !sections.projects.isEmpty || !libraryManager.hostGoneRows.isEmpty {
                 Section {
                     ForEach(sections.projects) { libraryHeader in
                         unifiedLibrarySection(libraryHeader)
+                    }
+                    ForEach(libraryManager.hostGoneRows) { row in
+                        HostGoneRowView(row: row) { libraryManager.forgetHostGoneRow(id: row.id) }
                     }
                 } header: {
                     Text(SidebarProjectSections.projectsHeading)

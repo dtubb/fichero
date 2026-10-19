@@ -98,6 +98,33 @@ class TestFiresOnRealMarkers:
         assert lineno == 2
 
 
+class TestReadsEveryTrackedTextFile:
+    """#5796: markers from a merge sat in an `.xcfilelist` for a day while this passed, because the scan read a list
+    of suffixes and that one was not on it. Text is now decided by the bytes, whatever the file is called."""
+
+    MARKED = "$(SRCROOT)/one\n<<<<<<< HEAD\n$(SRCROOT)/two\n=======\n$(SRCROOT)/three\n>>>>>>> integration\n"
+
+    def test_a_marker_in_an_xcfilelist_is_caught(self, tmp_path, monkeypatch):
+        mod = load_checker()
+        tree = make_repo(tmp_path, {
+            "fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist": self.MARKED})
+        monkeypatch.setattr(mod, "REPO_ROOT", tree)
+        bad = mod.offenders(mod.tracked_text_files())
+        assert [(rel, lineno) for rel, lineno, _ in bad] == [
+            ("fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist", 2),
+            ("fichero/fichero.xcodeproj/xcshareddata/FicheroEngineEmbedInputs.xcfilelist", 6)]
+
+    def test_every_kind_of_project_file_is_read_and_a_binary_one_is_not(self, tmp_path, monkeypatch):
+        mod = load_checker()
+        names = ["a.xcfilelist", "project.pbxproj", "App.xcscheme", "Info.plist", "App.entitlements", "Makefile",
+                 "notes.unheard-of-suffix"]
+        tree = make_repo(tmp_path, {name: self.MARKED for name in names})
+        (tree / "picture.png").write_bytes(b"\x89PNG\0\0<<<<<<< HEAD\n")
+        subprocess.run(["git", "add", "-A"], cwd=tree, check=True)
+        monkeypatch.setattr(mod, "REPO_ROOT", tree)
+        assert sorted({rel for rel, _, _ in mod.offenders(mod.tracked_text_files())}) == sorted(names)
+
+
 class TestDoesNotCryWolf:
     def test_markdown_underlining_is_not_a_conflict(self, tmp_path, monkeypatch):
         """`=======` under a heading is ordinary Markdown, not a conflict.

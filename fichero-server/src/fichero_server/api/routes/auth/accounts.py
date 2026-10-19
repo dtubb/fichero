@@ -7,8 +7,13 @@ shared-secret-only single-user app.
 
 from __future__ import annotations
 
+import base64
+import hmac
 import logging
 import os
+import secrets
+import threading
+import time
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from functools import cache
@@ -16,15 +21,22 @@ import sys
 from typing import Literal
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from fichero_server.security import accounts
+from fichero_server.security import accounts, launch_secret
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import _new_id as new_id
-from fichero_server.models import AccountInvite, AccountUser, ActionAudit, AuthIdentityResponse, AuthIdentityUser
+from fichero_server.models import (
+    AccountInvite,
+    AccountUser,
+    ActionAudit,
+    AuthIdentityClient,
+    AuthIdentityResponse,
+    AuthIdentityUser,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -111,9 +123,31 @@ class InviteRequest(BaseModel):
     channel: Literal["qr", "messages", "email"] = "qr"
 
 
+class InviteRedeemClient(BaseModel):
+    kind: Literal["app", "device"] = "app"
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
 class InviteRedeemRequest(BaseModel):
+    """Accept an invite with a password, or with the person's public key (multiuser.invite-registers-public-key).
+
+    With a key and no password the person has no password at all: they sign in by challenge."""
+
     invite_token: str = Field(min_length=1)
-    new_password: str = Field(min_length=1)
+    new_password: str | None = Field(default=None, min_length=1)
+    public_key_pem: str | None = Field(default=None, min_length=1, max_length=2000)
+    client: InviteRedeemClient | None = None
+
+
+class RedeemedClient(BaseModel):
+    id: str
+    kind: str
+    name: str
+
+
+class InviteRedeemResponse(LoginResponse):
+    client: RedeemedClient | None = None
 
 
 class InviteResponse(BaseModel):
@@ -486,7 +520,7 @@ def me(request: Request) -> UserResponse:
 
 
 @auth_router.get("/identity", response_model=AuthIdentityResponse)
-def identity(request: Request) -> AuthIdentityResponse:
+def identity(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> AuthIdentityResponse:
     auth_kind = auth_kind_from_request(request)
     if auth_kind is None:
         raise HTTPException(status_code=401, detail="missing or invalid Authorization header")
@@ -496,6 +530,7 @@ def identity(request: Request) -> AuthIdentityResponse:
         multiuser_enabled=_use_multiuser_auth(),
         auth_kind=auth_kind,
         user=_identity_user(user),
+        client=_identity_client(request, app_db),
         is_owner_access=auth_kind == "bootstrap" or bool(getattr(user, "is_owner", False)),
     )
 
@@ -552,13 +587,17 @@ def create_invite(
     )
 
 
-@auth_router.post("/invites/redeem", response_model=LoginResponse)
+@auth_router.post("/invites/redeem", response_model=InviteRedeemResponse)
 def redeem_invite(
     body: InviteRedeemRequest,
     request: Request,
     app_db: AppDatabase = Depends(get_app_database),
-) -> LoginResponse | JSONResponse:
+) -> InviteRedeemResponse | JSONResponse:
     _multiuser_disabled()
+    if body.public_key_pem is None and body.new_password is None:
+        raise HTTPException(status_code=422, detail="a password or a public key is required")
+    if body.public_key_pem is not None and (body.client is None or not _is_p256_public_key(body.public_key_pem)):
+        raise HTTPException(status_code=422, detail="a P-256 public_key_pem needs a client")
 
     now = utc_now()
     _check_invite_rate_limit(_INVITE_REDEEM_ATTEMPTS_BY_IP, request, now)
@@ -577,7 +616,8 @@ def redeem_invite(
     if user is not None and user.active:
         raise HTTPException(status_code=409, detail="username already exists")
 
-    password_hash = accounts.hash_password(body.new_password)
+    # A key and no password: the person gets an unusable password and signs in by challenge.
+    password_hash = accounts.hash_password(body.new_password or secrets.token_urlsafe(32))
     if user is None:
         user = app_db.create_user(
             username=invite.username,
@@ -590,12 +630,19 @@ def redeem_invite(
         app_db.set_password(user.id, password_hash)
         user = app_db.set_active(user.id, True) or user
 
+    client = None
+    if body.public_key_pem is not None and body.client is not None:
+        client = app_db.create_client(
+            user_id=user.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
     raw_session_token = accounts.new_session_token()
     app_db.create_session(
         user_id=user.id,
         token_hash=accounts.hash_token(raw_session_token),
         device_label="Invite redemption",
         ttl=SESSION_TTL,
+        client_id=client.id if client else None,
     )
     app_db.consume_invite(invite.id, when=now)
     app_db.save_action_audit(
@@ -608,7 +655,11 @@ def redeem_invite(
         )
     )
     logger.warning("Invite redeemed for %s via %s", invite.username, invite.channel)
-    return LoginResponse(session_token=raw_session_token, user=_to_public_user(user))
+    return InviteRedeemResponse(
+        session_token=raw_session_token,
+        user=_to_public_user(user),
+        client=RedeemedClient(id=client.id, kind=client.kind, name=client.name) if client else None,
+    )
 
 
 @auth_router.post("/invites/{invite_id}/revoke", response_model=StatusResponse)
@@ -806,3 +857,436 @@ def delete_user(
     _audit(request, app_db, "user.delete", user_id, username=user.username)
     app_db.delete_user(user_id)
     return StatusResponse(status="ok")
+
+
+# --- Sign-in by challenge (multiuser-always-on, slice 1) -------------------------------------------------------------
+# A client proves it holds the private half of the public key registered for it. Single-process in-memory state, the
+# same invariant as the login rate limit above.
+
+CHALLENGE_TTL_SECONDS = 60
+SIGN_IN_FAILURES_PER_MINUTE = 10
+_REFUSED = HTTPException(status_code=401, detail="sign-in refused")
+MAX_OUTSTANDING_CHALLENGES = 5  # per client: a flood of challenges cannot grow memory
+_engine_id_lock = threading.Lock()
+_challenges: dict[str, tuple[str, int]] = {}  # nonce -> (client_id, expires_at, whole seconds)
+_sign_in_failures: dict[str, list[float]] = {}  # client_id -> failure times
+
+
+class ChallengeRequest(BaseModel):
+    client_id: str
+
+
+class ChallengeResponse(BaseModel):
+    nonce: str
+    expires_in: int
+    expires_at: int
+    engine_id: str
+
+
+class SignInRequest(BaseModel):
+    client_id: str
+    nonce: str
+    signature: str  # base64 of the DER ECDSA-P256-SHA256 signature (CryptoKit derRepresentation) over _sign_in_message(...)
+
+
+class SignInClient(BaseModel):
+    id: str
+    kind: str
+    name: str
+
+
+class SignInResponse(BaseModel):
+    session_token: str
+    user: UserResponse
+    client: SignInClient
+
+
+def _identity_client(request: Request, app_db: AppDatabase) -> AuthIdentityClient | None:
+    session = getattr(request.state, "session", None)
+    client = app_db.session_client(session.token_hash) if session is not None else None
+    if client is None:
+        return None
+    return AuthIdentityClient(id=client.id, kind=client.kind, name=client.name)
+
+
+def _live_client(app_db: AppDatabase, client_id: str):
+    client = app_db.get_client(client_id)
+    # A keyless client (a migrated device token) can never sign in.
+    return client if client is not None and client.revoked_at is None and client.public_key_pem else None
+
+
+def _engine_id(app_db: AppDatabase) -> str:
+    """This engine's own id, made once and kept: what a sign-in signature is bound to (review 98)."""
+    with _engine_id_lock:  # get-then-set must not race: two ids would make half the signatures fail
+        engine_id = app_db.get_setting("engine_id")
+        if not engine_id:
+            engine_id = secrets.token_urlsafe(16)
+            app_db.set_setting("engine_id", engine_id)
+    return engine_id
+
+
+def _sign_in_message(engine_id: str, client_id: str, nonce: str, expires_at: int) -> bytes:
+    """Domain-separated, so a signature for another engine, client, purpose or expiry never verifies."""
+    return "\x00".join(["fichero-sign-in-v1", engine_id, client_id, nonce, str(expires_at)]).encode()
+
+
+def _signature_is_valid(public_key_pem: str, message: bytes, signature: str) -> bool:
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    try:
+        key = serialization.load_pem_public_key(public_key_pem.encode())
+        key.verify(base64.b64decode(signature, validate=True), message, ec.ECDSA(hashes.SHA256()))
+    except (InvalidSignature, ValueError, TypeError):
+        return False
+    return True
+
+
+@auth_router.post("/challenge", response_model=ChallengeResponse)
+def challenge(body: ChallengeRequest, app_db: AppDatabase = Depends(get_app_database)) -> ChallengeResponse:
+    # An unknown and a revoked client look the same, so ids cannot be probed.
+    if _live_client(app_db, body.client_id) is None:
+        raise _REFUSED
+    now = time.time()
+    for stale in [n for n, (_, exp) in _challenges.items() if exp <= now]:
+        del _challenges[stale]
+    mine = [n for n, (cid, _) in _challenges.items() if cid == body.client_id]  # insertion order = oldest first
+    for old in mine[: max(0, len(mine) - MAX_OUTSTANDING_CHALLENGES + 1)]:
+        del _challenges[old]
+    nonce = secrets.token_urlsafe(32)
+    expires_at = int(now) + CHALLENGE_TTL_SECONDS
+    _challenges[nonce] = (body.client_id, expires_at)
+    return ChallengeResponse(
+        nonce=nonce, expires_in=CHALLENGE_TTL_SECONDS, expires_at=expires_at, engine_id=_engine_id(app_db)
+    )
+
+
+class FirstRunClient(BaseModel):
+    kind: Literal["app"] = "app"
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
+class MigrateOwnerRequest(BaseModel):
+    """The owner row already has a name; only the key and the client are new."""
+
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    client: FirstRunClient
+
+
+class FirstRunRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=120)
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+    client: FirstRunClient
+
+
+class FirstRunResponse(BaseModel):
+    user: UserResponse
+    client: SignInClient
+
+
+_first_run_lock = threading.Lock()
+
+
+def _is_p256_public_key(pem: str) -> bool:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+
+    try:
+        key = serialization.load_pem_public_key(pem.encode())
+    except (ValueError, TypeError):
+        return False
+    return isinstance(key, ec.EllipticCurvePublicKey) and key.curve.name == "secp256r1"
+
+
+def _require_local_launch(request: Request, secret: str | None, public_key_pem: str) -> None:
+    """Guards shared by first-run and migrate-owner: Unix socket only, launch secret, a P-256 key."""
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    if not launch_secret.matches(secret):
+        raise HTTPException(status_code=401, detail="refused")
+    if not _is_p256_public_key(public_key_pem):
+        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+
+
+@auth_router.post("/first-run", response_model=FirstRunResponse)
+def first_run(
+    body: FirstRunRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+    x_fichero_launch_secret: str | None = Header(default=None, alias="X-Fichero-Launch-Secret"),
+) -> FirstRunResponse:
+    """Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).
+
+    Only over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is
+    not the launch secret. The owner gets an unusable password: they sign in by their key."""
+    _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
+    with _first_run_lock:
+        if any(user.is_owner for user in app_db.list_users()):
+            raise HTTPException(status_code=409, detail="this library already has an owner")
+        if app_db.get_user_by_username("owner") is not None:
+            raise HTTPException(status_code=409, detail="the username 'owner' is already taken")
+        user = app_db.create_user(
+            username="owner",
+            display_name=body.display_name,
+            password_hash=accounts.hash_password(secrets.token_urlsafe(32)),
+            is_owner=True,
+        )
+        client = app_db.create_client(
+            user_id=user.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
+    return FirstRunResponse(user=_to_public_user(user), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
+
+
+@auth_router.post("/migrate-owner", response_model=FirstRunResponse)
+def migrate_owner(
+    body: MigrateOwnerRequest,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+    x_fichero_launch_secret: str | None = Header(default=None, alias="X-Fichero-Launch-Secret"),
+) -> FirstRunResponse:
+    """Give an existing owner row its first key, once (multiuser.migrate-owner).
+
+    Same guards as first-run. The key goes to the owner row only, never to another person."""
+    _require_local_launch(request, x_fichero_launch_secret, body.public_key_pem)
+    with _first_run_lock:
+        owners = [user for user in app_db.list_users() if user.is_owner]
+        if not owners:
+            raise HTTPException(status_code=404, detail="this library has no owner yet; use first-run")
+        if len(owners) > 1:
+            raise HTTPException(status_code=409, detail="this library has several owners; none is chosen for you")
+        owner = owners[0]
+        if app_db.user_has_key(owner.id):
+            raise HTTPException(status_code=409, detail="the owner already has a key")
+        client = app_db.create_client(
+            user_id=owner.id, kind=body.client.kind, name=body.client.name, host=body.client.host,
+            public_key_pem=body.public_key_pem,
+        )
+    return FirstRunResponse(user=_to_public_user(owner), client=SignInClient(id=client.id, kind=client.kind, name=client.name))
+
+
+# --- Local CLI/MCP clients (multiuser.first-connection-asks-the-person, slice 6a) --------------------------------
+# A local client asks over the Unix socket; the owner, signed in in the app, allows it; the client then registers
+# its OWN public key. Nothing here is on until the owner turns a switch on (default off). The transport stamps
+# `fichero.peer` ({uid, pid, exe, signer}) from the socket's peer credentials; with no peer the request is refused.
+
+REQUEST_TTL_SECONDS = 300
+MAX_PENDING_REQUESTS = 20
+MAX_PENDING_PER_PROGRAM = 3  # one program cannot fill the owner's list
+_client_requests: dict[str, dict] = {}
+_client_requests_lock = threading.Lock()
+_SWITCH_KEYS = {"mcp": "local_clients_allow_mcp", "cli": "local_clients_allow_cli"}
+
+
+class LocalClientSwitches(BaseModel):
+    mcp: bool
+    cli: bool
+
+
+class LocalClientRequestBody(BaseModel):
+    kind: Literal["cli", "mcp"]
+    name: str = Field(min_length=1, max_length=120)
+    host: str = Field(default="", max_length=120)
+
+
+class LocalClientPeer(BaseModel):
+    pid: int
+    exe: str
+    signer: str | None = None
+
+
+class LocalClientRequestResponse(BaseModel):
+    id: str
+    kind: str
+    name: str
+    host: str
+    peer: LocalClientPeer
+    state: Literal["pending", "allowed", "denied"]
+
+
+class LocalClientRequestList(BaseModel):
+    items: list[LocalClientRequestResponse]
+
+
+class LocalClientDecision(BaseModel):
+    allow: bool
+
+
+class LocalClientRegisterBody(BaseModel):
+    request_id: str = Field(min_length=1, max_length=64)
+    public_key_pem: str = Field(min_length=1, max_length=2000)
+
+
+def _signed_in_owner(request: Request):
+    """The owner signed in by a session. The bootstrap token and loopback are not the owner here."""
+    user = _current_session_user(request)
+    if user is None or not user.is_owner:
+        raise HTTPException(status_code=403, detail="owner access required")
+    return user
+
+
+def _verified_peer(request: Request) -> dict:
+    if request.scope.get("fichero.transport") != "uds":
+        raise HTTPException(status_code=403, detail="this route is local only")
+    peer = request.scope.get("fichero.peer")
+    if not peer or peer.get("uid") != os.getuid():
+        raise HTTPException(status_code=403, detail="the connecting program could not be verified")
+    return peer
+
+
+def _switch_on(app_db: AppDatabase, kind: str) -> bool:
+    return app_db.get_setting(_SWITCH_KEYS[kind]) == "1"
+
+
+def _request_view(request_id: str, entry: dict) -> LocalClientRequestResponse:
+    peer = entry["peer"]
+    return LocalClientRequestResponse(
+        id=request_id,
+        kind=entry["kind"],
+        name=entry["name"],
+        host=entry["host"],
+        peer=LocalClientPeer(pid=peer["pid"], exe=peer["exe"], signer=peer.get("signer")),
+        state=entry["state"],
+    )
+
+
+def _live_requests() -> dict[str, dict]:
+    now = time.time()
+    for stale in [rid for rid, entry in _client_requests.items() if entry["expires_at"] <= now]:
+        del _client_requests[stale]
+    return _client_requests
+
+
+@auth_router.get("/local-clients/switches", response_model=LocalClientSwitches)
+def get_local_client_switches(
+    request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientSwitches:
+    _signed_in_owner(request)
+    return LocalClientSwitches(mcp=_switch_on(app_db, "mcp"), cli=_switch_on(app_db, "cli"))
+
+
+@auth_router.put("/local-clients/switches", response_model=LocalClientSwitches)
+def put_local_client_switches(
+    body: LocalClientSwitches, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientSwitches:
+    _signed_in_owner(request)
+    _audit(request, app_db, "local_clients.switches", "local_clients", mcp=body.mcp, cli=body.cli)
+    for kind, value in (("mcp", body.mcp), ("cli", body.cli)):
+        app_db.set_setting(_SWITCH_KEYS[kind], "1" if value else "0")
+    return body
+
+
+@auth_router.post("/local-clients/request", response_model=LocalClientRequestResponse)
+def request_local_client(
+    body: LocalClientRequestBody, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientRequestResponse:
+    peer = _verified_peer(request)
+    if not _switch_on(app_db, body.kind):
+        raise HTTPException(status_code=403, detail="not allowed on this Mac")
+    from fichero_server.api import uds_peer  # lazy: ctypes stays out of app import (#5798)
+
+    shown = uds_peer.identify(peer)
+    with _client_requests_lock:
+        live = _live_requests()
+        if len(live) >= MAX_PENDING_REQUESTS or sum(
+            1 for entry in live.values() if entry["peer"]["exe"] == shown["exe"]
+        ) >= MAX_PENDING_PER_PROGRAM:
+            raise HTTPException(status_code=429, detail="too many pending requests")
+        request_id = secrets.token_urlsafe(16)
+        live[request_id] = {
+            "kind": body.kind, "name": body.name.strip(), "host": body.host.strip(), "peer": shown, "token": peer["token"],
+            "state": "pending", "user_id": None, "expires_at": time.time() + REQUEST_TTL_SECONDS,
+        }
+        return _request_view(request_id, live[request_id])
+
+
+@auth_router.get("/local-clients/requests", response_model=LocalClientRequestList)
+def list_local_client_requests(request: Request) -> LocalClientRequestList:
+    _signed_in_owner(request)
+    with _client_requests_lock:
+        return LocalClientRequestList(items=[_request_view(rid, e) for rid, e in _live_requests().items()])
+
+
+@auth_router.post("/local-clients/requests/{request_id}/decision", response_model=LocalClientRequestResponse)
+def decide_local_client_request(
+    request_id: str, body: LocalClientDecision, request: Request, app_db: AppDatabase = Depends(get_app_database)
+) -> LocalClientRequestResponse:
+    owner = _signed_in_owner(request)
+    with _client_requests_lock:
+        entry = _live_requests().get(request_id)
+        if entry is None or entry["state"] != "pending":
+            raise HTTPException(status_code=404, detail="no such pending request")
+        _audit(request, app_db, "local_clients.decide", request_id, allow=body.allow, kind=entry["kind"])
+        entry["state"] = "allowed" if body.allow else "denied"
+        entry["user_id"] = owner.id
+        return _request_view(request_id, entry)
+
+
+@auth_router.post("/local-clients/register", response_model=SignInClient)
+def register_local_client(
+    body: LocalClientRegisterBody,
+    request: Request,
+    app_db: AppDatabase = Depends(get_app_database),
+) -> SignInClient:
+    """The allowed client registers its own public key, once, from the same program that asked. No secret crosses."""
+    peer = _verified_peer(request)
+    if not _is_p256_public_key(body.public_key_pem):
+        raise HTTPException(status_code=422, detail="public_key_pem must be a P-256 public key")
+    with _client_requests_lock:
+        request_id = body.request_id
+        entry = _live_requests().get(request_id)
+        # The audit token carries the pid version: the same program that asked, not a process that reused its pid.
+        if entry is None or not hmac.compare_digest(entry["token"], peer["token"]):
+            raise HTTPException(status_code=404, detail="no such request")
+        if entry["state"] == "pending":
+            raise HTTPException(status_code=409, detail="not allowed yet")
+        if entry["state"] == "denied" or not _switch_on(app_db, entry["kind"]):
+            raise HTTPException(status_code=403, detail="not allowed on this Mac")
+        client = app_db.create_client(
+            user_id=entry["user_id"], kind=entry["kind"], name=entry["name"], host=entry["host"],
+            public_key_pem=body.public_key_pem,
+        )
+        del _client_requests[request_id]
+    return SignInClient(id=client.id, kind=client.kind, name=client.name)
+
+
+@auth_router.post("/sign-in", response_model=SignInResponse)
+def sign_in(body: SignInRequest, app_db: AppDatabase = Depends(get_app_database)) -> SignInResponse:
+    now = time.time()
+    recent = [t for t in _sign_in_failures.get(body.client_id, []) if now - t < 60]
+    if len(recent) >= SIGN_IN_FAILURES_PER_MINUTE:
+        raise HTTPException(status_code=429, detail="too many failed sign-ins", headers={"Retry-After": "60"})
+    # Single use: the nonce is spent whether or not the signature is good.
+    issued = _challenges.pop(body.nonce, None)
+    client = _live_client(app_db, body.client_id)
+    ok = (
+        issued is not None
+        and issued[0] == body.client_id
+        and issued[1] > now
+        and client is not None
+        and _signature_is_valid(
+            client.public_key_pem,
+            _sign_in_message(_engine_id(app_db), body.client_id, body.nonce, issued[1]),
+            body.signature,
+        )
+    )
+    if not ok:
+        # Only a live client is counted: sign-in is reachable over TCP and unknown ids must not grow this dict.
+        if client is not None:
+            _sign_in_failures[body.client_id] = [*recent, now]
+        raise _REFUSED
+    user = app_db.get_user(client.user_id)
+    if user is None or not user.active:
+        raise _REFUSED
+    raw_token = accounts.new_session_token()
+    token_hash = accounts.hash_token(raw_token)
+    app_db.create_session(
+        user_id=user.id, token_hash=token_hash, device_label=client.name, ttl=SESSION_TTL, client_id=client.id
+    )
+    return SignInResponse(
+        session_token=raw_token,
+        user=_to_public_user(user),
+        client=SignInClient(id=client.id, kind=client.kind, name=client.name),
+    )

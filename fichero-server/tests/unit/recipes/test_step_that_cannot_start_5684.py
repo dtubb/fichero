@@ -9,6 +9,8 @@ and the real runner; the steps' workflows are stubbed, one of them raising as th
 """
 from __future__ import annotations
 
+import pytest
+
 from tests.unit.recipes.test_recipe_runs_to_spec import (  # noqa: F401  (fixtures)
     RECIPE, _finished, _save, _start, pages, steps,
 )
@@ -43,6 +45,7 @@ def test_a_step_that_cannot_start_fails_alone_in_one_plain_line(client, db, page
 
 
 def test_kraken_that_cannot_load_its_libraries_is_not_available(client, monkeypatch):
+    pytest.importorskip("kraken")  # without Kraken at all, the status says it is not bundled, before any library
     from fichero_server.llm import kraken_runtime
 
     kraken_runtime._libraries_load.cache_clear()

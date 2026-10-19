@@ -112,7 +112,7 @@ class TestAWorkflowsKrakenPageIsAJob:
                             lambda image_path, rendition_id=None: _geometry(""))
         ran_beside = []
 
-        async def fake_read_lines(image_path, geometry, config, language=None):
+        async def fake_read_lines(image_path, geometry, config, language=None, **_):
             ran_beside.append(await asyncio.wait_for(jobs.run_on_lane(
                 library, "find-lines", "other-page", model="kraken:blla", fn=lambda: "other page"), 10))
             return _geometry("read by a model")

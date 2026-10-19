@@ -1642,6 +1642,23 @@ class Device(BaseModel):
     revoked: bool = False
 
 
+class AccountClient(BaseModel):
+    """One client acting for a person (multiuser-always-on, slice 1): a device, the app, the CLI or an MCP client.
+
+    It holds the client's PUBLIC key; the private half never reaches the engine."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(default_factory=_new_id)
+    user_id: str
+    kind: str
+    name: str
+    host: str = ""
+    public_key_pem: str
+    created_at: datetime = Field(default_factory=utc_now)
+    revoked_at: datetime | None = None
+
+
 class LibraryRole(BaseModel):
     """Per-user role for one library, stored in the global app database."""
 
@@ -2116,6 +2133,14 @@ class KnowledgeRowCountsResponse(BaseModel):
     patterns: int
 
 
+class AuthIdentityClient(BaseModel):
+    """The client a session was signed in through (multiuser-always-on)."""
+
+    id: str
+    kind: str
+    name: str
+
+
 class AuthIdentityUser(BaseModel):
     """Authenticated account identity, when the credential resolves to a user."""
 
@@ -2131,6 +2156,7 @@ class AuthIdentityResponse(BaseModel):
     multiuser_enabled: bool
     auth_kind: str
     user: AuthIdentityUser | None = None
+    client: AuthIdentityClient | None = None
     is_owner_access: bool
 
 
@@ -2880,6 +2906,8 @@ class ActionAudit(BaseModel):
 # =============================================================================
 
 __all__ = [
+    "AuthIdentityClient",
+    "AccountClient",
     # Enums
     "DocType",
     "FileType",

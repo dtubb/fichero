@@ -471,6 +471,9 @@ This spec proposes (not yet added — **[PROPOSED]**, neither exists):
    `ChatView`'s `@State`) is the prerequisite. Not yet designed — this spec owns the
    question, not the answer.
 
+- `research.notes-are-child-nodes` — **[GAP]** (#2081, #2591; open question 4) research notes and checklists become a child-node kind under the workspace folder once the node-model EPIC lands. Today they stay rows in `ResearchNote`/`ResearchChecklist` reachable only through the Plan tab. Not urgent.
+- `research.workspace-many-chats` — **[GAP]** (#4705; open question 7) one workspace holds several chats, each scoped to part of the project, with the chat as a node and scope in its own Sources tab. Blocked on increment 6 (one mount per conversation). Not designed yet.
+
 ## Sources folded in
 
 Design content carried into this spec; files kept, listed here per program instruction

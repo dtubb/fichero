@@ -12,6 +12,7 @@ If this test is ever failing, do not relax it: the banner is undercounting again
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 
 # Loaded by PATH, not `from conftest import`: in a run that also collects
@@ -59,8 +60,10 @@ class TestEveryIssueNumberIsFound:
 
 
 class TestTheRealFileAgrees:
-    def test_the_shipped_file_names_5121(self):
-        """End-to-end on the real file: the four App Store tests are held against #5121, so
-        the banner must say so or the debt is hidden again."""
+    def test_the_shipped_file_names_every_section_it_holds(self):
+        """End-to-end on the real file: every `# ---- #NNNN ----` header must reach the banner,
+        or the debt is hidden again. Was pinned to #5121 until 2a44dbb97 (#5730) made the four
+        App Store tests pass and removed their section, so the literal went stale."""
         real = (_CONFTEST.parent / "known_specification_failures.txt").read_text()
-        assert "#5121" in spec_failure_issues(real)
+        headers = {f"#{n}" for n in re.findall(r"^# ---- #(\d+)", real, re.M)}
+        assert headers and headers <= set(spec_failure_issues(real))

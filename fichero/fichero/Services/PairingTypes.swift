@@ -111,7 +111,7 @@ struct PairedDeviceRecord: Codable, Identifiable {
 
 @MainActor
 final class PairingService {
-    private let client: FicheroClient
+    let client: FicheroClient
 
     /// Uses the transport the app resolved at launch, like every other service.
     ///
@@ -136,6 +136,20 @@ final class PairingService {
         case .ok(let okResponse):
             let record = try okResponse.body.json
             return PairingCodeRecord(code: record.code, expiresAt: record.expiresAt)
+        case .undocumented(let statusCode, _):
+            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        }
+    }
+
+    /// Sharing state from the engine: the detected `.ts.net` address and, when the engine cannot
+    /// make the tailnet forward itself (sandbox), the one command to paste (#5318, #5317).
+    func sharingState() async throws -> SharingStateRecord {
+        let response = try await client.api.sharingStateApiPairSharingGet(.init())
+        switch response {
+        case .ok(let okResponse):
+            let body = try okResponse.body.json
+            return SharingStateRecord(tailnetURL: body.tailnetUrl, tailnetServeCommand: body.tailnetServeCommand,
+                                      auditId: body.auditId)
         case .undocumented(let statusCode, _):
             throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
         }
@@ -209,11 +223,15 @@ final class PairingService {
         }
     }
 
-    func pairDeviceUnauthenticated(code: String, deviceName: String) async throws -> PairingExchangeResponse {
+    func pairDeviceUnauthenticated(
+        code: String, deviceName: String, person: PairingPerson? = nil
+    ) async throws -> PairingExchangeResponse {
         // `/api/pair` is accepted unauthenticated by the engine; the
         // AuthTokenMiddleware skips auth for this path so a local bootstrap
         // token is never forwarded to a remote host during pairing.
-        let request = Components.Schemas.PairRequest(code: code, deviceName: deviceName)
+        let request = Components.Schemas.PairRequest(
+            code: code, deviceName: deviceName, username: person?.username, password: person?.password
+        )
         let response = try await client.api.pairDeviceApiPairPost(.init(body: .json(request)))
         switch response {
         case .ok(let okResponse):
@@ -226,8 +244,12 @@ final class PairingService {
         case .unprocessableContent(let error):
             let detail = try? error.body.json
             throw APIError.httpError(statusCode: 422, message: detail?.detail?.description ?? "Validation error")
-        case .undocumented(let statusCode, _):
-            throw APIError.httpError(statusCode: statusCode, message: "Unexpected response")
+        case .undocumented(let statusCode, let payload):
+            let detail = await EngineErrorDetail.message(from: payload)
+            if PairingPerson.isRequiredRefusal(status: statusCode, detail: detail) {
+                throw RemoteClientPairingError.personRequired
+            }
+            throw APIError.httpError(statusCode: statusCode, message: detail ?? "Unexpected response")
         }
     }
 
@@ -292,4 +314,10 @@ struct ConnectedClientRecord: Identifiable, Equatable {
     let lastSeen: String
     let requests: Int
     let transport: String
+}
+
+struct SharingStateRecord: Equatable {
+    let tailnetURL: String?
+    let tailnetServeCommand: String?
+    let auditId: String?
 }

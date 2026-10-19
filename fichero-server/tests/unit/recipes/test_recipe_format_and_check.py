@@ -26,9 +26,13 @@ def test_the_shipped_flagship_passes_its_own_check():
 
 
 def test_a_newer_schema_is_refused_not_guessed_at():
+    """`source.recipe.schema-versioned`: the version is named; a recipe that names none is refused too, and one at
+    the version this Fichero reads keeps working (the flagship above)."""
     r = _flagship()
     r["fichero_recipe"] = 99
     assert check_recipe(r) == ["this recipe uses schema 99; this Fichero reads up to 1. Update Fichero to use it"]
+    del r["fichero_recipe"]
+    assert check_recipe(r) == ["recipe.yaml does not say which recipe schema it uses (fichero_recipe)"]
 
 
 def test_code_and_keys_anywhere_are_refused_by_name():

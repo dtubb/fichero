@@ -80,18 +80,18 @@ struct SetupWhereItLivesFields: View {
     }
 }
 
-/// How sources come in (ruled 2026-10-03 and 2026-10-05, `source.onboard.five-ways-in`): Link,
-/// Copy, Move, Index or Keep arranged, each with what it does to the originals. Copy is the
-/// default; Move says plainly that the originals go. Keep arranged (#5480) imports as Index and,
-/// after its dry run and the person's yes, keeps the folder arranged.
+/// How sources come in (ruled 2026-10-18, `source.onboard.five-ways-in`): Copy, Leave in place or
+/// Move, each with what it does to the originals. Copy is the default; Move says plainly that the
+/// originals go. Index and Keep arranged (#5480) are set on a synced folder in the Inspector.
 struct ProjectIntakeChoice: View {
     @Bindable var store: RecipeSetupStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("How do your sources come in?").font(.headline)
-            Picker("How do your sources come in?", selection: $store.wayIn) {
-                ForEach(SetupWayIn.allCases) { way in
+            Picker("How do your sources come in?", selection: Binding(
+                get: { store.wayIn.shownInSetup }, set: { store.wayIn = $0 })) {
+                ForEach(SetupWayIn.setupChoices) { way in
                     option(way.title, way.sentence).tag(way)
                 }
             }
@@ -191,7 +191,7 @@ struct RecipeMaterialSourceFields: View {
 }
 
 /// Step 2, "Your material", its second half, what it is (#5479, #5478): languages and scripts, each found by typing and
-/// shown as tokens; one direction per script, pre-filled from it; the kinds of material.
+/// shown as tokens (direction follows from the script, never asked, ruled 2026-10-18); the kinds of material.
 struct RecipeAboutFields: View {
     @Bindable var store: RecipeSetupStore
 
@@ -216,12 +216,6 @@ struct RecipeAboutFields: View {
             }
             ForEach(store.scripts, id: \.self) { code in
                 VStack(alignment: .leading, spacing: 2) {
-                    Picker("Direction of \(store.name(of: code))", selection: Binding(
-                        get: { store.direction(of: code) },
-                        set: { store.directions[code] = $0 }
-                    )) {
-                        ForEach(RecipeSetupStore.directionChoices, id: \.id) { Text($0.title).tag($0.id) }
-                    }
                     if let facts = store.derivedScripts[code] {
                         DerivedScriptRow(facts: facts)
                     }
@@ -257,7 +251,7 @@ struct RecipeAboutFields: View {
     }
 }
 
-/// What the engine worked out for one script, shown under its direction
+/// What the engine worked out for one script, shown under its token
 /// (`source.onboard.derives-not-asks`): a bundled font, and, for a script that may be written
 /// vertically, the one thing only the pages can settle.
 private struct DerivedScriptRow: View {

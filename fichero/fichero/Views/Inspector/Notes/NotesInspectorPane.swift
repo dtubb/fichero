@@ -19,6 +19,10 @@ struct NotesInspectorPane: View {
     @State private var staleSave: (noteId: String, body: String)?
     /// Why the last Keep mine did not save; shown in the dialog that comes back with the text still held.
     @State private var staleRetryError: String?
+    /// Both texts shown side by side while the person decides (#5348); the dialog returns when it closes.
+    @State private var comparing: NoteStaleComparison?
+    /// The save under comparison, held apart from `staleSave` so the dialog and the sheet never show together.
+    @State private var comparePending: (noteId: String, body: String)?
     /// A plain sentence above the list, e.g. the note was deleted elsewhere and the text was copied.
     @State private var notice: String?
 
@@ -106,11 +110,37 @@ struct NotesInspectorPane: View {
             isPresented: Binding(get: { staleSave != nil }, set: { if !$0 { staleSave = nil } }),
             titleVisibility: .visible
         ) {
-            Button("Keep mine") { Task { await resolveStale(keepMine: true) } }
-            Button("Take theirs") { Task { await resolveStale(keepMine: false) } }
+            // The dialog clears `staleSave` as it closes, so each button hands the text over now.
+            Button("Keep mine") { if let held = staleSave { Task { await resolveStale(pending: held, keepMine: true) } } }
+            Button("Take theirs") { if let held = staleSave { Task { await resolveStale(pending: held, keepMine: false) } } }
+            Button("Compare") { if let held = staleSave { Task { await compareStale(held) } } }
             Button("Cancel", role: .cancel) { staleSave = nil }
         } message: {
-            Text(staleRetryError ?? "Nothing was saved. Keep your text over theirs, or take theirs (your text is copied to the clipboard).")
+            Text(staleRetryError
+                ?? "Nothing was saved. Keep your text, compare the two, or take theirs (your text is copied to the clipboard).")
+        }
+        .sheet(item: $comparing, onDismiss: {
+            // Closed without choosing: the text comes back in the dialog, never lost.
+            if let held = comparePending { staleSave = held }
+            comparePending = nil
+        }, content: { comparison in
+            NoteStaleCompareView(comparison: comparison) { keepMine in
+                guard let held = comparePending else { return }
+                comparePending = nil
+                comparing = nil
+                Task { await resolveStale(pending: held, keepMine: keepMine) }
+            }
+        })
+    }
+
+    private func compareStale(_ pending: (noteId: String, body: String)) async {
+        await noteStore.reload()
+        let theirs = noteStore.notes.first(where: { $0.id == pending.noteId })?.body ?? nil
+        comparing = NoteStaleResolution.comparison(mine: pending.body, theirs: theirs)
+        if comparing == nil {
+            notice = "This note was deleted on another Mac."
+        } else {
+            comparePending = pending
         }
     }
 
@@ -152,8 +182,7 @@ struct NotesInspectorPane: View {
     /// Keep mine: read the current version, then save my text against it. A retry that fails never drops
     /// the text: stale again or any other error brings the dialog back with it. Take theirs: read theirs,
     /// after copying the dropped text to the clipboard so it is not lost.
-    private func resolveStale(keepMine: Bool) async {
-        guard let pending = staleSave else { return }
+    private func resolveStale(pending: (noteId: String, body: String), keepMine: Bool) async {
         staleSave = nil
         staleRetryError = nil
         await noteStore.reload()

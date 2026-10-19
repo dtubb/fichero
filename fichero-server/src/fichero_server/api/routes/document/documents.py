@@ -77,6 +77,7 @@ def _emit_document_change_ctx(
         actor=ctx.actor,
         origin_window=ctx.origin_window,
         origin_user=ctx.actor,
+        device=(ctx.device or {}).get("name"),
     )
 
 
@@ -2933,10 +2934,6 @@ def update_document_impl(
         from fichero_server.actions.page_text_cache import queue_reembed
 
         queue_reembed(db, [doc_id])
-        # Names and claims follow the edited text too, as a queued job of their own (#5361).
-        from fichero_server.actions.page_text_cache import queue_reread_names
-
-        queue_reread_names(db, [doc_id])
 
     return doc, before, list(update_data.keys())
 
@@ -3372,7 +3369,6 @@ def restore_documents_impl(
 #   * document.batch_exclude   -> document.restore (before snapshots)
 #   * document.delete          -> document.restore (doc + artifact snapshots)
 
-from fichero_server.actions.registry import action  # noqa: E402
 
 
 class DocumentUpdateActionParams(BaseModel):

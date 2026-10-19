@@ -54,7 +54,7 @@ import weakref
 from concurrent.futures import Future
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -683,6 +683,18 @@ def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "autom
     return job_id
 
 
+#: The kinds whose row watches a Job elsewhere (Hugging Face or a cluster, its id the row's `target`).
+FAR_SIDE_KINDS = ("train-a-model", "read-at-scale")
+
+
+def details_of_kinds(db: "Database", kinds: tuple[str, ...] | list[str]) -> list[tuple[datetime, dict[str, Any]]]:
+    """Every row of these kinds as (created_at in UTC, its detail), oldest first."""
+    _ensure(db)
+    rows = db.execute_fetchall(f"SELECT created_at, detail FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+                               "ORDER BY created_at", list(kinds))
+    return [(ensure_utc(at), json.loads(raw or "{}")) for at, raw in rows]
+
+
 def enqueue_remote(db: "Database", kind: str, subject: str, *, target: str, detail: str,
                    reason: str, started_by: str) -> str:
     """Queue one job sent to another place, with where it runs and its detail (JSON) written in the
@@ -746,6 +758,13 @@ def job_id_for(db: "Database", kind: str, subject: str) -> str | None:
     """The newest job of this kind on this subject."""
     row = db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? ORDER BY created_at DESC LIMIT 1",
                               [kind, subject])
+    return row[0] if row else None
+
+
+def newest_job_id_of_kinds(db: "Database", kinds: tuple[str, ...]) -> str | None:
+    """The newest job of any of these kinds, on any subject."""
+    row = db.execute_fetchone(f"SELECT id FROM jobs WHERE kind IN ({', '.join('?' for _ in kinds)}) "
+                              "ORDER BY created_at DESC LIMIT 1", list(kinds))
     return row[0] if row else None
 
 
@@ -1119,13 +1138,14 @@ def resume(db: "Database") -> None:
         f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)})",
         [utc_now(), *attached],
     )
-    # A job watching a Job on Hugging Face is never set aside for being interrupted: the Job runs (and
-    # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449).
+    # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
+    # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
     now = utc_now()
     for job_id, attempts, started_at in db.execute_fetchall(
         "SELECT id, attempts, started_at FROM jobs "
-        "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs'",
-        [MAX_ATTEMPTS],
+        "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs' "
+        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)})",
+        [MAX_ATTEMPTS, *FAR_SIDE_KINDS],
     ):
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
@@ -1535,20 +1555,20 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
     rows = db.execute_fetchall(
-        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at FROM ("
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
         " AND cleared_at IS NULL ORDER BY finished_at DESC LIMIT ?)"
         ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
-        "CASE WHEN state = 'failed' THEN -epoch_ms(created_at) ELSE epoch_ms(created_at) END",  # finished: newest first
+        "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
     )
     out: list[dict[str, Any]] = []
     waiting: dict[tuple[str, str], dict[str, Any]] = {}
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
-    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at in rows:
+    for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by in rows:
         # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
         # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
         group = (state, kind) if state in ("waiting", "paused") else None
@@ -1560,6 +1580,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
                "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id,
+               "started_by": started_by,
                # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
                "failed_at": finished_at if state == "failed" else None}
         if group is not None:

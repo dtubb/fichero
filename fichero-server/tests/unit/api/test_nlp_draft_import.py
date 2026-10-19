@@ -332,7 +332,11 @@ class TestNoSilentLanguageFallback:
 
         from fichero_server.knowledge import spacy_ner
 
+        from fichero_server.llm.local_models import clear_spacy_pipelines
+
+        # Two caches hold a loaded pipeline: spacy_ner's, and the one NER and SVO share (#5370).
         spacy_ner._pipelines.clear()
+        clear_spacy_pipelines()
         loaded: list[str] = []
         installed: set[str] = set()
 
@@ -356,6 +360,7 @@ class TestNoSilentLanguageFallback:
         monkeypatch.setitem(sys.modules, "spacy.util", util)
         yield installed, loaded
         spacy_ner._pipelines.clear()
+        clear_spacy_pipelines()
 
     def test_unsupported_known_language_declines_and_never_loads_english(
         self, db, test_package, fake_spacy

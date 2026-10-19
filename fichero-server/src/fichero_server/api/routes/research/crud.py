@@ -798,6 +798,7 @@ def _research_spec(
             actor=ctx.actor,
             origin_window=ctx.origin_window,
             origin_user=ctx.actor,
+            device=(ctx.device or {}).get("name"),
         )
         if mirrors_document:
             emit_change(
@@ -807,6 +808,7 @@ def _research_spec(
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,
                 origin_user=ctx.actor,
+                device=(ctx.device or {}).get("name"),
             )
 
     return ChangeSpec(

@@ -152,6 +152,22 @@ def test_the_tie_writes_onto_the_pages_lines_and_never_makes_a_second_pass(clien
     assert len(db.query(Segment)) == segments_before
 
 
+def test_the_tie_adds_readings_and_never_overwrites_one(client, db, page, reader):
+    """source.align.new-reading-never-overwrites: the alignment lands as a NEW reading on each line; every reading
+    the lines already had is still there, unchanged.
+    WHY: overwriting would lose the page reader's own words and any person's reading with them."""
+    def snapshot():
+        return {r.id: (r.segment_id, r.content) for r in db.query(ContentRepresentation, document_id=page["doc"].id)
+                if r.segment_id}
+
+    before = snapshot()
+    assert before, "the Kraken lines carry readings before the tie"
+    _run(client, db, page)
+    after = snapshot()
+    assert all(after.get(rid) == kept for rid, kept in before.items()), "an earlier reading was changed or removed"
+    assert len(after) > len(before), "the tie wrote new readings beside them"
+
+
 def test_a_doubtful_line_is_flagged_and_leaves_the_training_set(client, db, page, reader):
     """source.job.tie-text-to-lines (ruled 2026-10-04): "a line whose alignment is doubtful is flagged for
     review and counted, and stays out of the training set until a person checks it".

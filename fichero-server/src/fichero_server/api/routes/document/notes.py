@@ -127,6 +127,7 @@ def _emit_note_change_ctx(
         actor=ctx.actor,
         origin_window=ctx.origin_window,
         origin_user=ctx.actor,
+        device=(ctx.device or {}).get("name"),
     )
 
 

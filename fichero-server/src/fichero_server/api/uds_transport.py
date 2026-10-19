@@ -40,3 +40,11 @@ class UDSTransportApp:
 # Module-level ASGI callable for the string-import launch path
 # (`uvicorn fichero_server.api.uds_transport:app --uds <path>`).
 app = UDSTransportApp(_app)
+
+# The per-launch secret that authorises first-run arrives with the process (stdin pipe, or the Debug dev file).
+import os as _os  # noqa: E402
+import sys as _sys  # noqa: E402
+
+from fichero_server.security import launch_secret as _launch_secret  # noqa: E402
+
+_launch_secret.load_at_startup(_os.environ, _sys.stdin)

@@ -114,6 +114,8 @@ extension RecipeStepsView {
         case problem(String)
         /// The problem's fix, as a button (setup).
         case fix(title: String, fix: String)
+        /// One run per ticked reading level, named (`source.recipe.into-what-is-a-multi-select`).
+        case runs(String)
         /// The rules' own reason, model ids included (the Inspector only).
         case detail(String)
         /// Whether the step's model fits this Mac, with the engine's reason (#5641).
@@ -133,8 +135,15 @@ extension RecipeStepsView {
         } else if let place = RecipeStepRow.whereItRuns(step) {
             lines.append(.place(place, cloud: step.usesCloud == true))
         }
+        // The engine names the Normalise step's runs (`run_titles`, #5795); the app keeps no list of its own.
+        if let runs = runsLine(step.runTitles ?? []) { lines.append(.runs(runs)) }
         if let fit { lines.append(.fit(fit)) }
         return lines
+    }
+
+    /// "2 runs: As written · Modernised" when a step writes more than one reading; nil for one.
+    static func runsLine(_ titles: [String]) -> String? {
+        titles.count > 1 ? "\(titles.count) runs: " + titles.joined(separator: " · ") : nil
     }
 }
 
@@ -176,6 +185,8 @@ struct RecipeStepRow: View {
         case .fix(let title, let fix):
             Button(title) { onFix?(fix) }
                 .controlSize(.small)
+        case .runs(let text):
+            Text(text).font(.callout).foregroundStyle(.secondary)
         case .detail(let text):
             // The rules' own reason, model ids included, belongs here and in the log only.
             Text(text).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)

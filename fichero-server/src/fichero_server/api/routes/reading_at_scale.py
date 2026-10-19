@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+from fichero_server.api.routes.system.recipes import HfSpend
 from fichero_server.db import Database
 from fichero_server.models.compute_requests import ReadAtScaleRequest
 
@@ -65,6 +66,8 @@ class ReadingJobStatus(BaseModel):
     shards: list[dict[str, Any]] = []
     estimate: dict[str, Any] | None = None
     actual: dict[str, Any] | None = None
+    # This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`); null for a cluster run.
+    hf_spend: HfSpend | None = None
 
 
 class ReadingJobParams(BaseModel):

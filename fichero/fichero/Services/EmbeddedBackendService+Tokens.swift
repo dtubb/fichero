@@ -59,6 +59,15 @@ extension EmbeddedBackendService {
             .replacingOccurrences(of: "=", with: "")
     }
 
+    /// The per-launch secret that authorises first-run: 32 random bytes as 64 hex characters, the shape the
+    /// engine's `launch_secret` accepts. It leaves the app only over the engine's stdin pipe (#5797).
+    static func generateLaunchSecret() -> String {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        precondition(status == errSecSuccess, "SecRandomCopyBytes failed (OSStatus \(status))")
+        return bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
     /// Write the bootstrap token to `url` with 0600 perms (owner-only), matching
     /// the engine's write. The app is authoritative for the token it minted.
     static func writeBootstrapTokenFile(_ token: String, at url: URL) {

@@ -632,7 +632,9 @@ def _await_downloads(db: Any, job_id: str, detail: dict[str, Any], card: dict[st
                 entry["landed"] = True
                 break
             if row["state"] in ("failed", "cancelled"):
-                return f"its model {entry['name']} did not download: {row['reason'] or row['state']}"
+                # `source.recipe.download-failure-waits`: the other steps run; this one says so and how to go on.
+                return (f"Model download failed: {entry['name']} did not download ({row['reason'] or row['state']}). "
+                        "Retry it in Activity, or choose the step's next candidate in Set Up")
             if not said:
                 jobs.save_detail(db, job_id, json.dumps(detail),
                                  reason=f"Waiting for {entry['name']} to download for step {', '.join(card['steps'])}")
