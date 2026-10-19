@@ -1244,7 +1244,7 @@ def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, m
 
 def settle_made_thumbnails(db: "Database") -> int:
     """End every thumbnail job (a `first` kind) waiting or set aside whose thumbnail file already exists: `done`,
-    "Its thumbnail was already made". Returns how many (#5845)."""
+    with no reason (a done job says nothing; its thumbnail is the proof). Returns how many (#5845)."""
     from fichero_server.db.storage import has_thumbnail
 
     if not any(kind.first for kind in KINDS.values()):
@@ -1291,9 +1291,6 @@ def resume(db: "Database") -> None:
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
                    [now, set_aside_reason(attempts, started_at, now), job_id])
-    # A page whose thumbnail is already there needs no job: one left queued, or set aside after its kills, would
-    # hold the heavy work queued after it for good (#5845).
-    settle_made_thumbnails(db)
     # A job a person stopped that was still winding down when the engine went away is not taken up again
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
@@ -1304,6 +1301,10 @@ def resume(db: "Database") -> None:
     db.execute(
         f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} WHERE state = 'running'"
     )
+    # A page whose thumbnail is already there needs no job: one left queued, interrupted just now, or set aside after
+    # its kills, would hold the heavy work queued after it for good (#5845). After the reset above, so a thumbnail job
+    # that was running when the engine stopped is settled too.
+    settle_made_thumbnails(db)
     if db.execute_fetchone("SELECT 1 FROM jobs WHERE state = 'waiting' LIMIT 1"):
         _scheduler.wake(_key(db))
 
