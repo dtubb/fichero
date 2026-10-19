@@ -801,6 +801,12 @@ class _PageGate:
         with self._cond:
             return self._whole or self._active > 0
 
+    def held_beside(self, queued: int) -> bool:
+        """Held whole, or by more pages than the `queued` ones the job queue itself is running (the model lane's own
+        pages must not read as a page outside the queue)."""
+        with self._cond:
+            return self._whole or self._active > queued
+
     def __enter__(self) -> "_PageGate":
         self.acquire()
         return self
