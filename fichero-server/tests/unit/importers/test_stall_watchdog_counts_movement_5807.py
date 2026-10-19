@@ -51,8 +51,9 @@ def test_a_batch_with_no_movement_still_stalls(watched):
 
 
 def test_touching_an_unwatched_library_arms_nothing(tmp_path):
+    before = derivatives._stall_timer
     derivatives._progress_touch(str(tmp_path / "Other.fichero"))
-    assert derivatives._stall_timer is None or not derivatives._stall_timer.is_alive() or True
+    assert derivatives._stall_timer is before, "a library nobody queued work for gets no watchdog"
 
 
 def test_a_landed_thumbnail_counts_as_movement(tmp_path: Path, monkeypatch):

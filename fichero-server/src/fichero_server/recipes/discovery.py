@@ -51,6 +51,9 @@ logger = logging.getLogger(__name__)
 
 #: The jobs a found reader does: a vision model reads a line's picture (the bake-off's way) or a page.
 READER_JOBS = frozenset({"read-a-line", "read-a-page"})
+#: A job whose model is one reader SAMPLED several times: its finder is the readers' (vision models only), never a
+#: text-model search (`source.disagree.one-reader-says-which-to-add`, #5812).
+SAMPLED_READER_JOBS = frozenset({"find-where-readers-disagree"})
 #: Where discovery keeps what it fetched, under the model store root.
 CACHE_FOLDER = "discovery"
 REPOSITORY_FILE = "kraken-repository.json"
@@ -448,6 +451,30 @@ def remote_reader_cards() -> list[Card]:
                         offered_only=True, runs_here=False,
                         cannot_run_because="not available yet: add Claude (Anthropic) in Settings › AI"))
     return out
+
+
+#: Why Transkribus is never searched (#5809), in the finder's one short line: Fichero has no way to list its models.
+#: What Fichero does read from Transkribus is the pages exported from it (PAGE XML), imported like any other.
+TRANSKRIBUS_NOT_SEARCHED = "Transkribus: Fichero can't list its models"
+
+
+def shipped_words(shipped: list[Card]) -> str:
+    """The models that ship with Fichero for this step in one short line: how many, how many are on this Mac and how
+    many still need a download (a model needing no download counts as on this Mac), not a bare count (#5809)."""
+    n = len(shipped)
+    if not n:
+        return "Nothing ships with Fichero for this step"
+    to_download = sum(1 for c in shipped if candidate_installed(c) is False)
+    lead = f"{n} ships with Fichero" if n == 1 else f"{n} ship with Fichero"
+    if not to_download:
+        return f"{lead}, all on this Mac"
+    return f"{lead}: {n - to_download} here, {to_download} to download"
+
+
+def installed_words(n: int, *, text: bool) -> str:
+    """The models you have installed beyond those that ship with Fichero, in one short line (#5809)."""
+    where = "here or on a server" if text else "on this Mac"
+    return f"None of your own {where}" if not n else f"{n} of your own {where}"
 
 
 def mark_installed(cards) -> list[Card]:
@@ -1337,24 +1364,30 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     itself is a job, `find-models`). `search` is that job's row when `online` asked for one: while it runs the
     two online sources say they are being searched, and once it is done they say what it found. `not_searched`
     says why no search was made when one was asked for (no project open)."""
+    if job in SAMPLED_READER_JOBS:
+        # The readers' own finder, kept to the models a step can sample (a vision model), as the plan tests it.
+        from fichero_server.recipes.start import _override
+
+        cards, sources = discover(a, online=online, search=search, not_searched=not_searched, job="read-a-line")
+        return [c for c in cards if _override(c.pin) is not None], sources
     from fichero_server.recipes.cards import all_seed_cards
 
     seed = all_seed_cards()
     sources: list[dict[str, Any]] = []
     shipped = mark_installed(c for c in seed if c.runs_here)
     sources.append({"source": "shipped", "state": "read", "count": len(shipped),
-                    "detail": f"{len(shipped)} ship with Fichero"})
+                    "detail": shipped_words(shipped)})
     if job in TEXT_MODEL_JOBS:
         # A job a text model does: the text models here and on the person's own servers (#5619).
         installed = [*local_text_cards(seed), *other_text_cards()]
         if job == "find-names-tag-words":  # the spaCy pipelines installed here, beside the shipped one (#5688)
             installed += installed_spacy_cards(a.languages, seed)
         sources.append({"source": "installed", "state": "read", "count": len(installed),
-                        "detail": f"{len(installed)} on this Mac, your servers or the cloud"})
+                        "detail": installed_words(len(installed), text=True)})
     else:
         installed = installed_cards(seed)
         sources.append({"source": "installed", "state": "read", "count": len(installed),
-                        "detail": f"{len(installed)} on this Mac"})
+                        "detail": installed_words(len(installed), text=False)})
     if online and not egress_allowed():
         why, quiet = "Offline: not searched", "offline"
     elif online:
@@ -1397,7 +1430,7 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                         "detail": (f"Remote compute: {compute['where']}" if compute["available"]
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
-                     "detail": "Transkribus models: not searched"}, _htr_united_source(a)]
+                     "detail": TRANSKRIBUS_NOT_SEARCHED}, _htr_united_source(a)]
     return [*shipped, *installed, *repo_cards, *hf_cards, *remote], sources
 
 

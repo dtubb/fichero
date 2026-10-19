@@ -88,4 +88,17 @@ final class FirstRunStepSelectionTests: XCTestCase {
         XCTAssertEqual(SetupStep.stage("names").next(in: steps), .ready)
         XCTAssertEqual(SetupStep.stage("names").previous(in: steps), .addMaterial)
     }
+
+    // MARK: - Each page opens at its top (#5801)
+
+    /// Back, Next or the sidebar: the page's scroll view is keyed on the page, so moving to another page (two stage
+    /// pages included) gives it a new scroll view at the top; the same page keeps its own.
+    func testMovingToAnotherPageResetsTheScroll() {
+        let pages = SetupStep.projectSteps(chosenStages: ["find-lines", "read"], isNewProject: true)
+        let keys = pages.map(FirstRunWindow.scrollResetID(for:))
+        XCTAssertEqual(Set(keys).count, pages.count, "every page scrolls on its own key: \(keys)")
+        XCTAssertNotEqual(FirstRunWindow.scrollResetID(for: .stage("find-lines")),
+                          FirstRunWindow.scrollResetID(for: .stage("read")))
+        XCTAssertEqual(FirstRunWindow.scrollResetID(for: .ready), FirstRunWindow.scrollResetID(for: .ready))
+    }
 }
