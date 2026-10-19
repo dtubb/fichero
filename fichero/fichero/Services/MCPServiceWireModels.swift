@@ -68,6 +68,7 @@ struct UpdateMCPServerRequest: Codable {
     let headers: [String: String]?
     let toolNamePrefix: Bool?
     let enabled: Bool?
+    let availableToChat: Bool?
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -80,6 +81,7 @@ struct UpdateMCPServerRequest: Codable {
         case headers
         case toolNamePrefix = "tool_name_prefix"
         case enabled
+        case availableToChat = "available_to_chat"
     }
 
     init(
@@ -92,7 +94,8 @@ struct UpdateMCPServerRequest: Codable {
         url: String? = nil,
         headers: [String: String]? = nil,
         toolNamePrefix: Bool? = nil,
-        enabled: Bool? = nil
+        enabled: Bool? = nil,
+        availableToChat: Bool? = nil
     ) {
         self.name = name
         self.description = description
@@ -104,6 +107,7 @@ struct UpdateMCPServerRequest: Codable {
         self.headers = headers
         self.toolNamePrefix = toolNamePrefix
         self.enabled = enabled
+        self.availableToChat = availableToChat
     }
 }
 
@@ -121,6 +125,7 @@ struct MCPServerResponse: Codable, Identifiable, Hashable {
     let headers: [String: String]
     let toolNamePrefix: Bool
     let enabled: Bool
+    var availableToChat: Bool = false
     let createdAt: String
     let updatedAt: String
 
@@ -136,6 +141,7 @@ struct MCPServerResponse: Codable, Identifiable, Hashable {
         case headers
         case toolNamePrefix = "tool_name_prefix"
         case enabled
+        case availableToChat = "available_to_chat"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -251,6 +257,7 @@ extension MCPServerResponse {
             headers: response.headers.additionalProperties,
             toolNamePrefix: response.toolNamePrefix,
             enabled: response.enabled,
+            availableToChat: response.availableToChat ?? false,
             createdAt: response.createdAt,
             updatedAt: response.updatedAt
         )
@@ -315,7 +322,8 @@ extension Components.Schemas.UpdateMCPServerRequest {
             url: response.url,
             headers: response.headers.map { .init(additionalProperties: $0) },
             toolNamePrefix: response.toolNamePrefix,
-            enabled: response.enabled
+            enabled: response.enabled,
+            availableToChat: response.availableToChat
         )
     }
 }
