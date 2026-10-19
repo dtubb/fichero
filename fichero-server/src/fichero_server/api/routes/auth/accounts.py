@@ -1188,6 +1188,9 @@ def request_local_client(
     from fichero_server.api import uds_peer  # lazy: ctypes stays out of app import (#5798)
 
     shown = uds_peer.identify(peer)
+    if not shown["exe"]:
+        # The audit token could not be turned into a program: the owner would be asked to allow something nameless.
+        raise HTTPException(status_code=403, detail="the connecting program could not be verified")
     with _client_requests_lock:
         live = _live_requests()
         if len(live) >= MAX_PENDING_REQUESTS or sum(
