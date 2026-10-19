@@ -40,7 +40,7 @@ struct FirstRunWindow: View {
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
-    @State private var isSaving = false
+    @State var isSaving = false  // read by the Ready page in FirstRunWindow+Recipe.swift
 
     private let mode: Mode
     /// Tells the window which project setup made, when setup finishes, so it shows that project.
