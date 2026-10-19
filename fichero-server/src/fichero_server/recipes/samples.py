@@ -547,7 +547,7 @@ def _run_try(db: Any, subject: str) -> dict[str, Any]:
     """The try job, with a person watching: its model-lane rows go ahead of a bulk run's (#5839)."""
     from fichero_server.execution import jobs
 
-    with jobs.person_is_waiting():
+    with jobs.person_is_waiting(db, jobs.current_job_id() or jobs.job_id_for(db, TRY_KIND, subject)):
         return _run_try_watched(db, subject)
 
 
