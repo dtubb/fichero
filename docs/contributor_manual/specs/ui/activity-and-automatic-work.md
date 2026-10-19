@@ -1224,8 +1224,8 @@ and node, not by job); a retry action for failed pages.
   process, so its jobs (Embed for search and the like) run on a lane of their own, "the small-model lane" (`embed`, one
   at a time), not on the model lane (`local-ml`). An embed beside a Kraken page neither waits for the model lane nor
   unloads Kraken's models, so a step followed by an embed keeps Kraken resident and the next step does not reload the line
-  finder and the reader. The lane is held by the same signals as the model lane (battery, memory, heat, a build, the
-  person using the Mac) and its jobs stay background work. Pinned by
+  finder and the reader. Only battery, memory and heat hold the lane, as they hold the model lane; a build or the person
+  using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
   an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
@@ -1357,7 +1357,7 @@ and node, not by job); a retry action for failed pages.
 
 ### E. Durability
 
-- `activity.durable.dies-with-the-engine` — **[OK]** (review 278) a job a lane thread is running ends only when the
+- `activity.durable.reopen-leaves-live-jobs` — **[OK]** (review 278) a job a lane thread is running ends only when the
   engine does. Opening a library again (`resume`) leaves every job a lane thread of this engine is running alone: its
   row stays running, an attached Kraken page is not cancelled and no row is reset to waiting or set aside; only an engine
   restart ends them, and the next open then settles them (`activity.durable.queue-is-rows`). The release of a stale
