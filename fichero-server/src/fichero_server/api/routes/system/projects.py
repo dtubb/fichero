@@ -24,6 +24,7 @@ from fichero_server.models.knowledge import (
     ProjectStatus,
 )
 from fichero_server.models import ProjectInclusionListResponse, ProjectListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects")
@@ -133,7 +134,8 @@ async def patch_project(
 
 
 @router.delete("/{project_id}", status_code=204)
-async def delete_project(
+@off_loop
+def delete_project(
     project_id: str,
     db: Database = Depends(get_library_database_for_write),
     x_fichero_library_path: str = Depends(require_library_path),
@@ -177,7 +179,8 @@ class InclusionRequest(BaseModel):
     response_model=ProjectInclusion,
     summary="Add a KG item (document / entity / claim / note / interpretation / annotation) to a project",
 )
-async def include_item(
+@off_loop
+def include_item(
     project_id: str,
     request: InclusionRequest,
     db: Database = Depends(get_library_database_for_write),

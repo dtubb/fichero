@@ -25,6 +25,7 @@ from fichero_server.db import Database
 from fichero_server.models import Segment
 from fichero_server.models.hands import Hand, HandAttribution
 from fichero_server.models.segments import assert_not_provisional
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/hands")
 
@@ -277,7 +278,8 @@ async def hands_of_segment(
 
 
 @router.get("/{hand_id}/attributions", response_model=AttributionListResponse)
-async def everything_in_a_hand(
+@off_loop
+def everything_in_a_hand(
     hand_id: str,
     request: Request,
     x_fichero_library_path: str | None = Depends(optional_library_path),

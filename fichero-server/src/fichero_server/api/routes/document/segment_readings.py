@@ -92,6 +92,7 @@ from fichero_server.models.segments import (
     primary_live_segment_id,
     resolve_segment,
 )
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/segments")
 
@@ -2017,7 +2018,8 @@ def _names(anchor: Any, segment_id: str) -> bool:
 
 
 @router.get("/{segment_id}/statements", response_model=SegmentStatementsResponse)
-async def segment_statements(
+@off_loop
+def segment_statements(
     segment_id: str, db: Database = Depends(get_library_database)
 ) -> SegmentStatementsResponse:
     """From a segment, what is said about it (`source.statement.both-ways`)."""

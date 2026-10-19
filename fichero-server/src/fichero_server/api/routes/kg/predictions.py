@@ -27,6 +27,7 @@ from fichero_server.models.knowledge import (
     KnowledgePredictionRun,
 )
 from fichero_server.models import KGPredictionListResponse
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/kg/predictions")
 logger = logging.getLogger(__name__)
@@ -181,7 +182,8 @@ async def generate_heuristic_predictions(
 
 
 @router.get("", response_model=KGPredictionListResponse)
-async def list_prediction_runs(
+@off_loop
+def list_prediction_runs(
     status: str | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     db: Database = Depends(get_library_database),
@@ -195,7 +197,8 @@ async def list_prediction_runs(
 
 
 @router.post("/{run_id}/apply", response_model=ApplyPredictionsResponse)
-async def apply_prediction_run(
+@off_loop
+def apply_prediction_run(
     run_id: str,
     min_confidence: float = Query(default=0.7, ge=0.0, le=1.0),
     max_links: int = Query(default=100, ge=1, le=1000),

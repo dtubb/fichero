@@ -24,6 +24,7 @@ from fichero_server.llm.multilingual import (
     normalize_text,
     stem_text,
 )
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +219,8 @@ async def transliterate_endpoint(
     summary="Cross-language entity search",
     description="Search for entities across languages using transliteration matching.",
 )
-async def cross_language_entity_search(
+@off_loop
+def cross_language_entity_search(
     request: CrossLanguageSearchRequest,
     http_request: Request,
     x_fichero_library_path: str = Depends(require_library_path),
