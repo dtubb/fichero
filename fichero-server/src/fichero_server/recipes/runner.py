@@ -528,10 +528,14 @@ def _run_table(db: Any, card: dict[str, Any], documents: list[str], parent: str,
 def _run_at_scale(db: Any, card: dict[str, Any], documents: list[str], parent: str,
                   started_by: str) -> tuple[str | None, str, str | None]:
     """A read the plan placed on the project's cluster (`source.recipe.placement-by-scale`): sent there as one
-    read-at-scale run under this step, and waited on as any child; a cluster that refuses fails the step by name."""
+    read-at-scale run under this step, and waited on as any child; a cluster that refuses fails the step by name.
+    The person's yes is read now, not when the plan was made: pages may leave only while the project says so."""
     from fichero_server.models.compute_requests import ReadAtScaleRequest
+    from fichero_server.recipes.project import read_project_setup
     from fichero_server.remote_read import job as read_job
 
+    if not (read_project_setup(_library(db))["answers"] or {}).get("cloud_allowed"):
+        return None, "failed", f"pages may not leave this Mac; this step was placed on {card['target']}"
     try:
         child = read_job.start(db, ReadAtScaleRequest(scope_ids=documents, reader="kraken", card=card["model_override"],
                                                       target=card["target"], pages_may_leave=True,
