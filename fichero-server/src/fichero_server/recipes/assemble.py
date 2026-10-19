@@ -729,7 +729,7 @@ def _model_words(card: Card) -> str:
 def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple[Card, ...] = ()
                       ) -> dict[str, str] | None:
     """Why Correct is off, in one line with what turning it on would cost, or None when it stays in (#5677): it stays
-    when the person asked for it (ticked it, or said yes to the question) or when a corrector is already at hand."""
+    only when the person asked for it (ticked it, or said yes to the question); a corrector at hand does not put it in."""
     from fichero_server.recipes.discovery import size_words
 
     asked = a.job_answers.get(CORRECT_QUESTION)
@@ -738,12 +738,14 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
     if asked is False:
         return {"job": CORRECT, "title": "Correct",
                 "sentence": "Correct is off: you chose not to correct the reading with a second model."}
+    # An optional step joins the plan only when the person ticks it or says yes: a corrector at hand does not put it
+    # in (owner ruling 2026-10-19, #5812); the answer drives the plan, never the plan the answer.
     choice = _choose(CORRECT, cards, a)
     card = choice.card
-    if correct_available(card):
-        return None
     if card is None:  # nothing fits: the rule's own words say why (memory, language, the cloud not allowed)
         cost = f"no correcting model fits ({choice.gap})" if choice.gap else "no correcting model fits"
+    elif card.local and correct_available(card):
+        cost = f"turning it on uses {_model_words(card)}, which is on this Mac already"
     elif card.local:
         cost = (f"no correcting model is on this Mac; turning it on downloads {_model_words(card)} "
                 f"({size_words(card.size_gb)})")
@@ -813,6 +815,9 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         jobs |= {"split-pages", PREPARE}
     if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
         jobs.add(PREPARE)
+    # Find where the readers disagree is optional like Correct: in the plan only when ticked (owner ruling 2026-10-19).
+    if "find-where-readers-disagree" not in a.jobs:
+        jobs.discard("find-where-readers-disagree")
     left_by_hand = [by_hand(j) for j in sorted(jobs, key=STEP_ORDER.index) if not start_runs(j)]
     jobs = {j for j in jobs if start_runs(j)}
     train_ticked = "train-a-model" in jobs
