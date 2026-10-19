@@ -51,6 +51,24 @@ extension FocusedValues {
 
 // MARK: - Set Up…
 
+extension FocusedValues {
+    /// Fichero › Set Up Fichero… as the key window runs it (#5821).
+    @Entry var setUpAppAction: FocusedLibraryAction?
+}
+
+/// Fichero › Set Up Fichero…: the key window shows the app's welcome. With no library window key, the request waits
+/// for the window that opens next (`appWelcomeIsDue`).
+struct SetUpFicheroButton: View {
+    let libraryManager: LibraryManager
+    @FocusedValue(\.setUpAppAction) private var setUpAppAction
+
+    var body: some View {
+        Button("Set Up Fichero…") {
+            if let setUpAppAction { setUpAppAction.run() } else { libraryManager.appSetUpRequested = true }
+        }
+    }
+}
+
 /// Set Up… for the key window's project: the same setup as Inspector › Recipe › Set Up…
 /// (`source.onboard.reachable`, #5421).
 struct FocusedSetUpButton: View {

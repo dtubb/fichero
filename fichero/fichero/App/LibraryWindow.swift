@@ -227,6 +227,12 @@ struct LibraryWindow: View {
         .environment(windowState.steps)
         .focusedSceneValue(\.windowSteps, windowState.steps)
         .overlay(alignment: .bottom) { UndoRefusalNotice(steps: windowState.steps) }
+        // Fichero › Set Up Fichero… on the key window (#5821).
+        .focusedSceneValue(\.setUpAppAction, FocusedLibraryAction(
+            isEnabled: true,
+            target: windowState.libraryId.uuidString,
+            run: { libraryManager.requestAppSetUp(from: windowState.libraryId) }
+        ))
         // Project › Set Up… for this window's project (`source.onboard.reachable`, #5421).
         .focusedSceneValue(\.setUpProjectAction, FocusedLibraryAction(
             isEnabled: true,

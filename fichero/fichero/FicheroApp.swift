@@ -434,7 +434,7 @@ struct FicheroApp: App {
             #endif
             CommandGroup(after: .appSettings) {
                 // The app's welcome, again: beside Settings, as File › Set Up New Project… is for a project.
-                Button("Set Up Fichero…") { libraryManager.appSetUpRequested = true }
+                SetUpFicheroButton(libraryManager: libraryManager)
             }
             CommandGroup(before: .appTermination) {
                 #if os(macOS)
