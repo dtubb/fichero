@@ -3617,7 +3617,7 @@ The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-
 - `source.onboard.regen-shows-diff` — **[PARTIAL]** (#4951; *engine built 2026-10-18: `POST /api/recipes/assemble` for an open project with a saved recipe returns `changes`, each step added, taken out or run with another model or settings, in a sentence, writing nothing (`recipes/diff.py`; `fichero-server/tests/unit/recipes/test_regen_shows_diff_4951.py`); a step the person set by hand is the saved model, which the assembly keeps. Not built: the defaults' changes (answers other than steps), the app showing the diff, and the person's choice to take a hand-set step back*) changing an answer re-assembles the recipe
   and defaults and shows what would change, step by step; values the person set by hand are kept
   unless they choose otherwise.
-- `source.onboard.rerun-rewrites-nothing` — **[GAP]** (#4951) changing a project's answers or recipe
+- `source.onboard.rerun-rewrites-nothing` — **[PARTIAL]** (#4951; built: saving the setup again with new answers, or with a step's model swapped in the recipe, leaves every page, segment and reading as it was, and the saved recipe says the swap (`fichero-server/tests/unit/recipes/test_setup_rewrites_nothing_on_a_read_library_4951.py`); Start never redoes what is done (`source.recipe.done-is-not-redone`). Not built: pinning that the Start plan after a swap queues only the new work) changing a project's answers or recipe
   changes defaults for new work only; nothing already made is rewritten.
 
 The recipe and its format
