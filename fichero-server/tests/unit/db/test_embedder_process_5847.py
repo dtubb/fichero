@@ -64,3 +64,46 @@ def test_the_watchdog_is_armed_at_startup_and_rearmed_by_the_heartbeat(monkeypat
 
     asyncio.run(go())
     assert len(calls) >= 3 and all(c == (7, True) for c in calls)  # and re-armed by the loop's heartbeat
+
+
+def test_a_child_that_dies_between_batches_is_replaced_on_the_next_embed(forked, monkeypatch):
+    import os
+    import signal
+
+    monkeypatch.setenv("FICHERO_EMBED_FAKE_INIT_SECONDS", "0")
+    from fichero_server.db import embeddings
+
+    embeddings._EMBEDDER_CACHE.clear()
+    first = embeddings._get_shared_embedder("m", "/nowhere")
+    try:
+        os.kill(first._process.pid, signal.SIGKILL)
+        first._process.join(5)
+        second = embeddings._get_shared_embedder("m", "/nowhere")  # a dead child is evicted, not handed out again
+        assert second is not first and second.embed(["a"]) == [[1.0, 1.0]]
+    finally:
+        embeddings._EMBEDDER_CACHE.clear()
+        first.close()
+        second.close()
+
+
+def test_a_child_that_crashes_mid_batch_is_restarted_then_fails_in_words(forked, monkeypatch, tmp_path):
+    monkeypatch.setenv("FICHERO_EMBED_FAKE_INIT_SECONDS", "0")
+    monkeypatch.setenv("FICHERO_EMBED_FAKE_CRASH", str(tmp_path / "crashed"))
+    embedder = embed_process.RemoteEmbedder("m", "/x", 1)
+    try:
+        assert embedder.embed(["crash"]) == [[5.0, 1.0]]  # died once, restarted, answered
+        monkeypatch.setattr(embed_process, "MAX_RESTARTS", 0)
+        (tmp_path / "crashed").unlink()
+        with pytest.raises(embed_process.EmbedderUnavailable, match="process stopped"):
+            embedder.embed(["crash"])
+    finally:
+        embedder.close()
+
+
+def test_the_child_goes_offline_when_cached_and_gets_the_parents_proxies(tmp_path, monkeypatch):
+    (tmp_path / "models--qdrant--bge-m3-onnx" / "snapshots").mkdir(parents=True)
+    monkeypatch.setattr("urllib.request.getproxies", lambda: {"https": "http://p:3128"})
+    env = embed_process._child_env("BAAI/bge-m3-onnx", str(tmp_path))
+    assert env["HF_HUB_OFFLINE"] == "1" and env["https_proxy"] == "http://p:3128"
+    assert env["no_proxy"] and env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] == "YES"
+    assert "HF_HUB_OFFLINE" not in embed_process._child_env("other/model", str(tmp_path))

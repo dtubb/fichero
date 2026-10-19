@@ -1112,6 +1112,7 @@ async def lifespan(app: FastAPI):
     _api_stamp("lifespan pre-yield complete")
     yield
     _loop_watch.set()
+    loop_lag.stop_watchdog()
     signal_sse_shutdown()
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for

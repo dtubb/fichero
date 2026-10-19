@@ -251,10 +251,13 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
     model. Callers lease it (`leased_embedder`) rather than keep it, so it can be released.
     """
     embedder = _EMBEDDER_CACHE.get(model_name)
-    if embedder is not None:
+    if embedder is not None and getattr(embedder, "alive", lambda: True)():
         return embedder
     with _EMBEDDER_CACHE_LOCK:
         embedder = _EMBEDDER_CACHE.get(model_name)
+        if embedder is not None and not getattr(embedder, "alive", lambda: True)():
+            embedder.close()  # its child died: drop it so this embed starts a new one (#5847)
+            embedder = None
         if embedder is None:
             from fichero_server.core.background_compute import embed_threads
             from fichero_server.db import embed_process

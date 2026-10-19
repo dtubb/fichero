@@ -19,7 +19,7 @@ if [ -n "$old" ]; then
   kill -0 "$old" 2>/dev/null && { kill -9 "$old"; sleep 2; }   # SIGTERM can be ignored while it drains
 fi
 rm -f "$SOCK"
-cd "$ROOT" && env FICHERO_APP_BUNDLE_ID=app.fichero.fichero FICHERO_DEBUG_APP_BUNDLE_ID=app.fichero.fichero \
+cd "$ROOT" && env OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES FICHERO_APP_BUNDLE_ID=app.fichero.fichero FICHERO_DEBUG_APP_BUNDLE_ID=app.fichero.fichero \
   FICHERO_FEATURE_TIER=dev FICHERO_MULTIUSER=0 FICHERO_PYTHON_BIN="$PY" \
   FICHERO_BASE_PATH="$HOME/Fichero Dev Test/state" FICHERO_UDS_PATH="$SOCK" \
   FICHERO_LIBRARY_ALLOWED_ROOTS="$HOME/Fichero Dev Test:$HOME/Fichero Test Corpus:$HOME/Fichero Projects" \
