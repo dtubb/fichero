@@ -1370,7 +1370,7 @@ and node, not by job); a retry action for failed pages.
   using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
   an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
-- `activity.lane.each-unit-its-own-lane` — **[GAP]** (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
+- `activity.lane.each-unit-its-own-lane` — **[PARTIAL]** (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
   own lane and they run at once: Kraken on the CPU, Apple Vision on the Neural Engine, MLX on the GPU, hosted readers on the
   network. Apple Vision runs beside Kraken: an Apple page takes no model-lane job, does not count as a "local page in flight"
   against Kraken's memory fan-out (`kraken_runtime.page_fan_out`), and never waits for a Kraken page; its own gate
