@@ -334,11 +334,10 @@ struct SetupStagesTests {
 
     // MARK: What Fichero runs
 
-    @Test("source.onboard.app.what-fichero-runs: one line on what comes with Fichero, and the two accounts it suggests")
+    @Test("source.onboard.places-cap-projects: the screen's places are the engine's ids, this Mac the default")
     func whatFicheroRuns() {
-        #expect(WhatFicheroRuns.comesWith.hasPrefix("Fichero comes with readers for handwriting and print"))
-        #expect(WhatFicheroRuns.accounts.last?.purpose.hasSuffix("Pages leave this Mac.") == true)
-        #expect(WhatFicheroRuns.accounts.map(\.providerType) == ["huggingface", "openrouter"])
+        #expect(WhereTheWorkRuns.allCases.map(\.rawValue) == ["this-mac", "another-mac", "cloud", "acenet", "huggingface"])
+        #expect(WhereTheWorkRuns.default == .thisMac)
     }
 }
 

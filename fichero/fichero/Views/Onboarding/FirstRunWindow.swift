@@ -10,11 +10,6 @@ import SwiftUI
 /// at Add material on the project it was asked for (`source.onboard.project.one-view`). Every page after Your
 /// project reads and saves through THAT project's own store (`LibraryReference.recipeSetupStore`), so the engine
 /// always knows which project (#5477).
-/// The scene a first launch's Set Up a New Project… opens (#5828): that project's own Set Up, in its own window.
-enum NewProjectSetUpWindow {
-    static let id = "new-project-setup"
-}
-
 struct FirstRunWindow: View {
     enum Mode {
         case firstRun
@@ -38,6 +33,9 @@ struct FirstRunWindow: View {
     /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
     /// (`source.onboard.app.provider-sheet-in-step`).
     @State var addProvider: AddProviderRequest?
+    /// Where models may run, the engine's setting (#5828).
+    @State private var placesStore: AppPlacesStore?
+    @State private var signingInToCluster = false
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
@@ -108,15 +106,30 @@ struct FirstRunWindow: View {
             AddProviderSheet(onAdd: { await appState.loadProviders() }, preselectedType: request.providerType)
                 .environment(appState.providerService)
         }
-        .task { await appState.loadProviders() }
+        .sheet(isPresented: $signingInToCluster) {
+            AddClusterSheet(service: appState.hpcSignInService)
+        }
+        .task {
+            if placesStore == nil { placesStore = AppPlacesStore(client: appState.ficheroClient) }
+            await appState.loadProviders()
+        }
     }
 
-    /// Set Up a New Project… on Your First Project: that project's own Set Up in its own window; this window's
-    /// pages stay as they are (#5828).
-    private func openProjectSetUp() {
-        #if os(macOS)
-        openWindow(id: NewProjectSetUpWindow.id)
-        #endif
+    /// A card's button opens the existing screen for that job (one code path): a cloud key or a Hugging Face token
+    /// through the add-provider sheet, ACENET through the cluster sign-in.
+    private func connectPlace(_ connect: WhatFicheroRuns.Connect) {
+        switch connect {
+        case .addKey: addProvider = AddProviderRequest(providerType: nil)
+        case .addToken: addProvider = AddProviderRequest(providerType: "huggingface")
+        case .signIn: signingInToCluster = true
+        }
+    }
+
+    /// Set Up a New Project... on Your First Project: this welcome closes, and the front window presents the new
+    /// project's own Set Up in place (#5828; no new window).
+    private func setUpNewProject() {
+        libraryManager.newProjectSetUpAfterWelcome = true
+        finish()
     }
 
     /// Advance within the steps; the LAST one finishes (#2807).
@@ -161,7 +174,7 @@ struct FirstRunWindow: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Fichero")
+            Text("Set Up Fichero")
                 .font(.title2.weight(.semibold))
                 .padding(.horizontal, 8)
                 .padding(.bottom, 12)
@@ -198,21 +211,12 @@ extension FirstRunWindow {
                 SetupBodyText(paragraphs: FirstLaunchChoices.welcomeParagraphs)
             }
         case .whatFicheroRuns:
-            stepPage(
-                title: WhatFicheroRuns.title,
-                subtitle: "",
-                systemImage: SetupStep.whatFicheroRuns.icon
-            ) {
-                WhatFicheroRunsFields(providers: appState.providers,
-                                      add: { addProvider = AddProviderRequest(providerType: $0) })
+            stepPage(title: WhatFicheroRuns.title, subtitle: "", systemImage: SetupStep.whatFicheroRuns.icon) {
+                if let placesStore { WhatFicheroRunsFields(store: placesStore, connect: connectPlace) }
             }
         case .handOff:
-            stepPage(title: "Your First Project",
-                     subtitle: "Set up a project when you have material, or start in the one Fichero always has.",
-                     systemImage: SetupStep.handOff.icon) {
-                SetupBodyText(paragraphs: [FirstLaunchChoices.handOffIntro],
-                              numbered: FirstLaunchChoices.handOffSteps,
-                              closing: FirstLaunchChoices.handOffClosing)
+            stepPage(title: "Your First Project", subtitle: "", systemImage: SetupStep.handOff.icon) {
+                SetupBodyText(paragraphs: FirstLaunchChoices.handOffParagraphs)
             }
         default:
             recipeStepPage(step)
@@ -299,8 +303,8 @@ extension FirstRunWindow {
         switch action {
         case .advance, .start:
             advance()
-        case .openProjectSetUp:
-            openProjectSetUp()
+        case .setUpNewProject:
+            setUpNewProject()
         case .skip:
             step = step.next(in: steps)
         case .finish, .close:

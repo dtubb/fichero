@@ -7,8 +7,8 @@ struct SetupFooter: Equatable {
     enum Action: Equatable {
         /// Go on to the next page (the page's own work first: make the project, save the draft).
         case advance
-        /// Your First Project: open a project's own Set Up in its own window; this window's pages do not change (#5828).
-        case openProjectSetUp
+        /// Your First Project: close the welcome and open a new project's own Set Up in the front window (#5828).
+        case setUpNewProject
         /// Move on, leaving this page's answers as they are (Not Now, Skip This Stage).
         case skip
         /// Ready: start the recipe.
@@ -46,8 +46,8 @@ struct SetupFooter: Equatable {
             // The first launch is three fixed screens with Continue and Back between them (#5828).
             primary = Choice(title: "Continue", action: .advance)
         case .handOff:
-            primary = Choice(title: "Start", action: .finish)
-            leading = Choice(title: FirstLaunchChoices.setUpNewProject, action: .openProjectSetUp)
+            primary = Choice(title: FirstLaunchChoices.setUpNewProject, action: .setUpNewProject)
+            leading = Choice(title: FirstLaunchChoices.startWithoutProject, action: .finish)
         case .project:
             primary = Choice(title: "Create Project", action: .advance)
         case .stage:
