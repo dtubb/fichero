@@ -2191,9 +2191,16 @@ def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
 _current = threading.local()
 
 
+#: Whether a person started the RUN the code now executing is of, set by `process_vision` from `person_waits_on`. A
+#: workflow thread has no `_current`; a context variable follows the run into its tasks and `asyncio.to_thread` (review 344).
+_run_is_a_persons: ContextVar[bool | None] = ContextVar("_run_is_a_persons", default=None)
+
+
 def current_job_is_a_persons() -> bool:
-    """The job this thread is running is work a person started or watches (`_PERSON_WAITS_SQL`): it runs flat out."""
-    return bool(getattr(_current, "person", False))
+    """The job this thread is running is work a person started or watches (`_PERSON_WAITS_SQL`): it runs flat out.
+    A run that says who started it (`_run_is_a_persons`) is believed over the thread's job, which a workflow thread lacks."""
+    run = _run_is_a_persons.get()
+    return run if run is not None else bool(getattr(_current, "person", False))
 
 
 def current_job_id() -> str | None:
