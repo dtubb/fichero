@@ -48,7 +48,7 @@ def test_a_prepare_images_try_is_not_refused_for_another_steps_problem(client, d
     saved = client.get("/api/recipes/project").json()
     for step in saved["recipe"]["steps"]:
         if step["job"] == "read-a-line":
-            step["model"] = {"zenodo": "10.5281/zenodo.99"}
+            step["model"] = {"hf": "nobody/not-a-model-5800", "revision": "main"}  # a Zenodo DOI is always a reader Fichero can fetch
     assert client.put("/api/recipes/project", json={"answers": saved["answers"], "recipe": saved["recipe"]}
                       ).status_code == 200
     r = client.post("/api/recipes/stages/prepare-images/try", json={})
