@@ -17,10 +17,13 @@ struct SetupStageSamples: View {
                     Text(sample.why).font(.caption).foregroundStyle(.secondary)
                 }
             }
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 Button("Compare on These Pages") { Task { await store.tryIt() } }
                     .disabled(store.isTrying || store.samples.isEmpty || store.result?.isUnderWay == true)
                 if store.isTrying || store.result?.isUnderWay == true { ProgressView().controlSize(.small) }
+                if let words = store.result?.underWayWords {
+                    Text(words).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
             }
             if let costQuestion = store.costQuestion {
                 Text(costQuestion).font(.callout).foregroundStyle(.secondary)

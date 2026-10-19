@@ -54,9 +54,11 @@ def test_the_start_plan_carries_the_setting_from_the_projects_answers(client, db
     client.put("/api/recipes/project", json={"answers": {**saved["answers"], "training": "offered"},
                                              "recipe": saved["recipe"]})
 
-    body = client.get("/api/recipes/project/start").json()
+    from fichero_server.recipes.train_offers import _offers_now
 
-    read = next(o for o in body["train_offers"] if o["job"] == "read-a-line")
+    # One corrected page is below the threshold: the plan shows no offer yet (#5804); the engine's own list has the setting.
+    assert client.get("/api/recipes/project/start").json()["train_offers"] == []
+    read = next(o for o in _offers_now(db) if o["job"] == "read-a-line")
     assert read["setting"]["mode"] == "offered", read
 
 

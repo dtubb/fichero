@@ -1926,7 +1926,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.start import estimate, place_runs, plan_start
-    from fichero_server.recipes.train_offers import counted, train_offers
+    from fichero_server.recipes.train_offers import counted, offered, train_offers
 
     library = _library(db)
     setup = read_project_setup(library)
@@ -1970,9 +1970,9 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     held = held_after_failure(db) if setting["mode"] == "here" else None
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
-    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
+    plan["train_offers"] = offered(train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
                                         spend_cap=cap, clusters=clusters,
-                                        noise_band=read_noise_band(library))
+                                        noise_band=read_noise_band(library)))
     from fichero_server.recipes.train_offers import spend_this_month
 
     plan["hf_spend"] = spend_this_month(db, cap=cap)

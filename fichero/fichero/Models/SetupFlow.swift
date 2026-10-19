@@ -13,7 +13,6 @@ enum SetupStep: Hashable, Identifiable {
     case aboutMaterial
     case stages
     case stage(String)
-    case train
     case ready
 
     var id: String {
@@ -34,7 +33,6 @@ enum SetupStep: Hashable, Identifiable {
         case .aboutMaterial: "About the Material"
         case .stages: "Choose the Stages"
         case .stage(let stageId): stageTitles[stageId] ?? stageId
-        case .train: "Train"
         case .ready: "Ready"
         }
     }
@@ -49,7 +47,6 @@ enum SetupStep: Hashable, Identifiable {
         case .aboutMaterial: "text.magnifyingglass"
         case .stages: "checklist"
         case .stage: "circle.dashed"
-        case .train: "graduationcap"
         case .ready: "play.circle"
         }
     }
@@ -59,23 +56,22 @@ enum SetupStep: Hashable, Identifiable {
     static let appSteps: [SetupStep] = [.welcome, .whatFicheroRuns, .handOff]
 
     /// Set Up a Project's pages (`source.onboard.project.steps`): Your project for a new one (Project › Set Up… on an
-    /// existing project starts at Add material), then one page per chosen stage, in the engine's order, then Train
-    /// and Ready. `chosenStages` is in the engine's order already.
+    /// existing project starts at Add material), then one page per chosen stage, in the engine's order, then Ready
+    /// (training is not a step: the plan offers it once there is enough corrected work, #5804). `chosenStages` is in the engine's order already.
     static func projectSteps(chosenStages: [String], isNewProject: Bool) -> [SetupStep] {
         (isNewProject ? [.project] : []) + [.addMaterial, .aboutMaterial, .stages]
-            + chosenStages.map(SetupStep.stage) + [.train, .ready]
+            + chosenStages.map(SetupStep.stage) + [.ready]
     }
 
-    /// The stage Train a Model… asks Set Up for (`LibraryManager.requestSetUp(for:stage:)`): its own Train page.
+    /// The stage Train a Model… asks Set Up for (`LibraryManager.requestSetUp(for:stage:)`): it opens Ready, where the
+    /// plan's training offers are.
     static let trainStage = "train"
 
-    /// The page Set Up opens on when a stage is asked for: Train a Model… opens Train (#5652 slice 1); any other
-    /// stage opens Ready, whose plan lists each step with its fix, until Set Up has a page per stage (#5668, §7c);
+    /// The page Set Up opens on when a stage is asked for: Train a Model… and any other stage open Ready, whose plan lists each step with its fix, until Set Up has a page per stage (#5668, §7c);
     /// none asked for opens the flow's first page (nil).
     static func opening(requestedStage: String?) -> SetupStep? {
         switch requestedStage {
         case nil: nil
-        case trainStage?: .train
         default: .ready
         }
     }
@@ -84,7 +80,7 @@ enum SetupStep: Hashable, Identifiable {
     /// Start, so nothing runs. Your project makes the project rather than saving into one; Ready saves with Start.
     var savesDraft: Bool {
         switch self {
-        case .addMaterial, .aboutMaterial, .stages, .stage, .train: true
+        case .addMaterial, .aboutMaterial, .stages, .stage: true
         default: false
         }
     }
