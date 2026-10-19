@@ -403,12 +403,13 @@ def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
     counted = {"pages": 0, "lines": 0, "corrected": 0, "unreadable": 0}
     if not pages:
         return counted
-    newest: dict[str, tuple[str, str | None, Any, str]] = {}
-    for review_id, page, content, data, made in db.execute_fetchall(
-            "SELECT id, document_id, content, data, created_at FROM artifacts WHERE artifact_type = "
-            "'transcription_review' AND document_id IN (SELECT unnest(?::VARCHAR[]))", [list(pages)]):
-        if page not in newest or str(made) > newest[page][3]:
-            newest[page] = (review_id, content, data, str(made))
+    newest: dict[str, tuple[str, str | None, Any]] = {}
+    # Oldest first, so the last a page sees is its newest; a review with no time counts as the oldest (review 156).
+    for review_id, page, content, data in db.execute_fetchall(
+            "SELECT id, document_id, content, data FROM artifacts WHERE artifact_type = 'transcription_review' "
+            "AND document_id IN (SELECT unnest(?::VARCHAR[])) "
+            "ORDER BY COALESCE(created_at, TIMESTAMP '1970-01-01'), id", [list(pages)]):
+        newest[page] = (review_id, content, data)
     if not newest:
         return counted
     lines: dict[str, set[str]] = {}
@@ -420,7 +421,7 @@ def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
         "SELECT derived_from_artifact_id, count(DISTINCT segment_id) FROM contentrepresentations WHERE "
         "retracted_at IS NULL AND derived_from_artifact_id IN (SELECT unnest(?::VARCHAR[])) GROUP BY 1",
         [[review[0] for review in newest.values()]]))
-    for page, (review_id, content, data, _made) in newest.items():
+    for page, (review_id, content, data) in newest.items():
         answered = {answer_line(text)[0] for text in (content or "").splitlines()} & lines.get(page, set())
         if not answered:  # not tied to the lines: the page's review, not a review of its lines
             continue
