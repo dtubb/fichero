@@ -5440,17 +5440,30 @@ class Database(DatabaseEmbeddingMixin):
             f"SELECT COUNT(*) FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")[0][0])
 
     def unit_of_work_ids(self) -> list[str]:
-        """The ids `unit_of_work_count` counts, in Finder order (#5849): by folder, then the order a person set, a
-        page's place in its file, and the name read naturally (`IMG_2` before `IMG_10`). What a started recipe runs
-        over, so its pages are queued and read in that order."""
-        from fichero_server.core.naturalsort import in_folder_order, natural_key
+        """The ids `unit_of_work_count` counts, in Finder order (#5849): by the full path from the project's root (at
+        each level the order a person set, else the name read naturally), then a page's own place: the order a person
+        set, its place in its file, and its name (`IMG_2` before `IMG_10`). Two boxes that each hold a `Folder 1`
+        stay apart. What a started recipe runs over, so its pages are queued and read in that order."""
+        from fichero_server.core.naturalsort import in_folder_order
 
-        rows = self.execute_fetchall(
-            "SELECT d.id, d.name, d.sort_order, d.sequence, d.parent_id, p.name FROM documents d "
-            f"LEFT JOIN documents p ON p.id = d.parent_id WHERE {self._UNIT_OF_WORK_WHERE}")
-        rows.sort(key=lambda r: (natural_key(r[5]), r[4] or "", in_folder_order(
-            SimpleNamespace(id=r[0], name=r[1], sort_order=r[2], sequence=r[3]))))
-        return [r[0] for r in rows]
+        rows = {r[0]: r[1:] for r in self.execute_fetchall(
+            "SELECT id, name, sort_order, sequence, parent_id FROM documents WHERE deleted_at IS NULL")}
+        wanted = [r[0] for r in self.execute_fetchall(
+            f"SELECT d.id FROM documents d WHERE {self._UNIT_OF_WORK_WHERE}")]
+
+        def node(doc_id: str) -> tuple:
+            name, sort_order, sequence, _parent = rows[doc_id]
+            return in_folder_order(SimpleNamespace(id=doc_id, name=name, sort_order=sort_order, sequence=sequence))
+
+        def path(doc_id: str) -> tuple:
+            out, seen, parent = [], {doc_id}, rows[doc_id][3]
+            while parent in rows and parent not in seen:  # root first; a cycle ends the walk
+                out.append(node(parent))
+                seen.add(parent)
+                parent = rows[parent][3]
+            return (tuple(reversed(out)), node(doc_id))
+
+        return sorted((i for i in wanted if i in rows), key=path)
 
     def table_row_counts(self) -> dict[str, int]:
         """Every table in this library and its row count.
