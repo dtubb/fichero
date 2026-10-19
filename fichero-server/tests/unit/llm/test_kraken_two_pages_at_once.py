@@ -154,3 +154,38 @@ def test_a_small_mac_reads_one_page_whatever_the_priority(monkeypatch):
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 4 * GIB)  # an 8 GB Mac with the system's share used
     monkeypatch.setattr(kr.os, "cpu_count", lambda: 8)
     assert kr.pages_at_once(person=True) == 1
+
+
+def test_the_cores_are_split_by_the_pages_actually_inside(monkeypatch):
+    """Review 341: one page reads with every core, two with half each, whatever the policy allows."""
+    import sys
+    import types
+
+    from fichero_server.core import background_compute
+    from fichero_server.execution import jobs, throttle
+
+    seen = []
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(
+        set_num_threads=lambda n: seen.append(n), set_num_interop_threads=lambda n: None))
+    monkeypatch.setattr(throttle, "decide", lambda person_waiting=False, **_: throttle.Decision("go", None, "fast"))
+    monkeypatch.setattr(jobs, "current_job_is_a_persons", lambda: True)
+    monkeypatch.setattr(kr, "pages_at_once", lambda person: 2)
+    monkeypatch.setattr(kr, "require_installed", lambda: None)
+    monkeypatch.setattr(kr, "assert_memory_available_for_kraken", lambda: None)
+    monkeypatch.setattr(kr, "_release_when_idle", lambda: None)
+    cores = background_compute.cpu_count()
+
+    kr._kraken_call(lambda: None)  # a lone page
+    assert seen[-1] == cores
+
+    inside, release = threading.Event(), threading.Event()
+
+    def other(_i):
+        kr._kraken_call(lambda: (inside.set(), release.wait(2)))
+
+    t = _in_threads(1, other)[0]
+    inside.wait(2)
+    kr._kraken_call(lambda: None)  # a second page while the first is inside
+    assert seen[-1] == max(1, cores // 2)
+    release.set()
+    t.join()
