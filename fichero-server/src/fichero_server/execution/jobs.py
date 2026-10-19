@@ -1168,6 +1168,9 @@ READING_FIRST_REASON = "Waiting for reading to finish"
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
 
+#: How soon a heavy lane that stepped aside for a person's page on another heavy lane looks again.
+PERSON_HEAVY_LOOK_AGAIN_SECONDS = 0.25
+
 #: How soon the model lane looks again at a job held by the throttle.
 THROTTLE_LOOK_AGAIN_SECONDS = 5.0
 
@@ -2562,6 +2565,13 @@ class _Scheduler:
         with self._heavy_pick:
             if memory_is_busy() and self.heavy_running() is not None:
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+                return None
+            if (memory_is_busy() and not self.someone_is_waiting(lane.name)
+                    and any(self.someone_is_waiting(other) for other in HEAVY_LANES if other != lane.name)):
+                # A page a person's try or run handed in waits on ANOTHER heavy lane: this lane's background work (the
+                # thumbnails, 47-61 s each, 23 of them in the owner's stalled "Compare on These Pages") lets it have the
+                # next heavy slot instead of taking every slot in turn (`activity.throttle.person-heavy-first`).
+                lane.look_again_at = time.monotonic() + PERSON_HEAVY_LOOK_AGAIN_SECONDS
                 return None
             return self._claim_one(lane)
 
