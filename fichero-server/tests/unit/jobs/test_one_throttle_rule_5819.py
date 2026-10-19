@@ -189,8 +189,14 @@ def test_every_literal_started_by_in_the_engine_is_decided_as_background_or_a_pe
     assert {"schedule", "trigger", "correction", "import", "sync", "kept export"} <= set(found)  # the scan sees them
 
 
-@pytest.mark.parametrize("who", ["schedule", "trigger", "correction"])
-def test_scheduled_triggered_and_correction_runs_are_background(db, who):
+@pytest.mark.parametrize("who", ["schedule", "trigger"])
+def test_scheduled_and_triggered_runs_are_background(db, who):
     _chain(db, who)
     assert jobs.person_waits_on(db, "page-1") is False
-    assert throttle.decide(jobs.person_waits_on(db, "page-1")).action in ("go", "slow", "hold")
+
+
+def test_a_correction_follows_the_persons_own_edit_so_it_is_a_persons(db):
+    """Ruled 2026-10-19: the person waits to see the names the correction re-reads."""
+    _chain(db, "correction")
+    assert jobs.person_waits_on(db, "page-1") is True
+    assert "correction" in jobs.PERSON_STARTERS and "correction" not in jobs.BACKGROUND_STARTERS
