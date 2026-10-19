@@ -1322,18 +1322,18 @@ runs on the project before Start: the sample results are the stage's, never the 
 **The stages and the jobs they carry** (the job registry's ids, section 2; one stage can carry several
 jobs, and the recipe keeps the registry's step order whatever order stages are chosen in):
 
-| Stage | Jobs | Its own questions (examples) |
+| Stage | Jobs | Its own questions (examples; a question that names kinds is open-ended, see `source.onboard.stages.kinds-are-open-ended`) |
 |---|---|---|
 | Clean Up Images | `split-pages`, `prepare-the-image` | Two pages per image? Straighten, crop, brighten? |
 | Find Lines | `find-regions`, `find-lines`, `put-in-order`, `refine-shapes` | Columns, margins and glosses? Tables on the pages? |
 | Read | `read-a-line`, `read-a-page`, `correct`, `tie-text-to-lines` | Have a second model check the reading? (Lines are read one by one; the page-at-once question was dropped 2026-10-18, #5788.) |
 | Organise | `find-documents-in-a-folder`, `split-into-entries` | Are several documents in one folder, or one document per folder? |
-| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (people, places, things, organisations)? Which place list? |
-| Statements | `find-statements` | Which kinds (sales, gifts, marriages, letters sent…)? |
-| Dates & Times | `work-out-dates` | Which calendars (Gregorian, Julian, regnal years, the French Republican…)? |
-| Structured Data | `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` | Which fields to fill, and from what? |
+| Names | `find-names-tag-words`, `place-in-a-gazetteer`, `link-to-authorities` | Which kinds of names (every kind unless the person names some; people, places, organisations… are only what a try may suggest)? Which place list? |
+| Statements | `find-statements` | Which kinds of statements (every kind unless the person names some)? |
+| Dates & Times | `work-out-dates` | Which calendars (every calendar unless the person names some)? |
+| Structured Data | `find-a-tables-cells`, `extract-to-a-table`, `describe-for-the-catalogue` | Which fields to fill, and from what (every field the pages give unless the person names some)? |
 | Translate | `translate-transliterate-normalise` | Into what: as written, abbreviations expanded, normalised, modernised, a translation into which language? |
-| Passages | `pull-out-passages` | Which kinds of passages (quotations, formulae, a party's own words…)? |
+| Passages | `pull-out-passages` | Which kinds of passages (every kind unless the person names some)? |
 | Search | `make-a-vector` | Nothing to ask; its sample result is a search over the sample pages with an example query. |
 
 The table lists the stages by their jobs; the pages follow the order in item 4.
@@ -3091,6 +3091,8 @@ Setup
   its jobs (the model, where it runs, its size and licence), with Choose a model… (the finder, for
   that job) and its candidates; Read and Find Lines add the comparison of candidates on the person's
   pages (the bake-off). *Test:* pure Swift, the page lists its own steps' rows and no other stage's.
+- `source.onboard.stages.kinds-are-open-ended` — **[GAP]** (#5805; ruled 2026-10-19 from testing the staged c13efa580, which showed Statements and Passages as fixed lists) every stage question that names kinds (Names' kinds, Statements' kinds, Dates & Times' calendars, Passages' kinds, Structured Data's fields, and any later one) is **open-ended**: (1) its default is **every kind**, saved as an empty answer; (2) the person can **type their own** kinds, each kept as typed in `job_answers` and passed to the step's plan (`start.JOB_ANSWER_SETTINGS`), so a kind no list foresaw still reaches the plan; (3) the engine ships **no fixed list**: the question's `options` are empty, and its `suggestions` hold only the kinds a **sample try** found on the person's sample pages (empty until a try returns them, replaced by the next try, cleared when the stage is unticked); a suggestion is added with one press and is then a typed kind. The stage tables' kinds are examples of what a try may find, never options. *Built when marked: the engine's `open` flag and `suggestions` on `GET /api/recipes/stages`; Names' suggestions (the entity types a try found). Not built: suggestions for Statements, Dates, Passages and Structured Data until their sample runs report the kinds they found (they stay empty, never invented); the app's typed-kind field and suggestion chips (r3's stage pages).* Test: `fichero-server/tests/unit/recipes/test_open_ended_stage_questions_5805.py`.
+- `source.onboard.stages.passages-says-what-it-does` — **[GAP]** (#5805) the Passages page carries its one sentence of what it does, in the stage's words and without a list of kinds ("Pulls out the passages you ask for, of any kind, and keeps where each one sits on the page."), and an example **from the sample pages** once a try has found passages (the first passage found, with its page), else the stage's written example. *Not built: the sample try does not yet return the passages it found, so the example from the sample pages shows only once it does.* Test: `fichero-server/tests/unit/recipes/test_open_ended_stage_questions_5805.py`.
 - `source.onboard.stages.page-asks-its-questions` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` and `SetupStageQuestionField`, answers kept by key in `job_answers`; pinned by `SetupStagesTests`. each stage page asks its own
   questions with defaults filled in (Names: which kinds of names, which gazetteer; Dates & Times:
   which calendars; Statements: which kinds; Organise: one document per folder or several), saved with
