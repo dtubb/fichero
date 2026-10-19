@@ -53563,6 +53563,24 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Params"
+          },
+          "downloading": {
+            "type": "boolean",
+            "title": "Downloading",
+            "description": "a download-model job is already fetching it (#5791)",
+            "default": false
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "that job, as Activity lists it, while downloading (#5791)"
+          },
+          "progress": {
+            "type": "string",
+            "nullable": true,
+            "title": "Progress",
+            "description": "how far it has got, as the job last said it (#5791)"
           }
         },
         "type": "object",

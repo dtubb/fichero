@@ -1022,6 +1022,9 @@ class CandidateDownload(BaseModel):
     model: str = Field(description="the model's id in that runtime")
     action: str = Field(description="the action to invoke (model.download, a download-model job on the network lane)")
     params: dict[str, Any]
+    downloading: bool = Field(default=False, description="a download-model job is already fetching it (#5791)")
+    job_id: Optional[str] = Field(default=None, description="that job, as Activity lists it, while downloading (#5791)")
+    progress: Optional[str] = Field(default=None, description="how far it has got, as the job last said it (#5791)")
 
 
 class CandidateAvailability(str, Enum):
@@ -1346,6 +1349,18 @@ async def model_candidates(
             return f"CER {c.cer_measured_here * 100:.1f}% on your pages"
         return "unmeasured on your pages until a bake-off measures it"
 
+    # Each download under way carries its Activity job and progress, so the sheet shows it under way (#5791).
+    downloads = {c.id: candidate_download(c) if c.runs_here else None for c in cards}
+    if library_path:
+        from fichero_server.recipes.start import mark_downloads_under_way
+
+        mark_downloads_under_way(get_library_database(request, library_path), [d for d in downloads.values() if d])
+
+    def availability_words(c: Any) -> str:
+        said = candidate_availability(c)[1]
+        d = downloads.get(c.id)
+        return f"Downloading{': ' + d['progress'] if d.get('progress') else ''}" if d and d.get("downloading") else said
+
     items = [ModelCandidate(
         id=c.id, name=c.note.strip().rstrip(".") or c.id, source=c.source,
         offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
@@ -1356,9 +1371,9 @@ async def model_candidates(
         size=size_words(c.size_gb), cer_published=c.cer_published,
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
         rule_rank=rank.get(c.id), refused=refused(c), needs_permission=needs_permission(c, a),
-        installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
+        installed=candidate_installed(c), download=downloads[c.id],
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
-        availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id, fit=fit(c),
+        availability_words=availability_words(c), chosen=c.id == chosen_id, fit=fit(c),
     ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
