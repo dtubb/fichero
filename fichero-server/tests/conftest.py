@@ -108,6 +108,8 @@ os.environ.setdefault("FICHERO_SKIP_DERIVATIVE_RESUME", "1")
 os.environ.setdefault("FICHERO_SKIP_MLX_MEMORY_GUARD", "1")
 # Nor a whole-project conversion thread (#5222): a test that wants one starts it itself.
 os.environ.setdefault("FICHERO_SKIP_PROJECT_CONVERSION", "1")
+# Tests that fake `TextEmbedding` patch it in this process; the embedder-process tests clear this (#5847).
+os.environ.setdefault("FICHERO_EMBED_IN_PROCESS", "1")
 # Nor heavy jobs held by the Mac's own state (#5358): the machine running the tests is often in
 # use or on battery, and every queued model job would wait. tests/unit/jobs turns it on and fakes
 # the signals.

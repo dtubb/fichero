@@ -213,7 +213,9 @@ def release_idle_embedders(idle_seconds: float | None = None) -> list[str]:
             if not _EMBEDDER_IN_USE.get(name) and now - _EMBEDDER_LAST_USE.get(name, 0.0) >= idle
         ]
         for name in released:
-            del _EMBEDDER_CACHE[name]
+            gone = _EMBEDDER_CACHE.pop(name)
+            if hasattr(gone, "close"):
+                gone.close()  # ends the embedding process; its memory goes with it
             _EMBEDDER_LAST_USE.pop(name, None)
     if released:
         import gc  # here, not at import: the engine's import budget counts modules (#3950)
@@ -254,17 +256,19 @@ def _get_shared_embedder(model_name: str, cache_dir: str) -> Any:
     with _EMBEDDER_CACHE_LOCK:
         embedder = _EMBEDDER_CACHE.get(model_name)
         if embedder is None:
-            from fastembed import TextEmbedding
-
             from fichero_server.core.background_compute import embed_threads
+            from fichero_server.db import embed_process
 
             # Cap ONNX intra-op parallelism so a bulk embed can't peg every core
             # and freeze the app ([[user-machine-always-useful]]). fastembed
             # otherwise defaults to all cores per call.
             threads = embed_threads()
-            embedder = TextEmbedding(
-                model_name=model_name, cache_dir=cache_dir, threads=threads
-            )
+            if embed_process.in_process():
+                from fastembed import TextEmbedding
+
+                embedder = TextEmbedding(model_name=model_name, cache_dir=cache_dir, threads=threads)
+            else:  # the ONNX session lives in a child: its init holds the child's GIL, not the engine's (#5847)
+                embedder = embed_process.RemoteEmbedder(model_name, cache_dir, threads)
             _EMBEDDER_CACHE[model_name] = embedder
             logger.info(
                 "Loaded embedding model (process-global): %s (threads=%d)",
