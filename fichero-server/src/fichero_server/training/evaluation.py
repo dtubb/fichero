@@ -144,6 +144,16 @@ def trained_card(candidate: EvaluationCandidate) -> dict[str, Any] | None:
     return get_mlx_model_store().trained_card(candidate.model)
 
 
+def apple_vision_warming_up() -> bool:
+    """True while the startup warm-up has not yet asked Vision, so a False from `apple_vision_here` means "not yet"."""
+    try:
+        from fichero_server.workflows.tools.vision_base import supported_locales_are_known
+
+        return not supported_locales_are_known()
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def apple_vision_here() -> bool:
     """Whether this Mac's Vision framework recognises text (the locales it offers; none off macOS)."""
     try:
