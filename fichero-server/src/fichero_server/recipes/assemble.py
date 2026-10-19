@@ -762,10 +762,14 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
         unlisted = f"{cloud.note or cloud.id} does not list {', '.join(sorted(a.languages))}: try it on a few pages first"
     offered = None
     if cloud is not None and cloud.cost_per_page:
+        from fichero_server.recipes.review_profiles import REVIEW_PRESET, review_passes
+
         pages = max(a.pages, 1)
         provider = cloud.runs_on.split(":", 1)[1]
-        offered = {"card": cloud.id, "runs_on": provider, "pages": pages,
-                   "cost_usd": round(cloud.cost_per_page * pages, 2)}
+        # A card's price is one call a page; the review makes one a pass, one a lens on (#5723).
+        passes = review_passes(REVIEW_PRESET, (a.job_answers or {}).get("review_lenses"))
+        offered = {"card": cloud.id, "runs_on": provider, "pages": pages, "calls_per_page": passes,
+                   "cost_usd": round(cloud.cost_per_page * passes * pages, 2)}
         cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} at about "
                  f"${offered['cost_usd']:.2f} for {pages} {'page' if pages == 1 else 'pages'}"
                  + (f" ({unlisted})" if unlisted else ""))

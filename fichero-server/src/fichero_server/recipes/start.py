@@ -1083,14 +1083,14 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
     assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
     """
-    from fichero_server.recipes.review_profiles import lens_ids, review_passes
+    from fichero_server.recipes.review_profiles import REVIEW_PRESET, lens_ids, review_passes
 
     rows, total = [], 0.0
     for w in workflows:
         runs_on = str(w["runs_on"])
         review = w.get("job") == "correct"
         # The review makes a call a page for each pass it runs, one a lens on (#5723); any other run, one.
-        calls = review_passes(WORKFLOW_FOR_JOB["correct"], w.get("lenses")) if review else 1
+        calls = review_passes(REVIEW_PRESET, w.get("lenses")) if review else 1
         cost = _priced(w, pages * calls)
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
         # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.

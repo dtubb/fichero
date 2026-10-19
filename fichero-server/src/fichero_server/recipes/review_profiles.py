@@ -74,6 +74,10 @@ def lens_ids() -> list[str]:
     return list(profiles()[GENERIC].lenses)
 
 
+#: The shipped review preset a recipe's Correct step runs (`start.WORKFLOW_FOR_JOB["correct"]`).
+REVIEW_PRESET = "transcribe_paleography_review"
+
+
 def review_passes(preset_key: str, lenses: list[str] | None) -> int:
     """The model calls a page takes in the shipped review preset `preset_key` with `lenses` on (None: every lens):
     one for each pass `keep_lenses` keeps (#5723)."""
