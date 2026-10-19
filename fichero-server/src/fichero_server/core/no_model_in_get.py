@@ -6,6 +6,9 @@ their threads, and the places a model is loaded or run (`kraken_runtime._kraken_
 call `forbid_in_get`, which raises `ModelWorkInGet` there. The route answers 503 in words: a GET returns what is stored, or
 says it isn't ready; the read belongs to the model lane.
 
+A task the GET spawned (`create_task`) and a `BackgroundTasks` function copy the mark, but it ends when the response is
+complete, so they run free after it; work awaited INSIDE the request (including `asyncio.to_thread`) is the GET and is refused.
+
 Not covered: a thread started with `loop.run_in_executor` or `threading.Thread` begins with no context, so it is not marked.
 """
 from __future__ import annotations
@@ -13,7 +16,17 @@ from __future__ import annotations
 import contextlib
 from contextvars import ContextVar
 
-_get_path: ContextVar[str | None] = ContextVar("fichero_get_request_path", default=None)
+
+class _Mark:
+    """One GET request's mark. Active while the request is answered; it ends when the response's last byte is sent, so a
+    task the GET spawned, or a `BackgroundTasks` function, that runs after that is not the GET and is not refused."""
+
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.active = True
+
+
+_get_mark: ContextVar[_Mark | None] = ContextVar("fichero_get_request_mark", default=None)
 
 
 class ModelWorkInGet(RuntimeError):
@@ -22,10 +35,10 @@ class ModelWorkInGet(RuntimeError):
 
 def forbid_in_get(what: str) -> None:
     """Raise if this code is running for a GET request."""
-    path = _get_path.get()
-    if path is not None:
+    mark = _get_mark.get()
+    if mark is not None and mark.active:
         raise ModelWorkInGet(
-            f"{what.capitalize()} was asked for by GET {path}. A GET returns what is stored, or says it isn't ready; "
+            f"{what.capitalize()} was asked for by GET {mark.path}. A GET returns what is stored, or says it isn't ready; "
             "the reading is done by the model lane, one page at a time."
         )
 
@@ -33,11 +46,13 @@ def forbid_in_get(what: str) -> None:
 @contextlib.contextmanager
 def marked_get(path: str):
     """Mark the code inside as running for a GET (the middleware's job; a test's too)."""
-    token = _get_path.set(path)
+    mark = _Mark(path)
+    token = _get_mark.set(mark)
     try:
-        yield
+        yield mark
     finally:
-        _get_path.reset(token)
+        mark.active = False
+        _get_mark.reset(token)
 
 
 class NoModelWorkInGet:
@@ -48,8 +63,15 @@ class NoModelWorkInGet:
 
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] == "http" and scope.get("method") in ("GET", "HEAD"):
-            with marked_get(scope.get("path", "")):
-                await self.app(scope, receive, send)
+            with marked_get(scope.get("path", "")) as mark:
+                async def watching(message) -> None:
+                    # The response is complete: what runs after it (background tasks, a task the GET left running) is
+                    # no longer the GET.
+                    if message["type"] == "http.response.body" and not message.get("more_body", False):
+                        mark.active = False
+                    await send(message)
+
+                await self.app(scope, receive, watching)
         else:
             await self.app(scope, receive, send)
 

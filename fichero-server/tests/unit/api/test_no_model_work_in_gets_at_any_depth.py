@@ -5,7 +5,7 @@ import asyncio
 
 import httpx
 import pytest
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, FastAPI
 
 from fichero_server.core import no_model_in_get
 from fichero_server.core.no_model_in_get import ModelWorkInGet, NoModelWorkInGet, forbid_in_get
@@ -72,3 +72,50 @@ def test_the_mark_does_not_leak_past_the_request():
     with no_model_in_get.marked_get("/a"):
         pass
     forbid_in_get("a read")
+
+
+def test_work_that_outlives_the_get_is_not_the_get():
+    """Review 109: a task the GET spawned and a BackgroundTasks function copy the context, but run after the response."""
+    app = FastAPI()
+    app.add_middleware(NoModelWorkInGet)
+    no_model_in_get.install_handler(app)
+    outcomes: dict[str, str] = {}
+    gate: list[asyncio.Event] = []
+
+    def background():
+        try:
+            forbid_in_get("a read")
+            outcomes["background"] = "allowed"
+        except ModelWorkInGet:
+            outcomes["background"] = "refused"
+
+    async def spawned():
+        await gate[0].wait()  # the response is complete by now
+        try:
+            forbid_in_get("a read")
+            outcomes["spawned"] = "allowed"
+        except ModelWorkInGet:
+            outcomes["spawned"] = "refused"
+
+    @app.get("/starts-things")
+    async def starts_things(tasks: BackgroundTasks):
+        tasks.add_task(background)
+        outcomes["task"] = asyncio.ensure_future(spawned())  # type: ignore[assignment]
+        try:
+            forbid_in_get("a read")
+            outcomes["inside"] = "allowed"
+        except ModelWorkInGet:
+            outcomes["inside"] = "refused"
+        return {"ok": True}
+
+    async def go():
+        gate.append(asyncio.Event())
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as client:
+            assert (await client.get("/starts-things")).status_code == 200
+        gate[0].set()
+        await outcomes["task"]  # type: ignore[misc]
+
+    asyncio.run(go())
+    assert outcomes["inside"] == "refused", "work in the request itself is the GET"
+    assert outcomes["background"] == "allowed", "a background task runs after the response"
+    assert outcomes["spawned"] == "allowed", "a task left running past the response is not the GET"
