@@ -793,6 +793,10 @@ class _PageGate:
             self._whole = False
             self._cond.notify_all()
 
+    def pages_inside(self) -> int:
+        with self._cond:
+            return self._active
+
     def locked(self) -> bool:
         with self._cond:
             return self._whole or self._active > 0
@@ -920,7 +924,8 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority = priority_for(person)
-            threads = max(1, apply_to_this_thread(priority) // allowed)  # two pages share the cores
+            # The cores are shared by the pages actually inside now: one page reads with all of them, two with half each.
+            threads = max(1, apply_to_this_thread(priority) // max(1, _INFERENCE_LOCK.pages_inside()))
             _PAGE.update(priority=priority, threads=threads, person=person, throttle=decide(person).action)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
