@@ -65,9 +65,9 @@ def test_a_check_stopped_for_memory_carries_on_without_a_second_verdict(client, 
     assert len(calls) == 3 and calls[1] == calls[2]  # the refused page again, the finished one not
     assert sorted(read) == sorted(p.path for p in pages)  # each page read once
     status = client.get(f"/api/check/runs/{job_id}").json()
-    # It ends done, never failed with a memory message beside the verdicts that landed.
-    state, reason = db.execute_fetchone("SELECT state, reason FROM jobs WHERE id = ?", [job_id])
-    assert state == "done" and "memory" not in (reason or ""), (state, reason)
+    # Its work ended (the queue then marks it done): its words are the whole run's counts, no memory message.
+    (reason,) = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id])
+    assert "memory" not in (reason or "") and "2 closer to a neighbour" in (reason or ""), reason
     assert status["counts"]["closer_to_a_neighbour"] == 2
     assert len({f["reading_id"] for f in status["flagged"]}) == len(status["flagged"])  # none twice
     assert {f["document_id"] for f in status["flagged"]} == {p.id for p in pages}
