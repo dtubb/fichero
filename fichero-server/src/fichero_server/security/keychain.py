@@ -155,17 +155,45 @@ def forget_cached_lookups(provider: str | None = None) -> None:
             _LOOKUPS.pop(provider, None)
 
 
+_REFRESHING: set[str] = set()
+
+
+def _refresh(provider: str) -> None:
+    try:
+        found = _read_api_key(provider)
+        if found.state is not ProviderKeyState.UNREADABLE:
+            with _LOOKUPS_LOCK:
+                _LOOKUPS[provider] = (time.monotonic(), found)
+    finally:
+        with _LOOKUPS_LOCK:
+            _REFRESHING.discard(provider)
+
+
 def lookup_api_key(provider: str) -> KeychainLookup:
-    """The cached answer, or the keychain's (`_read_api_key`)."""
+    """The cached answer, or the keychain's (`_read_api_key`). A stale answer is returned at once and re-read on a thread
+    of its own, so a route on the event loop never waits on `security` after the first read of a provider
+    (`warm_api_keys` makes that first read at startup, off the loop)."""
     with _LOOKUPS_LOCK:
         kept = _LOOKUPS.get(provider)
-    if kept is not None and time.monotonic() - kept[0] < _LOOKUP_SECONDS:
+        stale = kept is not None and time.monotonic() - kept[0] >= _LOOKUP_SECONDS
+        refresh = stale and provider not in _REFRESHING
+        if refresh:
+            _REFRESHING.add(provider)
+    if kept is not None:
+        if refresh:
+            threading.Thread(target=_refresh, args=(provider,), name=f"keychain-refresh-{provider}", daemon=True).start()
         return kept[1]
     found = _read_api_key(provider)
     if found.state is not ProviderKeyState.UNREADABLE:
         with _LOOKUPS_LOCK:
             _LOOKUPS[provider] = (time.monotonic(), found)
     return found
+
+
+def warm_api_keys(providers: list[str]) -> None:
+    """Read each provider's key once, for a thread at startup: later lookups from the event loop are cache hits."""
+    for provider in providers:
+        lookup_api_key(provider)
 
 
 def _read_api_key(provider: str) -> KeychainLookup:
