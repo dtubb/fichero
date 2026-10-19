@@ -118,6 +118,7 @@ public final class FicheroClient: ObservableObject {
     /// library-path / baseURL change. `internal` (not `private`) so the streaming
     /// extension can pick the matching server URL for `.uds` vs `.https`.
     private(set) var transportMode: TransportMode
+    private var loggedUnchangedEndpoint = false
 
     /// The concrete `ClientTransport` the generated `Client` dials with
     /// (URLSession for `.https`, AsyncHTTPClient for `.uds`). Built once and
@@ -291,7 +292,15 @@ public final class FicheroClient: ObservableObject {
     /// built at the first connect; a changed mode gets new transports (and their connection pools), the same
     /// session, the same middlewares. Nothing changes when neither differs.
     public func reconfigure(baseURL: URL, transportMode newMode: TransportMode) {
-        guard self.baseURL != baseURL || transportMode != newMode else { return }
+        guard self.baseURL != baseURL || transportMode != newMode else {
+            // The endpoint read again came out the same: said once, so a log shows the re-read happened and found nothing new.
+            if !loggedUnchangedEndpoint {
+                loggedUnchangedEndpoint = true
+                NSLog("FicheroClient: endpoint re-read, unchanged: %@ via %@", baseURL.absoluteString, String(describing: newMode))
+            }
+            return
+        }
+        loggedUnchangedEndpoint = false
         NSLog("FicheroClient: endpoint re-resolved: %@ via %@ (was %@ via %@)",
               baseURL.absoluteString, String(describing: newMode), self.baseURL.absoluteString, String(describing: transportMode))
         self.baseURL = baseURL
