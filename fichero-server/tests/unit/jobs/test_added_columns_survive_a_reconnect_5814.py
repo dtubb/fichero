@@ -75,7 +75,11 @@ def test_a_column_that_cannot_be_added_is_logged_once_and_the_list_still_reads(d
     _as_a_library_made_before_5634(db)
     db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, created_at, finished_at) "
                "VALUES ('j1', 'find-lines', 'p1', 'failed', 1, now(), now())")
-    monkeypatch.setattr(jobs, "_ADDED_COLUMNS", ("ALTER TABLE no_such_table ADD COLUMN IF NOT EXISTS x TEXT",))
+    # Only `cleared_at` cannot be added (a statement that fails stands in for it); the other columns still are, as
+    # they would on a real library: the list reads `parent_id` and `run_after` and has no fallback for them.
+    monkeypatch.setattr(jobs, "_ADDED_COLUMNS", tuple(
+        s for s in jobs._ADDED_COLUMNS if "cleared_at" not in s
+    ) + ("ALTER TABLE no_such_table ADD COLUMN IF NOT EXISTS x TEXT",))
     monkeypatch.setattr(jobs, "_ALTER_FAILURES_LOGGED", set())
     db._jobs_columns_on = None
 
