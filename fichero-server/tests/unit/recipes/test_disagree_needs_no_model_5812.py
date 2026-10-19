@@ -88,6 +88,7 @@ def test_ticked_with_one_reader_the_step_is_built_in_says_it_needs_a_second_read
     assert step["built_in"] and not step.get("gap") and not step.get("problem")
     assert step["needs"] == "needs a second reader: tick one in Read"
     assert not [g for g in recipe["gaps"] if DISAGREE_JOB in g]
+    assert not step.get("needed_by"), "Remove from Plan always works for the comparison"
 
     plan = plan_start(recipe, stays_local=True)
     (skipped,) = [s for s in plan["skipped"] if s["step"] == DISAGREE_JOB]
@@ -99,6 +100,7 @@ def test_ticked_with_two_readers_the_step_names_them_and_is_built_in(mac):
     recipe = _assembled(DISAGREE_JOB, "correct")
     (step,) = [s for s in recipe["steps"] if s["job"] == DISAGREE_JOB]
     assert step["built_in"] and "needs" not in step and len(step["compares"]) == 2
+    assert not step.get("needed_by"), "Remove from Plan always works for the comparison"
     assert step["reasons"][0].startswith("Compares ") and step["compares"][0] in step["reasons"][0]
     plan = plan_start(recipe, stays_local=True)
     assert [b["step"] for b in plan["built_in"]] == [DISAGREE_JOB] and not plan["skipped"]
