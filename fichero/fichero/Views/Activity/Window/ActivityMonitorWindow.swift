@@ -57,6 +57,8 @@ struct ActivityMonitorWindow: View {
                 )
             } else {
                 VStack(spacing: 0) {
+                    // What is working now, from the engine's one summary, the popover's words (`activity.window.live-block`).
+                    ActivityLiveSection(summaries: libraries.compactMap { $0.activityStore.activitySummary })
                     table
                     // The detail below the table (#5561): the selected row's details,
                     // the same view the ⓘ button and double-click open.
@@ -163,6 +165,7 @@ struct ActivityMonitorWindow: View {
             } else {
                 OutlineGroup(sortedRows, children: \.children) { row in TableRow(row) }
             }
+            historyTableRows
         }
         .accessibilityIdentifier("activity.table")
         .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
@@ -182,6 +185,17 @@ struct ActivityMonitorWindow: View {
         #if os(macOS)
         .onDeleteCommand { Task { await deleteRuns(withIDs: selectedIDs) } }
         #endif
+    }
+
+    /// Ended, stopped and interrupted work the engine folded away (`activity.window.history-group`, #5851); its own
+    /// property so the table's row builder stays small enough to type-check.
+    @TableRowBuilder<ActivityMonitorRow>
+    private var historyTableRows: some TableRowContent<ActivityMonitorRow> {
+        if !historyRows.isEmpty {
+            Section("History") {
+                OutlineGroup(historyRows, children: \.children) { row in TableRow(row) }
+            }
+        }
     }
 
     @ViewBuilder
@@ -208,10 +222,25 @@ struct ActivityMonitorWindow: View {
                 libraryId: library.id,
                 libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
-                runRows: store.runs.map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
-                jobs: store.backgroundJobs
+                runRows: store.runs.filter { !ActivityRunStatus.finished.contains($0.status) }
+                    .map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
+                jobs: store.liveJobs
             )
         }
+    }
+
+    /// What has ended: the runs that finished, stopped or failed and the jobs the engine put in History
+    /// (`ActivityStore.historyJobs`), under their own heading, emptied by Clear Finished (`activity.window.history-group`).
+    private var historyRows: [ActivityMonitorRow] {
+        ActivityMonitorRow.sorted(libraries.flatMap { library in
+            ActivityMonitorRow.group(
+                libraryId: library.id, libraryName: library.displayName,
+                isMac: library.id == libraryManager.globalLibrary?.id,
+                runRows: library.activityStore.runs.filter { ActivityRunStatus.finished.contains($0.status) }
+                    .map { .run($0, tree: library.activityStore.runTrees[$0.threadId ?? $0.runId]) },
+                jobs: library.activityStore.historyJobs
+            ).rows
+        }, using: sortOrder)
     }
 
     private var sortedRows: [ActivityMonitorRow] {

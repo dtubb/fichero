@@ -361,6 +361,28 @@ final class ActivityDetailsTests: XCTestCase {
         XCTAssertNil(store.jobLogs[Self.runId], "another row's log is not touched")
     }
 
+    func testActivityDetailsLog_theDeveloperLevelAsksForTheDebugLinesAndTheDefaultDoesNot() async throws {
+        // WHY (`activity.log.developer-level`): the person's log is the default; Developer adds `?detail=developer`.
+        let store = Self.storeWithMockTransport()
+        MockTransportURLProtocol.reset([
+            Stub(pathSuffix: "/api/activity/jobs/page-1/log", method: "GET", status: 200, body: Data("""
+            {"job_id": "page-1", "lines": [
+              {"timestamp": "2026-10-06T12:00:30+00:00", "level": "info", "message": "Node 'read' started",
+               "job_id": "page-1", "detail": "developer"}
+            ]}
+            """.utf8))
+        ])
+
+        await store.loadJobLog(jobId: "page-1")
+        await store.loadJobLog(jobId: "page-1", developer: true)
+
+        let queries = MockTransportURLProtocol.recorded().map { $0.url?.query ?? "" }
+        XCTAssertEqual(queries.count, 2)
+        XCTAssertFalse(queries[0].contains("developer"), "the person's log is the default")
+        XCTAssertTrue(queries[1].contains("detail=developer"))
+        XCTAssertEqual(store.jobLogs["page-1"]?.first?.message, "Node 'read' started")
+    }
+
     // MARK: - activity.details.one-mount: a job of its own has details
 
     func testActivityDetailsOneMount_aJobOfItsOwnHasDetailsLikeAnyRun() async throws {

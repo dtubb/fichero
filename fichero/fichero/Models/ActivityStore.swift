@@ -118,6 +118,9 @@ final class ActivityStore: ChangeEventConsumer {
     var backgroundMode: ActivityMode = .automatic
     /// This Mac's state (memory, heat, battery, in use, why heavy work waits), same read.
     private(set) var machine: Components.Schemas.MachineState?
+    /// The engine's one summary (live blocks, background group, History count), same read
+    /// (`activity.popover.same-summary`, #5852).
+    private(set) var activitySummary: Components.Schemas.ActivitySummary?
     private var jobsPollTask: Task<Void, Never>?
     /// Says work starting, finishing and failing to VoiceOver (#3724). A test seam only: nil (the app) posts through
     /// `postAnnouncement`. No stored default that names a static: the store is made during app start-up.
@@ -275,7 +278,14 @@ final class ActivityStore: ChangeEventConsumer {
             if backgroundMode != snapshot.mode { backgroundMode = snapshot.mode }
         }
         if machine != snapshot.machine { machine = snapshot.machine }
+        if activitySummary != snapshot.activity { activitySummary = snapshot.activity }
     }
+
+    /// The rows the window lists up top: live runs and the queues beside them (`activity.window.history-group`).
+    var liveJobs: [ActivityJob] { backgroundJobs.filter { !$0.isEarlier } }
+
+    /// The ended, stopped and interrupted rows the engine folded into History (#5851).
+    var historyJobs: [ActivityJob] { backgroundJobs.filter(\.isEarlier) }
 
     private static func isRefusal(_ error: Error) -> Bool {
         switch AccessError.classify((error as? ClientError)?.underlyingError ?? error) {

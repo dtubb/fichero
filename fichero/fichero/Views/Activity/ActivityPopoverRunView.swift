@@ -62,6 +62,31 @@ struct ActivityPopoverRunView: View {
     }
 }
 
+/// A live block of the engine's summary in the popover (`activity.popover.same-summary`, #5852): "Recipe › Stage ›
+/// Workflow" over "7 of 20 pages · 2 of 8 folders". A waiting block has no spinner and says what it waits for.
+struct ActivityPopoverBlockView: View {
+    let block: ActivityPopoverSummary.Block
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label(block.title, systemImage: block.waiting == nil ? "play.circle.fill" : "hourglass")
+                .font(.callout.weight(.semibold))
+                .lineLimit(2)
+            Text(block.counts)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            if let waiting = block.waiting, !waiting.isEmpty {
+                Text("Waiting: \(waiting)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("activity.popover.block")
+    }
+}
+
 /// The popover's errors (#5666, Daniel 2026-10-11): ONE line each, its job and the cause's first sentence,
 /// truncated; the whole in the tooltip; the row opens Activity's details for that job. At most three, recent only.
 struct ActivityPopoverErrorRows: View {

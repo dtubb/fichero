@@ -450,6 +450,8 @@ struct ActivityDetailsLog: View {
     /// Changes when the row changes (`ActivityDetails.logKey`): the log is read again then, and only then.
     let refreshKey: String
     @Environment(ActivityStore.self) private var store
+    /// The Developer level (`activity.log.developer-level`): off, the log is the person's own; on, it adds the debug lines.
+    @AppStorage("activity.log.developer") private var developer = false
 
     private var lines: [ActivityJobLogLine] { store.jobLogs[jobId] ?? [] }
 
@@ -458,6 +460,11 @@ struct ActivityDetailsLog: View {
             HStack {
                 Text("Log").font(.headline)
                 Spacer()
+                Toggle("Developer", isOn: $developer)
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                    .help("Also show the debug lines: when each step started, what a row waited for, a server's output")
+                    .accessibilityIdentifier("activity.details.log.developer")
                 Button {
                     copyToPasteboard(lines.map(\.plainText).joined(separator: "\n"))
                 } label: {
@@ -491,7 +498,7 @@ struct ActivityDetailsLog: View {
             }
         }
         .accessibilityIdentifier("activity.details.log")
-        .task(id: refreshKey) { await store.loadJobLog(jobId: jobId) }
+        .task(id: "\(refreshKey)|\(developer)") { await store.loadJobLog(jobId: jobId, developer: developer) }
     }
 
     private func scrollToEnd(_ proxy: ScrollViewProxy) {
