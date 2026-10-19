@@ -1,6 +1,6 @@
 """Find the documents as a recipe step (spec: docs/contributor_manual/specs/source/finding-documents.md, #5550).
 
-`finddocs.recipe-step`: setup adds the step for loose pages, after reading, with Fichero's own rules (no model to
+`finddocs.recipe-step` (and `source.onboard.auto.organise-is-a-stage`): setup adds the step for loose pages, after reading, with Fichero's own rules (no model to
 choose) and the project's setting `accept_above` (default: propose only; the auto-accept is
 off until a box is scored, ruled 2026-10-10); the Start plan carries it as its own card; a recipe run runs that card as a Find the Documents job
 under the recipe's row. Through `POST /api/recipes/assemble`, `plan_start` and `runner.run`.
