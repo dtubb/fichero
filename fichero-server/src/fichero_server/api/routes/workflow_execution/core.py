@@ -755,6 +755,15 @@ async def reopen_run_for_pages(db: Database, run_id: str, documents: list[str]) 
     await read_again(db, run_id, documents=documents, reopen=True)
 
 
+def edges_among(edges: list[dict[str, Any]], nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The workflow's own edges whose endpoints (and route targets) are all among the nodes a run ran with: a workflow
+    edited since its run (a node removed or renamed) must not hand validation an edge to a node that is no longer there."""
+    ids = {n.get("id") for n in nodes}
+    return [e for e in edges
+            if e.get("source") in ids and (not e.get("target") or e["target"] in ids)
+            and all(t in ids for t in (e.get("route_map") or {}).values())]
+
+
 async def read_again(db: Database, thread_id: str, *, documents: list[str] | None = None,
                      reopen: bool = False) -> tuple[str, Any, int]:
     """Start a run that reads the pages a run did not do: (its thread id, the workflow, how many pages). The one way a
@@ -781,8 +790,11 @@ async def read_again(db: Database, thread_id: str, *, documents: list[str] | Non
     if isinstance(snapshot.get("nodes"), list) and snapshot["nodes"]:
         # The nodes the run ran with (a recipe step's settings laid over the preset), so its reader key matches the
         # recipe's and a Retry joins a resuming recipe's live read (#5848, review 261).
+        # Only the nodes: a recipe's settings lie on nodes, and the snapshot's edges can carry ones the run added for
+        # itself, which fail validation again ("Edge references unknown source port 'output' on node 'files-source'",
+        # the M4's real-graph retry). The workflow's own edges name the same node ids.
         workflow = workflow.model_copy(update={"nodes": snapshot["nodes"],
-                                               "edges": snapshot.get("edges") or workflow.edges})
+                                               "edges": edges_among(workflow.edges, snapshot["nodes"])})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
     inputs["selected_doc_ids"] = list(documents) if documents is not None else account.not_done_ids
