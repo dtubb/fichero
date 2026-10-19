@@ -16,6 +16,7 @@ from __future__ import annotations
 from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 import logging
+from dataclasses import dataclass
 import os
 import subprocess
 import time
@@ -335,9 +336,13 @@ def mac_is_hot() -> str | None:
     return "Waiting: the Mac is hot" if state is not None and state >= _THERMAL_SERIOUS else None
 
 
+IN_USE_REASON = "Waiting: you're using the Mac"
+BUILD_REASON = "Waiting: a build is running"
+
+
 def mac_is_in_use() -> str | None:
     idle = seconds_since_input()
-    return "Waiting: you're using the Mac" if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
+    return IN_USE_REASON if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
 
 
 #: Programs whose running means the person is building: background work holds back for them (#5819).
@@ -360,7 +365,7 @@ def a_build_is_running() -> str | None:
         except Exception:  # noqa: BLE001 -- no reading is no reason to wait
             building = False
         _build = (now, building)
-    return "Waiting: a build is running" if _build[1] else None
+    return BUILD_REASON if _build[1] else None
 
 
 _battery: tuple[float, bool] | None = None
@@ -396,7 +401,6 @@ PROBES: list[tuple[Callable[[], str | None], bool]] = [
     (memory_is_tight, True),
     (mac_is_hot, True),
     (on_battery, False),
-    (a_build_is_running, False),
 ]
 
 
@@ -424,6 +428,44 @@ def why_wait(*, person_waiting: bool = False, model: str | None = None, loaded: 
         if reason:
             return reason
     return None
+
+
+@dataclass(frozen=True)
+class Decision:
+    """THE answer for work that is about to run, from every caller (#5819, owner ruling): `action` is "go", "slow" (it
+    goes on, at lower priority, and says why) or "hold" (it waits); `priority` is the compute priority its model work
+    runs at: "fast" (every core, user-initiated QoS), "balanced" (the person's own setting) or "background" (the lowest
+    QoS, few threads)."""
+
+    action: str
+    reason: str | None
+    priority: str
+
+    @property
+    def words(self) -> str | None:
+        """What Activity says while it is slowed: "A build is running: going slower"."""
+        if self.reason is None:
+            return None
+        said = self.reason.removeprefix("Waiting: ")
+        return f"{said[:1].upper()}{said[1:]}: going slower"
+
+
+def decide(person_waiting: bool = False, *, model: str | None = None, loaded: bool = False) -> Decision:
+    """The one rule. Memory pressure and heat HOLD everything; the Mac on battery HOLDS background work and SLOWS a
+    person's. A person's work otherwise goes flat out (fast). Background work under a build or while the person uses
+    the Mac goes on at the lowest priority, never held. Every caller (Find Lines, the lane, derivatives, training,
+    Kraken's threads, the machine state) takes its answer from here: `why_wait` is this rule's holds."""
+    person = person_waiting or _started()
+    held = why_wait(person_waiting=person, model=model, loaded=loaded)
+    if held:
+        return Decision("hold", held, "background")
+    if not _enabled():
+        return Decision("go", None, "fast" if person else "balanced")
+    battery = on_battery()
+    if person:
+        return Decision("slow", battery, "balanced") if battery else Decision("go", None, "fast")
+    busy = a_build_is_running() or mac_is_in_use()
+    return Decision("slow", busy, "background") if busy else Decision("go", None, "balanced")
 
 
 def machine_state() -> dict:

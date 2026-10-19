@@ -189,7 +189,7 @@ def queue_embedding(
 
     register_job_kinds()
     db = db if db is not None else _library_db(library)
-    jobs.enqueue_many(db, EMBED_KIND, [doc_id], started_by="workflow")
+    jobs.enqueue_many(db, EMBED_KIND, [doc_id], started_by="automatic")  # the top-level re-embed: nobody waits (#5819)
     db.add_after_commit_hook(lambda: _progress_add(library, 1, db_path=str(db.path)))
 
 

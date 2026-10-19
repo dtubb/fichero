@@ -1975,7 +1975,13 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
 #: Anything else (the owner, an account, an agent acting for them) is a person, and a person's job is one
 #: a person waits for: battery and the Mac in use never hold it; memory and heat still do (ruled
 #: 2026-10-04; a Kraken run clicked on battery was held, 2026-10-09).
-BACKGROUND_STARTERS = ("automatic", "sync", "kept export")
+#: Every literal `started_by=` in the engine is decided here or in `PERSON_STARTERS` (a test reads the source, so a new
+#: starter must be decided): "import" (the recipe run and downloads an import starts by itself), "schedule" and
+#: "trigger" (a scheduled workflow, a watched-folder trigger) and "correction" (the re-embed and re-read a correction
+#: queues) are nobody waiting at the Mac.
+BACKGROUND_STARTERS = ("automatic", "sync", "kept export", "import", "schedule", "trigger", "correction")
+#: The literal starters that are a person's (or an account's, agent's: `started_by_for`): not background.
+PERSON_STARTERS = ("owner", "person", "workflow")
 _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automatic') NOT IN ("
                      + ", ".join(f"'{who}'" for who in BACKGROUND_STARTERS) + "))")
 
@@ -1984,6 +1990,27 @@ _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automat
 #: looking at (2: a stage try, a page open on screen) ahead of work a person started and went away from (1: a
 #: bulk recipe run), ahead of background work (0).
 _PERSON_RANK_SQL = f"(CASE WHEN COALESCE(watched, FALSE) THEN 2 WHEN {_PERSON_WAITS_SQL} THEN 1 ELSE 0 END)"
+
+
+def person_waits_on(db: "Database", job_id: str) -> bool:
+    """Whether a person started this job's RUN, or watches the job (#5819): the job's chain of parents (a page, its
+    step, the run, the recipe) is followed to its root, whose starter says who started it. A page's own row says
+    'workflow' for every page, which is nobody; the run that handed it in is what a person started or did not."""
+    _ensure(db)
+    current, last = job_id, None
+    for _ in range(8):
+        row = db.execute_fetchone(
+            "SELECT parent_id, COALESCE(started_by, 'automatic'), COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [current])
+        if row is None:
+            break
+        parent, started_by, watched = row
+        if watched:
+            return True
+        last = started_by
+        if not parent:
+            break
+        current = parent
+    return last is not None and last not in BACKGROUND_STARTERS
 
 
 def _watched(db: "Database", job_id: str) -> bool:
@@ -2033,6 +2060,11 @@ def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
 
 
 _current = threading.local()
+
+
+def current_job_is_a_persons() -> bool:
+    """The job this thread is running is work a person started or watches (`_PERSON_WAITS_SQL`): it runs flat out."""
+    return bool(getattr(_current, "person", False))
 
 
 def current_job_id() -> str | None:
@@ -2630,6 +2662,7 @@ class _Scheduler:
             set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
+        _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
         except JobCancelled as exc:
@@ -2643,6 +2676,7 @@ class _Scheduler:
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
         finally:
             _current.job_id = None
+            _current.person = False
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;

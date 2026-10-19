@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 #: class Apple's scheduler defines. Matches Daniel's `taskpolicy -b`, per thread.
 _QOS_CLASS_BACKGROUND = 0x09
 _QOS_CLASS_UTILITY = 0x11
+_QOS_CLASS_USER_INITIATED = 0x19
 
 
 def cpu_count() -> int:
@@ -103,6 +104,12 @@ def set_utility_qos() -> None:
     default class, 23 s at utility and 426 s at background (#4959). Background
     stays right for work nobody is waiting on (embedding a library)."""
     set_background_qos(_QOS_CLASS_UTILITY)
+
+
+def set_fast_qos() -> None:
+    """Raise the CALLING thread to USER_INITIATED: work the person started and waits for runs flat out (#5819). A thread
+    inherits the class of the thread that made it, and a lane's job thread is made low, so *fast* raises it again."""
+    set_background_qos(_QOS_CLASS_USER_INITIATED)
 
 
 def current_thread_qos_class() -> int | None:
