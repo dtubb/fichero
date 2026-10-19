@@ -67,3 +67,23 @@ def test_a_ten_thousand_row_jobs_table_is_read_as_one_row_per_group(db):
     assert sum(r["count"] for r in queue) == 9995 and all(r["state"] == "running" for r in queue)
     assert {r["id"] for r in queue} == {"waiting:make-thumbnail", "waiting:embed-for-search"}
     assert len([r for r in rows if r["state"] == "failed"]) == 5
+
+
+def test_the_real_snapshot_sql_runs_on_duckdb_with_watched_and_person_started_jobs(db):
+    """The ordering reads `watched` and `started_by`, which the select list does not carry (review 269: a DISTINCT
+    over the select list made DuckDB refuse the ORDER BY, and every Activity poll would have failed)."""
+    jobs._ensure(db)
+    db.execute(
+        "INSERT INTO jobs (id, kind, subject, state, created_at, started_by, watched) VALUES "
+        "('bulk', 'make-thumbnail', 'a', 'waiting', now() - to_seconds(30), 'automatic', FALSE), "
+        "('mine', 'make-thumbnail', 'b', 'waiting', now() - to_seconds(20), 'recipe', FALSE), "
+        "('look', 'make-thumbnail', 'c', 'waiting', now() - to_seconds(10), 'automatic', TRUE), "
+        "('going', 'embed-for-search', 'd', 'running', now() - to_seconds(40), 'automatic', FALSE), "
+        "('p1', 'nlp', 'e', 'paused', now() - to_seconds(5), 'automatic', FALSE)")
+    rows = jobs.snapshot(db)
+    thumbs = next(r for r in rows if r["kind"] == "make-thumbnail")
+    assert thumbs["count"] == 3 and thumbs["subject"] == "c"  # the watched job stands for its kind: first in the lane
+    assert thumbs["id"] == "waiting:make-thumbnail"
+    assert next(r for r in rows if r["kind"] == "embed-for-search")["state"] == "running"  # fetched twice, listed once
+    assert [r["kind"] for r in rows].count("embed-for-search") == 1
+    assert next(r for r in rows if r["kind"] == "nlp")["state"] == "paused"

@@ -1751,7 +1751,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     parts.append(f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)")
     params.append(failed_limit)
     rows = db.execute_fetchall(
-        "SELECT DISTINCT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
         f"started_by, {waiting_on_col} FROM (" + " UNION ALL ".join(parts) + ") "
         "ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
@@ -1760,7 +1760,7 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         params,
     )
     out: list[dict[str, Any]] = []
-    reps: dict[tuple[str, str], dict[str, Any]] = {}
+    reps: dict[tuple[str, str], dict[str, Any]] = {}  # a row fetched twice (first and really going) folds into its group
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
     for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on in rows:
