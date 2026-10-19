@@ -204,8 +204,43 @@ def _marker_path(model_id: str, home: Path | None = None) -> Path:
 
 
 def is_recognition_model_installed(model_id: str, home: Path | None = None) -> bool:
-    """Whether a recognition model has been fetched (our marker is the signal)."""
-    return _marker_path(model_id, home).exists()
+    """Whether a recognition model has been fetched whole: our marker, and for a downloaded reader its file is there,
+    nothing half-fetched (`*.part`) sits beside it, and it is the size the download recorded
+    (`source.model.partial-download-is-not-installed`, #5857). A partial download is never offered as installed."""
+    marker = _marker_path(model_id, home)
+    if not marker.exists():
+        return False
+    if model_id.startswith(TRAINED_READER_PREFIX):
+        return True  # a reader Fichero trained lands whole from its job; it is not downloaded
+    return not recognition_download_problem(model_id, home)
+
+
+def recognition_download_problem(model_id: str, home: Path | None = None) -> str | None:
+    """Why a downloaded reader is not whole, in words, or None when it is: its file missing, a `.part` beside it, or
+    a size other than the one recorded."""
+    marker = _marker_path(model_id, home)
+    try:
+        record = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "its record is unreadable"
+    path = record.get("model_path")
+    if not path:
+        return None
+    file = Path(marker.parent / path)
+    if not file.is_file():
+        return "its model file is missing"
+    if any(file.parent.glob("*.part")):
+        return "its download did not finish"
+    recorded = record.get("bytes")
+    if isinstance(recorded, int) and recorded and file.stat().st_size != recorded:
+        return "its file is not the size that was downloaded"
+    return None
+
+
+def recognition_partial_bytes(model_id: str, home: Path | None = None) -> int:
+    """How much of an unfinished download is on disk (its `.part` files); 0 when none."""
+    folder = recognition_data_home(home) / model_id
+    return sum(p.stat().st_size for p in folder.rglob("*.part")) if folder.is_dir() else 0
 
 
 def recognition_model_path(model_id: str, home: Path | None = None) -> str | None:
@@ -1297,7 +1332,7 @@ def download_recognition_model(
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
     _marker_path(model_id, home).write_text(
-        json.dumps({"doi": str(spec["doi"]), "model_path": model_path}),
+        json.dumps({"doi": str(spec["doi"]), "model_path": model_path, "bytes": found[0].stat().st_size}),
         encoding="utf-8",
     )
 
@@ -1595,6 +1630,8 @@ __all__ = [
     "download_recognition_model",
     "is_installed",
     "is_recognition_model_installed",
+    "recognition_download_problem",
+    "recognition_partial_bytes",
     "recognition_data_home",
     "recognition_model_dir",
     "recognition_model_bytes",

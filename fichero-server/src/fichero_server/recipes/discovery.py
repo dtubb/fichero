@@ -569,6 +569,20 @@ def short_name(card: Card) -> str:
     return first[:SHORT_NAME_MAX].rsplit(" ", 1)[0].strip() or first[:SHORT_NAME_MAX]
 
 
+def _partial_words(card: Card) -> str:
+    """What an unfinished download of a Kraken reader says, in words: how much is here and that it resumes."""
+    if not card.pin.get("zenodo"):
+        return ""
+    from fichero_server.llm.kraken_runtime import recognition_partial_bytes
+    from fichero_server.recipes.cards import kraken_reader_for
+
+    try:
+        have = recognition_partial_bytes(kraken_reader_for(card.pin))
+    except Exception:  # noqa: BLE001 -- the words are a courtesy; the availability stands without them
+        return ""
+    return f"{size_words(have / 1e9)} fetched, it resumes" if have else ""
+
+
 def candidate_availability(card: Card) -> tuple[str, str]:
     """(where it stands, in one short phrase) for the finder (#5660 item 3): it ships with Fichero, it is on this
     Mac, it can be downloaded (and how big), it runs elsewhere, or Fichero cannot run it yet."""
@@ -585,7 +599,8 @@ def candidate_availability(card: Card) -> tuple[str, str]:
     if candidate_installed(card):
         return "installed", "Downloaded" + (f" ({size_words(card.size_gb)})" if card.size_gb else "")
     if candidate_download(card) is not None:
-        return "download", f"Download ({size_words(card.size_gb)})"
+        partial = _partial_words(card)
+        return "download", f"Download ({size_words(card.size_gb)})" + (f", {partial}" if partial else "")
     return "download", f"Downloads when first used ({size_words(card.size_gb)})"
 
 
