@@ -267,14 +267,16 @@ extension FirstRunWindow {
     /// The Mac setup assistant's footer (`SetupFooter`): the one secondary choice at the far left, then Back and
     /// the default button at the far right. Regular push buttons, no icons.
     private var footer: some View {
-        let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none)
+        let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none,
+                                   hasMaterial: store?.hasMaterial ?? false)
+        let waits = model.waitsFor ?? (step == .ready ? store?.startDisabledReason : nil)
         return HStack {
             if let leading = model.leading {
                 Button(leading.title) { perform(leading.action) }
             }
             Spacer()
-            // A greyed Start says why beside it, not only on hover (#5801).
-            if step == .ready, let reason = store?.startDisabledReason {
+            // A greyed Start or Continue says why beside it, not only on hover (#5801, #5813).
+            if let reason = waits {
                 Text(reason).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     .accessibilityIdentifier("setup.footer.startReason")
             }
@@ -283,8 +285,8 @@ extension FirstRunWindow {
                 Button("Back") { step = step.previous(in: steps) }
             }
             Button(model.primary.title) { perform(model.primary.action) }
-                .disabled(step == .ready && !(store?.canStart ?? false))
-                .help(step == .ready ? (store?.startDisabledReason ?? "") : "")
+                .disabled(model.waitsFor != nil || (step == .ready && !(store?.canStart ?? false)))
+                .help(waits ?? "")
                 .keyboardShortcut(.defaultAction)
         }
         .accessibilityIdentifier("setup.footer")

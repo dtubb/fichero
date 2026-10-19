@@ -17,8 +17,8 @@ struct SetupFooterTests {
     }
 
     private func footer(_ step: SetupStep, _ steps: [SetupStep], _ mode: FirstRunWindow.Mode = .firstRun,
-                        projectChosen: Bool = false) -> SetupFooter {
-        SetupFooter.of(step, in: steps, mode: mode, projectChosen: projectChosen)
+                        projectChosen: Bool = false, hasMaterial: Bool = true) -> SetupFooter {
+        SetupFooter.of(step, in: steps, mode: mode, projectChosen: projectChosen, hasMaterial: hasMaterial)
     }
 
     /// WHY: Daniel's screenshot: a centred full-width capsule, a "Skip" and a disabled Back on the first page.
@@ -34,7 +34,7 @@ struct SetupFooterTests {
     func leftHandChoices() {
         #expect(footer(.whatFicheroRuns, firstRun).leading?.title == "Not Now")
         #expect(footer(.stage("read"), newProject, .firstRun).leading?.title == "Skip This Stage")
-        for step in [SetupStep.project, .addMaterial, .aboutMaterial, .stages, .ready] {
+        for step in [SetupStep.project, .aboutMaterial, .stages, .ready] {  // Your Material leaves Set Up (#5813)
             #expect(footer(step, newProject, .firstRun).leading == nil, "\(step.id) cannot be skipped")
         }
         let all = (firstRun + newProject).map { footer($0, firstRun + newProject).leading?.title }
@@ -66,6 +66,21 @@ struct SetupFooterTests {
         #expect(footer(.project, newProject, .newProject).leading == .init(title: "Cancel", action: .close))
         #expect(footer(.stage("read"), newProject, .setUp).leading?.title == "Skip This Stage",
                 "the page's own choice wins")
+    }
+
+    /// WHY (#5813, the owner's test of c13efa580): Continue on Your Material went on to the stages with nothing to read.
+    @Test("Your Material: Continue waits for material and says why; one file lets it on; Not Now leaves Set Up")
+    func continueWaitsForMaterial() {
+        let empty = footer(.addMaterial, newProject, .firstRun, hasMaterial: false)
+        #expect(empty.waitsFor == "Add your pages to continue")
+        #expect(empty.primary == .init(title: "Continue", action: .advance))
+        #expect(footer(.addMaterial, newProject, .firstRun, hasMaterial: true).waitsFor == nil, "one file is enough")
+        for mode in [FirstRunWindow.Mode.firstRun, .newProject, .setUp] {
+            #expect(footer(.addMaterial, newProject, mode, hasMaterial: false).leading?.action == .close,
+                    "leaving Your Material leaves Set Up, never goes on to the stages")
+        }
+        #expect(footer(.aboutMaterial, newProject, .firstRun, hasMaterial: false).waitsFor == nil,
+                "only Your Material waits")
     }
 
     @Test("the step list and the page say Where the work runs")

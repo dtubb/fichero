@@ -4,6 +4,10 @@ import Foundation
 
 /// Adding material into the project being set up, split from `RecipeSetupStore` (its file is at its length limit).
 extension RecipeSetupStore {
+    /// The project has material: something was added in this Set Up, or the engine counts pages already there
+    /// (Your Material's Continue waits for it, #5813).
+    var hasMaterial: Bool { materialAdded != nil || (countedPages ?? 0) > 0 }
+
     /// Import a folder into the project the way setup chose (link, copy, move
     /// or index), through the project's own import path. Importing is not
     /// Start: no recipe step runs on it. With Index, the folder is then tied
