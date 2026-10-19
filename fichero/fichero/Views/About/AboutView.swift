@@ -254,13 +254,15 @@ struct AboutView: View {
                 Button("Acknowledgements") {
                     isAcknowledgementsPresented = true
                 }
+                // A link like its two neighbours, full label (#5827).
+                .buttonStyle(.link)
                 .help("View the open-source projects Fichero is built on")
                 .accessibilityIdentifier("about.button.acknowledgements")
             }
             .font(.caption)
         }
         .padding(28)
-        .frame(width: 360)
+        .frame(width: 420)  // the three links fit one line (#5827)
         .frame(minHeight: 360)
         .sheet(isPresented: $isAcknowledgementsPresented) {
             // What the app bundles, generated at build time (#5639); the curated list when this build has none.
