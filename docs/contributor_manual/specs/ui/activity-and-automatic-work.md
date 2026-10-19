@@ -467,6 +467,11 @@ workflow by hand: a hand run is a job like any other.
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
   call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). A batch is a job whose children are its runs (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).
+- `activity.lane.embed-after-reading` — **[OK]** (owner, 2026-10-19 16:27) Embed for search and the NLP name draft work on the text,
+  so they come after the reading: a background one on the embed lane waits ("Waiting for reading to finish") while
+  any Find Lines, Read or model-reading page of the library is queued or running, whatever was queued first, and
+  it never takes the reading lane. A person's own (a correction's re-embed) does not wait
+  (`fichero-server/tests/unit/jobs/test_embed_after_reading.py`).
 - `activity.stop.page-skips-run-stops-children` — **[OK]** (owner, 2026-10-19 16:27) Stop on one page
   skips that page: its row ends `cancelled`, "Stopped by you" (not failed), and its run carries on with the
   next page. Stop on a run stops everything under it: its steps, sub-runs and every waiting or paused page end
