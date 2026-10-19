@@ -21,11 +21,11 @@ final class FirstRunStepSelectionTests: XCTestCase {
     func testAProjectIsSetUpInSmallPagesWithOnePerChosenStage() {
         XCTAssertEqual(
             SetupStep.projectSteps(chosenStages: [], isNewProject: true),
-            [.project, .addMaterial, .aboutMaterial, .stages, .train, .ready]
+            [.project, .addMaterial, .aboutMaterial, .stages, .ready]
         )
         XCTAssertEqual(
             SetupStep.projectSteps(chosenStages: ["find-lines", "read"], isNewProject: false),
-            [.addMaterial, .aboutMaterial, .stages, .stage("find-lines"), .stage("read"), .train, .ready]
+            [.addMaterial, .aboutMaterial, .stages, .stage("find-lines"), .stage("read"), .ready]
         )
     }
 

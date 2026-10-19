@@ -3249,7 +3249,7 @@ Setup
   as one list, what runs by itself, what Start will fetch, Keep an export, and Start. *Test:* pure
   Swift, the last two steps are Train and Ready.
 
-**The two set-ups (section 7d, ruled 2026-10-11 afternoon, #5668).**
+**The two set-ups (section 7d, ruled 2026-10-11 afternoon, #5668).** **Superseded by `source.recipe.train-offered-once-ready` (#5804):** there is no Train step and no per-stage "Train your own" block; Set Up ends at Ready, which shows the offers only once there are some.
 - `source.onboard.app.steps` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStep.appSteps`, `FirstRunWindow.flow(for:)`; pinned by `FirstRunStepSelectionTests`. setting up the app (a first launch, and Fichero › Set
   Up Fichero…) is Welcome → What Fichero runs → the hand-off, and no Permissions step: folder access is
   asked when a folder is added. *Test:* pure Swift, the app's steps are exactly those three.
@@ -3294,7 +3294,7 @@ Setup
   their questions; pure Swift, Translate's target field is the language search.
 - `source.onboard.stages.page-trains` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the stage page shows the engine's train offers for its own jobs (`RecipeTrainOffersFields(onlyJobs:)`, `RecipeSetupStore.trainOffers(forJobs:)`); pinned by `SetupStagesTests`. each stage page offers training or fine-tuning
   for its step (Kraken, spaCy, Core ML, MLX LoRA) where the step can be trained. *Test:* pure Swift, a
-  trainable stage's page offers it and another's does not.
+  trainable stage's page offers it and another's does not. **Superseded by `source.recipe.train-offered-once-ready` (#5804):** there is no Train step and no per-stage "Train your own" block; Set Up ends at Ready, which shows the offers only once there are some.
 - `source.onboard.ready.words-not-engine-errors` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeStartFields.words(for:title:)` names the step by its title and says a model the engine cannot run as what to do; pinned by `SetupStagesTests`. The engine's own words are the fuller fix. Ready says the plan in words and
   never shows a raw engine message (a model "not pinned in a known form" is said in words with what to
   do). *Test:* pure Swift, a refusal's engine text is not on the page.
