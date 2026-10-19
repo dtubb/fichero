@@ -2272,9 +2272,9 @@ class _Scheduler:
 
             def first(clause: str, extra: list[Any]) -> tuple | None:
                 return db.execute_fetchone(
-                    f"SELECT id, kind, subject, model, created_at FROM jobs "
+                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL} FROM jobs "
                     f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
-                    f"ORDER BY {attached_first}COALESCE(watched, FALSE) DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                    f"ORDER BY {attached_first}{_PERSON_WAITS_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
                     f"created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
                 )
@@ -2315,9 +2315,9 @@ class _Scheduler:
                 lane.libraries.difference_update(set(idle) - lane.rewoken)
         if not candidates:
             return None
-        # Across libraries the same rule: within its share first, then waited-for work, then the
-        # loaded model, then the oldest.
-        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, c[2][3] != lane.loaded_model, c[2][4]))
+        # Across libraries the same rule: within its share first, then waited-for work (handed in, then a
+        # person's own), then the loaded model, then the oldest.
+        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, not c[2][5], c[2][3] != lane.loaded_model, c[2][4]))
         return candidates[0][:3]
 
     def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:
@@ -2342,7 +2342,7 @@ class _Scheduler:
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
 
-        job_id, kind_name, subject, model, _ = row
+        job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
         if lane.name == "local-ml":
             if _kraken_busy():  # a Kraken page outside the queue: no second heavy model beside it
