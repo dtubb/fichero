@@ -180,7 +180,10 @@ def test_a_library_without_the_waiting_on_column_still_lists_and_waits_become_no
     jobs._ensure(db)
     db.execute("DROP TABLE jobs")
     db.execute(jobs._SCHEMA)
-    monkeypatch.setattr(jobs, "_ADDED_COLUMNS", tuple(s for s in jobs._ADDED_COLUMNS if "waiting_on" not in s))
+    # The waiting_on ALTER FAILS (not removed): the flag stays unset, so `_has_column` really asks the table.
+    monkeypatch.setattr(jobs, "_ADDED_COLUMNS", tuple(
+        "ALTER TABLE jobs ADD COLUMN waiting_on NOT_A_TYPE" if "waiting_on" in s else s for s in jobs._ADDED_COLUMNS))
+    monkeypatch.setattr(jobs, "_ALTER_FAILURES_LOGGED", set())
     db._jobs_columns_on = None
     job_id = jobs.enqueue(db, WATCHED, "try", started_by="owner", watched=True)
     assert _wait_for(lambda: lane.started == ["try"])
