@@ -1,6 +1,6 @@
 """Set Up end to end with an explicit owner (overnight plan 2026-10-18): a fresh library, signed in by key, then Set Up and Start.
 
-Order: first-run (migrate-owner on a 409) -> sign-in by challenge -> the owner's session token as the bearer ->
+Order: first-run (200 on a fresh library) -> sign-in by challenge -> the owner's session token as the bearer ->
 GET /api/recipes/stages -> PUT /api/recipes/project (the three intake choices) -> GET the start plan -> POST start.
 Runs with Multi-user on: with it unset the engine takes only the bootstrap bearer on loopback (GET identity with a
 session token is 401), so the walk with the bootstrap bearer, as the app sends it today, is in ec193f84b. It was set
@@ -42,10 +42,9 @@ def test_a_fresh_library_goes_from_first_launch_through_set_up_to_start(harness,
     sock = uds_client(harness)
     sent = {"X-Fichero-Launch-Secret": SECRET}
     body = {"public_key_pem": pem, "client": {"kind": "app", "name": "Fichero", "host": "MacBook Pro"}}
+    # Nothing made a keyless owner first (no loopback bootstrap request), so first-run answers 200, not 409.
     made = sock.post("/api/auth/first-run", json={**body, "display_name": "Daniel"}, headers=sent)
-    if made.status_code == 409:
-        made = sock.post("/api/auth/migrate-owner", json=body, headers=sent)
-    client_id = _ok(made, "POST /api/auth/first-run|migrate-owner")["client"]["id"]
+    client_id = _ok(made, "POST /api/auth/first-run")["client"]["id"]
     issued = _ok(sock.post("/api/auth/challenge", json={"client_id": client_id}), "POST /api/auth/challenge")
     signed = _ok(
         sock.post(
@@ -63,7 +62,8 @@ def test_a_fresh_library_goes_from_first_launch_through_set_up_to_start(harness,
     seed_default_workflows(library)
     library.save(Document(name="p0.png", doc_type=DocType.file, file_type=FileType.image, path=str(_png(tmp_path / "p0.png"))))
 
-    _ok(app.get("/api/recipes/stages"), "GET /api/recipes/stages")
+    stages = _ok(app.get("/api/recipes/stages"), "GET /api/recipes/stages")
+    assert stages["count"] == len(stages["items"]) and stages["count"] > 0
     _ok(app.put("/api/recipes/project", json={"answers": INTAKE}), "PUT /api/recipes/project")
     saved = _ok(app.get("/api/recipes/project"), "GET /api/recipes/project")
     assert saved["recipe"] is not None, "PUT /api/recipes/project stored no recipe"
