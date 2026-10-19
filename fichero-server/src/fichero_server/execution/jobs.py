@@ -1787,6 +1787,55 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     return out
 
 
+#: How many of a kind's latest finished jobs set its measured time per item.
+MEASURED_ITEMS = 50
+
+
+def seconds_per_item(db: "Database", kind: str) -> float | None:
+    """The median seconds one job of this kind took, from its latest finished ones; None when none is measured."""
+    rows = db.execute_fetchall(
+        "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE kind = ? AND state = 'done' "
+        "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
+        [kind, MEASURED_ITEMS])
+    times = sorted(r[0] for r in rows if r[0] is not None and r[0] >= 0)
+    return times[len(times) // 2] if times else None
+
+
+def queue_summary(db: "Database", rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The whole queue in one line (#5839): done, left and about how long is left, from `snapshot`'s one-row-per-kind
+    rows. The time counts only kinds with a measured time per item (jobs one after another, so a rough upper bound);
+    None when nothing is queued, and no time when nothing is measured."""
+    queued = [r for r in rows if r["state"] in ("waiting", "running", "paused") and r["parent_id"] is None
+              and r["kind"] not in _OWN_ROW_KINDS]
+    left = sum(r["count"] for r in queued)
+    if not left:
+        return None
+    done = sum(r.get("done") or 0 for r in queued)
+    seconds = 0.0
+    measured = False
+    for r in queued:
+        per = seconds_per_item(db, r["kind"])
+        if per is not None:
+            seconds += per * r["count"]
+            measured = True
+    return {"done": done, "left": left, "seconds_left": round(seconds) if measured else None}
+
+
+def items_of_kind(db: "Database", kind: str, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """One kind's queued jobs, each its own line, in the order the lane picks them (running first), for a row that
+    expands to its pages (#5839)."""
+    _ensure(db)
+    waiting_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL"
+    rows = db.execute_fetchall(
+        f"SELECT id, subject, state, reason, {waiting_col} FROM jobs WHERE kind = ? AND parent_id IS NULL "
+        "AND state IN ('waiting', 'running', 'paused') "
+        f"ORDER BY CASE WHEN state = 'running' AND {waiting_col} IS NULL THEN 0 WHEN state = 'running' THEN 1 "
+        f"WHEN state = 'waiting' THEN 2 ELSE 3 END, {_PERSON_RANK_SQL} DESC, created_at, rowid LIMIT ? OFFSET ?",
+        [kind, limit, offset])
+    return [{"id": i, "subject": subj, "state": "waiting" if state == "running" and w else state, "reason": reason}
+            for i, subj, state, reason, w in rows]
+
+
 def clear_failed(db: "Database") -> list[str]:
     """Clear Failed (`activity.window.clear-failed`, #5634): every failed job `snapshot` would list
     is cleared. Its row is kept (its run's tree, the record and a retry still read it) and is no

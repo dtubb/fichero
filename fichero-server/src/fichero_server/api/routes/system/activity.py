@@ -213,6 +213,22 @@ def _utc(value: Any) -> Optional[datetime]:
     return ensure_utc(value)
 
 
+class QueueSummary(BaseModel):
+    """The whole queue in one line (`activity.window.queue-summary`, #5839)."""
+
+    done: int
+    left: int
+    seconds_left: Optional[int] = Field(default=None, description=(
+        "about how long is left, from the measured time per item; absent when nothing queued has been measured"))
+
+
+class QueuedItem(BaseModel):
+    id: str
+    subject: str
+    state: str
+    reason: Optional[str] = None
+
+
 class BackgroundJobsResponse(BaseModel):
     """Snapshot of running background jobs + rough process CPU usage."""
 
@@ -234,6 +250,8 @@ class BackgroundJobsResponse(BaseModel):
     mode: Literal["automatic", "started", "paused"] = "automatic"
     # This Mac's memory, heat, power and use, and why heavy work waits (#5415).
     machine: MachineState
+    # Done, left and about how long: the whole queue (`activity.window.queue-summary`); absent when nothing is queued.
+    summary: Optional[QueueSummary] = None
 
 
 class JobTree(BaseModel):
@@ -597,7 +615,29 @@ async def list_background_jobs(
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),
         machine=MachineState(**throttle.machine_state()),
+        summary=_queue_summary(db),
     )
+
+
+def _queue_summary(db: Database) -> Optional[QueueSummary]:
+    from fichero_server.execution import jobs as job_queue
+
+    said = job_queue.queue_summary(db, job_queue.snapshot(db))
+    return QueueSummary(**said) if said else None
+
+
+@router.get("/jobs/kind/{kind}/items", response_model=list[QueuedItem])
+async def list_queued_items(
+    kind: str,
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Database = Depends(get_library_database),
+) -> list[QueuedItem]:
+    """The pages of one kind's row (`activity.window.expands-to-pages`, #5839): its queued jobs, each a line, in the
+    order the lane will pick them, running first."""
+    from fichero_server.execution import jobs as job_queue
+
+    return [QueuedItem(**i) for i in job_queue.items_of_kind(db, kind, limit=limit, offset=offset)]
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
