@@ -82906,6 +82906,27 @@
             "nullable": true,
             "title": "Run Titles",
             "description": "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the order Start makes them (#5795); null for every other step"
+          },
+          "built_in": {
+            "type": "boolean",
+            "title": "Built In",
+            "description": "Fichero's own algorithm, with no model to choose (Find where the readers disagree, #5812): the row never says it has no model, and Remove from Plan always works",
+            "default": false
+          },
+          "compares": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true,
+            "title": "Compares",
+            "description": "a built-in comparison's readers, by name, when the plan has two or more"
+          },
+          "needs": {
+            "type": "string",
+            "nullable": true,
+            "title": "Needs",
+            "description": "what a built-in step waits for, in words (\"needs a second reader: tick one in Read\"); never a block"
           }
         },
         "type": "object",
