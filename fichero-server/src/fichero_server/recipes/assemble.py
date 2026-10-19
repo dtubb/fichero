@@ -674,6 +674,34 @@ def _chosen(choice: Choice) -> dict[str, Any]:
     }
 
 
+def _pin_link(pin: dict) -> str | None:
+    """Where a person reads about the model a pin names (#5802): its Zenodo record, its Hugging Face page, or the
+    tool's own page; None when the pin has no page of its own."""
+    if pin.get("zenodo"):
+        return f"https://doi.org/{pin['zenodo']}"
+    if pin.get("hf"):
+        return f"https://huggingface.co/{pin['hf']}"
+    if pin.get("kraken"):
+        return "https://kraken.re"
+    if pin.get("spacy"):
+        return "https://spacy.io/models"
+    if pin.get("builtin") == "apple-vision":
+        return "https://developer.apple.com/documentation/vision"
+    return None
+
+
+def _name_the_model(step: dict[str, Any]) -> None:
+    """'Which model does it' never shows a bare choice: the step's model by name with its link, or the answer still
+    needed, in words (`source.onboard.stages.step-names-its-model`, #5802)."""
+    pin = step.get("model")
+    if isinstance(pin, dict) and pin:
+        card = step.get("card") or {}
+        step["model_name"] = card.get("note") or card.get("id") or str(next(iter(pin.values())))
+        step["model_link"] = _pin_link(pin)
+        return
+    problem = step.get("problem") or {}
+    step["needs"] = problem.get("sentence") or step.get("gap") or "choose a model for this step"
+
 def _topic(job: str) -> dict[str, Any]:
     """The step's topic (the registry's explanation, written once): its id, title and one sentence."""
     from fichero_server.recipes.jobs import get_job
@@ -867,6 +895,10 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         choice = _choose(job, cards, a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}
         read = [m for m in a.materials if m in READ_MATERIALS]  # material already text has no reader (#5553)
+        mixed = a.job_answers.get("mixed_writing") is True and job in READING_JOBS
+        if mixed:  # handwriting and print on one page: a reader for each kind, routed by region (#5802)
+            kinds = ("handwriting", "print")
+            read = [m for m in kinds if m in READ_MATERIALS] + [m for m in read if m not in kinds]
         if len(read) > 1 and job in READING_JOBS:
             # One reader per kind of material ticked; the step's own model is the default kind's,
             # until a folder or page override says which applies where (`source.onboard.material-any-mix`).
@@ -876,6 +908,8 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         if answer and a.job_answers.get(answer) not in (None, "", []):
             step["settings"] = {setting: a.job_answers[answer]}
+        if mixed:
+            step["settings"] = {**step.get("settings", {}), "route_by": "region"}
         if choice.card is None:
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
@@ -885,6 +919,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
     for step in steps:
         known = get_job(step["job"])
         step.setdefault("layer", known.layer if known else step["job"])  # `source.recipe.steps-name-layers`
+        _name_the_model(step)
     # What the purpose (or a layer added later) turns on by itself, in step order, never written by hand.
     brought = set(purpose_jobs(a.purposes)) | {j for layer in a.layers for j in layer_jobs(layer)}
     automatic = [{"id": s["id"], "layer": s["layer"], "uses_cloud": bool(s.get("uses_cloud"))}

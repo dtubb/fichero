@@ -126,7 +126,8 @@ _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
-                       "correct": ("review_lenses", "lenses")}
+                       "correct": ("review_lenses", "lenses"),
+                       "find-regions": ("layout", "layout")}
 #: Job answers whose empty list says "none of them", never "not answered".
 _EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
