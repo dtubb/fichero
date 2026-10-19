@@ -210,7 +210,8 @@ struct ActivityStatusToolbarItem: View {
             // The process CPU from the same jobs read joins the Mac's row of symbols (#5635).
             processCpuPercent: activityStore.processCpuPercent,
             cpuCount: activityStore.cpuCount,
-            errorWindow: errorWindow
+            errorWindow: errorWindow,
+            activity: activityStore.activitySummary
         )
     }
 
