@@ -20,19 +20,13 @@ def _recipe(*steps):
     return {"fichero_recipe": 1, "id": "t/disagree", "version": "0.1.0", "title": "t", "steps": list(steps)}
 
 
-def test_a_plan_with_two_readers_gets_a_built_in_step_with_no_model(mac):
+def test_a_plan_with_two_readers_has_no_run_for_the_step_and_says_when_it_is_worked_out(mac):
     plan = plan_start(_recipe(LINES, KRAKEN_READS, CORRECT, DOUBT), stays_local=True)
 
-    (run,) = [r for r in plan["runs"] if r["job"] == DISAGREE_JOB]
-    assert run["card"] == "align" and "model_override" not in run and "workflow" not in run
-    assert not [s for s in plan["skipped"] if s["step"] == "doubt"]
-
-
-def test_the_built_in_step_never_sends_pages_off_the_mac(mac):
-    plan = plan_start(_recipe(LINES, KRAKEN_READS, CORRECT, DOUBT), stays_local=True)
-
-    assert not [s for s in plan["skipped"] if "off this Mac" in s["why"]]
-    assert [r for r in plan["runs"] if r["job"] == DISAGREE_JOB][0]["runs_on"] == "this-mac"
+    assert not [r for r in plan["runs"] if r["job"] == DISAGREE_JOB], "nothing runs and nothing is stored (#5816)"
+    (said,) = [s for s in plan["skipped"] if s["step"] == "doubt"]
+    assert "worked out when you open a page" in said["why"] and said["fix"] is None
+    assert not [s for s in plan["skipped"] if "off this Mac" in s["why"] or "has no model" in s["why"]]
 
 
 def test_a_step_that_names_its_own_model_is_still_sampled(mac):
@@ -50,25 +44,6 @@ def test_one_reader_that_cannot_be_sampled_says_which_reader_to_add_and_offers_n
     assert "add a second reader" in skipped["why"]
     assert skipped["fix"] is None, "no Choose a model for a step that needs none"
     assert not plan.get("needs_a_model")
-
-
-def test_the_built_in_run_aligns_each_page_and_a_missing_page_is_said(db, monkeypatch):
-    from fichero_server.api.routes.document import compare_readings
-    from fichero_server.recipes import runner
-
-    seen = []
-
-    def fake(_db, page_id):
-        seen.append(page_id)
-        if page_id == "gone":
-            raise LookupError("no such page")
-
-    monkeypatch.setattr(compare_readings, "page_disagreement", fake)
-
-    assert runner._run_align(db, ["a", "b"]) == (None, "done", None)
-    assert seen == ["a", "b"]
-    child, state, why = runner._run_align(db, ["a", "gone"])
-    assert (child, state) == (None, "failed") and "1 of 2" in why
 
 
 def test_the_finder_for_a_sampled_reader_offers_vision_readers_never_a_text_search(monkeypatch):
