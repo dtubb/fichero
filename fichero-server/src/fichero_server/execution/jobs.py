@@ -729,7 +729,12 @@ def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
 
 
 def _ensure(db: "Database") -> None:
-    db.execute(_SCHEMA)
+    # The CREATE IF NOT EXISTS runs once per CONNECTION, not per call (#5843): the Activity poll called this every
+    # second, and each DDL waited on the database's transaction gate behind a Kraken or derivatives write, on the
+    # event loop (255 s). A new connection (reconnect, library reopened) runs it again.
+    if getattr(db, "_jobs_schema_on", None) is not db.conn:
+        db.execute(_SCHEMA)
+        db._jobs_schema_on = db.conn
     # Once per CONNECTION, not per path (#5814): a reconnect after an invalidated connection (an ALTER that
     # was never committed is gone) or a library opened afresh at the same path starts from the file's
     # real columns, and a path-keyed cache skipped the ALTER there, so every read said "column not found".

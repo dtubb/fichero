@@ -2467,6 +2467,19 @@ def normalize_vision_language(language: str | None) -> str:
     return lowered
 
 
+def warm_supported_locales() -> None:
+    """Load the Vision bundle and ask it, in the caller's thread (the engine does this at startup, off the loop)."""
+    try:
+        _supported_vision_locales()
+    except Exception:  # noqa: BLE001 -- off macOS: nothing to warm
+        pass
+
+
+def supported_locales_are_known() -> bool:
+    """Whether `_supported_vision_locales` has been answered, so reading it again costs nothing."""
+    return _supported_vision_locales.cache_info().currsize > 0
+
+
 @lru_cache(maxsize=1)
 def _supported_vision_locales() -> frozenset[str]:
     """The recognition locales THIS machine's Vision text recognizer accepts.

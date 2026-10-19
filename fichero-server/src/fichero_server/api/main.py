@@ -16,6 +16,7 @@ Environment Variables:
 """
 
 import asyncio
+import threading
 import functools
 import hashlib
 import hmac
@@ -910,6 +911,10 @@ async def lifespan(app: FastAPI):
     from fichero_server.core import loop_lag
 
     _loop_watch = loop_lag.start(asyncio.get_running_loop())  # a held-up loop is logged with its stack (#5843)
+    # The Vision bundle load (seconds, PyObjC) happens here, off the loop, so a route that asks later reads a cache.
+    from fichero_server.workflows.tools import vision_base as _vision_base
+
+    threading.Thread(target=_vision_base.warm_supported_locales, name="vision-locales-warm", daemon=True).start()
     logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
     remote_backend_status = build_remote_backend_status()
@@ -2072,15 +2077,19 @@ async def get_stats(db: Database = Depends(get_library_database)):
     """Get library statistics for the current library."""
     from fichero_server.models import Document, Artifact
 
-    return LibraryStatsResponse(
-        documents=sum(
-            1
-            for doc in db.all(Document)
-            if getattr(doc, "deleted_at", None) is None
-        ),
-        artifacts=db.count(Artifact),
-        embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
-    )
+    def read() -> LibraryStatsResponse:
+        return LibraryStatsResponse(
+            documents=sum(
+                1
+                for doc in db.all(Document)
+                if getattr(doc, "deleted_at", None) is None
+            ),
+            artifacts=db.count(Artifact),
+            embedding_stats=EmbeddingStatsResponse(**db.embedding_stats()),
+        )
+
+    # Off the loop (#5843): opening LanceDB imports lancedb and waited 255 s on the import lock, holding /api/health.
+    return await asyncio.to_thread(read)
 
 
 @app.get("/api/stats/knowledge", response_model=KnowledgeRowCountsResponse)
