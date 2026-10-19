@@ -1957,22 +1957,24 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     plan["addable"] = addable_now(setup["answers"] or {})
     plan["left_off"] = [o["sentence"] for o in (setup["recipe"] or {}).get("left_off") or [] if o.get("sentence")]
     plan["folder_id"] = folder_id
-    from fichero_server.recipes.train_offers import training_setting
+    from fichero_server.recipes.train_offers import training_setting, training_stays_local
 
     from fichero_server.recipes.answers import spend_cap
     from fichero_server.recipes.project import read_noise_band
 
     cap = spend_cap(setup["answers"])
+    # Training has its own place check (Hugging Face Jobs), the one auto-start uses too (#5841).
+    train_local, train_why = training_stays_local(setup["answers"])
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
-                               hf_configured=_hf_token_set(), stays_local=stays_local, spend_cap=cap)
+                               hf_configured=_hf_token_set(), stays_local=train_local, spend_cap=cap)
     from fichero_server.recipes.train_offers import held_after_failure
 
     held = held_after_failure(db) if setting["mode"] == "here" else None
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
-    plan["train_offers"] = offered(train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
+    plan["train_offers"] = offered(train_offers(setup["recipe"], counted(db), stays_local=train_local, setting=setting,
                                         spend_cap=cap, clusters=clusters,
-                                        noise_band=read_noise_band(library)))
+                                        noise_band=read_noise_band(library), stays_why=train_why))
     from fichero_server.recipes.train_offers import spend_this_month
 
     plan["hf_spend"] = spend_this_month(db, cap=cap)

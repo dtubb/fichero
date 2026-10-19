@@ -42,7 +42,7 @@ struct RecipeWhenWhereHandFields: View {
                 && !store.handOptions.contains { $0.id == id } }, id: \.self) { typed in
                 VStack(alignment: .leading, spacing: 1) {
                     Toggle(typed, isOn: Binding(get: { true }, set: { _ in store.toggle(hand: typed) })).setupCheckbox()
-                    Text("Typed by you, kept as typed.").font(.caption).foregroundStyle(.secondary)
+                    Text("Not on Fichero's list; kept as written.").font(.caption).foregroundStyle(.secondary)
                 }
             }
             TextField("Another hand", text: $typedHand, prompt: Text("Another hand, as you would name it"))
