@@ -67,3 +67,50 @@ def test_retry_on_a_failed_page_reopens_the_same_run_and_keeps_its_earlier_pages
     listed = client.get("/api/workflow-execution/runs", params={"limit": 500}).json()["items"]  # WorkflowRunListResponse
     ids = [x["thread_id"] for x in listed]
     assert ids.count(run) == 1  # one record for the run: reopened, not duplicated
+
+
+def test_retry_in_a_stopped_run_keeps_the_runs_record_and_reads_one_page(client, db, workflow, pages, cloud):
+    """The stopped branch (review 305): a run stopped with one page not read. Retry on that page must read exactly it,
+    leave the run's checkpoint (so its account still counts every page) and end with done == total == all pages."""
+    failing = {"left": 1}
+    reads = cloud.__call__
+
+    async def one_page_fails(images, prompt, config, **kwargs):
+        if failing["left"]:
+            failing["left"] -= 1
+            raise RuntimeError("stopped before this page was read")
+        return await reads(images, prompt, config, **kwargs)
+
+    import fichero_server.llm as llm
+
+    llm.vision = one_page_fails
+    r = client.post("/api/workflow-execution/execute", json={
+        "workflow_id": workflow.id, "inputs": {"selected_doc_ids": [d.id for d in pages]}})
+    assert r.status_code == 202, r.text
+    run = r.json()["thread_id"]
+    assert _wait_for(lambda: _status(client, run) in ("completed", "failed"), 120)
+    # What a Stop leaves: the run says cancelled and the page that was not read says cancelled (not failed).
+    asyncio.run(_mark_stopped(db, run))
+    before = _account(db, run)
+    assert before.pages_total == len(pages), "the run's account is built from its checkpoint, still there"
+    page = db.execute_fetchone("SELECT id FROM jobs WHERE state = 'cancelled' AND kind NOT IN ('workflow', 'workflow-step') LIMIT 1")
+    assert page is not None
+    calls = cloud.calls
+
+    r = client.post(f"/api/activity/jobs/{page[0]}/retry")
+
+    assert r.status_code == 200, r.text
+    assert _wait_for(lambda: cloud.calls > calls, 120)
+    assert _wait_for(lambda: _status(client, run) == "completed" and _account(db, run).pages_failed == 0, 120)
+    assert cloud.calls - calls == 1, "only the retried page is read"
+    after = _account(db, run)
+    assert after.pages_total == len(pages) and after.pages_done == len(pages)
+
+
+async def _mark_stopped(db, run):
+    from fichero_server.api.routes.workflow_execution.core import get_activity_tracker as tracker
+
+    await tracker(str(db.path)).store.update_workflow_run(thread_id=run, status="cancelled")
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you' WHERE state = 'failed' "
+               "AND kind NOT IN ('workflow', 'workflow-step')")
+    db.execute("UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you' WHERE id = ?", [run])
