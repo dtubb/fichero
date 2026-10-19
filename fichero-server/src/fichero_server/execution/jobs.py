@@ -1027,6 +1027,25 @@ def _pause_requested(run_id: str) -> bool:
 
 #: What a local ML job held behind thumbnails says (`activity.lane.thumbnails-first`, #5585).
 FIRST_REASON = "Waiting: thumbnails are made first"
+
+
+def first_reason(db: "Database", first_kinds: list[str]) -> str:
+    """FIRST_REASON, plus what the thumbnails themselves wait for (the mode, as their own row says it) and
+    the pages that failed, each with why (#5818). Bare FIRST_REASON when there is nothing more to say."""
+    marks = ", ".join("?" for _ in first_kinds)
+    said = FIRST_REASON
+    stuck = db.execute_fetchone(
+        f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'waiting' AND reason IS NOT NULL "
+        f"AND reason NOT LIKE 'Waiting for its turn%' AND reason <> ? ORDER BY created_at LIMIT 1",
+        [*first_kinds, FIRST_REASON])
+    if stuck and stuck[0]:
+        said += f" ({stuck[0].removeprefix('Waiting: ')})"
+    failed = db.execute_fetchall(
+        f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND reason IS NOT NULL "
+        f"ORDER BY created_at LIMIT 4", [*first_kinds])
+    if failed:
+        said += "; failed: " + "; ".join(r[0] for r in failed)
+    return said
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
 
@@ -1735,7 +1754,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
                 f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in first_kinds)}) "
                 f"AND state IN ('waiting', 'running') AND created_at <= ? LIMIT 1",
                 [*first_kinds, created_at]) is not None:
-            return FIRST_REASON
+            return first_reason(db, first_kinds)
     if stored and not _decided_here(stored):
         return stored
     if run_after is not None and ensure_utc(run_after) > ensure_utc(utc_now()):
@@ -2287,8 +2306,9 @@ class _Scheduler:
                 f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
                 waiting_on_first[1]) is not None
             if held_by_first:  # each held row says why, and the lane looks again soon (not idle)
+                said_first = first_reason(db, first_kinds)
                 db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
-                           f"AND reason IS DISTINCT FROM ?", [FIRST_REASON, *waiting_on_first[1], FIRST_REASON])
+                           f"AND reason IS DISTINCT FROM ?", [said_first, *waiting_on_first[1], said_first])
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
             row = first(share_clause, share_params) if share_clause else None

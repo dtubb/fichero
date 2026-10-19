@@ -743,19 +743,15 @@ class SourceMissing(Exception):
     """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
 
 
-def _thumbnail_stage(doc_id: str, library: str, *, raise_failed: bool = False) -> Path | None:
+def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     """Generate one document's thumbnail and announce it IMMEDIATELY — the
     change event used to wait behind that document's ~1.3s embed, so the grid
     learned about a finished image over a second late (user, live 2026-08-19).
-
-    `raise_failed` (the job kind) lets a missing original fail the job in words; a direct caller gets None.
     """
     _progress_touch(library)
     try:
         return _thumbnail_stage_body(doc_id, library)
     except SourceMissing:
-        if raise_failed:
-            raise
         return None
     finally:
         _progress_touch(library)
@@ -1029,6 +1025,16 @@ def _library_of(db: "Database") -> str:
     return str(Path(db.path).parent)
 
 
+def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
+    """The thumbnail kind: the stage, and a missing original fails the job in words (#5818)."""
+    thumb = _thumbnail_stage(doc_id, _library_of(db))
+    doc = db.get(Document, doc_id)
+    error = str((doc.metadata or {}).get("derivative_error") or "") if doc is not None else ""
+    if error.endswith(MISSING_ORIGINAL_TAIL):
+        raise SourceMissing(error)
+    return thumb
+
+
 _kinds_registered = False
 
 
@@ -1041,7 +1047,7 @@ def register_job_kinds() -> None:
     _kinds_registered = True
     from fichero_server.execution import jobs
 
-    jobs.register_kind(THUMBNAIL_KIND, lambda db, doc_id: _thumbnail_stage(doc_id, _library_of(db), raise_failed=True),
+    jobs.register_kind(THUMBNAIL_KIND, _thumbnail_job,
                        model=None, lane="images", name="Make thumbnails",
                        # Cheap, and what the person sees: made before the heavy local work queued
                        # after them (`activity.lane.thumbnails-first`, #5585).
