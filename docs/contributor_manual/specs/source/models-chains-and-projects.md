@@ -3268,7 +3268,7 @@ Setup
 - `source.onboard.ready.will-not-run-when-chosen` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `RecipeSetupStore.skippedStepsOfChosenStages`; and an unchosen stage's jobs are taken out of the answers. a step that will not run is
   listed on Ready only when its stage was chosen. *Test:* pure Swift, an unchosen stage's refusal is not
   listed.
-- `source.onboard.models.chooser-per-step` — **[BROKEN]** (#5668) a step's model candidates and online
+- `source.onboard.models.chooser-per-step` — **[PARTIAL]** (#5668; engine half built and pinned by `fichero-server/tests/unit/recipes/test_model_chooser_per_step_5668.py`: `find-statements` never lists a page reader, each step's search asks by its own pipeline and tags; the Swift search label naming the step is unseen) a step's model candidates and online
   search are that step's own: Find statements never lists page readers or says it searched for readers.
   *Test:* engine, the candidates for `find-statements` carry that job; pure Swift, the search label
   names the step.
@@ -3405,7 +3405,7 @@ Setup
   a project uses; the app-wide client is never used for setup, so `GET`/`PUT /api/recipes/project`
   never answer 400 in first run. *Test:* first run through the real app environment saves the
   Your material answers and `GET /api/recipes/project` on the new project returns them.
-- `source.onboard.start-works-in-first-run` — **[PARTIAL]** (#5477) **Built 2026-10-05 (app), not yet seen:** first run's Start plans and starts through the project made on Where it lives (its store), as Set Up… does. *Not pinned: first run to Start on a fixture folder against the real engine.* the Start screen in first run plans
+- `source.onboard.start-works-in-first-run` — **[PARTIAL]** (#5477) **Built 2026-10-05 (app), not yet seen:** first run's Start plans and starts through the project made on Where it lives (its store), as Set Up… does. *Engine half pinned (2026-10-18): the saved setup's plan has no refusals and Start records the first yes, with no setup refused in words (`fichero-server/tests/unit/recipes/test_first_run_start_5477.py`). Not pinned: the app's first run against the real engine.* the Start screen in first run plans
   and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
