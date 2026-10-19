@@ -150,6 +150,22 @@ def _result_path(library: Path, stage: str) -> Path:
     return _folder(library) / f"{stage}.json"
 
 
+def stored_results(library: Path, recipe: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    """Each chosen stage's kept sample result, as its last try left it (for what a kinds question may suggest)."""
+    from fichero_server.recipes.stages import STAGES
+
+    on = {str(s.get("job")) for s in (recipe or {}).get("steps") or []}
+    out: dict[str, dict[str, Any]] = {}
+    for stage in STAGES:
+        if not on & set(stage.jobs):
+            continue
+        try:
+            out[stage.id] = json.loads(_result_path(Path(library), stage.id).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue  # not tried yet, or the record is unreadable: nothing is suggested
+    return out
+
+
 def read_result(db: Any, stage: str, recipe: dict[str, Any] | None) -> dict[str, Any] | None:
     """The stage's sample result; None (and the record cleared) when the stage is not on in the recipe."""
     from fichero_server.recipes.stages import get_stage

@@ -25,6 +25,9 @@ class Question:
     #: True when a step reads it today (`start.JOB_ANSWER_SETTINGS`); the others are kept with the answers, for the
     #: stage's own use as it is built.
     read_by_a_step: bool = False
+    #: A question that names kinds (#5805): every kind by default (an empty answer), the person can type their own, no
+    #: fixed `options`, and the listing's `suggestions` hold only what a sample try found.
+    open_ended: bool = False
 
 
 @dataclass(frozen=True)
@@ -86,9 +89,7 @@ STAGES: tuple[Stage, ...] = (
           "Finds the people, places and other names in the text, places them on a map and links them to authorities.",
           "“Juan de la Cruz” and “Istmina” marked, Istmina placed on the map.",
           (Question("entity_kinds", "Which kinds of names?", "many",
-                    (("people", "People"), ("places", "Places"), ("organisations", "Organisations"), ("dates", "Dates"),
-                     ("things", "Things (objects, goods)"), ("events", "Events")),
-                    default=["people", "places", "organisations"], read_by_a_step=True),
+                    default=[], read_by_a_step=True, open_ended=True),
            Question("gazetteer", "Which place list? GeoNames (worldwide, modern names) · Wikidata · My own list", "one",
                     (("geonames", "GeoNames"), ("wikidata", "Wikidata"), ("project", "The project's own list")),
                     default="geonames", read_by_a_step=True)),
@@ -96,28 +97,23 @@ STAGES: tuple[Stage, ...] = (
     Stage("statements", "Statements", ("find-statements",),
           "Finds who did what to whom, as statements you can check: a sale, a gift, a marriage, a letter sent.",
           "“Juan de la Cruz sells a house to María Mosquera”.",
-          (Question("statement_kinds", "Which kinds of statements?", "many",
-                    (("sales", "Sales"), ("gifts", "Gifts"), ("marriages", "Marriages"), ("letters", "Letters sent"),
-                     ("other", "Anything else")), default=["sales", "gifts", "marriages", "letters", "other"]),),
+          (Question("statement_kinds", "Which kinds of statements?", "many", default=[], read_by_a_step=False,
+                    open_ended=True),),
           needs=("read", "names")),
     Stage("dates", "Dates & Times", ("work-out-dates",),
           "Works out the dates the names step found, in the calendar they were written in.",
           "“a 3 de mayo de 1740” as 1740-05-03.",
-          (Question("calendars", "Which calendars?", "many",
-                    (("gregorian", "Gregorian"), ("julian", "Julian"), ("regnal", "Regnal years"),
-                     ("french-republican", "French Republican")), default=["gregorian"]),),
+          (Question("calendars", "Which calendars?", "many", default=[], read_by_a_step=True, open_ended=True),),
           needs=("names",)),
     Stage("passages", "Passages", ("pull-out-passages",),
-          "Pulls out the passages you ask for: quotations, formulae, a party's own words.",
+          "Pulls out the passages you ask for, of any kind, and keeps where each one sits on the page.",
           "The notary's closing formula on each deed.",
-          (Question("passage_kinds", "Which kinds of passages?", "many",
-                    (("quotations", "Quotations"), ("formulae", "Formulae"), ("own-words", "A party's own words")),
-                    default=["quotations"]),),
+          (Question("passage_kinds", "Which kinds of passages?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("structured-data", "Structured Data", ("find-a-tables-cells", "extract-to-a-table", "describe-for-the-catalogue"),
           "Fills a table or a catalogue record from the pages: a ledger's columns, a deed's parties and date.",
           "Each deed's buyer, seller, price and date as one row.",
-          (Question("fields", "Which fields to fill, and from what?", "text", default=""),),
+          (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=False, open_ended=True),),
           needs=("read",)),
     Stage("search", "Search", ("make-a-vector",),
           "Makes the pages searchable by meaning as well as by their words.",
@@ -149,21 +145,63 @@ def sampleable(stage: Stage) -> bool:
             or any(j in WORKFLOW_FOR_JOB for j in stage.jobs))
 
 
-def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def _words(value: Any) -> list[str]:
+    """A kinds answer as a list of words, each once and as typed: a list, or the text an earlier build kept (split at
+    commas and line breaks)."""
+    import re
+
+    parts = value if isinstance(value, list) else re.split(r"[,\n]", value) if isinstance(value, str) else []
+    seen: dict[str, str] = {}
+    for part in parts:
+        word = str(part).strip()
+        if word:
+            seen.setdefault(word.casefold(), word)
+    return list(seen.values())
+
+
+def suggested_kinds(stage_id: str, result: dict[str, Any] | None) -> list[str]:
+    """The kinds a sample try found, for a kinds question to suggest and for nothing else (#5805): Names' are the types
+    of the names it found; a stage whose try reports `found_kinds` is read as that. Empty before a try, and for a stage
+    whose try does not say."""
+    if not result:
+        return []
+    found = list(result.get("found_kinds") or [])
+    if stage_id == "names":
+        found += [n.get("type") for n in result.get("names") or [] if isinstance(n, dict)]
+    return sorted(_words(found), key=str.casefold)
+
+
+def example_from_samples(stage_id: str, result: dict[str, Any] | None) -> str | None:
+    """The first passage a sample try found (Passages' example from the person's own pages), else None."""
+    if stage_id != "passages" or not result:
+        return None
+    first = next(iter(result.get("passages") or []), None)
+    text = first.get("text") if isinstance(first, dict) else first
+    return str(text).strip() or None if text else None
+
+
+def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None,
+            tried: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """The thirteen stages, in pipeline order, each on or off in this project's recipe, with its questions (answered where the
-    project has answered them, else their defaults) and its needs in words."""
+    project has answered them, else their defaults) and its needs in words. `tried` is each stage's sample result, where
+    it has one: what a kinds question suggests and Passages' example come from it and from nothing else."""
     in_recipe = {str(s.get("job")) for s in (recipe or {}).get("steps") or []}
     answered = dict((answers or {}).get("job_answers") or {})
     titles = {s.id: s.title for s in STAGES}
+    tried = tried or {}
     out = []
     for stage in STAGES:
+        result = tried.get(stage.id)
         out.append({
             "id": stage.id, "title": stage.title, "sentence": stage.sentence, "example": stage.example,
+            "example_from_samples": example_from_samples(stage.id, result),
             "jobs": list(stage.jobs), "on": bool(in_recipe & set(stage.jobs)),
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
             "questions": [{"key": q.key, "ask": q.ask, "kind": q.kind,
                            "options": [{"id": i, "title": t} for i, t in q.options], "default": q.default,
-                           "answer": answered.get(q.key, q.default), "read_by_a_step": q.read_by_a_step}
+                           "answer": _words(answered.get(q.key, q.default)) if q.open_ended else answered.get(q.key, q.default),
+                           "read_by_a_step": q.read_by_a_step, "open_ended": q.open_ended,
+                           "suggestions": suggested_kinds(stage.id, result) if q.open_ended else []}
                           for q in stage.questions],
             "needs": [{"stage": n, "why": f"{stage.title} needs {titles[n]}"} for n in stage.needs],
             "sampleable": sampleable(stage), "tried_by": "bake-off" if stage.id in TRIED_BY_THE_BAKEOFF else "workflow",

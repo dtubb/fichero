@@ -109,7 +109,32 @@ struct SetupStagesTests {
         // A typed field answers for its own key.
         let kinds = Components.Schemas.StageQuestion(key: "entity_kinds", ask: "Which kinds of names?", kind: .many,
                                                      readByAStep: true)
-        #expect(SetupStagePage.answer(to: kinds, in: answers) == .many(["people", "places"]))
+        #expect(SetupStagePage.answer(to: kinds, in: answers) == .many([]), "every kind until the person names some (#5805)")
+    }
+
+    @Test("source.onboard.stages.kinds-are-open-ended: an open question has no options, every kind by default, and suggestions")
+    func openEndedQuestion() throws {
+        let statements = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+        {"key": "statement_kinds", "ask": "Which kinds of statements?", "kind": "many", "options": [],
+         "default": [], "answer": [], "read_by_a_step": true, "open_ended": true, "suggestions": ["sale", "gift"]}
+        """.utf8))
+        #expect(statements.openEnded == true && (statements.options ?? []).isEmpty)
+        #expect(SetupStagePage.answer(to: statements, in: RecipeSetupAnswers.JobAnswers()) == .many([]))
+        #expect(statements.suggestions == ["sale", "gift"])
+        // What the person types is kept as typed, saved under the question's key, and read back.
+        var answers = RecipeSetupAnswers.JobAnswers()
+        answers[question: "statement_kinds"] = .many(["Wills", "ship manifests"])
+        #expect(SetupStagePage.answer(to: statements, in: answers) == .many(["Wills", "ship manifests"]))
+        #expect(RecipeSetupAnswers.JobAnswers().entityKinds.isEmpty, "Names' kinds default to every kind")
+    }
+
+    @Test("a typed kind is added once, trimmed, whatever its case; suggestions already chosen are not offered again")
+    func typedKindsAndChips() {
+        #expect(StageKinds.adding("  Wills ", to: []) == ["Wills"])
+        #expect(StageKinds.adding("wills", to: ["Wills"]) == ["Wills"], "not again under another case")
+        #expect(StageKinds.adding("   ", to: ["Wills"]) == ["Wills"], "an empty word adds nothing")
+        #expect(StageKinds.unchosen(["sale", "gift", "will"], chosen: ["Gift"]) == ["sale", "will"])
+        #expect(StageKinds.unchosen([], chosen: []).isEmpty, "nothing is suggested before a try")
     }
 
     @Test("a stage question's answer is saved under its key in job_answers, beside the typed ones, and read back")
