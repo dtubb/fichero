@@ -674,6 +674,32 @@ def _chosen(choice: Choice) -> dict[str, Any]:
     }
 
 
+def _pin_link(pin: dict) -> str | None:
+    """Where a person reads about the model a pin names (#5802): its Zenodo record, its Hugging Face page, or the
+    tool's own page; None when the pin has no page of its own."""
+    if pin.get("zenodo"):
+        return f"https://doi.org/{pin['zenodo']}"
+    if pin.get("hf"):
+        return f"https://huggingface.co/{pin['hf']}"
+    if pin.get("spacy"):
+        return "https://spacy.io/models"
+    if pin.get("builtin") == "apple-vision":
+        return "https://developer.apple.com/documentation/vision"
+    return None
+
+
+def _name_the_model(step: dict[str, Any]) -> None:
+    """'Which model does it' never shows a bare choice: the step's model by name with its link, or the answer still
+    needed, in words (`source.onboard.stages.step-names-its-model`, #5802)."""
+    pin = step.get("model")
+    if isinstance(pin, dict) and pin:
+        card = step.get("card") or {}
+        step["model_name"] = card.get("note") or card.get("id") or str(next(iter(pin.values())))
+        step["model_link"] = _pin_link(pin)
+        return
+    problem = step.get("problem") or {}
+    step["needs"] = problem.get("sentence") or step.get("gap") or "choose a model for this step"
+
 def _topic(job: str) -> dict[str, Any]:
     """The step's topic (the registry's explanation, written once): its id, title and one sentence."""
     from fichero_server.recipes.jobs import get_job
@@ -729,7 +755,7 @@ def _model_words(card: Card) -> str:
 def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple[Card, ...] = ()
                       ) -> dict[str, str] | None:
     """Why Correct is off, in one line with what turning it on would cost, or None when it stays in (#5677): it stays
-    when the person asked for it (ticked it, or said yes to the question) or when a corrector is already at hand."""
+    only when the person asked for it (ticked it, or said yes to the question); a corrector at hand does not put it in."""
     from fichero_server.recipes.discovery import size_words
 
     asked = a.job_answers.get(CORRECT_QUESTION)
@@ -738,12 +764,14 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
     if asked is False:
         return {"job": CORRECT, "title": "Correct",
                 "sentence": "Correct is off: you chose not to correct the reading with a second model."}
+    # An optional step joins the plan only when the person ticks it or says yes: a corrector at hand does not put it
+    # in (owner ruling 2026-10-19, #5812); the answer drives the plan, never the plan the answer.
     choice = _choose(CORRECT, cards, a)
     card = choice.card
-    if correct_available(card):
-        return None
     if card is None:  # nothing fits: the rule's own words say why (memory, language, the cloud not allowed)
         cost = f"no correcting model fits ({choice.gap})" if choice.gap else "no correcting model fits"
+    elif card.local and correct_available(card):
+        cost = f"turning it on uses {_model_words(card)}, which is on this Mac already"
     elif card.local:
         cost = (f"no correcting model is on this Mac; turning it on downloads {_model_words(card)} "
                 f"({size_words(card.size_gb)})")
@@ -814,6 +842,9 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         jobs |= {"split-pages", PREPARE}
     if a.faded_pages and jobs & (READING_JOBS | {"find-lines"}):
         jobs.add(PREPARE)
+    # Find where the readers disagree is optional like Correct: in the plan only when ticked (owner ruling 2026-10-19).
+    if "find-where-readers-disagree" not in a.jobs:
+        jobs.discard("find-where-readers-disagree")
     left_by_hand = [by_hand(j) for j in sorted(jobs, key=STEP_ORDER.index) if not start_runs(j)]
     jobs = {j for j in jobs if start_runs(j)}
     train_ticked = "train-a-model" in jobs
@@ -867,6 +898,10 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         choice = _choose(job, cards, a)
         step: dict[str, Any] = {"id": job, "job": job, **_topic(job)}
         read = [m for m in a.materials if m in READ_MATERIALS]  # material already text has no reader (#5553)
+        mixed = a.job_answers.get("mixed_writing") is True and job in READING_JOBS
+        if mixed:  # handwriting and print on one page: a reader for each kind, routed by region (#5802)
+            kinds = ("handwriting", "print")
+            read = [m for m in kinds if m in READ_MATERIALS] + [m for m in read if m not in kinds]
         if len(read) > 1 and job in READING_JOBS:
             # One reader per kind of material ticked; the step's own model is the default kind's,
             # until a folder or page override says which applies where (`source.onboard.material-any-mix`).
@@ -876,10 +911,22 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
         if answer and a.job_answers.get(answer) not in (None, "", []):
             step["settings"] = {setting: a.job_answers[answer]}
+        if mixed:
+            step["settings"] = {**step.get("settings", {}), "route_by": "region"}
         if choice.card is None:
             notes.append(f"{job}: {choice.gap}")
         step["uses_cloud"] = str(step.get("runs_on") or "").startswith("cloud")
         steps.append(step)
+    from fichero_server.recipes.jobs import get_job
+
+    for step in steps:
+        known = get_job(step["job"])
+        step.setdefault("layer", known.layer if known else step["job"])  # `source.recipe.steps-name-layers`
+        _name_the_model(step)
+    # What the purpose (or a layer added later) turns on by itself, in step order, never written by hand.
+    brought = set(purpose_jobs(a.purposes)) | {j for layer in a.layers for j in layer_jobs(layer)}
+    automatic = [{"id": s["id"], "layer": s["layer"], "uses_cloud": bool(s.get("uses_cloud"))}
+                 for s in steps if s["job"] in brought]
     for step in steps:
         if needs.get(step["job"]):
             # Ready offers no Remove for a step a later one needs, and says which (#5627).
@@ -901,6 +948,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         "suits": {"scripts": sorted(a.scripts), "languages": sorted(a.languages), "material": list(a.materials)},
         "purposes": list(a.purposes),
         "steps": steps,
+        "automatic": automatic,
         "by_hand": left_by_hand,
         "removed": taken_out,
         "left_off": left_off,

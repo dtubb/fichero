@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import random
 
-from fichero_server.recipes.assemble import Answers, Card, assemble
+from fichero_server.recipes.assemble import CORRECT_QUESTION, Answers, Card, assemble
 from fichero_server.recipes.recipe import check_recipe
 
 ANY = None
@@ -39,6 +39,8 @@ CARDS = [
          frozenset({"es", "en", "chr", "fr"}), frozenset({"handwriting", "print", "typescript"}), size_gb=2.3),
 ]
 SPANISH_LETTERS = Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=3000)
+#: Correct is optional: it joins the plan only when the person says yes (owner ruling 2026-10-19, #5812).
+YES_CORRECT = {CORRECT_QUESTION: True}
 
 
 def _models(recipe):
@@ -53,7 +55,8 @@ def test_the_same_answers_and_cards_give_the_same_recipe_whatever_their_order():
 
 
 def test_handwriting_gets_a_local_line_reader_never_a_print_only_one():
-    m = _models(assemble(SPANISH_LETTERS, CARDS))
+    m = _models(assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=3000,
+                                 job_answers=YES_CORRECT), CARDS))
     assert m["find-lines"]["kraken"] == "blla"
     assert m["read-a-line"]["hf"].endswith("kraken-ppocrv6-medium")   # not Tesseract (print only)
     assert m["correct"]["hf"].startswith("mlx-community/Qwen2.5-VL")  # local first, not the cloud
@@ -80,7 +83,8 @@ def test_a_language_the_model_does_not_know_is_never_corrected_into_another():
 
 
 def test_the_cloud_is_used_only_when_allowed_and_nothing_local_fits():
-    cherokee = Answers("transcribe", frozenset({"chr"}), frozenset({"Cher"}), "handwriting", cloud_allowed=True)
+    cherokee = Answers("transcribe", frozenset({"chr"}), frozenset({"Cher"}), "handwriting", cloud_allowed=True,
+                       job_answers=YES_CORRECT)
     assert _models(assemble(cherokee, CARDS))["correct"] == {"cloud": "google", "model": "gemini-2.5-flash"}
 
 
@@ -92,7 +96,9 @@ def test_a_large_volume_offers_training_from_the_start():
 
 def test_the_purpose_decides_the_steps():
     jobs = [s["job"] for s in assemble(Answers("transcribe", frozenset({"es"}), frozenset({"Latn"})), CARDS)["steps"]]
-    assert jobs == ["find-lines", "read-a-line", "correct"]
+    assert jobs == ["find-lines", "read-a-line"]  # Correct waits to be asked for
+    asked = Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), job_answers=YES_CORRECT)
+    assert [s["job"] for s in assemble(asked, CARDS)["steps"]] == ["find-lines", "read-a-line", "correct"]
     assert assemble(Answers("not-sure", frozenset({"es"}), frozenset({"Latn"})), CARDS)["steps"] == []
 
 
@@ -111,7 +117,9 @@ def test_the_egress_question_is_needed_only_where_a_cloud_model_would_fit():
     """Setup asks once whether pages may leave this Mac, and only when it matters
     (`source.onboard.cloud-asked-once`): a cloud model that fits a step is named, while every step
     still chooses locally. Without this, setup either asks everyone or never asks."""
-    recipe = assemble(SPANISH_LETTERS, CARDS)
+    # Correct is optional (#5812, 0d2ddeeff): a cloud model fits a step only once the person asks for that step.
+    recipe = assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=3000,
+                              job_answers=YES_CORRECT), CARDS)
     assert recipe["cloud_options"] == ["correct"]
     assert not any(s["uses_cloud"] for s in recipe["steps"])
     for_print = Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), "print")

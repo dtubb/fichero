@@ -326,3 +326,29 @@ struct BootstrapTokenPreWriteGuardTests {
         )
     }
 }
+
+/// The embedded engine gets the first-run launch secret on stdin, never in its environment or argv (#5797).
+@Suite("Launch secret handover to the spawned engine (#5797)")
+struct LaunchSecretHandoverTests {
+
+    @Test("the secret is 64 hex characters and differs each launch")
+    func secretShape() {
+        let first = EmbeddedBackendService.generateLaunchSecret()
+        #expect(first.count == 64)
+        #expect(first.allSatisfy { $0.isHexDigit && !$0.isUppercase })
+        #expect(first != EmbeddedBackendService.generateLaunchSecret())
+    }
+
+    @Test("the child is told to read stdin and the secret is in neither env nor args")
+    func flagOnlyInEnvironment() {
+        let process = Process()
+        process.arguments = ["--ssl-certfile", "cert"]
+        process.environment = ["PATH": "/usr/bin"]
+        let secret = EmbeddedBackendService.generateLaunchSecret()
+        _ = LaunchSecretHandover.attach(to: process, secret: secret)
+        #expect(process.environment?["FICHERO_LAUNCH_SECRET_STDIN"] == "1")
+        #expect(process.standardInput is Pipe)
+        #expect(process.environment?.values.contains(secret) == false)
+        #expect(process.arguments?.contains(secret) == false)
+    }
+}

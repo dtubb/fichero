@@ -197,6 +197,12 @@ class leased_embedder:  # noqa: N801 -- used as `with leased_embedder(...)`, lik
         _start_releaser()
 
 
+def embedder_loaded() -> bool:
+    """Whether an embedding model is in memory now: false before the first embed and after an idle release."""
+    with _EMBEDDER_CACHE_LOCK:
+        return bool(_EMBEDDER_CACHE)
+
+
 def release_idle_embedders(idle_seconds: float | None = None) -> list[str]:
     """Release every model no embed holds and none has used for `idle_seconds`; the names released."""
     idle = EMBEDDER_IDLE_SECONDS if idle_seconds is None else idle_seconds
@@ -1341,14 +1347,24 @@ class DatabaseEmbeddingMixin:
         except Exception:
             return {}
 
-    def _drop_unchanged(self, table_name: str, batch: list, texts: list[str]) -> tuple[list, list[str]]:
-        """Keep only items whose text or model differs from the stored vector row (#4617)."""
+    def stale_reasons(self, table_name: str, batch: list, texts: list[str]) -> dict[str, str]:
+        """Why each item's stored vector is out of date (#5360); up-to-date items are absent."""
         stored = self._stored_text_and_model(table_name, [item.id for item in batch])
         model_id = self._vector_model_metadata().get(EMBEDDING_MODEL_ID_FIELD, "")
-        keep = [
-            n for n, (item, text) in enumerate(zip(batch, texts))
-            if stored.get(item.id) != (text, model_id)
-        ]
+        reasons = {}
+        for item, text in zip(batch, texts):
+            if item.id not in stored:
+                reasons[item.id] = "not-embedded"
+            elif stored[item.id][0] != text:
+                reasons[item.id] = "text-changed"
+            elif stored[item.id][1] != model_id:
+                reasons[item.id] = "model-changed"
+        return reasons
+
+    def _drop_unchanged(self, table_name: str, batch: list, texts: list[str]) -> tuple[list, list[str]]:
+        """Keep only items whose text or model differs from the stored vector row (#4617)."""
+        stale = self.stale_reasons(table_name, batch, texts)
+        keep = [n for n, item in enumerate(batch) if item.id in stale]
         return [batch[n] for n in keep], [texts[n] for n in keep]
 
     def embed_entities(self, entities, *, batch_size: int = 256) -> int:

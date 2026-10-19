@@ -18,6 +18,11 @@ def test_each_finished_step_in_the_record_is_an_entry_in_order():
     assert [(c.step, c.node_name, c.timestamp) for c in got] == [(0, "A", "t1"), (1, "B", "t2")]
 
 
+def test_a_step_from_the_record_is_not_restorable():
+    (c,) = _steps_from_record(_run({"event": "node_end", "node_id": "a"}), str)
+    assert c.restorable is False
+
+
 def test_no_record_gives_no_entries():
     assert _steps_from_record(None, str) == []
     assert _steps_from_record(SimpleNamespace(progress_timeline=None), str) == []

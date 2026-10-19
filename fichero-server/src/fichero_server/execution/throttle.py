@@ -1,7 +1,7 @@
 """When heavy local work should wait, and why (`activity.throttle.power-heat-memory`, #5358).
 
-Spotlight and Photos analysis wait on the same things: the person working at the Mac, memory
-pressure, heat, and battery. The local-model lane asks `why_wait` before it starts a heavy job,
+Spotlight and Photos analysis wait on the same things: memory pressure, heat, battery and a
+build. The person working at the Mac slows background work (its background QoS), never stops it (#5819). The local-model lane asks `why_wait` before it starts a heavy job,
 and a long job (training) asks again at each of its own boundaries. The answer is the reason the
 job's row shows, or None to go ahead. No setting is added for any of this (dead-simple UX).
 
@@ -340,6 +340,29 @@ def mac_is_in_use() -> str | None:
     return "Waiting: you're using the Mac" if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
 
 
+#: Programs whose running means the person is building: background work holds back for them (#5819).
+#: Only what lives while compiling: Xcode's own build service (SWBBuildService) runs for as long as Xcode is open.
+BUILD_PROCESSES = "xcodebuild|swift-build|swift-frontend|clang"
+#: How long a build reading is trusted (it costs a subprocess).
+BUILD_READING_SECONDS = 10.0
+_build: tuple[float, bool] | None = None
+
+
+def a_build_is_running() -> str | None:
+    """A build is running on this Mac (Xcode, SwiftPM): background work holds back so the build is quick.
+    Read at most every `BUILD_READING_SECONDS`; unreadable is no reason."""
+    global _build
+    now = time.monotonic()
+    if _build is None or now - _build[0] > BUILD_READING_SECONDS:
+        try:
+            building = subprocess.run(["/usr/bin/pgrep", "-x", BUILD_PROCESSES], capture_output=True,
+                                      timeout=1).returncode == 0
+        except Exception:  # noqa: BLE001 -- no reading is no reason to wait
+            building = False
+        _build = (now, building)
+    return "Waiting: a build is running" if _build[1] else None
+
+
 _battery: tuple[float, bool] | None = None
 
 
@@ -373,13 +396,13 @@ PROBES: list[tuple[Callable[[], str | None], bool]] = [
     (memory_is_tight, True),
     (mac_is_hot, True),
     (on_battery, False),
-    (mac_is_in_use, False),
+    (a_build_is_running, False),
 ]
 
 
 def _started() -> bool:
     """*Start* is on (`activity.mode.start-stop`, #5621): all waiting work is treated as work a person
-    is waiting for, so battery and the person at the Mac do not hold it; memory and heat still do."""
+    is waiting for, so battery and a build do not hold it; memory and heat still do."""
     from fichero_server.execution.jobs import is_started
 
     return is_started()

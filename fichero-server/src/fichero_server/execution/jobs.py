@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 #: App setting holding the global pause (`activity.pause.global-survives-relaunch`).
 PAUSE_SETTING_KEY = "background_work_paused"
-#: App setting holding *Start* (`activity.mode.start-stop`, #5621): the holds for the person at the Mac
+#: App setting holding *Start* (`activity.mode.start-stop`, #5621): the holds for a build
 #: and for battery are lifted for waiting work until the person goes back to automatic.
 STARTED_SETTING_KEY = "background_work_started"
 #: The three modes of background work (`activity.mode.start-stop`).
@@ -97,7 +97,11 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: never holds the local ML lane.
 #: `recipes`: a started recipe's run (#5390), which only waits on its steps' own jobs; one at a time, so two
 #: recipes never hold each other's checks.
-LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "recipes": 1}
+#: `tries`: Set Up's stage tries (#5806), which also only wait (on a download, on their copy of the samples); two at
+#: once, so a Find Lines compare never queues behind the Read try waiting on a reader download.
+#: `search`: looking for models online (`find-models`): a few small metadata calls that must never wait behind a
+#: multi-GB download holding the network lane (#5809).
+LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "search": 2, "recipes": 1, "tries": 2}
 #: The one exception to the model lane's one job at a time (#5654, `compute.memory.reads-follow-memory`):
 #: calls to the engine's own model server for the model it has loaded share the lane, as many at once as
 #: that model's need and this Mac's memory allow (`local_inference.reads_at_once_for_model`, at most
@@ -141,7 +145,6 @@ _ADDED_COLUMNS = (
     # A failed job the person cleared (`activity.window.clear-failed`, #5634): kept, no longer listed.
     "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMP",
 )
-_ENSURED: set[str] = set()
 
 
 class JobCancelled(Exception):
@@ -648,13 +651,45 @@ def _still_open(db: "Database") -> bool:
     return db_manager.open_database(_key(db)) is db
 
 
+_ALTER_FAILURES_LOGGED: set[str] = set()
+
+
+def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
+    """Add the columns later releases gave `jobs` (idempotent). A statement that fails is logged ONCE per library
+    and statement and the rest still run, so a library that cannot take one column still lists its jobs
+    (#5814). Returns whether every statement applied."""
+    done = True
+    for statement in _ADDED_COLUMNS:
+        try:
+            execute(statement)
+        except Exception as exc:
+            done = False
+            if f"{path}|{statement}" not in _ALTER_FAILURES_LOGGED:
+                _ALTER_FAILURES_LOGGED.add(f"{path}|{statement}")
+                logger.error("%s: could not apply %r (%s: %s); the jobs list degrades until it can",
+                             path, statement, type(exc).__name__, str(exc).splitlines()[0][:200])
+    return done
+
+
 def _ensure(db: "Database") -> None:
     db.execute(_SCHEMA)
-    key = str(db.path)
-    if key not in _ENSURED:
-        for statement in _ADDED_COLUMNS:
-            db.execute(statement)
-        _ENSURED.add(key)
+    # Once per CONNECTION, not per path (#5814): a reconnect after an invalidated connection (an ALTER that
+    # was never committed is gone) or a library opened afresh at the same path starts from the file's
+    # real columns, and a path-keyed cache skipped the ALTER there, so every read said "column not found".
+    # Also applied when the library opens (`Database._apply_added_jobs_columns`). A failed ALTER is tried
+    # again at the next read (cheap, IF NOT EXISTS) and logged once.
+    if getattr(db, "_jobs_columns_on", None) is not db.conn:
+        if apply_added_columns(db.execute, str(db.path)):
+            db._jobs_columns_on = db.conn
+
+
+def _has_cleared_at(db: "Database") -> bool:
+    """Whether `jobs.cleared_at` is there; false only when its ALTER failed, and the lists then show every failed job."""
+    if getattr(db, "_jobs_columns_on", None) is db.conn:
+        return True
+    return db.execute_fetchone(
+        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = 'cleared_at'"
+    ) is not None
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
@@ -992,6 +1027,16 @@ def _pause_requested(run_id: str) -> bool:
 
 #: What a local ML job held behind thumbnails says (`activity.lane.thumbnails-first`, #5585).
 FIRST_REASON = "Waiting: thumbnails are made first"
+
+
+def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
+    """FIRST_REASON, plus the thumbnail pages that failed since the held job was queued, each with why (#5818).
+    Bare FIRST_REASON when none failed."""
+    marks = ", ".join("?" for _ in first_kinds)
+    failed = db.execute_fetchall(
+        f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND reason IS NOT NULL "
+        f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4", [*first_kinds, since])
+    return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
 
@@ -1483,7 +1528,7 @@ def retry_job(db: "Database", job_id: str) -> str:
     detail.pop("cancel", None)
     detail.pop("interrupted", None)  # a download's rounds of broken connections start again (#5660)
     db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
-               "cleared_at = NULL, run_after = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
+               f"{'cleared_at = NULL, ' if _has_cleared_at(db) else ''}run_after = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return "waiting"
@@ -1508,7 +1553,7 @@ def set_paused(paused: bool) -> None:
 
 def is_started() -> bool:
     """*Start* is on (`activity.mode.start-stop`, #5621): waiting work goes ahead although the person is
-    at the Mac or it is on battery. Memory and heat still hold it (`throttle.why_wait`)."""
+    on battery or a build runs. Memory and heat still hold it (`throttle.why_wait`)."""
     from fichero_server.db.app import get_app_db
 
     try:
@@ -1525,7 +1570,7 @@ def mode() -> str:
 
 def set_mode(new_mode: str) -> None:
     """THE one way the Start / Stop control changes how work runs (`activity.mode.start-stop`): *Stop*
-    pauses all background work, *Start* lifts the holds for the person at the Mac and for battery,
+    pauses all background work, *Start* lifts the holds for a build and for battery,
     *automatic* clears both. Both settings are written, so the mode is one of the three, never a mix."""
     if new_mode not in MODES:
         raise ValueError(f"no mode {new_mode!r}; one of {', '.join(MODES)}")
@@ -1554,12 +1599,13 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     than one waits, with `count`: an import queues thousands), and the most recent failures, each
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
+    cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
-        " AND cleared_at IS NULL ORDER BY finished_at DESC LIMIT ?)"
+        f"{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
         ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
@@ -1604,6 +1650,8 @@ def clear_failed(db: "Database") -> list[str]:
     longer listed; a retry lists it again. Workflow runs are cleared through `workflow_run.delete`.
     Returns the ids cleared."""
     _ensure(db)
+    if not _has_cleared_at(db):
+        return []  # nothing can be marked cleared; the failure was logged when the column was tried
     ids = [row[0] for row in db.execute_fetchall(
         "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') "
         "AND cleared_at IS NULL ORDER BY id")]
@@ -1615,7 +1663,8 @@ def clear_failed(db: "Database") -> list[str]:
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
 LANE_WORDS = {"local-ml": "the model lane", "images": "the thumbnail lane", "remote": "the remote lane",
-              "database": "the database lane", "network": "the network lane", "recipes": "the recipe lane"}
+              "database": "the database lane", "network": "the network lane", "search": "the search lane", "recipes": "the recipe lane",
+              "tries": "the tries lane"}
 #: Lane work that reads for a run: its holder "is reading".
 _READING_KINDS = frozenset({"find-lines", "read-a-line", "read-a-page", "ask-a-model"})
 PAUSED_REASON = "Paused by you"
@@ -1624,7 +1673,7 @@ PAUSED_REASON = "Paused by you"
 def _decided_here(reason: str) -> bool:
     """A reason this function decides afresh each time it is asked (the throttle's, thumbnails first,
     the pause): one stored on the row by an earlier scan says what held the job THEN, not now (#5606:
-    "you're using the Mac" was still shown long after the Mac was idle)."""
+    "the Mac is on battery" was still shown long after it was plugged in)."""
     return reason.startswith("Waiting: ") or reason == PAUSED_REASON
 
 
@@ -1696,7 +1745,7 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
                 f"SELECT 1 FROM jobs WHERE kind IN ({', '.join('?' for _ in first_kinds)}) "
                 f"AND state IN ('waiting', 'running') AND created_at <= ? LIMIT 1",
                 [*first_kinds, created_at]) is not None:
-            return FIRST_REASON
+            return first_reason(db, first_kinds, created_at)
     if stored and not _decided_here(stored):
         return stored
     if run_after is not None and ensure_utc(run_after) > ensure_utc(utc_now()):
@@ -2233,9 +2282,9 @@ class _Scheduler:
 
             def first(clause: str, extra: list[Any]) -> tuple | None:
                 return db.execute_fetchone(
-                    f"SELECT id, kind, subject, model, created_at FROM jobs "
+                    f"SELECT id, kind, subject, model, created_at, {_PERSON_WAITS_SQL} FROM jobs "
                     f"WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) AND {where}{clause} "
-                    f"ORDER BY {attached_first}COALESCE(watched, FALSE) DESC, (model IS NOT DISTINCT FROM ?) DESC, "
+                    f"ORDER BY {attached_first}{_PERSON_WAITS_SQL} DESC, (model IS NOT DISTINCT FROM ?) DESC, "
                     f"created_at, rowid LIMIT 1",
                     [now, *params, *extra, *attached, lane.loaded_model],
                 )
@@ -2248,8 +2297,11 @@ class _Scheduler:
                 f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]} LIMIT 1",
                 waiting_on_first[1]) is not None
             if held_by_first:  # each held row says why, and the lane looks again soon (not idle)
+                since = db.execute_fetchone(f"SELECT MIN(created_at) FROM jobs WHERE state = 'waiting' AND {waiting_on_first[0]}",
+                                            waiting_on_first[1])[0]
+                said_first = first_reason(db, first_kinds, since)
                 db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {waiting_on_first[0]} "
-                           f"AND reason IS DISTINCT FROM ?", [FIRST_REASON, *waiting_on_first[1], FIRST_REASON])
+                           f"AND reason IS DISTINCT FROM ?", [said_first, *waiting_on_first[1], said_first])
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
             row = first(share_clause, share_params) if share_clause else None
@@ -2276,9 +2328,9 @@ class _Scheduler:
                 lane.libraries.difference_update(set(idle) - lane.rewoken)
         if not candidates:
             return None
-        # Across libraries the same rule: within its share first, then waited-for work, then the
-        # loaded model, then the oldest.
-        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, c[2][3] != lane.loaded_model, c[2][4]))
+        # Across libraries the same rule: within its share first, then waited-for work (handed in, then a
+        # person's own), then the loaded model, then the oldest.
+        candidates.sort(key=lambda c: (c[3], c[2][0] not in attached, not c[2][5], c[2][3] != lane.loaded_model, c[2][4]))
         return candidates[0][:3]
 
     def _work(self, db: "Database", job_id: str, kind: "Kind", subject: str, handed_in: Any) -> Any:
@@ -2303,7 +2355,7 @@ class _Scheduler:
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
 
-        job_id, kind_name, subject, model, _ = row
+        job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
         if lane.name == "local-ml":
             if _kraken_busy():  # a Kraken page outside the queue: no second heavy model beside it

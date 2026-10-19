@@ -27,7 +27,7 @@ private struct DocumentDeleteActionParams: Encodable {
 extension SidebarView {
     /// Import files to the library that owns the selected item (or Global if none)
     func importFiles(mode: IngestMode = .link) {
-        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
+        let targetLibrary = creationLibrary
         guard targetLibrary != nil else {
             logger.error("No library available for import")
             return
@@ -38,7 +38,7 @@ extension SidebarView {
 
     /// Handle imported files from file picker
     func handleImportedFiles(_ urls: [URL]) async {
-        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
+        let targetLibrary = creationLibrary
         guard let library = targetLibrary else {
             logger.error("No library available for import")
             return

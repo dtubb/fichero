@@ -728,6 +728,16 @@ def fichero_auth_challenge(
     return _rt.call("POST", "/api/auth/challenge", json=_rt.body({"client_id": client_id}))
 
 
+def fichero_auth_first_run(
+    *,
+    client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
+    display_name: Annotated[str, Field(description='Display Name.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'First Run\n\nCreate the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.\n\nRoute: POST /api/auth/first-run (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/first-run", json=_rt.body({"client": client, "display_name": display_name, "public_key_pem": public_key_pem}))
+
+
 def fichero_auth_identity(
 ) -> Any:
     'Identity\n\nRoute: GET /api/auth/identity (toolset `auth`; reads).'
@@ -752,11 +762,13 @@ def fichero_auth_create_invite(
 
 def fichero_auth_redeem_invite(
     *,
+    client: Annotated[Optional[dict[str, Any]], Field(description='InviteRedeemClient.')] = None,
     invite_token: Annotated[str, Field(description='Invite Token.')],
-    new_password: Annotated[str, Field(description='New Password.')],
+    new_password: Annotated[Optional[str], Field(description='New Password.')] = None,
+    public_key_pem: Annotated[Optional[str], Field(description='Public Key Pem.')] = None,
 ) -> Any:
     'Redeem Invite\n\nRoute: POST /api/auth/invites/redeem (toolset `auth`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/auth/invites/redeem", json=_rt.body({"invite_token": invite_token, "new_password": new_password}))
+    return _rt.call("POST", "/api/auth/invites/redeem", json=_rt.body({"client": client, "invite_token": invite_token, "new_password": new_password, "public_key_pem": public_key_pem}))
 
 
 def fichero_auth_revoke_invite(
@@ -765,6 +777,55 @@ def fichero_auth_revoke_invite(
 ) -> Any:
     'Revoke Invite\n\nRoute: POST /api/auth/invites/{invite_id}/revoke (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/auth/invites/{invite_id}/revoke")
+
+
+def fichero_auth_register_local_client(
+    *,
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+    request_id: Annotated[str, Field(description='Request Id.')],
+) -> Any:
+    'Register Local Client\n\nThe allowed client registers its own public key, once, from the same program that asked. No secret crosses.\n\nRoute: POST /api/auth/local-clients/register (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/local-clients/register", json=_rt.body({"public_key_pem": public_key_pem, "request_id": request_id}))
+
+
+def fichero_auth_request_local_client(
+    *,
+    host: Annotated[Optional[str], Field(description='Host. Default: "".')] = None,
+    kind: Annotated[str, Field(description='Kind. One of: cli, mcp.')],
+    name: Annotated[str, Field(description='Name.')],
+) -> Any:
+    'Request Local Client\n\nRoute: POST /api/auth/local-clients/request (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/local-clients/request", json=_rt.body({"host": host, "kind": kind, "name": name}))
+
+
+def fichero_auth_list_local_client_requests(
+) -> Any:
+    'List Local Client Requests\n\nRoute: GET /api/auth/local-clients/requests (toolset `auth`; reads).'
+    return _rt.call("GET", "/api/auth/local-clients/requests")
+
+
+def fichero_auth_decide_local_client_request(
+    *,
+    request_id: Annotated[str, Field(description='Request Id')],
+    allow: Annotated[bool, Field(description='Allow.')],
+) -> Any:
+    'Decide Local Client Request\n\nRoute: POST /api/auth/local-clients/requests/{request_id}/decision (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/auth/local-clients/requests/{request_id}/decision", json=_rt.body({"allow": allow}))
+
+
+def fichero_auth_get_local_client_switches(
+) -> Any:
+    'Get Local Client Switches\n\nRoute: GET /api/auth/local-clients/switches (toolset `auth`; reads).'
+    return _rt.call("GET", "/api/auth/local-clients/switches")
+
+
+def fichero_auth_put_local_client_switches(
+    *,
+    cli: Annotated[bool, Field(description='Cli.')],
+    mcp: Annotated[bool, Field(description='Mcp.')],
+) -> Any:
+    'Put Local Client Switches\n\nRoute: PUT /api/auth/local-clients/switches (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/auth/local-clients/switches", json=_rt.body({"cli": cli, "mcp": mcp}))
 
 
 def fichero_auth_login(
@@ -787,6 +848,15 @@ def fichero_auth_me(
 ) -> Any:
     'Me\n\nRoute: GET /api/auth/me (toolset `auth`; reads).'
     return _rt.call("GET", "/api/auth/me")
+
+
+def fichero_auth_migrate_owner(
+    *,
+    client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'Migrate Owner\n\nGive an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.\n\nRoute: POST /api/auth/migrate-owner (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "public_key_pem": public_key_pem}))
 
 
 def fichero_auth_list_sessions(
@@ -5206,6 +5276,7 @@ def fichero_mcp_servers_list(
 def fichero_mcp_servers_create(
     *,
     args: Annotated[Optional[list[Any]], Field(description='Args. Default: [].')] = None,
+    available_to_chat: Annotated[Optional[bool], Field(description='Available To Chat. Default: false.')] = None,
     command: Annotated[Optional[str], Field(description='Command.')] = None,
     description: Annotated[Optional[str], Field(description='Description. Default: "".')] = None,
     enabled: Annotated[Optional[bool], Field(description='Enabled. Default: true.')] = None,
@@ -5217,7 +5288,7 @@ def fichero_mcp_servers_create(
     url: Annotated[Optional[str], Field(description='Url.')] = None,
 ) -> Any:
     'Create Mcp Server\n\nCreate a new MCP server.\n\nRoute: POST /api/mcp-servers (toolset `mcp-servers`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/mcp-servers", json=_rt.body({"args": args, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
+    return _rt.call("POST", "/api/mcp-servers", json=_rt.body({"args": args, "available_to_chat": available_to_chat, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
 
 
 def fichero_mcp_servers_get_all_tools(
@@ -5258,6 +5329,7 @@ def fichero_mcp_servers_update(
     *,
     server_id: Annotated[str, Field(description='Server Id')],
     args: Annotated[Optional[list[Any]], Field(description='Args.')] = None,
+    available_to_chat: Annotated[Optional[bool], Field(description='Available To Chat.')] = None,
     command: Annotated[Optional[str], Field(description='Command.')] = None,
     description: Annotated[Optional[str], Field(description='Description.')] = None,
     enabled: Annotated[Optional[bool], Field(description='Enabled.')] = None,
@@ -5269,7 +5341,7 @@ def fichero_mcp_servers_update(
     url: Annotated[Optional[str], Field(description='Url.')] = None,
 ) -> Any:
     'Update Mcp Server\n\nUpdate an existing MCP server.\n\nRoute: PUT /api/mcp-servers/{server_id} (toolset `mcp-servers`; changes data, as the agent account when one exists).'
-    return _rt.call("PUT", f"/api/mcp-servers/{server_id}", json=_rt.body({"args": args, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
+    return _rt.call("PUT", f"/api/mcp-servers/{server_id}", json=_rt.body({"args": args, "available_to_chat": available_to_chat, "command": command, "description": description, "enabled": enabled, "env": env, "headers": headers, "name": name, "tool_name_prefix": tool_name_prefix, "transport": transport, "url": url}))
 
 
 def fichero_mcp_servers_load_tools(
@@ -8953,14 +9025,22 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_artifacts_get_region", "artifacts", "GET", "/api/artifacts/{artifact_id}/region", fichero_artifacts_get_region),
     GeneratedTool("fichero_artifacts_edit_regions", "artifacts", "PUT", "/api/artifacts/{artifact_id}/regions", fichero_artifacts_edit_regions),
     GeneratedTool("fichero_auth_challenge", "auth", "POST", "/api/auth/challenge", fichero_auth_challenge),
+    GeneratedTool("fichero_auth_first_run", "auth", "POST", "/api/auth/first-run", fichero_auth_first_run),
     GeneratedTool("fichero_auth_identity", "auth", "GET", "/api/auth/identity", fichero_auth_identity),
     GeneratedTool("fichero_auth_list_invites", "auth", "GET", "/api/auth/invites", fichero_auth_list_invites),
     GeneratedTool("fichero_auth_create_invite", "auth", "POST", "/api/auth/invites", fichero_auth_create_invite),
     GeneratedTool("fichero_auth_redeem_invite", "auth", "POST", "/api/auth/invites/redeem", fichero_auth_redeem_invite),
     GeneratedTool("fichero_auth_revoke_invite", "auth", "POST", "/api/auth/invites/{invite_id}/revoke", fichero_auth_revoke_invite),
+    GeneratedTool("fichero_auth_register_local_client", "auth", "POST", "/api/auth/local-clients/register", fichero_auth_register_local_client),
+    GeneratedTool("fichero_auth_request_local_client", "auth", "POST", "/api/auth/local-clients/request", fichero_auth_request_local_client),
+    GeneratedTool("fichero_auth_list_local_client_requests", "auth", "GET", "/api/auth/local-clients/requests", fichero_auth_list_local_client_requests),
+    GeneratedTool("fichero_auth_decide_local_client_request", "auth", "POST", "/api/auth/local-clients/requests/{request_id}/decision", fichero_auth_decide_local_client_request),
+    GeneratedTool("fichero_auth_get_local_client_switches", "auth", "GET", "/api/auth/local-clients/switches", fichero_auth_get_local_client_switches),
+    GeneratedTool("fichero_auth_put_local_client_switches", "auth", "PUT", "/api/auth/local-clients/switches", fichero_auth_put_local_client_switches),
     GeneratedTool("fichero_auth_login", "auth", "POST", "/api/auth/login", fichero_auth_login),
     GeneratedTool("fichero_auth_logout", "auth", "POST", "/api/auth/logout", fichero_auth_logout),
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
+    GeneratedTool("fichero_auth_migrate_owner", "auth", "POST", "/api/auth/migrate-owner", fichero_auth_migrate_owner),
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
     GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),

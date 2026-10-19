@@ -78,6 +78,8 @@ class CheckpointSnapshot(BaseModel):
     state_values: dict[str, Any] = Field(default_factory=dict)  # State at this step
     writes: dict[str, Any] = Field(default_factory=dict)  # What was written
     next_nodes: list[str] = Field(default_factory=list)  # Next nodes to execute
+    restorable: bool = Field(default=True, description="false for a step read from the run's saved record: it is not a "
+                             "checkpoint, so a restore or fork by its id would find nothing")
 
 
 class CheckpointHistoryResponse(BaseModel):
@@ -438,7 +440,7 @@ def _steps_from_record(run: WorkflowRun | None, translate) -> list[CheckpointSna
     timeline = run.progress_timeline if run and isinstance(run.progress_timeline, dict) else {}
     ended = [e for e in timeline.get("events") or []
              if isinstance(e, dict) and e.get("event") == "node_end" and e.get("node_id")]
-    return [CheckpointSnapshot(checkpoint_id=f"record-{i}", step=i, timestamp=e.get("timestamp"),
+    return [CheckpointSnapshot(checkpoint_id=f"record-{i}", step=i, restorable=False, timestamp=e.get("timestamp"),
                                node_name=translate(e["node_id"]) or e["node_id"])
             for i, e in enumerate(ended)]
 

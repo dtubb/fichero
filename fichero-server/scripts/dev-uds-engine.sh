@@ -52,7 +52,13 @@ case "$MODE" in
     echo "dev-engine: starting UDS engine on $SOCK (reload) -> $LOG"
     # FICHERO_PARENT_PID=none (#5298): this subshell exits at once, and an engine watching it
     # self-terminated within 5 s, leaving a socket nothing answered.
-    ( FICHERO_PARENT_PID=none FICHERO_UDS_PATH="$SOCK" nohup "$SCRIPT_DIR/start_fichero_server.sh" --uds --reload >"$LOG" 2>&1 & )
+    # First run (multiuser-always-on): the per-launch secret goes to the engine as a 0600 file next to the socket;
+    # the Debug app reads it once and deletes it. A --reload engine cannot inherit stdin, so this is the one
+    # file path, compiled into Debug only (any process of this user can read it until the app deletes it).
+    SECRET_FILE="$(dirname "$SOCK")/launch-secret"
+    ( umask 077; openssl rand -hex 32 | tr -d '\n' > "$SECRET_FILE" )
+    chmod 600 "$SECRET_FILE"
+    ( FICHERO_PARENT_PID=none FICHERO_UDS_PATH="$SOCK" FICHERO_ENV=development FICHERO_DEV_LAUNCH_SECRET_FILE="$SECRET_FILE" nohup "$SCRIPT_DIR/start_fichero_server.sh" --uds --reload >"$LOG" 2>&1 & )
     for _ in $(seq 1 90); do uds_alive && break; sleep 0.5; done
     ;;
   https)

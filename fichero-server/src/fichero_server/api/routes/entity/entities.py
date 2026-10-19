@@ -48,6 +48,7 @@ from fichero_server.models import (
     EntityListResponse,
     TopEntityListResponse,
 )
+from fichero_server.api.errors import ErrorDetail as _RefusalBody
 
 logger = logging.getLogger(__name__)
 
@@ -1514,8 +1515,8 @@ async def entity_claim_counts(
     response_class=Response,
     include_in_schema=True,
     responses={
-        400: {"description": "Missing library header or unsupported digest format"},
-        403: {"description": "Library path rejected by allowlist"},
+        400: {"model": _RefusalBody, "description": "Missing library header or unsupported digest format"},
+        403: {"model": _RefusalBody, "description": "Library path rejected by allowlist"},
     },
 )
 async def entity_digest(
@@ -2147,7 +2148,7 @@ def _render_entity_export(biography: EntityBiographyResponse, format_type: str) 
     summary="Download an entity biography",
     responses={
         200: {"content": {"text/markdown": {}, "text/plain": {}, "application/json": {}}},
-        404: {"description": "Entity not found"},
+        404: {"model": _RefusalBody, "description": "Entity not found"},
     },
 )
 async def export_entity_biography(

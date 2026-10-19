@@ -312,8 +312,6 @@ fichero/Tests/Unit/general/App/IOSCommandsSharedTests.swift
 # #5774 (debt) kept for now: reads view source (shape/absence check); its behaviour test needs a builder or the XCUITest of #5763
 fichero/Tests/Unit/general/App/IOSImportCopyOnlyShapeTests.swift
 # #5774 (debt) kept for now: reads view source (shape/absence check); its behaviour test needs a builder or the XCUITest of #5763
-fichero/Tests/Unit/general/Models/MobileCaptureHostMatchTests.swift
-# #5774 (debt) kept for now: reads view source (shape/absence check); its behaviour test needs a builder or the XCUITest of #5763
 fichero/Tests/Unit/general/Models/MobileCaptureQueueFileProtectionTests.swift
 # #5774 (debt) kept for now: reads view source (shape/absence check); its behaviour test needs a builder or the XCUITest of #5763
 fichero/Tests/Unit/general/Models/PlatformSplitViewShapeTests.swift

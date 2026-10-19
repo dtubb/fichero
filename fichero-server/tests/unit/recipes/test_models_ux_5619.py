@@ -162,7 +162,9 @@ def test_the_finder_answers_for_any_steps_job_and_says_why_it_did_not_search(cli
     assert hub["state"] == "offline" or body["search_job"] is not None, hub
     assert "readers only" not in hub["detail"], hub
     installed = next(s for s in body["sources"] if s["source"] == "installed")
-    assert installed["count"] >= 1 and installed["detail"] == f"{installed['count']} on this Mac, your servers or the cloud"
+    # The finder's counts are plain words from the engine (0229e2ae5, #5809 item 4): a text job's models are "here or
+    # on a server".
+    assert installed["count"] >= 1 and installed["detail"] == f"{installed['count']} of your own here or on a server"
     [llama] = [i for i in body["items"] if i["pin"].get("model") == "llama3.2:latest"]
     assert llama["rule_rank"] == 1 and llama["refused"] is None and llama["runs_where"] == "this_mac"
 

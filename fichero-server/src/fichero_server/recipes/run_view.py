@@ -177,6 +177,26 @@ class StageFailures(BaseModel):
     offer: Optional[str] = Field(default=None, description='"Read the 3 pages that failed"; null: nothing to offer')
 
 
+class NextCandidate(BaseModel):
+    """The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."""
+
+    id: str = Field(description="the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it")
+    name: str = Field(description="what to call it on screen: the catalogue's name for it, else its model's name, else its id")
+    model: Optional[dict[str, Any]] = Field(default=None, description="its pin")
+    runs_on: str = Field(description="this-mac, or cloud:<provider>")
+    needs_permission: bool = Field(description="a cloud candidate while pages may not leave this Mac")
+
+
+class DownloadFailed(BaseModel):
+    """A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."""
+
+    steps: list[str]
+    model: str = Field(description="the model that did not download")
+    reason: str
+    retry_job_id: str = Field(description="the download's job: POST /api/activity/jobs/{id}/retry")
+    next_candidate: Optional[NextCandidate] = Field(default=None, description="null: the chain has nothing else")
+
+
 class RecipeRunSummary(BaseModel):
     """What a recipe run made (`source.onboard.auto.results-summary`, #5577)."""
 
@@ -190,6 +210,7 @@ class RecipeRunSummary(BaseModel):
     lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
     next_reader: Optional[dict[str, Any]] = Field(default=None, description="when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)")
+    download_failed: list[DownloadFailed] = Field(default_factory=list, description="steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
     dates: int = Field(description="the dates named on those pages (the KG's Dates group)")
@@ -301,6 +322,40 @@ def next_reader(recipe: dict | None, *, lines_found: int, lines_blank: int, page
             "why": "the reader left the hand mostly blank; this is the next reader in the chain"}
 
 
+def candidate_name(entry: dict[str, Any]) -> str:
+    """A chain entry's name on screen: the catalogue's name for its MLX model, else the pin's own name, else its id."""
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+    from fichero_server.recipes.cards import mlx_model_for
+
+    pin = entry.get("model") or {}
+    repo = mlx_model_for(pin) if pin else None
+    named = next((m.display_name for i, m in MANAGED_MLX_MODELS.items() if repo and repo in (i, m.repo_id)), None)
+    return named or pin.get("name") or entry["id"]
+
+
+def download_failures(awaited: list[dict[str, Any]], states: dict[str, dict[str, Any] | None],
+                      recipe: dict | None, *, cloud_allowed: bool) -> list[dict[str, Any]]:
+    """The downloads a run's steps wait on that failed or were cancelled (`states`: download job id -> its row), each
+    with Retry (that job) and the next candidate of the step's chain: the first local one other than the failed
+    model, else the first cloud one, needing permission until pages may leave (#5352)."""
+    out: list[dict[str, Any]] = []
+    for entry in awaited:
+        row = states.get(entry["job_id"])
+        if not row or row["state"] not in ("failed", "cancelled"):
+            continue
+        step = next((s for s in (recipe or {}).get("steps") or [] if s.get("id") in entry["steps"]), None)
+        chain = [c for c in (step or {}).get("chain") or []
+                 if entry["name"] not in (c.get("id"), (c.get("model") or {}).get("name"))]
+        nxt = next((c for c in chain if c.get("runs_on", "this-mac") == "this-mac"), None) or next(iter(chain), None)
+        cloud = nxt is not None and nxt.get("runs_on", "this-mac") != "this-mac"
+        out.append({"steps": entry["steps"], "model": entry["name"], "reason": row["reason"] or row["state"],
+                    "retry_job_id": entry["job_id"],
+                    "next_candidate": None if nxt is None else {
+                        "id": nxt["id"], "name": candidate_name(nxt), "model": nxt.get("model"),
+                        "runs_on": nxt.get("runs_on", "this-mac"), "needs_permission": cloud and not cloud_allowed}})
+    return out
+
+
 def pages_read_nothing(db: Any, pages: list[str]) -> int:
     """The pages whose reader returned empty for every line: failed reads, read again by a second Start."""
     from fichero_server.recipes.done import NOTHING_FOR_PAGE, unread_reasons
@@ -398,29 +453,19 @@ def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
     queries over all the pages, however many there are (review 153): the summary is read on every GET."""
     import json
 
+    from fichero_server.db.run_reviews import line_ids_by_page, lines_corrected_by, reviews_oldest_first
     from fichero_server.llm.working_lines import answer_line
 
     counted = {"pages": 0, "lines": 0, "corrected": 0, "unreadable": 0}
     if not pages:
         return counted
     newest: dict[str, tuple[str, str | None, Any]] = {}
-    # Oldest first, so the last a page sees is its newest; a review with no time counts as the oldest (review 156).
-    for review_id, page, content, data in db.execute_fetchall(
-            "SELECT id, document_id, content, data FROM artifacts WHERE artifact_type = 'transcription_review' "
-            "AND document_id IN (SELECT unnest(?::VARCHAR[])) "
-            "ORDER BY COALESCE(created_at, TIMESTAMP '1970-01-01'), id", [list(pages)]):
+    for review_id, page, content, data in reviews_oldest_first(db, pages):
         newest[page] = (review_id, content, data)
     if not newest:
         return counted
-    lines: dict[str, set[str]] = {}
-    for segment_id, page in db.execute_fetchall(
-            "SELECT id, document_id FROM segments WHERE kind = 'line' AND document_id IN "
-            "(SELECT unnest(?::VARCHAR[]))", [list(newest)]):
-        lines.setdefault(page, set()).add(segment_id)
-    corrected = dict(db.execute_fetchall(
-        "SELECT derived_from_artifact_id, count(DISTINCT segment_id) FROM contentrepresentations WHERE "
-        "retracted_at IS NULL AND derived_from_artifact_id IN (SELECT unnest(?::VARCHAR[])) GROUP BY 1",
-        [[review[0] for review in newest.values()]]))
+    lines = line_ids_by_page(db, list(newest))
+    corrected = lines_corrected_by(db, [review[0] for review in newest.values()])
     for page, (review_id, content, data) in newest.items():
         answered = {answer_line(text)[0] for text in (content or "").splitlines()} & lines.get(page, set())
         if not answered:  # not tied to the lines: the page's review, not a review of its lines
@@ -557,5 +602,10 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     made.next_reader = next_reader(setup["recipe"], lines_found=sum(s[0] for s in states),
                                    lines_blank=sum(s[2] for s in states), pages_read_nothing=made.pages_read_nothing,
                                    cloud_allowed=bool((setup["answers"] or {}).get("cloud_allowed")))
+    from fichero_server.execution import jobs
+
+    awaited = status.get("awaited") or []
+    made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited},
+                                             setup["recipe"], cloud_allowed=bool((setup["answers"] or {}).get("cloud_allowed")))
     made.lines = _lines(made, pages_split, ran)
     return made

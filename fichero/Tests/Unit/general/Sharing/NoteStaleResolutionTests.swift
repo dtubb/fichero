@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import fichero
+@testable import Fichero
 
 @Suite struct NoteStaleResolutionTests {
     let now = Date(timeIntervalSince1970: 1_700_000_000)

@@ -99,7 +99,9 @@ HEAVY_MODULES = [
 # triggers route imports, subclassed watchdog's event handler at import, pulling in watchdog's 11 modules (FSEvents
 # included) at every launch; the handler now answers watchdog's `dispatch` itself and the observer is imported when
 # a watcher starts. 797 after; the budget sits just above, and `watchdog` joins HEAVY_MODULES.
-MODULE_BUDGET = 800
+# 2026-10-18: raised to 820 (manager's OK). The api dir did not collect from 03:51 that day, so the count grew unseen
+# to 896; the MCP knowledge-route retirement brought it to 817. #5798 trims it back under 800 and restores 800.
+MODULE_BUDGET = 820
 
 
 def _run(code: str) -> str:

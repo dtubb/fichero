@@ -155,6 +155,7 @@ def test_login_success_returns_session_and_me(client, app_db, monkeypatch):
     assert identity.json() == {
         "multiuser_enabled": True,
         "auth_kind": "session",
+        "client": None,
         "user": {
             "id": app_db.get_user_by_username("alice").id,
             "username": "alice",
@@ -641,6 +642,7 @@ def test_identity_distinguishes_bootstrap_owner_account_user_and_unauthenticated
     assert bootstrap_identity.json() == {
         "multiuser_enabled": True,
         "auth_kind": "bootstrap",
+        "client": None,
         "user": None,
         "is_owner_access": True,
     }

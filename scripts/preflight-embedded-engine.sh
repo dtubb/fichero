@@ -165,6 +165,13 @@ fi
   # briefcase `requires`, this script rebuilt "successfully", and the bundle
   # still had no rdflib. build_backend_bundle.sh has always passed -r; the
   # release path did not.
+  # The bundle installs with uv.lock's versions as constraints, so it equals the
+  # venv the tests ran against (2026-10-19: unconstrained, it took PyMuPDF 2.0
+  # and five other major jumps). pyproject's requirement_installer_args reads
+  # this file; check_bundle_matches_lock.py below fails on any drift.
+  mkdir -p build
+  uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
+    --format requirements-txt -o build/lock-constraints.txt >/dev/null
   "$BRIEFCASE" update macOS --app fichero_server -r
   "$BRIEFCASE" build macOS --app fichero_server
 )
@@ -215,6 +222,9 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
 # Python package, Homebrew tool or provisioning step outside it.
 "$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_engine_imports_bundled.py" \
   "$ENGINE_APP/Contents/Resources/app_packages" || exit 1
+
+"$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_bundle_matches_lock.py" \
+  "$ENGINE_APP/Contents/Resources/app_packages" "$ENGINE_DIR/uv.lock" || exit 1
 
 write_acknowledgements || exit 1
 

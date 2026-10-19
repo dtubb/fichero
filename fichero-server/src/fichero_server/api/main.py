@@ -44,6 +44,7 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
+from fichero_server.db.app import device_token_migration_error
 from fichero_server.db.manager import LibraryNotFoundError
 from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
@@ -1113,8 +1114,12 @@ async def lifespan(app: FastAPI):
     # connections to close" blocked on any live run and the app SIGKILLed us
     # after its 2-second grace — twelve engine spawns in one session, each
     # orphaning an in-flight run with no terminal event.
-    from fichero_server.execution.runner import close_all_event_hubs_for_shutdown
+    from fichero_server.execution.runner import close_all_event_hubs_for_shutdown, pause_live_runs_for_shutdown
 
+    _paused_runs = await pause_live_runs_for_shutdown()
+    if _paused_runs:
+        logger.info("Shutdown: paused %d live run(s) at their last checkpoint; Resume carries them on (#5357).",
+                    _paused_runs)
     _closed_hubs = close_all_event_hubs_for_shutdown()
     if _closed_hubs:
         logger.info(
@@ -1971,6 +1976,22 @@ def _runtime_probes() -> dict[str, tuple[Callable[[], bool], str]]:
     }
 
 
+#: Route groups the app cannot work without; readiness checks the route table has each (#4874).
+_REQUIRED_ROUTES = ("/api/documents", "/api/search", "/api/segments", "/api/projects")
+
+
+def _missing_routes() -> list[str]:
+    """The required route groups the route table does not serve. Matches paths against the table already
+    loaded: no handler runs, no database or library is touched."""
+    from starlette.routing import Match
+
+    def served(path: str) -> bool:
+        scope = {"type": "http", "path": path, "method": "GET", "root_path": "", "query_string": b"", "headers": []}
+        return any(route.matches(scope)[0] != Match.NONE for route in app.routes)
+
+    return [path for path in _REQUIRED_ROUTES if not served(path)]
+
+
 @functools.lru_cache(maxsize=1)
 def _missing_required_modules() -> list[str]:
     """Each package or runtime this engine cannot find, with what needs it (checked without importing
@@ -2008,6 +2029,11 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
     response.missing_dependencies = _missing_required_modules()
+    response.device_token_migration_error = device_token_migration_error()
+    missing_routes = _missing_routes()
+    if missing_routes:
+        response.status = "unhealthy"
+        response.error = f"routes not registered: {', '.join(missing_routes)}"
     if not nonce:
         return response
     secret = globals().get("_api_token")

@@ -101,6 +101,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var hands: [String]?
     /// Where it was written: a place, as typed (`answers.place`, section 7d).
     var place: String?
+    /// The most the project may spend on Hugging Face a month; 0 offers only (`answers.hf_spend_cap_usd`, #5769).
+    var hfSpendCapUsd: Double?
+    /// Whether working copies may stay on a cluster for re-runs; nil follows pages-may-leave (`answers.copies_may_stay_on_cluster`).
+    var copiesMayStayOnCluster: Bool?
 
     /// What runs by itself after Start (`answers.automatic`).
     struct Automatic: Codable, Equatable {
@@ -112,8 +116,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
 
     /// The questions a ticked purpose opens under it on What you want to do (`answers.job_answers`).
     struct JobAnswers: Codable, Equatable {
-        /// Entities (`find-names-tag-words`): the kinds to find.
-        var entityKinds: [String] = ["people", "places"]
+        /// Entities (`find-names-tag-words`): the kinds to find; none named is every kind (#5805).
+        var entityKinds: [String] = []
         /// Translate or normalise › Into what (#5660 item 1): the reading levels to write, each its own run, in the
         /// engine's spelling (`as_written`, `expanded`, `regularised`, `modernised`), and at most one
         /// `translation:<language tag>`.
@@ -210,15 +214,6 @@ struct RecipeSetupAnswers: Codable, Equatable {
             normaliseHowFar = ordered + normaliseHowFar.filter { $0.hasPrefix(Self.translationPrefix) }
         }
 
-        /// What Start will run for "Into what", one entry per ticked level and one for a translation (the engine
-        /// makes one run for each, `recipes/start.py`).
-        var runTitles: [String] {
-            let levels = Self.normaliseLevels.filter { writes(level: $0.id) }.map(\.title)
-            guard let tag = translation else { return levels }
-            let name = JobQuestionFields.translationLanguages.first { $0.tag == tag }?.name ?? tag
-            return levels + ["Translation into \(name)"]
-        }
-
         /// The language a translation is asked into (its tag), or nil for none.
         var translation: String? {
             get {
@@ -236,7 +231,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
          scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
          pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
          automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil,
-         period: String? = nil, hands: [String]? = nil, place: String? = nil) {
+         period: String? = nil, hands: [String]? = nil, place: String? = nil,
+         hfSpendCapUsd: Double? = nil, copiesMayStayOnCluster: Bool? = nil) {
+        self.hfSpendCapUsd = hfSpendCapUsd
+        self.copiesMayStayOnCluster = copiesMayStayOnCluster
         self.period = period
         self.hands = hands
         self.place = place
@@ -258,6 +256,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
         case period, hands, place
+        case hfSpendCapUsd = "hf_spend_cap_usd"
+        case copiesMayStayOnCluster = "copies_may_stay_on_cluster"
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
         case jobAnswers = "job_answers"

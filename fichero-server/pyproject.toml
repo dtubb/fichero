@@ -55,6 +55,8 @@ sources = [
     "../fichero-cli/src/fichero_cli",
     "../fichero-mcp/src/fichero_mcp",
 ]
+# uv.lock's versions as pip constraints; scripts/preflight-embedded-engine.sh writes the file.
+requirement_installer_args = ["-c", "./build/lock-constraints.txt"]
 requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
     # Floors below are security/resolution floors only (#4337). Never `==` —
@@ -181,7 +183,7 @@ requires = [
     "lxml",
     "opencv-python-headless",
     # Document Processing
-    "PyMuPDF",
+    "PyMuPDF>=1.28,<2",  # 2.0 pulls pymupdf4llm/pymupdf_layout 2.0 (no licence metadata); stay on the tested line
     # 12.3.0 fixes 22 image-decoder advisories (PYSEC-2026-2253..2257,
     # 3451..3454, 3493..3496) — all reachable from imported user files.
     "Pillow>=12.3.0",
@@ -442,7 +444,7 @@ dependencies = [
     "anyascii",     # transliteration for accent-insensitive matching
     "convertdate",  # Julian / French Republican / Hebrew / Islamic calendars
     "jdcal",        # Julian Day Number <-> Gregorian, the sort key
-    "PyMuPDF",
+    "PyMuPDF>=1.28,<2",
     "Pillow>=12.3.0",  # 22 image-decoder advisories fixed in 12.3.0
     # HEIC/HEIF decoding (#4214). Not optional: HEIC is the iPhone camera
     # default, and without it an imported photo becomes a record with no

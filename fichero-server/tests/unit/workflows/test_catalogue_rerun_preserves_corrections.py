@@ -46,6 +46,8 @@ CORRECTION = "Firmado por Ocampo, no por Ospina. — corregido a mano"
 @pytest.fixture(autouse=True)
 def _no_seeding(monkeypatch):
     monkeypatch.setenv("FICHERO_SKIP_DEFAULT_WORKFLOWS", "1")
+    yield
+    db_manager.close_all()  # the runs open the library; its job threads must not outlive the test (#5503)
 
 
 def _run(library_path: Path, thread_id: str) -> None:

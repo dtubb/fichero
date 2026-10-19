@@ -77,7 +77,43 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
-_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder", "prepare-the-image"})
+def how_it_works(job: str) -> str | None:
+    """How a step that runs no model works, in the engine's words, sent on its run (`how`) so the app shows the sentence
+    and never writes it (`source.onboard.setup-says-what-is-happening`, #5791): the job's topic text after "How it
+    works:" (`recipes/seed/topics.yaml`, the one place it is written), or None when the topic gives none."""
+    from fichero_server.recipes.topics import get_topic
+
+    topic = get_topic(job)
+    marker = "How it works:"
+    if topic is None or not topic.long.startswith(marker):
+        return None
+    said = topic.long[len(marker):].strip()
+    return said[:1].upper() + said[1:]
+
+
+def download_sentence(download: dict[str, Any]) -> str:
+    """One download in words: under way (with how far), or still to start (with its size), and that its steps wait."""
+    from fichero_server.recipes.discovery import size_words
+
+    name = download.get("name") or download["model"]
+    if download.get("downloading"):
+        progress = download.get("progress")
+        return f"Downloading {name}" + (f": {progress}" if progress else "") + "; its steps wait for it."
+    size = size_words(download["size_mb"] / 1000) if download.get("size_mb") else "size not stated"
+    return f"{name} is not on this Mac yet ({size}): Start downloads it, and its steps wait for it."
+
+
+
+
+def _needs_a_model(job: str) -> bool:
+    """Whether a step of this job needs a model of its own: the registry's answer (`Job.needs_a_model`, #5812);
+    a job the registry does not know is asked for one, as before."""
+    from fichero_server.recipes.jobs import get_job
+
+    registered = get_job(job)
+    return True if registered is None else bool(registered.needs_a_model)
+
+
 #: Search: the page's text embedded by the embed job that also follows every correction
 #: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
 EMBED_JOB = "make-a-vector"
@@ -100,7 +136,9 @@ _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
-                       "correct": ("review_lenses", "lenses")}
+                       "correct": ("review_lenses", "lenses"),
+                       "work-out-dates": ("calendars", "calendars"),
+                       "find-regions": ("layout", "layout")}
 #: Job answers whose empty list says "none of them", never "not answered".
 _EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
@@ -171,6 +209,17 @@ def _override(pin: dict) -> tuple[str, str] | None:
     return ("omlx", model) if model else None
 
 
+def _about(problem: str, only: set[str] | None) -> bool:
+    """Whether a recipe-check problem concerns the steps asked for: a stage's plan (`only`) is refused for its own
+    steps' problems, not another step's (#5806); the recipe's own (schema, a missing key) are everyone's."""
+    return only is None or not problem.startswith("step ") or any(f"({sid})" in problem for sid in only)
+
+
+def _pin_words(pin: dict) -> str:
+    """A pin as a person reads it: its repository or DOI, else the pin itself."""
+    return str(pin.get("hf") or pin.get("zenodo") or pin)
+
+
 def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
     """The shipped workflow and run override that read with `pin` for a `read-a-line` or override job, or None
     when no workflow can: a vision model reads the lines Kraken found; a Kraken reader finds and reads them; the
@@ -190,6 +239,17 @@ def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
     return {"workflow": name, "workflow_id": workflow_id, "provider_override": provider, "model_override": model}
 
 
+#: What the plan says of the disagree step when its readers are already in the plan: nothing runs, nothing is stored.
+BUILT_IN_DISAGREE = "built in: worked out when you open a page, from the readers above; there is nothing to run"
+#: The jobs whose steps are a reader of the lines (or the page) in a plan.
+READER_STEP_JOBS = frozenset({"read-a-line", "read-a-page", "correct"})
+
+
+def _readers_in_plan(recipe: dict) -> int:
+    """How many readers the recipe's steps already make (a line reader, a page reader, a Correct step)."""
+    return sum(1 for s in recipe.get("steps") or [] if s.get("job") in READER_STEP_JOBS)
+
+
 def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, Any], bool]], str | None]:
     """The runs of a Find where the readers disagree step (`source.disagree.recipe-step`, #5665), each with whether
     it sends pages off this Mac, or why it has none. With `readers` (pins) in its settings, one run per reader;
@@ -200,12 +260,17 @@ def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, An
     settings = dict(step.get("settings") or {})
     pins = [p for p in settings.get("readers") or [] if isinstance(p, dict)]
     temperature = settings.get("temperature", DISAGREE_TEMPERATURE)
+    if not pins and not step.get("model") and _readers_in_plan(recipe) >= 2:
+        # Two readers already in the plan: the disagreement is the alignment of the readings they make, and the page
+        # worked out when it is opened (`GET /api/documents/{id}/disagreement` is read-only and keeps nothing), so the
+        # step has nothing to run and no model (`source.disagree.built-in-with-two-readers`, #5812, #5816).
+        return [], BUILT_IN_DISAGREE
     if not pins:
         pin = step.get("model") or next((s.get("model") for s in recipe.get("steps") or []
                                          if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
         if not isinstance(pin, dict) or _override(pin) is None:
-            return [], ("it samples a vision model, and none is named: choose one for this step, or a vision model "
-                        "for the line reader")
+            return [], ("it compares readers, and the plan has one that cannot be sampled: add a second reader, such "
+                        "as a Correct step or a second reader pinned on this step")
         pins = [pin] * max(int(settings.get("samples", DISAGREE_SAMPLES)), 2)
     name, workflow_id = _shipped(READ_LINES_WITH_A_MODEL)
     out = []
@@ -295,6 +360,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     fallbacks: list[dict[str, Any]] = []
     #: Steps kept in the recipe with no model (`source.onboard.no-model-step-kept`): skipped, never refusing Start.
     needs_a_model: list[dict[str, Any]] = []
+    #: A saved reader pin no workflow can run (#5800): refused in words, never quietly kept as the old reader.
+    unrunnable: list[str] = []
 
     names = step_names(recipe)
 
@@ -321,14 +388,14 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         if job == DISAGREE_JOB:
             sampled, why = disagreement_runs(step, recipe)
             if why:
-                skip(sid, f"{label}: {why}", "choose-model")
+                skip(sid, f"{label}: {why}")
             elif stays_local and any(leaves for _run, leaves in sampled):
                 skip(sid, f"{label} would send pages off this Mac, and this project keeps its pages here",
                      "allow-cloud")
             else:
                 runs.extend(run for run, _leaves in sampled)
             continue
-        if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
+        if _needs_a_model(job) and (step.get("gap") or not step.get("model")):
             # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused
             # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
             said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"
@@ -454,6 +521,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": workflow_id, "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
+        if (how := how_it_works(job)) is not None:
+            entry["how"] = how
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
                 skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}",
@@ -462,7 +531,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         elif job == "work-out-dates":
             # The rule extractor reads one calendar per run; a recipe asking for a
             # Julian/Gregorian switch is skipped and says so, never run as Gregorian.
-            calendars = set(settings.get("calendars") or [])
+            calendars = {str(c).casefold() for c in settings.get("calendars") or []}
             if calendars - {"gregorian"}:
                 skip(sid, f"{label}: {name} reads Gregorian dates only; it cannot use "
                           f"{sorted(calendars)} or switch calendars yet",
@@ -478,6 +547,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         elif job == "read-a-line" or job in _OVERRIDE_JOBS:
             reading = _reading_run(job, pin)
             if reading is None:
+                if job == "read-a-line":
+                    unrunnable.append(f"{_pin_words(pin)} is not a model Fichero can find here: choose another reader "
+                                      f"for {step.get('title') or sid}")
                 skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac can fetch, so no "
                           "workflow can read with it" if job == "read-a-line" else
                           f"{label}: {name} cannot run the model {pin}", "choose-model")
@@ -518,14 +590,15 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 runs.append({**entry, "tool_config": {"analyze": config}})
             continue
         if job == "find-names-tag-words" and settings.get("kinds"):
-            # Setup's kinds of names reach the entity extraction as its sections (#5478).
-            sections = [_ENTITY_SECTIONS[k] for k in settings["kinds"] if k in _ENTITY_SECTIONS]
-            if not sections:
-                skip(sid, f"{label}: {name} finds people, places, organisations, events and dates, and none of "
-                          f"{sorted(settings['kinds'])} is among them",
-                     "tick a kind of name it finds under the purpose in the project's setup")
-                continue
-            entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+            # Setup's kinds of names reach the entity extraction as its sections (#5478). A kind the person typed
+            # that the extraction has no section for stays in the step's settings (the plan shows it) and narrows
+            # nothing: with none of its sections named, the step finds every kind it can (#5805).
+            sections = [_ENTITY_SECTIONS[k.casefold()] for k in settings["kinds"] if k.casefold() in _ENTITY_SECTIONS]
+            if sections:
+                entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+            else:  # said in the plan, never silent (review 180): the typed kinds narrow nothing
+                entry["how"] = (f"Finds every kind of name: it cannot narrow by {', '.join(sorted(settings['kinds']))}, "
+                                "which it has no section for.")
         if job == "correct" and settings.get("lenses") is not None:
             # The review's lenses turned on or off in setup (#5723), in the profiles' order.
             from fichero_server.recipes.review_profiles import lens_ids
@@ -554,13 +627,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      for i, s in enumerate(recipe.get("steps") or [], start=1)
                      if s.get("id") in kept_ids and "model" in s and s["model"] is None}
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
-    refusals = [r for r in check_recipe(recipe) if r not in no_model_said]
+    refusals = [r for r in check_recipe(recipe) if r not in no_model_said and _about(r, only)]
+    refusals += unrunnable
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
     downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)
     for download in downloads:
         download["step_names"] = [names.get(s, s) for s in download["steps"]]
     if db is not None:
         mark_downloads_under_way(db, downloads)
+    for download in downloads:
+        download["sentence"] = download_sentence(download)
     # A model that is not here never refuses Start: Start fetches it itself and its steps wait for it (#5664,
     # ruled 2026-10-11: Set Up never downloads). Only a model that cannot be fetched at all refuses, below.
     waiting = [_downloading(d) for d in downloads if d.get("downloading")]
