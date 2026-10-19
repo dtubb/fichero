@@ -229,7 +229,9 @@ final class RecipeSetupStore {
             await resolveNames()
         } catch {
             if error.isCancellationError { return }
-            errorMessage = "Could not read this project's setup: \(error.localizedDescription)"
+            // Say which part could not be read (the field and where), and keep the path in the log.
+            NSLog("Fichero: reading the project's setup failed: %@", String(describing: error))
+            errorMessage = "Could not read this project's setup: \(error.inWords)"
         }
     }
 

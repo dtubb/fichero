@@ -34,3 +34,27 @@ public extension Error {
         return false
     }
 }
+
+public extension Error {
+    /// What went wrong in words that name the part: a decode error says which field and where ("the answer has no
+    /// \"problems\" (at recipe › steps › 0)"), never Foundation's "The data couldn't be read because it is missing".
+    /// Any other error keeps its own description. Unwraps the generated client's `ClientError`.
+    var inWords: String {
+        if let clientError = self as? ClientError { return clientError.underlyingError.inWords }
+        guard let decoding = self as? DecodingError else { return localizedDescription }
+        func path(_ context: DecodingError.Context) -> String {
+            let parts = context.codingPath.map { $0.intValue.map(String.init) ?? $0.stringValue }
+            return parts.isEmpty ? "" : " (at \(parts.joined(separator: " › ")))"
+        }
+        switch decoding {
+        case .keyNotFound(let key, let context):
+            return "the answer has no \"\(key.stringValue)\"\(path(context))"
+        case .valueNotFound(_, let context):
+            return "the answer has an empty value\(path(context))"
+        case .typeMismatch(_, let context), .dataCorrupted(let context):
+            return "the answer holds something unexpected\(path(context)): \(context.debugDescription)"
+        @unknown default:
+            return localizedDescription
+        }
+    }
+}
