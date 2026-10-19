@@ -23,6 +23,7 @@ from fichero_server.api.routes.document.format_import import ErrorDetail as _Err
 from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
+from fichero_server.recipes import places
 from fichero_server.recipes.assemble import PURPOSE_PARENT, PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
@@ -957,7 +958,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
         jobs=tuple(a.get("jobs") or ()), removed_jobs=tuple(a.get("removed_jobs") or ()),
-        pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
+        pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")) and places.pages_may_leave(),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
@@ -1361,7 +1362,7 @@ async def model_candidates(
     if not script_codes:
         raise HTTPException(status_code=422, detail="name at least one script")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
-                cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
+                cloud_allowed=cloud_allowed and places.pages_may_leave(), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
                 search_embedder=search_embedder(), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
@@ -1469,10 +1470,61 @@ def _library(db: Database) -> Path:
     return Path(db.path).parent
 
 
+class PlacesSetting(BaseModel):
+    """Where models may run, app-wide (`source.onboard.first-launch-three-screens`, #5828)."""
+    places: list[str] = Field(description="The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; "
+                                          "this Mac is always one.")
+
+
+class PlacesView(PlacesSetting):
+    memory_gb: float = Field(description="This Mac's memory, worked out by the engine.")
+    this_mac: str = Field(description="What this Mac can run, in a sentence, from its real memory.")
+
+
+def _places_view() -> PlacesView:
+    gb = _this_machine_memory_gb()
+    return PlacesView(places=places.get_places(), memory_gb=round(gb, 1), this_mac=places.this_mac_line(gb))
+
+
+@router.get("/places", response_model=PlacesView)
+async def get_places() -> PlacesView:
+    """Where models may run, and this Mac's line (its memory and what it can run)."""
+    return _places_view()
+
+
+@router.put("/places", response_model=PlacesView, responses={422: {"model": _ErrorDetail,
+            "description": "A place Fichero does not know."}})
+async def put_places(body: PlacesSetting, db: Database = Depends(get_library_database_for_write),
+                     ctx: ActionContext = Depends(action_context)) -> PlacesView:
+    """Allow these places (an audited action). Every project is capped by them: stricter, never looser."""
+    try:
+        registry.invoke(db, "recipes.set_places", body.model_dump(), ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _places_view()
+
+
+def _invert_places(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("recipes.set_places", {"places": (before or {}).get("places") or list(places.DEFAULT)})
+
+
+@action("recipes.set_places", PlacesSetting, domains=["project"], undoable=True, invert=_invert_places)
+def _action_set_places(db: Database, params: PlacesSetting, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    unknown = [p for p in params.places if p not in places.PLACES]
+    if unknown:
+        raise ValueError(f"Fichero does not know the place {unknown[0]!r}.")
+    before = places.get_places()
+    kept = list(places.normalise(params.places))
+    # Applied once the audit commits: a rolled-back action leaves the setting as it was.
+    db.add_after_commit_hook(lambda: places.set_places(kept))
+    return {"places": kept}, ChangeSpec(domains=["project"], target_ids=[], before={"places": before},
+                                        after={"places": kept}, emit_type="places.changed")
+
+
 @router.get("/project", response_model=ProjectSetup)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetup:
     """The open project's saved setup answers and recipe."""
-    return ProjectSetup(**read_project_setup(_library(db)))
+    return ProjectSetup(**read_project_setup(_library(db), raw=True))
 
 
 @router.put("/project", response_model=ProjectSetup)
@@ -1512,12 +1564,12 @@ def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionConte
         invert=_invert_save_setup)
 def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     library = _library(db)
-    before = read_project_setup(library)
+    before = read_project_setup(library, raw=True)
     # A part left out is kept; a part sent as null is removed (#5584).
     sent = params.model_fields_set
     write_project_setup(library, params.answers if "answers" in sent else before.get("answers"),
                         params.recipe if "recipe" in sent else before.get("recipe"))
-    after = read_project_setup(library)
+    after = read_project_setup(library, raw=True)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")
 
