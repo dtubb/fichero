@@ -33,6 +33,7 @@ pattern slice 7 set.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import Any, Optional
 
@@ -1954,7 +1955,10 @@ async def get_document_text(
     the same page give different texts, which is the whole point of naming them.
     """
     try:
-        return document_text(
+        # Off the event loop: the derivation is library-DB work, and the library lock sits behind the model lane's
+        # writes; run on the loop it held every request 8-10 s and the engine was judged dead (owner 20:24).
+        return await asyncio.to_thread(
+            document_text,
             db,
             document_id,
             pass_id=pass_id,
