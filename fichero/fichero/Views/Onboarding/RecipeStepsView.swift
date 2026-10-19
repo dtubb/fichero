@@ -132,7 +132,10 @@ extension RecipeStepsView {
                       fit: CandidateFit? = nil) -> [StepLine] {
         var lines: [StepLine] = [.title(store.title(of: step))]
         if let sentence = store.sentence(of: step) { lines.append(.sentence(sentence)) }
-        if let problem = step.problem {
+        if step.builtIn == true {
+            // Fichero's own algorithm: never "no model", never a fix button (`source.disagree.built-in-needs-second-reader`).
+            lines.append(.place(step.needs ?? (step.reasons ?? []).first.map { "Built in · \($0)" } ?? "Built in", cloud: false))
+        } else if let problem = step.problem {
             lines.append(.problem(problem.sentence))
             lines.append(inSetup ? .fix(title: RecipeStepRow.fixTitle(problem.fix), fix: problem.fix) : .detail(problem.detail))
         } else if let place = RecipeStepRow.whereItRuns(step) {

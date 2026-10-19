@@ -252,6 +252,12 @@ def _readers_in_plan(recipe: dict) -> int:
     return sum(1 for s in recipe.get("steps") or [] if s.get("job") in READER_STEP_JOBS)
 
 
+def line_reader_pin(steps: list[dict]) -> dict | None:
+    """The model the comparison samples when it names none: the plan's read-a-line step's. One helper for what the
+    plan says and what Start does (review 319: the plan looked at the first reader, which may read pages)."""
+    return next((s.get("model") for s in steps if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
+
+
 def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, Any], bool]], str | None]:
     """The runs of a Find where the readers disagree step (`source.disagree.recipe-step`, #5665), each with whether
     it sends pages off this Mac, or why it has none. With `readers` (pins) in its settings, one run per reader;
@@ -269,8 +275,7 @@ def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, An
         # step has nothing to run and no model (`source.disagree.built-in-with-two-readers`, #5812, #5816).
         return [], BUILT_IN_DISAGREE
     if not pins:
-        pin = own or next((s.get("model") for s in recipe.get("steps") or []
-                                         if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
+        pin = own or line_reader_pin(recipe.get("steps") or [])
         if not isinstance(pin, dict) or _override(pin) is None:
             if step.get("built_in") and not own:
                 # Built in, one reader and it cannot be sampled (Kraken): the person's to fix, never a block
