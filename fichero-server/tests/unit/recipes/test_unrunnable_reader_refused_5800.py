@@ -8,7 +8,8 @@ from tests.unit.api.test_add_a_layer_later import (  # noqa: F401  (fixtures)
     project,
 )
 
-UNKNOWN = {"zenodo": "10.5281/zenodo.99"}
+# Not a Kraken reader (no Zenodo record: any DOI is one Fichero can fetch) and not an MLX model it knows.
+UNKNOWN = {"hf": "nobody/not-a-model-5800", "revision": "main"}
 
 
 def _swap(client, pin):
@@ -23,7 +24,7 @@ def _swap(client, pin):
 def test_the_plan_refuses_a_reader_pin_it_cannot_run_in_words(client, project):  # noqa: F811
     _swap(client, UNKNOWN)
     plan = client.get("/api/recipes/project/start").json()
-    said = [r for r in plan["refusals"] if "10.5281/zenodo.99" in r]
+    said = [r for r in plan["refusals"] if "nobody/not-a-model-5800" in r]
     assert said and "is not a model Fichero can find here: choose another reader for" in said[0], plan["refusals"]
 
 
