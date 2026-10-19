@@ -1312,8 +1312,15 @@ def resume(db: "Database") -> None:
         f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})",
         [utc_now(), STOPPING, *RUN_KINDS],
     )
+    # Not a job this engine's own lane threads are running right now: a library opened again while one of its jobs runs
+    # (a project switched back to) must not mark it "Interrupted; carries on" while it works, which left the lane held
+    # by a job whose row said it was waiting (owner, 2026-10-19). Only rows no live thread runs were left by an engine
+    # that is gone.
+    live = _scheduler.running_ids()
+    not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
     db.execute(
-        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} WHERE state = 'running'"
+        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
+        f"WHERE state = 'running'{not_live}", live
     )
     # A page whose thumbnail is already there needs no job: one left queued, interrupted just now, or set aside after
     # its kills, would hold the heavy work queued after it for good (#5845). After the reset above, so a thumbnail job
@@ -1941,6 +1948,11 @@ def waiting_reason(db: "Database", job_id: str, kind: str, *, stored: str | None
     lane = _scheduler.lanes.get(lane_name)
     words = LANE_WORDS.get(lane_name, f"the {lane_name} lane")
     running = [r for r in list(lane.running) if r != job_id] if lane is not None else []
+    if running:  # only a job that is running holds a lane: never name one whose row says otherwise
+        marks = ", ".join("?" for _ in running)
+        not_running = {row[0] for row in db.execute_fetchall(
+            f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", running)}
+        running = [r for r in running if r not in not_running]
     if lane is not None and len(running) >= lane.slots:
         return f"Waiting for {words}: {_holder_words(db, running[0])}"
     if lane_name in HEAVY_LANES:
@@ -2367,6 +2379,36 @@ class _Scheduler:
                 thread.join(max(0.0, deadline - time.monotonic()))
         return [t for t in ending if t.is_alive()]
 
+    def running_ids(self) -> list[str]:
+        """The jobs this engine's lane threads are running now, on every lane."""
+        return [job_id for lane in self.lanes.values() for job_id in list(lane.running)]
+
+    def release_stale_holders(self, lane: _Lane) -> list[str]:
+        """Only a job that is actually running holds a lane (owner, 2026-10-19: Kraken waited 3 min 49 s on "Embed for
+        search is running" while that row said "Interrupted; carries on"). A holder whose row has left `running`
+        (interrupted, waiting, set aside, paused, cancelled, failed) is let go at once; a holder not found in any open
+        library is kept (it belongs to a project this scan cannot see). Returns the ids released."""
+        from fichero_server.db.manager import db_manager
+
+        ids = list(lane.running)
+        if not ids:
+            return []
+        with self._lock:
+            keys = list(lane.libraries)
+        released: list[str] = []
+        for key in keys:
+            db = db_manager.open_database(key)
+            if db is None:
+                continue
+            marks = ", ".join("?" for _ in ids)
+            for (job_id,) in db.execute_fetchall(
+                    f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", ids):
+                if lane.running.pop(job_id, "gone") != "gone":
+                    lane.calls.discard(job_id)
+                    released.append(job_id)
+                    logger.warning("lane %s: released %s, whose row is no longer running", lane.name, job_id)
+        return released
+
     def heavy_running(self, besides: str | None = None) -> str | None:
         """A job running on a heavy lane now (its id), other than `besides`, or None."""
         for name in HEAVY_LANES:
@@ -2390,6 +2432,7 @@ class _Scheduler:
             return self._claim_one(lane)
 
     def _claim_one(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
+        self.release_stale_holders(lane)
         with lane.pick:
             # Heavy local work waits while the Mac needs itself (`activity.throttle.power-heat-
             # memory`). Background jobs wait on all four signals, so while any holds, only work a
