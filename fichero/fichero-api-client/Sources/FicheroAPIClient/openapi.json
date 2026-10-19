@@ -88991,6 +88991,12 @@
             "type": "string",
             "title": "Example"
           },
+          "example_from_samples": {
+            "type": "string",
+            "nullable": true,
+            "title": "Example From Samples",
+            "description": "an example from the person's sample pages, once a try found one (Passages)"
+          },
           "jobs": {
             "items": {
               "type": "string"
@@ -90603,6 +90609,20 @@
             "type": "boolean",
             "title": "Read By A Step",
             "description": "true: a step reads it today; false: kept with the answers"
+          },
+          "open": {
+            "type": "boolean",
+            "title": "Open",
+            "description": "a question that names kinds: every kind by default (an empty answer), the person can type their own, and `options` stay empty (#5805)",
+            "default": false
+          },
+          "suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggestions",
+            "description": "for an open question: only the kinds a sample try found; empty until a try returns them"
           }
         },
         "type": "object",

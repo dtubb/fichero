@@ -126,7 +126,11 @@ _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
-                       "correct": ("review_lenses", "lenses")}
+                       "correct": ("review_lenses", "lenses"),
+                       "find-statements": ("statement_kinds", "kinds"),
+                       "work-out-dates": ("calendars", "calendars"),
+                       "pull-out-passages": ("passage_kinds", "kinds"),
+                       "extract-to-a-table": ("fields", "fields")}
 #: Job answers whose empty list says "none of them", never "not answered".
 _EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
@@ -488,7 +492,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         elif job == "work-out-dates":
             # The rule extractor reads one calendar per run; a recipe asking for a
             # Julian/Gregorian switch is skipped and says so, never run as Gregorian.
-            calendars = set(settings.get("calendars") or [])
+            calendars = {str(c).casefold() for c in settings.get("calendars") or []}
             if calendars - {"gregorian"}:
                 skip(sid, f"{label}: {name} reads Gregorian dates only; it cannot use "
                           f"{sorted(calendars)} or switch calendars yet",
@@ -544,14 +548,12 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                 runs.append({**entry, "tool_config": {"analyze": config}})
             continue
         if job == "find-names-tag-words" and settings.get("kinds"):
-            # Setup's kinds of names reach the entity extraction as its sections (#5478).
-            sections = [_ENTITY_SECTIONS[k] for k in settings["kinds"] if k in _ENTITY_SECTIONS]
-            if not sections:
-                skip(sid, f"{label}: {name} finds people, places, organisations, events and dates, and none of "
-                          f"{sorted(settings['kinds'])} is among them",
-                     "tick a kind of name it finds under the purpose in the project's setup")
-                continue
-            entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+            # Setup's kinds of names reach the entity extraction as its sections (#5478). A kind the person typed
+            # that the extraction has no section for stays in the step's settings (the plan shows it) and narrows
+            # nothing: with none of its sections named, the step finds every kind it can (#5805).
+            sections = [_ENTITY_SECTIONS[k.casefold()] for k in settings["kinds"] if k.casefold() in _ENTITY_SECTIONS]
+            if sections:
+                entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
         if job == "correct" and settings.get("lenses") is not None:
             # The review's lenses turned on or off in setup (#5723), in the profiles' order.
             from fichero_server.recipes.review_profiles import lens_ids
