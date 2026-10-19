@@ -220,7 +220,7 @@ struct SetupStagesTests {
         #expect(result.state == "done" && !result.isUnderWay)
         let page = try #require(result.perPage?.first)
         #expect(store.name(of: page.id) == "f. 1r")
-        #expect(SetupStageTryResult.summary(of: page) == "12 line, 2 region; 1 statement")
+        #expect(SetupStageTryResult.summary(of: page) == "12 lines, 2 regions; 1 statement")
         #expect(result.names?.map(\.name) == ["Juan de Mosquera"])
     }
 
