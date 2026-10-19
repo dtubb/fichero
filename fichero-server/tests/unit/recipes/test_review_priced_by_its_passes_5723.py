@@ -46,3 +46,19 @@ def test_a_review_on_this_mac_costs_nothing_a_lens_and_any_other_run_is_one_call
     assert here["cost_usd"] == 0.0 and {lens["cost_per_page_usd"] for lens in here["lenses"]} == {0.0}
     [read] = estimate([{**REVIEW, "job": "read-a-line", "steps": ["read"]}], 10)["runs"]
     assert read["calls_per_page"] == 1 and read["lenses"] == [] and read["cost_usd"] == pytest.approx(0.10)
+
+
+def test_a_review_whose_passes_cannot_be_counted_is_unpriced_never_free():
+    """Review 160 (#5590): a preset that cannot be read, or has no review pass, is no $0 review."""
+    [row] = estimate([{**REVIEW, "workflow": "No Such Preset"}], 10)["runs"]
+    assert row["calls_per_page"] is None and row["cost_usd"] is None and row["basis"] == "unpriced"
+    assert {lens["cost_per_page_usd"] for lens in row["lenses"]} == {None}
+    assert estimate([{**REVIEW, "workflow": "No Such Preset"}], 10)["total_cost_usd"] is None
+
+
+def test_the_review_is_priced_by_its_own_workflow():
+    from fichero_server.recipes.review_profiles import review_passes
+
+    assert review_passes("Paleographer Review", None) == 3  # the name a run carries
+    assert review_passes("transcribe_paleography_review", ["orthography"]) == 1  # or the preset's key
+    assert review_passes("No Such Preset", None) is None
