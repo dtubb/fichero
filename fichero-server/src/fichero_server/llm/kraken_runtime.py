@@ -1188,6 +1188,19 @@ def _line_confidence(record: object) -> float | None:
     return round(sum(values) / len(values), 4) if values else None
 
 
+def _own_copy(task: object) -> object:
+    """This page's own handle on the resident reader: Kraken keeps a page's state on the model object (`_len`,
+    `_line_iter`, the scales), so two pages at once through one object clobber each other ("list index out of range",
+    M4 2026-10-19). A shallow copy shares the weights (no memory) and has its own state."""
+    import copy
+
+    own = copy.copy(task)
+    inner = getattr(task, "net", None)
+    if inner is not None:
+        own.net = copy.copy(inner)  # type: ignore[attr-defined]
+    return own
+
+
 def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
     from PIL import Image
     from kraken import blla
@@ -1206,7 +1219,7 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
-        net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
+        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
         with _stage("recognise"):
             predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
         width, height = image.width, image.height
