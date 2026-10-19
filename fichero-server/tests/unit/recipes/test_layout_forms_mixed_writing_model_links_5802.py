@@ -31,7 +31,7 @@ def _step(recipe, job):
 
 def test_forms_is_a_layout_choice_and_reaches_the_find_regions_step():
     layout = next(q for q in get_stage("find-regions").questions if q.key == "layout")
-    assert "forms" in dict(layout.options) and layout.read_by_a_step
+    assert "forms" in dict(layout.options) and not layout.read_by_a_step  # no run reads it yet (#5802)
     recipe = assemble(_answers(jobs=("find-regions",), job_answers={"layout": ["columns", "forms"]}), CARDS)
     assert _step(recipe, "find-regions")["settings"] == {"layout": ["columns", "forms"]}
 
@@ -39,6 +39,7 @@ def test_forms_is_a_layout_choice_and_reaches_the_find_regions_step():
 def test_handwriting_and_print_on_one_page_gives_each_kind_its_own_reader_routed_by_region():
     question = next(q for q in get_stage("find-regions").questions if q.key == "mixed_writing")
     assert question.kind == "yes-no" and question.ask == "Handwriting and print on the same page?"
+    assert not question.read_by_a_step  # nothing reads route_by at run time yet (#5802)
     recipe = assemble(_answers(jobs=("find-regions", "read-a-line"), job_answers={"mixed_writing": True}), CARDS)
     read = _step(recipe, "read-a-line")
     assert [r["material"] for r in read["readers"]] == ["handwriting", "print"]

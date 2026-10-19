@@ -681,8 +681,6 @@ def _pin_link(pin: dict) -> str | None:
         return f"https://doi.org/{pin['zenodo']}"
     if pin.get("hf"):
         return f"https://huggingface.co/{pin['hf']}"
-    if pin.get("kraken"):
-        return "https://kraken.re"
     if pin.get("spacy"):
         return "https://spacy.io/models"
     if pin.get("builtin") == "apple-vision":
