@@ -28,3 +28,15 @@ def test_a_column_that_already_ended_is_left_as_it_was(monkeypatch):
     out = samples._following_its_job(object(), {"stage": "names", "state": "waiting", "job_id": "j", "pages": ["p"],
                                                 "candidates": [done]})
     assert out["candidates"] == [done]
+
+
+def test_stop_reads_stopped_not_failed(monkeypatch):
+    """Review 337 LOW: a try the person stopped is `stopped` on the try and on each column."""
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs, "read_job", lambda db, job_id: {"state": "cancelled", "reason": "Stopped by you"})
+    out = samples._following_its_job(object(), {"stage": "find-lines", "state": "running", "job_id": "j", "pages": ["p1", "p2"],
+                                                "candidates": [{"card": "a", "state": "running", "per_page": [{"id": "p1", "segments": {"line": 1}}]}]})
+    (column,) = out["candidates"]
+    assert out["state"] == "stopped" and column["state"] == "stopped" and column["progress"]["state"] == "stopped"
+    assert column["progress"]["done"] == 1
