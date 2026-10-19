@@ -280,7 +280,9 @@ enum CodeListSource {
     static func markdown(scripts: Bool) -> String {
         scripts
             ? "From [ISO 15924](https://www.unicode.org/iso15924/)."
-            : "From [ISO 639-3](https://iso639-3.sil.org), plus [Glottolog](https://glottolog.org) for the languages and dialects ISO 639-3 has no code for; a language's own name (from [Unicode CLDR](https://cldr.unicode.org)) finds it too."
+            : "From [ISO 639-3](https://iso639-3.sil.org), plus [Glottolog](https://glottolog.org) "
+            + "for the languages and dialects ISO 639-3 has no code for; "
+            + "a language's own name (from [Unicode CLDR](https://cldr.unicode.org)) finds it too."
     }
 
     static func note(scripts: Bool) -> AttributedString {
