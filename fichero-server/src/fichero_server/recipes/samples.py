@@ -301,6 +301,8 @@ def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0) -> st
     """Wait for the models this candidate's plan needs to land; why not, in words, when one cannot."""
     from fichero_server.execution import jobs
 
+    try_id, last = jobs.current_job_id(), None
+
     for download in plan.get("downloads") or []:
         name = download.get("name") or download.get("model")
         if not download.get("job_id"):
@@ -311,6 +313,10 @@ def _await_downloads(db: Any, plan: dict[str, Any], *, every: float = 2.0) -> st
                 break
             if row.get("state") in ("failed", "cancelled", None):
                 return f"{name} could not be downloaded: {_sentence(row.get('reason')) or 'the download stopped'}"
+            if try_id and row.get("reason") != last:  # say what it waits for, with the download's own progress
+                last = row.get("reason")
+                jobs.save_detail(db, try_id, jobs.read_job(db, try_id).get("detail") or "{}",
+                                 reason=f"Waiting for {name} to download" + (f" ({last})" if last else ""))
             time.sleep(every)
     return None
 
@@ -474,8 +480,9 @@ def register_job_kinds() -> None:
     from fichero_server.execution import jobs
 
     if TRY_KIND not in jobs.KINDS or jobs.KINDS[TRY_KIND].run is None:
-        # The recipes lane, as a recipe run: it only waits on its steps' own jobs, never holds the model lane they need.
-        jobs.register_kind(TRY_KIND, _run_try, model=None, lane="recipes", name="Try a stage on the sample pages")
+        # Its own lane (#5806): like a recipe run it only waits on its steps' own jobs and never holds the model lane
+        # they need, but a try waiting on a download must not hold up another stage's try.
+        jobs.register_kind(TRY_KIND, _run_try, model=None, lane="tries", name="Try a stage on the sample pages")
 
 
 #: The kinds of row a stage's run makes, read back from the scratch copy as its result.
