@@ -433,7 +433,7 @@ async def regenerate_missing_thumbnails(
     from fichero_server.models import Document
 
     package_path = Path(x_fichero_library_path)
-    docs: list[Document] = db.all(Document)
+    docs: list[Document] = await asyncio.to_thread(db.all, Document)
 
     generated_ids: list[str] = []
     skipped = 0
