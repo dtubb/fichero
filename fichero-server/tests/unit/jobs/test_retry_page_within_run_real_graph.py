@@ -106,6 +106,8 @@ def test_retry_in_a_stopped_run_reads_the_retried_page_and_not_the_never_read_on
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"), 120)
     assert cloud.calls - calls == 1, "only the retried page is read, not the never-read one"
     after = _account(db, run)
+    assert after.pages_failed == 0, "a page the reopen left out is neither done nor failed"
+    assert _status(client, run) != "failed", f"the run ended {_status(client, run)}: a left-out page must not fail it"
     assert after.pages_total == len(pages), "the run's record is intact"
     assert after.pages_done == 2 and len(after.not_done_ids) == 1, "two pages read now; the never-read one still is not"
     assert db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [never_read])[0] == "cancelled"

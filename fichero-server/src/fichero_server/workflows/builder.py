@@ -1873,7 +1873,7 @@ def _make_parallel_node_function(
         if only_docs and isinstance(document, dict) and not ({document.get("id"), document.get("parent_id")} & set(only_docs)):
             return _with_chaining(
                 {"parallel_results": {node_id: [{"file": file_path, "index": index, "total": total, "success": False,
-                                                 "cancelled": True, "error": "not part of this reopen"}]}},
+                                                 "cancelled": True, "skipped": True, "error": "not part of this reopen"}]}},
                 failed=True, error="not part of this reopen")
 
         event_document_meta: dict[str, Any] = {}
@@ -2343,8 +2343,9 @@ def _make_aggregation_function(node_id: str):
             )
             return {}
 
-        # Sort by index to maintain order
-        sorted_results = sorted(parallel_results, key=lambda x: x.get("index", 0))
+        # Sort by index to maintain order. A file a reopen left out (`only_doc_ids`) is neither read nor failed: it is not
+        # counted at all, so it can neither fail the run nor raise the error rate.
+        sorted_results = sorted((r for r in parallel_results if not r.get("skipped")), key=lambda x: x.get("index", 0))
 
         # Aggregate results
         all_texts = []
