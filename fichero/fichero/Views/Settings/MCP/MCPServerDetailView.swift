@@ -12,6 +12,9 @@ struct MCPServerDetailView: View {
     @State private var isLoadingTools = false
     @State private var loadedTools: [MCPToolInfo] = []
     @State private var loadError: String?
+    /// The switch as the person last set it; the list's copy of the server is only reloaded later.
+    @State private var availableToChatOverride: Bool?
+    @State private var availableToChatError: String?
 
     var body: some View {
         ScrollView {
@@ -37,6 +40,13 @@ struct MCPServerDetailView: View {
                                 .frame(width: 8, height: 8)
                             Text(server.enabled ? "Enabled" : "Disabled")
                         }
+                    }
+
+                    Toggle("Available to chat", isOn: availableToChatBinding)
+                        .help("Lets the chat assistant call this server's read-only tools. Off unless you turn it on.")
+
+                    if let availableToChatError {
+                        Text(availableToChatError).font(.caption).foregroundStyle(.red)
                     }
 
                     if !server.description.isEmpty {
@@ -177,9 +187,32 @@ struct MCPServerDetailView: View {
             .padding()
         }
         .task(id: server.id) {
+            availableToChatOverride = nil
+            availableToChatError = nil
             // Load tools when server changes
             await loadTools()
         }
+    }
+
+    private var availableToChatBinding: Binding<Bool> {
+        Binding(
+            get: { availableToChatOverride ?? server.availableToChat },
+            set: { newValue in
+                let previous = availableToChatOverride ?? server.availableToChat
+                availableToChatOverride = newValue
+                availableToChatError = nil
+                Task {
+                    do {
+                        _ = try await mcpService.updateServer(server.id, request: UpdateMCPServerRequest(availableToChat: newValue))
+                        await onUpdate()
+                    } catch {
+                        availableToChatOverride = previous
+                        availableToChatError = "Could not change this: \(error.localizedDescription)"
+                        logger.error("Available-to-chat change failed: \(String(describing: error))")
+                    }
+                }
+            }
+        )
     }
 
     private func loadTools(forceReload: Bool = false) async {
