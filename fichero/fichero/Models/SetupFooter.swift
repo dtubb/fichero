@@ -29,6 +29,10 @@ struct SetupFooter: Equatable {
     let showsBack: Bool
     /// The default button, far right.
     let primary: Choice
+    /// Ready's Start lives in the page's last box with the total and why it waits (#5840), so the footer has no default
+    /// button there.
+    var primaryLivesInPage: Bool { primary.action == .start }
+
     /// Why the default button waits, said beside it; nil when it can be pressed (#5813).
     var waitsFor: String?
 

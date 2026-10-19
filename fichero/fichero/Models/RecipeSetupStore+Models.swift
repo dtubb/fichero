@@ -42,6 +42,26 @@ extension RecipeSetupStore {
     /// The plan's words for steps that wait for a model already downloading ("... which is downloading (1.2 GB of
     /// 5.6 GB): they run when it lands"), shown in place of a refusal (#5660).
     var waitingForDownloads: [String] { startPlan?.waiting ?? [] }
+
+    /// The waiting lines paired with the downloads under way they were written from, in the engine's order
+    /// (`start.py`: `waiting` is one sentence per download marked `downloading`), each with the step ids it holds up.
+    private var waitingByStep: [(line: String, steps: Set<String>)] {
+        guard let plan = startPlan else { return [] }
+        let downloading = plan.downloads.filter { $0.downloading == true }
+        return zip(plan.waiting, downloading).map { (line: $0, steps: Set($1.steps)) }
+    }
+
+    /// The waiting lines that hold up this step (shown in its box on Ready, #5840).
+    func waitingForDownloads(inStep stepId: String) -> [String] {
+        waitingByStep.filter { $0.steps.contains(stepId) }.map(\.line)
+    }
+
+    /// The waiting lines that name none of these steps (shown once, with the plan-wide lines).
+    func waitingForDownloads(notInSteps stepIds: Set<String>) -> [String] {
+        let paired = waitingByStep
+        let unpaired = Array(waitingForDownloads.dropFirst(paired.count))
+        return paired.filter { $0.steps.isDisjoint(with: stepIds) }.map(\.line) + unpaired
+    }
 }
 
 extension RecipeStepsView {

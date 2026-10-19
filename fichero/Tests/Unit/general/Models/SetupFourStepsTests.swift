@@ -179,11 +179,10 @@ struct SetupFourStepsTests {
     /// if they were required, setup could not finish without them.
     @Test("Ready shows the plan, what runs by itself and the two optional rows")
     func readyShowsTheOptionalRows() {
-        let rows = RecipeReadyFields.Row.allCases
-        // Training is its own page before Ready since section 7d (2026-10-11), not a row here.
-        #expect(rows == [.plan, .runsByItself, .checkOnYourPages, .keepAnExport])
-        #expect(rows.filter(\.isOptional) == [.checkOnYourPages, .keepAnExport])
-        #expect(rows.filter(\.isOptional).map(\.title) == ["Check on your pages", "Keep an export"])
+        // Boxes in order since #5840 (`ReadySection`): the plan's steps, then these parts, the optional ones marked.
+        let parts = ReadySection.order(steps: [])
+        #expect(parts == [.runsByItself, .checkOnYourPages, .keepAnExport, .start])
+        #expect(parts.filter(\.isOptional).map(\.title) == ["Check on your pages", "Keep an export"])
     }
 
     /// WHY (#5492): what runs by itself is one choice. Choosing that new material runs, when the

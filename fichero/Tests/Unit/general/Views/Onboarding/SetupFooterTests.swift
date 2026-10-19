@@ -54,6 +54,9 @@ struct SetupFooterTests {
         #expect(footer(.project, newProject).primary.title == "Create Project")
         #expect(footer(.stages, newProject).primary.title == "Continue")
         #expect(footer(.ready, newProject).primary == .init(title: "Start", action: .start))
+        // Ready's Start sits in the page's last box with the total and why it waits (#5840): no default button there.
+        #expect(footer(.ready, newProject).primaryLivesInPage)
+        #expect(!footer(.stages, newProject).primaryLivesInPage)
         let handOff = footer(.handOff, firstRun, projectChosen: false)
         #expect(handOff.primary == .init(title: "Set Up a New Project…", action: .setUpNewProject))
         #expect(handOff.leading == .init(title: "Start Without a Project", action: .finish))
