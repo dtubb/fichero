@@ -250,7 +250,7 @@ struct DisagreementWordPopover: View {
             ForEach(rows.indices, id: \.self) { index in
                 let row = rows[index]
                 HStack(alignment: .firstTextBaseline) {
-                    Text(row.text).font(.body)
+                    Text(row.text).font(BundledFonts.shared.font(.body))  // a variant is line text (#5842)
                     Spacer()
                     Text(row.count).font(.caption).monospacedDigit().foregroundStyle(.secondary)
                 }
