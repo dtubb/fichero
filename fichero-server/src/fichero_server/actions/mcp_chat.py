@@ -8,7 +8,6 @@ an `ActionAudit` row and shows in Activity. A server that is off contributes not
 from __future__ import annotations
 
 import asyncio
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -17,15 +16,17 @@ from pydantic import BaseModel, Field
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action
 from fichero_server.db.app import get_app_db
 
-logger = logging.getLogger(__name__)
 
 
 def _read_only(tool: Any) -> bool:
     return bool((getattr(tool, "metadata", None) or {}).get("readOnlyHint"))
 
 
-async def _chat_tools_by_server() -> list[tuple[str, Any]]:
-    """(server name, LangChain tool) for each read-only tool of each enabled, chat-available server."""
+async def _chat_tools_by_server(unavailable: dict[str, str] | None = None) -> list[tuple[str, Any]]:
+    """(server name, LangChain tool) for each read-only tool of each enabled, chat-available server.
+
+    A server that will not start offers nothing and is named in `unavailable` (server -> error type), so the caller can say so.
+    """
     servers = [s for s in get_app_db().query_mcp_servers() if s.enabled and s.available_to_chat]
     if not servers:
         return []  # nothing switched on: the MCP client is never even imported (#3950)
@@ -39,15 +40,16 @@ async def _chat_tools_by_server() -> list[tuple[str, Any]]:
         try:
             tools = await manager.load_server_tools(server.name)
         except Exception as exc:  # a server that will not start offers nothing; the turn goes on
-            logger.warning("MCP server %s could not offer tools to chat: %r", server.name, exc)
+            if unavailable is not None:
+                unavailable[server.name] = type(exc).__name__
             continue
         found += [(server.name, tool) for tool in tools if _read_only(tool)]
     return found
 
 
-async def chat_mcp_tools() -> dict[str, tuple[str, Any]]:
+async def chat_mcp_tools(unavailable: dict[str, str] | None = None) -> dict[str, tuple[str, Any]]:
     """tool name -> (server name, tool) for what the chat agent may be offered now."""
-    return {tool.name: (name, tool) for name, tool in await _chat_tools_by_server()}
+    return {tool.name: (name, tool) for name, tool in await _chat_tools_by_server(unavailable)}
 
 
 def tool_definition(tool: Any) -> dict:
