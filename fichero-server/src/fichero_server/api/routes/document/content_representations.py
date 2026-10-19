@@ -52,6 +52,7 @@ from fichero_server.models.segments import (
     primary_live_segment_id,
     resolve_segment,
 )
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/content-representations")
 
@@ -123,7 +124,8 @@ async def list_representations(
     "/{representation_id}/revisions",
     response_model=ContentRepresentationRevisionListResponse,
 )
-async def list_revisions(
+@off_loop
+def list_revisions(
     representation_id: str,
     db: Database = Depends(get_library_database),
 ) -> ContentRepresentationRevisionListResponse:

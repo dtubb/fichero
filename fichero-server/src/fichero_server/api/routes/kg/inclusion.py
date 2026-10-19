@@ -23,6 +23,7 @@ from fichero_server.models.knowledge import (
     KnowledgeGraphInclusion,
 )
 from fichero_server.models import KGInclusionListResponse
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/kg/inclusion")
 
@@ -140,7 +141,8 @@ async def upsert_inclusion(
 
 
 @router.get("", response_model=KGInclusionListResponse)
-async def list_inclusion(
+@off_loop
+def list_inclusion(
     scope_type: InclusionScopeType | None = Query(default=None),
     target_id: str | None = Query(default=None),
     db: Database = Depends(get_library_database),

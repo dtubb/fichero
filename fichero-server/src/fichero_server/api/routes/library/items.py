@@ -10,6 +10,7 @@ from fichero_server.api.main import get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Annotation, KnowledgeClaim, KnowledgeEntity, Note
 from fichero_server.models import Document
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/library-items", tags=["library-items"])
 
@@ -80,7 +81,8 @@ def _scopes(item_ids: list[str], documents: list[Document], descendants: bool) -
     summary="Batch library-item column metadata",
     description="Read-only set-based item metadata for library list and column-browser pages.",
 )
-async def library_item_columns(
+@off_loop
+def library_item_columns(
     request: LibraryItemColumnsRequest,
     db: Database = Depends(get_library_database_for_write),
 ) -> LibraryItemColumnsResponse:

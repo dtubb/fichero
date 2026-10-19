@@ -38,6 +38,7 @@ from fichero_server.models.geo import (
 )
 from fichero_server.models.segments import SegmentPass
 from fichero_server.models.typed_links import TypedLink
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/georeference")
 
@@ -409,7 +410,8 @@ async def get_world_shape(
 
 
 @router.get("/documents/{doc_id}/geojson", response_model=dict)
-async def get_document_geojson(
+@off_loop
+def get_document_geojson(
     doc_id: str,
     kinds: str = Query("place", description="Comma-separated segment kinds to place"),
     db: Database = Depends(get_library_database),

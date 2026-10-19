@@ -20,6 +20,7 @@ from fichero_server.knowledge.pykeen_inference import (
 )
 from fichero_server.models.knowledge import KnowledgePredictionReview, PredictionReviewState
 from fichero_server.models import PykeenListResponse, KGGraphListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/pykeen")
@@ -178,7 +179,8 @@ async def create_prediction_review(
 
 
 @router.get("/reviews", response_model=PykeenListResponse)
-async def list_prediction_reviews(
+@off_loop
+def list_prediction_reviews(
     state: PredictionReviewState | None = None,
     db: Database = Depends(get_library_database),
 ) -> PykeenListResponse:

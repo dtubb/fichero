@@ -60,6 +60,7 @@ from fichero_server.media.transcript_alignment_service import (
     resolve_transcript,
 )
 from fichero_server.models import Artifact, ArtifactTypeListResponse, Document
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -517,7 +518,8 @@ async def list_artifact_types(
 
 
 @router.get("/document/{doc_id}")
-async def list_document_artifacts(
+@off_loop
+def list_document_artifacts(
     doc_id: str,
     artifact_type: Optional[str] = Query(None, description="Filter by artifact type"),
     limit: int = Query(50, ge=1, le=200, description="Max results"),

@@ -40,6 +40,7 @@ from fichero_server.db import (
 )
 from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 from fichero_server.models import DocType, Document, EmbeddingStatsResponse, SavedSearch
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -1613,7 +1614,8 @@ async def streaming_search(
 
 
 @router.get("/stats", response_model=EmbeddingStatsResponse)
-async def search_stats(
+@off_loop
+def search_stats(
     db: Database = Depends(get_library_database),
 ) -> EmbeddingStatsResponse:
     """Get embedding/search statistics."""
@@ -1635,7 +1637,8 @@ class KeywordCloudListResponse(BaseModel):
 
 
 @router.get("/keywords", response_model=KeywordCloudListResponse)
-async def keyword_cloud(
+@off_loop
+def keyword_cloud(
     request: Request,
     db: Database = Depends(get_library_database),
     x_fichero_library_path: str = Depends(require_library_path),
@@ -1728,7 +1731,8 @@ async def reindex_all(db: Database = Depends(get_library_database_for_write)) ->
 
 
 @router.post("/embed/{doc_id}")
-async def embed_document(doc_id: str, db: Database = Depends(get_library_database_for_write)) -> EmbedDocumentResponse:
+@off_loop
+def embed_document(doc_id: str, db: Database = Depends(get_library_database_for_write)) -> EmbedDocumentResponse:
     """Create embedding for a specific document."""
     doc = db.get(Document, doc_id)
     if not doc or getattr(doc, "deleted_at", None) is not None:
@@ -1841,7 +1845,8 @@ async def save_search(
 
 
 @router.get("/saved", response_model=SavedSearchListResponse)
-async def list_saved_searches(
+@off_loop
+def list_saved_searches(
     request: Request,
     db: Database = Depends(get_library_database),
 ) -> SavedSearchListResponse:
