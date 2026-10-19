@@ -71,6 +71,7 @@ import importlib.metadata
 import importlib.util
 import json
 import logging
+import warnings
 import os
 import sys
 import threading
@@ -705,6 +706,9 @@ def quiet_coreml_warning() -> None:
         logger_ = logging.getLogger(name)
         if not any(isinstance(f, _CoremlPredictWarning) for f in logger_.filters):
             logger_.addFilter(_CoremlPredictWarning())
+    # coremltools 9 says it with `warnings.warn`, earlier ones through logging: same line, same cause (see
+    # `_CoremlPredictWarning`: Kraken reads with torch on the CPU, never through Core ML's predictor).
+    warnings.filterwarnings("ignore", message=r".*run predict\(\) on this Core ML model.*")
 
 
 def _kraken_call(op: Callable[[], _T]) -> _T:
