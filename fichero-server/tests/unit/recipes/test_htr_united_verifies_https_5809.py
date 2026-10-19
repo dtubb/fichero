@@ -26,7 +26,7 @@ def test_the_catalogue_fetch_passes_the_verifying_context(monkeypatch):
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
     try:
-        htr_united._harvest()
+        htr_united._fetch_catalogue()  # not _harvest: the suite's conftest replaces that with a refusal
     except OSError:
         pass
     assert seen["context"] is https_context()
