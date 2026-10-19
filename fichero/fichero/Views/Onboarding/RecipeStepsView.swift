@@ -20,6 +20,8 @@ struct RecipeStepsView: View {
     var finder: LibraryManager.LibraryReference?
     /// Only these jobs' steps: a stage page shows its own steps of the plan (section 7c); nil shows every step.
     var onlyJobs: Set<String>?
+    /// Only this step (Ready draws each step in its own box, #5840); nil shows every step.
+    var onlyStepId: String?
     /// A step's model candidates, by step id, where the page has read them (a stage page's main step): the step's
     /// card then says whether its model fits this Mac (#5641). Nil, or an empty list: no fit line.
     var candidatesOf: ((String) -> [Components.Schemas.ModelCandidate])?
@@ -41,7 +43,8 @@ struct RecipeStepsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            ForEach(recipe.steps.filter { onlyJobs?.contains($0.job) ?? true }, id: \.id) { step in
+            ForEach(recipe.steps.filter { (onlyJobs?.contains($0.job) ?? true) && (onlyStepId == nil || $0.id == onlyStepId) },
+                    id: \.id) { step in
                 let fit = CandidateFit.ofStep(card: step.card?.id, in: candidatesOf?(step.id) ?? [])
                 RecipeStepRow(lines: Self.lines(for: step, store: store, inSetup: onFix != nil, fit: fit),
                               explanation: onFix == nil ? store.explanation(ofJob: step.job) : nil,

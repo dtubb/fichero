@@ -38,21 +38,18 @@ extension FirstRunWindow {
                 subtitle: "The plan from your answers; nothing runs before you press Start.",
                 systemImage: step.icon
             ) {
-                recipeCard(step) {
-                    RecipeReadyFields(
-                        store: store,
-                        onFix: { fix in handle(fix: fix, store: store) },
-                        bakeoff: project.map(BakeoffSection.Context.init(project:)),
-                        keptExports: project?.keptExportStore,
-                        project: project
-                    )
-                    // Training is offered once there is enough corrected work, never before (#5804): no row, no count.
-                    if !store.trainOffers.isEmpty {
-                        Divider()
-                        Text("Train a model of your own").font(.headline)
-                        RecipeTrainOffersFields(store: store)
-                    }
-                }
+                // No drawn card and no outer ScrollView: the grouped Form fills the page and scrolls itself (#5840).
+                RecipeReadyFields(
+                    store: store,
+                    onFix: { fix in handle(fix: fix, store: store) },
+                    bakeoff: project.map(BakeoffSection.Context.init(project:)),
+                    keptExports: project?.keptExportStore,
+                    project: project,
+                    onStart: { startFromReady() },
+                    isStarting: isSaving
+                )
+                .id(Self.scrollResetID(for: step))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
