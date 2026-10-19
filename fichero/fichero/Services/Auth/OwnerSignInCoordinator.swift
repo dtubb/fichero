@@ -53,7 +53,9 @@ nonisolated struct GeneratedSignInTransport: SignInTransport, @unchecked Sendabl
         }
     }
 
-    func migrateOwner(launchSecret: String, clientName: String, host: String, publicKeyPEM: String) async throws -> String {
+    func migrateOwner(
+        launchSecret: String, clientName: String, host: String, publicKeyPEM: String
+    ) async throws -> String {
         let request = Components.Schemas.MigrateOwnerRequest(
             publicKeyPem: publicKeyPEM, client: .init(name: clientName, host: host)
         )
