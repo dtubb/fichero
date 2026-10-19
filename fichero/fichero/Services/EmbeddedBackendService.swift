@@ -62,8 +62,11 @@ final class EmbeddedBackendService {
     /// no nonce to match).
     /// Setter widened from `private(set)` to internal: set by the Lifecycle / Spawn extensions.
     var expectedLaunchNonce: String?
+    #if os(macOS)
     /// The launch secret and stdin pipe of the engine we last built (#5797). Nil for an adopted external engine.
+    /// macOS only: iOS never spawns an engine, and `LaunchSecretHandover` lives in the macOS-only Spawn extension.
     var launchSecretHandover: LaunchSecretHandover?
+    #endif
     // Promoted from `private` to internal: read by probeReadiness in the Readiness extension.
     var backendURL: URL {
         // Own-engine traffic stays on loopback, never the advertised public URL (#2604).
