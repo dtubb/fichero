@@ -581,23 +581,6 @@ def _run_embed(db: Any, documents: list[str], parent: str, started_by: str) -> t
         time.sleep(_CHECK_POLL_SECONDS)
 
 
-def _run_align(db: Any, documents: list[str]) -> tuple[str | None, str, str | None]:
-    """Find where the readers disagree, built in (`source.disagree.built-in-with-two-readers`, #5812): the alignment of
-    the readings the plan's readers made, worked out for each page by the route's own code, with no model. A page
-    with fewer than two readings has nothing to compare and is not a failure."""
-    from fichero_server.api.routes.document.compare_readings import page_disagreement
-
-    unknown = 0
-    for doc_id in documents:
-        try:
-            page_disagreement(db, doc_id)
-        except LookupError:
-            unknown += 1
-    if unknown:
-        return None, "failed", f"{unknown} of {len(documents)} pages were not found"
-    return None, "done", None
-
-
 def _run_export(db: Any, card: dict[str, Any], documents: list[str]) -> tuple[str | None, str, str | None]:
     from fichero_server import sync_folder
 
@@ -1077,8 +1060,6 @@ def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[s
         child, state, why = _run_publish(db, card, job_id)
     elif card["card"] == "embed":
         child, state, why = _run_embed(db, documents, job_id, started_by)
-    elif card["card"] == "align":
-        child, state, why = _run_align(db, documents)
     else:
         child, state, why = _run_export(db, card, documents)
     return child, state, why
