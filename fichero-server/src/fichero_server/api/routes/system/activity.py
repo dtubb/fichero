@@ -565,8 +565,8 @@ async def list_background_jobs(
 
     from fichero_server.recipes import runner as recipe_runner
 
-    # Off the loop (#5843): the SELECT, the done counts and the waiting reasons each wait on the transaction gate.
-    for row in await asyncio.to_thread(job_queue.snapshot, db):
+    listed = job_queue.snapshot(db)  # once per poll: the summary reads this one too
+    for row in listed:
         state, reason = row["state"], row["reason"]
         name, current, total = job_queue.kind_name(row["kind"]), 0, row["count"]
         if row.get("done"):  # one row for a whole kind of work: "12 of 41" (#5839)
@@ -615,14 +615,14 @@ async def list_background_jobs(
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),
         machine=MachineState(**throttle.machine_state()),
-        summary=_queue_summary(db),
+        summary=_queue_summary(db, listed),
     )
 
 
-def _queue_summary(db: Database) -> Optional[QueueSummary]:
+def _queue_summary(db: Database, listed: list[dict[str, Any]]) -> Optional[QueueSummary]:
     from fichero_server.execution import jobs as job_queue
 
-    said = job_queue.queue_summary(db, job_queue.snapshot(db))
+    said = job_queue.queue_summary(db, listed)
     return QueueSummary(**said) if said else None
 
 
