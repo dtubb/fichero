@@ -21,8 +21,9 @@ enum PaneFocus: Hashable {
     /// Where focus starts when a window opens (#5824): the sidebar, never a text field such as the reader's find field.
     static let launchDefault: PaneFocus = .sidebar
 
-    /// The pane a window opens in: the sidebar, or the item list when the sidebar is hidden (#5824).
-    static func launchFocus(sidebarHidden: Bool) -> PaneFocus { sidebarHidden ? .content : launchDefault }
+    /// The pane a window opens in: the sidebar; nil when it is hidden, because no other pane binds a focus value
+    /// (`.content` names no view), so setting one would only drop focus to the first key view (#5824, review 202).
+    static func launchFocus(sidebarHidden: Bool) -> PaneFocus? { sidebarHidden ? nil : launchDefault }
 
     /// Human name for the pane — VoiceOver announcements on pane moves.
     var paneTitle: String {

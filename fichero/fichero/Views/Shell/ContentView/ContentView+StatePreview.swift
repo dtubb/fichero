@@ -32,10 +32,10 @@ extension ContentView {
         // Inspector visibility is per-window (@SceneStorage) and reaches the
         // View menu via FocusedValues.showInspector — no app-wide seeding needed (#1451).
         updateColumnVisibility()
-        // The first appear is what claimed focus for the content pane, and so for its Find in document field
-        // (#5824); the window opens in the sidebar, or in the list when the sidebar is hidden. Once: only while unset.
-        if focusedPane == nil {
-            focusedPane = PaneFocus.launchFocus(sidebarHidden: columnVisibility == .detailOnly)
+        // The first appear used to set `.content`, which no view binds, so focus fell to the first key view, the reader's
+        // Find in document field (#5824). The window opens in the sidebar; with it hidden nothing is set. Once: only while unset.
+        if focusedPane == nil, let launch = PaneFocus.launchFocus(sidebarHidden: columnVisibility == .detailOnly) {
+            focusedPane = launch
         }
         viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
         viewSettings.previewMode = normalizedPreviewMode(viewSettings.previewMode)
