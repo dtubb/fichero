@@ -74940,6 +74940,12 @@
             "type": "string",
             "title": "Name"
           },
+          "short_name": {
+            "type": "string",
+            "title": "Short Name",
+            "description": "the name a model row shows, short enough to read in a row; the whole `name` is the hover text (source.find.model-row-words)",
+            "default": ""
+          },
           "source": {
             "type": "string",
             "enum": [
@@ -75077,7 +75083,7 @@
           "availability_words": {
             "type": "string",
             "title": "Availability Words",
-            "description": "the same, in one short phrase with its size: 'Ships with Fichero', 'On this Mac (16 MB)', 'Download (2.3 GB)', 'Runs at openai', 'Fichero cannot run it yet (\u2026)'"
+            "description": "the same, in one short phrase with its size: 'Available', 'Downloaded (16 MB)', 'Download (2.3 GB)', 'Runs at openai', 'Fichero cannot run it yet (\u2026)'"
           },
           "fit": {
             "$ref": "#/components/schemas/ModelFit",
