@@ -31,7 +31,7 @@ said as not stated.
 
 The network is reached only when a caller asks (`online`), never at import time, never when the engine
 works offline (`llm.is_local_only`, the egress setting), and never inside a request: the online search is
-the open project's `find-models` job on the network lane (#5594, `search`), and `discover` reads only what
+the open project's `find-models` job on the search lane (#5594, `search`), and `discover` reads only what
 is installed and what the searches kept. Every candidate whose accuracy is not measured on the project
 says it is unmeasured until a bake-off measures it.
 """
@@ -1477,7 +1477,7 @@ def _say_search(search: dict[str, Any], *rows: dict[str, Any]) -> None:
 
 # --- the online search, as an Activity job (#5594) ------------------------------------------------------
 
-#: The job kind: a person waits on it, on the network lane (`source.find.online-search-is-a-job`).
+#: The job kind: a person waits on it, on the search lane (`source.find.online-search-is-a-job`).
 SEARCH_KIND = "find-models"
 
 
@@ -1486,7 +1486,7 @@ def register_job_kinds() -> None:
     from fichero_server.execution import jobs
 
     if SEARCH_KIND not in jobs.KINDS or jobs.KINDS[SEARCH_KIND].run is None:
-        jobs.register_kind(SEARCH_KIND, _run_search, model=None, lane="network", qos=set_utility_qos,
+        jobs.register_kind(SEARCH_KIND, _run_search, model=None, lane="search", qos=set_utility_qos,
                            name="Find reading models online")
 
 
@@ -1507,7 +1507,7 @@ def _languages_of(subject: str) -> frozenset[str]:
 def search(db: Any, languages: frozenset[str], job: str | None = None) -> dict[str, Any]:
     """The search job for these languages, and for a step's own job when given one with a search of its own
     (`STEP_SEARCHES`, #5668), else the reader search (its row: id, state, reason, detail, finished_at): the one
-    waiting or running, or one done within a day; otherwise a new one, queued on the network lane with a person
+    waiting or running, or one done within a day; otherwise a new one, queued on the search lane with a person
     waiting on it. Never reaches the network itself."""
     from fichero_server.core.timeutil import ensure_utc
     from fichero_server.execution import jobs
