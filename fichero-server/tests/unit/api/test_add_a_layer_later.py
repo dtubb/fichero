@@ -201,7 +201,7 @@ def test_the_plan_says_which_layers_can_be_added_now(client, project):
     assert "entities" not in after and set(after) < set(before)
 
 
-def test_swapping_the_reader_after_start_queues_no_run_over_the_pages_already_there(client, project):
+def test_swapping_the_reader_after_start_queues_no_run_over_the_pages_already_there(client, db, project):
     """`source.onboard.rerun-rewrites-nothing` (#4951): a model swap is a default for new work. Start after it queues
     nothing more for the pages the first Start already took, and the saved recipe says the new reader."""
     _start(client)
@@ -217,3 +217,16 @@ def test_swapping_the_reader_after_start_queues_no_run_over_the_pages_already_th
     assert _runs(client) == before
     again = client.get("/api/recipes/project").json()["recipe"]
     assert next(s for s in again["steps"] if s["job"] == "read-a-line")["model"] == swapped
+
+    # Control: the queue does take new work, so "no new run" above means nothing to redo, not "a second Start never
+    # queues": a page imported after the swap is queued, and with the new reader.
+    from fichero_server.execution import jobs
+    from fichero_server.recipes import runner
+
+    arrived = Document(name="arrived.jpg", doc_type=DocType.file)
+    db.save(arrived)
+    job_id = runner.material_arrived(db, [arrived.id])
+    assert job_id and len(_runs(client)) == len(before) + 1
+    newest = _runs(client)[0]
+    assert newest["started_by"] == "import" and newest["documents"] == [arrived.id]
+    assert "zenodo.99" in str(jobs.read_job(db, job_id)), "the new page is read with the swapped reader"
