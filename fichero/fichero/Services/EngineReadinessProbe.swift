@@ -65,7 +65,9 @@ enum ProbeTransitionLog {
         return .rollup(held: now.timeIntervalSince(steadySince ?? lastSpokeAt))
     }
 
-    static func log(_ summary: String, now: Date = Date()) {
+    /// Logs per `emission`. True when the reading changed (a transition): the launch timeline notes only those (#5823).
+    @discardableResult
+    static func log(_ summary: String, now: Date = Date()) -> Bool {
         switch emission(
             summary: summary,
             lastSummary: lastSummary,
@@ -81,6 +83,7 @@ enum ProbeTransitionLog {
             lastSummary = summary
             steadySince = now
             lastSpokeAt = now
+            return true
         case .rollup(let held):
             let detail = "\(summary) — unchanged for \(Self.describe(held))"
             probeLogger.notice("\(detail, privacy: .public)")
@@ -88,6 +91,7 @@ enum ProbeTransitionLog {
         case .silent:
             break
         }
+        return false
     }
 
     /// Whole minutes, or seconds under a minute. The rollup is about duration,
@@ -183,10 +187,11 @@ struct EngineReadinessProbe {
         }
         guard health.status == 200 else {
             let healthCode = health.status.map(String.init) ?? "nil (transport error)"
-            LaunchProfile.milestone("readiness probe", detail: "health \(healthMs) ms → \(healthCode)")
-            ProbeTransitionLog.log(
+            if ProbeTransitionLog.log(
                 "readiness legs: health=\(healthCode) → notResponding (registry not attempted)"
-            )
+            ) {
+                LaunchProfile.milestone("readiness probe", detail: "health \(healthMs) ms → \(healthCode)")
+            }
             return .notResponding
         }
         if let expectedNonce, health.nonce != expectedNonce {
@@ -215,10 +220,13 @@ struct EngineReadinessProbe {
         )
         let registryCode = registryStatus.map(String.init) ?? "nil (transport error)"
         let resultDescription = String(describing: result)
-        LaunchProfile.milestone("readiness probe", detail: "health \(healthMs) ms, registry \(registryMs) ms → \(resultDescription)")
-        ProbeTransitionLog.log(
-            "readiness legs: health=200 registry=\(registryCode) → \(resultDescription)"
-        )
+        // The launch timeline notes a reading once, when it changes, not on every poll (#5823).
+        if ProbeTransitionLog.log("readiness legs: health=200 registry=\(registryCode) → \(resultDescription)") {
+            LaunchProfile.milestone(
+                "readiness probe",
+                detail: "health \(healthMs) ms, registry \(registryMs) ms → \(resultDescription)"
+            )
+        }
         return result
     }
 
