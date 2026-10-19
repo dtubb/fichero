@@ -1573,10 +1573,22 @@ async def put_places(body: PlacesSetting, request: Request) -> PlacesView:
     return _places_view()
 
 
+def _whole_setup(setup: dict) -> ProjectSetup:
+    """A project's setup as every route returns it. A recipe stored from the rules alone has no check result, and the
+    contract's AssembledRecipe requires `gaps` and `problems`: without them the app cannot read the setup back, nor the
+    recipe a change like Use This hands it (it then kept its stale copy and saved that over the choice)."""
+    recipe = setup.get("recipe")
+    if isinstance(recipe, dict) and "problems" not in recipe:
+        recipe = {**recipe, "gaps": recipe.get("gaps") or []}
+        recipe["problems"] = [] if recipe["gaps"] else check_recipe(recipe)
+        setup = {**setup, "recipe": recipe}
+    return ProjectSetup(**setup)
+
+
 @router.get("/project", response_model=ProjectSetup)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetup:
     """The open project's saved setup answers and recipe."""
-    return ProjectSetup(**read_project_setup(_library(db)))
+    return _whole_setup(read_project_setup(_library(db)))
 
 
 @router.put("/project", response_model=ProjectSetup)
@@ -1605,7 +1617,7 @@ async def save_project_setup(
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ProjectSetup(**result.result)
+    return _whole_setup(result.result)
 
 
 def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionContext):
@@ -2201,7 +2213,7 @@ async def use_installed_instead(
             result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return ProjectSetup(**result.result)
+        return _whole_setup(result.result)
     card = next((c for c in known_cards(include_not_built=True) if c.id == request.card), None)
     if card is None:
         raise HTTPException(status_code=422, detail="that model is not one Fichero has a card for")
@@ -2210,7 +2222,7 @@ async def use_installed_instead(
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ProjectSetup(**result.result)
+    return _whole_setup(result.result)
 
 
 class UseCandidateRequest(BaseModel):
@@ -2259,7 +2271,7 @@ async def use_candidate_for_step(
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ProjectSetup(**result.result)
+    return _whole_setup(result.result)
 
 
 def _invert_start(before: dict | None, after: dict | None, ctx: ActionContext):
@@ -2741,4 +2753,4 @@ async def use_bakeoff_choice(
         result = registry.invoke(db, "project.save_setup", {"answers": setup["answers"], "recipe": recipe}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ProjectSetup(**result.result)
+    return _whole_setup(result.result)
