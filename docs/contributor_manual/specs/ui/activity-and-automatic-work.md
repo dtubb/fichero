@@ -467,6 +467,11 @@ workflow by hand: a hand run is a job like any other.
   its reason), its `tokens`, and its `cost_usd` from the vendored price list, null unless every
   call under it is priced (`fichero-server/tests/unit/jobs/test_run_tree_rolls_up.py`). Chat's model calls are rows too, outside any run
   (`fichero-server/tests/unit/jobs/test_chat_on_the_lane.py`). A batch is a job whose children are its runs (`fichero-server/tests/unit/jobs/test_batches_are_jobs.py`).
+- `activity.stop.page-skips-run-stops-children` — **[OK]** (owner, 2026-10-19 16:27) Stop on one page
+  skips that page: its row ends `cancelled`, "Stopped by you" (not failed), and its run carries on with the
+  next page. Stop on a run stops everything under it: its steps, sub-runs and every waiting or paused page end
+  `cancelled`, so no child row reads running or waiting while the run says Stopped; a page a lane thread is
+  running finishes its item and settles its own row (`fichero-server/tests/unit/jobs/test_stop_a_page_skips_it_stop_a_run_stops_all.py`).
 - `activity.recipe-run.stop-reaches-its-step` — **[OK]** (#5609) Stop on a recipe run's row
   (`POST /api/activity/jobs/{id}/cancel`) stops the run: a waiting one ends `cancelled` at once; a running one
   answers `stopping`, its row says "Stopping at its next step", the step it is running is stopped through that

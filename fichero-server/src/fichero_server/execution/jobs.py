@@ -160,6 +160,12 @@ class JobCancelled(Exception):
     """Raised by a job's run when it was stopped: the row ends `cancelled`, not `failed`."""
 
 
+class PageStopped(JobCancelled):
+    """A person stopped ONE page of a run while it waited for the lane: that page is skipped (its row ends `cancelled`,
+    "Stopped by you"; it is not a failure) and the run carries on with its next page. Stop on the run raises
+    `WorkflowCancelled` instead."""
+
+
 class JobDeferred(Exception):
     """Raised by a long job's run when it stops to come back later (memory got tight, background
     work was paused, a person is waiting for other work): the row goes back to `waiting` with the
@@ -468,6 +474,33 @@ def record_run(db_path: str | Path, thread_id: str, *, status: str, name: str | 
         return
     _record(db, thread_id, kind="workflow", subject=thread_id, parent_id=None, state=_RUN_STATES[status],
             reason=reason, name=name)
+    if _RUN_STATES[status] == "cancelled":
+        settle_stopped_children(db, thread_id)
+
+
+def settle_stopped_children(db: "Database", run_id: str) -> int:
+    """Stop on a run stops everything under it, and the rows agree (owner, 2026-10-19: the run said "Stopped" while its
+    step read "Running 0 of 2" and a page was still waiting): its steps, sub-runs and waiting or paused pages end
+    `cancelled`. A page a lane thread is running right now finishes its item and settles its own row. Returns how many."""
+    _ensure(db)
+    live = _scheduler.running_ids()
+    found: list[str] = []
+    frontier = [run_id]
+    while frontier:  # the run's descendants: steps, sub-runs under them, pages
+        marks = ", ".join("?" for _ in frontier)
+        children = [r[0] for r in db.execute_fetchall(f"SELECT id FROM jobs WHERE parent_id IN ({marks})", frontier)]
+        found += children
+        frontier = [c for c in children if c not in found[: len(found) - len(children)]]
+    ended = [i for i in found if i not in live]
+    if not ended:
+        return 0
+    marks = ", ".join("?" for _ in ended)
+    before = db.execute_fetchone(
+        f"SELECT count(*) FROM jobs WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')", ended)[0]
+    db.execute(f"UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = ?{_clear_waiting_on(db)} "
+               f"WHERE id IN ({marks}) AND state IN ('waiting', 'running', 'paused')",
+               [stopped_by(run_id), utc_now(), *ended])
+    return int(before)
 
 
 #: The batch record's words for its state -> the job table's.
@@ -1048,13 +1081,14 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
     while True:
         done, _ = await asyncio.wait({signal}, timeout=STOP_POLL_SECONDS)
         if done:
-            if signal.cancelled() and run_id:  # the scheduler withdrew it: its run stopped or paused
+            if signal.cancelled():  # the scheduler withdrew it: its run stopped or paused, or this page alone was stopped
                 from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
 
-                if _stop_requested(run_id):
+                if run_id and _stop_requested(run_id):
                     raise WorkflowCancelled(run_id)
-                if _pause_requested(run_id):
+                if run_id and _pause_requested(run_id):
                     raise WorkflowPaused(run_id)
+                raise PageStopped(stopped_by(getattr(future, "job_id", None)))  # skip this page; the run goes on
             return signal.result()
         if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
             from fichero_server.execution.cancellation import WorkflowCancelled
