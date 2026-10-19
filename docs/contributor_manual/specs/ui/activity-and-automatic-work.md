@@ -679,6 +679,8 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   goes back to running and reads that page. A run still going takes the page into its queue (no 409): the page row waits
   ("Retried by you; waits in its run") and the run reopens for it as soon as its pass ends. Pinned by
   `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` (a retry queued as the run ends reopens it too). [PARTIAL]
+  (a reopened run is the same run over all its pages with the node cache on, so only the retried page calls the model and the
+  other pages keep their readings and counts; the real-graph test asserts one model call)
   until the real-graph test `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (the same thread id
   re-entered with the real LangGraph runner: the run record kept, the earlier pages kept) is run green on the M4; its counts may read
   only the reopened pass until then.
