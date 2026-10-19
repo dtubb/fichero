@@ -31,8 +31,9 @@ import threading
 import time
 from concurrent.futures import Future
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Any, Iterable
 
+from fichero_server.core.timeutil import utc_now
 from fichero_server.models import Document, FileType, Status
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -330,6 +331,39 @@ def _emit_queue_progress(
         logger.warning("derivatives: progress emit failed", exc_info=True)
 
 
+def _jobs_say(library: str, since: Any = None) -> str | None:
+    """What the project's job table says about this queue, asked only when none of its own embeds is in flight:
+    "moving" while page work of ours on a model or image lane is running (the queue waits its turn behind it: a Kraken
+    run holds the model lane for minutes); a workflow or batch row, a far-side watcher and this queue's own stages do
+    not count. "over" when its stages' jobs have all ended, one of them failed or set aside since this batch began
+    (`since`), and none waits or runs. Else None: nothing explains the silence."""
+    from pathlib import Path as _Path
+
+    from fichero_server.db.manager import DatabaseManager, db_manager
+    from fichero_server.execution import jobs
+
+    kinds = [THUMBNAIL_KIND, EMBED_KIND, NLP_KIND]
+    marks = ", ".join("?" for _ in kinds)
+    try:
+        db = db_manager.open_database(DatabaseManager._cache_key(_Path(library)))
+        if db is None:
+            return None
+        running = [r[0] for r in db.execute_fetchall(
+            f"SELECT DISTINCT kind FROM jobs WHERE state = 'running' AND kind NOT IN ({marks})", kinds)]
+        if any(k in jobs.KINDS and jobs.KINDS[k].lane in ("local-ml", "images") and k not in jobs.RUN_KINDS
+               and k not in jobs.FAR_SIDE_KINDS for k in running):
+            return "moving"
+        if since is not None and db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused') LIMIT 1",
+                kinds) is None and db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND finished_at >= ? LIMIT 1",
+                [*kinds, since]) is not None:
+            return "over"
+    except Exception:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
+        logger.debug("derivatives: job table unreadable for the stall check", exc_info=True)
+    return None
+
+
 def _arm_stall_watchdog(library: str) -> None:
     """Say so when the queue stops moving (#4574 follow-up).
 
@@ -350,6 +384,7 @@ def _arm_stall_watchdog(library: str) -> None:
             if state is None:
                 return
             done, total = state["done"], state["total"]
+            since = state.get("since")
             tracker_path = _queue_db_paths.get(library)
         if not Path(library).exists():
             # The library was deleted or moved while it was watched: nothing to report, nothing to write into it.
@@ -366,11 +401,27 @@ def _arm_stall_watchdog(library: str) -> None:
             return
         with _progress_lock:
             flying = list(_busy.get(library, {}).values())
-        # The ceiling counts from the OLDEST start: a newer embed must not hide one that never returns.
-        if flying and time.monotonic() - min(start for _, start in flying) < BUSY_CEILING_SECONDS:
-            _emit_queue_progress(library, done, total, working=min(flying, key=lambda f: f[1])[0])
-            _arm_stall_watchdog(library)
-            return
+        if flying:
+            # The ceiling counts from the OLDEST start: a newer embed must not hide one that never returns, and a hung
+            # embed alarms whatever else is running.
+            if time.monotonic() - min(start for _, start in flying) < BUSY_CEILING_SECONDS:
+                _emit_queue_progress(library, done, total, working=min(flying, key=lambda f: f[1])[0])
+                _arm_stall_watchdog(library)
+                return
+        else:
+            # Nothing of ours in flight: queued behind other work is waiting its turn, not stalled; and a queue whose
+            # jobs have all ended (set aside after their kills, failed) has nothing left to wait for (#5807, #5845).
+            said = _jobs_say(library, since)
+            if said == "moving":
+                _arm_stall_watchdog(library)
+                return
+            if said == "over":
+                with _progress_lock:
+                    _progress.pop(library, None)
+                    _queue_db_paths.pop(library, None)
+                logger.info("derivatives: no queued job is left for %s at %d of %d; the queue is over",
+                            library, done, total)
+                return
         logger.error(
             "derivatives: queue stalled for %s at %d of %d — no completion in %.0fs",
             library, done, total, STALL_SECONDS,
@@ -399,7 +450,7 @@ def _disarm_stall_watchdog() -> None:
 def _progress_add(library: str, count: int, db_path: str | None = None) -> None:
     with _progress_lock:
         newly_created = library not in _progress
-        state = _progress.setdefault(library, {"done": 0, "total": 0})
+        state = _progress.setdefault(library, {"done": 0, "total": 0, "since": utc_now()})
         state["total"] += count
         done, total = state["done"], state["total"]
         if db_path and library not in _queue_db_paths:
