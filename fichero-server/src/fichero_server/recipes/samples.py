@@ -205,10 +205,11 @@ def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
         error = result.get("error") or why or "The try did not finish: try it again"
         return {**result, "state": "failed", "error": error}
     followed = {**result, "state": state if state == "running" else result["state"]}
-    if state == "waiting" and "comparison" not in followed:
-        # A try waiting its turn says what for, beside the app's spinner (#5837): the same field a bake-off's wait uses.
+    if state in ("waiting", "running") and "comparison" not in followed:
+        # A try waiting its turn, or running while its page waits for the lane ("Waiting: ..." on its row), says what
+        # for beside the app's spinner (#5837): the same field a bake-off's wait uses.
         said = jobs.state_and_reason(db, job_id)
-        if said and said[1]:
+        if said and said[1] and (state == "waiting" or said[1].startswith("Waiting")):
             followed["comparison"] = {"state": "waiting", "reason": said[1]}
     return followed
 
