@@ -1431,6 +1431,9 @@ section disagree, this section holds; 7c's stage pages, samples and engine run s
 - **The sidebar + menu always has a project to act on** (#5817): New Folder and Import land in the selected item's
   project, else this window's, else the Global one (`sidebarCreationLibraryId`); with none open, New Folder says so
   in its alert instead of doing nothing.
+- **An empty list is blank** (#5826): once a load has finished with 0 items, the item list draws no header and no
+  placeholder rows, only the footer "0 items" (`LibraryEmptyFolder.showsTable` is false in every mode); a load in
+  flight is unchanged.
 - **Nothing holds text focus at launch** (#5824): a window opens with focus in the sidebar (`PaneFocus.launchDefault`,
   applied by `.defaultFocus` on `ContentView`), never in a text field such as the reader's Find in document.
 - **Fichero › Set Up Fichero… reaches the key window** (#5821): the menu item runs on the window that is key, which

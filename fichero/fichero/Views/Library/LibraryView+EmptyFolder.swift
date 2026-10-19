@@ -1,8 +1,8 @@
 import SwiftUI
 
-// An empty folder looks like an empty Finder window (Daniel, 2026-10-11, "less is more"): in the list and table
-// modes the table's own column header with its empty striped rows, in icon mode a blank pane, and a footer that
-// counts what is there ("0 items"). No words in the middle and no button: it is still a drop target, the pane's own
+// An empty folder is a blank pane (Daniel, 2026-10-11, "less is more"; his 2026-10-19 test of the table's header and
+// grey rows over it: none, #5826) with a footer that counts what is there ("0 items"). A finished load with nothing
+// draws no placeholder rows. No words in the middle and no button: it is still a drop target, the pane's own
 // (`LibraryPaneDrop`, the one import-on-drop path), and its highlight while a drag is over it is all it shows.
 
 /// What an empty folder's pane shows: pure, so a test can read it.
@@ -18,11 +18,8 @@ enum LibraryEmptyFolder {
         reason.offersImport
     }
 
-    /// The table's header and stripes stand for the list and table modes; icon mode, and the canvas and the other
-    /// modes, are a blank pane.
-    static func showsTable(_ mode: ViewDisplayMode) -> Bool {
-        mode == .list || mode == .table
-    }
+    /// Whether the empty pane draws the table's header and empty rows: never, in any mode (#5826).
+    static func showsTable(_ mode: ViewDisplayMode) -> Bool { false }
 }
 
 struct LibraryEmptyFolderFooter: View {
@@ -42,7 +39,7 @@ struct LibraryEmptyFolderFooter: View {
 }
 
 extension LibraryView {
-    /// An empty folder's pane: the table (list and table modes) or a blank pane (icon mode), and the count under it.
+    /// An empty folder's pane: blank, and the count under it.
     @ViewBuilder
     var emptyFolderView: some View {
         VStack(spacing: 0) {
