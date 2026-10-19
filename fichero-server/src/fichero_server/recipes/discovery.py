@@ -465,9 +465,9 @@ def shipped_words(shipped: list[Card]) -> str:
     many still need a download (a model needing no download counts as on this Mac), not a bare count (#5809)."""
     n = len(shipped)
     if not n:
-        return "Nothing ships with Fichero for this step"
+        return "Nothing available for this step"
     to_download = sum(1 for c in shipped if candidate_installed(c) is False)
-    lead = f"{n} ships with Fichero" if n == 1 else f"{n} ship with Fichero"
+    lead = f"{n} available" if n == 1 else f"{n} available"
     if not to_download:
         return f"{lead}, all on this Mac"
     return f"{lead}: {n - to_download} here, {to_download} to download"
@@ -555,6 +555,20 @@ def size_words(size_gb: float | None) -> str:
     return f"{size_gb * 1000:.0f} MB" if size_gb < 1 else f"{size_gb:.1f} GB"
 
 
+SHORT_NAME_MAX = 40
+
+
+def short_name(card: Card) -> str:
+    """The name a model row shows (`source.find.model-row-words`): the card's own `short_name`, else the first clause
+    of its note, clipped at a word; the whole note is the hover text."""
+    if card.short_name:
+        return card.short_name
+    first = re.split(r";| \u2014 |, ", card.note.strip().rstrip("."), maxsplit=1)[0].strip()
+    if len(first) <= SHORT_NAME_MAX:
+        return first or card.id
+    return first[:SHORT_NAME_MAX].rsplit(" ", 1)[0].strip() or first[:SHORT_NAME_MAX]
+
+
 def candidate_availability(card: Card) -> tuple[str, str]:
     """(where it stands, in one short phrase) for the finder (#5660 item 3): it ships with Fichero, it is on this
     Mac, it can be downloaded (and how big), it runs elsewhere, or Fichero cannot run it yet."""
@@ -567,9 +581,9 @@ def candidate_availability(card: Card) -> tuple[str, str]:
         return "elsewhere", f"Runs at {where}"
     pin = card.pin
     if "builtin" in pin or pin.get("kraken_version") == "bundled" or pin.get("version") == "bundled":
-        return "ships", "Ships with Fichero"
+        return "ships", "Available"
     if candidate_installed(card):
-        return "installed", "On this Mac" + (f" ({size_words(card.size_gb)})" if card.size_gb else "")
+        return "installed", "Downloaded" + (f" ({size_words(card.size_gb)})" if card.size_gb else "")
     if candidate_download(card) is not None:
         return "download", f"Download ({size_words(card.size_gb)})"
     return "download", f"Downloads when first used ({size_words(card.size_gb)})"
