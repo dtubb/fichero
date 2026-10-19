@@ -459,6 +459,8 @@ async def resume_workflow(
         # (`activity.run.resume-once`, #5373).
         from fichero_server.execution.runner import _running_workflows  # noqa: PLC0415
 
+        # ponytail: checks this process's registry only, so a race between two near-simultaneous
+        # resumes can still pass both; a lock per thread id if that is ever seen.
         live = _running_workflows.get(thread_id)
         if live and live.get("status") in ("accepted", "running"):
             raise HTTPException(status_code=409, detail=f"The run {thread_id} is already running")

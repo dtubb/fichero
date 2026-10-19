@@ -105,6 +105,14 @@ public enum EngineErrorDetail {
     }
 }
 
+/// A declared refusal's `detail` is a sentence or, for the structured refusals, an object (#5094).
+public extension Components.Schemas.ErrorDetail.DetailPayload {
+    /// The sentence as the engine wrote it; an object detail is described rather than dropped.
+    var sentence: String {
+        value1 ?? value2.map { String(describing: $0) } ?? "The engine refused."
+    }
+}
+
 /// Keeps an error response's body readable after the generated client has tried it.
 ///
 /// The engine refuses in words (`HTTPException(422, "the recipe already has entities")`), but an

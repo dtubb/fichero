@@ -78,4 +78,10 @@ struct IOSLibraryPickerMenu: View {
         }
     }
 }
+
+#Preview("Project switcher") {
+    IOSLibraryPickerMenu()
+        .environment(LibraryManager.shared)
+}
+
 #endif

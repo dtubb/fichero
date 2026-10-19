@@ -104,10 +104,10 @@ ID_PARAMS: dict[str, tuple[str, object]] = {
     "hand_id": (LIBRARY, "a hand of the project's hand list: the ATTRIBUTION of a hand to a segment is resolved (attribution_id)"),
     "sign_id": (LIBRARY, "a sign of the project's sign list (slice 14): a sign's INSTANCES are segments, resolved as segments"),
     # --- accounts and configuration --------------------------------------------------------------
-    **{name: (LIBRARY, _ACCOUNT) for name in ("user_id", "session_id", "device_id", "invite_id", "actor_id", "agent_id", "initiator_id")},
+    **{name: (LIBRARY, _ACCOUNT) for name in ("user_id", "session_id", "device_id", "invite_id", "request_id", "actor_id", "agent_id", "initiator_id", "machine_id", "prompt_id")},
     **{name: (LIBRARY, _CONFIG) for name in ("provider_id", "model_id", "profile_id", "ref_id", "rule_id", "rule_ids", "cluster_id", "port_id")},
     **{name: (LIBRARY, _WORKFLOW) for name in (
-        "workflow_id", "workflow_ids", "batch_id", "run_id", "job_id", "thread_id", "thread_ids", "action_id",
+        "workflow_id", "workflow_ids", "batch_id", "run_id", "job_id", "parent_job_id", "thread_id", "thread_ids", "action_id",
         "activity_id", "audit_id", "chain_id", "execution_id", "schedule_id", "trigger_id", "comparison_id",
     )},
     # #4951: a bake-off is the project's comparison of readers (its evaluation job's id); starting it

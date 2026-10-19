@@ -317,7 +317,7 @@ async def pause_live_runs_for_shutdown() -> int:
             asked.append(thread_id)
     finally:
         for checkpointer in checkpointers.values():
-            checkpointer.conn.close()
+            checkpointer.__exit__(None, None, None)  # closes its own connection under its lock
     # Give the workers their boundary: the app kills the engine after a short grace, so the wait is bounded, and a
     # worker that has not stopped by then is covered by the `paused` record written above.
     deadline = time.monotonic() + BOUNDARY_GRACE_SECONDS
@@ -349,14 +349,18 @@ def _set_workflow_state(thread_id: str, state: dict[str, Any]) -> None:
 def _cap_workflow_state_registry() -> None:
     """Bound the in-memory workflow state registry."""
     while len(_running_workflows) > _RUNNING_WORKFLOWS_LIMIT:
+        # Only a run that has exited is dropped: a live one is never evicted
+        # (`activity.run.live-run-never-evicted`, #5376), or the reopen sweep fails it.
         evict_id = next(
             (
                 tid
                 for tid, state in _running_workflows.items()
                 if state.get("status") in _EXITED_WORKFLOW_STATUSES
             ),
-            next(iter(_running_workflows)),
+            None,
         )
+        if evict_id is None:
+            return
         _running_workflows.pop(evict_id, None)
 
 

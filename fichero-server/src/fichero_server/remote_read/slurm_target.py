@@ -83,10 +83,10 @@ class SlurmTarget:
             raise SlurmError(f"{argv[0]} failed on {self.cluster.name} ({code}): {(err or out).strip()[:300]}")
         return out
 
-    def send(self, local_dir: str | Path, job_key: str) -> str:
-        """Put the package's files into the run's folder (a few tars, not a file per page)."""
+    def send(self, local_dir: str | Path, job_key: str, *, into: str = "") -> str:
+        """Put the package's files into the run's folder (a few tars, not a file per page), or a folder in it."""
         base = Path(local_dir)
-        remote = self._dir(job_key)
+        remote = f"{self._dir(job_key)}/{into}" if into else self._dir(job_key)
         files = sorted(p for p in base.rglob("*") if p.is_file())
         dirs = sorted({str(Path(remote, p.relative_to(base).parent)) for p in files})
         self._run(["mkdir", "-p", *dirs])
@@ -129,6 +129,13 @@ class SlurmTarget:
 
     def cancel(self, far_id: str) -> None:
         self._run(["scancel", far_id])
+
+    def remove(self, job_key: str) -> None:
+        """Take the run's folder off the cluster: the downscaled pages, the package and what came back. Only ever one
+        run's own folder: a key that is empty or names another folder is refused, never removed."""
+        if not job_key or "/" in job_key or job_key in (".", ".."):
+            raise ValueError(f"not a run's key: {job_key!r}")
+        self._run(["rm", "-rf", self._dir(job_key)])
 
     def price_per_hour(self, flavor: str) -> float | None:
         return None  # a cluster allocation is not bought by the hour (outside the spend cap)
@@ -265,6 +272,67 @@ class SlurmReadTarget(SlurmTarget):
         local.mkdir(parents=True, exist_ok=True)
         tar_path = local.with_suffix(".tar")
         self.shell.get(f"{self._dir(job_key)}/out/{part}.tar", tar_path)
+        with tarfile.open(tar_path) as tar:
+            tar.extractall(local, filter="data")
+        tar_path.unlink()
+        return local
+
+
+class SlurmTrainTarget(SlurmTarget):
+    """`SlurmTarget` in the shape `training/job.py` drives (`TrainKrakenRequest.target` a cluster's id, #5769): the
+    training set goes to the run's `data/`, ONE GPU job runs Fichero's own trainer inside the server image with the
+    runs folder bound as `/work` (so the trainer's paths are the ones it has on Hugging Face), and `out/` comes home
+    as one tar the job writes as its last line.
+
+    ponytail: Kraken only; the vision LoRA needs the Hub's base weights staged first (compute nodes are offline)."""
+
+    def _runs(self) -> str:
+        return self._dir(".").rsplit("/", 1)[0]
+
+    def check_token(self) -> str:
+        return self.cluster.name  # the key and the sign-in are the target's own (#5238)
+
+    def rejected(self, exc: BaseException) -> Exception:
+        return SlurmError(f"{self.cluster.name} refused it: {exc}")
+
+    def cheapest(self, flavors) -> str:
+        return ""  # one GPU a job; the site's gres is the cluster's setting
+
+    def send(self, local_dir: str | Path, job_key: str, *, into: str = "data") -> str:
+        return super().send(local_dir, job_key, into=into)
+
+    def submit(self, job_key: str, *, script_args: list[str], script: Path, flavor: str = "", timeout: str = "4h",
+               dependencies=None, labels=None) -> str:
+        from fichero_server.remote_read.slurm import image_path
+        from fichero_server.workflows.remote_jobs import SlurmJobConfig, build_slurm_script
+
+        here, script = self._dir(job_key), Path(script)
+        self.shell.put(script, f"{here}/_fichero/{script.name}")
+        command = ["apptainer", "exec", "--nv", "--bind", f"{self._runs()}:/work", image_path(self.cluster), "python",
+                   f"/work/{job_key}/_fichero/{script.name}", *script_args]
+        config = SlurmJobConfig(job_name=f"fichero-train-{job_key[:8]}", partition=self.cluster.partition,
+                                account=self.cluster.account, time_limit=_walltime(timeout), cpus_per_task=8,
+                                mem_gb=32, gpus=1, extra_sbatch_lines=[f"#SBATCH --output={self._runs()}/slurm-%j.out"])
+        text = build_slurm_script(config=config, remote_workdir=here, runner_command=command).rstrip("\n")
+        self.shell.put_text(text + "\ntar -C out -cf out.tar .\n", f"{here}/_fichero/train.sbatch")
+        job_id = self._run(["sbatch", "--parsable", f"{here}/_fichero/train.sbatch"]).strip().split(";")[0]
+        if not job_id.isdigit():
+            raise SlurmError(f"sbatch gave no job id: {job_id[:100]!r}")
+        return job_id
+
+    def last_lines(self, far_id: str, n: int = 40, *, job_key: str | None = None) -> list[str]:
+        try:
+            return self._run(["tail", "-n", str(n), f"{self._runs()}/slurm-{far_id}.out"]).splitlines()
+        except SlurmError:
+            return []  # no log yet: the failure's own words still say why
+
+    def fetch(self, job_key: str, local_dir: str | Path) -> Path:
+        import tarfile
+
+        local = Path(local_dir)
+        local.mkdir(parents=True, exist_ok=True)
+        tar_path = local.with_suffix(".tar")
+        self.shell.get(f"{self._dir(job_key)}/out.tar", tar_path)
         with tarfile.open(tar_path) as tar:
             tar.extractall(local, filter="data")
         tar_path.unlink()

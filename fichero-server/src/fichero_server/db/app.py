@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from fichero_server.db.storage import settings
 from fichero_server.models import (
     ActionAudit,
+    AccountClient,
     AccountInvite,
     AccountSession,
     AccountUser,
@@ -147,6 +148,12 @@ class AppDatabase:
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
+        try:
+            self.migrate_device_tokens_to_clients()
+        except Exception:
+            # A failed migration must never stop the app db opening: old device tokens keep working, and the
+            # migration runs again on the next open (it is idempotent).
+            logger.exception("device-token migration to clients failed; continuing without it")
 
     def commit(self) -> None:
         """Commit pending app-wide database work through the typed wrapper."""
@@ -286,6 +293,19 @@ class AppDatabase:
         """)
 
         self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS clients (
+                id VARCHAR PRIMARY KEY,
+                user_id VARCHAR NOT NULL,
+                kind VARCHAR NOT NULL,
+                name VARCHAR NOT NULL,
+                host VARCHAR DEFAULT '',
+                public_key_pem VARCHAR NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                revoked_at TIMESTAMP
+            )
+        """)
+
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS invites (
                 id VARCHAR PRIMARY KEY,
                 username VARCHAR NOT NULL,
@@ -350,6 +370,24 @@ class AppDatabase:
         if "paired_by_device_id" not in _device_cols:
             self.conn.execute("ALTER TABLE devices ADD COLUMN paired_by_device_id VARCHAR")
             self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
+        # Which route the device paired over ("lan" or "tailnet"); unset for devices paired before this existed.
+        if "paired_route" not in _device_cols:
+            self.conn.execute("ALTER TABLE devices ADD COLUMN paired_route VARCHAR")
+            self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
+        # The client a session was signed in through (multiuser-always-on); NULL for password and device sessions.
+        _session_cols = {row[1] for row in self.conn.execute("PRAGMA table_info(sessions)").fetchall()}
+        if "client_id" not in _session_cols:
+            self.conn.execute("ALTER TABLE sessions ADD COLUMN client_id VARCHAR")
+            self.conn.execute("CHECKPOINT")  # an ALTER must not sit in the WAL (see above)
+
+        # Who made an account change, and from which paired device (review 76): the app audit rows kept neither.
+        _audit_cols = {row[1] for row in self.conn.execute("PRAGMA table_info(actionaudits)").fetchall()}
+        for _col, _type in (("client", "VARCHAR"), ("device", "JSON")):
+            if _col not in _audit_cols:
+                self.conn.execute(f"ALTER TABLE actionaudits ADD COLUMN {_col} {_type}")
+                self.conn.execute("CHECKPOINT")
 
         _invite_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
@@ -1009,9 +1047,11 @@ class AppDatabase:
         password_hash: str,
         is_owner: bool = False,
         active: bool = True,
+        id: str | None = None,
     ) -> AccountUser:
-        """Insert a new user row and return the typed record."""
+        """Insert a new user row and return the typed record. ``id`` lets a caller audit the new id first."""
         user = AccountUser(
+            **({"id": id} if id else {}),
             username=username.strip(),
             display_name=display_name.strip(),
             password_hash=password_hash,
@@ -1411,6 +1451,7 @@ class AppDatabase:
         token_hash: str,
         device_label: str | None,
         ttl: timedelta,
+        client_id: str | None = None,
     ) -> AccountSession:
         """Insert a new session row and return the typed record."""
         now = utc_now()
@@ -1427,9 +1468,9 @@ class AppDatabase:
                 """
                 INSERT INTO sessions (
                     id, user_id, token_hash, device_label,
-                    created_at, last_seen_at, expires_at, revoked
+                    created_at, last_seen_at, expires_at, revoked, client_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 [
                     session.id,
@@ -1440,6 +1481,7 @@ class AppDatabase:
                     session.last_seen_at,
                     session.expires_at,
                     session.revoked,
+                    client_id,
                 ],
             )
             self.conn.commit()
@@ -1585,10 +1627,12 @@ class AppDatabase:
         token_hash: str,
         channel: str,
         ttl: timedelta,
+        id: str | None = None,
     ) -> AccountInvite:
-        """Insert a new invite row and return the typed record."""
+        """Insert a new invite row and return the typed record. ``id`` lets a caller audit the new id first."""
         now = utc_now()
         invite = AccountInvite(
+            **({"id": id} if id else {}),
             username=username.strip(),
             display_name=display_name.strip(),
             token_hash=token_hash,
@@ -1758,6 +1802,87 @@ class AppDatabase:
     # Devices
     # =========================================================================
 
+    def create_client(
+        self, *, user_id: str, kind: str, name: str, host: str = "", public_key_pem: str
+    ) -> AccountClient:
+        """Register a client's public key for a person (multiuser-always-on)."""
+        client = AccountClient(
+            user_id=user_id, kind=kind, name=name.strip(), host=host.strip(), public_key_pem=public_key_pem
+        )
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO clients (id, user_id, kind, name, host, public_key_pem, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [client.id, client.user_id, client.kind, client.name, client.host,
+                 client.public_key_pem, client.created_at],
+            )
+            self.conn.commit()
+        return client
+
+    def user_has_key(self, user_id: str) -> bool:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT 1 FROM clients WHERE user_id = ? AND public_key_pem <> '' AND revoked_at IS NULL LIMIT 1",
+                [user_id],
+            ).fetchone()
+        return row is not None
+
+    def migrate_device_tokens_to_clients(self) -> int:
+        """Give each live paired device a keyless `device` client with the device's id (multiuser.migrate-device-tokens).
+
+        The old token keeps working; nothing can sign in as the client until it registers a key. Idempotent."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, user_id, name, created_at FROM devices "
+                "WHERE revoked = FALSE AND id NOT IN (SELECT id FROM clients)"
+            ).fetchall()
+            for device_id, user_id, name, created_at in rows:
+                self.conn.execute(
+                    "INSERT INTO clients (id, user_id, kind, name, host, public_key_pem, created_at) "
+                    "VALUES (?, ?, 'device', ?, '', '', ?)",
+                    [device_id, user_id, name, created_at],
+                )
+            self.conn.commit()
+        return len(rows)
+
+    def get_client(self, client_id: str) -> AccountClient | None:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT id, user_id, kind, name, host, public_key_pem, created_at, revoked_at "
+                "FROM clients WHERE id = ?",
+                [client_id],
+            ).fetchone()
+        if row is None:
+            return None
+        return AccountClient(
+            id=row[0], user_id=row[1], kind=row[2], name=row[3], host=row[4] or "", public_key_pem=row[5],
+            created_at=ensure_utc(row[6]), revoked_at=ensure_utc(row[7]) if row[7] else None,
+        )
+
+    def revoke_client(self, client_id: str) -> None:
+        """End a client: it can no longer sign in and every session it opened stops working."""
+        with self._lock:
+            self.conn.execute(
+                "UPDATE clients SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", [utc_now(), client_id]
+            )
+            self.conn.execute("UPDATE sessions SET revoked = TRUE WHERE client_id = ?", [client_id])
+            self.conn.commit()
+
+    def session_client(self, token_hash: str) -> AccountClient | None:
+        """The client a session was signed in through, in one read (None for password and device sessions)."""
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT c.id, c.user_id, c.kind, c.name, c.host, c.public_key_pem, c.created_at, c.revoked_at "
+                "FROM sessions s JOIN clients c ON c.id = s.client_id WHERE s.token_hash = ?",
+                [token_hash],
+            ).fetchone()
+        if row is None:
+            return None
+        return AccountClient(
+            id=row[0], user_id=row[1], kind=row[2], name=row[3], host=row[4] or "", public_key_pem=row[5],
+            created_at=ensure_utc(row[6]), revoked_at=ensure_utc(row[7]) if row[7] else None,
+        )
+
     def create_device(
         self,
         *,
@@ -1875,6 +2000,25 @@ class AppDatabase:
             )
             self.conn.commit()
 
+    def set_device_route(self, device_id: str, route: str | None) -> None:
+        """Record the route a device paired over: "lan" (direct, .local or the LAN) or "tailnet"."""
+        with self._lock:
+            self.conn.execute("UPDATE devices SET paired_route = ? WHERE id = ?", [route, device_id])
+            self.conn.commit()
+
+    def device_route(self, device_id: str) -> str | None:
+        with self._lock:
+            row = self.conn.execute("SELECT paired_route FROM devices WHERE id = ?", [device_id]).fetchone()
+        return row[0] if row else None
+
+    def has_lan_paired_device(self, legacy_is_lan: bool = True) -> bool:
+        """A live device paired over .local or the LAN. One paired before the route was recorded counts as LAN
+        only when `legacy_is_lan` (this Mac shares over .local); otherwise as Tailscale. A tailnet-paired never."""
+        routes = "paired_route = 'lan'" + (" OR paired_route IS NULL" if legacy_is_lan else "")
+        with self._lock:
+            row = self.conn.execute(f"SELECT 1 FROM devices WHERE NOT revoked AND ({routes}) LIMIT 1").fetchone()
+        return row is not None
+
     def device_paired_by(self) -> dict[str, str]:
         """device id -> the paired device that paired it (devices paired by the host are absent)."""
         with self._lock:
@@ -1900,6 +2044,8 @@ class AppDatabase:
             for one in ids:
                 self.conn.execute("UPDATE devices SET revoked = TRUE WHERE id = ?", [one])
             self.conn.commit()
+            for one in ids:
+                self.revoke_client(one)
         return self.get_device(device_id)
 
     def renew_device(
@@ -2060,10 +2206,13 @@ class AppDatabase:
                 """
                 INSERT INTO actionaudits (
                     id, action_name, actor, target_ids, params, before, after,
-                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash
+                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash,
+                    client, device
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
+                    client = excluded.client,
+                    device = excluded.device,
                     action_name = excluded.action_name,
                     actor = excluded.actor,
                     target_ids = excluded.target_ids,
@@ -2093,10 +2242,31 @@ class AppDatabase:
                     audit.inverse_of,
                     audit.prev_hash,
                     audit.row_hash,
+                    audit.client,
+                    json.dumps(audit.device) if audit.device is not None else None,
                 ],
             )
             self.conn.commit()
         return audit
+
+    def save_chained_account_audit(self, audit: ActionAudit) -> ActionAudit:
+        """Append an account-change row to the app audit chain: sequence, previous hash, keyed row hash.
+
+        Same chain rules as the library's ``save_chained_audit``; the head is read and the row written
+        under one lock so two changes cannot take the same sequence number.
+        """
+        from fichero_server.actions.audit_chain import compute_action_audit_hash
+
+        with self._lock:
+            head = self.conn.execute(
+                "SELECT chain_seq, row_hash FROM actionaudits WHERE chain_seq IS NOT NULL "
+                "ORDER BY chain_seq DESC LIMIT 1"
+            ).fetchone()
+            audit.created_at = utc_now()
+            audit.chain_seq = (head[0] + 1) if head else 1
+            audit.prev_hash = (head[1] or None) if head else None
+            audit.row_hash = compute_action_audit_hash(audit, v2=True)
+            return self.save_action_audit(audit)
 
     def list_action_audits(self) -> list[ActionAudit]:
         """Return app-scoped ActionAudit rows in created order."""
@@ -2105,7 +2275,8 @@ class AppDatabase:
                 """
                 SELECT
                     id, action_name, actor, target_ids, params, before, after,
-                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash
+                    run_id, created_at, chain_seq, undone, inverse_of, prev_hash, row_hash,
+                    client, device
                 FROM actionaudits
                 ORDER BY created_at, id
                 """
@@ -2126,6 +2297,8 @@ class AppDatabase:
                 inverse_of=row[11],
                 prev_hash=row[12],
                 row_hash=row[13] or "",
+                client=row[14],
+                device=json.loads(row[15]) if row[15] else None,
             )
             for row in rows
         ]

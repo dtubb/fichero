@@ -29,6 +29,18 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
 
     var savedName: String { rawValue }
 
+    /// What setup asks (ruled 2026-10-18, #5788): Index and Keep arranged are set on a synced folder in the Inspector.
+    static let setupChoices: [SetupWayIn] = [.copy, .link, .move]
+
+    /// The choice a saved way in lights in setup: an earlier Index or Keep arranged reads as Leave in place
+    /// (its folder keeps its mode in the Inspector).
+    var shownInSetup: SetupWayIn {
+        switch self {
+        case .index, .keepArranged: .link
+        default: self
+        }
+    }
+
     /// The import's own mode: Keep arranged imports as Index.
     var ingestMode: IngestMode {
         switch self {
@@ -41,7 +53,7 @@ enum SetupWayIn: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .link: "Link"
+        case .link: "Leave in place"
         case .copy: "Copy"
         case .move: "Move"
         case .index: "Index"
@@ -89,6 +101,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
     var hands: [String]?
     /// Where it was written: a place, as typed (`answers.place`, section 7d).
     var place: String?
+    /// The most the project may spend on Hugging Face a month; 0 offers only (`answers.hf_spend_cap_usd`, #5769).
+    var hfSpendCapUsd: Double?
+    /// Whether working copies may stay on a cluster for re-runs; nil follows pages-may-leave (`answers.copies_may_stay_on_cluster`).
+    var copiesMayStayOnCluster: Bool?
 
     /// What runs by itself after Start (`answers.automatic`).
     struct Automatic: Codable, Equatable {
@@ -215,7 +231,10 @@ struct RecipeSetupAnswers: Codable, Equatable {
          scripts: [String]? = nil, directions: [String: String]? = nil, materials: [String]? = nil,
          pages: Int? = nil, cloudAllowed: Bool? = nil, ingestMode: String? = nil, layers: [String]? = nil,
          automatic: Automatic? = nil, jobAnswers: JobAnswers? = nil, removedJobs: [String]? = nil,
-         period: String? = nil, hands: [String]? = nil, place: String? = nil) {
+         period: String? = nil, hands: [String]? = nil, place: String? = nil,
+         hfSpendCapUsd: Double? = nil, copiesMayStayOnCluster: Bool? = nil) {
+        self.hfSpendCapUsd = hfSpendCapUsd
+        self.copiesMayStayOnCluster = copiesMayStayOnCluster
         self.period = period
         self.hands = hands
         self.place = place
@@ -237,6 +256,8 @@ struct RecipeSetupAnswers: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case purposes, purpose, jobs, languages, scripts, directions, materials, material, pages, layers, automatic
         case period, hands, place
+        case hfSpendCapUsd = "hf_spend_cap_usd"
+        case copiesMayStayOnCluster = "copies_may_stay_on_cluster"
         case cloudAllowed = "cloud_allowed"
         case ingestMode = "ingest_mode"
         case jobAnswers = "job_answers"

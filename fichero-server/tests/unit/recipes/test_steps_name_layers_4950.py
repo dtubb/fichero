@@ -2,10 +2,18 @@
 section lists the steps the purpose (or an added layer) turns on, each with whether it may use the cloud."""
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+
 from fichero_server.recipes.assemble import Answers, assemble
 from fichero_server.recipes.jobs import get_job
 
-from .test_assemble_by_rule import CARDS
+# tests/unit/recipes is not a package: load the shared cards by path.
+_spec = importlib.util.spec_from_file_location("_assemble_by_rule", Path(__file__).with_name("test_assemble_by_rule.py"))
+assert _spec and _spec.loader
+_by_rule = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_by_rule)
+CARDS = _by_rule.CARDS
 
 
 def _answers(**kw) -> Answers:

@@ -720,6 +720,24 @@ def fichero_artifacts_edit_regions(
     return _rt.call("PUT", f"/api/artifacts/{artifact_id}/regions", json=_rt.body({"bbox": bbox, "indices": indices, "level": level, "op": op, "text": text}))
 
 
+def fichero_auth_challenge(
+    *,
+    client_id: Annotated[str, Field(description='Client Id.')],
+) -> Any:
+    'Challenge\n\nRoute: POST /api/auth/challenge (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/challenge", json=_rt.body({"client_id": client_id}))
+
+
+def fichero_auth_first_run(
+    *,
+    client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
+    display_name: Annotated[str, Field(description='Display Name.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'First Run\n\nCreate the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.\n\nRoute: POST /api/auth/first-run (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/first-run", json=_rt.body({"client": client, "display_name": display_name, "public_key_pem": public_key_pem}))
+
+
 def fichero_auth_identity(
 ) -> Any:
     'Identity\n\nRoute: GET /api/auth/identity (toolset `auth`; reads).'
@@ -744,11 +762,13 @@ def fichero_auth_create_invite(
 
 def fichero_auth_redeem_invite(
     *,
+    client: Annotated[Optional[dict[str, Any]], Field(description='InviteRedeemClient.')] = None,
     invite_token: Annotated[str, Field(description='Invite Token.')],
-    new_password: Annotated[str, Field(description='New Password.')],
+    new_password: Annotated[Optional[str], Field(description='New Password.')] = None,
+    public_key_pem: Annotated[Optional[str], Field(description='Public Key Pem.')] = None,
 ) -> Any:
     'Redeem Invite\n\nRoute: POST /api/auth/invites/redeem (toolset `auth`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/auth/invites/redeem", json=_rt.body({"invite_token": invite_token, "new_password": new_password}))
+    return _rt.call("POST", "/api/auth/invites/redeem", json=_rt.body({"client": client, "invite_token": invite_token, "new_password": new_password, "public_key_pem": public_key_pem}))
 
 
 def fichero_auth_revoke_invite(
@@ -757,6 +777,55 @@ def fichero_auth_revoke_invite(
 ) -> Any:
     'Revoke Invite\n\nRoute: POST /api/auth/invites/{invite_id}/revoke (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/auth/invites/{invite_id}/revoke")
+
+
+def fichero_auth_register_local_client(
+    *,
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+    request_id: Annotated[str, Field(description='Request Id.')],
+) -> Any:
+    'Register Local Client\n\nThe allowed client registers its own public key, once, from the same program that asked. No secret crosses.\n\nRoute: POST /api/auth/local-clients/register (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/local-clients/register", json=_rt.body({"public_key_pem": public_key_pem, "request_id": request_id}))
+
+
+def fichero_auth_request_local_client(
+    *,
+    host: Annotated[Optional[str], Field(description='Host. Default: "".')] = None,
+    kind: Annotated[str, Field(description='Kind. One of: cli, mcp.')],
+    name: Annotated[str, Field(description='Name.')],
+) -> Any:
+    'Request Local Client\n\nRoute: POST /api/auth/local-clients/request (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/local-clients/request", json=_rt.body({"host": host, "kind": kind, "name": name}))
+
+
+def fichero_auth_list_local_client_requests(
+) -> Any:
+    'List Local Client Requests\n\nRoute: GET /api/auth/local-clients/requests (toolset `auth`; reads).'
+    return _rt.call("GET", "/api/auth/local-clients/requests")
+
+
+def fichero_auth_decide_local_client_request(
+    *,
+    request_id: Annotated[str, Field(description='Request Id')],
+    allow: Annotated[bool, Field(description='Allow.')],
+) -> Any:
+    'Decide Local Client Request\n\nRoute: POST /api/auth/local-clients/requests/{request_id}/decision (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", f"/api/auth/local-clients/requests/{request_id}/decision", json=_rt.body({"allow": allow}))
+
+
+def fichero_auth_get_local_client_switches(
+) -> Any:
+    'Get Local Client Switches\n\nRoute: GET /api/auth/local-clients/switches (toolset `auth`; reads).'
+    return _rt.call("GET", "/api/auth/local-clients/switches")
+
+
+def fichero_auth_put_local_client_switches(
+    *,
+    cli: Annotated[bool, Field(description='Cli.')],
+    mcp: Annotated[bool, Field(description='Mcp.')],
+) -> Any:
+    'Put Local Client Switches\n\nRoute: PUT /api/auth/local-clients/switches (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/auth/local-clients/switches", json=_rt.body({"cli": cli, "mcp": mcp}))
 
 
 def fichero_auth_login(
@@ -781,6 +850,15 @@ def fichero_auth_me(
     return _rt.call("GET", "/api/auth/me")
 
 
+def fichero_auth_migrate_owner(
+    *,
+    client: Annotated[dict[str, Any], Field(description='FirstRunClient.')],
+    public_key_pem: Annotated[str, Field(description='Public Key Pem.')],
+) -> Any:
+    'Migrate Owner\n\nGive an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.\n\nRoute: POST /api/auth/migrate-owner (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/migrate-owner", json=_rt.body({"client": client, "public_key_pem": public_key_pem}))
+
+
 def fichero_auth_list_sessions(
 ) -> Any:
     'List Sessions\n\nRoute: GET /api/auth/sessions (toolset `auth`; reads).'
@@ -793,6 +871,16 @@ def fichero_auth_revoke_session(
 ) -> Any:
     'Revoke Session\n\nRoute: POST /api/auth/sessions/{session_id}/revoke (toolset `auth`; changes data, as the agent account when one exists).'
     return _rt.call("POST", f"/api/auth/sessions/{session_id}/revoke")
+
+
+def fichero_auth_sign_in(
+    *,
+    client_id: Annotated[str, Field(description='Client Id.')],
+    nonce: Annotated[str, Field(description='Nonce.')],
+    signature: Annotated[str, Field(description='Signature.')],
+) -> Any:
+    'Sign In\n\nRoute: POST /api/auth/sign-in (toolset `auth`; changes data, as the agent account when one exists).'
+    return _rt.call("POST", "/api/auth/sign-in", json=_rt.body({"client_id": client_id, "nonce": nonce, "signature": signature}))
 
 
 def fichero_authz_list_accessible_libraries(
@@ -5276,96 +5364,6 @@ def fichero_mcp_check_verdict(
     return _rt.call("POST", "/api/mcp/tools/check/verdicts", json=_rt.body({"correction": correction, "layer": layer, "reasons": reasons, "segment_id": segment_id, "target_id": target_id, "verdict": verdict}))
 
 
-def fichero_mcp_knowledge_claims_list(
-    *,
-    claim_type: Annotated[Optional[str], Field(description='Claim Type')] = None,
-    entity_id: Annotated[Optional[str], Field(description='Entity Id')] = None,
-    limit: Annotated[Optional[int], Field(description='Limit')] = None,
-    offset: Annotated[Optional[int], Field(description='Offset')] = None,
-    q: Annotated[Optional[str], Field(description='Q')] = None,
-) -> Any:
-    'List knowledge claims\n\nList knowledge claims with optional filtering.\n\nRoute: GET /api/mcp/tools/knowledge/claims (toolset `mcp`; reads).'
-    return _rt.call("GET", "/api/mcp/tools/knowledge/claims", params={"claim_type": claim_type, "entity_id": entity_id, "limit": limit, "offset": offset, "q": q})
-
-
-def fichero_mcp_knowledge_claim_create(
-    *,
-    claim_type: Annotated[Optional[str], Field(description='Type: fact, analysis, interpretation, argument, historiography, theory. Default: "fact".')] = None,
-    confidence: Annotated[Optional[float], Field(description='Confidence. Default: 0.5.')] = None,
-    created_by: Annotated[Optional[str], Field(description='IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility. Default: "mcp".')] = None,
-    curation_state: Annotated[Optional[str], Field(description='State: unreviewed, shortlisted, curated, rejected. Default: "unreviewed".')] = None,
-    entity_ids: Annotated[Optional[list[Any]], Field(description='Linked entity IDs.')] = None,
-    epistemic_status: Annotated[Optional[str], Field(description='Status: tentative, confirmed, rejected. Default: "tentative".')] = None,
-    language: Annotated[Optional[str], Field(description='ISO 639-1 language code.')] = None,
-    metadata: Annotated[Optional[dict[str, Any]], Field(description='Metadata.')] = None,
-    source_document_id: Annotated[Optional[str], Field(description='Primary source document ID.')] = None,
-    source_ids: Annotated[Optional[list[Any]], Field(description='Multiple source document IDs.')] = None,
-    source_languages: Annotated[Optional[list[Any]], Field(description='ISO 639-1 codes per source.')] = None,
-    source_page_labels: Annotated[Optional[list[Any]], Field(description='Source Page Labels.')] = None,
-    source_type: Annotated[Optional[str], Field(description='Source type: document, claim, multiple, synthesis. Default: "document".')] = None,
-    text: Annotated[str, Field(description='Claim text content.')],
-) -> Any:
-    'Create knowledge claim\n\nCreate a new knowledge claim. Maps 1:1 to canonical Knowledge API.\n\nRoute: POST /api/mcp/tools/knowledge/claims/create (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/mcp/tools/knowledge/claims/create", json=_rt.body({"claim_type": claim_type, "confidence": confidence, "created_by": created_by, "curation_state": curation_state, "entity_ids": entity_ids, "epistemic_status": epistemic_status, "language": language, "metadata": metadata, "source_document_id": source_document_id, "source_ids": source_ids, "source_languages": source_languages, "source_page_labels": source_page_labels, "source_type": source_type, "text": text}))
-
-
-def fichero_mcp_knowledge_claim_delete(
-    *,
-    claim_id: Annotated[str, Field(description='Claim Id')],
-) -> Any:
-    'Delete knowledge claim\n\nSoft-delete a knowledge claim.\n\nRoute: DELETE /api/mcp/tools/knowledge/claims/{claim_id} (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("DELETE", f"/api/mcp/tools/knowledge/claims/{claim_id}")
-
-
-def fichero_mcp_knowledge_claim_get(
-    *,
-    claim_id: Annotated[str, Field(description='Claim Id')],
-) -> Any:
-    'Get knowledge claim\n\nRetrieve a knowledge claim by ID.\n\nRoute: GET /api/mcp/tools/knowledge/claims/{claim_id} (toolset `mcp`; reads).'
-    return _rt.call("GET", f"/api/mcp/tools/knowledge/claims/{claim_id}")
-
-
-def fichero_mcp_knowledge_entities_list(
-    *,
-    entity_type: Annotated[Optional[str], Field(description='Entity Type')] = None,
-    limit: Annotated[Optional[int], Field(description='Limit')] = None,
-    offset: Annotated[Optional[int], Field(description='Offset')] = None,
-    q: Annotated[Optional[str], Field(description='Q')] = None,
-) -> Any:
-    'List knowledge entities\n\nList knowledge entities with optional filtering.\n\nRoute: GET /api/mcp/tools/knowledge/entities (toolset `mcp`; reads).'
-    return _rt.call("GET", "/api/mcp/tools/knowledge/entities", params={"entity_type": entity_type, "limit": limit, "offset": offset, "q": q})
-
-
-def fichero_mcp_knowledge_entity_upsert(
-    *,
-    aliases: Annotated[Optional[list[Any]], Field(description='Alternative names.')] = None,
-    canonical_name: Annotated[str, Field(description='Canonical entity name.')],
-    description: Annotated[Optional[str], Field(description='Entity description.')] = None,
-    entity_type: Annotated[Optional[str], Field(description='Entity type. Default: "other".')] = None,
-    id: Annotated[Optional[str], Field(description='Entity ID for updates.')] = None,
-    language: Annotated[Optional[str], Field(description='ISO 639-1 language code.')] = None,
-    metadata: Annotated[Optional[dict[str, Any]], Field(description='Custom metadata.')] = None,
-) -> Any:
-    'Upsert knowledge entity\n\nCreate or update a knowledge entity. Maps 1:1 to canonical Knowledge API.\n\nRoute: POST /api/mcp/tools/knowledge/entities/upsert (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("POST", "/api/mcp/tools/knowledge/entities/upsert", json=_rt.body({"aliases": aliases, "canonical_name": canonical_name, "description": description, "entity_type": entity_type, "id": id, "language": language, "metadata": metadata}))
-
-
-def fichero_mcp_knowledge_entity_delete(
-    *,
-    entity_id: Annotated[str, Field(description='Entity Id')],
-) -> Any:
-    'Delete knowledge entity\n\nSoft-delete a knowledge entity.\n\nRoute: DELETE /api/mcp/tools/knowledge/entities/{entity_id} (toolset `mcp`; changes data, as the agent account when one exists).'
-    return _rt.call("DELETE", f"/api/mcp/tools/knowledge/entities/{entity_id}")
-
-
-def fichero_mcp_knowledge_entity_get(
-    *,
-    entity_id: Annotated[str, Field(description='Entity Id')],
-) -> Any:
-    'Get knowledge entity\n\nRetrieve a knowledge entity by ID.\n\nRoute: GET /api/mcp/tools/knowledge/entities/{entity_id} (toolset `mcp`; reads).'
-    return _rt.call("GET", f"/api/mcp/tools/knowledge/entities/{entity_id}")
-
-
 def fichero_migrations_list(
 ) -> Any:
     'List Migrations\n\nList all available migrations with descriptions.\n\nRoute: GET /api/migrations (toolset `migrations`; reads).'
@@ -5808,6 +5806,20 @@ def fichero_pairing_enroll_device(
 ) -> Any:
     "Enroll Device\n\nExchange one owner's synced enrollment secret for a new device token.\n\nRoute: POST /api/pair/enroll (toolset `pairing`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/pair/enroll", json=_rt.body({"device_name": device_name, "enrollment_secret": enrollment_secret}))
+
+
+def fichero_pairing_set_multiuser(
+    *,
+    enabled: Annotated[bool, Field(description='Enabled.')],
+) -> Any:
+    'Set Multiuser\n\nSet the persisted Multi-user switch through the audited action layer (#5751); the Settings\nswitch, the CLI and MCP share this route.\n\nRoute: PUT /api/pair/multiuser (toolset `pairing`; changes data, as the agent account when one exists).'
+    return _rt.call("PUT", "/api/pair/multiuser", json=_rt.body({"enabled": enabled}))
+
+
+def fichero_pairing_sharing_state(
+) -> Any:
+    'Sharing State\n\nRead Sharing state: Multi-user, the detected tailnet address, paired device count (#5751).\n\nRoute: GET /api/pair/sharing (toolset `pairing`; reads).'
+    return _rt.call("GET", "/api/pair/sharing")
 
 
 def fichero_pairing_detected_tailnet(
@@ -6340,6 +6352,15 @@ def fichero_recipes_list_hands(
     return _rt.call("GET", "/api/recipes/hands", params={"languages": languages, "period": period, "script": script})
 
 
+def fichero_recipes_htr_united_datasets(
+    *,
+    languages: Annotated[str, Field(description='Languages')],
+    scripts: Annotated[Optional[str], Field(description='Scripts')] = None,
+) -> Any:
+    "Htr United Datasets\n\nHTR-United's ground-truth datasets kept for these languages and scripts, each with what it may be used as\n(a bake-off test set, training data) and the licence to accept first (#5571). Never the network: the search job\nkeeps the catalogue.\n\nRoute: GET /api/recipes/htr-united (toolset `recipes`; reads)."
+    return _rt.call("GET", "/api/recipes/htr-united", params={"languages": languages, "scripts": scripts})
+
+
 def fichero_recipes_list_jobs(
 ) -> Any:
     'List Jobs\n\nEvery job a recipe can name, with the plain description setup and the manual show.\n\nRoute: GET /api/recipes/jobs (toolset `recipes`; reads).'
@@ -6366,7 +6387,7 @@ def fichero_recipes_save_project_setup(
     answers: Annotated[Optional[dict[str, Any]], Field(description="Setup's answers (purposes, languages, scripts, materials, directions as {script: direction}); null clears them.")] = None,
     recipe: Annotated[Optional[dict[str, Any]], Field(description="The project's recipe, as POST /api/recipes/assemble returns it; null clears it.")] = None,
 ) -> Any:
-    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
+    "Save Project Setup\n\nSave the project's setup answers and recipe (audited, undoable). Only the parts sent change:\na part left out (`answers` or `recipe`) is kept as it was, and a part sent as null is removed\n(`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`\nand `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,\nor refused), and one direction per script. Refused with 422 when either holds code or\ncredentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet\nalso store the recipe the rules assemble from them (#5747); a recipe already stored is kept.\n\nRoute: PUT /api/recipes/project (toolset `recipes`; changes data, as the agent account when one exists)."
     return _rt.call("PUT", "/api/recipes/project", json=_rt.body({"answers": answers, "recipe": recipe}))
 
 
@@ -8260,11 +8281,12 @@ def fichero_training_start_kraken(
     pages_may_leave: Annotated[Optional[bool], Field(description="The person's yes for these pages to go to Hugging Face. Default: false.")] = None,
     release_note: Annotated[Optional[str], Field(description='Release Note.')] = None,
     scope_ids: Annotated[list[Any], Field(description='Folders or pages whose teacher-read lines are the lessons.')],
+    target: Annotated[Optional[str], Field(description='Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there). Default: "huggingface-jobs".')] = None,
     teacher: Annotated[str, Field(description='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.')],
     timeout: Annotated[Optional[str], Field(description='The Job\'s time limit; always sent (the service\'s default is 30 minutes). Default: "4h".')] = None,
 ) -> Any:
     "Train a Kraken reader on Hugging Face Jobs\n\nQueue a `train-a-model` job: the pages in scope whose lines the teacher read go to a private\nbucket of the person's Hugging Face account, Fichero's trainer fine-tunes the base reader there,\nand the trained reader comes home as a reader card. Refused (and nothing queued) without the\nperson's yes for the pages to leave, without a Hugging Face token, or with a base reader that is\nnot installed.\n\nRoute: POST /api/training/kraken (toolset `training`; changes data, as the agent account when one exists)."
-    return _rt.call("POST", "/api/training/kraken", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "flavor": flavor, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "teacher": teacher, "timeout": timeout}))
+    return _rt.call("POST", "/api/training/kraken", json=_rt.body({"base": base, "batch_size": batch_size, "display_name": display_name, "flavor": flavor, "held_out_ids": held_out_ids, "name": name, "not_for_release": not_for_release, "pages_may_leave": pages_may_leave, "release_note": release_note, "scope_ids": scope_ids, "target": target, "teacher": teacher, "timeout": timeout}))
 
 
 def fichero_training_start_kraken_here(
@@ -8327,7 +8349,7 @@ def fichero_training_start_reasons_ab(
     contenders: Annotated[list[Any], Field(description='The answer-only student, the reasoning students, the teacher and a cheap baseline.')],
     held_out_ids: Annotated[list[Any], Field(description='The held-out checked pages: no arm trained on them.')],
     language: Annotated[Optional[str], Field(description='Language.')] = None,
-    noise_band: Annotated[Optional[float], Field(description='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.')] = None,
+    noise_band: Annotated[Optional[float], Field(description="A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692).")] = None,
 ) -> Any:
     "Measure answer-only against reasoning students on held-out checked pages\n\nQueue a `reasons-ab` job (#4642, `distill.reasoning.ab-decides`): every contender reads the held-out\nchecked lines as it was trained (a reasoning student also with its reasoning off); one CER and WER\neach, seconds a line, and for a `why` student whether its errors fall where it said it was unsure. A\nreasoning student is adopted only beyond `noise_band`; the result is written on every Fichero-trained\ncontender's card either way. Through `training.measure_reasons_ab`; 422 without held-out pages.\n\nRoute: POST /api/training/reasons-ab (toolset `training`; changes data, as the agent account when one exists)."
     return _rt.call("POST", "/api/training/reasons-ab", json=_rt.body({"checked": checked, "contenders": contenders, "held_out_ids": held_out_ids, "language": language, "noise_band": noise_band}))
@@ -9000,16 +9022,26 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_artifacts_align_transcript_to_regions", "artifacts", "POST", "/api/artifacts/{artifact_id}/align-transcript", fichero_artifacts_align_transcript_to_regions),
     GeneratedTool("fichero_artifacts_get_region", "artifacts", "GET", "/api/artifacts/{artifact_id}/region", fichero_artifacts_get_region),
     GeneratedTool("fichero_artifacts_edit_regions", "artifacts", "PUT", "/api/artifacts/{artifact_id}/regions", fichero_artifacts_edit_regions),
+    GeneratedTool("fichero_auth_challenge", "auth", "POST", "/api/auth/challenge", fichero_auth_challenge),
+    GeneratedTool("fichero_auth_first_run", "auth", "POST", "/api/auth/first-run", fichero_auth_first_run),
     GeneratedTool("fichero_auth_identity", "auth", "GET", "/api/auth/identity", fichero_auth_identity),
     GeneratedTool("fichero_auth_list_invites", "auth", "GET", "/api/auth/invites", fichero_auth_list_invites),
     GeneratedTool("fichero_auth_create_invite", "auth", "POST", "/api/auth/invites", fichero_auth_create_invite),
     GeneratedTool("fichero_auth_redeem_invite", "auth", "POST", "/api/auth/invites/redeem", fichero_auth_redeem_invite),
     GeneratedTool("fichero_auth_revoke_invite", "auth", "POST", "/api/auth/invites/{invite_id}/revoke", fichero_auth_revoke_invite),
+    GeneratedTool("fichero_auth_register_local_client", "auth", "POST", "/api/auth/local-clients/register", fichero_auth_register_local_client),
+    GeneratedTool("fichero_auth_request_local_client", "auth", "POST", "/api/auth/local-clients/request", fichero_auth_request_local_client),
+    GeneratedTool("fichero_auth_list_local_client_requests", "auth", "GET", "/api/auth/local-clients/requests", fichero_auth_list_local_client_requests),
+    GeneratedTool("fichero_auth_decide_local_client_request", "auth", "POST", "/api/auth/local-clients/requests/{request_id}/decision", fichero_auth_decide_local_client_request),
+    GeneratedTool("fichero_auth_get_local_client_switches", "auth", "GET", "/api/auth/local-clients/switches", fichero_auth_get_local_client_switches),
+    GeneratedTool("fichero_auth_put_local_client_switches", "auth", "PUT", "/api/auth/local-clients/switches", fichero_auth_put_local_client_switches),
     GeneratedTool("fichero_auth_login", "auth", "POST", "/api/auth/login", fichero_auth_login),
     GeneratedTool("fichero_auth_logout", "auth", "POST", "/api/auth/logout", fichero_auth_logout),
     GeneratedTool("fichero_auth_me", "auth", "GET", "/api/auth/me", fichero_auth_me),
+    GeneratedTool("fichero_auth_migrate_owner", "auth", "POST", "/api/auth/migrate-owner", fichero_auth_migrate_owner),
     GeneratedTool("fichero_auth_list_sessions", "auth", "GET", "/api/auth/sessions", fichero_auth_list_sessions),
     GeneratedTool("fichero_auth_revoke_session", "auth", "POST", "/api/auth/sessions/{session_id}/revoke", fichero_auth_revoke_session),
+    GeneratedTool("fichero_auth_sign_in", "auth", "POST", "/api/auth/sign-in", fichero_auth_sign_in),
     GeneratedTool("fichero_authz_list_accessible_libraries", "authz", "GET", "/api/authz/libraries", fichero_authz_list_accessible_libraries),
     GeneratedTool("fichero_authz_get_library_snapshot", "authz", "GET", "/api/authz/library", fichero_authz_get_library_snapshot),
     GeneratedTool("fichero_authz_revoke_library_member_role", "authz", "DELETE", "/api/authz/members", fichero_authz_revoke_library_member_role),
@@ -9472,14 +9504,6 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_mcp_servers_update", "mcp-servers", "PUT", "/api/mcp-servers/{server_id}", fichero_mcp_servers_update),
     GeneratedTool("fichero_mcp_servers_load_tools", "mcp-servers", "POST", "/api/mcp-servers/{server_id}/load-tools", fichero_mcp_servers_load_tools),
     GeneratedTool("fichero_mcp_check_verdict", "mcp", "POST", "/api/mcp/tools/check/verdicts", fichero_mcp_check_verdict),
-    GeneratedTool("fichero_mcp_knowledge_claims_list", "mcp", "GET", "/api/mcp/tools/knowledge/claims", fichero_mcp_knowledge_claims_list),
-    GeneratedTool("fichero_mcp_knowledge_claim_create", "mcp", "POST", "/api/mcp/tools/knowledge/claims/create", fichero_mcp_knowledge_claim_create),
-    GeneratedTool("fichero_mcp_knowledge_claim_delete", "mcp", "DELETE", "/api/mcp/tools/knowledge/claims/{claim_id}", fichero_mcp_knowledge_claim_delete),
-    GeneratedTool("fichero_mcp_knowledge_claim_get", "mcp", "GET", "/api/mcp/tools/knowledge/claims/{claim_id}", fichero_mcp_knowledge_claim_get),
-    GeneratedTool("fichero_mcp_knowledge_entities_list", "mcp", "GET", "/api/mcp/tools/knowledge/entities", fichero_mcp_knowledge_entities_list),
-    GeneratedTool("fichero_mcp_knowledge_entity_upsert", "mcp", "POST", "/api/mcp/tools/knowledge/entities/upsert", fichero_mcp_knowledge_entity_upsert),
-    GeneratedTool("fichero_mcp_knowledge_entity_delete", "mcp", "DELETE", "/api/mcp/tools/knowledge/entities/{entity_id}", fichero_mcp_knowledge_entity_delete),
-    GeneratedTool("fichero_mcp_knowledge_entity_get", "mcp", "GET", "/api/mcp/tools/knowledge/entities/{entity_id}", fichero_mcp_knowledge_entity_get),
     GeneratedTool("fichero_migrations_list", "migrations", "GET", "/api/migrations", fichero_migrations_list),
     GeneratedTool("fichero_migrations_data_integrity_check", "migrations", "GET", "/api/migrations/integrity-check", fichero_migrations_data_integrity_check),
     GeneratedTool("fichero_migrations_rollback", "migrations", "POST", "/api/migrations/rollback", fichero_migrations_rollback),
@@ -9525,6 +9549,8 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_pairing_renew_device_token", "pairing", "POST", "/api/pair/devices/renew", fichero_pairing_renew_device_token),
     GeneratedTool("fichero_pairing_revoke_device", "pairing", "POST", "/api/pair/devices/{device_id}/revoke", fichero_pairing_revoke_device),
     GeneratedTool("fichero_pairing_enroll_device", "pairing", "POST", "/api/pair/enroll", fichero_pairing_enroll_device),
+    GeneratedTool("fichero_pairing_set_multiuser", "pairing", "PUT", "/api/pair/multiuser", fichero_pairing_set_multiuser),
+    GeneratedTool("fichero_pairing_sharing_state", "pairing", "GET", "/api/pair/sharing", fichero_pairing_sharing_state),
     GeneratedTool("fichero_pairing_detected_tailnet", "pairing", "GET", "/api/pair/tailnet", fichero_pairing_detected_tailnet),
     GeneratedTool("fichero_orchestration_list_policy_rules", "orchestration", "GET", "/api/policies/orchestration", fichero_orchestration_list_policy_rules),
     GeneratedTool("fichero_orchestration_create_policy_rule", "orchestration", "POST", "/api/policies/orchestration", fichero_orchestration_create_policy_rule),
@@ -9580,6 +9606,7 @@ TOOLS: tuple[GeneratedTool, ...] = (
     GeneratedTool("fichero_recipes_derived_facts", "recipes", "GET", "/api/recipes/derived", fichero_recipes_derived_facts),
     GeneratedTool("fichero_recipes_choose_font", "recipes", "PUT", "/api/recipes/font", fichero_recipes_choose_font),
     GeneratedTool("fichero_recipes_list_hands", "recipes", "GET", "/api/recipes/hands", fichero_recipes_list_hands),
+    GeneratedTool("fichero_recipes_htr_united_datasets", "recipes", "GET", "/api/recipes/htr-united", fichero_recipes_htr_united_datasets),
     GeneratedTool("fichero_recipes_list_jobs", "recipes", "GET", "/api/recipes/jobs", fichero_recipes_list_jobs),
     GeneratedTool("fichero_recipes_search_languages", "recipes", "GET", "/api/recipes/languages", fichero_recipes_search_languages),
     GeneratedTool("fichero_recipes_get_project_setup", "recipes", "GET", "/api/recipes/project", fichero_recipes_get_project_setup),

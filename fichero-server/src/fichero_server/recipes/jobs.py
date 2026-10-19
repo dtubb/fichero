@@ -134,7 +134,52 @@ _job("train-a-model", {"line_readings", "lines"}, {"model_card"}, "train",
 # so `takes` names only what every check needs, the readings the proposals came from.
 _job("check", {READING}, {"verdicts"}, "check", _LIST, ("layer", "model", "prompt"))
 _job("export", {READING}, {"files"}, "output", "the files side by side", ("formats", "folder"))
-_job("publish", {"files"}, {"published"}, "output", "the published pages side by side", ("where",))
+_job("publish", {"files"}, {"published"}, "publish", "the published pages side by side", ("where",))
+
+
+# --- How each step with a model distils into a local model (`source.distil.each-step-has-a-method`, #5770) ---------
+
+
+@dataclass(frozen=True)
+class Distil:
+    """A step's distil method: what makes the lessons (`teacher`), the local model it trains (`student`), the trainer
+    that trains it, and how the student is measured against what it replaces. No student: `why` says why not."""
+    teacher: str = ""
+    student: str = ""
+    trainer: str = ""
+    measure: str = ""
+    why: str = ""
+
+
+_NOT_YET = "not built yet: no trainer for it in Fichero"
+#: Ruled order of building: read-a-line, then review (correct), regions, names.
+DISTIL: dict[str, Distil] = {
+    "read-a-line": Distil(
+        teacher="the lines a person corrected (#5700), else the readings of the reader the project uses",
+        student="a Kraken reader, or a small MLX vision model by LoRA", trainer="training.local, Hugging Face Jobs",
+        measure="character error rate on held-out corrected lines, beside the reader it replaces"),
+    "find-regions": Distil(
+        teacher="the regions a person drew or corrected", student="a YOLO layout model", trainer="training.yolo_local",
+        measure="region agreement on held-out corrected pages"),
+    "correct": Distil(why="not built yet: the thinking palaeographer's corrections as lessons (#4642)"),
+    "find-names-tag-words": Distil(why="not built yet: Fichero has no spaCy trainer (#5536)"),
+    "find-lines": Distil(why=_NOT_YET),
+    "find-the-script": Distil(why=_NOT_YET),
+    "refine-shapes": Distil(why=_NOT_YET),
+    "find-signs": Distil(why=_NOT_YET),
+    "find-a-tables-cells": Distil(why=_NOT_YET),
+    "read-a-page": Distil(why="distilled as read-a-line: once lines exist, a page is read line by line"),
+    "find-where-readers-disagree": Distil(why="nothing to distil: it compares the readers it is given"),
+    "trace-a-drawing": Distil(why=_NOT_YET),
+    "identify-signs": Distil(why=_NOT_YET),
+    "transcribe-speech": Distil(why=_NOT_YET),
+    "translate-transliterate-normalise": Distil(why=_NOT_YET),
+    "split-into-entries": Distil(why=_NOT_YET),
+    "find-statements": Distil(why=_NOT_YET),
+    "make-a-vector": Distil(why="nothing to distil: the embedding model is chosen, not trained here"),
+    "extract-to-a-table": Distil(why=_NOT_YET),
+    "check": Distil(why="nothing to distil: a check is the teacher's own judgement of other steps"),
+}
 
 
 def starts_with(materials) -> frozenset[str]:
@@ -143,13 +188,15 @@ def starts_with(materials) -> frozenset[str]:
     return TEXT_STARTS_WITH if given and given <= {"text"} else STARTS_WITH
 
 
-def unmet_inputs(step_jobs: list[str], *, starts_with: frozenset[str] = STARTS_WITH) -> list[str]:
+def unmet_inputs(step_jobs: list[str | None], *, starts_with: frozenset[str] = STARTS_WITH) -> list[str]:
     """Check a recipe's steps in order: every step's inputs must be produced earlier (or be a page
     image, which every project starts with). Returns one plain sentence per problem; [] is clean.
     An unknown job is a problem too, named, so a recipe from a newer Fichero says what is missing."""
     have = set(starts_with)
     problems = []
     for index, job_id in enumerate(step_jobs, start=1):
+        if job_id is None:  # not a step at all: the recipe check names it
+            continue
         job = get_job(job_id)
         if job is None:
             problems.append(f"step {index}: this copy of Fichero has no job {job_id!r}")

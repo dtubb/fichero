@@ -257,9 +257,9 @@ def run(db: Any, subject: str) -> str:
     remote_job._save(db, job_id, detail, phase="landing", reason="Adding the reader to this project's models")
     ts = detail["training_set"]
     card = {
-        "display_name": request.display_name or f"{request.name} (taught by {request.teacher}, on this Mac)",
-        "summary": (f"Taught by {request.teacher} on {remote_job.counted(ts['pages'], 'page')} "
-                    f"({remote_job.counted(ts['lines'], 'line')}, none checked by a person), trained on this Mac; "
+        "display_name": request.display_name or f"{request.name} (taught by {remote_job.taught_by(request.teacher)}, "
+                                                f"on this Mac)",
+        "summary": (f"{remote_job.lessons(request.teacher, ts)}, trained on this Mac; "
                     f"{remote_job.counted(len(request.held_out_ids), 'page')} held out as the test."),
         "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []), "base": request.base,
         "target": "this-mac", "measured": dict(gentle.measured),

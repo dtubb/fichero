@@ -146,6 +146,8 @@ class ChangeEvent(BaseModel):
     metadata: dict[str, str] = Field(default_factory=dict)
     origin_window: str | None = None  # self-echo de-dup seam (spec §3.5)
     origin_user: str | None = None  # user-level self-echo de-dup seam (#2023)
+    person: str | None = None  # who made the change: the account name (#5735)
+    device: str | None = None  # the paired Mac it came from; None for the host's own edit (#5735)
     event_id: int | None = None
     replay_required: bool = False
     gap_reason: str | None = None
@@ -511,6 +513,7 @@ def emit_change(
     origin_window: str | None = None,
     origin_user: str | None = None,
     document_parents: dict[str, str] | None = None,
+    device: str | None = None,
 ) -> None:
     """Broadcast a change to every window subscribed to ``library_path``.
 
@@ -543,6 +546,8 @@ def emit_change(
             metadata=dict(metadata or {}),
             origin_window=origin_window,
             origin_user=origin_user,
+            person=origin_user,
+            device=device,
             document_parents=dict(document_parents or {}),
             **deduped,
         )
