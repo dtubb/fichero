@@ -697,6 +697,12 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   until the real-graph test `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (the same thread id
   re-entered with the real LangGraph runner: the run record kept, the earlier pages kept) is run green on the M4; its counts may read
   only the reopened pass until then.
+- `activity.engine.keychain-cached` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun while `keychain.lookup_api_key` ran a
+  `security` subprocess on the event loop) a key the keychain answered (found or absent) is kept 5 minutes, so a repeated lookup
+  spawns no subprocess; a refusal is never kept; saving or deleting a key drops its entry
+  (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
+- `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
+  children on a worker thread, not the event loop (same test).
 - `activity.popover.same-summary` — **[PARTIAL]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
   …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of
