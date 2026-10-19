@@ -90610,9 +90610,9 @@
             "title": "Read By A Step",
             "description": "true: a step reads it today; false: kept with the answers"
           },
-          "open": {
+          "open_ended": {
             "type": "boolean",
-            "title": "Open",
+            "title": "Open Ended",
             "description": "a question that names kinds: every kind by default (an empty answer), the person can type their own, and `options` stay empty (#5805)",
             "default": false
           },

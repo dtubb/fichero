@@ -27,7 +27,7 @@ class Question:
     read_by_a_step: bool = False
     #: A question that names kinds (#5805): every kind by default (an empty answer), the person can type their own, no
     #: fixed `options`, and the listing's `suggestions` hold only what a sample try found.
-    open: bool = False
+    open_ended: bool = False
 
 
 @dataclass(frozen=True)
@@ -89,7 +89,7 @@ STAGES: tuple[Stage, ...] = (
           "Finds the people, places and other names in the text, places them on a map and links them to authorities.",
           "“Juan de la Cruz” and “Istmina” marked, Istmina placed on the map.",
           (Question("entity_kinds", "Which kinds of names?", "many",
-                    default=[], read_by_a_step=True, open=True),
+                    default=[], read_by_a_step=True, open_ended=True),
            Question("gazetteer", "Which place list? GeoNames (worldwide, modern names) · Wikidata · My own list", "one",
                     (("geonames", "GeoNames"), ("wikidata", "Wikidata"), ("project", "The project's own list")),
                     default="geonames", read_by_a_step=True)),
@@ -98,22 +98,22 @@ STAGES: tuple[Stage, ...] = (
           "Finds who did what to whom, as statements you can check: a sale, a gift, a marriage, a letter sent.",
           "“Juan de la Cruz sells a house to María Mosquera”.",
           (Question("statement_kinds", "Which kinds of statements?", "many", default=[], read_by_a_step=True,
-                    open=True),),
+                    open_ended=True),),
           needs=("read", "names")),
     Stage("dates", "Dates & Times", ("work-out-dates",),
           "Works out the dates the names step found, in the calendar they were written in.",
           "“a 3 de mayo de 1740” as 1740-05-03.",
-          (Question("calendars", "Which calendars?", "many", default=[], read_by_a_step=True, open=True),),
+          (Question("calendars", "Which calendars?", "many", default=[], read_by_a_step=True, open_ended=True),),
           needs=("names",)),
     Stage("passages", "Passages", ("pull-out-passages",),
           "Pulls out the passages you ask for, of any kind, and keeps where each one sits on the page.",
           "The notary's closing formula on each deed.",
-          (Question("passage_kinds", "Which kinds of passages?", "many", default=[], read_by_a_step=True, open=True),),
+          (Question("passage_kinds", "Which kinds of passages?", "many", default=[], read_by_a_step=True, open_ended=True),),
           needs=("read",)),
     Stage("structured-data", "Structured Data", ("find-a-tables-cells", "extract-to-a-table", "describe-for-the-catalogue"),
           "Fills a table or a catalogue record from the pages: a ledger's columns, a deed's parties and date.",
           "Each deed's buyer, seller, price and date as one row.",
-          (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=True, open=True),),
+          (Question("fields", "Which fields to fill, and from what?", "many", default=[], read_by_a_step=True, open_ended=True),),
           needs=("read",)),
     Stage("search", "Search", ("make-a-vector",),
           "Makes the pages searchable by meaning as well as by their words.",
@@ -199,9 +199,9 @@ def listing(recipe: dict[str, Any] | None, answers: dict[str, Any] | None = None
             "jobs_in_recipe": [j for j in stage.jobs if j in in_recipe],
             "questions": [{"key": q.key, "ask": q.ask, "kind": q.kind,
                            "options": [{"id": i, "title": t} for i, t in q.options], "default": q.default,
-                           "answer": _words(answered.get(q.key, q.default)) if q.open else answered.get(q.key, q.default),
-                           "read_by_a_step": q.read_by_a_step, "open": q.open,
-                           "suggestions": suggested_kinds(stage.id, result) if q.open else []}
+                           "answer": _words(answered.get(q.key, q.default)) if q.open_ended else answered.get(q.key, q.default),
+                           "read_by_a_step": q.read_by_a_step, "open_ended": q.open_ended,
+                           "suggestions": suggested_kinds(stage.id, result) if q.open_ended else []}
                           for q in stage.questions],
             "needs": [{"stage": n, "why": f"{stage.title} needs {titles[n]}"} for n in stage.needs],
             "sampleable": sampleable(stage), "tried_by": "bake-off" if stage.id in TRIED_BY_THE_BAKEOFF else "workflow",

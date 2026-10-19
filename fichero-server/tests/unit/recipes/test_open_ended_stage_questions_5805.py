@@ -23,7 +23,7 @@ def _question(items, stage, key):
 @pytest.mark.parametrize(("stage", "key"), OPEN)
 def test_every_kinds_question_is_open_with_every_kind_by_default(stage, key):
     q = _question(listing(None), stage, key)
-    assert q["open"] is True
+    assert q["open_ended"] is True
     assert q["options"] == [], "no fixed list of kinds ships"
     assert q["default"] == [] and q["answer"] == [], "an empty answer is every kind"
     assert q["suggestions"] == [], "nothing is suggested before a sample try"
@@ -33,7 +33,7 @@ def test_no_other_question_is_open_and_the_closed_ones_keep_their_options():
     for stage in listing(None):
         for q in stage["questions"]:
             if (stage["id"], q["key"]) not in OPEN:
-                assert q["open"] is False and q["suggestions"] == [], (stage["id"], q["key"])
+                assert q["open_ended"] is False and q["suggestions"] == [], (stage["id"], q["key"])
     assert _question(listing(None), "normalise", "normalise_how_far")["options"]
 
 

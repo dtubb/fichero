@@ -393,7 +393,7 @@ class StageQuestion(BaseModel):
     default: Any = None
     answer: Any = Field(default=None, description="this project's answer, else the default")
     read_by_a_step: bool = Field(description="true: a step reads it today; false: kept with the answers")
-    open: bool = Field(default=False, description="a question that names kinds: every kind by default (an empty answer), "
+    open_ended: bool = Field(default=False, description="a question that names kinds: every kind by default (an empty answer), "
                        "the person can type their own, and `options` stay empty (#5805)")
     suggestions: list[str] = Field(default_factory=list, description="for an open question: only the kinds a sample try "
                                    "found; empty until a try returns them")
