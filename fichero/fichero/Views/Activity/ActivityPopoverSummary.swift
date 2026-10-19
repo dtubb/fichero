@@ -120,8 +120,13 @@ struct ActivityPopoverSummary: Equatable {
             running.append(Item(id: run.id, name: run.name, detail: run.step))
         }
         var reasons: [String: Int] = [:]
+        // A kind of background work the engine's summary has a line for is said once, by that line.
+        let backgroundKinds = Set((activity?.background ?? []).map(\.kind))
         // A run's own stages and steps are its, not jobs of their own; its failures are still counted.
         for job in jobs where job.state.isFailed || !inRun.contains(job.id) {
+            if backgroundKinds.contains(job.taskType), job.state == .running || job.state == .stalled || job.state == .waiting {
+                continue
+            }
             switch job.state {
             case .running, .stalled:
                 // A page under a run is that run's work, said once by the run.
@@ -158,8 +163,8 @@ struct ActivityPopoverSummary: Equatable {
     }
 
     static func block(_ live: Components.Schemas.LiveBlock) -> Block {
-        let pages = live.total > 0 ? "\(live.done) of \(live.total) pages" : "no pages yet"
-        let folders = live.foldersTotal.map { "\(live.foldersDone ?? 0) of \($0) folders" }
+        let pages = live.total > 0 ? "\(live.done) of \(live.total) \(live.total == 1 ? "page" : "pages")" : "no pages yet"
+        let folders = live.foldersTotal.map { "\(live.foldersDone ?? 0) of \($0) \($0 == 1 ? "folder" : "folders")" }
         let failed = live.failed > 0 ? "\(live.failed) failed" : nil
         return Block(
             id: live.id,
