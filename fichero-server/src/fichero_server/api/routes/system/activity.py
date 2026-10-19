@@ -12,6 +12,7 @@ Routes require the X-Fichero-Library-Path header.
 """
 
 import asyncio
+import re
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -254,6 +255,107 @@ class QueuedItem(BaseModel):
     reason: Optional[str] = None
 
 
+class LiveBlock(BaseModel):
+    """What is working right now (`activity.window.live-block`, `activity.popover.same-summary`; #5839, #5851, #5852):
+    the recipe, the stage it is in and the workflow that stage runs, with the pages done, failed and left."""
+
+    id: str = Field(description="the run's row id: the recipe run, or a workflow run outside any recipe")
+    recipe: Optional[str] = Field(None, description="null for a workflow run started on its own")
+    stage: Optional[str] = Field(None, description="what the running stage does, in words")
+    workflow: Optional[str] = None
+    state: str
+    reason: Optional[str] = Field(None, description="what it waits for, when it waits (a waiting block looks waiting)")
+    done: int = 0
+    failed: int = 0
+    left: int = 0
+    total: int = 0
+    folders_done: Optional[int] = None
+    folders_total: Optional[int] = None
+
+
+class BackgroundLine(BaseModel):
+    """One kind of background work and its total (`activity.window.background-group`, #5851)."""
+
+    kind: str
+    name: str
+    state: str
+    reason: Optional[str] = None
+    done: int = 0
+    total: int = 0
+
+
+class ActivitySummary(BaseModel):
+    """The ONE engine summary the window and the toolbar popover both read (`activity.popover.same-summary`, #5852):
+    the live blocks, the background group, and how many ended runs are folded into History."""
+
+    live: list[LiveBlock] = Field(default_factory=list)
+    background: list[BackgroundLine] = Field(default_factory=list)
+    history: int = 0
+
+
+_LIVE_STATES = ("running", "waiting", "paused")
+
+
+def background_lines(jobs: "list[BackgroundJob]") -> list[BackgroundLine]:
+    """One line per kind of work nobody runs as a run of their own, with its total; none for an ended row."""
+    return [BackgroundLine(kind=j.task_type, name=j.name, state=j.state, reason=j.reason, done=j.current, total=j.total)
+            for j in jobs if j.task_type not in _RUN_TASK_TYPES and j.state in _LIVE_STATES]
+
+
+def workflow_block(job: "BackgroundJob") -> LiveBlock:
+    """A workflow run outside any recipe, from its account."""
+    account = job.account
+    return LiveBlock(
+        id=job.id, workflow=job.name, state=job.state, reason=job.reason if job.state != "running" else
+        (account.waiting_reason if account else None), done=account.pages_done if account else 0,
+        failed=account.pages_failed if account else 0, left=account.pages_left if account else 0,
+        total=account.pages_total if account else 0)
+
+
+def recipe_block(job: "BackgroundJob", status: dict[str, Any], workflow_name: Optional[str]) -> LiveBlock:
+    """A recipe run: its recipe, the stage running now and the workflow of that stage, the pages of that stage's account."""
+    steps = status.get("steps") or []
+    running = next((st for st in steps if st.get("state") == "running"), None) \
+        or next((st for st in steps if st.get("state") in ("waiting", "paused")), None)
+    account = (running or {}).get("account")
+    waiting = status.get("reason") if status.get("state") == "waiting" else status.get("waiting_for")
+    return LiveBlock(
+        id=job.id, recipe=job.name, stage=(running or {}).get("doing"), workflow=workflow_name, state=job.state,
+        reason=waiting, done=account.pages_done if account else 0, failed=account.pages_failed if account else 0,
+        left=account.pages_left if account else 0, total=account.pages_total if account else 0,
+        folders_done=status.get("folders_done"), folders_total=status.get("folders_total"))
+
+
+async def live_blocks(db: Database, jobs: "list[BackgroundJob]") -> list[LiveBlock]:
+    """The live recipe runs first, then the workflow runs that belong to no recipe (a recipe's stage is its block's)."""
+    blocks: list[LiveBlock] = []
+    owned: set[str] = set()
+    tracker = get_activity_tracker(str(db.path))
+    for job in jobs:
+        if job.task_type != "run-a-recipe" or job.state not in _LIVE_STATES:
+            continue
+        try:
+            _state, _reason, status = await _recipe_state(db, job.id)
+        except Exception as exc:  # noqa: BLE001 -- the block stands without its stage; said in the log
+            logger.warning("activity summary: no status for recipe run %s: %s", job.id, exc)
+            blocks.append(LiveBlock(id=job.id, recipe=job.name, state=job.state, reason=job.reason))
+            continue
+        owned.update(st["child_id"] for st in status.get("steps", []) if st.get("child_id"))
+        running = next((st for st in status.get("steps", []) if st.get("state") == "running" and st.get("child_id")), None)
+        run = await tracker.store.get_workflow_run(running["child_id"]) if running else None
+        blocks.append(recipe_block(job, status, run.workflow_name if run else None))
+    blocks += [workflow_block(j) for j in jobs
+               if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned]
+    return blocks
+
+
+async def activity_summary(db: Database, jobs: "list[BackgroundJob]") -> ActivitySummary:
+    """THE summary (`activity.popover.same-summary`): built once per poll from the ordered job list, so the popover and
+    the window can only agree."""
+    return ActivitySummary(live=await live_blocks(db, jobs), background=background_lines(jobs),
+                           history=sum(1 for j in jobs if j.group == "earlier"))
+
+
 class BackgroundJobsResponse(BaseModel):
     """Snapshot of running background jobs + rough process CPU usage."""
 
@@ -277,6 +379,8 @@ class BackgroundJobsResponse(BaseModel):
     machine: MachineState
     # Done, left and about how long: the whole queue (`activity.window.queue-summary`); absent when nothing is queued.
     summary: Optional[QueueSummary] = None
+    # The ONE summary the window and the popover read (`activity.popover.same-summary`, #5852).
+    activity: Optional[ActivitySummary] = None
 
 
 class JobTree(BaseModel):
@@ -643,6 +747,7 @@ async def list_background_jobs(
         mode=job_queue.mode(),
         machine=MachineState(**throttle.machine_state()),
         summary=await asyncio.to_thread(_queue_summary, db, listed),
+        activity=await activity_summary(db, jobs),
     )
 
 
@@ -781,6 +886,9 @@ class JobLogLine(BaseModel):
     level: str = Field(description="info, warning or error")
     message: str
     job_id: str = Field(description="the row the line is about: the job asked for or one under it")
+    detail: Literal["person", "developer"] = Field(
+        "person", description="person: a page or stage done or failed, the person's log; developer: the debug lines "
+        "(Node started, a row's start, what a row waits for now, a server's output), off unless asked for")
 
 
 class JobLog(BaseModel):
@@ -794,13 +902,33 @@ class JobLog(BaseModel):
 _JOB_LOG_LIMIT = 1000
 
 
+_DEBUG_EVENT = re.compile(r"^Node '.*' (started|completed in \d+ms)$")
+
+
+def _event_detail(level: str, message: str) -> str:
+    """An activity event is the person's unless it is a debug line ("Node 'x' started", "completed in 12ms")."""
+    return "developer" if level == "debug" or _DEBUG_EVENT.match(message) else "person"
+
+
+def person_lines(lines: list["JobLogLine"]) -> list["JobLogLine"]:
+    """The person's log (`activity.log.persons-log`): only person lines, and no sentence twice for the same row."""
+    seen: set[tuple[str, str]] = set()
+    kept = []
+    for line in lines:
+        if line.detail != "person" or (line.job_id, line.message) in seen:
+            continue
+        seen.add((line.job_id, line.message))
+        kept.append(line)
+    return kept
+
+
 def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
     """The lines a job's own row says, and the rows under it: it started, how it ended, what it waits for."""
     name = node.get("display_name") or node.get("name") or node["id"]
     lines = []
     if node.get("started_at"):
         lines.append(JobLogLine(timestamp=node["started_at"], level="info", message=f"Started {name}",
-                                job_id=node["id"]))
+                                job_id=node["id"], detail="developer"))
     state, reason = node.get("state") or "", node.get("reason")
     ended = {"done": ("info", f"Done: {name}"),
              "failed": ("error", f"Failed: {name}: {reason or 'no reason recorded'}"),
@@ -810,7 +938,7 @@ def _job_rows_log(node: dict[str, Any]) -> list[JobLogLine]:
                                 job_id=node["id"]))
     elif reason:
         lines.append(JobLogLine(timestamp=None, level="info", message=f"{state.capitalize()}: {name}: {reason}",
-                                job_id=node["id"]))
+                                job_id=node["id"], detail="developer"))
     for child in node.get("children", []):
         lines.extend(_job_rows_log(child))
     return lines
@@ -837,7 +965,11 @@ def _event_threads(node: dict[str, Any], wanted: dict[str, Optional[set[str]]]) 
 
 
 @router.get("/jobs/{job_id}/log", response_model=JobLog)
-async def get_job_log(job_id: str, db: Database = Depends(get_library_database)) -> JobLog:
+async def get_job_log(
+    job_id: str,
+    detail: Literal["person", "developer"] = Query("person", description="developer adds the debug lines"),
+    db: Database = Depends(get_library_database),
+) -> JobLog:
     """The log of one row of Activity and the rows under it, newest last (#5561): what the engine wrote for
     a run (its activity events), for a step (the events of its node), and what each job's own row says (it
     started, it failed and why, it waits and for what). Nothing about another row."""
@@ -862,12 +994,13 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
             level = event.level.value if isinstance(event.level, ActivityLevel) else str(event.level)
             lines.append(JobLogLine(
                 timestamp=when.isoformat(), level=level, message=event.message + error,
+                detail=_event_detail(level, event.message),
                 # A node with no row of its own (the builder's routing) is the run's line.
                 job_id=row if (row := job_queue.step_id(thread, event.node_id or "")) in rows else thread))
 
     for row, entry in job_queue.logged_lines(db, list(rows)):  # what a row's work kept (a server's output)
         lines.append(JobLogLine(timestamp=entry.get("at"), level=str(entry.get("level") or "info"),
-                                message=str(entry["message"]), job_id=row))
+                                message=str(entry["message"]), job_id=row, detail="developer"))
 
     def order(line: JobLogLine) -> tuple[int, datetime]:
         # A line with no time (what a row waits for now) is the newest.
@@ -876,6 +1009,8 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
         return (0, _parse_iso_to_naive_utc(line.timestamp))
 
     lines.sort(key=order)
+    if detail == "person":
+        lines = person_lines(lines)
     return JobLog(job_id=job_id, lines=lines[-_JOB_LOG_LIMIT:])
 
 
