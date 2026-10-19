@@ -77,10 +77,24 @@ struct WhatFicheroRunsFields: View {
     let add: (String?) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Where models may run (#5828): this Mac only until the person says otherwise.
+    @State private var runsAt = WhereTheWorkRuns.current()
 
     var body: some View {
         // A grouped Form: the accounts are native rows, and the form scrolls itself (#5776).
         Form {
+            Section {
+                Picker("Models may run on", selection: $runsAt) {
+                    ForEach(WhereTheWorkRuns.allCases) { choice in
+                        Text(choice.title).tag(choice)
+                    }
+                }
+                #if os(macOS)
+                .pickerStyle(.radioGroup)
+                #endif
+                Text(runsAt.detail).foregroundStyle(.secondary)
+            }
+            .onChange(of: runsAt) { _, choice in WhereTheWorkRuns.keep(choice) }
             Section {
                 Text(WhatFicheroRuns.intro)
                     .fixedSize(horizontal: false, vertical: true)

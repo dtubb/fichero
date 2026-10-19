@@ -22,17 +22,17 @@ struct SetupFooterTests {
     }
 
     /// WHY: Daniel's screenshot: a centred full-width capsule, a "Skip" and a disabled Back on the first page.
-    @Test("the welcome: Start Without a Project at the left, Set Up a New Project… the default, and no Back at all")
+    @Test("the welcome: Continue the default, nothing at the left, and no Back at all (#5828)")
     func welcome() {
         let welcome = footer(.welcome, firstRun)
-        #expect(welcome.leading == .init(title: "Start Without a Project", action: .startWithoutProject))
-        #expect(welcome.primary == .init(title: "Set Up a New Project…", action: .setUpNewProject))
+        #expect(welcome.leading == nil)
+        #expect(welcome.primary == .init(title: "Continue", action: .advance))
         #expect(!welcome.showsBack, "the first page has no Back: hidden, not disabled")
     }
 
-    @Test("Skip is gone: Not Now on Models & Services, Skip This Stage on a stage, nothing where a page can't be skipped")
+    @Test("Skip is gone: Skip This Stage on a stage, nothing where a page can't be skipped")
     func leftHandChoices() {
-        #expect(footer(.whatFicheroRuns, firstRun).leading?.title == "Not Now")
+        #expect(footer(.whatFicheroRuns, firstRun).leading == nil, "Continue and Back only (#5828)")
         #expect(footer(.stage("read"), newProject, .firstRun).leading?.title == "Skip This Stage")
         for step in [SetupStep.project, .aboutMaterial, .stages, .ready] {  // Your Material leaves Set Up (#5813)
             #expect(footer(step, newProject, .firstRun).leading == nil, "\(step.id) cannot be skipped")
@@ -56,8 +56,7 @@ struct SetupFooterTests {
         #expect(footer(.ready, newProject).primary == .init(title: "Start", action: .start))
         let handOff = footer(.handOff, firstRun, projectChosen: false)
         #expect(handOff.primary == .init(title: "Start", action: .finish), "the app's last page says what it does")
-        #expect(handOff.leading == .init(title: "Set Up a New Project…", action: .addAProject))
-        #expect(footer(.handOff, firstRun, projectChosen: true).primary.title == "Continue")
+        #expect(handOff.leading == .init(title: "Set Up a New Project…", action: .openProjectSetUp))
     }
 
     @Test("a setup opened on purpose can always be closed from the left, where its page has no other choice")

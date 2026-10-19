@@ -10,6 +10,11 @@ import SwiftUI
 /// at Add material on the project it was asked for (`source.onboard.project.one-view`). Every page after Your
 /// project reads and saves through THAT project's own store (`LibraryReference.recipeSetupStore`), so the engine
 /// always knows which project (#5477).
+/// The scene a first launch's Set Up a New Project… opens (#5828): that project's own Set Up, in its own window.
+enum NewProjectSetUpWindow {
+    static let id = "new-project-setup"
+}
+
 struct FirstRunWindow: View {
     enum Mode {
         case firstRun
@@ -43,7 +48,7 @@ struct FirstRunWindow: View {
     private let onProjectReady: (UUID) -> Void
 
     /// `initialStep` and `newProject`: the onboarding screenshots' seam (`OnboardingScreenshotsTests`); the app passes neither.
-    /// `setsUpAProject`: a first launch whose welcome already chose Set Up a New Project… (the previews' seam).
+    /// `setsUpAProject`: the previews' seam for the project's pages (a first launch itself never shows them).
     init(mode: Mode = .firstRun, project: LibraryManager.LibraryReference? = nil, initialStep: SetupStep? = nil,
          newProject: NewProjectStore? = nil, setsUpAProject: Bool = false,
          onProjectReady: @escaping (UUID) -> Void = { _ in }) {
@@ -106,10 +111,12 @@ struct FirstRunWindow: View {
         .task { await appState.loadProviders() }
     }
 
-    /// The person chose to set up a project from the app's pages: the project's pages follow them.
-    func setUpAProject() {
-        flow.project = .new
-        step = step.next(in: steps)
+    /// Set Up a New Project… on Your First Project: that project's own Set Up in its own window; this window's
+    /// pages stay as they are (#5828).
+    private func openProjectSetUp() {
+        #if os(macOS)
+        openWindow(id: NewProjectSetUpWindow.id)
+        #endif
     }
 
     /// Advance within the steps; the LAST one finishes (#2807).
@@ -200,17 +207,12 @@ extension FirstRunWindow {
                                       add: { addProvider = AddProviderRequest(providerType: $0) })
             }
         case .handOff:
-            stepPage(
-                title: flow.project == .none ? "Fichero is ready" : "Next, your project",
-                subtitle: flow.project == .none
-                    ? "Set up a project when you have material, or start in the one Fichero always has." : "",
-                systemImage: SetupStep.handOff.icon
-            ) {
-                if flow.project != .none {
-                    SetupBodyText(paragraphs: [FirstLaunchChoices.handOffIntro],
-                                  numbered: FirstLaunchChoices.handOffSteps,
-                                  closing: FirstLaunchChoices.handOffClosing)
-                }
+            stepPage(title: "Your First Project",
+                     subtitle: "Set up a project when you have material, or start in the one Fichero always has.",
+                     systemImage: SetupStep.handOff.icon) {
+                SetupBodyText(paragraphs: [FirstLaunchChoices.handOffIntro],
+                              numbered: FirstLaunchChoices.handOffSteps,
+                              closing: FirstLaunchChoices.handOffClosing)
             }
         default:
             recipeStepPage(step)
@@ -297,13 +299,8 @@ extension FirstRunWindow {
         switch action {
         case .advance, .start:
             advance()
-        case .setUpNewProject:
-            flow.project = .new
-            advance()
-        case .startWithoutProject:
-            advance()
-        case .addAProject:
-            setUpAProject()
+        case .openProjectSetUp:
+            openProjectSetUp()
         case .skip:
             step = step.next(in: steps)
         case .finish, .close:
