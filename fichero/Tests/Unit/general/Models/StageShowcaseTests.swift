@@ -34,6 +34,9 @@ struct StageShowcaseTests {
         let showcase = example.showcase(imageURL: url)
         #expect(showcase.credit == "Example: BNE · DILE, CC BY-SA 4.0")
         #expect(showcase.licenceURL?.absoluteString == "https://creativecommons.org/licenses/by-sa/4.0/")
+        #expect(showcase.sourceURL?.absoluteString == "https://dile.dragoman.org/1/18.pdf")
+        let halves = ShowcaseCredit.halves(of: "Example: BNE · DILE, CC BY-SA 4.0")
+        #expect(halves.source == "Example: BNE · DILE" && halves.licence == "CC BY-SA 4.0")
         #expect(!showcase.isOwnPage)
     }
 

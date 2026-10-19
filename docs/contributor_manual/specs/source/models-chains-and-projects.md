@@ -3138,6 +3138,22 @@ Setup
   A model once: the step's own card keeps its model's place against a twin at another revision (review 296).
 - `source.onboard.stages.page-lists-found-models` — **[PARTIAL]** (#5808) once the project's languages and scripts are known, a stage page whose job a model does lists the models found for them, with links (the catalogue, Hugging Face, Zenodo, HTR-United, Transkribus), from the same list as Find a Reader (`source.find.one-candidate-source`), beside who runs the step (the 2026-10-11 ruling: the reader default is the bake-off plus a Hugging Face search, shown on the page, not only inside the Find a Reader sheet). Test: pure Swift (`StageFoundModelsTests`) and the engine test above.
 - `source.onboard.stages.compare-names-its-models` — **[PARTIAL]** (#5808) before it runs, Compare on These Pages names the models it will compare, each linked: with none ticked, the step's own model and the finder's next one or two (`COMPARED = 3`), by their names, never "the next one or two". A try's candidate columns carry `name` and `link` before the run starts. Test: `fichero-server/tests/unit/recipes/test_one_candidate_source_5808.py`.
+- `source.onboard.credits.link-source-and-licence` — **[PARTIAL]** (#5803) every borrowed thing the app shows credits where it
+  comes from, with links: an example gets a credit line that links the item's own page at the holding institution or
+  dataset and its licence's deed (BNE · DILE, CC BY-SA 4.0 → the DILE page and creativecommons.org/licenses/by-sa/4.0/);
+  the same holds for datasets and models (`source.find.one-candidate-source` links a model to its page). The data lives
+  in the engine's example records (`recipes/examples.py`) and reaches the app in the stage listing (`example_credit`:
+  `short_credit`, `source_url`, `licence`, `licence_url`); nothing is hard-coded in Swift. Every record has both URLs
+  (a guard over the records). Built: `recipes/examples.py` holds the record, the stage listing carries it, and the credit line links the page and the
+  deed (`fichero-server/tests/unit/recipes/test_credits_and_examples_5803.py`, `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift`).
+  Still a gap: the app reads the links from the example's bundled file (`Resources/StageShowcase`), which the test keeps
+  equal to the engine's record, not yet from the listing; datasets and the catalogue's licence deeds; the holding
+  library's own record (BNE) beside the DILE page. Not yet seen in the app.
+- `source.onboard.examples.one-document` — **[PARTIAL]** (#5803) the picture, the fields and the sentence of a stage's example
+  all describe ONE document, the shipped example page: no deed's buyer on a manuscript of a dialogue, no left and right
+  columns on a one-column page. Every quoted word in a stage's example sentence is on that page or is what a stage makes
+  of it (its names, dates, statements, table, translation, normalisation, search). Built: the stage sentences were rewritten from the page's own text, and a test checks every quoted word
+  (`fichero-server/tests/unit/recipes/test_credits_and_examples_5803.py`).
 - `source.onboard.stages.samples-are-his` — **[PARTIAL]** (#5808 (b)) "On your pages" shows the person's own sample pages as
   thumbnails, each marked as the person's, kept apart from the shipped example image (a demo picture, never a page of the person's): the
   samples response carries for every page `yours` (true: a page of this project) and `thumbnail` (whether its thumbnail
