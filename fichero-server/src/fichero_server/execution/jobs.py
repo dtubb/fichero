@@ -78,9 +78,6 @@ MODES = ("automatic", "started", "paused")
 MAX_ATTEMPTS = 3
 #: Kraken models are named `kraken:<reader id>` (or `kraken:blla`, the line finder alone).
 KRAKEN_MODEL_PREFIX = "kraken:"
-#: Pages of one Kraken model the model lane runs together for a person's run, memory allowing (r1's measurement: 6.3 s a
-#: page against 9.7-10.2 s one at a time). Background work stays at one.
-KRAKEN_PAGES_TOGETHER = 2
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
@@ -2212,16 +2209,20 @@ def current_job_id() -> str | None:
 
 
 def _kraken_pages_at_once() -> int:
-    """How many Kraken pages this Mac's memory lets the lane run together now (1 when Kraken is not loaded yet)."""
+    """How many Kraken pages the lane may run together for a person's run now: r1's rule (`kraken_runtime.pages_at_once`: fast
+    priority, cores, memory), the same number the gate lets in. 1 when Kraken is not loaded yet."""
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
-    return runtime.page_fan_out(KRAKEN_PAGES_TOGETHER) if runtime is not None else 1
+    return runtime.pages_at_once(True) if runtime is not None else 1
 
 
-def _kraken_busy() -> bool:
+def _kraken_busy(queued: int = 0) -> bool:
+    """A Kraken page outside the queue is reading, or the gate is held whole. `queued` is how many Kraken jobs the model
+    lane itself runs beside the one asking: with two pages together (`activity.lane.same-model-pages-together`) they are
+    in the gate, and are not "another page"."""
     # Only if the module is loaded: when it is not, no Kraken page can be running, and importing
     # it here would cost the engine its startup time.
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
-    return runtime is not None and runtime._INFERENCE_LOCK.locked()
+    return runtime is not None and runtime._INFERENCE_LOCK.held_beside(queued)
 
 
 def _release_kraken(reason: str = "another heavy model takes the lane") -> None:
@@ -2930,9 +2931,11 @@ class _Scheduler:
         job_id, kind_name, subject, model, *_ = row
         kind = KINDS[kind_name]
         if lane.name == "local-ml":
-            if _kraken_busy():  # a Kraken page outside the queue: no second heavy model beside it
+            queued = sum(1 for other, m in list(lane.running.items())
+                         if other != job_id and (m or "").startswith(KRAKEN_MODEL_PREFIX))
+            if _kraken_busy(queued):  # a Kraken page outside the queue: no second heavy model beside it
                 wait_on(db, job_id, "Waiting for Kraken (another page is using it)")
-                while _kraken_busy():
+                while _kraken_busy(queued):
                     time.sleep(self.KRAKEN_POLL_SECONDS)
                 wait_over(db, job_id)
             if _heavy_switch(lane.loaded_model, model):
