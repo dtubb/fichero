@@ -24,7 +24,13 @@ struct SetupStagePage: View {
             // (`source.onboard.stages.shows-what-it-does`); the candidates side by side when compared.
             StageShowcaseSection(stageId: stage.id, result: tryStore?.result, useThis: useThis)
                 .environment(project?.storageService)
-            if !stage.example.isEmpty {
+            if let sample = stage.exampleFromSamples, !sample.isEmpty {
+                // An example from the person's own sample pages, once a try found one (Passages, #5805).
+                Text("From your sample pages: \(sample)")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if !stage.example.isEmpty {
                 Text(stage.example)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -74,6 +80,8 @@ struct SetupStagePage: View {
                     .environment(project?.storageService)
             }
         }
+        // A try's result changes what an open question suggests (the kinds it found): ask the engine's list again.
+        .onChange(of: tryStore?.result) { Task { await store.loadStages() } }
         // The plan's rows come from the recipe: propose it when this page needs it and there is none yet.
         .task(id: stage.id) {
             if tryStore?.stageId != stage.id {
@@ -185,6 +193,9 @@ struct SetupStageQuestionField: View {
                     ForEach(question.options ?? [], id: \.id) { option in Text(option.title).tag(option.id) }
                 }
                 .labelsHidden()
+            case .many where question.openEnded == true:
+                // A question that names kinds: every kind, typed own kinds, chips from a sample try (#5805).
+                StageKindsField(question: question, answer: $answer)
             case .many:
                 FlowLayout(spacing: 6) {
                     ForEach(question.options ?? [], id: \.id) { option in
@@ -263,12 +274,11 @@ struct StageLanguageField: View {
 }
 
 #Preview("A stage question of each kind") {
-    @Previewable @State var answer: StageAnswer? = .many(["people"])
+    @Previewable @State var answer: StageAnswer? = .many([])
     SetupStageQuestionField(
         question: Components.Schemas.StageQuestion(
             key: "entity_kinds", ask: "Which kinds of names?", kind: .many,
-            options: [.init(id: "people", title: "People"), .init(id: "places", title: "Places")],
-            readByAStep: true
+            readByAStep: true, openEnded: true, suggestions: ["people", "places"]
         ),
         answer: $answer
     )
