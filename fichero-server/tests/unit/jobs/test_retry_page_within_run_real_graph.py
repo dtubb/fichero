@@ -39,7 +39,11 @@ def test_retry_on_a_failed_page_reopens_the_same_run_and_keeps_its_earlier_pages
     import fichero_server.llm as llm
 
     llm.vision = one_page_fails  # (the `cloud` fixture restores the original at teardown)
-    run = _execute(client, workflow, pages)
+    # The run starts with the node cache ON (an ordinary run): the pages it reads are cache hits for a reopen.
+    r = client.post("/api/workflow-execution/execute", json={
+        "workflow_id": workflow.id, "inputs": {"selected_doc_ids": [d.id for d in pages]}})
+    assert r.status_code == 202, r.text
+    run = r.json()["thread_id"]
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"), 120)
     first = _account(db, run)
     assert first.pages_failed == 1 and first.pages_done == len(pages) - 1  # the starting point: one failed page
@@ -55,6 +59,8 @@ def test_retry_on_a_failed_page_reopens_the_same_run_and_keeps_its_earlier_pages
     assert "replaces" not in r.json()
     assert _wait_for(lambda: cloud.calls > before_calls, 120), "the retried page was read again by the model"
     assert _wait_for(lambda: _status(client, run) == "completed" and _account(db, run).pages_failed == 0, 120)
+    assert cloud.calls - before_calls == 1, (  # only the retried page is read; the others are cache hits
+        f"Retry on one page made {cloud.calls - before_calls} model calls, not 1")
     after = _account(db, run)
     assert after.pages_total == len(pages) and after.pages_done == len(pages), (
         "the state reducers lost the earlier pages, or the retry did not finish the run")
