@@ -98,6 +98,9 @@ def test_the_columns_added_at_open_are_checkpointed_not_left_in_the_wal(db, monk
             seen.append(sql)
             return real.execute(sql, *args)
 
+        def __getattr__(self, name):  # close() and the rest go to the real connection
+            return getattr(real, name)
+
     monkeypatch.setattr(db, "conn", Spy())
 
     db._apply_added_jobs_columns()
