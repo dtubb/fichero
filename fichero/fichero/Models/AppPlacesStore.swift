@@ -67,7 +67,7 @@ final class AppPlacesStore {
                 switch try await client.api.putPlacesApiRecipesPlacesPut(body: .json(body)) {
                 case .ok(let success): if wanted == nil { take(try success.body.json) }
                 case .unprocessableContent(let error):
-                    errorMessage = (try? error.body.json)?.detail ?? "That place was refused."
+                    errorMessage = (try? error.body.json)?.detail.sentence ?? "That place was refused."
                     failed = true
                 case .undocumented(let code, _):
                     errorMessage = "Could not change where models may run (HTTP \(code))"
