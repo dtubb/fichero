@@ -215,7 +215,10 @@ def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
     state = row["state"] if row else "cleared"
     if state == "done":
         return {**result, "state": "done"}
-    if state in ("failed", "cancelled", "cleared"):
+    if state == "cancelled":  # Stop reads "stopped", not "failed" (review 337)
+        return {**result, "state": "stopped", "error": result.get("error") or "Stopped",
+                "candidates": _ended(result, "Stopped", final="stopped")}
+    if state in ("failed", "cleared"):
         why = _sentence(row.get("reason")) if row else None
         error = result.get("error") or why or "The try did not finish: try it again"
         return {**result, "state": "failed", "error": error, "candidates": _ended(result, error)}
@@ -244,7 +247,7 @@ def _file_lock(path: Path) -> threading.RLock:
         return _FILE_LOCKS.setdefault(str(path), threading.RLock())
 
 
-def _ended(result: dict[str, Any], error: str) -> list[dict[str, Any]]:
+def _ended(result: dict[str, Any], error: str, final: str = "failed") -> list[dict[str, Any]]:
     """The compared columns of a try whose job ended before it wrote its end (the engine stopped under it): each
     still-running column is failed with the try's sentence and a final progress, counting the pages it had finished,
     never left "running" at 0 of N with no why (`source.onboard.stages.try-progress-in-place`)."""
@@ -253,8 +256,8 @@ def _ended(result: dict[str, Any], error: str) -> list[dict[str, Any]]:
     for column in result.get("candidates") or []:
         if column.get("state") in ("waiting", "running"):
             made = column.get("per_page") or []
-            column = {**column, "state": "failed", "why": column.get("why") or error,
-                      "progress": finished_progress("failed", made, total, str(result.get("stage")))}
+            column = {**column, "state": final, "why": column.get("why") or error,
+                      "progress": finished_progress(final, made, total, str(result.get("stage")))}
         columns.append(column)
     return columns
 
