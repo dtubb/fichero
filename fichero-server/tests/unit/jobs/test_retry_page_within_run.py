@@ -125,3 +125,17 @@ def test_retry_in_a_stopped_run_reopens_over_the_done_pages_plus_this_one_and_ke
     assert asyncio.run(core.retry_page_in_run(run, "page-1")) == ("run-1", "reopened")
     assert reopened == [("run-1", ["doc-1", "doc-2", "doc-7"], True, True)]
     assert "adelete_thread" not in __import__("inspect").getsource(core.retry_page_in_run)
+
+
+def test_a_reopen_narrowed_to_some_documents_skips_the_other_files_of_the_runs_old_list():
+    """The M4's 3-page stopped test (72fd084a9): narrowing `selected_doc_ids` did not narrow, because the checkpoint keeps the
+    run's file list; `only_doc_ids` is carried to every file's branch, which skips a file whose document is not named."""
+    import inspect
+
+    from fichero_server.workflows import builder, runtime
+
+    assert runtime.build_initial_state({"only_doc_ids": ["a"]})["only_doc_ids"] == ["a"]
+    assert runtime.build_initial_state({})["only_doc_ids"] == []
+    source = inspect.getsource(builder)
+    assert source.count('"only_doc_ids": state.get("only_doc_ids") or []') == 2  # both fan-outs pass it on
+    assert "not part of this reopen" in source  # and the per-file branch skips the others
