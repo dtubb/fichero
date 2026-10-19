@@ -160,7 +160,7 @@ fi
   # The bundle installs with uv.lock's versions as constraints, so it equals the
   # venv the tests ran against (2026-10-19: unconstrained, it took PyMuPDF 2.0
   # and five other major jumps). pyproject's requirement_installer_args reads
-  # this file (create installs requirements too, so it comes first); check_bundle_matches_lock.py below fails on any drift.
+  # this file (create installs requirements too, so it comes first); bundle_matches_lock.py below fails on any drift.
   mkdir -p build
   uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
     --format requirements-txt -o build/lock-constraints.txt >/dev/null
@@ -168,7 +168,7 @@ fi
   # (pymeeus) cannot be met, and pip once quietly downgraded convertdate to dodge it. Build
   # those pins into wheels here; requirement_installer_args finds them with --find-links.
   rm -rf build/lock-wheels && mkdir -p build/lock-wheels
-  python3 "$ROOT_DIR/scripts/check_bundle_matches_lock.py" --sdist-only uv.lock \
+  python3 "$ROOT_DIR/scripts/bundle_matches_lock.py" --sdist-only uv.lock \
     | while read -r _pin; do
         "$(dirname "$BRIEFCASE")/python" -m pip wheel --quiet --disable-pip-version-check --no-deps -w build/lock-wheels "$_pin"
       done
@@ -231,7 +231,7 @@ KRAKEN_INSTALL_PY="$("$ROOT_DIR/scripts/find_project_python.sh" "$ROOT_DIR")"
 "$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_engine_imports_bundled.py" \
   "$ENGINE_APP/Contents/Resources/app_packages" || exit 1
 
-"$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/check_bundle_matches_lock.py" \
+"$KRAKEN_INSTALL_PY" "$ROOT_DIR/scripts/bundle_matches_lock.py" \
   "$ENGINE_APP/Contents/Resources/app_packages" "$ENGINE_DIR/uv.lock" || exit 1
 
 write_acknowledgements || exit 1

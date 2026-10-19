@@ -6,8 +6,8 @@ the venv the tests ran against. A bundled package the lock also resolves must ca
 of the lock's versions. Packages the lock does not know (Kraken, MLX, their extras) are
 installed by their own steps and are not checked here.
 
-usage: check_bundle_matches_lock.py <app_packages> <uv.lock>
-       check_bundle_matches_lock.py --sdist-only <uv.lock>   (print name==version for pins with no wheel)
+usage: bundle_matches_lock.py <app_packages> <uv.lock>
+       bundle_matches_lock.py --sdist-only <uv.lock>   (print name==version for pins with no wheel)
 """
 
 import re
