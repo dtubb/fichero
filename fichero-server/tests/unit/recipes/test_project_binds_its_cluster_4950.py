@@ -82,9 +82,18 @@ def test_a_cluster_not_set_up_here_binds_nothing(client, project, monkeypatch): 
     assert seen[-1] is None
 
 
+def _pages_may_leave(monkeypatch, allowed):
+    from fichero_server.recipes import project
+
+    monkeypatch.setattr(project, "read_project_setup", lambda library: {"answers": {"cloud_allowed": allowed},
+                                                                        "recipe": None})
+
+
 def test_a_read_placed_on_the_cluster_is_sent_there_under_its_step(db, monkeypatch):
     from fichero_server.recipes import runner
     from fichero_server.remote_read import job as read_job
+
+    _pages_may_leave(monkeypatch, True)
 
     sent, waited = [], []
     monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by: sent.append((request, started_by))
@@ -109,6 +118,22 @@ def test_a_cluster_that_refuses_fails_the_step_by_name(db, monkeypatch):
         raise NoKey("cluster rq-1: the app's key and sign-in step are not built yet (#5238)")
 
     monkeypatch.setattr(read_job, "start", refuse)
+    _pages_may_leave(monkeypatch, True)
     child, state, why = runner._run_card(db, {**KRAKEN_RUN, "place": "cluster", "target": "rq-1"}, ["p1"], {},
                                          "recipe-job", {}, "daniel")
     assert (child, state) == (None, "failed") and why and "rq-1" in why and "#5238" in why
+
+
+def test_pages_may_not_leave_said_after_start_refuses_the_cluster_step_by_name(db, monkeypatch):
+    """The plan placed the read on the cluster while pages could leave; the person then said no. The yes is read
+    when the read is sent, so nothing is sent and the step says why (review 153)."""
+    from fichero_server.recipes import runner
+    from fichero_server.remote_read import job as read_job
+
+    sent = []
+    monkeypatch.setattr(read_job, "start", lambda db, request, *, started_by: sent.append(request) or {"job_id": "x"})
+    _pages_may_leave(monkeypatch, False)
+    child, state, why = runner._run_card(db, {**KRAKEN_RUN, "place": "cluster", "target": "rq-1"}, ["p1"], {},
+                                         "recipe-job", {}, "daniel")
+    assert (child, state, sent) == (None, "failed", [])
+    assert why == "pages may not leave this Mac; this step was placed on rq-1"
