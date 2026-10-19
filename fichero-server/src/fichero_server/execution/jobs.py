@@ -46,6 +46,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import sys
 import threading
 import time
@@ -1110,6 +1111,8 @@ def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
     failed = db.execute_fetchall(
         f"SELECT reason FROM jobs WHERE kind IN ({marks}) AND state = 'failed' AND reason IS NOT NULL "
         f"AND finished_at >= ? ORDER BY finished_at DESC LIMIT 4", [*first_kinds, since])
+    if any(is_set_aside(r[0]) for r in failed):  # its own row says why, once; this one only says it is waiting on it
+        return "Waiting for thumbnails (set aside)"
     return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
@@ -1210,27 +1213,33 @@ def _stop_requested(run_id: str) -> bool:
     return cancellation_requested(run_id)
 
 
-#: How a job set aside after its interruptions begins its reason; such a row offers Resume (#5615).
-INTERRUPTED = "Interrupted "
+#: A job set aside after its interruptions says so once, short (#5844): "Stopped 3 times by the engine stopping; set
+#: aside. Resume to carry on." Such a row offers Resume (#5615). Rows stored before #5844 begin "Interrupted 3 times".
+_SET_ASIDE = re.compile(r"^(Stopped \d+ times? by the engine stopping|Interrupted \d+ times?)")
+
+
+def is_set_aside(reason: str | None) -> bool:
+    """Whether this is the reason of a job set aside after its interruptions."""
+    return bool(reason and _SET_ASIDE.match(reason))
 #: What a set-aside row offers: Retry (`POST /api/activity/jobs/{id}/retry`) carries it on from where it was.
 RESUME = "Resume"
 
 
 def _clock(at: Any) -> str:
-    return ensure_utc(at).strftime("%Y-%m-%d %H:%M UTC") if at is not None else "at a time not recorded"
+    """A time as the person reads it: the Mac's local clock, never UTC (#5844)."""
+    return ensure_utc(at).astimezone().strftime("%Y-%m-%d %H:%M") if at is not None else "at a time not recorded"
 
 
-def set_aside_reason(attempts: int, started_at: Any, found_at: Any) -> str:
-    """Why a job was set aside, in words (#5615): what interrupted it, when, and what carries it on. Only the
-    engine stopping (the app quit, or the engine or the Mac stopped) leaves a job running at an open."""
-    return (f"{INTERRUPTED}{attempts} times: the engine stopped while it ran (the app was quit, or the engine or "
-            f"the Mac stopped). Its last try started {_clock(started_at)} and was found stopped when the project "
-            f"was opened at {_clock(found_at)}; set aside. Resume carries it on from where it was")
+def set_aside_reason(attempts: int, started_at: Any = None, found_at: Any = None) -> str:
+    """Why a job was set aside, said once and short (#5844): what stopped it, that it is set aside, what carries it
+    on. Only the engine stopping (the app quit, or the engine or the Mac stopped) leaves a job running at an open;
+    the times are in the job's log, not its row."""
+    return f"Stopped {attempts} times by the engine stopping; set aside. Resume to carry on."
 
 
 def offer_for(kind: str, state: str, reason: str | None) -> str | None:
     """What a row offers: Resume for a job set aside after its interruptions that can be run again; else None."""
-    if state != "failed" or not (reason or "").startswith(INTERRUPTED):
+    if state != "failed" or not is_set_aside(reason):
         return None
     if kind not in KINDS:
         load_kinds()
@@ -1712,48 +1721,83 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     _ensure(db)
     cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
     waiting_on_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
-    # Not every waiting row (an import queues thousands) fetched and sorted per poll (#5843): the count of each
-    # (state, kind) group, and the ONE row that stands for it (the lane's pick: a person's first, then oldest).
+    # Not every waiting row (an import queues thousands) fetched and sorted per poll (#5843): the count of each group,
+    # and the few rows that stand for it. A "queue" group is a kind's running and waiting jobs as ONE row (#5839: a
+    # recipe run or a try is a thing of its own, so each keeps its row); a (waiting|paused, kind) group is the rest.
     runs = "kind NOT IN ('workflow', 'workflow-step')"
-    counts = {(state, kind): n for state, kind, n in db.execute_fetchall(
-        f"SELECT state, kind, COUNT(*) FROM jobs WHERE state IN ('waiting', 'paused') AND {runs} GROUP BY state, kind")}
-    parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs}"]
+    own = ", ".join(f"'{k}'" for k in sorted(_OWN_ROW_KINDS))
+    queued = f"(parent_id IS NULL AND kind NOT IN ({own}))"
+    really_going = "waiting_on IS NULL" if _has_column(db, "waiting_on") else "TRUE"
+    counts = {(g, kind): n for g, kind, n in db.execute_fetchall(
+        f"SELECT CASE WHEN state IN ('waiting', 'running') AND {queued} THEN 'queue' ELSE state END AS g, kind, COUNT(*) "
+        f"FROM jobs WHERE state IN ('waiting', 'paused', 'running') AND {runs} GROUP BY g, kind")}
+    parts = [f"SELECT * FROM jobs WHERE state = 'running' AND {runs} AND NOT {queued}"]
     params: list[Any] = []
-    for (state, kind) in counts:
-        first = f"{_PERSON_RANK_SQL} DESC, " if state == "waiting" else ""
-        parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)")
-        params += [state, kind]
+    for (g, kind) in counts:
+        if g == "queue":
+            # The first row of the kind (running before waiting, then the lane's pick), and one job really going,
+            # which makes the row Running.
+            parts.append(
+                f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state IN ('running', 'waiting') "
+                f"ORDER BY CASE state WHEN 'running' THEN 0 ELSE 1 END, "
+                f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, epoch_ms(created_at), rowid LIMIT 1)")
+            parts.append(f"(SELECT * FROM jobs WHERE kind = ? AND {queued} AND state = 'running' AND {really_going} LIMIT 1)")
+            params += [kind, kind]
+        elif g in ("waiting", "paused"):
+            first = f"{_PERSON_RANK_SQL} DESC, " if g == "waiting" else ""
+            parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? AND NOT {queued} "
+                         f"ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)")
+            params += [g, kind]
     parts.append(f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)")
     params.append(failed_limit)
     rows = db.execute_fetchall(
-        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, "
-        f"{waiting_on_col} FROM (" + " UNION ALL ".join(parts) + ") "
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, "
+        f"started_by, {waiting_on_col} FROM (" + " UNION ALL ".join(parts) + ") "
         "ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         # waiting rows in the order the lane will pick them (#5839): a person's first, then oldest
         f"CASE WHEN state = 'waiting' THEN -{_PERSON_RANK_SQL} ELSE 0 END, "
-        "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
+        "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END, id",  # finished: newest first
         params,
     )
     out: list[dict[str, Any]] = []
+    reps: dict[tuple[str, str], dict[str, Any]] = {}  # a row fetched twice (first and really going) folds into its group
     # Runs and their steps are listed from the run record (`/api/activity/jobs` merges them); their rows
     # are read as a tree with `tree()`. Pages carry their step as `parent_id`.
     for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on in rows:
-        # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
-        # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
-        group = (state, kind) if state in ("waiting", "paused") else None
-        if state == "waiting":
-            reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         # A running row that is waiting for something (a try whose page waits for the lane, a page held for Kraken or
         # memory) is listed as waiting until the wait ends: by the row's `waiting_on`, not by its reason's words (#5839).
         shown = "waiting" if state == "running" and waiting_on else state
+        one_row = state in ("waiting", "running") and parent_id is None and kind not in _OWN_ROW_KINDS
+        # The first row of a group stands for all of its jobs (`activity.pause.per-queue`: pausing 137 pages lists one row).
+        group = ("queue", kind) if one_row else (state, kind) if state in ("waiting", "paused") else None
+        if group is not None and group in reps:
+            rep = reps[group]
+            if shown == "running" and rep["state"] != "running":  # a job that is really going makes the row running
+                rep.update(state="running", reason=reason, subject=subject)
+            continue
+        if state == "waiting":
+            reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
+        count = counts.get(group, 1)
         row = {"id": job_id, "kind": kind, "subject": subject, "state": shown, "reason": reason,
-               "attempts": attempts, "created_at": created_at, "count": counts.get(group, 1), "parent_id": parent_id,
+               "attempts": attempts, "created_at": created_at, "count": count, "parent_id": parent_id,
                "started_by": started_by,
                # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
                "failed_at": finished_at if state == "failed" else None}
-        if group is not None and row["count"] > 1:
-            row["id"] = f"{state}:{kind}"
+        if group is not None:
+            reps[group] = row
+            if count > 1:  # a row for many jobs is the kind's queue: Stop and Pause on it reach every one not started
+                row["id"] = f"paused:{kind}" if group[0] == "paused" else f"waiting:{kind}"  # `queue_of` reads this id
         out.append(row)
+    # How many of this kind's work are already done (since its oldest job still queued was queued), so a row reads
+    # "12 of 41" (#5839). Only for the rows that stand for a whole kind.
+    for (group_kind, name), rep in reps.items():
+        if group_kind == "queue":
+            since = db.execute_fetchone(
+                "SELECT MIN(created_at) FROM jobs WHERE kind = ? AND parent_id IS NULL "
+                "AND state IN ('waiting', 'running', 'paused')", [name])[0]
+            rep["done"] = 0 if since is None else db.execute_fetchone(
+                "SELECT count(*) FROM jobs WHERE kind = ? AND parent_id IS NULL AND state = 'done' AND finished_at >= ?",
+                [name, since])[0]
     # The run each row's work is for (#5615): a page's parent is its step's row ("<run id>:<step name>"),
     # whose own parent is the run.
     parents = sorted({r["parent_id"] for r in out if r["parent_id"]})
@@ -1764,6 +1808,55 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             pkind, grand = known.get(r["parent_id"], (None, None))
             r["run_id"] = grand if pkind == "workflow-step" else r["parent_id"] if pkind in _RUN_KINDS else None
     return out
+
+
+#: How many of a kind's latest finished jobs set its measured time per item.
+MEASURED_ITEMS = 50
+
+
+def seconds_per_item(db: "Database", kind: str) -> float | None:
+    """The median seconds one job of this kind took, from its latest finished ones; None when none is measured."""
+    rows = db.execute_fetchall(
+        "SELECT epoch(finished_at) - epoch(started_at) FROM jobs WHERE kind = ? AND state = 'done' "
+        "AND started_at IS NOT NULL AND finished_at IS NOT NULL ORDER BY finished_at DESC LIMIT ?",
+        [kind, MEASURED_ITEMS])
+    times = sorted(r[0] for r in rows if r[0] is not None and r[0] >= 0)
+    return times[len(times) // 2] if times else None
+
+
+def queue_summary(db: "Database", rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The whole queue in one line (#5839): done, left and about how long is left, from `snapshot`'s one-row-per-kind
+    rows. The time counts only kinds with a measured time per item (jobs one after another, so a rough upper bound);
+    None when nothing is queued, and no time when nothing is measured."""
+    queued = [r for r in rows if r["state"] in ("waiting", "running", "paused") and r["parent_id"] is None
+              and r["kind"] not in _OWN_ROW_KINDS]
+    left = sum(r["count"] for r in queued)
+    if not left:
+        return None
+    done = sum(r.get("done") or 0 for r in queued)
+    seconds = 0.0
+    measured = False
+    for r in queued:
+        per = seconds_per_item(db, r["kind"])
+        if per is not None:
+            seconds += per * r["count"]
+            measured = True
+    return {"done": done, "left": left, "seconds_left": round(seconds) if measured else None}
+
+
+def items_of_kind(db: "Database", kind: str, *, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """One kind's queued jobs, each its own line, in the order the lane picks them (running first), for a row that
+    expands to its pages (#5839)."""
+    _ensure(db)
+    waiting_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL"
+    rows = db.execute_fetchall(
+        f"SELECT id, subject, state, reason, {waiting_col} FROM jobs WHERE kind = ? AND parent_id IS NULL "
+        "AND state IN ('waiting', 'running', 'paused') "
+        f"ORDER BY CASE WHEN state = 'running' AND {waiting_col} IS NULL THEN 0 WHEN state = 'running' THEN 1 "
+        f"WHEN state = 'waiting' THEN 2 ELSE 3 END, {_PERSON_RANK_SQL} DESC, created_at, rowid LIMIT ? OFFSET ?",
+        [kind, limit, offset])
+    return [{"id": i, "subject": subj, "state": "waiting" if state == "running" and w else state, "reason": reason}
+            for i, subj, state, reason, w in rows]
 
 
 def clear_failed(db: "Database") -> list[str]:
@@ -1782,6 +1875,9 @@ def clear_failed(db: "Database") -> list[str]:
         db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [utc_now(), *ids])
     return ids
 
+
+#: Kinds whose every job is a row of its own in Activity, however many are queued (`snapshot`).
+_OWN_ROW_KINDS = frozenset({"run-a-recipe", "try-a-stage"})
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
 LANE_WORDS = {"local-ml": "the model lane", "images": "the thumbnail lane", "remote": "the remote lane",

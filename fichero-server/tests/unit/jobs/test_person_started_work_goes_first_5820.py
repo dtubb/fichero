@@ -203,3 +203,62 @@ def test_a_stale_waiting_on_does_not_survive_the_row_starting(db, lane):
     assert _wait_for(lambda: lane.started == ["try"])
     assert [r["state"] for r in jobs.snapshot(db) if r["id"] == job_id] in (["running"], [])
     assert db.execute_fetchone("SELECT waiting_on FROM jobs WHERE id = ?", [job_id])[0] is None
+
+
+def test_a_kind_is_one_activity_row_with_the_total_running_only_while_one_is_going(db, lane):
+    jobs.set_paused(True)
+    for i in range(3):
+        jobs.enqueue(db, PERSON, f"thumb-{i}", started_by="owner")
+    rows = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert [(r["state"], r["count"]) for r in rows] == [("waiting", 3)]  # nothing is going: waiting
+
+    lane.release.set()
+    jobs.set_paused(False)
+    assert _wait_for(lambda: len(lane.started) >= 1)
+    jobs.set_paused(True)
+    rows = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert len(rows) == 1 and rows[0]["count"] == 3  # one row, the total
+
+
+def test_a_waiting_on_job_does_not_make_the_kinds_row_running(db, lane):
+    first = jobs.enqueue(db, PERSON, "a", started_by="owner")
+    assert _wait_for(lambda: lane.started == ["a"])
+    jobs.wait_on(db, first, "Waiting for Kraken (another page is using it)")
+    rows = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert [(r["state"], r["count"]) for r in rows] == [("waiting", 1)]
+    jobs.wait_over(db, first)
+    assert [r["state"] for r in jobs.snapshot(db) if r["kind"] == PERSON] == ["running"]
+
+
+def test_a_recipe_run_or_a_try_keeps_a_row_each(db, lane):
+    jobs.set_paused(True)
+    jobs.enqueue(db, WATCHED, "try-1", started_by="owner", watched=True)
+    jobs.enqueue(db, WATCHED, "try-2", started_by="owner", watched=True)
+    assert len([r for r in jobs.snapshot(db) if r["kind"] == WATCHED]) == 1  # a test kind is grouped like any
+
+
+def test_the_kinds_row_counts_what_is_done_of_the_whole_queue(db, lane):
+    jobs.set_paused(True)
+    ids = [jobs.enqueue(db, PERSON, f"page-{i}", started_by="owner") for i in range(5)]
+    for job_id in ids[:2]:  # two of the five finished after the queue was queued
+        db.execute("UPDATE jobs SET state = 'done', started_at = now(), finished_at = now() WHERE id = ?", [job_id])
+    (row,) = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert row["count"] == 3 and row["done"] == 2  # "2 of 5"
+
+
+def test_stop_on_a_row_for_many_reaches_every_job_not_started(db, lane):
+    jobs.set_paused(True)
+    ids = [jobs.enqueue(db, PERSON, f"page-{i}", started_by="owner") for i in range(3)]
+    (row,) = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert row["id"] == f"waiting:{PERSON}"
+
+    jobs.cancel_job(db, row["id"])
+
+    assert [db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [i])[0] for i in ids] == ["cancelled"] * 3
+
+
+def test_a_single_job_keeps_its_own_id(db, lane):
+    jobs.set_paused(True)
+    job_id = jobs.enqueue(db, PERSON, "only", started_by="owner")
+    (row,) = [r for r in jobs.snapshot(db) if r["kind"] == PERSON]
+    assert row["id"] == job_id
