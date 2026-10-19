@@ -268,14 +268,14 @@ def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, An
         # worked out when it is opened (`GET /api/documents/{id}/disagreement` is read-only and keeps nothing), so the
         # step has nothing to run and no model (`source.disagree.built-in-with-two-readers`, #5812, #5816).
         return [], BUILT_IN_DISAGREE
-    if not pins and step.get("built_in") and not own:
-        # Built in and one reader only: nothing to compare yet, which is the person's to fix, never a block
-        # (`source.disagree.built-in-needs-second-reader`, #5812).
-        return [], SECOND_READER
     if not pins:
         pin = own or next((s.get("model") for s in recipe.get("steps") or []
                                          if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
         if not isinstance(pin, dict) or _override(pin) is None:
+            if step.get("built_in") and not own:
+                # Built in, one reader and it cannot be sampled (Kraken): the person's to fix, never a block
+                # (`source.disagree.built-in-needs-second-reader`, #5812). A vision reader is sampled instead.
+                return [], SECOND_READER
             return [], ("it compares readers, and the plan has one that cannot be sampled: add a second reader, such "
                         "as a Correct step or a second reader pinned on this step")
         pins = [pin] * max(int(settings.get("samples", DISAGREE_SAMPLES)), 2)

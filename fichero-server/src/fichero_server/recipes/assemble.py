@@ -693,6 +693,13 @@ def _pin_link(pin: dict) -> str | None:
     return None
 
 
+def _sampleable(pin: dict[str, Any]) -> bool:
+    """Whether a reader can be asked again and again at a temperature: a vision model can, Kraken cannot."""
+    from fichero_server.recipes.start import _override
+
+    return _override(pin) is not None
+
+
 def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Find where the readers disagree is Fichero's own algorithm over the readings the plan's readers make, so it
     has no model of its own (`source.disagree.built-in-needs-second-reader`, #5812): built in, and either naming the
@@ -706,6 +713,9 @@ def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
     if len(names) >= 2:
         step["compares"] = names
         step["reasons"] = [f"Compares {names[0]} with {' and '.join(names[1:])}", "on this Mac, free; nothing is stored"]
+    elif readers and _sampleable(readers[0]["model"]):
+        # One vision reader: sampled several times at a temperature and compared with itself (`source.disagree.recipe-step`).
+        step["reasons"] = [f"Compares {names[0]} with itself, read again several times", "free if it runs on this Mac"]
     else:
         step["needs"] = "needs a second reader: tick one in Read"
         step["reasons"] = ["compares what two readers make of a line; it joins when the plan has a second reader"]
