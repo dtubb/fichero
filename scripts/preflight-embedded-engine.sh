@@ -157,6 +157,13 @@ fi
   # architectures in …/libmupdf.dylib". Briefcase's own Python build needs none
   # of these, so clear them.
   for _v in $(env | sed -n 's/^\(SWIFT_[A-Z0-9_]*\)=.*/\1/p'); do unset "$_v"; done
+  # The bundle installs with uv.lock's versions as constraints, so it equals the
+  # venv the tests ran against (2026-10-19: unconstrained, it took PyMuPDF 2.0
+  # and five other major jumps). pyproject's requirement_installer_args reads
+  # this file (create installs requirements too, so it comes first); check_bundle_matches_lock.py below fails on any drift.
+  mkdir -p build
+  uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
+    --format requirements-txt -o build/lock-constraints.txt >/dev/null
   if [ ! -d "$ENGINE_DIR/build/fichero_server/macos/app" ]; then
     "$BRIEFCASE" create macOS --app fichero_server
   fi
@@ -165,13 +172,6 @@ fi
   # briefcase `requires`, this script rebuilt "successfully", and the bundle
   # still had no rdflib. build_backend_bundle.sh has always passed -r; the
   # release path did not.
-  # The bundle installs with uv.lock's versions as constraints, so it equals the
-  # venv the tests ran against (2026-10-19: unconstrained, it took PyMuPDF 2.0
-  # and five other major jumps). pyproject's requirement_installer_args reads
-  # this file; check_bundle_matches_lock.py below fails on any drift.
-  mkdir -p build
-  uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
-    --format requirements-txt -o build/lock-constraints.txt >/dev/null
   "$BRIEFCASE" update macOS --app fichero_server -r
   "$BRIEFCASE" build macOS --app fichero_server
 )
