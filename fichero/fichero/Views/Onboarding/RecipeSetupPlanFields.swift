@@ -285,6 +285,9 @@ struct RecipeReadyFields: View {
     var keptExports: KeptExportStore?
     /// The project whose model finder opens beside a reading step (#5611); nil without a project.
     var project: LibraryManager.LibraryReference?
+    /// Start, pressed in the last box beside the total and why it waits (#5840).
+    var onStart: () -> Void = {}
+    var isStarting = false
 
     var body: some View {
         // Native grouped sections, as System Settings draws them (#5840): a box per step, then the parts.
@@ -350,8 +353,17 @@ struct RecipeReadyFields: View {
             }
             RecipeStartFields(store: store, onFix: onFix, project: project)
             OfferedJobsList(store: store)
-            if let why = store.startDisabledReason {
-                Label(why, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                if let why = store.startDisabledReason {
+                    Label(why, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isStarting { ProgressView().controlSize(.small) }
+                Button("Start", action: onStart)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!store.canStart || isStarting)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier("setup.ready.start")
             }
         case .checkOnYourPages:
             if let bakeoff {
