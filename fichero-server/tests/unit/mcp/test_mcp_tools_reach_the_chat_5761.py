@@ -30,6 +30,7 @@ class _ScriptedToolLLM:
         return self
 
     async def ainvoke(self, messages):
+        self.seen = list(messages)
         step = self._scripted.pop(0)
         return step(self) if callable(step) else step
 
@@ -127,3 +128,12 @@ def test_the_switch_itself_is_audited(client, monkeypatch, server):
     client.put(f"/api/mcp-servers/{server['id']}", json={"available_to_chat": True})
     rows = [a for a in get_app_db().list_action_audits() if a.action_name == "mcp_server.set_available_to_chat"]
     assert rows and rows[-1].target_ids == [server["id"]] and rows[-1].params["available_to_chat"] is True
+
+
+def test_a_server_that_will_not_start_is_named_to_the_chat_with_its_error_type(client, monkeypatch):
+    made = client.post("/api/mcp-servers", json={"name": "broken", "transport": "stdio", "command": "/no/such/mcp-server",
+                                                  "args": [], "enabled": True, "available_to_chat": True})
+    assert made.status_code == 200, made.text
+    llm, _ = _chat(client, monkeypatch, [_resp(content="ok")])
+    notes = [str(m.content) for m in llm.seen if "could not start" in str(getattr(m, "content", ""))]
+    assert notes and "broken (" in notes[0], notes

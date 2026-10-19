@@ -645,7 +645,8 @@ async def _run_chat_tools_loop(
     from fichero_server.actions.registry import ActionNotFoundError  # noqa: PLC0415
 
     # External MCP tools the owner has made available to chat (#5761): read-only ones, off unless switched on.
-    mcp_tools = await mcp_chat.chat_mcp_tools()
+    unavailable: dict[str, str] = {}
+    mcp_tools = await mcp_chat.chat_mcp_tools(unavailable)
     tools = chat_agent_tools() + [mcp_chat.tool_definition(tool) for _, tool in mcp_tools.values()]
     try:
         bound = llm.bind_tools(tools) if tools else llm
@@ -662,6 +663,11 @@ async def _run_chat_tools_loop(
         return getattr(response, "content", ""), []
 
     convo = list(messages)
+    if unavailable:  # the model is told which servers are down, so it does not guess at their tools
+        from langchain_core.messages import SystemMessage  # noqa: PLC0415
+
+        down = ", ".join(f"{name} ({kind})" for name, kind in unavailable.items())
+        convo.append(SystemMessage(content=f"These MCP servers could not start and offer no tools this turn: {down}."))
     tool_calls: list[ToolCall] = []
     response = None
     actor = ctx.actor or "chat"
