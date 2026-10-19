@@ -49,16 +49,29 @@ enum RemoteClientPairingError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingPairCode:
+            #if os(macOS)
+            return "Paste the invite link from the host Mac."
+            #else
             return "Scan the pairing QR code or enter a pairing code."
+            #endif
         case .missingDeviceName:
             return "Enter a device name."
         case .missingLibraryPath:
+            #if os(macOS)
+            return "This invite link does not include a shared project. Copy a new one on the host Mac."
+            #else
             return "This QR code does not include a shared project. Show a new QR code on the Mac."
+            #endif
         case .invalidInviteLink:
             return "The invite link is incomplete or invalid."
         case .libraryPathNotConfirmed:
+            #if os(macOS)
+            return "The host Mac did not confirm access to the project named in this invite link. "
+                + "Copy a fresh invite link on the host Mac and paste it again."
+            #else
             return "The Mac did not confirm access to the project named in this QR code. "
                 + "Show a fresh QR code on the Mac and scan it again."
+            #endif
         case .personRequired:
             return "This library uses Multi-user. Enter the username and password you sign in with."
         case .contractMismatch(let headline, let detail):
