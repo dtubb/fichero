@@ -80,6 +80,11 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             if say is not None:
                 say(why)
             time.sleep(WAIT_POLL_SECONDS)
+        if person and not (stop is not None and stop()) and throttle.on_battery():
+            # On battery a person's run goes slower, and says so; it does not stop (#5819).
+            if say is not None:
+                say("The Mac is on battery: going slower")
+            time.sleep(SLOWER_YIELD_SECONDS)
         if stop is not None and stop():
             break
         if say is not None:
