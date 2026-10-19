@@ -59,10 +59,10 @@ def test_named_readers_each_read_once(mac):
     assert len(sampled) == 2 and len({r["model_override"] for r in sampled}) == 2
 
 
-def test_with_no_vision_model_to_sample_the_step_is_skipped_and_says_why(mac):
+def test_with_one_reader_that_cannot_be_sampled_the_step_says_which_reader_to_add(mac):
     kraken_reader = {"id": "read", "job": "read-a-line", "model": {"zenodo": "10.5281/zenodo.13788177"}}
     plan = plan_start(_recipe(LINES, kraken_reader, {"id": "doubt", "job": DISAGREE_JOB}), stays_local=True)
 
     assert not [r for r in plan["runs"] if r["job"] == DISAGREE_JOB]
     (skipped,) = [s for s in plan["skipped"] if s["step"] == "doubt"]
-    assert "vision model" in skipped["why"] and skipped["fix"] == "choose-model"
+    assert "add a second reader" in skipped["why"] and skipped["fix"] is None, "never a model to choose for this step"
