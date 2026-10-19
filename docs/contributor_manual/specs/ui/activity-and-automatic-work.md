@@ -1379,6 +1379,15 @@ and node, not by job); a retry action for failed pages.
   `VNRecognizeTextRequest` per page carries the lines and the words (a per-line Apple read is a different feature, and gap
   escalation adds a request only for a band Vision missed)
   (`fichero-server/tests/unit/workflows/test_apple_vision_runs_beside_kraken.py`; the job lane already runs a Vision page beside a Kraken page, `tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py`).
+- `activity.read.page-read-once` — **[PARTIAL]** (owner, 2026-10-19 20:29, `briefs/kraken-slow-respawn-2026-10-19.md`) a page is read ONCE. A
+  GET never runs a model: `GET /api/segments/document/{id}/text` (`document_text`) only derives the text from the passes the page
+  already has, so opening a page's text while a run reads it starts no recognise (`fichero-server/tests/unit/api/test_document_text_never_reads.py`).
+  The 20:24 dumps show ONE recognise (the lane's job, `jobs._work` -> `recognize_to_geometry`; the second `recognize_to_geometry`
+  frames are the same job's waiting thread), and the request thread in `working_pass` only deriving text; what held the loop
+  8-10 s was the route being `async def` and running that derivation (library DB queries, the library lock behind the lane's
+  writes) ON the event loop; it runs on a worker thread now, same test file. NOT built: the owner's "the view shows the page as
+  waiting or reading in that run, and a page nothing covers queues one de-duplicated job on the model lane". The text view has no
+  such state today (a page with no pass answers an empty text); it needs the product shape first.
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
