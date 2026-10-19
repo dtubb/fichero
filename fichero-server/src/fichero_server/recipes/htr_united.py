@@ -9,6 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from fichero_server.core.tls import https_context
+
+# https_context: the embedded Python has no system CA store (#5809).
 CATALOG_URL = "https://raw.githubusercontent.com/HTR-United/htr-united/master/catalog.json"
 CATALOG_FILE = "htr-united.json"
 #: `script-type` values whose pages are print; the rest hold some handwriting.
@@ -23,7 +26,7 @@ def _store_root() -> Path:
 
 def _harvest() -> dict[str, dict[str, Any]]:
     """The catalogue as GitHub serves it, {id: entry}. The one network boundary here; tests replace it."""
-    with urllib.request.urlopen(CATALOG_URL, timeout=30) as response:  # noqa: S310 (a fixed https URL)
+    with urllib.request.urlopen(CATALOG_URL, timeout=30, context=https_context()) as response:  # noqa: S310 (a fixed https URL)
         return json.load(response)
 
 
