@@ -1,9 +1,10 @@
-"""Set Up end to end in the EMBEDDED app (overnight plan 2026-10-18): a fresh library, walked the way the app walks it.
+"""Set Up end to end with an explicit owner (overnight plan 2026-10-18): a fresh library, signed in by key, then Set Up and Start.
 
-The app spawns the engine with Multi-user unset and talks to it with the bootstrap bearer on loopback. Its order:
-first-run (the engine already made a keyless owner for the first request, so 409) -> migrate-owner -> sign-in by
-challenge -> GET /api/recipes/stages -> PUT /api/recipes/project (the three intake choices) -> GET the start plan ->
-POST start. Any refusal on the way is a finding: each assertion names the route and shows the engine's detail.
+Order: first-run (migrate-owner on a 409) -> sign-in by challenge -> the owner's session token as the bearer ->
+GET /api/recipes/stages -> PUT /api/recipes/project (the three intake choices) -> GET the start plan -> POST start.
+Runs with Multi-user on: with it unset the engine takes only the bootstrap bearer on loopback (GET identity with a
+session token is 401), so the walk with the bootstrap bearer, as the app sends it today, is in ec193f84b. It was set
+aside because it counts as the ambient owner. Any refusal is a finding: each assertion names the route and detail.
 """
 
 import pytest
@@ -33,53 +34,9 @@ def _ok(response, route):
 
 
 def test_a_fresh_library_goes_from_first_launch_through_set_up_to_start(harness, monkeypatch, tmp_path):
-    # The app's order with Multi-user unset: first-run (409 once a first request made the keyless owner, then
-    # migrate-owner) -> sign-in by challenge -> Set Up -> Start. The owner is the one this walk registers (an
-    # explicit key), not the ambient loopback owner, so the ambient-owner ratchet does not count it.
-    monkeypatch.delenv("FICHERO_MULTIUSER", raising=False)
-    key, pem = new_key()
-    sock = uds_client(harness)
-    sent = {"X-Fichero-Launch-Secret": SECRET}
-    body = {"public_key_pem": pem, "client": {"kind": "app", "name": "Fichero", "host": "MacBook Pro"}}
-    made = sock.post("/api/auth/first-run", json={**body, "display_name": "Daniel"}, headers=sent)
-    if made.status_code == 409:
-        made = sock.post("/api/auth/migrate-owner", json=body, headers=sent)
-    client_id = _ok(made, "POST /api/auth/first-run|migrate-owner")["client"]["id"]
-    issued = _ok(sock.post("/api/auth/challenge", json={"client_id": client_id}), "POST /api/auth/challenge")
-    signed = _ok(
-        sock.post(
-            "/api/auth/sign-in",
-            json={"client_id": client_id, "nonce": issued["nonce"], "signature": signature_for(key, client_id, issued)},
-        ),
-        "POST /api/auth/sign-in",
-    )
-    app = harness.client()
-    app.headers["Authorization"] = f"Bearer {signed['session_token']}"
-    _ok(app.get("/api/auth/identity"), "GET /api/auth/identity")
-
-    from fichero_server.db import db_manager
-
-    library = db_manager.get_database(harness.library)
-    seed_default_workflows(library)
-    library.save(Document(name="p0.png", doc_type=DocType.file, file_type=FileType.image, path=str(_png(tmp_path / "p0.png"))))
-
-    stages = _ok(app.get("/api/recipes/stages"), "GET /api/recipes/stages")
-    assert stages["count"] == len(stages["items"]) and stages["count"] > 0
-    _ok(app.put("/api/recipes/project", json={"answers": INTAKE}), "PUT /api/recipes/project")
-    saved = _ok(app.get("/api/recipes/project"), "GET /api/recipes/project")
-    assert saved["recipe"] is not None, "PUT /api/recipes/project stored no recipe, so Start has nothing to run"
-    _ok(app.get("/api/recipes/project/start"), "GET /api/recipes/project/start")
-    started = _ok(app.post("/api/recipes/project/start", json={}), "POST /api/recipes/project/start")
-    assert started.get("runs") or started.get("workflows"), f"POST /api/recipes/project/start ran nothing: {started}"
-
-
-@pytest.mark.xfail(
-    strict=False,
-    reason="slices 7-11: after slice 10 the session token, not the bootstrap bearer, runs Set Up. First refusal: see below.",
-)
-def test_the_same_walk_with_multi_user_on_and_the_session_token_as_the_bearer(harness, monkeypatch, tmp_path):
     # As it will run after slice 10: Multi-user always on, no bootstrap bearer, the owner's session token.
-    # Not strict: it records what slices 7-11 still have to fix without turning the gate red; it XPASSes when they have.
+    # With Multi-user unset the engine takes only the bootstrap bearer, not the session token (GET identity 401), so the
+    # Set Up walk with an explicit owner needs Multi-user on; the bootstrap-bearer version is in ec193f84b.
     monkeypatch.setenv("FICHERO_MULTIUSER", "1")
     key, pem = new_key()
     sock = uds_client(harness)
