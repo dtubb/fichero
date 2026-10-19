@@ -169,6 +169,26 @@ def read_result(db: Any, stage: str, recipe: dict[str, Any] | None) -> dict[str,
         from fichero_server.recipes import bakeoff
 
         result["comparison"] = bakeoff.result(db, library, result["bakeoff"])
+    return _following_its_job(db, result)
+
+
+def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
+    """A result still "waiting" reads as its job is: done, or failed with the job's sentence (or that it is gone), so
+    the app's spinner stops and Compare is not held off for ever by a try that ended (#5806)."""
+    from fichero_server.execution import jobs
+
+    job_id = result.get("job_id")
+    if result.get("state") not in ("waiting", "running") or not job_id:
+        return result
+    row = jobs.read_job(db, job_id)
+    state = row["state"] if row else "cleared"
+    if state == "done":
+        return {**result, "state": "done"}
+    if state in ("failed", "cancelled", "cleared"):
+        why = _sentence(row.get("reason")) if row else None
+        error = result.get("error") or why or "The try did not finish: try it again"
+        return {**result, "state": "failed", "error": error}
+    return {**result, "state": state if state == "running" else result["state"]}
     return result
 
 
@@ -261,11 +281,14 @@ def start_try(db: Any, stage_id: str, setup: dict[str, Any], *, page_ids: list[s
     own_plan = runnable[0][1]
     columns = [_column(card, plan) for card, plan in tried if card is not None]
     register_job_kinds()
-    job_id = jobs.enqueue(db, TRY_KIND, f"{stage_id}:{uuid.uuid4().hex[:8]}", started_by=started_by, watched=True,
-                          detail=json.dumps({"stage": stage_id, "pages": ids}))
-    result.update(job_id=job_id, how="its own steps on a copy of these pages",
+    # The result file is there before the job is queued: a job picked up at once reads it (#5806, the 07:51 failure).
+    result.update(how="its own steps on a copy of these pages",
                   models=[{"steps": w["steps"], "model": w["model_override"], "where": w["runs_on"]}
                           for w in own_plan["workflows"]], cost=own_plan["estimate"], candidates=columns)
+    _write(library, stage_id, result)
+    job_id = jobs.enqueue(db, TRY_KIND, f"{stage_id}:{uuid.uuid4().hex[:8]}", started_by=started_by, watched=True,
+                          detail=json.dumps({"stage": stage_id, "pages": ids}))
+    result = {**json.loads(_result_path(library, stage_id).read_text(encoding="utf-8")), "job_id": job_id}
     _write(library, stage_id, result)
     return result
 
