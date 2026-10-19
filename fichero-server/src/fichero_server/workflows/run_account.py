@@ -236,7 +236,8 @@ async def _checkpoint(db: Any, thread_id: str) -> tuple[dict[str, Any], list[Any
 
     # Opened off the loop (the connect and the table setup wait on the database) and closed when the read ends: a
     # poll opened one per call and never closed it, 121 in a 34-minute run (RSS investigation, #5843).
-    checkpointer = await asyncio.to_thread(AsyncDuckDBCheckpointer.from_db_path, db.path)
+    checkpointer = await asyncio.to_thread(
+        lambda: AsyncDuckDBCheckpointer.from_db_path(db.path, setup_once=True))
     async with checkpointer:
         found = await checkpointer.aget_tuple({"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
     if not found:

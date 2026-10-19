@@ -73,6 +73,10 @@ class JsonCheckpointSerializer(SerializerProtocol):
         return self._serde.loads_typed((serde_type.decode("ascii"), payload))
 
 
+#: Files whose checkpoint tables a reader's `from_db_path(setup_once=True)` has made in this process.
+_TABLES_SET_UP: set[str] = set()
+
+
 class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
     """
     Async DuckDB implementation of LangGraph checkpointer.
@@ -104,6 +108,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         conn: duckdb.DuckDBPyConnection,
         serde: SerializerProtocol | None = None,
         keep_last_only: bool = False,
+        setup: bool = True,
     ):
         """
         Initialize checkpointer with DuckDB connection.
@@ -111,6 +116,7 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         Args:
             conn: DuckDB connection
             serde: Serializer for checkpoint data (defaults to JsonPlusSerializer)
+            setup: create the checkpoint tables if missing; a reader that has seen them made passes False
             keep_last_only: a save drops the thread's earlier checkpoints and their writes, so a run holds one
                 checkpoint, not one per superstep (#5376, `activity.run.checkpoints-pruned`)
         """
@@ -124,11 +130,13 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         self.conn = conn
         self.keep_last_only = keep_last_only
         self._lock = threading.RLock()
-        self._setup()
+        if setup:
+            self._setup()
         logger.info("Initialized DuckDB checkpointer")
 
     @classmethod
-    def from_db_path(cls, db_path: str | Path, *, keep_last_only: bool = False) -> "AsyncDuckDBCheckpointer":
+    def from_db_path(cls, db_path: str | Path, *, keep_last_only: bool = False,
+                     setup_once: bool = False) -> "AsyncDuckDBCheckpointer":
         """
         Create checkpointer from database path.
 
@@ -142,7 +150,15 @@ class AsyncDuckDBCheckpointer(BaseCheckpointSaver):
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         conn = connect_utc(str(db_path))
-        return cls(conn, keep_last_only=keep_last_only)
+        if not setup_once:
+            return cls(conn, keep_last_only=keep_last_only)
+        # A reader's poll: the tables are created the first time this process opens the file, not on every poll
+        # (a read needs no DDL, and each CREATE waited on the database's write lock).
+        key = str(db_path)
+        first = key not in _TABLES_SET_UP
+        checkpointer = cls(conn, keep_last_only=keep_last_only, setup=first)
+        _TABLES_SET_UP.add(key)
+        return checkpointer
 
     def _setup(self) -> None:
         """Create checkpoint tables if they don't exist."""
