@@ -277,6 +277,16 @@ class LeftOffStep(BaseModel):
         "`card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"))
 
 
+class RecipeChange(BaseModel):
+    """One step a fresh assembly would add, take out or run differently from the project's saved recipe."""
+
+    step: str
+    kind: Literal["added", "removed", "changed"]
+    words: str = Field(description="the change in a sentence: 'Work out dates would be added'")
+    was: Optional[dict[str, Any]] = Field(default=None, description="the saved step's model")
+    now: Optional[dict[str, Any]] = Field(default=None, description="the fresh step's model")
+
+
 class AssembledRecipe(BaseModel):
     # Optional so older clients keep decoding; present so a recipe saved from this answer is a
     # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
@@ -291,6 +301,9 @@ class AssembledRecipe(BaseModel):
         "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the "
         "cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the "
         "assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"))
+    changes: list[RecipeChange] = Field(default_factory=list, description=(
+        "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written "
+        "(source.onboard.regen-shows-diff)"))
     gaps: list[str]
     by_hand: list[ByHandJob] = Field(default_factory=list, description=(
         "jobs the answers bring that Start cannot run by itself, so never steps; each with why and the tool that "
@@ -436,6 +449,24 @@ async def list_stages(request: Request) -> SetupStageList:
     items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
     return SetupStageList(items=items, count=len(items),
                           money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
+
+
+def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
+    """The cluster the project binds its cluster steps to (`answers.cluster`, by the name Set Up shows), as its id;
+    None unless it is one of `clusters`, those set up here that this caller may see (owner-only, review 124)."""
+    from fichero_server.recipes.answers import CLUSTER
+
+    name = (answers or {}).get(CLUSTER)
+    if not name or name not in clusters:
+        return None
+    from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.db.app import get_app_db
+
+    try:
+        return next((str(cid) for cid, c in _load_clusters(get_app_db()).items()
+                     if str(c.get("name") or c.get("cluster_id") or "a cluster") == name), None)
+    except Exception:  # noqa: BLE001 -- the settings cannot be read: no cluster, never a failed plan
+        return None
 
 
 def _money_and_place(answers: dict[str, Any], clusters: list[str]) -> MoneyAndPlace:
@@ -837,6 +868,14 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         if sample_is_text(db_manager.get_database(str(library))):
             answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
+    if library is not None:
+        from dataclasses import replace
+
+        from fichero_server.recipes.project import read_noise_band
+
+        band = read_noise_band(library)
+        if band["measured"]:  # measured readers tie inside the project's own band (#4950, #5692)
+            a = replace(a, noise_band=band["value"])
     recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     if saved.get("overrides"):
@@ -950,8 +989,17 @@ async def assemble_recipe(
         gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
-        already_text=recipe.get("already_text"),
+        already_text=recipe.get("already_text"), changes=_changes(library, recipe),
     )
+
+
+def _changes(library: Optional[Path], fresh: dict) -> list[RecipeChange]:
+    """What the fresh assembly would change in the open project's saved recipe (none when there is no project, or no
+    saved recipe: then everything is new and nothing is a change)."""
+    from fichero_server.recipes.diff import diff_recipes
+
+    saved = read_project_setup(library)["recipe"] if library else None
+    return [RecipeChange(**c) for c in diff_recipes(saved, fresh)] if saved else []
 
 
 class CheckRequest(BaseModel):
@@ -1014,6 +1062,9 @@ class CandidateDownload(BaseModel):
     model: str = Field(description="the model's id in that runtime")
     action: str = Field(description="the action to invoke (model.download, a download-model job on the network lane)")
     params: dict[str, Any]
+    downloading: bool = Field(default=False, description="a download-model job is already fetching it (#5791)")
+    job_id: Optional[str] = Field(default=None, description="that job, as Activity lists it, while downloading (#5791)")
+    progress: Optional[str] = Field(default=None, description="how far it has got, as the job last said it (#5791)")
 
 
 class CandidateAvailability(str, Enum):
@@ -1338,6 +1389,18 @@ async def model_candidates(
             return f"CER {c.cer_measured_here * 100:.1f}% on your pages"
         return "unmeasured on your pages until a bake-off measures it"
 
+    # Each download under way carries its Activity job and progress, so the sheet shows it under way (#5791).
+    downloads = {c.id: candidate_download(c) if c.runs_here else None for c in cards}
+    if library_path:
+        from fichero_server.recipes.start import mark_downloads_under_way
+
+        mark_downloads_under_way(get_library_database(request, library_path), [d for d in downloads.values() if d])
+
+    def availability_words(c: Any) -> str:
+        said = candidate_availability(c)[1]
+        d = downloads.get(c.id)
+        return f"Downloading{': ' + d['progress'] if d.get('progress') else ''}" if d and d.get("downloading") else said
+
     items = [ModelCandidate(
         id=c.id, name=c.note.strip().rstrip(".") or c.id, source=c.source,
         offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
@@ -1348,9 +1411,9 @@ async def model_candidates(
         size=size_words(c.size_gb), cer_published=c.cer_published,
         cer_measured_here=c.cer_measured_here, measured=measured(c), in_recipe_rules=not c.offered_only,
         rule_rank=rank.get(c.id), refused=refused(c), needs_permission=needs_permission(c, a),
-        installed=candidate_installed(c), download=candidate_download(c) if c.runs_here else None,
+        installed=candidate_installed(c), download=downloads[c.id],
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
-        availability_words=candidate_availability(c)[1], chosen=c.id == chosen_id, fit=fit(c),
+        availability_words=availability_words(c), chosen=c.id == chosen_id, fit=fit(c),
     ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
@@ -1446,6 +1509,12 @@ class StartWorkflow(BaseModel):
     runs_on: str
 
 
+class StartLensCost(BaseModel):
+    lens: str
+    on: bool
+    cost_per_page_usd: Optional[float] = Field(description="one call a page: 0 on this Mac; null when unpriced")
+
+
 class StartEstimateRun(BaseModel):
     workflow: str
     steps: list[str]
@@ -1458,6 +1527,12 @@ class StartEstimateRun(BaseModel):
     memory: Optional[str] = Field(default=None, description=(
         "a run on this Mac's model server: the model's memory need, how many pages at once it reads on this Mac, "
         "and the peak that comes to (#5537); null for any other run"))
+    calls_per_page: Optional[int] = Field(default=1, description=(
+        "model calls each page takes: the review makes one for each pass it runs, one a lens on (#5723); any other "
+        "run, one; null when a review's passes cannot be counted, and then `cost_usd` is null too, never $0"))
+    lenses: list[StartLensCost] = Field(default_factory=list, description=(
+        "the review's lenses, on or off, each with what it costs a page, so turning one on or off is priced before "
+        "Start (#5723); empty for any other run"))
 
 
 class StartEstimate(BaseModel):
@@ -1502,6 +1577,9 @@ class StartRun(BaseModel):
     provider_override: Optional[str] = None
     model_override: Optional[str] = None
     layer: Optional[str] = None
+    how: Optional[str] = Field(default=None, description=(
+        "how the step works, in the engine's words, for a step that runs no model (Work out dates); the app shows "
+        "it as given (`source.onboard.setup-says-what-is-happening`, #5791)"))
     check: Optional[str] = Field(default=None, description=(
         "a check card's kind of check (CheckRunRequest.check): 'tie-text-to-lines' ties the page reading to "
         "the page's lines with a Kraken reader (#5444); none: the checker model reads each proposal"))
@@ -1583,6 +1661,9 @@ class StartDownload(BaseModel):
         "land (#5660)"))
     progress: Optional[str] = Field(default=None, description="how far the download has got, as its job last said it")
     job_id: Optional[str] = Field(default=None, description="the download-model job fetching it, while downloading")
+    sentence: Optional[str] = Field(default=None, description=(
+        "the download in words: 'Downloading X: 1.2 GB of 5.6 GB; its steps wait for it.', or 'X is not on this Mac "
+        "yet (60 MB): Start downloads it, and its steps wait for it.'; shown as given (#5791)"))
 
 
 class StartDownloadItem(BaseModel):
@@ -1767,7 +1848,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
-    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local)
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local,
+               bound_cluster=_bound_cluster(setup["answers"], clusters))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
@@ -1887,6 +1969,9 @@ class StartParams(BaseModel):
                             "their output (`source.recipe.done-is-not-redone`)")
     folder_id: Optional[str] = Field(default=None, description="run on this folder alone "
                                      "(`source.recipe.folder-scoped-start`); null: the whole project")
+    clusters: list[str] = Field(default_factory=list, description="the clusters set up here that the person pressing "
+                                "Start may use, by name (the route's own, owner-only): the project's cluster binds "
+                                "only to one of them")
 
 
 class StartRequest(BaseModel):
@@ -1916,8 +2001,8 @@ async def start_project(
     The response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is."""
     folder_id = request.folder_id if request else None
     try:
-        registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id},
-                        ctx)
+        registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
+                                              "clusters": _cluster_names(http)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StartPlan(**_as_started(db, _start_plan(db, folder_id, clusters=_cluster_names(http))))
@@ -2039,7 +2124,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         record = None
     else:
         try:
-            plan = _start_plan(db, params.folder_id)
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if plan["refusals"]:

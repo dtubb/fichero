@@ -41,6 +41,13 @@ final class RequestBodyEncodingTests: XCTestCase {
         XCTAssertNil(obj["enabled"])
     }
 
+    func testUpdateMCPServerEncodesAvailableToChatSnakeCase() throws {
+        let req = UpdateMCPServerRequest(availableToChat: true)
+        let obj = try encodeToDict(req)
+        XCTAssertEqual(obj["available_to_chat"] as? Bool, true)  // ← snake_case
+        XCTAssertNil(obj["enabled"])
+    }
+
     // MARK: - UpdateProviderRequest
 
     func testUpdateProviderEncodesSnakeCaseAndOmitsNil() throws {

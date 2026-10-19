@@ -392,6 +392,12 @@ class AppDatabase:
                 self.conn.execute(f"ALTER TABLE actionaudits ADD COLUMN {_col} {_type}")
                 self.conn.execute("CHECKPOINT")
 
+        # An external MCP server's tools reach the in-app chat only when the owner switches this on (#5761).
+        _mcp_cols = {row[1] for row in self.conn.execute("PRAGMA table_info(mcp_servers)").fetchall()}
+        if "available_to_chat" not in _mcp_cols:
+            self.conn.execute("ALTER TABLE mcp_servers ADD COLUMN available_to_chat BOOLEAN DEFAULT FALSE")
+            self.conn.execute("CHECKPOINT")
+
         _invite_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
         }
@@ -2091,10 +2097,11 @@ class AppDatabase:
                 """
                 INSERT INTO mcp_servers (
                     id, name, description, transport, command, args, env,
-                    url, headers, tool_name_prefix, enabled, updated_at
+                    url, headers, tool_name_prefix, enabled, updated_at, available_to_chat
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
+                    available_to_chat = excluded.available_to_chat,
                     name = excluded.name,
                     description = excluded.description,
                     transport = excluded.transport,
@@ -2120,6 +2127,7 @@ class AppDatabase:
                     server.tool_name_prefix,
                     server.enabled,
                     utc_now(),
+                    bool(server.available_to_chat),
                 ],
             )
             self.conn.commit()
@@ -2152,6 +2160,7 @@ class AppDatabase:
             enabled=result[10],
             created_at=ensure_utc(result[11]),
             updated_at=ensure_utc(result[12]),
+            available_to_chat=bool(result[13]) if len(result) > 13 else False,
         )
 
     def query_mcp_servers(self, **filters):
@@ -2190,6 +2199,7 @@ class AppDatabase:
                     enabled=row[10],
                     created_at=ensure_utc(row[11]),
                     updated_at=ensure_utc(row[12]),
+                    available_to_chat=bool(row[13]) if len(row) > 13 else False,
                 )
             )
 

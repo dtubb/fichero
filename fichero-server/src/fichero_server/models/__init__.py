@@ -1896,6 +1896,7 @@ class MCPServer(BaseModel):
     # Tool configuration
     tool_name_prefix: bool = True  # Prefix tool names with server name
     enabled: bool = True  # Server enabled/disabled
+    available_to_chat: bool = False  # Owner's opt-in: its read-only tools reach the in-app chat agent (#5761)
 
     # Metadata
     created_at: datetime = Field(default_factory=utc_now)

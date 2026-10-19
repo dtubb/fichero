@@ -77,6 +77,32 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
+def how_it_works(job: str) -> str | None:
+    """How a step that runs no model works, in the engine's words, sent on its run (`how`) so the app shows the sentence
+    and never writes it (`source.onboard.setup-says-what-is-happening`, #5791): the job's topic text after "How it
+    works:" (`recipes/seed/topics.yaml`, the one place it is written), or None when the topic gives none."""
+    from fichero_server.recipes.topics import get_topic
+
+    topic = get_topic(job)
+    marker = "How it works:"
+    if topic is None or not topic.long.startswith(marker):
+        return None
+    said = topic.long[len(marker):].strip()
+    return said[:1].upper() + said[1:]
+
+
+def download_sentence(download: dict[str, Any]) -> str:
+    """One download in words: under way (with how far), or still to start (with its size), and that its steps wait."""
+    from fichero_server.recipes.discovery import size_words
+
+    name = download.get("name") or download["model"]
+    if download.get("downloading"):
+        progress = download.get("progress")
+        return f"Downloading {name}" + (f": {progress}" if progress else "") + "; its steps wait for it."
+    size = size_words(download["size_mb"] / 1000) if download.get("size_mb") else "size not stated"
+    return f"{name} is not on this Mac yet ({size}): Start downloads it, and its steps wait for it."
+
+
 _NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder", "prepare-the-image"})
 #: Search: the page's text embedded by the embed job that also follows every correction
 #: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
@@ -99,7 +125,10 @@ _NO_TOOL_YET = "nothing in Fichero does this yet, by hand or by itself"
 #: Setup's answers under a purpose (`answers.job_answers`) -> the setting of the step they configure (#5478).
 JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
-                       "translate-transliterate-normalise": ("normalise_how_far", "target")}
+                       "translate-transliterate-normalise": ("normalise_how_far", "target"),
+                       "correct": ("review_lenses", "lenses")}
+#: Job answers whose empty list says "none of them", never "not answered".
+_EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
 _ENTITY_SECTIONS = {"people": "people", "places": "places", "organisations": "organizations",
                     "organizations": "organizations", "events": "events", "dates": "dates"}
@@ -370,8 +399,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         pin = step.get("model") or {}
         settings = dict(step.get("settings") or {})
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
-        if answer and setting not in settings and (job_answers or {}).get(answer) not in (None, "", []):
-            settings[setting] = job_answers[answer]
+        given = (job_answers or {}).get(answer) if answer else None
+        # An empty list is an answer where it turns things off (every review lens off, #5723); elsewhere it is none.
+        if (answer and setting not in settings and given not in (None, "")
+                and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
+            settings[setting] = given
         runs_on = step.get("runs_on") or "this-mac"
         if job == EMBED_JOB:
             from fichero_server.db.embeddings import search_embedder
@@ -446,6 +478,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": workflow_id, "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
+        if (how := how_it_works(job)) is not None:
+            entry["how"] = how
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
                 skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}",
@@ -518,6 +552,16 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      "tick a kind of name it finds under the purpose in the project's setup")
                 continue
             entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+        if job == "correct" and settings.get("lenses") is not None:
+            # The review's lenses turned on or off in setup (#5723), in the profiles' order.
+            from fichero_server.recipes.review_profiles import lens_ids
+
+            lenses = [lens for lens in lens_ids() if lens in settings["lenses"]]
+            if not lenses:
+                skip(sid, f"{label}: every lens of the review is turned off, so it has nothing to look for",
+                     "turn a lens on under the purpose in the project's setup")
+                continue
+            entry["lenses"] = lenses
         runs.append(entry)
     for item in recipe.get("by_hand") or []:
         if only is None or item.get("job") in only:
@@ -541,6 +585,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)
     if db is not None:
         mark_downloads_under_way(db, downloads)
+    for download in downloads:
+        download["sentence"] = download_sentence(download)
     # A model that is not here never refuses Start: Start fetches it itself and its steps wait for it (#5664,
     # ruled 2026-10-11: Set Up never downloads). Only a model that cannot be fetched at all refuses, below.
     waiting = [_downloading(d) for d in downloads if d.get("downloading")]
@@ -563,14 +609,21 @@ def place_runs(runs: list[dict[str, Any]], pages: int, *, cloud_allowed: bool, b
                pages_per_second: float | None = None) -> list[dict[str, Any]]:
     """Each read run says where it runs (`place`, `target`, `why`) and what a run that size costs (`sizing`), for
     its step row (`source.recipe.placement-by-scale`, #5589). With no measured rate the sizing says a pilot measures
-    it. A cluster is bound to a step by nothing yet (`runs-on-binds-to-a-target`), so `bound_cluster` is None."""
+    it. `bound_cluster` is the project's cluster (`answers.cluster`, `runs-on-binds-to-a-target`), its id. ponytail:
+    only a run with one Kraken reader goes there (the runner sends it as a read-at-scale run); a vision reader's
+    cluster build, and one reader per material, stay here and say so."""
     from fichero_server.recipes.placement import place_step
     from fichero_server.remote_read.sizing import size_run
 
     for run in runs:
         if run.get("job") != "read-a-line":
             continue
-        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster))
+        sendable = run.get("provider_override") == KRAKEN_READER_PROVIDER and not run.get("readers")
+        run.update(place_step(pages, pages_may_leave=cloud_allowed, bound_cluster=bound_cluster if sendable else None))
+        unsent = bound_cluster and not sendable and run["place"] == "this-mac"
+        if unsent and run["why"].endswith("set up for this project"):
+            run["why"] = (f"{pages:,} pages would suit the cluster {bound_cluster}, but only a single Kraken reader is "
+                          "sent there yet, not a vision reader or one reader per material")
         try:
             run["sizing"] = size_run(pages, pages_per_second=pages_per_second or 0)
         except ValueError:
@@ -1060,25 +1113,38 @@ def estimate(workflows: list[dict[str, Any]], pages: int) -> dict[str, Any]:
     Local runs cost nothing; a cloud run is priced with the workflow estimate's per-page token
     assumptions. An unpriced model is `None`, never a stand-in zero, and makes the total `None`.
     """
-    from fichero_server.workflows.model_comparison import estimate_cost
+    from fichero_server.recipes.review_profiles import lens_ids, review_passes
 
     rows, total = [], 0.0
     for w in workflows:
         runs_on = str(w["runs_on"])
-        # Only this Mac is free by its own word; a cloud call is priced by the model's listed rate; any
-        # other place (a cluster, a person's other machine) is unpriced, never $0 (#5590).
-        if runs_on.startswith("cloud"):
-            cost = estimate_cost(w["model_override"] or "", pages * _TOKENS_IN, pages * _TOKENS_OUT,
-                                 provider=w["provider_override"] or "")
-        elif runs_on in ("this-mac", ""):
-            cost = 0.0
-        else:
-            cost = None
+        review = w.get("job") == "correct"
+        # The review makes a call a page for each pass it runs, one a lens on (#5723); any other run, one.
+        # By the run's own workflow (review 160); a review whose passes cannot be counted is unpriced (#5590).
+        calls = review_passes(w["workflow"], w.get("lenses")) if review else 1
+        cost = _priced(w, pages * calls) if calls is not None else None
         basis = "unpriced" if cost is None else "free on this Mac" if not runs_on.startswith("cloud") else "the model's listed rate"
+        # ponytail: a lens a pass, as the paleographer review runs them; each lens's page costs one call.
+        per_lens = _priced(w, 1) if review and calls is not None else None
+        lenses = [{"lens": lens, "on": w.get("lenses") is None or lens in w["lenses"], "cost_per_page_usd": per_lens}
+                  for lens in lens_ids()] if review else []
         rows.append({"workflow": w["workflow"], "steps": w["steps"], "where": w["runs_on"],
-                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w)})
+                     "pages": pages, "cost_usd": cost, "basis": basis, "memory": _local_memory(w),
+                     "calls_per_page": calls, "lenses": lenses})
         total = None if total is None or cost is None else total + cost
     return {"pages": pages, "runs": rows, "total_cost_usd": total}
+
+
+def _priced(run: dict[str, Any], calls: int) -> float | None:
+    """What `calls` model calls of `run` cost. Only this Mac is free by its own word; a cloud call is priced by the
+    model's listed rate; any other place (a cluster, a person's other machine) is unpriced, never $0 (#5590)."""
+    from fichero_server.workflows.model_comparison import estimate_cost
+
+    runs_on = str(run["runs_on"])
+    if runs_on.startswith("cloud"):
+        return estimate_cost(run["model_override"] or "", calls * _TOKENS_IN, calls * _TOKENS_OUT,
+                             provider=run["provider_override"] or "")
+    return 0.0 if runs_on in ("this-mac", "") else None
 
 
 def _local_memory(run: dict[str, Any]) -> str | None:

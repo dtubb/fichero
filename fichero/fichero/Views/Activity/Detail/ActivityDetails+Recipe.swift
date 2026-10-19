@@ -48,6 +48,39 @@ extension ActivityDetails {
         let lines: [String]
         let failed: [Failed]
         let skipped: [Skipped]
+        /// A step waiting on a model download that failed (#5352).
+        var downloadFailed: [DownloadFailure] = []
+    }
+
+    /// A step waiting on a failed download: Retry the download's job, or take the step's next candidate (#5352,
+    /// `source.recipe.download-failure-waits`). Read from the run summary's `download_failed`, which the engine
+    /// words and orders; nothing is decided here.
+    struct DownloadFailure: Equatable, Identifiable {
+        struct Next: Equatable {
+            let card: String
+            let name: String
+            /// A cloud candidate until pages may leave: shown, never pressed.
+            let needsPermission: Bool
+        }
+        let steps: [String]
+        let model: String
+        let reason: String
+        let retryJobId: String
+        let next: Next?
+        var id: String { retryJobId }
+        var text: String { "\(model) did not download: \(reason)" }
+    }
+
+    /// The engine's typed `download_failed` rows; the candidate's name is the engine's, a row without a step is dropped.
+    static func downloadFailures(_ rows: [Components.Schemas.DownloadFailed]) -> [DownloadFailure] {
+        rows.compactMap { row in
+            guard !row.steps.isEmpty else { return nil }
+            let next = row.nextCandidate.map {
+                DownloadFailure.Next(card: $0.id, name: $0.name, needsPermission: $0.needsPermission)
+            }
+            return DownloadFailure(steps: row.steps, model: row.model, reason: row.reason,
+                                  retryJobId: row.retryJobId, next: next)
+        }
     }
 
     /// The stages of a recipe run's node, in order; empty for any other job.
@@ -105,6 +138,7 @@ extension ActivityDetails {
         let skipped = summary.skipped.map {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
-        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped)
+        let download = downloadFailures(summary.downloadFailed ?? [])
+        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download)
     }
 }
