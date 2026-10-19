@@ -704,6 +704,8 @@ def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Find where the readers disagree is Fichero's own algorithm over the readings the plan's readers make, so it
     has no model of its own (`source.disagree.built-in-needs-second-reader`, #5812): built in, and either naming the
     two readers it compares or saying it needs a second one. Never a "has no model" gap, never blocks Start."""
+    from fichero_server.recipes.start import line_reader_pin
+
     readers = [s for s in steps if s["job"] in {"read-a-line", "read-a-page", "correct"} and s.get("model")]
     names = [(s.get("card") or {}).get("note") or (s.get("card") or {}).get("id") or s["job"] for s in readers]
     step: dict[str, Any] = {"id": "find-where-readers-disagree", "job": "find-where-readers-disagree",
@@ -713,9 +715,11 @@ def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
     if len(names) >= 2:
         step["compares"] = names
         step["reasons"] = [f"Compares {names[0]} with {' and '.join(names[1:])}", "on this Mac, free; nothing is stored"]
-    elif readers and _sampleable(readers[0]["model"]):
+    elif (pin := line_reader_pin(steps)) is not None and _sampleable(pin):
         # One vision reader: sampled several times at a temperature and compared with itself (`source.disagree.recipe-step`).
-        step["reasons"] = [f"Compares {names[0]} with itself, read again several times", "free if it runs on this Mac"]
+        line = next(s for s in steps if s["job"] == "read-a-line" and s.get("model") == pin)
+        said = (line.get("card") or {}).get("note") or (line.get("card") or {}).get("id") or "the reader"
+        step["reasons"] = [f"Compares {said} with itself, read again several times", "free if it runs on this Mac"]
     else:
         step["needs"] = "needs a second reader: tick one in Read"
         step["reasons"] = ["compares what two readers make of a line; it joins when the plan has a second reader"]
