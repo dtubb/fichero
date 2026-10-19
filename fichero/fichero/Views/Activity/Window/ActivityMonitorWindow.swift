@@ -218,19 +218,23 @@ struct ActivityMonitorWindow: View {
                 libraryId: library.id,
                 libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
-                runRows: store.runs.map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
+                runRows: store.runs.filter { !ActivityRunStatus.finished.contains($0.status) }
+                    .map { .run($0, tree: store.runTrees[$0.threadId ?? $0.runId]) },
                 jobs: store.liveJobs
             )
         }
     }
 
-    /// The jobs the engine put in History (`ActivityStore.historyJobs`), listed under their own heading.
+    /// What has ended: the runs that finished, stopped or failed and the jobs the engine put in History
+    /// (`ActivityStore.historyJobs`), under their own heading, emptied by Clear Finished (`activity.window.history-group`).
     private var historyRows: [ActivityMonitorRow] {
         ActivityMonitorRow.sorted(libraries.flatMap { library in
             ActivityMonitorRow.group(
                 libraryId: library.id, libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
-                runRows: [], jobs: library.activityStore.historyJobs
+                runRows: library.activityStore.runs.filter { ActivityRunStatus.finished.contains($0.status) }
+                    .map { .run($0, tree: library.activityStore.runTrees[$0.threadId ?? $0.runId]) },
+                jobs: library.activityStore.historyJobs
             ).rows
         }, using: sortOrder)
     }
