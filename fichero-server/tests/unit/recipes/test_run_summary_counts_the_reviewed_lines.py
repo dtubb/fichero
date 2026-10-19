@@ -44,6 +44,23 @@ async def test_the_count_is_three_queries_however_many_pages_the_run_has(page, m
     assert one == len(calls) == 3, calls
 
 
+@pytest.mark.asyncio
+async def test_a_review_with_no_time_never_counts_as_the_newest(page, monkeypatch):  # noqa: F811
+    """`str(None)` sorted after every date, so a review with no time hid the page's newest (review 156)."""
+    from fichero_server.models import Artifact
+
+    first, second, third = _lines(page)
+    await _review(page, monkeypatch, f"{first.id} | certain | el dicho escrivano\n"
+                                     f"{second.id} | certain | vezino de la ciudad\n{third.id} | unreadable")
+    db = page["db"]
+    stray = Artifact(document_id=page["doc"].id, artifact_type="transcription_review", provider="x", model="y",
+                     content="\n".join(f"{line.id} | unreadable" for line in (first, second, third)))
+    db.save(stray)
+    db.execute("UPDATE artifacts SET created_at = NULL WHERE id = ?", [stray.id])
+
+    assert run_view.reviewed(db, [page["doc"].id]) == {"pages": 1, "lines": 3, "corrected": 1, "unreadable": 1}
+
+
 def test_a_page_with_no_review_counts_nothing(db):
     assert run_view.reviewed(db, ["no-such-page"]) == {"pages": 0, "lines": 0, "corrected": 0, "unreadable": 0}
 
