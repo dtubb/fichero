@@ -37,6 +37,8 @@ final class AppPlacesStore {
     /// Continue on the screen writes the answer, the default (this Mac only) included, so a fresh install lands at an
     /// answer and an existing one keeps working until its person gets here. False, said, if the engine refused.
     func keepAnswer() async -> Bool {
+        // A tick's PUT still in flight is awaited first: Continue never races it.
+        while sending { try? await Task.sleep(for: .milliseconds(50)) }
         if answered { return true }
         await set(.thisMac, allowed: true)  // sends the places as shown, this Mac among them
         return answered
