@@ -80,10 +80,11 @@ struct FirstLaunchLooksRightTests {
 
     // MARK: 4. An empty folder looks like an empty Finder window
 
-    @Test("an empty folder: the table's header and stripes in list and table, blank in icon, '0 items', no words")
+    @Test("an empty folder: blank in every mode (no header, no placeholder rows, #5826), '0 items', no words")
     func emptyFolder() {
-        #expect(LibraryEmptyFolder.showsTable(.list) && LibraryEmptyFolder.showsTable(.table))
-        #expect(!LibraryEmptyFolder.showsTable(.icon))
+        for mode in [ViewDisplayMode.list, .table, .icon] {
+            #expect(!LibraryEmptyFolder.showsTable(mode))
+        }
         #expect(LibraryEmptyFolder.footer(count: 0) == "0 items")
         #expect(LibraryEmptyFolder.footer(count: 1) == "1 item")
         #expect(LibraryEmptyFolder.looksLikeAnEmptyFolder(.noCollectionSelected), "a folder being browsed")
