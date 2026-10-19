@@ -97,7 +97,9 @@ _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.impor
 #: never holds the local ML lane.
 #: `recipes`: a started recipe's run (#5390), which only waits on its steps' own jobs; one at a time, so two
 #: recipes never hold each other's checks.
-LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "recipes": 1}
+#: `tries`: Set Up's stage tries (#5806), which also only wait (on a download, on their copy of the samples); two at
+#: once, so a Find Lines compare never queues behind the Read try waiting on a reader download.
+LANES = {"local-ml": 1, "images": 2, "remote": 2, "database": 1, "network": 4, "recipes": 1, "tries": 2}
 #: The one exception to the model lane's one job at a time (#5654, `compute.memory.reads-follow-memory`):
 #: calls to the engine's own model server for the model it has loaded share the lane, as many at once as
 #: that model's need and this Mac's memory allow (`local_inference.reads_at_once_for_model`, at most

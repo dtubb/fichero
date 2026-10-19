@@ -197,6 +197,12 @@ def _override(pin: dict) -> tuple[str, str] | None:
     return ("omlx", model) if model else None
 
 
+def _about(problem: str, only: set[str] | None) -> bool:
+    """Whether a recipe-check problem concerns the steps asked for: a stage's plan (`only`) is refused for its own
+    steps' problems, not another step's (#5806); the recipe's own (schema, a missing key) are everyone's."""
+    return only is None or not problem.startswith("step ") or any(f"({sid})" in problem for sid in only)
+
+
 def _pin_words(pin: dict) -> str:
     """A pin as a person reads it: its repository or DOI, else the pin itself."""
     return str(pin.get("hf") or pin.get("zenodo") or pin)
@@ -590,7 +596,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      for i, s in enumerate(recipe.get("steps") or [], start=1)
                      if s.get("id") in kept_ids and "model" in s and s["model"] is None}
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
-    refusals = [r for r in check_recipe(recipe) if r not in no_model_said]
+    refusals = [r for r in check_recipe(recipe) if r not in no_model_said and _about(r, only)]
     refusals += unrunnable
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
     downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)

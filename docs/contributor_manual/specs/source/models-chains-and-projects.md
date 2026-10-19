@@ -3110,7 +3110,7 @@ Setup
   the example in `Resources/StageShowcase` with its credit shown under it (`ShowcaseCredit`). Pinned by
   `fichero/Tests/Unit/general/Models/StageShowcaseTests.swift` and
   `fichero/Tests/Unit/general/Views/Onboarding/StageShowcasePicturesTests.swift`.
-- `source.onboard.stages.compares-candidates` — **[PARTIAL]** (#5668) a stage page shows the same sample page
+- `source.onboard.stages.compares-candidates` — **[PARTIAL]** (#5668, #5806; engine built: a stage try runs on its own lane, so a Find Lines compare never queues behind the Read try waiting on a reader download; a try waiting on a download says what for with its progress; a stage's try is refused only for its own steps, not another step's problem (`fichero-server/tests/unit/recipes/test_stage_try_does_not_wait_or_hide_5806.py`). Not built (Swift, m-ios): Compare sending its POST and showing a refusal) a stage page shows the same sample page
   done by 2 or 3 of the step's candidates side by side, each column playing the stage's picture on its own
   result with its measures under it (agreement or character error rate, time, cost: "free, on this Mac" or
   the cloud price) and Use This (the use-candidate route); Compare on These Pages runs them, the step's top
