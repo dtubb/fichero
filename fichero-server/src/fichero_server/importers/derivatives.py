@@ -25,6 +25,7 @@ what a retry can select on.
 from __future__ import annotations
 
 import contextlib
+import itertools
 import logging
 import threading
 import time
@@ -244,8 +245,10 @@ STALL_SECONDS = 60.0
 #: 233-char page on 2026-10-16 (#5807). While one is running the watchdog says what it is doing and looks again;
 #: past this ceiling with still no finish it is a hang and reports the stall.
 BUSY_CEILING_SECONDS = 900.0
-_busy: dict[str, tuple[str, float]] = {}
-_embed_model_warm = False
+#: Per library, each embed in flight (the pool runs two at once) -> (label, start). One slot per library let the
+#: first embed to finish clear the mark while the other still ran.
+_busy: dict[str, dict[int, tuple[str, float]]] = {}
+_busy_tokens = itertools.count()
 _stall_timer: threading.Timer | None = None
 
 
@@ -362,9 +365,10 @@ def _arm_stall_watchdog(library: str) -> None:
             _arm_stall_watchdog(library)
             return
         with _progress_lock:
-            busy = _busy.get(library)
-        if busy is not None and time.monotonic() - busy[1] < BUSY_CEILING_SECONDS:
-            _emit_queue_progress(library, done, total, working=busy[0])
+            flying = list(_busy.get(library, {}).values())
+        # The ceiling counts from the OLDEST start: a newer embed must not hide one that never returns.
+        if flying and time.monotonic() - min(start for _, start in flying) < BUSY_CEILING_SECONDS:
+            _emit_queue_progress(library, done, total, working=min(flying, key=lambda f: f[1])[0])
             _arm_stall_watchdog(library)
             return
         logger.error(
@@ -441,19 +445,23 @@ def _progress_expand(library: str, extra: int) -> None:
 @contextlib.contextmanager
 def _embedding(library: str | None):
     """Mark one embed as in flight, so a long one reads as work and not as a stall (#5807)."""
-    global _embed_model_warm
     if library is None:
         yield
         return
-    label = "Embedding a page" if _embed_model_warm else "Loading the search model"
+    from fichero_server.db.embeddings import embedder_loaded
+
+    label = "Embedding a page" if embedder_loaded() else "Loading the search model"
+    token = next(_busy_tokens)
     with _progress_lock:
-        _busy[library] = (label, time.monotonic())
+        _busy.setdefault(library, {})[token] = (label, time.monotonic())
     try:
         yield
-        _embed_model_warm = True
     finally:
         with _progress_lock:
-            _busy.pop(library, None)
+            flying = _busy.get(library, {})
+            flying.pop(token, None)
+            if not flying:
+                _busy.pop(library, None)
 
 
 def _embed_one(db: Database, target: Document, library: str | None) -> bool:

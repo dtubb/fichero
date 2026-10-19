@@ -197,6 +197,12 @@ class leased_embedder:  # noqa: N801 -- used as `with leased_embedder(...)`, lik
         _start_releaser()
 
 
+def embedder_loaded() -> bool:
+    """Whether an embedding model is in memory now: false before the first embed and after an idle release."""
+    with _EMBEDDER_CACHE_LOCK:
+        return bool(_EMBEDDER_CACHE)
+
+
 def release_idle_embedders(idle_seconds: float | None = None) -> list[str]:
     """Release every model no embed holds and none has used for `idle_seconds`; the names released."""
     idle = EMBEDDER_IDLE_SECONDS if idle_seconds is None else idle_seconds
