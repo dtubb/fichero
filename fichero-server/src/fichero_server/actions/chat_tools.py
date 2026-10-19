@@ -168,8 +168,14 @@ def action_tools(
     reg = reg or _global_registry
     actions = reg.all()
     if read_only:
-        actions = [action for action in actions if action.read_only]
+        # An owner-only read (mcp.call_tool) reaches the chat only by name, bound for the owner (#5761).
+        actions = [action for action in actions if action.read_only and not action.owner_only]
     return [action_tool(action) for action in actions]
+
+
+# Actions the loop dispatches itself and never offers under their own name: `mcp.call_tool` is reached only through
+# the namespaced `mcp__<server>__<tool>` tools, and only in an owner's chat (#5761).
+CHAT_HIDDEN_ACTIONS = frozenset({"mcp.call_tool"})
 
 
 def chat_agent_tools(reg: ActionRegistry | None = None) -> list[dict]:
@@ -185,7 +191,7 @@ def chat_agent_tools(reg: ActionRegistry | None = None) -> list[dict]:
     actions = [
         action
         for action in reg.all()
-        if action.read_only or action.name in CHAT_WRITE_ALLOWLIST
+        if (action.read_only or action.name in CHAT_WRITE_ALLOWLIST) and action.name not in CHAT_HIDDEN_ACTIONS
     ]
     return [action_tool(action) for action in actions]
 
@@ -238,6 +244,7 @@ def dispatch_tool_call(
     origin_window: str | None = None,
     run_id: str | None = None,
     library_path: str | None = None,
+    is_bootstrap: bool = False,
     reg: ActionRegistry | None = None,
 ) -> ActionResult:
     """Run a model-requested tool call through the audited action choke point.
@@ -266,6 +273,7 @@ def dispatch_tool_call(
         origin_window=origin_window,
         run_id=run_id,
         library_path=library_path,
+        is_bootstrap=is_bootstrap,
     )
     logger.debug(
         "chat tool dispatch: tool=%s -> action=%s actor=%s", tool_name, action_name, actor

@@ -283,6 +283,11 @@ struct SidebarView: View {
                 // A restored selection may only now resolve against the freshly
                 // built caches — reconcile it into the view mode (#2548).
                 reconcileRestoredSelection()
+                // The automation and activity loads wait for their library to load; run them again now (#5822).
+                Task { @MainActor in
+                    if FeatureManager.shared.isAutomationEnabled { await loadAutomationData() }
+                    if FeatureManager.shared.isActivityEnabled { await loadActivityData() }
+                }
             }
             .onChange(of: sidebarMode) { _, newMode in
                 // Switching sections should allow re-selecting the same item in the

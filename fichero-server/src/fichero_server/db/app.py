@@ -148,6 +148,15 @@ class AppDatabase:
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
+        #: The error TYPE of a failed device-token migration (None when it ran), shown by /api/health (#5799).
+        self.device_token_migration_error: str | None = None
+        try:
+            self.migrate_device_tokens_to_clients()
+        except Exception as exc:
+            # A failed migration must never stop the app db opening: old device tokens keep working, and the
+            # migration runs again on the next open (it is idempotent). Health says it is pending.
+            self.device_token_migration_error = type(exc).__name__
+            logger.exception("device-token migration to clients failed; continuing without it")
 
     def commit(self) -> None:
         """Commit pending app-wide database work through the typed wrapper."""
@@ -382,6 +391,12 @@ class AppDatabase:
             if _col not in _audit_cols:
                 self.conn.execute(f"ALTER TABLE actionaudits ADD COLUMN {_col} {_type}")
                 self.conn.execute("CHECKPOINT")
+
+        # An external MCP server's tools reach the in-app chat only when the owner switches this on (#5761).
+        _mcp_cols = {row[1] for row in self.conn.execute("PRAGMA table_info(mcp_servers)").fetchall()}
+        if "available_to_chat" not in _mcp_cols:
+            self.conn.execute("ALTER TABLE mcp_servers ADD COLUMN available_to_chat BOOLEAN DEFAULT FALSE")
+            self.conn.execute("CHECKPOINT")
 
         _invite_cols = {
             row[1] for row in self.conn.execute("PRAGMA table_info(invites)").fetchall()
@@ -1813,6 +1828,32 @@ class AppDatabase:
             self.conn.commit()
         return client
 
+    def user_has_key(self, user_id: str) -> bool:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT 1 FROM clients WHERE user_id = ? AND public_key_pem <> '' AND revoked_at IS NULL LIMIT 1",
+                [user_id],
+            ).fetchone()
+        return row is not None
+
+    def migrate_device_tokens_to_clients(self) -> int:
+        """Give each live paired device a keyless `device` client with the device's id (multiuser.migrate-device-tokens).
+
+        The old token keeps working; nothing can sign in as the client until it registers a key. Idempotent."""
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id, user_id, name, created_at FROM devices "
+                "WHERE revoked = FALSE AND id NOT IN (SELECT id FROM clients)"
+            ).fetchall()
+            for device_id, user_id, name, created_at in rows:
+                self.conn.execute(
+                    "INSERT INTO clients (id, user_id, kind, name, host, public_key_pem, created_at) "
+                    "VALUES (?, ?, 'device', ?, '', '', ?)",
+                    [device_id, user_id, name, created_at],
+                )
+            self.conn.commit()
+        return len(rows)
+
     def get_client(self, client_id: str) -> AccountClient | None:
         with self._lock:
             row = self.conn.execute(
@@ -2012,6 +2053,8 @@ class AppDatabase:
             for one in ids:
                 self.conn.execute("UPDATE devices SET revoked = TRUE WHERE id = ?", [one])
             self.conn.commit()
+            for one in ids:
+                self.revoke_client(one)
         return self.get_device(device_id)
 
     def renew_device(
@@ -2054,10 +2097,11 @@ class AppDatabase:
                 """
                 INSERT INTO mcp_servers (
                     id, name, description, transport, command, args, env,
-                    url, headers, tool_name_prefix, enabled, updated_at
+                    url, headers, tool_name_prefix, enabled, updated_at, available_to_chat
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (id) DO UPDATE SET
+                    available_to_chat = excluded.available_to_chat,
                     name = excluded.name,
                     description = excluded.description,
                     transport = excluded.transport,
@@ -2083,6 +2127,7 @@ class AppDatabase:
                     server.tool_name_prefix,
                     server.enabled,
                     utc_now(),
+                    bool(server.available_to_chat),
                 ],
             )
             self.conn.commit()
@@ -2115,6 +2160,7 @@ class AppDatabase:
             enabled=result[10],
             created_at=ensure_utc(result[11]),
             updated_at=ensure_utc(result[12]),
+            available_to_chat=bool(result[13]) if len(result) > 13 else False,
         )
 
     def query_mcp_servers(self, **filters):
@@ -2153,6 +2199,7 @@ class AppDatabase:
                     enabled=row[10],
                     created_at=ensure_utc(row[11]),
                     updated_at=ensure_utc(row[12]),
+                    available_to_chat=bool(row[13]) if len(row) > 13 else False,
                 )
             )
 
@@ -2308,6 +2355,11 @@ def get_app_db() -> AppDatabase:
     if _app_db is None:
         _app_db = AppDatabase()
     return _app_db
+
+
+def device_token_migration_error() -> str | None:
+    """The pending device-token migration's error type, without opening the app database (health must not)."""
+    return _app_db.device_token_migration_error if _app_db is not None else None
 
 
 def checkpoint_app_db() -> None:

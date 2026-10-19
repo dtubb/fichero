@@ -434,7 +434,7 @@ struct FicheroApp: App {
             #endif
             CommandGroup(after: .appSettings) {
                 // The app's welcome, again: beside Settings, as File › Set Up New Project… is for a project.
-                Button("Set Up Fichero…") { libraryManager.appSetUpRequested = true }
+                SetUpFicheroButton(libraryManager: libraryManager)
             }
             CommandGroup(before: .appTermination) {
                 #if os(macOS)
@@ -647,6 +647,7 @@ struct FicheroApp: App {
         // copy AppKit picked instead of the one holding the selection.
         Window("Activity", id: ActivityWindowSelectionState.monitorWindowID) {
             ActivityMonitorWindow()
+                .environment(appState)  // ActivityDetailsView reads it; absent, the window traps (#5811)
                 .environment(libraryManager)
                 .environment(appExecutionObserver)
         }
@@ -678,6 +679,7 @@ struct FicheroApp: App {
 
         Window("Activity Detail", id: ActivityWindowSelectionState.detailWindowID) {
             ActivityDetailWindow()
+                .environment(appState)  // ActivityDetailsView reads it; absent, the window traps (#5811)
                 .environment(libraryManager)
                 .environment(appExecutionObserver)
         }

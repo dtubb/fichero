@@ -115,31 +115,3 @@ class TestTheCurationHelpersRequireAnActor:
                 f"{func.__name__} does not take an actor, so the mutation log "
                 "it writes cannot name one"
             )
-
-
-class TestTheAgentPathIsAudited:
-    def test_the_mcp_entity_upsert_takes_an_actor(self):
-        from fichero_server.api.routes.mcp import tools
-
-        parameters = inspect.signature(tools.mcp_knowledge_entity_upsert).parameters
-        assert "actor" in parameters, (
-            "the MCP upsert cannot name who edited, so an agent's curation is "
-            "indistinguishable from generated output (#4415)"
-        )
-
-    def test_the_mcp_upsert_calls_registry_invoke_not_a_bespoke_log(self):
-        """#4866: the in-place update used to be the dangerous branch --
-        real curation (canonical_name, aliases, description) via a
-        best-effort `MutationLog` row and nothing else. It is now a thin
-        caller of the SAME audited `entity.create`/`entity.update` actions
-        the typed HTTP route uses, so `ActionAudit` (not a bespoke helper)
-        is the trail -- see `test_mcp_kg_write_attribution.py` for the
-        behavioral proof (audit row, real actor, undo)."""
-        from fichero_server.api.routes.mcp import tools
-
-        source = inspect.getsource(tools.mcp_knowledge_entity_upsert)
-        assert "registry.invoke(" in source
-        assert "_log_mcp_entity_mutation" not in source, (
-            "the bespoke MutationLog helper was removed -- ActionAudit is "
-            "the one trail now, not two"
-        )

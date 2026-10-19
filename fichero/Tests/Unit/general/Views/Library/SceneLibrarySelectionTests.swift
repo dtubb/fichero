@@ -1,3 +1,4 @@
+@testable import Fichero
 import XCTest
 
 /// spec: modes-to-panes §`m2p.ios.window-state-per-scene` (iOS I1). Each iPad scene owns its

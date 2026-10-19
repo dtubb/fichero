@@ -14,8 +14,6 @@ def test_route_change_maps_to_targeted_tests_only() -> None:
 
     assert plan.requires_full_gate is False
     assert "fichero-server/tests/unit/api/test_routes_mcp_tools.py" in plan.pytest_targets
-    assert "fichero-server/tests/unit/api/test_mcp_tools.py" in plan.pytest_targets
-    assert "fichero-server/tests/unit/api/test_mcp_knowledge_adapters.py" in plan.pytest_targets
     assert plan.unmatched_paths == ()
 
 

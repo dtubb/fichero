@@ -40,3 +40,17 @@ class BoundedLog:
     def text(self) -> str:
         lines = [*self._head, *([f"… {self.omitted} log lines omitted …"] if self.omitted else []), *self._tail]
         return "\n".join(lines)
+
+
+def bounded_final_state(state: object, limit: int = 2000) -> object:
+    """The `complete` frame's view of the final state (#5376): a value whose JSON is over ``limit`` characters is
+    replaced by {"omitted": size}; the full state is on the run's checkpoint, not in every subscriber's replay."""
+    import json
+
+    if not isinstance(state, dict):
+        return state
+    kept = {}
+    for key, value in state.items():
+        size = len(json.dumps(value, default=str))
+        kept[key] = value if size <= limit else {"omitted": size}
+    return kept

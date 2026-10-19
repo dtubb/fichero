@@ -100,7 +100,7 @@ watchdog
 kreuzberg
 pypdfium2
 fastembed
-PyMuPDF
+PyMuPDF>=1.28,<2
 Pillow>=12.3.0
 pillow-heif>=1.1.0
 # OpenCV for the image-enhance / background-removal / deskew step (bundled

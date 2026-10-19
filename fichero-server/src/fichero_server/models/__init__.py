@@ -1896,6 +1896,7 @@ class MCPServer(BaseModel):
     # Tool configuration
     tool_name_prefix: bool = True  # Prefix tool names with server name
     enabled: bool = True  # Server enabled/disabled
+    available_to_chat: bool = False  # Owner's opt-in: its read-only tools reach the in-app chat agent (#5761)
 
     # Metadata
     created_at: datetime = Field(default_factory=utc_now)
@@ -2064,6 +2065,9 @@ class HealthResponse(BaseModel):
     #: Packages the engine imports by name for a feature (lxml for PAGE/ALTO/TEI) that are not
     #: installed; empty when all are present (#5384).
     missing_dependencies: list[str] = Field(default_factory=list)
+    #: Error type name when moving old device tokens to the new clients table failed at open (#5799). The old
+    #: tokens still work and the move is retried at the next open; None when nothing is pending. A warning only.
+    device_token_migration_error: str | None = None
     # Live dependency versions for the About box's "Built with" (Daniel wants
     # them DERIVED, never hard-typed). Keys are lowercased pip distribution
     # names → installed version; a lib that is not installed is simply absent

@@ -12,11 +12,6 @@ struct JobQuestionFields: View {
     @Bindable var store: RecipeSetupStore
     let job: String
 
-    static let entityKinds: [(id: String, title: String)] = [
-        ("people", "People"), ("places", "Places"), ("organisations", "Organisations"),
-        ("dates", "Dates"), ("things", "Things (objects, goods)"), ("events", "Events")
-    ]
-
     /// The languages a reading can be translated into from Set Up (a tag the engine resolves): the scholarly ones a
     /// colonial archive is read into.
     static let translationLanguages: [(tag: String, name: String)] = [
@@ -29,24 +24,16 @@ struct JobQuestionFields: View {
         case "find-names-tag-words":
             VStack(alignment: .leading, spacing: 4) {
                 Text("Which kinds of names").font(.headline)
-                // Wraps to the sheet's width: six fixed-size checkboxes in one row made the sheet
-                // wider than its window, cutting off the steps and Continue (#5624).
-                FlowLayout(spacing: 12) {
-                    ForEach(Self.entityKinds, id: \.id) { kind in
-                        Toggle(kind.title, isOn: Binding(
-                            get: { store.jobAnswers.entityKinds.contains(kind.id) },
-                            set: { isOn in
-                                if isOn {
-                                    store.jobAnswers.entityKinds.append(kind.id)
-                                } else {
-                                    store.jobAnswers.entityKinds.removeAll { $0 == kind.id }
-                                }
-                            }
-                        ))
-                        .setupCheckbox()
-                        .fixedSize()
-                    }
-                }
+                // Open-ended (#5805): every kind unless the person types some; chips from a sample try.
+                StageKindsField(
+                    question: store.stages.first { $0.id == "names" }?.questions.first { $0.key == "entity_kinds" }
+                        ?? .init(key: "entity_kinds", ask: "Which kinds of names", kind: .many, readByAStep: true,
+                                 openEnded: true),
+                    answer: Binding(
+                        get: { .many(store.jobAnswers.entityKinds) },
+                        set: { if case .many(let kinds)? = $0 { store.jobAnswers.entityKinds = kinds } }
+                    )
+                )
             }
         case "translate-transliterate-normalise":
             // Several at once (#5660 item 1): each level ticked is its own run writing that reading.
@@ -108,6 +95,42 @@ struct RecipeCloudQuestion: View {
     }
 }
 
+/// The ruled money-and-place settings (#5769): the Hugging Face spend cap (shown with the cloud question, $0 offers
+/// only) and, where a cluster is set up, whether working copies may stay on it. The engine says the values as they
+/// stand and which clusters exist; the app only asks.
+struct RecipeMoneyAndPlaceFields: View {
+    @Bindable var store: RecipeSetupStore
+    @FocusState private var capFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if store.cloudAllowed {
+                HStack {
+                    Text("Hugging Face spend a month, at most")
+                    // The engine refuses a cap below $0 (the save fails), so the field never holds one.
+                    TextField("0", value: Binding(get: { store.spendCapUsd },
+                                                  set: { store.spendCapUsd = $0.map { max($0, 0) } }),
+                              format: .currency(code: "USD"))
+                        .multilineTextAlignment(.trailing).frame(maxWidth: 90)
+                        .focused($capFocused)
+                        .onSubmit { Task { _ = await store.save() } }
+                        .onChange(of: capFocused) { _, focused in if !focused { Task { _ = await store.save() } } }
+                }
+                Text("$0 means paid offers stay offers: nothing paid starts without you. Spend shows against this on Start.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if let place = store.moneyAndPlace, !place.clusters.isEmpty {
+                Toggle("Working copies may stay on \(place.clusters.formatted(.list(type: .or))) for re-runs",
+                       isOn: Binding(get: { store.copiesMayStay ?? place.copiesMayStayOnCluster },
+                                     set: { store.copiesMayStay = $0; Task { _ = await store.save() } }))
+                if store.copiesMayStay == nil {
+                    Text("Following your answer about pages leaving this Mac.").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+}
+
 /// The plan as one list (#5481): the recipe the engine's rules propose, one row per step with one
 /// sentence; a step's problem once, with its fix as a button; the one cloud question; and every
 /// other job, which the person can add.
@@ -129,6 +152,7 @@ struct RecipeProposalFields: View {
                 RecipeStepsView(store: store, recipe: recipe, onFix: onFix, finder: project)
                 RecipeTakenOutRows(store: store, removed: recipe.removed ?? [])
                 RecipeCloudQuestion(store: store)
+                RecipeMoneyAndPlaceFields(store: store)
             } else if !store.canAssemble {
                 Text("Add at least one language and one script under Your Material.")
                     .font(.callout).foregroundStyle(.secondary)

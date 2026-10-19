@@ -130,8 +130,9 @@ extension SidebarView {
 
     /// Create a new folder - defaults to Global library
     func handleCreateNewFolder() {
-        guard libraryManager.globalLibrary != nil else {
-            logger.error("Global library not available")
+        guard creationLibrary != nil else {
+            logger.error("No project available for New Folder")
+            sidebarState.newFolderErrorMessage = "No project available"
             return
         }
         // Finder semantics (#4121): New Folder nests into the SELECTED
@@ -199,7 +200,7 @@ extension SidebarView {
 
     /// Actually create the folder after user enters name
     func createFolder(_ name: String) async {
-        let targetLibrary = selectedItemLibrary ?? libraryManager.globalLibrary
+        let targetLibrary = creationLibrary
         guard let library = targetLibrary else {
             sidebarState.newFolderErrorMessage = "No project available"
             return

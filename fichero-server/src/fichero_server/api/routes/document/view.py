@@ -47,6 +47,7 @@ from .documents import (
     _ordered_by_sort_order,
     _with_child_counts,
 )
+from fichero_server.api.errors import ErrorDetail as _RefusalBody
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def _anchor_attachments(db: Database, doc_id: str) -> DocumentViewAttachments:
     response_model=DocumentViewResponse,
     # Declared, not merely raised (the renditions-route rule): an undeclared
     # 404 reaches the generated Swift client as `.undocumented` it cannot name.
-    responses={404: {"description": "No document with this id exists"}},
+    responses={404: {"model": _RefusalBody, "description": "No document with this id exists"}},
 )
 async def get_document_view(
     doc_id: str,

@@ -109,7 +109,32 @@ struct SetupStagesTests {
         // A typed field answers for its own key.
         let kinds = Components.Schemas.StageQuestion(key: "entity_kinds", ask: "Which kinds of names?", kind: .many,
                                                      readByAStep: true)
-        #expect(SetupStagePage.answer(to: kinds, in: answers) == .many(["people", "places"]))
+        #expect(SetupStagePage.answer(to: kinds, in: answers) == .many([]), "every kind until the person names some (#5805)")
+    }
+
+    @Test("source.onboard.stages.kinds-are-open-ended: an open question has no options, every kind by default, and suggestions")
+    func openEndedQuestion() throws {
+        let statements = try JSONDecoder().decode(Components.Schemas.StageQuestion.self, from: Data("""
+        {"key": "statement_kinds", "ask": "Which kinds of statements?", "kind": "many", "options": [],
+         "default": [], "answer": [], "read_by_a_step": true, "open_ended": true, "suggestions": ["sale", "gift"]}
+        """.utf8))
+        #expect(statements.openEnded == true && (statements.options ?? []).isEmpty)
+        #expect(SetupStagePage.answer(to: statements, in: RecipeSetupAnswers.JobAnswers()) == .many([]))
+        #expect(statements.suggestions == ["sale", "gift"])
+        // What the person types is kept as typed, saved under the question's key, and read back.
+        var answers = RecipeSetupAnswers.JobAnswers()
+        answers[question: "statement_kinds"] = .many(["Wills", "ship manifests"])
+        #expect(SetupStagePage.answer(to: statements, in: answers) == .many(["Wills", "ship manifests"]))
+        #expect(RecipeSetupAnswers.JobAnswers().entityKinds.isEmpty, "Names' kinds default to every kind")
+    }
+
+    @Test("a typed kind is added once, trimmed, whatever its case; suggestions already chosen are not offered again")
+    func typedKindsAndChips() {
+        #expect(StageKinds.adding("  Wills ", to: []) == ["Wills"])
+        #expect(StageKinds.adding("wills", to: ["Wills"]) == ["Wills"], "not again under another case")
+        #expect(StageKinds.adding("   ", to: ["Wills"]) == ["Wills"], "an empty word adds nothing")
+        #expect(StageKinds.unchosen(["sale", "gift", "will"], chosen: ["Gift"]) == ["sale", "will"])
+        #expect(StageKinds.unchosen([], chosen: []).isEmpty, "nothing is suggested before a try")
     }
 
     @Test("a stage question's answer is saved under its key in job_answers, beside the typed ones, and read back")
@@ -199,6 +224,40 @@ struct SetupStagesTests {
         #expect(result.names?.map(\.name) == ["Juan de Mosquera"])
     }
 
+    // MARK: A try that is refused, failed or not made yet (#5806)
+
+    @Test("a refused try (422) shows the engine's sentence and stops the spinner")
+    func aRefusedTryShowsTheSentence() async {
+        StagesMockURLProtocol.replies = [
+            "GET /api/recipes/samples": (200, TryJSON.oneSample),
+            "POST /api/recipes/stages/prepare-images/try": (422, TryJSON.refused)
+        ]
+        let store = SetupStageTryStore(client: StagesMockURLProtocol.client(), stageId: "prepare-images")
+        await store.load()
+        await store.tryIt()
+        #expect(store.refusal == "Prepare Images cannot run yet: step 3 (read): the reader is not a model Fichero can find here")
+        #expect(!store.isTrying)
+    }
+
+    @Test("a failed try says why, and a comparison that ended stops the spinner")
+    func aFailedTryAndAFinishedComparison() throws {
+        let failed = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(TryJSON.failedNoReason.utf8))
+        #expect(!failed.isUnderWay)
+        #expect(failed.failure == "No line finder can be compared on this Mac yet.")
+        let ended = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(TryJSON.comparisonDone.utf8))
+        #expect(ended.state == "waiting" && !ended.isUnderWay, "the comparison's state is what is running")
+        let running = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(TryJSON.comparisonRunning.utf8))
+        #expect(running.isUnderWay)
+    }
+
+    @Test("a 404 on the stage's result is not tried yet, not still running")
+    func aMissingResultIsNotTriedYet() async {
+        StagesMockURLProtocol.replies = ["GET /api/recipes/samples": (200, TryJSON.oneSample)]
+        let store = SetupStageTryStore(client: StagesMockURLProtocol.client(), stageId: "find-lines")
+        await store.load()
+        #expect(store.result == nil && !store.isTrying)
+    }
+
     // MARK: About the material
 
     @Test("source.onboard.material.which-hand: the engine's hands for the script; Not sure stands alone; typed is kept")
@@ -285,6 +344,19 @@ struct SetupStagesTests {
 
 /// The engine's answers for a stage tried on the samples (`recipes/samples.py`).
 private enum TryJSON {
+    static let refused = """
+    {"detail": "Prepare Images cannot run yet: step 3 (read): the reader is not a model Fichero can find here"}
+    """
+    static let failedNoReason = """
+    {"stage": "find-lines", "state": "failed", "comparison": {"state": "failed",
+     "reason": "No line finder can be compared on this Mac yet."}}
+    """
+    static let comparisonDone = """
+    {"stage": "find-lines", "state": "waiting", "bakeoff": "b1", "comparison": {"state": "done", "reason": null}}
+    """
+    static let comparisonRunning = """
+    {"stage": "find-lines", "state": "waiting", "bakeoff": "b1", "comparison": {"state": "running", "reason": null}}
+    """
     static let twoSamples = """
     {"chosen_by": "fichero", "pages": [{"id": "p1", "name": "f. 1r", "why": "your first page"},
      {"id": "p9", "name": "f. 9v", "why": "the largest image"}]}

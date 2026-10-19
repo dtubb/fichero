@@ -29,7 +29,7 @@ CLOUD_CORRECT = {"id": "correct", "job": "correct", "model": {"cloud": "openai",
 def the_steps_local_models_are_on_this_mac(monkeypatch):
     """These tests pin how steps map to workflows; whether this Mac can serve a step's local model,
     and the refusal when it cannot, is test_local_model_choice.py's (#5520)."""
-    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
     monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])
     monkeypatch.setattr(start, "provider_without_key", lambda step: None)  # keys: test_missing_key_never_substitutes_5364.py
 
@@ -90,7 +90,9 @@ def test_a_job_no_card_runs_is_skipped_by_name():
              "model": {"spacy": "es_core_news_sm", "version": "bundled"}}
     links = {"id": "links", "job": "link-to-authorities", "model": {"builtin": "links"}}
     plan = plan_start(_recipe(LINES, READ, names, links), stays_local=True)
-    assert any(s["step"] == "links" and "link-to-authorities" in s["why"] for s in plan["skipped"])
+    # Named by the step's title, never its job id, since 638060a4b (#5801).
+    assert any(s["step"] == "links" and "no card runs it yet" in s["why"] and "link-to-authorities" not in s["why"]
+               for s in plan["skipped"]), plan["skipped"]
     assert plan["workflows"][-1]["workflow"] == "Extract Entities"
     assert (plan["workflows"][-1]["provider_override"], plan["workflows"][-1]["model_override"]) == (
         "spacy", "es_core_news_sm")

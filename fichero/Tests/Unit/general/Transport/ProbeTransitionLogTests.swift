@@ -166,4 +166,17 @@ struct ProbeTransitionLogTests {
         #expect(ProbeTransitionLog.steadyRollupInterval >= 60)
         #expect(ProbeTransitionLog.steadyRollupInterval <= 900)
     }
+
+    @Test("log reports a transition once, so the launch timeline notes a reading once (#5823)")
+    func logReturnsTrueOnlyOnATransition() {
+        let saved = (ProbeTransitionLog.lastSummary, ProbeTransitionLog.steadySince, ProbeTransitionLog.lastSpokeAt)
+        defer { (ProbeTransitionLog.lastSummary, ProbeTransitionLog.steadySince, ProbeTransitionLog.lastSpokeAt) = saved }
+        ProbeTransitionLog.lastSummary = nil
+        ProbeTransitionLog.steadySince = nil
+        ProbeTransitionLog.lastSpokeAt = nil
+        #expect(ProbeTransitionLog.log(Self.ready, now: Self.epoch))
+        #expect(!ProbeTransitionLog.log(Self.ready, now: Self.epoch.addingTimeInterval(1)))
+        #expect(!ProbeTransitionLog.log(Self.ready, now: Self.epoch.addingTimeInterval(2)))
+        #expect(ProbeTransitionLog.log(Self.lost, now: Self.epoch.addingTimeInterval(3)))
+    }
 }

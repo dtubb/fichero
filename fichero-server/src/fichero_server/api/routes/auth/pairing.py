@@ -119,6 +119,7 @@ class MultiuserRequest(BaseModel):
 
 def _tailnet_serve_command() -> str | None:
     import shlex
+    import subprocess
 
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
 
@@ -128,10 +129,11 @@ def _tailnet_serve_command() -> str | None:
     cli = tailscale_serve.tailscale_cli()
     want = tailscale_serve.wanted_target(port)
     try:
-        if cli and tailscale_serve.forward_target(tailscale_serve.serve_status(cli), port) == want:
-            return None
-    except Exception:  # CLI refused or unreadable: show the command
-        pass
+        already_serving = bool(cli) and tailscale_serve.forward_target(tailscale_serve.serve_status(cli), port) == want
+    except (OSError, subprocess.SubprocessError, ValueError):
+        already_serving = False  # CLI refused, timed out or printed no JSON: we cannot tell, so show the command
+    if already_serving:
+        return None
     return shlex.join([cli or "tailscale", "serve", "--bg", f"--https={port}", want])
 
 
@@ -501,7 +503,7 @@ def _multiuser_invert(before: dict | None, after: dict | None, ctx: ActionContex
     return ("sharing.set_multiuser", {"enabled": before["enabled"]}) if before else None
 
 
-@action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert)
+@action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert, owner_only=True)
 def _set_multiuser_action(_db, params: MultiuserParams, ctx: ActionContext):
     """Who sees every library: audited and undoable. Owner only at the route; the environment wins."""
     from fichero_server.security.authz import AuthorizationError

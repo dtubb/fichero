@@ -1113,6 +1113,16 @@
         "response_model": "ChallengeResponse"
       },
       {
+        "method": "POST",
+        "path": "/auth/first-run",
+        "operation_id": "first_run_api_auth_first_run_post",
+        "summary": "First Run",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "FirstRunRequest",
+        "response_model": "FirstRunResponse"
+      },
+      {
         "method": "GET",
         "path": "/auth/identity",
         "operation_id": "identity_api_auth_identity_get",
@@ -1150,7 +1160,7 @@
         "path_params": [],
         "query_params": [],
         "request_model": "InviteRedeemRequest",
-        "response_model": "LoginResponse"
+        "response_model": "InviteRedeemResponse"
       },
       {
         "method": "POST",
@@ -1163,6 +1173,68 @@
         "query_params": [],
         "request_model": null,
         "response_model": "StatusResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/local-clients/register",
+        "operation_id": "register_local_client_api_auth_local_clients_register_post",
+        "summary": "Register Local Client",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LocalClientRegisterBody",
+        "response_model": "SignInClient"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/local-clients/request",
+        "operation_id": "request_local_client_api_auth_local_clients_request_post",
+        "summary": "Request Local Client",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LocalClientRequestBody",
+        "response_model": "LocalClientRequestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/auth/local-clients/requests",
+        "operation_id": "list_local_client_requests_api_auth_local_clients_requests_get",
+        "summary": "List Local Client Requests",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalClientRequestList"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/local-clients/requests/{request_id}/decision",
+        "operation_id": "decide_local_client_request_api_auth_local_clients_requests__request_id__decision_post",
+        "summary": "Decide Local Client Request",
+        "path_params": [
+          "request_id"
+        ],
+        "query_params": [],
+        "request_model": "LocalClientDecision",
+        "response_model": "LocalClientRequestResponse"
+      },
+      {
+        "method": "GET",
+        "path": "/auth/local-clients/switches",
+        "operation_id": "get_local_client_switches_api_auth_local_clients_switches_get",
+        "summary": "Get Local Client Switches",
+        "path_params": [],
+        "query_params": [],
+        "request_model": null,
+        "response_model": "LocalClientSwitches"
+      },
+      {
+        "method": "PUT",
+        "path": "/auth/local-clients/switches",
+        "operation_id": "put_local_client_switches_api_auth_local_clients_switches_put",
+        "summary": "Put Local Client Switches",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "LocalClientSwitches",
+        "response_model": "LocalClientSwitches"
       },
       {
         "method": "POST",
@@ -1193,6 +1265,16 @@
         "query_params": [],
         "request_model": null,
         "response_model": "UserResponse"
+      },
+      {
+        "method": "POST",
+        "path": "/auth/migrate-owner",
+        "operation_id": "migrate_owner_api_auth_migrate_owner_post",
+        "summary": "Migrate Owner",
+        "path_params": [],
+        "query_params": [],
+        "request_model": "MigrateOwnerRequest",
+        "response_model": "FirstRunResponse"
       },
       {
         "method": "GET",

@@ -7,7 +7,7 @@ standstill (2026-10-01).
 """
 from __future__ import annotations
 
-from fichero_server.recipes.assemble import Answers, assemble
+from fichero_server.recipes.assemble import CORRECT_QUESTION, Answers, assemble
 from fichero_server.recipes.cards import CARD_ID, seed_cards
 
 
@@ -25,7 +25,9 @@ def test_a_runtime_not_in_this_build_is_not_a_candidate():
 
 
 def test_spanish_letters_on_a_16gb_mac():
-    m = _models(assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), mac_memory_gb=16), list(seed_cards())))
+    # Correct is optional and joins only when asked (#5812, 0d2ddeeff).
+    m = _models(assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), mac_memory_gb=16,
+                                 job_answers={CORRECT_QUESTION: True}), list(seed_cards())))
     assert m["find-lines"]["kraken"] == "blla"
     # PP-OCRv6, the reader with a published CER; fetched from Kraken's repository by its DOI.
     assert m["read-a-line"] == {"zenodo": "10.5281/zenodo.21788410"}

@@ -1140,6 +1140,7 @@ class Database(DatabaseEmbeddingMixin):
             self._fold_watcher_tables,
             self._fold_scheduler_tables,
             self._fold_activity_tables,
+            self._apply_added_jobs_columns,
         ))
 
     #: An open-time step slower than this is logged as a warning, named (#5228).
@@ -1351,6 +1352,26 @@ class Database(DatabaseEmbeddingMixin):
              "SELECT count(*) FROM schedule_runs WHERE run_id NOT IN (SELECT id FROM schedulerunrecords)",
              "SELECT count(*) FROM schedule_runs WHERE started_at > ?"),
         ])
+
+    def _apply_added_jobs_columns(self) -> None:
+        """A library made by an older release gets the columns later releases added to `jobs`, here, on the write
+        connection at open (#5814), as the other idempotent migrations do; the jobs code also checks per connection."""
+        if self.conn.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name = 'jobs'"
+        ).fetchone() is None:
+            return  # no jobs table yet: `jobs._ensure` makes it with the columns
+        from fichero_server.execution import jobs
+
+        count = "SELECT count(*) FROM information_schema.columns WHERE table_name = 'jobs'"
+        before = self.conn.execute(count).fetchone()[0]
+        jobs.apply_added_columns(self.conn.execute, str(self.path))
+        if self.conn.execute(count).fetchone()[0] > before:
+            # An ALTER ... ADD COLUMN must not sit in the WAL: DuckDB cannot replay it, and a library that dies
+            # before the next checkpoint then poisons every restart (the house rule, db/app.py, 2026-06-12).
+            try:
+                self.conn.execute("CHECKPOINT")
+            except duckdb.Error as exc:
+                logger.warning("%s: could not checkpoint after adding jobs columns: %s", self.path, exc)
 
     def _fold_activity_tables(self) -> None:
         """The activity store's `activities` and `workflow_runs` into `ActivityEventRecord` and `WorkflowRunRecord`

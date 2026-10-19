@@ -47,6 +47,8 @@ final class ModelFinderStore {
     /// The project's downloads (#5620, `source.find.one-download-path`): the one download path, shared by the
     /// finder and Settings (setup downloads nothing: Start fetches what it needs, #5664); a card says what its download's job says.
     let downloads: ModelDownloads
+    /// The HTR-United datasets kept for the query's languages and scripts (#5571), listed beside the sources.
+    let htrUnited: HtrUnitedStore
 
     @ObservationIgnored private var seenInActivity = false
     @ObservationIgnored private var unseenSnapshots = 0
@@ -57,6 +59,7 @@ final class ModelFinderStore {
          downloads: ModelDownloads? = nil) {
         self.client = client
         self.downloads = downloads ?? ModelDownloads(client: client)
+        self.htrUnited = HtrUnitedStore(client: client)
         if let list {
             candidates = list.items
             sources = list.sources
@@ -91,6 +94,7 @@ final class ModelFinderStore {
         }
         self.query = query
         await read(online: false)
+        await htrUnited.load(languages: query.languages, scripts: query.scripts)
     }
 
     /// Search Online (`source.find.online-search-is-a-job`): the engine answers at once with what was

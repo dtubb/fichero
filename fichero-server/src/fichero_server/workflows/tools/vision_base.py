@@ -89,7 +89,7 @@ except ImportError:
     pass
 
 # Import from llm_base - the parent layer
-from fichero_server.workflows.tools.llm_base import (
+from fichero_server.workflows.tools.llm_base import (  # noqa: E402
     # Port and config definitions
     BASE_INPUT_PORTS,
     BASE_CONFIG_SCHEMA,
@@ -109,20 +109,20 @@ from fichero_server.workflows.tools.llm_base import (
     save_file_artifact as save_artifact,
     save_to_file as llm_save_to_file,
 )
-from fichero_server.workflows.selection import segment_target_of
-from fichero_server.workflows.tools._doc_lookup import (
+from fichero_server.workflows.selection import segment_target_of  # noqa: E402
+from fichero_server.workflows.tools._doc_lookup import (  # noqa: E402
     find_document_by_path,
     iter_document_lookup_paths,
     register_path_mapping,
     resolve_path_to_doc,
 )
-from fichero_server.workflows.circuit_breaker import (
+from fichero_server.workflows.circuit_breaker import (  # noqa: E402
     ProviderCircuitBreaker,
     ProviderRateLimitedError,
     call_with_breaker,
 )
-from fichero_server.media.image_flatten import flatten_for_opaque_format
-from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+from fichero_server.media.image_flatten import flatten_for_opaque_format  # noqa: E402
+from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

@@ -42,7 +42,7 @@ def hold_the_run(monkeypatch):
     from fichero_server.recipes import start
 
     monkeypatch.setattr(jobs._scheduler, "wake", lambda key: None)
-    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs: [])
+    monkeypatch.setattr(start, "local_models_this_mac_cannot_serve", lambda runs, names=None: [])
     monkeypatch.setattr(start, "local_models_to_download", lambda runs: [])  # #5583: a missing model is a download
 
 

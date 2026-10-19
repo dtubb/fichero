@@ -71,6 +71,12 @@ final class RecipeSetupStore {
     /// May pages leave this Mac. Asked once per project; the default is that
     /// nothing leaves (`source.onboard.cloud-asked-once`).
     var cloudAllowed = false
+    /// The Hugging Face spend cap a month the person set; nil is the engine's $0 (`source.onboard.spend-cap`, #5769).
+    var spendCapUsd: Double?
+    /// Whether working copies may stay on the cluster; nil follows pages-may-leave (`source.onboard.copies-may-stay-on-cluster`).
+    var copiesMayStay: Bool?
+    /// The three settings as the engine holds them (`GET /api/recipes/stages`): what the fields show when unanswered.
+    var moneyAndPlace: Components.Schemas.MoneyAndPlace?
     /// What runs by itself after Start (`source.onboard.what-runs-by-itself`): nil until the
     /// person or the saved answers say, then whether new material runs, and through which steps.
     var automatic: RecipeSetupAnswers.Automatic?
@@ -487,7 +493,8 @@ final class RecipeSetupStore {
                            directions: directions, materials: materials, pages: pages,
                            cloudAllowed: cloudAllowed, ingestMode: wayIn.savedName,
                            layers: layers, automatic: automatic, jobAnswers: jobAnswers, removedJobs: removedJobs,
-                           period: period, hands: hands, place: place)
+                           period: period, hands: hands, place: place,
+                           hfSpendCapUsd: spendCapUsd, copiesMayStayOnCluster: copiesMayStay)
     }
 
     /// The answers as the project last saved them, as JSON, so a save keeps every field the
@@ -525,6 +532,8 @@ final class RecipeSetupStore {
         if let value = saved.period { period = value }
         if let value = saved.hands { hands = value }
         if let value = saved.place { place = value }
+        spendCapUsd = saved.hfSpendCapUsd
+        copiesMayStay = saved.copiesMayStayOnCluster
         if let value = saved.ingestMode {
             // The engine's ingest modes are lowercase; the app's enum is upper.
             // An unknown mode is an error, never a silent fallback to link.

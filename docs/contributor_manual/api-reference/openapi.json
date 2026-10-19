@@ -2022,7 +2022,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LoginResponse"
+                  "$ref": "#/components/schemas/InviteRedeemResponse"
                 }
               }
             }
@@ -2173,6 +2173,338 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChallengeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/first-run": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "First Run",
+        "description": "Create the owner and register their key, once (multiuser.first-launch-creates-owner-and-key).\n\nOnly over the Unix socket, only with the launch secret, only while no owner exists. The old bootstrap token is\nnot the launch secret. The owner gets an unusable password: they sign in by their key.",
+        "operationId": "first_run_api_auth_first_run_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Launch-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Launch-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirstRunRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirstRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/migrate-owner": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Migrate Owner",
+        "description": "Give an existing owner row its first key, once (multiuser.migrate-owner).\n\nSame guards as first-run. The key goes to the owner row only, never to another person.",
+        "operationId": "migrate_owner_api_auth_migrate_owner_post",
+        "parameters": [
+          {
+            "name": "X-Fichero-Launch-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "nullable": true,
+              "title": "X-Fichero-Launch-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MigrateOwnerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirstRunResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/switches": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Get Local Client Switches",
+        "operationId": "get_local_client_switches_api_auth_local_clients_switches_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientSwitches"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Put Local Client Switches",
+        "operationId": "put_local_client_switches_api_auth_local_clients_switches_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientSwitches"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientSwitches"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/request": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Request Local Client",
+        "operationId": "request_local_client_api_auth_local_clients_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests": {
+      "get": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "List Local Client Requests",
+        "operationId": "list_local_client_requests_api_auth_local_clients_requests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/requests/{request_id}/decision": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Decide Local Client Request",
+        "operationId": "decide_local_client_request_api_auth_local_clients_requests__request_id__decision_post",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalClientRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/local-clients/register": {
+      "post": {
+        "tags": [
+          "auth",
+          "auth"
+        ],
+        "summary": "Register Local Client",
+        "description": "The allowed client registers its own public key, once, from the same program that asked. No secret crosses.",
+        "operationId": "register_local_client_api_auth_local_clients_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalClientRegisterBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInClient"
                 }
               }
             }
@@ -2729,7 +3061,14 @@
             }
           },
           "400": {
-            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it."
+            "description": "The bookmark could not be turned into access \u2014 malformed, or startAccessingSecurityScopedResource() refused. The engine cannot read this library, and the app must say so rather than open it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7422,7 +7761,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, or a document's pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -7601,7 +7947,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -7685,7 +8038,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -7769,7 +8129,14 @@
             }
           },
           "409": {
-            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since."
+            "description": "The proposal is out of date: a later run replaced it, the document is already accepted or rejected, or its pages were grouped, moved or deleted since.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "No such document or page in the proposal, or the adjustment cannot be made."
@@ -7832,7 +8199,14 @@
             }
           },
           "404": {
-            "description": "No such folder or proposal."
+            "description": "No such folder or proposal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "The folder has no proposal, or a person set none of its documents."
@@ -10462,7 +10836,14 @@
             }
           },
           "404": {
-            "description": "No document with this id exists"
+            "description": "No document with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -10513,7 +10894,14 @@
             }
           },
           "404": {
-            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots"
+            "description": "No such document or rendition, the rendition belongs to a different document, its bytes were never materialised, or its recorded path resolves outside the permitted roots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -21130,7 +21518,14 @@
             }
           },
           "404": {
-            "description": "No document with this id exists"
+            "description": "No document with this id exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -22258,10 +22653,24 @@
             "description": "Successful Response"
           },
           "400": {
-            "description": "Missing library header or unsupported digest format"
+            "description": "Missing library header or unsupported digest format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "403": {
-            "description": "Library path rejected by allowlist"
+            "description": "Library path rejected by allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -22830,7 +23239,14 @@
             }
           },
           "404": {
-            "description": "Entity not found"
+            "description": "Entity not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -50652,6 +51068,22 @@
             "type": "array",
             "title": "Steps"
           },
+          "automatic": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticStep"
+            },
+            "type": "array",
+            "title": "Automatic",
+            "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeChange"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written (source.onboard.regen-shows-diff)"
+          },
           "gaps": {
             "items": {
               "type": "string"
@@ -51095,6 +51527,31 @@
         ],
         "title": "AuthorityRefreshRequest"
       },
+      "AutomaticStep": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "layer": {
+            "type": "string",
+            "title": "Layer"
+          },
+          "uses_cloud": {
+            "type": "boolean",
+            "title": "Uses Cloud",
+            "description": "whether the step may use a cloud model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "layer",
+          "uses_cloud"
+        ],
+        "title": "AutomaticStep",
+        "description": "A step the purpose (or an added layer) turns on by itself (`source.recipe.steps-name-layers`)."
+      },
       "AutomaticWork": {
         "properties": {
           "job": {
@@ -51263,6 +51720,16 @@
             "type": "number",
             "nullable": true,
             "title": "Process Cpu Percent"
+          },
+          "process_memory_bytes": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Process Memory Bytes"
+          },
+          "process_energy_watts": {
+            "type": "number",
+            "nullable": true,
+            "title": "Process Energy Watts"
           },
           "cpu_count": {
             "type": "integer",
@@ -53104,6 +53571,24 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Params"
+          },
+          "downloading": {
+            "type": "boolean",
+            "title": "Downloading",
+            "description": "a download-model job is already fetching it (#5791)",
+            "default": false
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "that job, as Activity lists it, while downloading (#5791)"
+          },
+          "progress": {
+            "type": "string",
+            "nullable": true,
+            "title": "Progress",
+            "description": "how far it has got, as the job last said it (#5791)"
           }
         },
         "type": "object",
@@ -54670,6 +55155,12 @@
             },
             "type": "array",
             "title": "Next Nodes"
+          },
+          "restorable": {
+            "type": "boolean",
+            "title": "Restorable",
+            "description": "false for a step read from the run's saved record: it is not a checkpoint, so a restore or fork by its id would find nothing",
+            "default": true
           }
         },
         "type": "object",
@@ -58466,6 +58957,11 @@
             "type": "boolean",
             "title": "Enabled",
             "default": true
+          },
+          "available_to_chat": {
+            "type": "boolean",
+            "title": "Available To Chat",
+            "default": false
           }
         },
         "type": "object",
@@ -61241,6 +61737,45 @@
         ],
         "title": "DocumentsProposalList"
       },
+      "DownloadFailed": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model that did not download"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "retry_job_id": {
+            "type": "string",
+            "title": "Retry Job Id",
+            "description": "the download's job: POST /api/activity/jobs/{id}/retry"
+          },
+          "next_candidate": {
+            "$ref": "#/components/schemas/NextCandidate",
+            "nullable": true,
+            "description": "null: the chain has nothing else"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "model",
+          "reason",
+          "retry_job_id"
+        ],
+        "title": "DownloadFailed",
+        "description": "A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."
+      },
       "DownloadStartedResponse": {
         "properties": {
           "status": {
@@ -62819,6 +63354,11 @@
             },
             "type": "array",
             "title": "Triangulated Facts"
+          },
+          "stale_reason": {
+            "type": "string",
+            "nullable": true,
+            "title": "Stale Reason"
           }
         },
         "type": "object",
@@ -63440,7 +63980,15 @@
       "ErrorDetail": {
         "properties": {
           "detail": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
             "title": "Detail"
           }
         },
@@ -63449,7 +63997,7 @@
           "detail"
         ],
         "title": "ErrorDetail",
-        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way."
+        "description": "The body this route's refusals actually send: `{\"detail\": \"<a sentence>\"}`.\n\n**Declared because it was not, and the omission ate the sentence** (#5089). Without\na `responses=` entry FastAPI documents 422 as its own `HTTPValidationError`, whose\n`detail` is an ARRAY of field errors \u2014 and the generated Swift client decodes the\nbody while producing the response, so a person picking the wrong file got a client\ndecoding error instead of *\"nothing recognises 'x.xml'. This build reads: \u2026\"*.\n**That sentence is the whole value of the refusal**: a scholar who chose the wrong\nfile needs to be told what this build can read.\n\nThe 409 is declared for the same reason even though it works today: it works only\nbecause nothing declared it, which is the same accident facing the other way.\n\nSome refusals carry a STRUCTURED detail instead of a sentence (a stale note's\n`current_body`, an ingest 403's `code`), so `detail` is a string or an object."
       },
       "EvaluationCandidate": {
         "properties": {
@@ -64978,6 +65526,75 @@
         ],
         "title": "FindDocumentsSplitRequest"
       },
+      "FirstRunClient": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "app",
+            "title": "Kind",
+            "default": "app"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FirstRunClient"
+      },
+      "FirstRunRequest": {
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Display Name"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/FirstRunClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "display_name",
+          "public_key_pem",
+          "client"
+        ],
+        "title": "FirstRunRequest"
+      },
+      "FirstRunResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/SignInClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "client"
+        ],
+        "title": "FirstRunResponse"
+      },
       "FlowCandidate": {
         "properties": {
           "order": {
@@ -66118,6 +66735,11 @@
             },
             "type": "array",
             "title": "Missing Dependencies"
+          },
+          "device_token_migration_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Device Token Migration Error"
           },
           "dependencies": {
             "additionalProperties": {
@@ -68331,6 +68953,36 @@
         ],
         "title": "InviteMintResponse"
       },
+      "InviteRedeemClient": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "app",
+              "device"
+            ],
+            "title": "Kind",
+            "default": "app"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "InviteRedeemClient"
+      },
       "InviteRedeemRequest": {
         "properties": {
           "invite_token": {
@@ -68341,15 +68993,48 @@
           "new_password": {
             "type": "string",
             "minLength": 1,
+            "nullable": true,
             "title": "New Password"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/InviteRedeemClient",
+            "nullable": true
           }
         },
         "type": "object",
         "required": [
-          "invite_token",
-          "new_password"
+          "invite_token"
         ],
-        "title": "InviteRedeemRequest"
+        "title": "InviteRedeemRequest",
+        "description": "Accept an invite with a password, or with the person's public key (multiuser.invite-registers-public-key).\n\nWith a key and no password the person has no password at all: they sign in by challenge."
+      },
+      "InviteRedeemResponse": {
+        "properties": {
+          "session_token": {
+            "type": "string",
+            "title": "Session Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserResponse"
+          },
+          "client": {
+            "$ref": "#/components/schemas/RedeemedClient",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_token",
+          "user"
+        ],
+        "title": "InviteRedeemResponse"
       },
       "InviteRequest": {
         "properties": {
@@ -71708,6 +72393,174 @@
         ],
         "title": "LinkTypeRead"
       },
+      "LocalClientDecision": {
+        "properties": {
+          "allow": {
+            "type": "boolean",
+            "title": "Allow"
+          }
+        },
+        "type": "object",
+        "required": [
+          "allow"
+        ],
+        "title": "LocalClientDecision"
+      },
+      "LocalClientPeer": {
+        "properties": {
+          "pid": {
+            "type": "integer",
+            "title": "Pid"
+          },
+          "exe": {
+            "type": "string",
+            "title": "Exe"
+          },
+          "signer": {
+            "type": "string",
+            "nullable": true,
+            "title": "Signer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pid",
+          "exe"
+        ],
+        "title": "LocalClientPeer"
+      },
+      "LocalClientRegisterBody": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Request Id"
+          },
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "public_key_pem"
+        ],
+        "title": "LocalClientRegisterBody"
+      },
+      "LocalClientRequestBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cli",
+              "mcp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "maxLength": 120,
+            "title": "Host",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "LocalClientRequestBody"
+      },
+      "LocalClientRequestList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LocalClientRequestResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "LocalClientRequestList"
+      },
+      "LocalClientRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "cli",
+              "mcp"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "host": {
+            "type": "string",
+            "title": "Host"
+          },
+          "peer": {
+            "$ref": "#/components/schemas/LocalClientPeer"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "allowed",
+              "denied"
+            ],
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "host",
+          "peer",
+          "state"
+        ],
+        "title": "LocalClientRequestResponse"
+      },
+      "LocalClientSwitches": {
+        "properties": {
+          "mcp": {
+            "type": "boolean",
+            "title": "Mcp"
+          },
+          "cli": {
+            "type": "boolean",
+            "title": "Cli"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mcp",
+          "cli"
+        ],
+        "title": "LocalClientSwitches"
+      },
       "LocalInferenceCapabilitiesResponse": {
         "properties": {
           "system": {
@@ -72660,6 +73513,11 @@
             "type": "boolean",
             "title": "Enabled"
           },
+          "available_to_chat": {
+            "type": "boolean",
+            "title": "Available To Chat",
+            "default": false
+          },
           "created_at": {
             "type": "string",
             "title": "Created At"
@@ -73375,6 +74233,26 @@
         ],
         "title": "MetricsResponse",
         "description": "Response for metrics recomputation."
+      },
+      "MigrateOwnerRequest": {
+        "properties": {
+          "public_key_pem": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Public Key Pem"
+          },
+          "client": {
+            "$ref": "#/components/schemas/FirstRunClient"
+          }
+        },
+        "type": "object",
+        "required": [
+          "public_key_pem",
+          "client"
+        ],
+        "title": "MigrateOwnerRequest",
+        "description": "The owner row already has a name; only the key and the client are new."
       },
       "MigrationCommand": {
         "type": "string",
@@ -75497,6 +76375,46 @@
           "segment_id"
         ],
         "title": "NeighboursResponse"
+      },
+      "NextCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what to call it on screen: the catalogue's name for it, else its model's name, else its id"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Model",
+            "description": "its pin"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On",
+            "description": "this-mac, or cloud:<provider>"
+          },
+          "needs_permission": {
+            "type": "boolean",
+            "title": "Needs Permission",
+            "description": "a cloud candidate while pages may not leave this Mac"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "runs_on",
+          "needs_permission"
+        ],
+        "title": "NextCandidate",
+        "description": "The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."
       },
       "NodeCompareRequest": {
         "properties": {
@@ -80909,6 +81827,50 @@
         "title": "RecipeCard",
         "description": "The facts on the chosen model's card that setup shows (`source.onboard.proposes-chain`)."
       },
+      "RecipeChange": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "the change in a sentence: 'Work out dates would be added'"
+          },
+          "was": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Was",
+            "description": "the saved step's model"
+          },
+          "now": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Now",
+            "description": "the fresh step's model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "kind",
+          "words"
+        ],
+        "title": "RecipeChange",
+        "description": "One step a fresh assembly would add, take out or run differently from the project's saved recipe."
+      },
       "RecipeRunStatus": {
         "properties": {
           "job_id": {
@@ -81154,6 +82116,14 @@
             "nullable": true,
             "title": "Next Reader",
             "description": "when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)"
+          },
+          "download_failed": {
+            "items": {
+              "$ref": "#/components/schemas/DownloadFailed"
+            },
+            "type": "array",
+            "title": "Download Failed",
+            "description": "steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)"
           },
           "lines_unread_why": {
             "additionalProperties": {
@@ -81468,6 +82438,29 @@
         ],
         "title": "RecomputeResponse",
         "description": "Result of a triangulation recompute run."
+      },
+      "RedeemedClient": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "title": "RedeemedClient"
       },
       "Reference": {
         "properties": {
@@ -87998,6 +88991,12 @@
             "type": "string",
             "title": "Example"
           },
+          "example_from_samples": {
+            "type": "string",
+            "nullable": true,
+            "title": "Example From Samples",
+            "description": "an example from the person's sample pages, once a try found one (Passages)"
+          },
           "jobs": {
             "items": {
               "type": "string"
@@ -89610,6 +90609,20 @@
             "type": "boolean",
             "title": "Read By A Step",
             "description": "true: a step reads it today; false: kept with the answers"
+          },
+          "open_ended": {
+            "type": "boolean",
+            "title": "Open Ended",
+            "description": "a question that names kinds: every kind by default (an empty answer), the person can type their own, and `options` stay empty (#5805)",
+            "default": false
+          },
+          "suggestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suggestions",
+            "description": "for an open question: only the kinds a sample try found; empty until a try returns them"
           }
         },
         "type": "object",
@@ -89751,6 +90764,12 @@
             "nullable": true,
             "title": "Job Id",
             "description": "the download-model job fetching it, while downloading"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "the download in words: 'Downloading X: 1.2 GB of 5.6 GB; its steps wait for it.', or 'X is not on this Mac yet (60 MB): Start downloads it, and its steps wait for it.'; shown as given (#5791)"
           }
         },
         "type": "object",
@@ -90382,6 +91401,12 @@
             "type": "string",
             "nullable": true,
             "title": "Layer"
+          },
+          "how": {
+            "type": "string",
+            "nullable": true,
+            "title": "How",
+            "description": "how the step works, in the engine's words, for a step that runs no model (Work out dates); the app shows it as given (`source.onboard.setup-says-what-is-happening`, #5791)"
           },
           "check": {
             "type": "string",
@@ -94869,6 +95894,11 @@
             "type": "boolean",
             "nullable": true,
             "title": "Enabled"
+          },
+          "available_to_chat": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Available To Chat"
           }
         },
         "type": "object",

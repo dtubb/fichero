@@ -24,8 +24,11 @@ what a retry can select on.
 
 from __future__ import annotations
 
+import contextlib
+import itertools
 import logging
 import threading
+import time
 from concurrent.futures import Future
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable
@@ -238,6 +241,14 @@ def _emit_queue_activity(
 #: island is told it has STALLED. A page takes ~1.3s to embed, so a minute of
 #: total silence is not slowness — it is a pool with nothing moving through it.
 STALL_SECONDS = 60.0
+#: A single embed (or the model load before the first one) may legitimately outlast STALL_SECONDS: 140 s for one
+#: 233-char page on 2026-10-16 (#5807). While one is running the watchdog says what it is doing and looks again;
+#: past this ceiling with still no finish it is a hang and reports the stall.
+BUSY_CEILING_SECONDS = 900.0
+#: Per library, each embed in flight (the pool runs two at once) -> (label, start). One slot per library let the
+#: first embed to finish clear the mark while the other still ran.
+_busy: dict[str, dict[int, tuple[str, float]]] = {}
+_busy_tokens = itertools.count()
 _stall_timer: threading.Timer | None = None
 
 
@@ -283,7 +294,7 @@ def background_jobs_snapshot(library: str | None = None) -> list[dict[str, objec
 
 
 def _emit_queue_progress(
-    library: str, done: int, total: int, *, stalled: bool = False
+    library: str, done: int, total: int, *, stalled: bool = False, working: str | None = None
 ) -> None:
     from fichero_server.api.change_stream import emit_change
 
@@ -295,6 +306,8 @@ def _emit_queue_progress(
             f"{STALL_SECONDS:.0f}s. A source on a network volume or one still "
             "copying from another Mac can block this queue."
         )
+    elif working:
+        message = f"{working} ({done} of {total} pages embedded)"
     else:
         message = f"{done} of {total} pages embedded"
     try:
@@ -349,6 +362,13 @@ def _arm_stall_watchdog(library: str) -> None:
         from fichero_server.execution import throttle
 
         if throttle.why_wait(person_waiting=False):
+            _arm_stall_watchdog(library)
+            return
+        with _progress_lock:
+            flying = list(_busy.get(library, {}).values())
+        # The ceiling counts from the OLDEST start: a newer embed must not hide one that never returns.
+        if flying and time.monotonic() - min(start for _, start in flying) < BUSY_CEILING_SECONDS:
+            _emit_queue_progress(library, done, total, working=min(flying, key=lambda f: f[1])[0])
             _arm_stall_watchdog(library)
             return
         logger.error(
@@ -422,6 +442,45 @@ def _progress_expand(library: str, extra: int) -> None:
     _arm_stall_watchdog(library)
 
 
+@contextlib.contextmanager
+def _embedding(library: str | None):
+    """Mark one embed as in flight, so a long one reads as work and not as a stall (#5807)."""
+    if library is None:
+        yield
+        return
+    from fichero_server.db.embeddings import embedder_loaded
+
+    label = "Embedding a page" if embedder_loaded() else "Loading the search model"
+    token = next(_busy_tokens)
+    with _progress_lock:
+        _busy.setdefault(library, {})[token] = (label, time.monotonic())
+    try:
+        yield
+    finally:
+        with _progress_lock:
+            flying = _busy.get(library, {})
+            flying.pop(token, None)
+            if not flying:
+                _busy.pop(library, None)
+
+
+def _embed_one(db: Database, target: Document, library: str | None) -> bool:
+    with _embedding(library):
+        return db.embed(target)
+
+
+def _progress_touch(library: str) -> None:
+    """Something moved without finishing a unit (#5807): a thumbnail landed, a stage started, a page began to embed.
+
+    The deadline measures silence, not completions: a slow first embed or a model load completes nothing for
+    minutes while the queue is busy, and "stalled at 0 of 23" nine seconds before "completed" is a false alarm.
+    """
+    with _progress_lock:
+        if library not in _progress:
+            return
+    _arm_stall_watchdog(library)
+
+
 def _progress_tick(library: str) -> None:
     with _progress_lock:
         state = _progress.get(library)
@@ -487,6 +546,8 @@ def _embed_document_tree(
     if library is not None:
         _progress_expand(library, sum(1 for t in targets if t is not doc))
     for target in targets:
+        if library is not None:
+            _progress_touch(library)
         try:
             if db.has_embedding(target.id):
                 # Already embedded — resume after an interrupted import, or a
@@ -496,7 +557,7 @@ def _embed_document_tree(
                 # re-hogs the machine re-embedding finished pages
                 # ([[user-machine-always-useful]]).
                 embedded += 1
-            elif not db.embed(target):
+            elif not _embed_one(db, target, library):
                 outcome = getattr(db, "last_embed_outcome", None)
                 reason = getattr(outcome, "reason", None)
                 # 'unsupported'/'empty' style outcomes are not failures.
@@ -594,6 +655,10 @@ def _probe_source_readable(path: Path) -> str | None:
     return None
 
 
+#: What a page says when its original is gone; the same words #5811 gives a try (`importer.missing-original-fails-in-words`).
+MISSING_ORIGINAL_TAIL = "isn't where it was imported from: Locate Originals…"
+
+
 def _source_error(doc: Document, db: "Database", library: str) -> str | None:
     """Why this document's bytes cannot be read right now, or None.
 
@@ -614,7 +679,7 @@ def _source_error(doc: Document, db: "Database", library: str) -> str | None:
     if path is None:
         # A page child whose parent PDF is gone, or a row whose file moved.
         # Named, not silent: "no source" is an answer; a stalled bar is not.
-        return f"source not found for {doc.name!r}"
+        return f"{doc.name} {MISSING_ORIGINAL_TAIL}"
     return _probe_source_readable(path)
 
 
@@ -674,11 +739,25 @@ def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | No
     return db, doc
 
 
+class SourceMissing(Exception):
+    """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
+
+
 def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     """Generate one document's thumbnail and announce it IMMEDIATELY — the
     change event used to wait behind that document's ~1.3s embed, so the grid
     learned about a finished image over a second late (user, live 2026-08-19).
     """
+    _progress_touch(library)
+    try:
+        return _thumbnail_stage_body(doc_id, library)
+    except SourceMissing:
+        return None
+    finally:
+        _progress_touch(library)
+
+
+def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
     from fichero_server.api.change_stream import emit_change
     from fichero_server.db.storage import ensure_thumbnail
 
@@ -695,6 +774,8 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
         # queue stops dead with the progress bar at 0% (#4574 follow-up).
         if source_error := _source_error(doc, db, library):
             _record_source_failure(db, doc_id, library, source_error)
+            if source_error.endswith(MISSING_ORIGINAL_TAIL):
+                raise SourceMissing(source_error)
             return None
         try:
             thumb = ensure_thumbnail(doc, package_path=Path(library), db=db)
@@ -753,6 +834,7 @@ def _embed_stage(doc_id: str, library: str) -> None:
     and shows on the next load. Thumbnails still emit — a landed thumbnail IS a
     render change ([[user-machine-always-useful]]).
     """
+    _progress_touch(library)
     try:
         opened = _open_stage_db(library, doc_id)
         if opened is None:
@@ -943,6 +1025,16 @@ def _library_of(db: "Database") -> str:
     return str(Path(db.path).parent)
 
 
+def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
+    """The thumbnail kind: the stage, and a missing original fails the job in words (#5818)."""
+    thumb = _thumbnail_stage(doc_id, _library_of(db))
+    doc = db.get(Document, doc_id)
+    error = str((doc.metadata or {}).get("derivative_error") or "") if doc is not None else ""
+    if error.endswith(MISSING_ORIGINAL_TAIL):
+        raise SourceMissing(error)
+    return thumb
+
+
 _kinds_registered = False
 
 
@@ -955,7 +1047,7 @@ def register_job_kinds() -> None:
     _kinds_registered = True
     from fichero_server.execution import jobs
 
-    jobs.register_kind(THUMBNAIL_KIND, lambda db, doc_id: _thumbnail_stage(doc_id, _library_of(db)),
+    jobs.register_kind(THUMBNAIL_KIND, _thumbnail_job,
                        model=None, lane="images", name="Make thumbnails",
                        # Cheap, and what the person sees: made before the heavy local work queued
                        # after them (`activity.lane.thumbnails-first`, #5585).

@@ -135,8 +135,8 @@ extension RecipeStepsView {
         } else if let place = RecipeStepRow.whereItRuns(step) {
             lines.append(.place(place, cloud: step.usesCloud == true))
         }
-        if step.job == "translate-transliterate-normalise",
-           let runs = runsLine(store.jobAnswers.runTitles) { lines.append(.runs(runs)) }
+        // The engine names the Normalise step's runs (`run_titles`, #5795); the app keeps no list of its own.
+        if let runs = runsLine(step.runTitles ?? []) { lines.append(.runs(runs)) }
         if let fit { lines.append(.fit(fit)) }
         return lines
     }

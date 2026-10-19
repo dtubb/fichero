@@ -20,9 +20,6 @@ extension ContentView {
     func handleOnAppear() {
         // Restore all persisted state from @SceneStorage
         restorePersistedState()
-        if focusedPane == nil {
-            focusedPane = .content
-        }
         // Clamp to a sane range. SceneStorage can hold stale/corrupted values
         // from previous sessions (e.g., values written during layout animations).
         // Clamps to the SAME bounds the splitter enforces (#4287) — a stray
@@ -35,6 +32,11 @@ extension ContentView {
         // Inspector visibility is per-window (@SceneStorage) and reaches the
         // View menu via FocusedValues.showInspector — no app-wide seeding needed (#1451).
         updateColumnVisibility()
+        // The first appear is what claimed focus for the content pane, and so for its Find in document field
+        // (#5824); the window opens in the sidebar, or in the list when the sidebar is hidden. Once: only while unset.
+        if focusedPane == nil {
+            focusedPane = PaneFocus.launchFocus(sidebarHidden: columnVisibility == .detailOnly)
+        }
         viewDisplayMode = normalizedViewDisplayMode(viewDisplayMode)
         viewSettings.previewMode = normalizedPreviewMode(viewSettings.previewMode)
         let initialLayoutMode: LayoutMode = switch viewSettings.previewMode {

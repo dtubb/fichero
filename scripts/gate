@@ -37,8 +37,9 @@
 #
 # Watchdog (three independent triggers):
 #   1. memory PRESSURE (kern.memorystatus_vm_pressure_level — RSS is a proven
-#      liar): instant kill at level >= 4 (hard critical), two-strike kill at
-#      level 3 (critical);
+#      liar): kill at level 4 (critical) only if a second
+#      reading GATE_PRESSURE_CONFIRM_S (default 10) later is still 4 (macOS
+#      reports 1/2/4 only);
 #   2. per-process FOOTPRINT ceiling: `footprint` (phys_footprint) sampled
 #      over the whole gated process tree — any single process crossing
 #      GATE_FOOTPRINT_MB (default 6144) kills the run. This is the guard for
@@ -62,6 +63,7 @@
 #   GATE_ENGINE_UNIT_DIR=d     where the engine unit shards look for tests (self-test seam)
 #   GATE_LOCK_FILE=path        alternate lock file
 #   GATE_WATCH_INTERVAL=s      watchdog sample interval (default 5)
+#   GATE_PRESSURE_CONFIRM_S=s  gap before the second level-4 reading (default 10)
 #   GATE_FAKE_PRESSURE=f       read pressure level from file f (or literal int)
 #   GATE_FAKE_FOOTPRINT_MB=f   read max tree footprint (MB) from file/literal
 #   GATE_FOOTPRINT_MB=n        footprint ceiling in MB (default 6144, test phases)
@@ -335,7 +337,7 @@ run_gated() {
   fi
   local pid=$!
   trap 'kill_tree '"$pid"'; [[ -n "$handshake_log" ]] && rm -f "$handshake_log"; exit 130' INT TERM
-  local start=$SECONDS strikes=0 reason=""
+  local start=$SECONDS reason=""
   while kill -0 "$pid" 2>/dev/null; do
     sleep "$WATCH_INTERVAL"
     kill -0 "$pid" 2>/dev/null || break
@@ -389,8 +391,13 @@ run_gated() {
     case "$level" in
       ''|*[!0-9]*) level=1 ;;
     esac
+    if (( level >= 4 )) && kill -0 "$pid" 2>/dev/null; then
+      sleep "${GATE_PRESSURE_CONFIRM_S:-10}"
+      level="$(pressure_level)"
+      case "$level" in ''|*[!0-9]*) level=1 ;; esac
+    fi
     if (( level >= 4 )); then
-      reason="memory pressure level $level (hard critical) — instant kill"
+      reason="memory pressure level $level on two readings ${GATE_PRESSURE_CONFIRM_S:-10}s apart"
       GATE_LAST_VERDICT="MEMORY PRESSURE"
       kill_tree "$pid"
       wait "$pid" 2>/dev/null
@@ -398,21 +405,6 @@ run_gated() {
       [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
       trap - INT TERM
       return 137
-    elif (( level == 3 )); then
-      strikes=$((strikes + 1))
-      echo "gate: [$label] memory pressure level 3 — strike $strikes/2" >&2
-      if (( strikes >= 2 )); then
-        reason="memory pressure level 3 twice in a row"
-        GATE_LAST_VERDICT="MEMORY PRESSURE"
-        kill_tree "$pid"
-        wait "$pid" 2>/dev/null
-        echo "gate: [$label] KILLED ($GATE_LAST_VERDICT) — $reason" >&2
-        [[ -n "$handshake_log" ]] && rm -f "$handshake_log"
-        trap - INT TERM
-        return 137
-      fi
-    else
-      strikes=0
     fi
   done
   wait "$pid"
@@ -1204,24 +1196,23 @@ cmd_self_test() {
   [[ $rc -eq 0 && $((SECONDS - t0)) -ge 1 ]]; check "waiting caller queues until holder exits, then runs" $?
   wait "$holder" 2>/dev/null
 
-  # 4. Watchdog: hard-critical pressure (level 4) kills a fake command fast.
+  # 4. Watchdog: level 4 kills only when a second reading CONFIRM_S later is
+  #    still 4; a one-reading spike must not kill (#4916).
   local pfile="$tmp/pressure"
   echo 1 >"$pfile"
   ( sleep 1; echo 4 >"$pfile" ) &
-  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd1.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd1.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 GATE_PRESSURE_CONFIRM_S=0.5 \
     "$0" wrap -- sleep 30 >/dev/null 2>&1
-  [[ $? -eq 137 ]]; check "watchdog: instant kill at pressure level >= 4 (rc 137)" $?
-
-  # 5. Watchdog: two-strike at level 3 (one strike alone must NOT kill).
-  echo 3 >"$pfile"
-  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd2.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
-    "$0" wrap -- sleep 30 >/dev/null 2>&1
-  [[ $? -eq 137 ]]; check "watchdog: two-strike kill at sustained level 3 (rc 137)" $?
+  [[ $? -eq 137 ]]; check "watchdog: sustained level 4 kills after confirm (rc 137)" $?
   echo 1 >"$pfile"
-  ( sleep 0.35; echo 3 >"$pfile"; sleep 0.3; echo 1 >"$pfile" ) &
-  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd3.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
+  ( sleep 0.35; echo 4 >"$pfile"; sleep 0.3; echo 1 >"$pfile" ) &
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd2.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 GATE_PRESSURE_CONFIRM_S=1 \
     "$0" wrap -- sleep 2 >/dev/null 2>&1
-  [[ $? -eq 0 ]]; check "watchdog: a single level-3 strike does not kill" $?
+  [[ $? -eq 0 ]]; check "watchdog: a single level-4 spike does not kill" $?
+  echo 3 >"$pfile"
+  env -u GATE_LOCK_HELD GATE_LOCK_FILE="$tmp/wd3.lock" GATE_FAKE_PRESSURE="$pfile" GATE_WATCH_INTERVAL=0.3 \
+    "$0" wrap -- sleep 1 >/dev/null 2>&1
+  [[ $? -eq 0 ]]; check "watchdog: level 3 is not a kill condition" $?
 
   # 6. Watchdog: footprint ceiling — a process crossing GATE_FOOTPRINT_MB is
   #    killed even while pressure stays nominal (the run-4 leak shape).

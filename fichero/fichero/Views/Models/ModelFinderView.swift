@@ -29,6 +29,9 @@ struct ModelFinderView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            ForEach(store.htrUnited.datasets, id: \.key) { dataset in
+                HtrUnitedDatasetRow(dataset: dataset)
+            }
             if let failure = store.searchFailure {
                 Label(failure, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -75,7 +78,7 @@ struct ModelFinderView: View {
     /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
     /// online; any other job's model is one already on this Mac or on a server of yours (#5619).
     static func nothingFound(job: String) -> String {
-        job == ModelFinderStore.readingJob || job == "read-a-page"
+        job == ModelFinderStore.readingJob || job == "read-a-page" || job == "find-where-readers-disagree"
             ? "No reader was found for these answers yet. Search Online looks further."
             : "No model on this Mac does this yet. A text model in your MLX store, or on an Ollama or LM Studio "
               + "server of yours (Settings › AI), is offered here once it is there."
@@ -185,7 +188,7 @@ struct ModelFinderCard: View {
     private var runnableActions: some View {
         HStack(spacing: 6) {
             if let key = ModelFinderStore.downloadKey(candidate), Self.offersDownload(candidate) {
-                if store.downloads.isActive(key) {
+                if Self.isDownloading(candidate, tracked: store.downloads.isActive(key)) {
                     ProgressView().controlSize(.small)
                 } else if store.downloads.state(key) != .done {
                     Button(Self.failed(store.downloads.state(key)) ? "Try Again" : "Download") {
@@ -205,6 +208,12 @@ struct ModelFinderCard: View {
                 .help("Use it for this step; a model still to download is then a download Start offers")
             }
         }
+    }
+
+    /// A download is under way when this app is tracking it OR the engine says a `download-model` job is fetching it
+    /// (`download.downloading`): a card the engine words "Downloading" never shows a Download button beside it (#5809).
+    static func isDownloading(_ candidate: Components.Schemas.ModelCandidate, tracked: Bool) -> Bool {
+        tracked || candidate.download?.downloading == true
     }
 
     static func failed(_ state: ModelDownloads.State?) -> Bool {
@@ -348,4 +357,30 @@ extension ModelFinderStore {
         .formStyle(.grouped)
     )
     .frame(width: 320, height: 200)
+}
+
+/// One HTR-United ground-truth dataset the engine kept for the project (#5571): what it may be used as, or the
+/// licence to accept first. Taking one into the project is not built (`source.find.htr-united-and-tessdata`).
+private struct HtrUnitedDatasetRow: View {
+    let dataset: Components.Schemas.HtrUnitedDataset
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(dataset.title).font(.callout)
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var detail: String {
+        let uses = dataset._as.map { $0 == "test-set" ? "test set" : $0 }
+        let says = uses.isEmpty
+            ? (dataset.accept ?? "Accept \(dataset.licence.name) to use it")
+            : "Can be used as " + uses.formatted(.list(type: .and))
+        return "HTR-United · \(says)"
+    }
+}
+
+private extension Components.Schemas.HtrUnitedDataset {
+    /// A missing url is stored as "", so the title joins it to tell two datasets apart.
+    var key: String { title + "|" + url }
 }

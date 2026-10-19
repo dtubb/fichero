@@ -16,6 +16,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from fichero_server.actions import mcp_chat  # noqa: F401  (registers mcp.call_tool)
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry
 from fichero_server.api.auth import action_context
 from fichero_server.api.change_stream import emit_change
@@ -643,7 +644,10 @@ async def _run_chat_tools_loop(
     )
     from fichero_server.actions.registry import ActionNotFoundError  # noqa: PLC0415
 
-    tools = chat_agent_tools()
+    # External MCP tools the owner has made available to chat (#5761): read-only ones, off unless switched on.
+    unavailable: dict[str, str] = {}
+    mcp_tools = await mcp_chat.chat_mcp_tools(unavailable) if mcp_chat.may_use_mcp_tools(ctx) else {}
+    tools = chat_agent_tools() + [mcp_chat.tool_definition(key, tool) for key, (_, tool) in mcp_tools.items()]
     try:
         bound = llm.bind_tools(tools) if tools else llm
     except (AttributeError, NotImplementedError, ValueError) as exc:
@@ -659,6 +663,11 @@ async def _run_chat_tools_loop(
         return getattr(response, "content", ""), []
 
     convo = list(messages)
+    if unavailable:  # the model is told which servers are down, so it does not guess at their tools
+        from langchain_core.messages import SystemMessage  # noqa: PLC0415
+
+        down = ", ".join(f"{name} ({kind})" for name, kind in unavailable.items())
+        convo.append(SystemMessage(content=f"These MCP servers could not start and offer no tools this turn: {down}."))
     tool_calls: list[ToolCall] = []
     response = None
     actor = ctx.actor or "chat"
@@ -674,6 +683,25 @@ async def _run_chat_tools_loop(
             raw_name = call.get("name") or ""
             args = call.get("args") or {}
             call_id = call.get("id") or uuid4().hex
+
+            # An external MCP tool: the call is the audited action `mcp.call_tool`, nothing else.
+            if raw_name in mcp_tools:
+                server_name, mcp_tool = mcp_tools[raw_name]
+                mcp_args = {"server": server_name, "tool": mcp_tool.name, "arguments": args}
+                try:
+                    result = dispatch_tool_call(
+                        db, "mcp.call_tool", mcp_args, actor=actor, origin_window=ctx.origin_window,
+                        run_id=ctx.run_id, library_path=ctx.library_path, is_bootstrap=ctx.is_bootstrap,
+                    )
+                    tool_calls.append(ToolCall(id=call_id, action_name="mcp.call_tool", params=mcp_args, actor=actor,
+                                               audit_id=result.audit_id, is_mutation=False, status="ok"))
+                    convo.append(ToolMessage(content=json.dumps(result.result, default=str), tool_call_id=call_id))
+                except Exception as exc:  # noqa: BLE001 - never abort the whole turn
+                    logger.warning("chat MCP tool call failed: %s -> %s", raw_name, exc)
+                    tool_calls.append(ToolCall(id=call_id, action_name="mcp.call_tool", params=mcp_args, actor=actor,
+                                               is_mutation=False, status="error"))
+                    convo.append(ToolMessage(content=f"tool error: {exc}", tool_call_id=call_id))
+                continue
 
             # Unknown tool — record an error, tell the model, keep going.
             try:

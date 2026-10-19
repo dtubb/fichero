@@ -76,6 +76,8 @@ extension AppState {
     /// exactly the state that put a sign-in wall in front of the loopback
     /// owner (#4359).
     func warmContextThenMarkReady() async {
+        // Sign in by the owner's key first (multiuser-always-on): a session the audit can name the client of.
+        await ownerSignIn.run()
         async let session: Void = sessionStore.refresh()
         async let identity: Void = identityStore.load()
         _ = await (session, identity)

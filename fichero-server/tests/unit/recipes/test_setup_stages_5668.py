@@ -56,7 +56,7 @@ def test_without_a_project_every_stage_is_off_with_its_defaults(client, monkeypa
     assert not any(s["on"] for s in items)
     names = next(s for s in items if s["id"] == "names")
     kinds = next(q for q in names["questions"] if q["key"] == "entity_kinds")
-    assert kinds["answer"] == kinds["default"] == ["people", "places", "organisations"] and kinds["read_by_a_step"]
+    assert kinds["answer"] == kinds["default"] == [] and kinds["read_by_a_step"]  # every kind (#5805)
 
 
 def test_a_projects_recipe_and_answers_say_which_stages_are_on(client):
