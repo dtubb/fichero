@@ -10,6 +10,14 @@ struct StageCandidateChooser: View {
     /// Uses a smaller build the engine names for a model that won't fit (#5641), for the stage's step.
     var useSmaller: ((CandidateFit.Smaller) -> Void)?
 
+    /// What can do the step, said on the page where a stage has only a few that can (#5838): Find Lines lists line
+    /// finders alone, and a cloud vision model (a hand-added Opus, say) is not one.
+    static func whoDoes(stageId: String) -> String? {
+        guard stageId == "find-lines" else { return nil }
+        return "Kraken finds the lines of handwriting and print; Apple Vision finds the lines of print and typed pages "
+            + "only. Cloud vision models can't find lines yet, so they are not offered here."
+    }
+
     /// How many of the step's candidates are offered here; the finder lists the rest.
     static let offered = 8
 
