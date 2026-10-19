@@ -90631,6 +90631,12 @@
             "nullable": true,
             "title": "Job Id",
             "description": "the download-model job fetching it, while downloading"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "the download in words: 'Downloading X: 1.2 GB of 5.6 GB; its steps wait for it.', or 'X is not on this Mac yet (60 MB): Start downloads it, and its steps wait for it.'; shown as given (#5791)"
           }
         },
         "type": "object",
@@ -91222,6 +91228,12 @@
             "type": "string",
             "nullable": true,
             "title": "Layer"
+          },
+          "how": {
+            "type": "string",
+            "nullable": true,
+            "title": "How",
+            "description": "how the step works, in the engine's words, for a step that runs no model (Work out dates); the app shows it as given (`source.onboard.setup-says-what-is-happening`, #5791)"
           },
           "check": {
             "type": "string",

@@ -77,6 +77,28 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
+#: How a step that runs no model works, in the engine's words, sent on its run (`how`) so the app shows the sentence
+#: and never writes it (`source.onboard.setup-says-what-is-happening`, #5791).
+HOW_IT_WORKS: dict[str, str] = {
+    "work-out-dates": (
+        "Works out dates with rules, not a model: it reads the date written at the head of each page, or in the "
+        "source's own date field, understands feast days and regnal years, and keeps a range when a date is "
+        "imprecise. It reads Gregorian dates, on this Mac; nothing leaves it."),
+}
+
+
+def download_sentence(download: dict[str, Any]) -> str:
+    """One download in words: under way (with how far), or still to start (with its size), and that its steps wait."""
+    from fichero_server.recipes.discovery import size_words
+
+    name = download.get("name") or download["model"]
+    if download.get("downloading"):
+        progress = download.get("progress")
+        return f"Downloading {name}" + (f": {progress}" if progress else "") + "; its steps wait for it."
+    size = size_words(download["size_mb"] / 1000) if download.get("size_mb") else "size not stated"
+    return f"{name} is not on this Mac yet ({size}): Start downloads it, and its steps wait for it."
+
+
 _NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder", "prepare-the-image"})
 #: Search: the page's text embedded by the embed job that also follows every correction
 #: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
@@ -446,6 +468,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": workflow_id, "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
+        if job in HOW_IT_WORKS:
+            entry["how"] = HOW_IT_WORKS[job]
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
                 skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}",
@@ -541,6 +565,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)
     if db is not None:
         mark_downloads_under_way(db, downloads)
+    for download in downloads:
+        download["sentence"] = download_sentence(download)
     # A model that is not here never refuses Start: Start fetches it itself and its steps wait for it (#5664,
     # ruled 2026-10-11: Set Up never downloads). Only a model that cannot be fetched at all refuses, below.
     waiting = [_downloading(d) for d in downloads if d.get("downloading")]

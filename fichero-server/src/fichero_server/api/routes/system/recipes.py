@@ -1510,6 +1510,9 @@ class StartRun(BaseModel):
     provider_override: Optional[str] = None
     model_override: Optional[str] = None
     layer: Optional[str] = None
+    how: Optional[str] = Field(default=None, description=(
+        "how the step works, in the engine's words, for a step that runs no model (Work out dates); the app shows "
+        "it as given (`source.onboard.setup-says-what-is-happening`, #5791)"))
     check: Optional[str] = Field(default=None, description=(
         "a check card's kind of check (CheckRunRequest.check): 'tie-text-to-lines' ties the page reading to "
         "the page's lines with a Kraken reader (#5444); none: the checker model reads each proposal"))
@@ -1591,6 +1594,9 @@ class StartDownload(BaseModel):
         "land (#5660)"))
     progress: Optional[str] = Field(default=None, description="how far the download has got, as its job last said it")
     job_id: Optional[str] = Field(default=None, description="the download-model job fetching it, while downloading")
+    sentence: Optional[str] = Field(default=None, description=(
+        "the download in words: 'Downloading X: 1.2 GB of 5.6 GB; its steps wait for it.', or 'X is not on this Mac "
+        "yet (60 MB): Start downloads it, and its steps wait for it.'; shown as given (#5791)"))
 
 
 class StartDownloadItem(BaseModel):
