@@ -29,6 +29,15 @@ def _resident_state(monkeypatch):
     kr._RESIDENT.update(saved)
 
 
+def _hold(segment=True, read="reader-a"):
+    """Hold the line finder and/or a reader in memory, as `_resident` would."""
+    kr._RESIDENT.clear()
+    if segment:
+        kr._RESIDENT["segment"] = ("blla", object())
+    if read:
+        kr._RESIDENT["read"] = (read, object())
+
+
 def _fake_torch(monkeypatch):
     seen = {}
     monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(
@@ -95,12 +104,14 @@ def test_a_page_logs_one_line_with_every_stage_and_a_total_that_adds_up(monkeypa
 
 def test_a_resident_page_checks_its_small_working_need():
     available, normal = lambda: 3 * GIB, lambda: 1  # noqa: E731
-    kr._RESIDENT["segment"] = ("blla", object())
+    _hold()
+    token = kr._WANTED.set({"segment": "blla", "read": "reader-a"})
     assert kr.kraken_models_resident() and kr.kraken_need_bytes() < GIB
     from fichero_server.execution.throttle import memory_short
 
     assert memory_short(available_bytes=lambda: 1 * GIB, pressure_level=normal, need_bytes=kr.kraken_need_bytes()) is None
     kr._RESIDENT.clear()
+    kr._WANTED.reset(token)
     assert kr.kraken_need_bytes() == kr._kraken_memory_need_bytes()
     assert memory_short(available_bytes=lambda: 1 * GIB, pressure_level=normal,
                         need_bytes=kr.kraken_need_bytes()) is not None
@@ -108,26 +119,54 @@ def test_a_resident_page_checks_its_small_working_need():
 
 def test_the_guard_lets_a_resident_page_run_on_3_gb_but_refuses_a_cold_one_on_2(monkeypatch):
     monkeypatch.undo()  # the fixture's stub of the guard; this test wants the real one
-    kr._RESIDENT.clear()
-    kr._RESIDENT["segment"] = ("blla", object())
+    _hold()
     kr.assert_memory_available_for_kraken(available_bytes=lambda: 1 * GIB, pressure_level=lambda: 1)  # no raise
     kr._RESIDENT.clear()
     with pytest.raises(kr.KrakenMemoryUnavailableError):
         kr.assert_memory_available_for_kraken(available_bytes=lambda: 2 * GIB, pressure_level=lambda: 1)
 
 
-def test_the_lane_throttle_uses_the_same_resident_rule():
-    from fichero_server.execution.throttle import heavy_work_need_bytes
+def test_the_shared_floor_stays_cold_even_while_kraken_holds_its_models():
+    """Review 279 MED 1: the scheduler, training and derivatives ask this; Kraken's resident memory is still in use."""
+    from fichero_server.execution.throttle import heavy_work_need_bytes, model_need
 
+    _hold()
     assert heavy_work_need_bytes() == kr._kraken_memory_need_bytes()
-    kr._RESIDENT["read"] = ("m", object())
-    assert heavy_work_need_bytes() == kr.kraken_need_bytes() < kr._kraken_memory_need_bytes()
+    assert "need_bytes" not in model_need("kraken:reader-a")  # not loaded: the cold floor
+    assert model_need("kraken:reader-a", loaded=True)["need_bytes"] == kr.kraken_need_bytes() < kr._kraken_memory_need_bytes()
+
+
+def test_one_kind_or_another_reader_is_still_a_cold_load():
+    """Review 279 MED 2: a held line finder with no reader (or another reader) still loads one."""
+    cold = kr._kraken_memory_need_bytes()
+    _hold(read=None)
+    assert kr.kraken_need_bytes() == cold
+    _hold(segment=False)
+    assert kr.kraken_need_bytes() == cold
+    _hold(read="reader-a")
+    token = kr._WANTED.set({"segment": "blla", "read": "reader-b"})  # this page asks for another reader
+    assert kr.kraken_need_bytes() == cold
+    kr._WANTED.reset(token)
+    token = kr._WANTED.set({"segment": "blla"})  # a page that only finds lines needs only the finder
+    _hold(read=None)
+    assert kr.kraken_need_bytes() < cold
+    kr._WANTED.reset(token)
+
+
+def test_a_call_carries_its_models_into_the_inference_thread(monkeypatch):
+    _fake_torch(monkeypatch)
+    _decide(monkeypatch)
+    seen = {}
+    token = kr._WANTED.set({"segment": "blla", "read": "reader-b"})
+    kr._kraken_call(lambda: seen.update(wanted=kr._WANTED.get()))
+    kr._WANTED.reset(token)
+    assert seen["wanted"] == {"segment": "blla", "read": "reader-b"}
 
 
 def test_the_reader_batch_is_at_least_8_while_memory_is_not_short(monkeypatch):
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 3 * GIB)
     monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
-    kr._RESIDENT["read"] = ("m", object())
+    _hold()
     assert kr.reader_batch_size() >= 8  # was (3 GiB - 2.5 GiB) // 256 MiB = 2 lines
     kr._RESIDENT.clear()
     assert kr.reader_batch_size() >= 8  # cold with 3 GiB free is not short either
@@ -136,9 +175,20 @@ def test_the_reader_batch_is_at_least_8_while_memory_is_not_short(monkeypatch):
 def test_the_reader_batch_shrinks_when_memory_really_is_short(monkeypatch):
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 400 * 1024**2)
     monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
-    kr._RESIDENT["read"] = ("m", object())
+    _hold()
     assert kr.reader_batch_size() == 1
     kr._RESIDENT.clear()
     monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 3 * GIB)
     monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 4)  # critical: the floor is not applied
     assert kr.reader_batch_size() == 2  # (3 GiB - 2.5 GiB) // 256 MiB
+
+
+def test_the_batch_floor_needs_room_by_the_cold_figure_too(monkeypatch):
+    """Review 279 MED 3 (#5758): 2 GiB free is above the working need but below the cold one; 8 lines of 256 MB is not
+    offered there."""
+    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 2 * GIB)
+    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
+    _hold()
+    token = kr._WANTED.set({"segment": "blla", "read": "reader-a"})
+    assert kr.reader_batch_size() == (2 * GIB - kr.kraken_need_bytes()) // kr._BATCH_LINE_BYTES < 8
+    kr._WANTED.reset(token)
