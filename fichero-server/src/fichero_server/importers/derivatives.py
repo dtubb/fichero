@@ -422,6 +422,18 @@ def _progress_expand(library: str, extra: int) -> None:
     _arm_stall_watchdog(library)
 
 
+def _progress_touch(library: str) -> None:
+    """Something moved without finishing a unit (#5807): a thumbnail landed, a stage started, a page began to embed.
+
+    The deadline measures silence, not completions: a slow first embed or a model load completes nothing for
+    minutes while the queue is busy, and "stalled at 0 of 23" nine seconds before "completed" is a false alarm.
+    """
+    with _progress_lock:
+        if library not in _progress:
+            return
+    _arm_stall_watchdog(library)
+
+
 def _progress_tick(library: str) -> None:
     with _progress_lock:
         state = _progress.get(library)
@@ -487,6 +499,8 @@ def _embed_document_tree(
     if library is not None:
         _progress_expand(library, sum(1 for t in targets if t is not doc))
     for target in targets:
+        if library is not None:
+            _progress_touch(library)
         try:
             if db.has_embedding(target.id):
                 # Already embedded — resume after an interrupted import, or a
@@ -679,6 +693,14 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     change event used to wait behind that document's ~1.3s embed, so the grid
     learned about a finished image over a second late (user, live 2026-08-19).
     """
+    _progress_touch(library)
+    try:
+        return _thumbnail_stage_body(doc_id, library)
+    finally:
+        _progress_touch(library)
+
+
+def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
     from fichero_server.api.change_stream import emit_change
     from fichero_server.db.storage import ensure_thumbnail
 
@@ -753,6 +775,7 @@ def _embed_stage(doc_id: str, library: str) -> None:
     and shows on the next load. Thumbnails still emit — a landed thumbnail IS a
     render change ([[user-machine-always-useful]]).
     """
+    _progress_touch(library)
     try:
         opened = _open_stage_db(library, doc_id)
         if opened is None:
