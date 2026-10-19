@@ -130,6 +130,14 @@ extension SidebarView {
         return libraryManager.getLibrary(id: libraryId)
     }
 
+    /// The library a sidebar + action lands in (#5817): the selected item's, else this window's, else Global.
+    /// Global alone was nil until it opened (~2 s after launch), so New Folder and Import did nothing.
+    var creationLibrary: LibraryManager.LibraryReference? {
+        let open = Set(libraryManager.openLibraries.map(\.id))
+        return sidebarCreationLibraryId(selected: selectedItemLibrary?.id, window: windowState.libraryId, open: open)
+            .flatMap { libraryManager.getLibrary(id: $0) }
+    }
+
     func buildLibraryHeader(for library: LibraryManager.LibraryReference, reason: String = "all") -> SidebarItem {
         let libraryContent = SidebarItemBuilder.buildLibraryGroup(library: library, reason: reason)
         return SidebarItem.libraryHeader(library: library, children: libraryContent)
@@ -273,4 +281,9 @@ extension SidebarView {
         copy.children = children
         return copy
     }
+}
+
+/// First of the selected item's library, this window's, and the Global one that is open (#5817).
+func sidebarCreationLibraryId(selected: UUID?, window: UUID, open: Set<UUID>) -> UUID? {
+    [selected, window, LibraryManager.globalLibraryId].compactMap { $0 }.first { open.contains($0) }
 }
