@@ -693,10 +693,31 @@ def _pin_link(pin: dict) -> str | None:
     return None
 
 
+def _disagree_step(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """Find where the readers disagree is Fichero's own algorithm over the readings the plan's readers make, so it
+    has no model of its own (`source.disagree.built-in-needs-second-reader`, #5812): built in, and either naming the
+    two readers it compares or saying it needs a second one. Never a "has no model" gap, never blocks Start."""
+    readers = [s for s in steps if s["job"] in {"read-a-line", "read-a-page", "correct"} and s.get("model")]
+    names = [(s.get("card") or {}).get("note") or (s.get("card") or {}).get("id") or s["job"] for s in readers]
+    step: dict[str, Any] = {"id": "find-where-readers-disagree", "job": "find-where-readers-disagree",
+                            **_topic("find-where-readers-disagree"), "model": {"builtin": "reader-comparison"},
+                            "built_in": True, "runs_on": "this-mac", "uses_cloud": False,
+                            "model_name": "Fichero's own comparison", "model_link": None}
+    if len(names) >= 2:
+        step["compares"] = names
+        step["reasons"] = [f"Compares {names[0]} with {' and '.join(names[1:])}", "on this Mac, free; nothing is stored"]
+    else:
+        step["needs"] = "needs a second reader: tick one in Read"
+        step["reasons"] = ["compares what two readers make of a line; it joins when the plan has a second reader"]
+    return step
+
+
 def _name_the_model(step: dict[str, Any]) -> None:
     """'Which model does it' never shows a bare choice: the step's model by name with its link, or the answer still
     needed, in words (`source.onboard.stages.step-names-its-model`, #5802)."""
     pin = step.get("model")
+    if step.get("built_in"):
+        return  # Fichero's own algorithm: named by its own step (`_disagree_step`)
     if isinstance(pin, dict) and pin:
         card = step.get("card") or {}
         step["model_name"] = card.get("note") or card.get("id") or str(next(iter(pin.values())))
@@ -897,6 +918,9 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
             pin, why = FICHERO_DOES_IT[job]
             steps.append({"id": job, "job": job, **_topic(job), "model": dict(pin), "runs_on": "this-mac",
                           "uses_cloud": False, "reasons": list(why)})
+            continue
+        if job == "find-where-readers-disagree":
+            steps.append(_disagree_step(steps))
             continue
         if job == PREPARE:
             # Fichero's own measure and contrast, no model to choose (`recipes/prepare.py`).
