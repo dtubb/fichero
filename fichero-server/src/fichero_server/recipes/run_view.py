@@ -453,29 +453,19 @@ def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
     queries over all the pages, however many there are (review 153): the summary is read on every GET."""
     import json
 
+    from fichero_server.db.run_reviews import line_ids_by_page, lines_corrected_by, reviews_oldest_first
     from fichero_server.llm.working_lines import answer_line
 
     counted = {"pages": 0, "lines": 0, "corrected": 0, "unreadable": 0}
     if not pages:
         return counted
     newest: dict[str, tuple[str, str | None, Any]] = {}
-    # Oldest first, so the last a page sees is its newest; a review with no time counts as the oldest (review 156).
-    for review_id, page, content, data in db.execute_fetchall(
-            "SELECT id, document_id, content, data FROM artifacts WHERE artifact_type = 'transcription_review' "
-            "AND document_id IN (SELECT unnest(?::VARCHAR[])) "
-            "ORDER BY COALESCE(created_at, TIMESTAMP '1970-01-01'), id", [list(pages)]):
+    for review_id, page, content, data in reviews_oldest_first(db, pages):
         newest[page] = (review_id, content, data)
     if not newest:
         return counted
-    lines: dict[str, set[str]] = {}
-    for segment_id, page in db.execute_fetchall(
-            "SELECT id, document_id FROM segments WHERE kind = 'line' AND document_id IN "
-            "(SELECT unnest(?::VARCHAR[]))", [list(newest)]):
-        lines.setdefault(page, set()).add(segment_id)
-    corrected = dict(db.execute_fetchall(
-        "SELECT derived_from_artifact_id, count(DISTINCT segment_id) FROM contentrepresentations WHERE "
-        "retracted_at IS NULL AND derived_from_artifact_id IN (SELECT unnest(?::VARCHAR[])) GROUP BY 1",
-        [[review[0] for review in newest.values()]]))
+    lines = line_ids_by_page(db, list(newest))
+    corrected = lines_corrected_by(db, [review[0] for review in newest.values()])
     for page, (review_id, content, data) in newest.items():
         answered = {answer_line(text)[0] for text in (content or "").splitlines()} & lines.get(page, set())
         if not answered:  # not tied to the lines: the page's review, not a review of its lines
