@@ -1,6 +1,6 @@
 """A step whose model this Mac cannot run falls back to another place only when that place is free, and only when
 the person presses it (#5592), tested to the spec (docs/contributor_manual/specs/ai/where-models-run.md:
-`ai.where.fallback-free-and-asked`).
+`ai.where.fallback-free-and-asked`; `source.recipe.alternatives-in-order` for a model this Mac cannot serve).
 
 WHY: the maintainer's ruling 2026-10-08: a fallback to another place happens only when that place costs nothing,
 and only after asking the person, never silently; a paid place is never the fallback. Through the public routes the

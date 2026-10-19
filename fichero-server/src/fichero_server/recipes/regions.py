@@ -90,7 +90,10 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
             from fichero_server.llm.kraken_runtime import geometry_from_segmentation, segment_lines
             from fichero_server.media.ocr_geometry import OCRGeometryLevel
 
-            found_geometry = geometry_from_segmentation(segment_lines(path), source_name=doc.name)
+            from fichero_server.workflows.tools.vision_base import page_direction
+
+            found_geometry = geometry_from_segmentation(segment_lines(path, **page_direction(library, doc.id)),
+                                                        source_name=doc.name)
             regions_here = sum(1 for b in found_geometry.boxes if b.level is OCRGeometryLevel.REGION)
         else:
             found = detect_regions(path, model)

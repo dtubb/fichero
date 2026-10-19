@@ -148,11 +148,14 @@ class AppDatabase:
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
+        #: The error TYPE of a failed device-token migration (None when it ran), shown by /api/health (#5799).
+        self.device_token_migration_error: str | None = None
         try:
             self.migrate_device_tokens_to_clients()
-        except Exception:
+        except Exception as exc:
             # A failed migration must never stop the app db opening: old device tokens keep working, and the
-            # migration runs again on the next open (it is idempotent).
+            # migration runs again on the next open (it is idempotent). Health says it is pending.
+            self.device_token_migration_error = type(exc).__name__
             logger.exception("device-token migration to clients failed; continuing without it")
 
     def commit(self) -> None:
@@ -2352,6 +2355,11 @@ def get_app_db() -> AppDatabase:
     if _app_db is None:
         _app_db = AppDatabase()
     return _app_db
+
+
+def device_token_migration_error() -> str | None:
+    """The pending device-token migration's error type, without opening the app database (health must not)."""
+    return _app_db.device_token_migration_error if _app_db is not None else None
 
 
 def checkpoint_app_db() -> None:

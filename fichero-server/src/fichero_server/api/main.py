@@ -44,6 +44,7 @@ from fichero_server.api.library_header import optional_library_path, require_lib
 from fichero_server.api.feature_tiers_generated import CUMULATIVE_ROUTE_PREFIXES, ROUTE_PREFIX_TIERS
 from fichero_server.api.routes.ai.local_inference import shutdown_managed_local_inference_services
 from fichero_server.db import Database, db_manager
+from fichero_server.db.app import device_token_migration_error
 from fichero_server.db.manager import LibraryNotFoundError
 from fichero_server.actions.undo import UndoRefused
 from fichero_server.api.routes.document.segment_conversion import ConversionRefusal
@@ -2028,6 +2029,7 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     """Attach HMAC(server bootstrap secret, nonce) when the client asks. Every health answer passes
     through here, so it also names any missing required package (#5384)."""
     response.missing_dependencies = _missing_required_modules()
+    response.device_token_migration_error = device_token_migration_error()
     missing_routes = _missing_routes()
     if missing_routes:
         response.status = "unhealthy"

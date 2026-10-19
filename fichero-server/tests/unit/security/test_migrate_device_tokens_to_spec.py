@@ -83,6 +83,7 @@ def test_a_failing_migration_never_stops_the_db_opening_and_old_tokens_still_wor
     monkeypatch.setattr(AppDatabase, "migrate_device_tokens_to_clients", boom)
     db = AppDatabase(tmp_path / "app.duckdb")  # must not raise
     try:
+        assert db.device_token_migration_error == "RuntimeError"  # the type, never the message (#5799)
         user = db.create_user(
             username="alice", display_name="Alice", password_hash=accounts.hash_password("x"), is_owner=False
         )
@@ -90,3 +91,15 @@ def test_a_failing_migration_never_stops_the_db_opening_and_old_tokens_still_wor
         assert db.get_device_by_token_hash(accounts.hash_token("tok-phone")) is not None
     finally:
         db.close()
+
+
+def test_health_names_a_pending_migration_as_a_warning_and_stays_healthy(harness):
+    # The fixture's db IS the app singleton; set the warning on it. (Never monkeypatch the `_app_db` global here: the
+    # shared monkeypatch is undone AFTER the app_db fixture closes its db, which puts the closed db back.)
+    harness.app_db.device_token_migration_error = "RuntimeError"
+    body = harness.client().get("/api/health").json()
+    assert body["device_token_migration_error"] == "RuntimeError" and body["status"] == "healthy"
+
+
+def test_health_has_no_migration_warning_when_nothing_is_pending(harness):
+    assert harness.client().get("/api/health").json()["device_token_migration_error"] is None

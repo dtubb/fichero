@@ -157,3 +157,26 @@ def test_a_reused_pid_is_a_different_program(harness, monkeypatch):
     reused = {**PEER, "token": "dd" * 32}
     stolen = uds_client(harness, reused).post(BASE + "/register", json={"request_id": request_id, "public_key_pem": pem})
     assert stolen.status_code == 404
+
+
+def test_a_peer_whose_program_cannot_be_read_is_refused_not_recorded(harness, monkeypatch):
+    # Review r140f (1): a failed SecCode lookup gives exe "", which must not become a request the owner is asked to allow.
+    from fichero_server.api import uds_peer
+    from fichero_server.api.routes.auth import accounts as routes
+
+    _users, owner = _owner(harness, monkeypatch)
+    _switch_on(harness, owner, cli=True)
+    unreadable = {"uid": os.getuid(), "pid": 4243, "token": "bb" * 32}  # no exe: identify() must look it up
+    monkeypatch.setattr(uds_peer, "_code_identity", lambda token: ("", None))
+    monkeypatch.setattr(uds_peer.sys, "platform", "darwin")
+    refused = _ask(harness, peer=unreadable)
+    assert refused.status_code == 403 and "could not be verified" in refused.text
+    assert not routes._client_requests
+
+
+def test_a_whitespace_only_name_is_refused(harness, monkeypatch):
+    _users, owner = _owner(harness, monkeypatch)
+    _switch_on(harness, owner, cli=True)
+    assert _ask(harness, body={**ASK, "name": "   "}).status_code == 422
+    padded = _ask(harness, body={**ASK, "name": "  fichero CLI  "})
+    assert padded.status_code == 200 and padded.json()["name"] == "fichero CLI"
