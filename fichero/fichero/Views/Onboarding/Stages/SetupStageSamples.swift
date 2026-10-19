@@ -6,6 +6,9 @@ import SwiftUI
 /// page. Read and Find Lines are tried by the comparison of candidates, which the page shows under its steps.
 struct SetupStageSamples: View {
     @State var store: SetupStageTryStore
+    /// Use This One, per model, from the compare window (the use-candidate route); nil where a step cannot take it.
+    var useThis: ((StageCandidate) -> Void)?
+    @State private var comparing: ComparedPage?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -37,6 +40,14 @@ struct SetupStageSamples: View {
                 if let words = store.result?.underWayWords {
                     Text(words).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
+                // Set Up is modal: the try can be stopped where it was started (`try-progress-in-place`).
+                if store.result?.isUnderWay == true, store.result?.jobId != nil {
+                    Button("Stop") { Task { await store.stop() } }
+                }
+            }
+            // Where each model is, in place: "Kraken: page 2 of 5, finding lines".
+            ForEach(store.result?.progressLines ?? [], id: \.self) { line in
+                Text(line).font(.caption).foregroundStyle(.secondary)
             }
             if let costQuestion = store.costQuestion {
                 Text(costQuestion).font(.callout).foregroundStyle(.secondary)
@@ -53,12 +64,32 @@ struct SetupStageSamples: View {
             if let result = store.result { resultView(result) }
         }
         .task { await store.load(); await store.follow() }
+        .sheet(item: $comparing) { page in
+            StageCompareWindow(pageId: page.id, name: store.name(of: page.id),
+                               candidates: store.result?.candidates ?? [], useThis: useThis)
+        }
     }
 
     @ViewBuilder
     private func resultView(_ result: SetupStageTryResult) -> some View {
         if let error = result.failure {
             Label(error, systemImage: "xmark.octagon").font(.callout).foregroundStyle(.red)
+        }
+        // Each model's counts on each page, side by side; a page opens the compare window (#5856).
+        let compared = (result.candidates ?? []).filter { !($0.perPage ?? []).isEmpty }
+        if compared.count > 1 {
+            ForEach(result.pages ?? store.samples.map(\.id), id: \.self) { pageId in
+                let counts = result.sideBySide(pageId: pageId)
+                if !counts.isEmpty {
+                    Button { comparing = ComparedPage(id: pageId) } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(store.name(of: pageId)).font(.callout.weight(.medium))
+                            Text(counts).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
         ForEach(result.perPage ?? [], id: \.id) { page in
             VStack(alignment: .leading, spacing: 2) {
@@ -96,6 +127,9 @@ struct SetupStageSamples: View {
         }
     }
 }
+
+/// The page the compare window is open on.
+struct ComparedPage: Identifiable { let id: String }
 
 #Preview("Samples before a try") {
     SetupStageSamples(store: SetupStageTryStore(client: FicheroClient(libraryPath: nil), stageId: "names"))

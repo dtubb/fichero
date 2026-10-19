@@ -28,11 +28,37 @@ struct StageCandidate: Decodable, Equatable, Identifiable {
     let perPage: [SetupStageTryResult.Page]?
     let names: [SetupStageTryResult.Name]?
     let measures: Measures?
+    /// Where this model is on the try, shown in place (`source.onboard.stages.try-progress-in-place`).
+    let progress: Progress?
+
+    struct Progress: Decodable, Equatable {
+        let state: String
+        let done: Int
+        let total: Int
+        let page: String?
+        let step: String?
+        let waitingFor: String?
+
+        enum CodingKeys: String, CodingKey {
+            case state, done, total, page, step
+            case waitingFor = "waiting_for"
+        }
+    }
 
     var id: String { card }
 
+    /// "Kraken: page 2 of 5, finding lines", or "Kraken: waiting, …"; nil once it is done, failed or stopped.
+    var progressWords: String? {
+        guard let progress, progress.state == "running" || progress.state == "waiting" else { return nil }
+        if progress.state == "waiting" || progress.total == 0 {
+            return "\(title): waiting" + (progress.waitingFor.map { ", \($0)" } ?? "")
+        }
+        let at = min(progress.done + 1, progress.total)
+        return "\(title): page \(at) of \(progress.total)" + (progress.step.map { ", \($0)" } ?? "")
+    }
+
     enum CodingKeys: String, CodingKey {
-        case card, name, local, cer, agreement, seconds, why, state, names, measures
+        case card, name, local, cer, agreement, seconds, why, state, names, measures, progress
         case runsOn = "runs_on"
         case costUsd = "cost_usd"
         case perPage = "per_page"
