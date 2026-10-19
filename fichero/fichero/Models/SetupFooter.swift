@@ -7,12 +7,8 @@ struct SetupFooter: Equatable {
     enum Action: Equatable {
         /// Go on to the next page (the page's own work first: make the project, save the draft).
         case advance
-        /// Welcome: set up a project, then go on.
-        case setUpNewProject
-        /// Welcome: go on without a project.
-        case startWithoutProject
-        /// The hand-off with no project: add a project's pages after it.
-        case addAProject
+        /// Your First Project: open a project's own Set Up in its own window; this window's pages do not change (#5828).
+        case openProjectSetUp
         /// Move on, leaving this page's answers as they are (Not Now, Skip This Stage).
         case skip
         /// Ready: start the recipe.
@@ -46,19 +42,12 @@ struct SetupFooter: Equatable {
         let primary: Choice
         var leading: Choice?
         switch step {
-        case .welcome:
-            primary = Choice(title: FirstLaunchChoices.setUpNewProject, action: .setUpNewProject)
-            leading = Choice(title: FirstLaunchChoices.startWithoutProject, action: .startWithoutProject)
-        case .whatFicheroRuns:
+        case .welcome, .whatFicheroRuns:
+            // The first launch is three fixed screens with Continue and Back between them (#5828).
             primary = Choice(title: "Continue", action: .advance)
-            leading = Choice(title: "Not Now", action: .skip)
         case .handOff:
-            if projectChosen {
-                primary = Choice(title: "Continue", action: .advance)
-            } else {
-                primary = Choice(title: "Start", action: .finish)
-                leading = Choice(title: FirstLaunchChoices.setUpNewProject, action: .addAProject)
-            }
+            primary = Choice(title: "Start", action: .finish)
+            leading = Choice(title: FirstLaunchChoices.setUpNewProject, action: .openProjectSetUp)
         case .project:
             primary = Choice(title: "Create Project", action: .advance)
         case .stage:

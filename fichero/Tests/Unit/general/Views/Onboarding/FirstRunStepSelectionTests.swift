@@ -39,6 +39,27 @@ final class FirstRunStepSelectionTests: XCTestCase {
         XCTAssertEqual(Array(fromTheMenu.dropFirst()), fromSetUp, "Set Up… is the same pages from Add material")
     }
 
+    /// `source.onboard.first-launch-three-screens` (#5828): the first launch's sidebar is three items whatever is
+    /// chosen; choosing a project never appends its pages; Continue and Back move between the three.
+    func testTheFirstLaunchSidebarIsThreeFixedScreens() {
+        let three: [SetupStep] = [.welcome, .whatFicheroRuns, .handOff]
+        XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).steps, three)
+        XCTAssertEqual(SetupStep.welcome.title(), "Welcome")
+        XCTAssertEqual(SetupStep.whatFicheroRuns.title(), "Where the work runs")
+        XCTAssertEqual(SetupStep.handOff.title(), "Your First Project")
+        XCTAssertEqual(SetupStep.welcome.next(in: three), .whatFicheroRuns)
+        XCTAssertEqual(SetupStep.handOff.previous(in: three), .whatFicheroRuns)
+        XCTAssertEqual(SetupStep.handOff.next(in: three), .handOff, "clamped: Start finishes")
+    }
+
+    /// Set Up a New Project… opens a separate window and does not touch this window's pages.
+    func testSetUpANewProjectOpensItsOwnWindowAndLeavesTheSidebarAlone() {
+        let footer = SetupFooter.of(.handOff, in: SetupStep.appSteps, mode: .firstRun, projectChosen: false)
+        XCTAssertEqual(footer.leading, .init(title: "Set Up a New Project…", action: .openProjectSetUp))
+        XCTAssertEqual(NewProjectSetUpWindow.id, "new-project-setup")
+        XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).project, .none)
+    }
+
     /// Companion platforms have no local engine to set up: the welcome alone.
     func testCompanionPlatformsShowTheWelcomeAlone() {
         XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: true).steps, [.welcome])

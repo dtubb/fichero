@@ -87,6 +87,9 @@ class LibraryManager {
     /// opens next presents setup from Your project, and clears this.
     var newProjectSetUpRequested = false
 
+    /// The project a separate New Project Set Up window made (#5828): the window showing it takes it, and clears this.
+    var projectToShow: UUID?
+
     /// Fichero › Set Up Fichero… was chosen: the front window shows the app's welcome again (`appWelcomeIsDue`).
     var appSetUpRequested = false
 

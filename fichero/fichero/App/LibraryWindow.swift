@@ -295,6 +295,12 @@ struct LibraryWindow: View {
                 .environment(appState)
         }
         .modifier(NewProjectSetUpSheet(isPresented: $showingNewProjectSetUp) { assignLibrary(id: $0) })
+        // A project the separate Set Up window made (#5828) shows in the front window.
+        .onChange(of: libraryManager.projectToShow) { _, made in
+            guard let made, libraryManager.currentLibraryId == windowState.libraryId else { return }
+            libraryManager.projectToShow = nil
+            assignLibrary(id: made)
+        }
         // Setup for THIS window's project (#5421): Project › Set Up…, or an empty project's
         // Set Up…. The same flow as Inspector › Info › Recipe › Set Up….
         // Armed like first run (#3163), and never gated on `firstRunCompleted`.
