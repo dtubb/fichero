@@ -155,10 +155,59 @@ def test_only_doc_ids_from_an_earlier_retry_never_narrows_the_next_one():
     assert "only_doc_ids" not in fresh and fresh["selected_doc_ids"] == ["c"]
 
 
-def test_a_skipped_file_is_not_counted_by_the_aggregator():
-    import inspect
+def _stage(chain=("next",)):
+    from fichero_server.llm import LLMConfig
+    from fichero_server.workflows.builder import _make_parallel_node_function
+    from fichero_server.workflows.types import NodeDef
 
-    from fichero_server.workflows import builder
+    async def tool_fn(inputs, state, llm_config):
+        return {"text": "read"}
 
-    source = inspect.getsource(builder)
-    assert '"skipped": True' in source and 'if not r.get("skipped")' in source
+    return _make_parallel_node_function(
+        NodeDef(id="node-1", tool="transcribe", label="T", inputs={}, config={}), tool_fn,
+        LLMConfig(provider="test", model="test"), workflow_config={"workflow_id": "wf-1"},
+        chain_process_names=list(chain))
+
+
+def _branch(only, doc_id, upstream=None):
+    state = {"task_id": "run-reopen", "parallel_file": f"/tmp/{doc_id}.png", "parallel_document": {"id": doc_id},
+             "parallel_index": 0, "parallel_total": 2, "library_path": "", "only_doc_ids": only}
+    if upstream:
+        state["parallel_upstream"] = upstream
+    return state
+
+
+def test_a_file_a_reopen_leaves_out_is_skipped_and_chains_a_skip_not_a_failure():
+    """Review 314: the skip chained `failed=True`, so every later stage showed it as `upstream_failed`."""
+    import asyncio
+
+    command = asyncio.run(_stage()(_branch(["a"], "b")))
+    row = command.update["parallel_results"]["node-1"][0]
+    assert row["skipped"] is True and "upstream_failed" not in row
+    (send,) = command.goto
+    marker = send.arg["parallel_upstream"]
+    assert marker["skipped"] is True  # the next stage is told it was left out, not that the page failed
+
+    # The next stage, given that marker, skips its file too: still not a failure, and it passes the skip on.
+    onward = asyncio.run(_stage()(_branch(["a"], "b", upstream=marker)))
+    nxt = onward.update["parallel_results"]["node-1"][0]
+    assert nxt["skipped"] is True and "upstream_failed" not in nxt
+    assert onward.goto[0].arg["parallel_upstream"]["skipped"] is True
+
+    # A real upstream failure still reads as a failure.
+    failed = asyncio.run(_stage()(_branch(["a"], "a", upstream={"tool": "t", "error": "boom"})))
+    assert failed.update["parallel_results"]["node-1"][0]["upstream_failed"] is True
+
+
+def test_the_aggregator_leaves_a_skipped_file_out_of_its_counts():
+    import asyncio
+
+    from fichero_server.workflows.builder import _make_aggregation_function
+
+    read = {"file": "a", "index": 0, "total": 2, "success": True, "result": {"text": "alpha"}}
+    left_out = {"file": "b", "index": 1, "total": 2, "success": False, "cancelled": True, "skipped": True,
+                "error": "not part of this reopen"}
+    out = asyncio.run(_make_aggregation_function("node-1")({"parallel_results": {"node-1": [read, left_out]}}))
+    aggregated = out["outputs"]["node-1"]
+    assert aggregated["success_count"] == 1 and aggregated["error_count"] == 0 and aggregated["errors"] is None
+    assert aggregated["texts"] == ["alpha"]
