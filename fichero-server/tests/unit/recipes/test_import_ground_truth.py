@@ -73,7 +73,7 @@ def test_an_import_marked_ground_truth_counts_for_the_bakeoff(client, db, tmp_pa
                                  f"Correct {100 - LINES} more lines, on at least 1 more page.")
 
 
-def test_an_unmarked_import_does_not_count_and_the_sentence_says_how_to_mark_it(client, db, tmp_path, folder):
+def test_an_unmarked_import_does_not_count_and_the_sentence_says_how_to_mark_it(client, db, tmp_path, folder, with_material):
     """source.onboard.bakeoff-minimum: below the threshold "it says how many more are needed", in words.
     WHY: a file of unknown origin is often a machine's (Transkribus HTR), so an import is not ground truth
     until a person says so; but a person whose corrected files count for nothing must be told WHY and what to

@@ -88,7 +88,7 @@ def test_start_records_the_first_yes_and_can_be_taken_back(client, db, test_pack
     assert client.get("/api/recipes/project/start").json()["started"] is None
 
 
-def test_a_refused_start_names_why_and_records_nothing(client, test_package):
+def test_a_refused_start_names_why_and_records_nothing(client, test_package, with_material):
     """A project that keeps its pages here skips the cloud step by name (#5390); a recipe with nothing
     left to run is refused and no yes is written."""
     _save(client, {**RECIPE, "steps": RECIPE["steps"] + [CLOUD_STEP]}, cloud_allowed=False)

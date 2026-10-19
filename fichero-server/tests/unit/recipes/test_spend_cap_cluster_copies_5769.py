@@ -48,7 +48,7 @@ def test_cluster_offered_beside_hf():
     assert not [t for w in kept["ways"] for t in w["targets"] if t["place"] == "cluster"]  # pages stay on this Mac
 
 
-def test_copies_stay_default_follows_pages_may_leave():
+def test_copies_stay_default_follows_pages_may_leave(with_material):
     assert copies_may_stay({"cloud_allowed": True}) is True
     assert copies_may_stay({}) is False
     assert copies_may_stay({"cloud_allowed": True, "copies_may_stay_on_cluster": False}) is False
@@ -161,7 +161,7 @@ def test_the_start_plan_carries_the_spend(client):
     assert spend["cap_usd"] == 0.0 and spend["spent_at_most_usd"] == 0.0 and "$0.00 of $0.00" in spend["sentence"]
 
 
-def test_setup_reads_the_money_and_place_settings_from_the_engine(client, monkeypatch):
+def test_setup_reads_the_money_and_place_settings_from_the_engine(client, monkeypatch, with_material):
     """The setup screen shows the three settings as the engine holds them (on the stages it reads), and works none
     out: the copies question's value follows pages-may-leave until the person answers it, and is asked only where a
     cluster is set up."""

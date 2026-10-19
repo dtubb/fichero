@@ -95,7 +95,7 @@ def test_stop_reaches_prepare__it_stops_before_its_next_page(client, db, pages, 
 
 
 def test_stop_reaches_the_entries_step__it_splits_no_page_after(client, db, pages, tmp_path, engine, splitter,
-                                                                 monkeypatch):
+                                                                 monkeypatch, with_material):
     """The entries step splits no page after Stop; its account says how many it split."""
     gate = Gate(monkeypatch, diary_entries, "split_page_into_entries")
     try:

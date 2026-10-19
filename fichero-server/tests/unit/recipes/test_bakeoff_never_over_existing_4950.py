@@ -25,7 +25,7 @@ def _snapshot(db) -> dict:
     }
 
 
-def test_a_bakeoff_changes_nothing_that_exists(client, db, tmp_path, folder, readers):
+def test_a_bakeoff_changes_nothing_that_exists(client, db, tmp_path, folder, readers, with_material):
     """source.try.never-over-existing: "nothing existing changes"."""
     _set_up(client)
     for i in (1, 2, 3):
