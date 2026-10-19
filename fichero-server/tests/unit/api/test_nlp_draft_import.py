@@ -768,7 +768,7 @@ class TestRunsOnTheModelLane:
 
         _drain(derivatives.queue_derivatives(docs, library_path=test_package))
 
-        model_lane = [name for name, thread in seen if thread == "fichero-jobs"]
+        model_lane = [name for name, thread in seen if thread == "fichero-jobs-embed"]  # embeds and drafts: the small-model lane
         assert sorted(model_lane) == ["embed", "embed", "nlp", "nlp"]  # every model stage on the one lane
         assert model_lane in (["embed", "embed", "nlp", "nlp"], ["nlp", "nlp", "embed", "embed"])  # never interleaved
         assert {thread for name, thread in seen if name == "thumbnail"} <= {"fichero-jobs-images"}

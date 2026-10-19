@@ -331,7 +331,6 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
     """The live recipe runs first, then the workflow runs that belong to no recipe (a recipe's stage is its block's)."""
     blocks: list[LiveBlock] = []
     owned: set[str] = set()
-    tracker = get_activity_tracker(str(db.path))
     for job in jobs:
         if job.task_type != "run-a-recipe" or job.state not in _LIVE_STATES:
             continue
@@ -346,7 +345,12 @@ async def live_blocks(db: Database, jobs: "list[BackgroundJob]",
             continue
         owned.update(st["child_id"] for st in status.get("steps", []) if st.get("child_id"))
         running = next((st for st in status.get("steps", []) if st.get("state") == "running" and st.get("child_id")), None)
-        run = await tracker.store.get_workflow_run(running["child_id"]) if running else None
+        run = None
+        if running:
+            try:  # the block stands without its workflow's name when the run store cannot be read
+                run = await get_activity_tracker(str(db.path)).store.get_workflow_run(running["child_id"])
+            except Exception as exc:  # noqa: BLE001 -- said in the log
+                logger.warning("activity summary: no workflow run %s: %s", running["child_id"], exc)
         blocks.append(recipe_block(job, status, run.workflow_name if run else None))
     blocks += [workflow_block(j) for j in jobs
                if j.task_type == "workflow" and j.state in _LIVE_STATES and j.id not in owned]
