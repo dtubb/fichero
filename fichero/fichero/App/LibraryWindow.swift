@@ -289,17 +289,15 @@ struct LibraryWindow: View {
                 if libraryManager.setUpRequestedLibraryId == windowState.libraryId {
                     libraryManager.setUpRequestedLibraryId = nil
                 }
-                // Set Up a New Project… on the last screen: its Set Up opens here, in this window, once the
-                // welcome has closed (#5828; no new window).
-                if libraryManager.newProjectSetUpAfterWelcome {
-                    libraryManager.newProjectSetUpAfterWelcome = false
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(500))
-                        showingNewProjectSetUp = true
-                    }
-                }
             }
-        )) {
+        ), onDismiss: {
+            // Set Up a New Project… on the last screen: its Set Up opens here, in this window, now the welcome is gone
+            // (#5828; no new window).
+            if libraryManager.newProjectSetUpAfterWelcome {
+                libraryManager.newProjectSetUpAfterWelcome = false
+                showingNewProjectSetUp = true
+            }
+        }) {
             FirstRunWindow(mode: .firstRun, onProjectReady: { assignLibrary(id: $0) })
                 .environment(appState)
         }

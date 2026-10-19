@@ -55,7 +55,7 @@ struct SetupFooterTests {
         #expect(footer(.stages, newProject).primary.title == "Continue")
         #expect(footer(.ready, newProject).primary == .init(title: "Start", action: .start))
         let handOff = footer(.handOff, firstRun, projectChosen: false)
-        #expect(handOff.primary == .init(title: "Set Up a New Project...", action: .setUpNewProject))
+        #expect(handOff.primary == .init(title: "Set Up a New Project…", action: .setUpNewProject))
         #expect(handOff.leading == .init(title: "Start Without a Project", action: .finish))
     }
 
@@ -93,7 +93,7 @@ struct SetupFooterTests {
         #expect(WhatFicheroRuns.places.map(\.place) == [.thisMac, .anotherMac, .cloud, .acenet, .huggingface])
         #expect(WhatFicheroRuns.places.map(\.title) == [
             "On this Mac", "Another Mac of mine", "In the cloud", "ACENET", "Hugging Face"])
-        #expect(WhatFicheroRuns.places.map(\.button) == [nil, nil, "Add a Key...", "Sign In...", "Add a Token..."],
+        #expect(WhatFicheroRuns.places.map(\.button) == [nil, nil, "Add a Key…", "Sign In…", "Add a Token…"],
                 "Another Mac has no Connect... until pairing for reading exists (#5830)")
         #expect(WhatFicheroRuns.places[0].body.hasPrefix("Free and private: your pages never leave this Mac."))
         for link in ["https://kraken.re", "https://developer.apple.com/documentation/vision",
@@ -114,10 +114,10 @@ struct SetupFooterTests {
     @Test("the welcome and the first project say what Fichero and a project are, in the owner's words")
     func copy() {
         #expect(FirstLaunchChoices.welcomeParagraphs.count == 3)
-        #expect(FirstLaunchChoices.welcomeParagraphs[0].hasPrefix("Fichero is a Mac app to read and work with archives."))
+        #expect(FirstLaunchChoices.welcomeParagraphs[0].hasPrefix("Fichero is a Mac app to read and work with archives, historical documents, and manuscripts."))
         #expect(FirstLaunchChoices.welcomeParagraphs[2].hasSuffix("Your originals are never changed."))
         #expect(FirstLaunchChoices.handOffParagraphs[0].hasPrefix("Your work lives in projects."))
         #expect(FirstLaunchChoices.handOffParagraphs[1].hasSuffix("before any work starts."))
-        #expect(FirstLaunchChoices.setUpNewProject == "Set Up a New Project...")
+        #expect(FirstLaunchChoices.setUpNewProject == "Set Up a New Project…")
     }
 }

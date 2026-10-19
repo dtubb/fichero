@@ -13,13 +13,13 @@ func firstLaunchOffersSetUp(firstRunCompleted: Bool, knownProjectPaths: [String]
 enum FirstLaunchChoices {
     /// The welcome's body (the owner's words, 2026-10-19, #5828).
     static let welcomeParagraphs = [
-        "Fichero is a Mac app to read and work with archives. It finds the lines on a page and transcribes "
-            + "handwritten and typed documents in many languages into text you can correct. It reads scans, "
-            + "photographs, PDFs and other image files, and pages from IIIF servers.",
+        "Fichero is a Mac app to read and work with archives, historical documents, and manuscripts. It finds "
+            + "the lines on a page and transcribes handwritten and typed documents in many languages into text you "
+            + "can correct. It reads scans, photographs, PDFs and other image files, and pages from IIIF servers.",
         "It helps you find the people, places and dates in your documents, and makes them searchable. You can "
             + "navigate, search and edit the results.",
         "Fichero is a workbench. Each page keeps its image, the lines found on it and every reading of them, so you "
-            + "can compare readings, correct a line against the picture, and see where each result came from. Your "
+            + "can compare readings, correct a line against the image, and see where each result came from. Your "
             + "originals are never changed."
     ]
 
@@ -32,7 +32,7 @@ enum FirstLaunchChoices {
             + "before any work starts."
     ]
 
-    static let setUpNewProject = "Set Up a New Project..."
+    static let setUpNewProject = "Set Up a New Project…"
     static let startWithoutProject = "Start Without a Project"
 
 }

@@ -49,18 +49,18 @@ enum WhatFicheroRuns {
                 + "[GPT](https://openai.com/api/) or [Gemini](https://ai.google.dev), often read difficult hands "
                 + "better. The pages go to the provider, and each page costs a little. Fichero asks before any page "
                 + "leaves this Mac and says what it will cost.",
-              button: "Add a Key...", connect: .addKey),
+              button: "Add a Key…", connect: .addKey),
         Place(place: .acenet, symbol: "server.rack", title: "ACENET",
               body: "[ACENet](https://www.ace-net.ca) is Atlantic Canada's research computing cluster, free for "
                 + "researchers at member universities. For large batches and for training your own model. Your pages "
                 + "go to your account on the cluster, and jobs wait in a queue.",
-              button: "Sign In...", connect: .signIn),
+              button: "Sign In…", connect: .signIn),
         Place(place: .huggingface, symbol: "shippingbox", title: "Hugging Face",
               body: "Download open models made for your script from [Hugging Face](https://huggingface.co/models), "
                 + "and run large batches or training on "
                 + "[Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs). Downloading is "
                 + "free; Jobs cost by the hour, and your pages go to Hugging Face.",
-              button: "Add a Token...", connect: .addToken)
+              button: "Add a Token…", connect: .addToken)
     ]
 }
 

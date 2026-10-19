@@ -55,7 +55,7 @@ final class FirstRunStepSelectionTests: XCTestCase {
     /// Set Up a New Project... opens no window: the welcome closes and the front window presents the project's Set Up.
     func testSetUpANewProjectOpensNoWindowAndLeavesTheSidebarAlone() {
         let footer = SetupFooter.of(.handOff, in: SetupStep.appSteps, mode: .firstRun, projectChosen: false)
-        XCTAssertEqual(footer.primary, .init(title: "Set Up a New Project...", action: .setUpNewProject))
+        XCTAssertEqual(footer.primary, .init(title: "Set Up a New Project…", action: .setUpNewProject))
         XCTAssertEqual(footer.leading, .init(title: "Start Without a Project", action: .finish))
         XCTAssertEqual(FirstRunWindow.flow(for: .firstRun, isCompanionPlatform: false).project, .none)
     }
