@@ -52,3 +52,20 @@ def test_the_checkpointer_is_closed_when_the_read_fails(monkeypatch):
     except RuntimeError:
         pass
     assert _FakeCheckpointer.opened == 1 and _FakeCheckpointer.closed == 1
+
+
+def test_a_read_path_makes_the_checkpoint_tables_once_per_file(tmp_path):
+    cls = checkpointer_module.AsyncDuckDBCheckpointer
+    ran = []
+    original = cls._setup
+    cls._setup = lambda self: (ran.append(1), original(self))[1]
+    try:
+        path = tmp_path / "lib.duckdb"
+        for _ in range(5):
+            cls.from_db_path(path, setup_once=True).conn.close()
+        assert len(ran) == 1  # five polls, one CREATE TABLE
+        cls.from_db_path(path).conn.close()  # a writer still sets up as it always did
+        assert len(ran) == 2
+    finally:
+        cls._setup = original
+        checkpointer_module._TABLES_SET_UP.discard(str(path))
