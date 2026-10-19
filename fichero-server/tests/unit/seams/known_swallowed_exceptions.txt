@@ -10,7 +10,7 @@ api/change_stream.py::_ChangeHub.emit 1
 api/change_stream.py::emit_change 1
 api/change_stream.py::emit_change_all_libraries 1
 api/main.py::_collapse_duplicate_providers 1
-api/main.py::_dependency_versions 2
+api/main.py::_read_dependency_versions 2
 api/main.py::_seed_builtin_providers 2
 api/main.py::_static_dependency_versions 1
 api/main.py::lifespan._start_bonjour 1
