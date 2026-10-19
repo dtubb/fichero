@@ -25,8 +25,7 @@ struct RecipeDownloadRows: View {
                         .accessibilityIdentifier("setup.ready.startDownloads")
                 }
                 ForEach(underWay, id: \.model) { download in
-                    Label("\(Self.words(download, store: store)): \(Self.engineProgress(download) ?? "downloading")",
-                          systemImage: "arrow.down.circle.dotted")
+                    Label(Self.underWayLine(download, store: store), systemImage: "arrow.down.circle.dotted")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
@@ -74,6 +73,13 @@ struct RecipeDownloadRows: View {
     static func engineProgress(_ download: Components.Schemas.StartDownload) -> String? {
         guard isUnderWay(download) else { return nil }
         return download.progress ?? "Downloading…"
+    }
+
+    /// A download under way in the engine's own sentence ("Downloading X: 1.2 GB of 5.6 GB; its steps wait for it.",
+    /// #5791); the app's wording only when the engine sent none.
+    static func underWayLine(_ download: Components.Schemas.StartDownload, store: RecipeSetupStore) -> String {
+        if let sentence = download.sentence, !sentence.isEmpty { return sentence }
+        return "\(words(download, store: store)): \(engineProgress(download) ?? "downloading")"
     }
 
     /// "spaCy model es_core_news_sm · 13 MB · for Find names", or by its name ("Qwen2.5-VL 7B (OCR) · 5653 MB · for
