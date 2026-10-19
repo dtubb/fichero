@@ -329,9 +329,10 @@ def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
     if recognition_spec(model_ref):
         resolved = recognition_model_path(model_ref)
         if not resolved:
+            # By its name, never its id; Start fetches it itself, so never "download it first" (#5801).
             raise RuntimeError(
-                f"Kraken recognition model '{model_ref}' is not downloaded — "
-                "download it first: Set Up… › Ready offers it, as does Settings › Models."
+                f"The Kraken reader {recognition_display_name(model_ref)} is not on this Mac yet: Start downloads "
+                "it before the steps that read with it, or Settings › Models downloads it now."
             )
         return resolved, model_ref
     if not model_ref:
