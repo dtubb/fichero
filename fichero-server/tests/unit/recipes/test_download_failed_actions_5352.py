@@ -40,3 +40,18 @@ def test_no_other_candidate_still_offers_retry():
     recipe = {"steps": [{"id": "r", "chain": [CHOSEN]}]}
     [row] = got({"dl1": {"state": "failed", "reason": "x"}}, recipe=recipe)
     assert row["retry_job_id"] == "dl1" and row["next_candidate"] is None
+
+
+def test_the_next_candidate_has_a_name_to_show():
+    [row] = got({"dl1": {"state": "failed", "reason": "x"}})
+    assert row["next_candidate"]["name"] == "qwen"  # the pin's own name when the catalogue has none
+    nameless = {"steps": [{"id": "r", "chain": [CHOSEN, {"id": "card-7", "runs_on": "this-mac"}]}]}
+    [row] = got({"dl1": {"state": "failed", "reason": "x"}}, recipe=nameless)
+    assert row["next_candidate"]["name"] == "card-7"
+
+
+def test_the_summary_types_are_declared():
+    from fichero_server.recipes.run_view import DownloadFailed, NextCandidate
+
+    [row] = got({"dl1": {"state": "failed", "reason": "x"}})
+    assert DownloadFailed(**row).next_candidate == NextCandidate(**row["next_candidate"])
