@@ -21,8 +21,15 @@ def test_correct_offered_with_a_key_5677():
     off = _correct_left_off([MLX, CLOUD], Answers(**A, cloud_keys=("anthropic",)))
     assert off is not None and off["job"] == "correct"  # never on by itself
     offer = off["offered"]
-    assert offer["runs_on"] == "anthropic" and offer["pages"] == 500 and offer["cost_usd"] == 10.0
-    assert "$10.00" in off["sentence"]
+    # Three review passes a page (every lens on), each one call at the card's $0.02 (#5723).
+    assert offer["runs_on"] == "anthropic" and offer["pages"] == 500 and offer["calls_per_page"] == 3
+    assert offer["cost_usd"] == 30.0 and "$30.00" in off["sentence"]
+
+
+def test_the_offer_prices_only_the_lenses_turned_on_5677():
+    a = Answers(**A, cloud_keys=("anthropic",), job_answers={"review_lenses": ["names-and-dates"]})
+    offer = _correct_left_off([MLX, CLOUD], a)["offered"]
+    assert offer["calls_per_page"] == 1 and offer["cost_usd"] == 10.0
 
 
 def test_with_no_key_no_cloud_is_offered_or_priced_5677():

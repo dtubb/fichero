@@ -1,6 +1,7 @@
 """`source.recipe.candidates-fallback-chain` (#4950, #5582, ruled 2026-10-17): a step's candidates are ranked best
 first (accuracy in one-point bands: measured on the person's pages, else published); local and cheaper only break
-ties inside the band. The step carries the rest, in order, as its chain."""
+ties inside the band. The step carries the rest, in order, as its chain; a step whose key is missing runs the next
+that can (`source.recipe.alternatives-in-order`)."""
 from __future__ import annotations
 
 from dataclasses import replace
@@ -76,3 +77,27 @@ def test_another_cloud_provider_is_offered_and_never_used_without_the_persons_pr
     assert offered["used"] is False and offered["to"] == "gemini"
     assert any(s["step"] == "correct" for s in plan["skipped"])
     assert all("correct" not in run["steps"] for run in plan["runs"])
+
+
+def test_a_project_that_measured_its_noise_band_ties_measured_readers_inside_it():
+    """The band is the project's own (`source.train.noise-band-per-project`) once its pages measured one: two readers
+    measured 3.1% and 5.0% on the person's pages are two points apart in one-point bands, and the same band in a
+    measured band of three points, where the free local reader wins the tie."""
+    local = replace(LOCAL, cer_measured_here=0.050)
+    cloud = replace(CLOUD, cer_published=LOCAL.cer_published, cer_measured_here=0.031)
+    assert _read([*CARDS, local, cloud])["card"]["id"] == "cloud-reader"
+    assert _read([*CARDS, local, cloud], replace(LATIN, noise_band=0.03))["card"]["id"] == "ppocrv6-medium"
+
+
+def test_the_recipe_the_project_assembles_reads_its_measured_band(monkeypatch, tmp_path):
+    from fichero_server.api.routes.system import recipes as route
+    from fichero_server.recipes.project import write_noise_band
+
+    seen = []
+    monkeypatch.setattr(route, "assemble", lambda a, cards, offered: seen.append(a) or {"steps": []})
+    answers = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
+               "loose_pages": False, "faded_pages": False}
+    route._assemble(answers, tmp_path)
+    write_noise_band(tmp_path, 0.03, pages=40, model="kraken")
+    route._assemble(answers, tmp_path)
+    assert [a.noise_band for a in seen] == [0.01, 0.03]  # unmeasured: the one-point band, as before
