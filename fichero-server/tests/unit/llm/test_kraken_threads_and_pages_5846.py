@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import threading
 import types
 
 from fichero_server.llm import kraken_runtime
@@ -63,6 +64,46 @@ def test_kraken_takes_one_page_at_a_time_and_other_readers_are_not_held():
 
     assert asyncio.run(peak("kraken")) == 1
     assert asyncio.run(peak("llm")) > 1
+
+
+def test_the_gate_is_one_for_the_whole_process_across_calls_loops_and_threads():
+    """Review 246: a gate per process_vision call let four pages in. Two calls (two factories) share one gate, even on
+    two event loops in two threads."""
+    assert one_page_at_a_time("kraken")() is one_page_at_a_time("kraken")()
+    live, high, guard = 0, 0, threading.Lock()
+
+    async def call():
+        nonlocal live, high
+        async with one_page_at_a_time("kraken")():
+            with guard:
+                live += 1
+                high = max(high, live)
+            await asyncio.sleep(0.02)
+            with guard:
+                live -= 1
+
+    threads = [threading.Thread(target=lambda: asyncio.run(asyncio.gather(*(call() for _ in range(3)))))
+               for _ in range(2)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert high == 1
+
+
+def test_the_page_gate_is_taken_before_the_vision_slot():
+    """A page waiting for Kraken must not hold a vision slot (source-shape guard)."""
+    from pathlib import Path
+
+    from fichero_server.workflows.tools import vision_base
+
+    assert "async with _page_gate(), vision_slot():" in Path(vision_base.__file__).read_text()
+
+
+def test_the_filter_is_in_place_before_coremltools_is_imported():
+    """Review 246: installed after the first load it missed the warning said while torch/kraken import."""
+    logger = logging.getLogger("coremltools")
+    logger.filters[:] = [f for f in logger.filters if not isinstance(f, kraken_runtime._CoremlPredictWarning)]
+    kraken_runtime.quiet_coreml_warning()
+    assert any(isinstance(f, kraken_runtime._CoremlPredictWarning) for f in logger.filters)
 
 
 def test_the_coreml_predict_warning_is_dropped_and_others_are_kept():

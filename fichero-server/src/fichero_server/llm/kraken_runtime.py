@@ -698,12 +698,13 @@ class _CoremlPredictWarning(logging.Filter):
 
 
 def quiet_coreml_warning() -> None:
-    """Attach the filter to every coremltools logger that exists (imported with torch/kraken)."""
-    for name in list(logging.root.manager.loggerDict):
-        if name == "coremltools" or name.startswith("coremltools."):
-            logger_ = logging.getLogger(name)
-            if not any(isinstance(f, _CoremlPredictWarning) for f in logger_.filters):
-                logger_.addFilter(_CoremlPredictWarning())
+    """Attach the filter to the coremltools logger (made here if coremltools is not imported yet, so the filter is in
+    place for its first message) and to every coremltools child logger that exists."""
+    names = {"coremltools"} | {n for n in logging.root.manager.loggerDict if n.startswith("coremltools.")}
+    for name in names:
+        logger_ = logging.getLogger(name)
+        if not any(isinstance(f, _CoremlPredictWarning) for f in logger_.filters):
+            logger_.addFilter(_CoremlPredictWarning())
 
 
 def _kraken_call(op: Callable[[], _T]) -> _T:
@@ -745,6 +746,7 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
             bound_native_thread_pools(threads)
+            quiet_coreml_warning()  # before the first load: the warning is said while torch/kraken import (#5846)
             try:
                 import torch
 
