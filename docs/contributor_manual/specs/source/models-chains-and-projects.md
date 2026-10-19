@@ -3278,6 +3278,7 @@ Setup
   forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
   page's fields in that order.
 - `source.onboard.project.language-as-you-type` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the matches listed under the field as the person types, on every platform (`CodeTokenField`); an unknown word said on its own row (`RecipeSetupStore.typedRefusal`), pinned by `SetupRoundTwoTests`. the language field offers
+- `source.onboard.stages.try-waiting-says-why` — **[PARTIAL]** (#5837) **Built 2026-10-19 (engine), the app's words are in review:** Compare on These Pages that is queued behind other work never reads as nothing happening. The try's result carries the job's own waiting reason in `comparison.reason` (the field a bake-off's wait uses), which the app shows beside the spinner; `test_a_waiting_try_says_why_5837.py`.
   matches as the person types, by the language's own name with or without accents; a language it does
   not know is said on the language row only, never repeated on the scripts row. *Test:* pure Swift, a
   typed "espanol" lists Spanish; an unknown language's message appears once.
