@@ -88,8 +88,8 @@ def _images_lane_with_a_page(db, monkeypatch, *, run_started_by=None, page_held=
     if run_started_by:
         db.execute("INSERT INTO jobs (id, kind, subject, state, created_at, started_by) "
                    "VALUES ('bg-run', 'workflow', 'bg-run', 'running', now(), ?)", [run_started_by])
-        db.execute("UPDATE jobs SET parent_id = 'bg-run', started_by = ?, watched = FALSE WHERE id = ?",
-                   [run_started_by, page.job_id])
+        # The page's own row keeps started_by 'workflow', as every real page's does: the RUN's starter decides.
+        db.execute("UPDATE jobs SET parent_id = 'bg-run', watched = FALSE WHERE id = ?", [page.job_id])
     jobs.enqueue(db, BG, "t2")
     return events, gate, page
 
@@ -116,4 +116,15 @@ def test_the_yield_is_capped(db, monkeypatch):
     assert jobs._scheduler._yields_to_a_person(lane) is True  # a person's page waits and can start: the clock begins
     time.sleep(0.4)
     assert jobs._scheduler._yields_to_a_person(lane) is False  # past the cap it no longer yields
+    gate.set()
+
+
+def test_a_page_of_a_persons_run_makes_the_lane_yield_and_one_of_an_automatic_run_does_not(db, monkeypatch):
+    """Review 310: the page's own started_by is 'workflow' either way; the run above it says whose it is."""
+    _events, gate, _page = _images_lane_with_a_page(db, monkeypatch, run_started_by="owner")
+    lane = jobs._scheduler.lanes["images"]
+    assert jobs._scheduler._yields_to_a_person(lane) is True  # a person's run: the lane steps aside
+    db.execute("UPDATE jobs SET started_by = 'automatic' WHERE id = 'bg-run'")
+    jobs._scheduler._yielding_since.clear()
+    assert jobs._scheduler._yields_to_a_person(lane) is False  # the same page under an automatic run: it does not
     gate.set()

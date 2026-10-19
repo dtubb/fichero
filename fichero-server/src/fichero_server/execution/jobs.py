@@ -2606,9 +2606,9 @@ class _Scheduler:
                 continue
             marks = ", ".join("?" for _ in handed)
             for job_id, model in db.execute_fetchall(
-                    f"SELECT id, model FROM jobs WHERE state = 'waiting' AND id IN ({marks}) "
-                    f"AND {_PERSON_RANK_SQL} > 0", list(handed)):
-                if decide(True, model=model).action != "hold":
+                    f"SELECT id, model FROM jobs WHERE state = 'waiting' AND id IN ({marks})", list(handed)):
+                # The RUN's starter decides (`person_waits_on`), never the page's own row ('workflow' for every page).
+                if person_waits_on(db, job_id) and decide(True, model=model).action != "hold":
                     return True
         return False
 
