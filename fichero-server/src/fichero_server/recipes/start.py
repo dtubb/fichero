@@ -103,7 +103,17 @@ def download_sentence(download: dict[str, Any]) -> str:
     return f"{name} is not on this Mac yet ({size}): Start downloads it, and its steps wait for it."
 
 
-_NO_MODEL_JOBS = frozenset({"export", "publish", "work-out-dates", "find-documents-in-a-folder", "prepare-the-image"})
+
+
+def _needs_a_model(job: str) -> bool:
+    """Whether a step of this job needs a model of its own: the registry's answer (`Job.needs_a_model`, #5812);
+    a job the registry does not know is asked for one, as before."""
+    from fichero_server.recipes.jobs import get_job
+
+    registered = get_job(job)
+    return True if registered is None else bool(registered.needs_a_model)
+
+
 #: Search: the page's text embedded by the embed job that also follows every correction
 #: (`actions/page_text_cache.REEMBED_KIND`, a job named `make-a-vector`), one per page (#5574).
 EMBED_JOB = "make-a-vector"
@@ -352,7 +362,7 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             else:
                 runs.extend(run for run, _leaves in sampled)
             continue
-        if job not in _NO_MODEL_JOBS and (step.get("gap") or not step.get("model")):
+        if _needs_a_model(job) and (step.get("gap") or not step.get("model")):
             # Said as setup says it: the problem's sentence, naming the nearest readers, never the refused
             # cards' ids (`source.onboard.nothing-fits-names-nearest`, #5593).
             said = (step.get("problem") or {}).get("sentence") or step.get("gap") or "none is named"
