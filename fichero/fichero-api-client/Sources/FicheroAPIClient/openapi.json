@@ -53233,6 +53233,26 @@
         ],
         "title": "BrowserSaveResponse"
       },
+      "BuiltInStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "why it runs nothing, in the engine's words: it is part of the plan, not a problem"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "sentence"
+        ],
+        "title": "BuiltInStep",
+        "description": "A step that is built in: it runs nothing and needs nothing (#5816)."
+      },
       "BulkImportRequest": {
         "properties": {
           "text": {
@@ -91133,6 +91153,14 @@
             "type": "array",
             "title": "Skipped",
             "description": "steps Start skips, each with why; the others still run"
+          },
+          "built_in": {
+            "items": {
+              "$ref": "#/components/schemas/BuiltInStep"
+            },
+            "type": "array",
+            "title": "Built In",
+            "description": "steps that run nothing on purpose, each with the engine's sentence: shown as built in, never as a problem (#5816)"
           },
           "offered": {
             "items": {
