@@ -315,7 +315,7 @@ final class RecipeSetupStore {
             case .unprocessableContent(let error):
                 // The engine's declared sentence ("This project has no material yet: add your pages in Set Up ›
                 // Your Material, then press Start.", #5813).
-                errorMessage = refusalWords((try? error.body.json)?.detail, fallback: "Start was refused; the steps below say why.")
+                errorMessage = refusalWords((try? error.body.json)?.detail.sentence, fallback: "Start was refused; the steps below say why.")
             case .undocumented(let code, let payload):
                 errorMessage = await EngineErrorDetail.message(from: payload) ?? "Could not start (HTTP \(code))"
             }
@@ -819,7 +819,7 @@ extension RecipeSetupStore {
             case .unprocessableContent(let error):
                 recipe = nil
                 // The engine's declared sentence (#5813: "This project has no material yet: …").
-                errorMessage = refusalWords((try? error.body.json)?.detail, fallback: "The engine refused these answers")
+                errorMessage = refusalWords((try? error.body.json)?.detail.sentence, fallback: "The engine refused these answers")
             case .undocumented(let code, let body):
                 recipe = nil
                 errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not assemble a recipe (HTTP \(code))"
