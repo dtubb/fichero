@@ -474,8 +474,12 @@ final class RecipeSetupStore {
     /// are kept for the next save.
     func adoptEngineRecipe(_ recipeJSON: Data) {
         rememberOverrides(from: recipeJSON)
-        guard let saved = try? JSONDecoder().decode(Components.Schemas.AssembledRecipe.self, from: recipeJSON) else {
-            errorMessage = "Could not read the recipe the engine saved."
+        let saved: Components.Schemas.AssembledRecipe
+        do {
+            saved = try JSONDecoder().decode(Components.Schemas.AssembledRecipe.self, from: recipeJSON)
+        } catch {
+            NSLog("Fichero: reading the recipe the engine saved failed: %@", String(describing: error))
+            errorMessage = "Could not read the recipe the engine saved: \(error.inWords)"
             return
         }
         guard let current = recipe else {
