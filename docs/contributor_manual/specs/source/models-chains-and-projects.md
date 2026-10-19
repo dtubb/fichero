@@ -3087,6 +3087,15 @@ Setup
 - `source.onboard.stages.page-says-what-it-does` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` (the sentence as the page's subtitle, then its example). each stage page opens with what
   the stage does in one sentence, with an example, in the job registry's words (section 7a).
   *Test:* pure Swift, the page's first line is the engine's sentence for that stage.
+- `source.onboard.stages.layout-forms` — **[GAP]** (#5802) Find Regions' "Columns, margins and glosses? Tables on the
+  pages?" gains Forms; the answer reaches the plan as the find-regions step's `settings.layout`.
+- `source.onboard.stages.mixed-writing-per-region` — **[GAP]** (#5802) a Find Regions answer, worded "Handwriting and
+  print on the same page", makes the plan route each region to a reader that fits it: the reading step carries one
+  reader for handwriting and one for print and `settings.route_by` "region". Running the routing region by region is
+  a later piece.
+- `source.onboard.stages.step-names-its-model` — **[GAP]** (#5802, #5808) "Which model does it" never shows a bare
+  radio button: every plan step carries `model_name` and `model_link` (Hugging Face, Zenodo or the tool's own page),
+  or `needs`, the answer still missing, in words. The candidate source is the one the stage's Compare uses (#5808).
 - `source.onboard.stages.page-who-runs-it` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` shows the plan's rows for its own jobs (`RecipeStepsView(onlyJobs:)`) with the finder and, for Read and Find Lines, the comparison; the finder still searches readers only (`source.onboard.models.chooser-per-step`). each stage page shows who runs each of
   its jobs (the model, where it runs, its size and licence), with Choose a model… (the finder, for
   that job) and its candidates; Read and Find Lines add the comparison of candidates on the person's
