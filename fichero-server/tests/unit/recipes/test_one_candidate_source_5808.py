@@ -85,7 +85,8 @@ def test_the_candidate_response_carries_the_link_the_period_fit_and_the_whole_na
     from fichero_server.api.routes.system.recipes import ModelCandidate
 
     fields = ModelCandidate.model_fields
-    assert {"link", "other_period"} <= set(fields)
+    assert {"link", "other_period", "compared_by_default"} <= set(fields)
+    assert fields["compared_by_default"].default is False
     assert fields["other_period"].default is False and fields["link"].default is None
 
 

@@ -74713,6 +74713,24 @@
             "nullable": true,
             "description": "for an MLX model: whether it fits this Mac to read with ('fits', 'tight', 'won't fit') and why, by the rule the load applies (#5641); null for any other model"
           },
+          "compared_by_default": {
+            "type": "boolean",
+            "title": "Compared By Default",
+            "description": "with `step`: Compare on These Pages runs it when none is ticked (the step's own model and the next runnable ones), so the page can name them before it runs (#5808)",
+            "default": false
+          },
+          "link": {
+            "type": "string",
+            "nullable": true,
+            "title": "Link",
+            "description": "the page of its model (Hugging Face, Zenodo's DOI); null where it has none (#5808)"
+          },
+          "other_period": {
+            "type": "boolean",
+            "title": "Other Period",
+            "description": "made for another period than the project's (`answers.period`): the app lists it under 'Other periods', not beside the fitting ones (#5808)",
+            "default": false
+          },
           "chosen": {
             "type": "boolean",
             "title": "Chosen",

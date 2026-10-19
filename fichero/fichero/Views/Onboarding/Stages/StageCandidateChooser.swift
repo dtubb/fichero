@@ -13,6 +13,18 @@ struct StageCandidateChooser: View {
     /// How many of the step's candidates are offered here; the finder lists the rest.
     static let offered = 8
 
+    /// The list split by fit to the project's period (#5808): the readers made for it (or for none stated), then the
+    /// ones made for another period, which the page lists apart under "Other periods".
+    static func split(_ candidates: [Components.Schemas.ModelCandidate])
+        -> (fitting: [Components.Schemas.ModelCandidate], otherPeriods: [Components.Schemas.ModelCandidate]) {
+        (candidates.filter { $0.otherPeriod != true }, candidates.filter { $0.otherPeriod == true })
+    }
+
+    /// The names Compare runs when none is ticked, as the engine chose them (`compared_by_default`).
+    static func defaultNames(_ candidates: [Components.Schemas.ModelCandidate]) -> [String] {
+        candidates.filter { $0.comparedByDefault == true }.map(\.name)
+    }
+
     /// Whether a row can be ticked now: up to three, and never a model that won't fit this Mac (greyed with its
     /// reason, #5641); a row already ticked can always be unticked.
     static func canTick(_ candidate: Components.Schemas.ModelCandidate, chosen: [String],
@@ -23,38 +35,62 @@ struct StageCandidateChooser: View {
     }
 
     var body: some View {
+        let groups = Self.split(candidates)
         VStack(alignment: .leading, spacing: 6) {
-            Text("Compare").font(.headline)
-            Text("Tick up to three to compare on these pages. With none ticked, Fichero compares the step's own "
-                 + "model with the next one or two.")
+            Text("Models for your pages").font(.headline)
+            Text(intro)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            ForEach(candidates.prefix(Self.offered), id: \.id) { candidate in
-                let fit = CandidateFit.of(candidate, in: candidates)
-                VStack(alignment: .leading, spacing: 2) {
-                    Toggle(isOn: Binding(
-                        get: { chosen.contains(candidate.id) },
-                        set: { _ in chosen = StageCandidateChoice.toggle(candidate.id, in: chosen) }
-                    )) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(candidate.name).lineLimit(1)
-                            Text(candidate.availabilityWords).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
-                    }
-                    #if os(macOS)
-                    .toggleStyle(.checkbox)
-                    #endif
-                    .disabled(!Self.canTick(candidate, chosen: chosen, in: candidates))
-                    .help(fit?.line ?? "")
-                    if let fit {
-                        CandidateFitLabel(fit: fit, useSmaller: useSmaller)
-                            .padding(.leading, 20)
-                    }
+            ForEach(groups.fitting.prefix(Self.offered), id: \.id) { row($0) }
+            if !groups.otherPeriods.isEmpty {
+                DisclosureGroup("Other periods (\(groups.otherPeriods.count))") {
+                    ForEach(groups.otherPeriods.prefix(Self.offered), id: \.id) { row($0) }
                 }
+                .font(.callout)
             }
         }
         .accessibilityIdentifier("setup.stage.compareChooser")
+    }
+
+    /// What Compare says it will do: the models it names, never "the next one or two".
+    private var intro: String {
+        let names = Self.defaultNames(candidates)
+        let base = "Tick up to three to compare on these pages."
+        return names.isEmpty
+            ? base + " With none ticked, Fichero compares the step's own model with the finder's next runnable ones."
+            : base + " With none ticked, Fichero compares: " + names.joined(separator: ", ") + "."
+    }
+
+    /// One candidate: its whole name (wrapped, never cut), where it runs, a link to its page, and its fit.
+    @ViewBuilder
+    private func row(_ candidate: Components.Schemas.ModelCandidate) -> some View {
+        let fit = CandidateFit.of(candidate, in: candidates)
+        VStack(alignment: .leading, spacing: 2) {
+            Toggle(isOn: Binding(
+                get: { chosen.contains(candidate.id) },
+                set: { _ in chosen = StageCandidateChoice.toggle(candidate.id, in: chosen) }
+            )) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(candidate.name).fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(candidate.availabilityWords).font(.caption).foregroundStyle(.secondary)
+                        if let link = candidate.link, let url = URL(string: link) {
+                            Link("Page", destination: url).font(.caption)
+                        }
+                    }
+                }
+            }
+            #if os(macOS)
+            .toggleStyle(.checkbox)
+            #endif
+            .disabled(!Self.canTick(candidate, chosen: chosen, in: candidates))
+            .help(fit?.line ?? "")
+            if let fit {
+                CandidateFitLabel(fit: fit, useSmaller: useSmaller)
+                    .padding(.leading, 20)
+            }
+        }
     }
 }
 

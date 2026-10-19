@@ -67,7 +67,7 @@ struct SetupStagePage: View {
             if stage.sampleable, let tryStore {
                 Divider()
                 // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
-                if let finder = candidateFinder, finder.candidates.count >= 2 {
+                if let finder = candidateFinder, !finder.candidates.isEmpty {
                     StageCandidateChooser(
                         candidates: finder.candidates,
                         chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 }),
