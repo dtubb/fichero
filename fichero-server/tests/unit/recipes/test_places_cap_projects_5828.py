@@ -1,13 +1,12 @@
 """#5828 (#5810's engine half): the places models may run are an app setting that caps every project, at USE.
 
 WHY: Set Up Fichero's words promise "Your pages never leave this Mac" and "You can change this later". The answer lives
-in the engine, set by an audited action. A project may be stricter, never looser; the cap is checked where pages would
+in the engine, set by a route audited in the app's own audit chain, with no project open. A project may be stricter, never looser; the cap is checked where pages would
 leave, per place, and NO save may narrow a stored answer (review 213: choose_font and five more paths read the setup and
 save it back).
 """
 from __future__ import annotations
 
-from fichero_server.models import ActionAudit
 from fichero_server.recipes import answers as answers_mod
 from fichero_server.recipes import places
 from fichero_server.recipes.project import read_project_setup, write_project_setup
@@ -31,12 +30,36 @@ def test_answering_this_mac_only_caps_every_other_place(client, app_db):
     assert not places.allows("cloud") and not places.may_leave_to({"cloud_allowed": True}, "cloud")
 
 
-def test_the_answer_is_set_by_an_audited_action_and_this_mac_stays(client, app_db, db):
+def test_the_answer_is_audited_in_the_app_and_this_mac_stays(client, app_db):
     r = client.put("/api/recipes/places", json={"places": ["cloud"]})
     assert r.status_code == 200, r.text
     assert r.json()["places"] == ["this-mac", "cloud"]
     assert client.get("/api/recipes/places").json()["places"] == ["this-mac", "cloud"]
-    assert [a for a in db.query(ActionAudit) if a.action_name == "recipes.set_places"]
+    rows = [a for a in app_db.list_action_audits() if a.action_name == "recipes.set_places"]
+    assert rows and rows[-1].before == {"places": ["this-mac"]} and rows[-1].after == {"places": ["this-mac", "cloud"]}
+
+
+def test_the_answer_is_kept_with_no_project_open(app_db):
+    """Set Up Fichero runs before any project exists: no library header, and the library dependencies refuse."""
+    from fastapi import HTTPException
+    from fastapi.testclient import TestClient
+
+    from fichero_server.api.main import app, get_library_database, get_library_database_for_write
+
+    def no_project():
+        raise HTTPException(status_code=400, detail="No project is open.")
+
+    app.dependency_overrides[get_library_database] = no_project
+    app.dependency_overrides[get_library_database_for_write] = no_project
+    try:
+        bare = TestClient(app)  # no X-Fichero-Library-Path
+        r = bare.put("/api/recipes/places", json={"places": []})
+        assert r.status_code == 200, r.text
+        assert r.json()["answered"] is True and places.get_places() == ["this-mac"]
+        assert bare.get("/api/recipes/places").json()["answered"] is True
+    finally:
+        app.dependency_overrides.pop(get_library_database, None)
+        app.dependency_overrides.pop(get_library_database_for_write, None)
 
 
 def test_an_unknown_place_is_refused_in_words(client, app_db):
