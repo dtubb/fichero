@@ -117,6 +117,10 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
         where = "Hugging Face" if request.target == TARGET else f"the cluster {request.target}"
         raise PagesMayNotLeave(f"Reading on {where} sends these pages (or their IIIF addresses) there. "
                                "Say yes for this project first (pages_may_leave).")
+    from fichero_server.recipes import places
+
+    if (no := places.refusal("huggingface" if request.target == TARGET else "acenet")):
+        raise PagesMayNotLeave(no)  # the app's places cap the request's yes (#5831)
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
     if request.parent_job_id:
