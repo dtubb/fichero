@@ -56,6 +56,17 @@ def compute_preferences() -> dict[str, str]:
     return prefs
 
 
+def priority_for(person_waiting: bool, *, on_battery: bool = False) -> str:
+    """The priority a page of model work runs at (#5819). Work a person started and waits for goes flat out ("fast":
+    every core, user-initiated QoS); only the Mac being on battery slows it (to the person's own setting; memory and
+    heat hold it in the lane). Background work stays at the person's setting, "balanced" by default. The environment's
+    override (`FICHERO_COMPUTE_PRIORITY`) wins over both."""
+    prefs = compute_preferences()
+    if os.environ.get("FICHERO_COMPUTE_PRIORITY", "").strip().lower() in PRIORITIES:
+        return prefs["priority"]
+    return "fast" if person_waiting and not on_battery else prefs["priority"]
+
+
 def save_preferences(priority: str, device: str) -> dict[str, str]:
     if priority not in PRIORITIES or device not in DEVICES:
         raise ValueError(f"priority must be one of {PRIORITIES} and device one of {DEVICES}")
@@ -71,10 +82,12 @@ def apply_to_this_thread(priority: str) -> int:
         cpu_count,
         embed_threads,
         set_background_qos,
+        set_fast_qos,
         set_utility_qos,
     )
 
     if priority == "fast":
+        set_fast_qos()
         return cpu_count()
     if priority == "background":
         set_background_qos()

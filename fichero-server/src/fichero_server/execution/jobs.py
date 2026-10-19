@@ -2041,6 +2041,11 @@ def waiting_reason_of(db: "Database", kinds: list[str]) -> str | None:
 _current = threading.local()
 
 
+def current_job_is_a_persons() -> bool:
+    """The job this thread is running is work a person started or watches (`_PERSON_WAITS_SQL`): it runs flat out."""
+    return bool(getattr(_current, "person", False))
+
+
 def current_job_id() -> str | None:
     """The id of the job this thread is running, for a kind that reports progress on its row."""
     return getattr(_current, "job_id", None)
@@ -2636,6 +2641,7 @@ class _Scheduler:
             set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
+        _current.person = bool((db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id]) or [False])[0])
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
         except JobCancelled as exc:
@@ -2649,6 +2655,7 @@ class _Scheduler:
             state, reason, error = "failed", str(exc) or type(exc).__name__, exc
         finally:
             _current.job_id = None
+            _current.person = False
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
