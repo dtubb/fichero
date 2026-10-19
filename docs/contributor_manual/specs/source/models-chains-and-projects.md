@@ -3278,6 +3278,7 @@ Setup
   forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
   page's fields in that order.
 - `source.onboard.project.language-as-you-type` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the matches listed under the field as the person types, on every platform (`CodeTokenField`); an unknown word said on its own row (`RecipeSetupStore.typedRefusal`), pinned by `SetupRoundTwoTests`. the language field offers
+- `source.onboard.list-sources-shown` — **[PARTIAL]** (#5834) **Built 2026-10-19 (app), not yet seen:** About the Material shows one grey line under Languages ("From ISO 639-3, plus Glottolog for historical languages and dialects; names from Unicode CLDR") and one under Writing system ("From ISO 15924"), each source a link (`CodeListSource`, pinned by `CodeListSourceTests`); the words are what `recipes/names.py` draws on (`test_list_sources_are_true_5834.py`).
   matches as the person types, by the language's own name with or without accents; a language it does
   not know is said on the language row only, never repeated on the scripts row. *Test:* pure Swift, a
   typed "espanol" lists Spanish; an unknown language's message appears once.
