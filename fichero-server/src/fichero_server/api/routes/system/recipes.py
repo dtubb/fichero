@@ -18,6 +18,8 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+# Imported, never redefined: one schema component for every route's refusal sentence (#5094).
+from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
 from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
@@ -943,15 +945,34 @@ def _run_titles(step: dict[str, Any]) -> dict[str, Any]:
     return {"run_titles": normalise_run_titles((step.get("settings") or {}).get("target"))}
 
 
-@router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS)
+#: Assemble's refusal for an open project with nothing in it (#5813, ruled 2026-10-19): the plan follows from material.
+NO_MATERIAL_TO_PLAN = ("This project has no material yet: add your pages in Set Up › Your Material, and the plan "
+                       "follows from them.")
+
+
+def _without_material(http: Request) -> bool:
+    """Whether the project the caller names has no material (no page, no file); False with no project named."""
+    from fichero_server.recipes.start import count_pages
+
+    path = optional_library_path(http)
+    return bool(path) and count_pages(get_library_database(http, path)) == 0
+
+
+@router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS, responses={422: {
+    "model": _ErrorDetail,
+    "description": ("Refused, in one sentence: the named project has no material yet (`NO_MATERIAL_TO_PLAN`), or a "
+                    "language, script, purpose, material, job or direction Fichero does not know.")}})
 async def assemble_recipe(
-    request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
+    http: Request, request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
 ) -> AssembledRecipe:
     """The recipe the rules give for these answers, each choice with its reasons and each gap named
     once as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).
     For an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)
     sets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,
-    script, purpose, material, job or direction Fichero does not know."""
+    script, purpose, material, job or direction Fichero does not know; and for a named project with no material yet
+    (#5813)."""
+    if library is not None and _without_material(http):
+        raise HTTPException(status_code=422, detail=NO_MATERIAL_TO_PLAN)
     try:
         recipe = _assemble(request.model_dump(), library)
     except ValueError as exc:
@@ -1831,8 +1852,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     elif within is None and not pages["pages"]:
         # Nothing to run on: said, not run (seen 2026-10-11, a Start whose material never arrived ran every step
         # on nothing and failed each, "not run on 1 of 0 folders").
-        plan["refusals"] = [*plan["refusals"], "the project has no pages yet: add a folder or files to it, then "
-                                               "press Start"]
+        plan["refusals"] = [*plan["refusals"], NO_MATERIAL]
     annotate(db, plan, unfinished, within)
     return plan
 
@@ -1930,7 +1950,15 @@ class StartRequest(BaseModel):
         "(source.recipe.folder-scoped-start); null: the whole project"))
 
 
-@router.post("/project/start", response_model=StartPlan)
+#: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
+NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Your Material, then press Start."
+
+
+@router.post("/project/start", response_model=StartPlan, responses={422: {
+    "model": _ErrorDetail,
+    "description": ("Start is refused, in one sentence: the project has no material yet (`NO_MATERIAL`), a folder "
+                    "not in the project or with no pages, or the plan's refusals (a recipe that fails the check, "
+                    "nothing to run).")}})
 async def start_project(
     http: Request,
     request: Optional[StartRequest] = None,
@@ -2072,6 +2100,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
+        if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
+            raise ValueError(NO_MATERIAL)
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
         from fichero_server.recipes import runner

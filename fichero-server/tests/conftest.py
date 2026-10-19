@@ -932,6 +932,24 @@ def db(test_package):
 
 
 @pytest.fixture
+def with_material(db, tmp_path):
+    """One written page in the test project: the plan is assembled and started only for a project with material
+    (#5813, ruled 2026-10-19); a test about an empty project leaves this out and asserts the refusal."""
+    from PIL import Image, ImageDraw
+
+    from fichero_server.models import DocType, Document, FileType
+
+    path = tmp_path / "material.png"
+    image = Image.new("RGB", (32, 32), (250, 250, 250))
+    for row in (8, 14, 20, 26):
+        ImageDraw.Draw(image).line([4, row, 27, row], fill=(30, 30, 30))
+    image.save(str(path), format="PNG")
+    page = Document(name="material.png", doc_type=DocType.file, file_type=FileType.image, path=str(path))
+    db.save(page)
+    return page
+
+
+@pytest.fixture
 def jobs_run_by_the_test(monkeypatch):
     """The test runs its jobs itself (`jobs.KINDS[kind].run`): no job thread is woken for its library.
 

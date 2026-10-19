@@ -307,10 +307,9 @@ final class RecipeSetupStore {
                 if startPlanFolderId != folderId { startPlanFolderId = folderId }
                 return true
             case .unprocessableContent(let error):
-                // The engine's own sentence ("the project has no pages yet: add a folder or files to it, then
-                // press Start"), where it gave one in the typed shape.
-                errorMessage = (try? error.body.json)?.detail?.description
-                    ?? "Start was refused; the steps below say why."
+                // The engine's declared sentence ("This project has no material yet: add your pages in Set Up ›
+                // Your Material, then press Start.", #5813).
+                errorMessage = (try? error.body.json)?.detail ?? "Start was refused; the steps below say why."
             case .undocumented(let code, let payload):
                 errorMessage = await EngineErrorDetail.message(from: payload) ?? "Could not start (HTTP \(code))"
             }
@@ -806,7 +805,8 @@ extension RecipeSetupStore {
                 recipe = try success.body.json
             case .unprocessableContent(let error):
                 recipe = nil
-                errorMessage = (try? error.body.json)?.detail?.description ?? "The engine refused these answers"
+                // The engine's declared sentence (#5813: "This project has no material yet: …").
+                errorMessage = (try? error.body.json)?.detail ?? "The engine refused these answers"
             case .undocumented(let code, let body):
                 recipe = nil
                 errorMessage = await EngineErrorDetail.message(from: body) ?? "Could not assemble a recipe (HTTP \(code))"
