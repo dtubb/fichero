@@ -8,8 +8,8 @@ final class LaunchPaneFocusTests: XCTestCase {
     }
 
     /// The first onAppear used to set `.content`, which put the caret in the reader's find field.
-    func testAWindowOpensInTheSidebarOrTheListWhenTheSidebarIsHidden() {
+    func testAWindowOpensInTheSidebarAndSetsNothingWhenItIsHidden() {
         XCTAssertEqual(PaneFocus.launchFocus(sidebarHidden: false), .sidebar)
-        XCTAssertEqual(PaneFocus.launchFocus(sidebarHidden: true), .content)
+        XCTAssertNil(PaneFocus.launchFocus(sidebarHidden: true), ".content binds no view")
     }
 }
