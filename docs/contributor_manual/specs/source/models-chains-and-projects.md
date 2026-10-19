@@ -3278,10 +3278,10 @@ Setup
   forms, maps and drawings), when written, where written, and which hand. *Test:* pure Swift, the
   page's fields in that order.
 - `source.onboard.project.language-as-you-type` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** the matches listed under the field as the person types, on every platform (`CodeTokenField`); an unknown word said on its own row (`RecipeSetupStore.typedRefusal`), pinned by `SetupRoundTwoTests`. the language field offers
-- `source.onboard.list-sources-shown` — **[PARTIAL]** (#5834) **Built 2026-10-19 (app), not yet seen:** About the Material and the Inspector's material (the shared `CodeTokenField`) show one grey line under Languages ("From ISO 639-3, plus Glottolog for the languages and dialects ISO 639-3 has no code for; a language's own name (from Unicode CLDR) finds it too") and one under Writing system ("From ISO 15924"), after the type-ahead matches, each source a link (`CodeListSource`, pinned by `CodeListSourceTests`); the words are what `recipes/names.py` draws on (`test_list_sources_are_true_5834.py`).
   matches as the person types, by the language's own name with or without accents; a language it does
   not know is said on the language row only, never repeated on the scripts row. *Test:* pure Swift, a
   typed "espanol" lists Spanish; an unknown language's message appears once.
+- `source.onboard.list-sources-shown` — **[PARTIAL]** (#5834) **Built 2026-10-19 (app), not yet seen:** About the Material and the Inspector's material (the shared `CodeTokenField`) show one grey line under Languages ("From ISO 639-3, plus Glottolog for the languages and dialects ISO 639-3 has no code for; a language's own name (from Unicode CLDR) finds it too") and one under Writing system ("From ISO 15924"), after the type-ahead matches, each source a link (`CodeListSource`, pinned by `CodeListSourceTests`); the words are what `recipes/names.py` draws on (`test_list_sources_are_true_5834.py`).
 - `source.onboard.stages.pipeline-order` — **[GAP]** (#5668) the stages are, in pipeline order: Prepare
   Images, Find Regions, Find Lines, Read, Normalise, Translate, Organise, Names, Statements, Dates &
   Times, Passages, Structured Data, Search, from the engine's list. *Test:* pytest, the thirteen in that
