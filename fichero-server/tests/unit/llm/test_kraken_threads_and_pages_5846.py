@@ -10,6 +10,7 @@ import logging
 import sys
 import threading
 import types
+import warnings
 
 from fichero_server.llm import kraken_runtime
 from fichero_server.workflows.tools.vision_base import one_page_at_a_time
@@ -123,3 +124,12 @@ def test_the_coreml_predict_warning_is_dropped_and_others_are_kept():
     finally:
         logger.removeHandler(handler)
     assert records == ["something else coremltools says"]
+
+
+def test_the_coreml_predict_line_is_dropped_when_it_comes_as_a_python_warning():
+    """coremltools 9 says it with warnings.warn, not logging (review 248)."""
+    with warnings.catch_warnings(record=True) as seen:
+        kraken_runtime.quiet_coreml_warning()
+        warnings.warn("You will not be able to run predict() on this Core ML model. Underlying exception message was: x")
+        warnings.warn("something else")
+    assert [str(w.message) for w in seen] == ["something else"]
