@@ -157,7 +157,7 @@ struct ActivityPopoverSummary: Equatable {
             + (processCpuPercent.map { [Self.cpuReading($0, cpuCount: cpuCount)] } ?? [])
     }
 
-    private static func block(_ live: Components.Schemas.LiveBlock) -> Block {
+    static func block(_ live: Components.Schemas.LiveBlock) -> Block {
         let pages = live.total > 0 ? "\(live.done) of \(live.total) pages" : "no pages yet"
         let folders = live.foldersTotal.map { "\(live.foldersDone ?? 0) of \($0) folders" }
         let failed = live.failed > 0 ? "\(live.failed) failed" : nil
@@ -169,7 +169,7 @@ struct ActivityPopoverSummary: Equatable {
         )
     }
 
-    private static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundLine {
+    static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundLine {
         BackgroundLine(
             id: line.kind,
             text: line.total > 0 ? "\(line.name) · \(line.done) of \(line.total)" : line.name,

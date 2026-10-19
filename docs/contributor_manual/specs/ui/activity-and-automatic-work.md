@@ -653,7 +653,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   job as the first thing seen (`activity.window.table` keeps the rows underneath). Engine side: `activity.live` in the jobs
   response is one `LiveBlock` per live recipe run (recipe, the stage running, its workflow, done / failed / left, folders done
   of total) and per workflow run outside a recipe (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`).
-  Not yet: the window draws it and opens it to the files (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`, after the regen).
+  The window draws it above the table, in the popover's words (`ActivityLiveSection`; needs compile; `fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`). Not yet: opening it to the files (`activity.window.acts-on`).
 - `activity.window.acts-on` — **[GAP]** (#5839) the live block says what it acts on with counts ("Read: 7 of 20 pages,
   folder X"), and the whole list of pages expands under it, each with its state. Supersedes the next-three-rows view in
   `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written:
@@ -668,8 +668,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   group of its own below the live blocks, one row per kind with its total. Supersedes
   `activity.window.grouped-by-project` as the way the Mac's own work is shown. Engine side: `activity.background` is one
   `BackgroundLine` per kind (state, the reason a wait gives, done, total), never a run or an ended row
-  (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`). Not yet: the window's group
-  (`fichero/Tests/Unit/general/Models/ActivityLayoutTests.swift`, after the regen).
+  (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`). The window draws the group under the live blocks (`ActivityLiveSection`; needs compile). Per-kind totals only; the Mac's per-project grouping toggle stays for the table.
 - `activity.window.history-group` — **[PARTIAL]** (#5851) finished, stopped and interrupted runs fold into a History group;
   Clear Finished empties it (`activity.window.clear-finished`). No stale or interrupted run is in the live area or the
   popover. Engine side: every ended row, of any kind (a stopped or failed workflow, batch, recipe run, try or queue row),

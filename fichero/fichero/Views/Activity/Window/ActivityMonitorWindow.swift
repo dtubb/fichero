@@ -57,6 +57,8 @@ struct ActivityMonitorWindow: View {
                 )
             } else {
                 VStack(spacing: 0) {
+                    // What is working now, from the engine's one summary, the popover's words (`activity.window.live-block`).
+                    ActivityLiveSection(summaries: libraries.compactMap { $0.activityStore.activitySummary })
                     table
                     // The detail below the table (#5561): the selected row's details,
                     // the same view the ⓘ button and double-click open.
