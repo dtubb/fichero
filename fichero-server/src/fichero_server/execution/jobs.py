@@ -1708,9 +1708,14 @@ def queue_page_retry(db: "Database", page_job_id: str, run_id: str, document: st
                "AND state IN ('failed', 'cancelled')", [QUEUED_RETRY, page_job_id])
 
 
-def _reopen_for_queued_retries(db: "Database", run_id: str) -> None:
+def take_page_retries(run_id: str) -> list[str]:
+    """The pages retried into this run's queue, taken (once: a second caller finds none)."""
     with _PAGE_RETRIES_LOCK:
-        documents = _PAGE_RETRIES.pop(run_id, [])
+        return _PAGE_RETRIES.pop(run_id, [])
+
+
+def _reopen_for_queued_retries(db: "Database", run_id: str) -> None:
+    documents = take_page_retries(run_id)
     if not documents:
         return
     from fichero_server.api.routes.workflow_execution.core import reopen_run_for_pages  # noqa: PLC0415

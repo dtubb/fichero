@@ -736,6 +736,15 @@ async def retry_page_in_run(db: Database, page_job_id: str) -> tuple[str, str]:
     status = ((run.status if run else "") or "").lower()
     if status in ("running", "accepted", "paused") or run_id in job_queue.live_run_ids():
         job_queue.queue_page_retry(db, page_job_id, run_id, document)
+        # The run may have ended between the look above and the queue: its end already took the queued pages (none were
+        # there yet), so look again, and if it is over take them now (the take is atomic: one of the two gets them).
+        run = await get_activity_tracker(str(db.path)).store.get_workflow_run(run_id)
+        if ((run.status if run else "") or "").lower() in ("completed", "failed", "cancelled") \
+                and run_id not in job_queue.live_run_ids():
+            documents = job_queue.take_page_retries(run_id)
+            if documents:
+                await read_again(db, run_id, documents=documents, reopen=True)
+                return run_id, "reopened"
         return run_id, "queued"
     await read_again(db, run_id, documents=[document], reopen=True)
     return run_id, "reopened"

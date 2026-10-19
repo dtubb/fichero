@@ -65,3 +65,23 @@ def test_a_live_run_takes_the_page_into_its_queue_with_no_409_and_reopens_when_i
     monkeypatch.setattr(runner, "on_background_loop", lambda coro: (scheduled.append(coro), coro.close()))
     jobs._reopen_for_queued_retries(run, "run-1")  # the run's pass ends (record_run calls this on completed/failed)
     assert len(scheduled) == 1 and jobs._PAGE_RETRIES == {}
+
+
+def test_a_retry_queued_just_as_the_run_ends_is_not_left_waiting_forever(run, monkeypatch):
+    """The run ends between the live look and the queue: its end found nothing to take, so the retry itself must see
+    the run is over and reopen it."""
+    core, reopened = _stub_run(monkeypatch, "running")
+    looks = iter(["running", "completed"])  # live at the first look, over by the second
+
+    class Store:
+        async def get_workflow_run(self, thread_id):
+            return type("R", (), {"status": next(looks)})()
+
+    monkeypatch.setattr(core, "get_activity_tracker", lambda _p: type("T", (), {"store": Store()})())
+    assert asyncio.run(core.retry_page_in_run(run, "page-1")) == ("run-1", "reopened")
+    assert reopened == [("run-1", ["doc-7"], True)] and jobs._PAGE_RETRIES == {}
+
+
+def test_the_queued_pages_are_taken_once(run):
+    jobs.queue_page_retry(run, "page-1", "run-1", "doc-7")
+    assert jobs.take_page_retries("run-1") == ["doc-7"] and jobs.take_page_retries("run-1") == []
