@@ -1362,7 +1362,16 @@ class Database(DatabaseEmbeddingMixin):
             return  # no jobs table yet: `jobs._ensure` makes it with the columns
         from fichero_server.execution import jobs
 
+        count = "SELECT count(*) FROM information_schema.columns WHERE table_name = 'jobs'"
+        before = self.conn.execute(count).fetchone()[0]
         jobs.apply_added_columns(self.conn.execute, str(self.path))
+        if self.conn.execute(count).fetchone()[0] > before:
+            # An ALTER ... ADD COLUMN must not sit in the WAL: DuckDB cannot replay it, and a library that dies
+            # before the next checkpoint then poisons every restart (the house rule, db/app.py, 2026-06-12).
+            try:
+                self.conn.execute("CHECKPOINT")
+            except duckdb.Error as exc:
+                logger.warning("%s: could not checkpoint after adding jobs columns: %s", self.path, exc)
 
     def _fold_activity_tables(self) -> None:
         """The activity store's `activities` and `workflow_runs` into `ActivityEventRecord` and `WorkflowRunRecord`
