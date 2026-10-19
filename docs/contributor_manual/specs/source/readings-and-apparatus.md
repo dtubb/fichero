@@ -434,6 +434,28 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
   `find-where-readers-disagree`, stage Read): it reads the project's pages with the readers the step names, or
   one reader sampled N times at a temperature (5 at 0.7 by default), keeps every reading as a reading of the
   line (`source.reading.set`; none counts over another by being compared), and works out the disagreement.
+- `source.disagree.built-in-with-two-readers` — **[OK]** (#5812; `start.disagreement_runs`, card `align`, `runner._run_align`; tested in
+  `fichero-server/tests/unit/recipes/test_disagree_needs_no_model_5812.py`) when the plan already has two or more readers of the
+  lines (a line reader and a Correct step, or two `readers` pinned on the step), "Find where the readers disagree" needs
+  no model: it is the line-by-line alignment of the readings the plan makes (`source.disagree.medoid-aligned`), run built in.
+  Its page says "uses your readers above; built in". No model is searched for, asked for, or warned about.
+- `source.disagree.one-reader-says-which-to-add` — **[OK]** (#5812; same tests) with one reader in the plan the step
+  cannot compare anything unless that reader is sampled. A vision reader is sampled (`source.disagree.recipe-step`); a reader
+  that cannot be (Kraken) is not a reason to choose a model for THIS step: the line names the reader to add ("add a second
+  reader, such as a Correct step or a second pinned reader") and offers vision readers only, never a text-model search.
+- `source.recipe.every-job-declares-needs-a-model` — **[OK]** (#5812; `recipes/jobs.py` `Job.needs_a_model`, the one source `start.plan_start`
+  reads in place of its former `_NO_MODEL_JOBS`; tested in `fichero-server/tests/unit/recipes/test_every_job_declares_a_model_need_5812.py`)
+  each registered job says whether it needs a model, yes or no; a job registered without the answer is refused. A "no" job
+  never gets a model row, a "has no model" skip, or a finder.
+- `source.find.no-finder-for-no-model-jobs` — **[GAP]** (#5812) the Ready page and Set Up show no "Choose a model" row or
+  finder for a job that needs none (the engine side is `source.recipe.every-job-declares-needs-a-model`; the pure-Swift check
+  of the Ready rows is not written).
+- `source.recipe.optional-steps-wait-to-be-asked` — **[OK]** (#5812, owner ruling 2026-10-19; `assemble._correct_left_off`, `assemble.assemble`;
+  tested in `fichero-server/tests/unit/recipes/test_optional_steps_wait_to_be_asked_5812.py`) an optional step joins the plan
+  only when the person ticks it or says yes: Correct (the Read page's "Have a second model check the reading?" or the step
+  ticked), Find where the readers disagree (ticked), and cloud and training until asked. The answer drives the plan, never the plan
+  the answer: an unanswered or unticked question gives a plan with no Correct and no disagree step, so no download is queued for
+  either; a corrector already at hand does not put Correct in. Ready still says what turning it on would cost.
 - `source.disagree.agreement-not-accuracy` — **[PARTIAL]** (#5665; the route's fields say agreement only; a checked
   line is not yet scored as accuracy) the figure is labelled agreement everywhere
   (route, lens, Inspector) unless a person checked the line, as `compare_readings` labels its score.

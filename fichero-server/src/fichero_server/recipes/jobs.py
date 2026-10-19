@@ -42,6 +42,9 @@ class Job:
     settings: tuple[str, ...] = field(default_factory=tuple)
     #: The topic registry entry that explains it; the job's own id unless named.
     topic_id: str = ""
+    #: Whether the step needs a model of its own, yes or no (`source.recipe.every-job-declares-needs-a-model`, #5812).
+    #: Required: None is refused at registration. A "no" job gets no model row, no finder and no "has no model" skip.
+    needs_a_model: bool | None = None
 
     @property
     def topic(self) -> Topic | None:
@@ -64,6 +67,8 @@ def register_job(job: Job) -> Job:
     """Add a job. A second registration of one id is a mistake, not an update."""
     if job.id in _JOBS:
         raise ValueError(f"job {job.id!r} is already registered")
+    if job.needs_a_model is None:
+        raise ValueError(f"job {job.id!r} does not say whether it needs a model: declare needs_a_model=True or False")
     if job.topic is None or job.topic.kind != "job":
         raise ValueError(f"job {job.id!r} has no entry in the topic registry: setup and the manual show it")
     _JOBS[job.id] = job
@@ -78,9 +83,9 @@ def all_jobs() -> list[Job]:
     return list(_JOBS.values())
 
 
-def _job(id, takes, gives, layer, compare, settings=()):  # noqa: A002
+def _job(id, takes, gives, layer, compare, settings=(), *, needs_a_model):  # noqa: A002
     return register_job(Job(id, frozenset(takes), frozenset(gives), layer, compare,
-                            settings=tuple(settings)))
+                            settings=tuple(settings), needs_a_model=needs_a_model))
 
 
 _TEXT = "a text diff of the readings, with character and word error rates where pages are corrected"
@@ -89,52 +94,52 @@ _LIST = "the two lists side by side, with precision and recall where a person ha
 
 # --- Reading jobs ---------------------------------------------------------------------------------
 _job("prepare-the-image", {"page_image"}, {"page_image", "rendition"}, "prepare", "the renditions side by side",
-     ("operations",))
-_job("split-pages", {"page_image"}, {"page_image"}, "prepare", "the cut pages side by side")
-_job("find-the-script", {"page_image"}, {"script"}, "prepare", "the scripts found, side by side", ("model",))
-_job("find-regions", {"page_image"}, {"regions"}, "lines", _BOXES, ("model",))
-_job("find-lines", {"page_image"}, {"lines"}, "lines", _BOXES, ("model", "regions"))
-_job("put-in-order", {"lines"}, {"reading_order"}, "lines", "the two orders side by side")
-_job("refine-shapes", {"page_image", "lines"}, {"lines"}, "lines", _BOXES, ("model",))
-_job("find-signs", {"page_image"}, {"signs"}, "lines", _BOXES, ("model",))
-_job("find-a-tables-cells", {"regions"}, {"table_cells"}, "lines", _BOXES, ("model",))
-_job("read-a-line", {"lines"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt"))
-_job("read-a-page", {"page_image"}, {"page_reading"}, "reading", _TEXT, ("model", "prompt"))
-_job("tie-text-to-lines", {"page_reading", "lines"}, {"line_readings"}, "reading", _TEXT)
-_job("correct", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt", "only_below_confidence"))
+     ("operations",), needs_a_model=False)
+_job("split-pages", {"page_image"}, {"page_image"}, "prepare", "the cut pages side by side", needs_a_model=False)
+_job("find-the-script", {"page_image"}, {"script"}, "prepare", "the scripts found, side by side", ("model",), needs_a_model=True)
+_job("find-regions", {"page_image"}, {"regions"}, "lines", _BOXES, ("model",), needs_a_model=True)
+_job("find-lines", {"page_image"}, {"lines"}, "lines", _BOXES, ("model", "regions"), needs_a_model=True)
+_job("put-in-order", {"lines"}, {"reading_order"}, "lines", "the two orders side by side", needs_a_model=False)
+_job("refine-shapes", {"page_image", "lines"}, {"lines"}, "lines", _BOXES, ("model",), needs_a_model=True)
+_job("find-signs", {"page_image"}, {"signs"}, "lines", _BOXES, ("model",), needs_a_model=True)
+_job("find-a-tables-cells", {"regions"}, {"table_cells"}, "lines", _BOXES, ("model",), needs_a_model=True)
+_job("read-a-line", {"lines"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt"), needs_a_model=True)
+_job("read-a-page", {"page_image"}, {"page_reading"}, "reading", _TEXT, ("model", "prompt"), needs_a_model=True)
+_job("tie-text-to-lines", {"page_reading", "lines"}, {"line_readings"}, "reading", _TEXT, needs_a_model=False)
+_job("correct", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "prompt", "only_below_confidence"), needs_a_model=True)
 # Each line read by several readers, or one sampled N times at a temperature; every reading kept (#5665).
 _job("find-where-readers-disagree", {"lines"}, {"line_readings"}, "reading", _TEXT,
-     ("model", "readers", "samples", "temperature"))
-_job("trace-a-drawing", {"regions"}, {"drawings"}, "reading", "the drawings side by side", ("model",))
-_job("identify-signs", {"signs"}, {"sign_identifications"}, "reading", _LIST, ("model",))
-_job("transcribe-speech", {"recording"}, {"line_readings"}, "reading", _TEXT, ("model",))
-_job("translate-transliterate-normalise", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "target"))
+     ("model", "readers", "samples", "temperature"), needs_a_model=False)
+_job("trace-a-drawing", {"regions"}, {"drawings"}, "reading", "the drawings side by side", ("model",), needs_a_model=True)
+_job("identify-signs", {"signs"}, {"sign_identifications"}, "reading", _LIST, ("model",), needs_a_model=True)
+_job("transcribe-speech", {"recording"}, {"line_readings"}, "reading", _TEXT, ("model",), needs_a_model=True)
+_job("translate-transliterate-normalise", {"line_readings"}, {"line_readings"}, "reading", _TEXT, ("model", "target"), needs_a_model=True)
 # --- Structure and knowledge ----------------------------------------------------------------------
 # Reads the text already there (and the thumbnails), so it comes after reading (`finddocs.recipe-step`, #5550).
-_job("find-documents-in-a-folder", {READING}, {"document_groups"}, "structure", _LIST, ("accept_above",))
+_job("find-documents-in-a-folder", {READING}, {"document_groups"}, "structure", _LIST, ("accept_above",), needs_a_model=False)
 # Splits the text already read, a page's or its lines', so it comes after reading (#5581).
-_job("split-into-entries", {READING}, {"entries"}, "structure", _LIST, ("model",))
-_job("find-names-tag-words", {READING}, {"mentions"}, "entities", _LIST, ("model",))
-_job("find-statements", {READING, "mentions"}, {"claims"}, "graph", _LIST, ("model", "prompt"))
-_job("work-out-dates", {"mentions"}, {"dates"}, "graph", _LIST)
-_job("link-to-authorities", {"mentions"}, {"authority_links"}, "graph", _LIST, ("sources",))
-_job("place-in-a-gazetteer", {"mentions"}, {"places"}, "places", _LIST, ("gazetteer",))
+_job("split-into-entries", {READING}, {"entries"}, "structure", _LIST, ("model",), needs_a_model=True)
+_job("find-names-tag-words", {READING}, {"mentions"}, "entities", _LIST, ("model",), needs_a_model=True)
+_job("find-statements", {READING, "mentions"}, {"claims"}, "graph", _LIST, ("model", "prompt"), needs_a_model=True)
+_job("work-out-dates", {"mentions"}, {"dates"}, "graph", _LIST, needs_a_model=False)
+_job("link-to-authorities", {"mentions"}, {"authority_links"}, "graph", _LIST, ("sources",), needs_a_model=False)
+_job("place-in-a-gazetteer", {"mentions"}, {"places"}, "places", _LIST, ("gazetteer",), needs_a_model=False)
 # The embed job embeds the page's text, read line by line or given whole (`page_text_cache`, #5553).
 _job("make-a-vector", {READING}, {"vectors"}, "vectors",
-     "each model's top results for a few of your own questions", ("model",))
-_job("describe-for-the-catalogue", {"line_readings"}, {"metadata_values"}, "catalogue", _LIST, ("fields",))
+     "each model's top results for a few of your own questions", ("model",), needs_a_model=True)
+_job("describe-for-the-catalogue", {"line_readings"}, {"metadata_values"}, "catalogue", _LIST, ("fields",), needs_a_model=False)
 # A prototype's questions asked of each of its documents and entries, from the text already read; the answers land
 # as the nodes' attributes, each citing its words (`structured.extract.step-in-a-recipe`, #5636).
-_job("extract-to-a-table", {READING}, {"table_rows"}, "structure", _LIST, ("model", "prototype"))
-_job("pull-out-passages", {"line_readings"}, {"passages"}, "knowledge", _LIST, ("question",))
+_job("extract-to-a-table", {READING}, {"table_rows"}, "structure", _LIST, ("model", "prototype"), needs_a_model=True)
+_job("pull-out-passages", {"line_readings"}, {"passages"}, "knowledge", _LIST, ("question",), needs_a_model=False)
 _job("train-a-model", {"line_readings", "lines"}, {"model_card"}, "train",
-     "the candidate against the current step on held-out corrected pages", ("base", "where"))
+     "the candidate against the current step on held-out corrected pages", ("base", "where"), needs_a_model=False)
 # --- Output ---------------------------------------------------------------------------------------
 # One job for every layer: which layer it checks (readings, names, statements, links) is a setting,
 # so `takes` names only what every check needs, the readings the proposals came from.
-_job("check", {READING}, {"verdicts"}, "check", _LIST, ("layer", "model", "prompt"))
-_job("export", {READING}, {"files"}, "output", "the files side by side", ("formats", "folder"))
-_job("publish", {"files"}, {"published"}, "publish", "the published pages side by side", ("where",))
+_job("check", {READING}, {"verdicts"}, "check", _LIST, ("layer", "model", "prompt"), needs_a_model=True)
+_job("export", {READING}, {"files"}, "output", "the files side by side", ("formats", "folder"), needs_a_model=False)
+_job("publish", {"files"}, {"published"}, "publish", "the published pages side by side", ("where",), needs_a_model=False)
 
 
 # --- How each step with a model distils into a local model (`source.distil.each-step-has-a-method`, #5770) ---------
