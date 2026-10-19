@@ -14,9 +14,11 @@ def _fresh(monkeypatch):
     monkeypatch.delenv(ds.DUCKDB_MEMORY_LIMIT_ENV, raising=False)
     saved = dict(ds._instances)
     ds._instances.clear()
+    ds._applied.clear()
     yield
     ds._instances.clear()
     ds._instances.update(saved)
+    ds._applied.clear()
 
 
 def _limit(conn) -> int:
@@ -86,3 +88,40 @@ def test_parse_size():
     assert ds.parse_size("256 MiB") == 256 * 1024**2
     with pytest.raises(ValueError):
         ds.parse_size("lots")
+
+
+def test_a_second_connect_to_an_open_file_sets_nothing_on_the_others(tmp_path, monkeypatch):
+    """WHY (review 273 LOW): every poll connects; each connect re-probed and re-SET every open instance under a lock."""
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 16 * GIB)
+    sets = []
+    real = ds._set_limit
+    monkeypatch.setattr(ds, "_set_limit", lambda conn, limit: (sets.append(limit), real(conn, limit))[1])
+    a, b = _open(tmp_path, "a"), _open(tmp_path, "b")
+    sets.clear()
+    again = _open(tmp_path, "a")  # a poll
+    again2 = _open(tmp_path, "b")
+    assert sets == []
+    for c in (a, b, again, again2):
+        c.close()
+
+
+def test_a_new_instance_sets_only_the_ones_whose_share_changed(tmp_path, monkeypatch):
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 8 * GIB)  # 0.8 GiB: three at the floor already
+    sets = []
+    real = ds._set_limit
+    monkeypatch.setattr(ds, "_set_limit", lambda conn, limit: (sets.append(limit), real(conn, limit))[1])
+    conns = [_open(tmp_path, f"db{i}") for i in range(4)]
+    sets.clear()
+    conns.append(_open(tmp_path, "db4"))  # share stays at the floor for everyone: only the newcomer is set
+    assert sets == [ds.FLOOR_BYTES]
+    for c in conns:
+        c.close()
+
+
+def test_a_file_closed_and_opened_again_gets_its_share_back(tmp_path, monkeypatch):
+    monkeypatch.setattr(ds, "physical_memory_bytes", lambda: 16 * GIB)
+    a = _open(tmp_path, "a")
+    a.close()
+    again = _open(tmp_path, "a")  # a new instance, back at DuckDB's default
+    assert abs(_limit(again) - 16 * GIB * ds.BUDGET_FRACTION) <= 1024**2
+    again.close()
