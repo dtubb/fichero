@@ -104,6 +104,18 @@ final class SetupStageTryStore {
         }
     }
 
+    /// Stop the try: its job is cancelled in Activity and the result reads as stopped.
+    func stop() async {
+        guard let jobId = result?.jobId else { return }
+        do {
+            _ = try await client.api.cancelJobApiActivityJobsJobIdCancelPost(path: .init(jobId: jobId))
+        } catch {
+            if error.isCancellationError { return }
+            refusal = "Could not stop the try: \(error.localizedDescription)"
+        }
+        await readResult()
+    }
+
     private static func engineWords(_ error: Error) async -> String? {
         guard let clientError = error as? ClientError, let body = clientError.responseBody,
               let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
@@ -134,6 +146,15 @@ struct SetupStageTryResult: Decodable, Equatable {
         let readings: [Reading]?
         let segments: [String: Int]?
         let statements: [String]?
+        /// The page's lines and regions as the model drew them, normalised to the page (`compare-results-per-model`).
+        let shapes: [Shape]?
+    }
+
+    /// One line or region a model found: its kind, its box (x, y, width, height) and its baseline, all 0 to 1.
+    struct Shape: Decodable, Equatable {
+        let kind: String
+        let bbox: [Double]
+        let baseline: [[Double]]?
     }
 
     struct Name: Decodable, Equatable {
@@ -162,6 +183,10 @@ struct SetupStageTryResult: Decodable, Equatable {
     /// The comparison of candidates a Read or Find Lines try started: its own state and why (the stage result stays
     /// "waiting" for the file; the comparison's job is what is running).
     let comparison: Comparison?
+    /// What the whole try waits for, in the engine's words (the page images, the lane, a download).
+    let waitingFor: String?
+    /// The try's job in Activity, for Stop.
+    let jobId: String?
 
     struct Comparison: Decodable, Equatable {
         let state: String?
@@ -171,6 +196,8 @@ struct SetupStageTryResult: Decodable, Equatable {
     enum CodingKeys: String, CodingKey {
         case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison
         case perPage = "per_page"
+        case waitingFor = "waiting_for"
+        case jobId = "job_id"
     }
 
     /// "Sentencia · 82% sure": a proposed document's kind and how sure, for the samples' grouping.
@@ -188,8 +215,34 @@ struct SetupStageTryResult: Decodable, Equatable {
     /// "nothing happens".
     var underWayWords: String? {
         guard isUnderWay else { return nil }
+        let waiting = waitingFor?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !waiting.isEmpty { return waiting }
         let reason = comparison?.reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return reason.isEmpty ? "Working on it. Activity shows where it is." : reason
+        // Set Up is modal, so Activity cannot be reached from here: the try says where it is itself
+        // (`source.onboard.stages.try-progress-in-place`).
+        return reason.isEmpty ? "Working on it." : reason
+    }
+
+    /// "Kraken: page 2 of 5, finding lines" for each candidate under way, in the order compared.
+    var progressLines: [String] {
+        (candidates ?? []).compactMap { $0.progressWords }
+    }
+
+    /// "Kraken: 27 lines, 3 regions · Apple Vision: 25 lines" for one page: each model's counts side by side
+    /// (`source.onboard.stages.compare-results-per-model`); a model with nothing on that page is left out.
+    func sideBySide(pageId: String) -> String {
+        (candidates ?? []).compactMap { candidate in
+            guard let page = candidate.perPage?.first(where: { $0.id == pageId }),
+                  let counts = Self.countWords(page.segments ?? [:]) else { return nil }
+            return "\(candidate.title): \(counts)"
+        }.joined(separator: " · ")
+    }
+
+    /// "27 lines, 3 regions", "1 line": the engine's kinds with their plurals.
+    static func countWords(_ segments: [String: Int]) -> String? {
+        let parts = segments.filter { $0.value > 0 }.sorted { $0.key < $1.key }
+            .map { "\($0.value) \($0.value == 1 ? $0.key : $0.key + "s")" }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     /// Why the try failed, in the engine's words, or nil when it did not: the stage's error, else the comparison's reason,
@@ -202,8 +255,7 @@ struct SetupStageTryResult: Decodable, Equatable {
     /// One line per page for the page: what was read, how many lines and regions, how many statements.
     static func summary(of page: Page) -> String {
         var parts: [String] = []
-        let segments = (page.segments ?? [:]).sorted { $0.key < $1.key }.map { "\($0.value) \($0.key)" }
-        if !segments.isEmpty { parts.append(segments.joined(separator: ", ")) }
+        if let segments = countWords(page.segments ?? [:]) { parts.append(segments) }
         let statements = page.statements?.count ?? 0
         if statements > 0 { parts.append(statements == 1 ? "1 statement" : "\(statements) statements") }
         return parts.joined(separator: "; ")
