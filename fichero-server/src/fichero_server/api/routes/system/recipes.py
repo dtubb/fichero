@@ -958,7 +958,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
         jobs=tuple(a.get("jobs") or ()), removed_jobs=tuple(a.get("removed_jobs") or ()),
-        pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")) and places.pages_may_leave(),
+        pages=a.get("pages") or 0, cloud_allowed=places.may_leave_to(a, "cloud"),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
@@ -1362,7 +1362,7 @@ async def model_candidates(
     if not script_codes:
         raise HTTPException(status_code=422, detail="name at least one script")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
-                cloud_allowed=cloud_allowed and places.pages_may_leave(), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
+                cloud_allowed=cloud_allowed and places.allows("cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
                 search_embedder=search_embedder(), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
@@ -1524,7 +1524,7 @@ def _action_set_places(db: Database, params: PlacesSetting, ctx: ActionContext) 
 @router.get("/project", response_model=ProjectSetup)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetup:
     """The open project's saved setup answers and recipe."""
-    return ProjectSetup(**read_project_setup(_library(db), raw=True))
+    return ProjectSetup(**read_project_setup(_library(db)))
 
 
 @router.put("/project", response_model=ProjectSetup)
@@ -1564,12 +1564,12 @@ def _invert_save_setup(before: dict | None, after: dict | None, ctx: ActionConte
         invert=_invert_save_setup)
 def _action_save_setup(db: Database, params: ProjectSetup, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
     library = _library(db)
-    before = read_project_setup(library, raw=True)
+    before = read_project_setup(library)
     # A part left out is kept; a part sent as null is removed (#5584).
     sent = params.model_fields_set
     write_project_setup(library, params.answers if "answers" in sent else before.get("answers"),
                         params.recipe if "recipe" in sent else before.get("recipe"))
-    after = read_project_setup(library, raw=True)
+    after = read_project_setup(library)
     return after, ChangeSpec(domains=["project"], target_ids=[], before=before, after=after,
                              emit_type="project.setup_saved")
 
@@ -1918,7 +1918,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     setup = read_project_setup(library)
     started, proposal = read_start(library), read_proposed(library)
     # A project keeps its pages on this Mac unless setup's answer said otherwise.
-    stays_local = not (setup["answers"] or {}).get("cloud_allowed", False)
+    stays_local = not places.may_leave_to(setup["answers"], "cloud")
     # Steps the last run did not finish stay in the plan, to run again (#5498).
     unfinished = runner.unfinished_steps(db) if started else {}
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
@@ -1930,7 +1930,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
-    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local,
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
