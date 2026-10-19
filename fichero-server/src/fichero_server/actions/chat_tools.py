@@ -172,6 +172,11 @@ def action_tools(
     return [action_tool(action) for action in actions]
 
 
+# Actions the loop dispatches itself and never offers under their own name: `mcp.call_tool` is reached only through
+# the namespaced `mcp__<server>__<tool>` tools, and only in an owner's chat (#5761).
+CHAT_HIDDEN_ACTIONS = frozenset({"mcp.call_tool"})
+
+
 def chat_agent_tools(reg: ActionRegistry | None = None) -> list[dict]:
     """The exact tool set the chat agent is offered (EPIC #1848).
 
@@ -185,7 +190,7 @@ def chat_agent_tools(reg: ActionRegistry | None = None) -> list[dict]:
     actions = [
         action
         for action in reg.all()
-        if action.read_only or action.name in CHAT_WRITE_ALLOWLIST
+        if (action.read_only or action.name in CHAT_WRITE_ALLOWLIST) and action.name not in CHAT_HIDDEN_ACTIONS
     ]
     return [action_tool(action) for action in actions]
 
