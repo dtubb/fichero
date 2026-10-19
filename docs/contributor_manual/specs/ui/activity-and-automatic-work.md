@@ -1415,7 +1415,7 @@ and node, not by job); a retry action for failed pages.
   `asyncio.to_thread` or the threadpool inherit), and `kraken_runtime._kraken_call`, the embedder (`_embed_text`, `_embed_texts`)
   and `jobs.run_on_lane` / `run_on_lane_blocking` raise `ModelWorkInGet` there, answered 503 with the words
   (`fichero-server/tests/unit/api/test_no_model_work_in_gets_at_any_depth.py`). Built: `GET /api/claims/{id}/similar` reads the
-  claim's stored vector. LIMITS: a thread started with `run_in_executor` or `threading.Thread` does not inherit the mark (the
+  claim's stored vector. The mark ends when the response's last byte is sent, so a `BackgroundTasks` function or a task the GET left running runs free after it (work awaited inside the request, `asyncio.to_thread` included, is the GET). LIMITS: a thread started with `run_in_executor` or `threading.Thread` does not inherit the mark (the
   scan and review cover those); Apple Vision and the MLX servers are not guarded yet; the bench (GETs firing during a read, on
   the M4, `briefs/tester-gets-bench-2026-10-19.md`) is pending.
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
