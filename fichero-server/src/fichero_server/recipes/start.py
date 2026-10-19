@@ -127,10 +127,7 @@ JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
                        "correct": ("review_lenses", "lenses"),
-                       "find-statements": ("statement_kinds", "kinds"),
-                       "work-out-dates": ("calendars", "calendars"),
-                       "pull-out-passages": ("passage_kinds", "kinds"),
-                       "extract-to-a-table": ("fields", "fields")}
+                       "work-out-dates": ("calendars", "calendars")}
 #: Job answers whose empty list says "none of them", never "not answered".
 _EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
@@ -554,6 +551,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
             sections = [_ENTITY_SECTIONS[k.casefold()] for k in settings["kinds"] if k.casefold() in _ENTITY_SECTIONS]
             if sections:
                 entry["tool_config"] = {"extract_entities_only": {"entity_types": ",".join(dict.fromkeys(sections))}}
+            else:  # said in the plan, never silent (review 180): the typed kinds narrow nothing
+                entry["how"] = (f"Finds every kind of name: it cannot narrow by {', '.join(sorted(settings['kinds']))}, "
+                                "which it has no section for.")
         if job == "correct" and settings.get("lenses") is not None:
             # The review's lenses turned on or off in setup (#5723), in the profiles' order.
             from fichero_server.recipes.review_profiles import lens_ids

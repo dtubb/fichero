@@ -45,6 +45,10 @@ struct StageKindsField: View {
                     }
                 }
             }
+            if question.readByAStep != true {
+                // Kept with the answers, but no run reads it yet (review 180): said, not implied.
+                Text("Saved with your answers. No step uses this yet.").font(.caption).foregroundStyle(.secondary)
+            }
             TextField("Type a kind, then Return", text: $typed)
                 .textFieldStyle(.roundedBorder)
                 .onSubmit { add(typed) }
