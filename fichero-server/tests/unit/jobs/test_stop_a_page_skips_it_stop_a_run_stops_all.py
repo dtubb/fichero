@@ -58,3 +58,48 @@ def test_stop_on_a_run_leaves_no_child_reading_running_or_waiting(db):
     assert jobs.read_job(db, "page-c")["state"] == "done"  # a finished page keeps its result
     states = {r[0] for r in db.execute_fetchall("SELECT state FROM jobs WHERE id <> 'run-1'")}
     assert not states & {"running", "waiting"}
+
+
+def test_stop_on_a_page_mid_read_drops_its_result_and_the_next_page_runs(db, monkeypatch):
+    """Review 284: Stop on the RUNNING page answered "running" and did nothing. Now the page is marked stopping, what
+    the model returned is dropped (the caller gets PageStopped, so nothing is saved), and the next page runs."""
+    import threading
+    import time
+
+    started, gate = threading.Event(), threading.Event()
+    monkeypatch.setitem(jobs._RELEASE, "kraken", lambda reason="": None)
+    monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")
+
+    def read(name):
+        def go():
+            if name == "IMG_001":
+                started.set()
+                gate.wait(30)
+            return f"text of {name}"
+        return go
+
+    saved: list[str] = []
+    outcomes: dict[str, str] = {}
+
+    async def page(name):
+        try:
+            saved.append(await jobs.run_on_lane(str(db.path), "read-a-page", name, model="kraken:blla", fn=read(name)))
+            outcomes[name] = "done"
+        except jobs.PageStopped:
+            outcomes[name] = "stopped"
+
+    async def go():
+        first = asyncio.ensure_future(page("IMG_001"))
+        await asyncio.to_thread(started.wait, 30)  # Kraken is mid-read
+        job_id = db.execute_fetchone("SELECT id FROM jobs WHERE subject = 'IMG_001'")[0]
+        assert jobs.cancel_job(db, job_id) == "stopping"
+        assert jobs.read_job(db, job_id)["state"] == "running"  # still reading; the words say it is stopping
+        gate.set()
+        await first
+        await page("IMG_002")  # the run goes on to its next page
+
+    asyncio.run(go())
+    assert outcomes == {"IMG_001": "stopped", "IMG_002": "done"}
+    assert saved == ["text of IMG_002"]  # the stopped page's reading was dropped: nothing to save
+    row = db.execute_fetchone("SELECT state, reason FROM jobs WHERE subject = 'IMG_001'")
+    assert row[0] == "cancelled" and row[1].startswith("Stopped")  # stopped, not failed

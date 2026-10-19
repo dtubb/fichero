@@ -435,6 +435,8 @@ def _cancel_run(db: "Database", job_id: str) -> str:
 
 PAUSING = "Pausing at its next step"
 STOPPING = "Stopping at its next step"
+#: A running page a person stopped: its result is dropped when it returns.
+STOPPING_PAGE = "Stopping: what it reads is not kept"
 register_kind("workflow", None, model=None, name="Workflow run", cancel=_cancel_run, pause=_pause_run)
 register_kind("workflow-step", None, model=None, name="Step")
 # A batch: one workflow over many items, each item a run of the one runner, its child (#5374).
@@ -1088,7 +1090,12 @@ async def _wait_for_lane(db: "Database", future: Future, signal: "asyncio.Future
                     raise WorkflowCancelled(run_id)
                 if run_id and _pause_requested(run_id):
                     raise WorkflowPaused(run_id)
-                raise PageStopped(stopped_by(getattr(future, "job_id", None)))  # skip this page; the run goes on
+                job_id = getattr(future, "job_id", None)
+                found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
+                said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
+                if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
+                    raise JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
+                raise PageStopped(said)  # skip this page; the run goes on
             return signal.result()
         if run_id and _stop_requested(run_id) and _scheduler.withdraw(db, future, reason=_run_stopped(run_id)):
             from fichero_server.execution.cancellation import WorkflowCancelled
@@ -1227,6 +1234,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             outcome["result"] = str(exc) or type(exc).__name__
             raise
         outcome["result"] = "done"
+        if _scheduler.is_stopping(future.job_id):
+            raise PageStopped(stopped_by(future.job_id))  # stopped while it ran: the caller's next step is skipped
     finally:
         if echo is not None:
             echo.cancel()
@@ -1520,6 +1529,12 @@ def cancel_job(db: "Database", job_id: str) -> str:
         db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
                    "WHERE id = ? AND state = 'failed'", [stopped_by(job_id), utc_now(), job_id])
         return "cancelled"
+    if state == "running" and _is_attached(kind) and job_id in _scheduler.running_ids():
+        # A page a run is waiting for, mid-read: nothing can interrupt the model midway, so it is marked stopping, its
+        # result is dropped when it returns (nothing saved), and the run goes on to its next page
+        # (`activity.stop.page-skips-run-stops-children`, review 284).
+        _scheduler.mark_stopping(db, job_id)
+        return "stopping"
     if state not in ("waiting", "paused"):
         return state
     with _scheduler._lock:
@@ -2312,6 +2327,7 @@ class _Scheduler:
         self._kinds_loaded = False
         #: Work handed in by waiting callers, by job id: (the work, the caller's future).
         self._attached: dict[str, tuple[Callable[[], Any], Future]] = {}
+        self._stopping: set[str] = set()  # running pages a person stopped: their result is dropped
         #: Futures waiting on stored jobs, by job id (`enqueue_many`).
         self._watchers: dict[str, list[Future]] = {}
         _SCHEDULERS.add(self)
@@ -2456,6 +2472,16 @@ class _Scheduler:
             if thread is not current:
                 thread.join(max(0.0, deadline - time.monotonic()))
         return [t for t in ending if t.is_alive()]
+
+    def mark_stopping(self, db: "Database", job_id: str) -> None:
+        """A person stopped this running page: say so on its row, and drop its result when it returns."""
+        with self._lock:
+            self._stopping.add(job_id)
+        db.execute("UPDATE jobs SET reason = ? WHERE id = ? AND state = 'running'", [STOPPING_PAGE, job_id])
+
+    def is_stopping(self, job_id: str) -> bool:
+        with self._lock:
+            return job_id in self._stopping
 
     def running_ids(self) -> list[str]:
         """The jobs this engine's lane threads are running now, on every lane."""
@@ -2803,6 +2829,11 @@ class _Scheduler:
         _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
+            with self._lock:
+                stopping = job_id in self._stopping
+            if stopping:  # a person stopped this page while it ran: what it made is dropped, and its run goes on
+                result = None
+                raise PageStopped(stopped_by(job_id))
         except JobCancelled as exc:
             state, reason, error = "cancelled", str(exc) or "Stopped by you", exc
         except JobDeferred as exc:
@@ -2815,6 +2846,8 @@ class _Scheduler:
         finally:
             _current.job_id = None
             _current.person = False
+            with self._lock:
+                self._stopping.discard(job_id)
         if model is not None and model == lane.loaded_model:
             lane.loaded_used_at = time.monotonic()
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
