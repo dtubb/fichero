@@ -30,10 +30,10 @@ def test_a_missing_original_says_where_to_look(db, tmp_path):
 def test_the_thumbnail_job_fails_with_that_sentence(db, tmp_path):
     doc = _gone(db, tmp_path)
     with pytest.raises(derivatives.SourceMissing, match="LFH_IMG_001.jpg isn't where it was imported from"):
-        derivatives._thumbnail_stage(doc.id, str(db.path.parent), raise_failed=True)
+        derivatives._thumbnail_job(db, doc.id)
     assert "isn't where" in db.get(Document, doc.id).metadata["derivative_error"]
 
 
-def test_a_direct_call_still_just_returns_none(db, tmp_path):
+def test_a_direct_stage_call_still_just_returns_none(db, tmp_path):
     doc = _gone(db, tmp_path)
     assert derivatives._thumbnail_stage(doc.id, str(db.path.parent)) is None
