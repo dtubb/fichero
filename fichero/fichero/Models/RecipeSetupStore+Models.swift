@@ -47,8 +47,8 @@ extension RecipeSetupStore {
     /// (`start.py`: `waiting` is one sentence per download marked `downloading`), each with the step ids it holds up.
     private var waitingByStep: [(line: String, steps: Set<String>)] {
         guard let plan = startPlan else { return [] }
-        let downloading = plan.downloads.filter { $0.downloading == true }
-        return zip(plan.waiting, downloading).map { (line: $0, steps: Set($1.steps)) }
+        let downloading = (plan.downloads ?? []).filter { $0.downloading == true }
+        return zip(plan.waiting ?? [], downloading).map { (line: $0, steps: Set($1.steps)) }
     }
 
     /// The waiting lines that hold up this step (shown in its box on Ready, #5840).
