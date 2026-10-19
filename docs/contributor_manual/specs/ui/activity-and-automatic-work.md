@@ -1266,6 +1266,14 @@ and node, not by job); a retry action for failed pages.
   work outright (#5524); it only stops heavy work running side by side. Built (2026-10-09):
   `execution/jobs.py` `_Scheduler._claim`, tested with the real lanes (`fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py`).
   Not yet seen in the app.
+- `activity.throttle.use-means-slower` — **[BUILT]** (#5819, owner ruling 2026-10-19) *Run automatically* keeps
+  working while the person uses the Mac: slower and at lower priority (background QoS, half the embedding
+  threads: `throttle.slowed_for_use`), never stopped. Background work holds back fully only on four things: the Mac
+  on battery or in Low Power Mode, memory pressure, a serious thermal state, or a build running (xcodebuild,
+  swift-build; `throttle.a_build_is_running`), and the waiting line says which ("Waiting: the Mac is on battery",
+  "Waiting: memory is tight", "Waiting: the Mac is hot", "Waiting: a build is running"). Leaving the hold resumes.
+  Work a person waits for waits only for memory and heat. This supersedes the "input in the last 30 s" hold below
+  (`fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`).
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while
