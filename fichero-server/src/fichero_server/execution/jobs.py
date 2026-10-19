@@ -78,6 +78,9 @@ MODES = ("automatic", "started", "paused")
 MAX_ATTEMPTS = 3
 #: Kraken models are named `kraken:<reader id>` (or `kraken:blla`, the line finder alone).
 KRAKEN_MODEL_PREFIX = "kraken:"
+#: Pages of one Kraken model the model lane runs together for a person's run, memory allowing (r1's measurement: 6.3 s a
+#: page against 9.7-10.2 s one at a time). Background work stays at one.
+KRAKEN_PAGES_TOGETHER = 2
 #: Modules that register kinds, imported before the first scan so a job left waiting at quit runs
 #: after relaunch even before anything in this session enqueues one.
 _KIND_MODULES = ("fichero_server.actions.page_text_cache", "fichero_server.importers.derivatives",
@@ -2208,6 +2211,12 @@ def current_job_id() -> str | None:
     return getattr(_current, "job_id", None)
 
 
+def _kraken_pages_at_once() -> int:
+    """How many Kraken pages this Mac's memory lets the lane run together now (1 when Kraken is not loaded yet)."""
+    runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
+    return runtime.page_fan_out(KRAKEN_PAGES_TOGETHER) if runtime is not None else 1
+
+
 def _kraken_busy() -> bool:
     # Only if the module is loaded: when it is not, no Kraken page can be running, and importing
     # it here would cost the engine its startup time.
@@ -2365,12 +2374,17 @@ class _Lane:
 
         return max(self.slots, LOCAL_READS_CEILING)
 
-    def may_start(self, kind: str, model: str | None) -> bool:
+    def may_start(self, kind: str, model: str | None, is_person: Callable[[], bool] = lambda: False) -> bool:
         """Whether a job may start now: a free slot, or on the model lane a call to the engine's own
         model server joining the calls to the same model already running, up to its reads at once."""
         running = dict(self.running)
         if len(running) < self.slots:
             return True
+        if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
+                and set(running.values()) == {model}):
+            # A second page of the model already running, for a person's run, when memory holds both
+            # (`activity.lane.same-model-pages-together`).
+            return len(running) < _kraken_pages_at_once() and is_person()
         if self.name != "local-ml" or kind != CO_RUN_KIND or not (model or "").startswith("omlx:"):
             return False
         if set(running) - self.calls or set(running.values()) != {model}:
@@ -2634,7 +2648,7 @@ class _Scheduler:
                     lane_look_again = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
             while (picked := self._next(lane, background=held is None)) is not None:
                 key, db, row = picked
-                if not lane.may_start(row[1], row[3]):
+                if not lane.may_start(row[1], row[3], lambda: person_waits_on(db, row[0])):
                     return None  # the lane is full: its running job's thread picks this when it ends
                 if lane.name in THROTTLED_LANES:
                     # memory and heat hold even these; memory by this job's own model's need (#5654)
