@@ -51026,6 +51026,46 @@
         ],
         "title": "AssembleRequest"
       },
+      "RecipeChange": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "added, removed or changed"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "the change in a sentence: 'Work out dates would be added'"
+          },
+          "was": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Was",
+            "description": "the saved step's model"
+          },
+          "now": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Now",
+            "description": "the fresh step's model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "kind",
+          "words"
+        ],
+        "title": "RecipeChange",
+        "description": "One step a fresh assembly would add, take out or run differently from the project's saved recipe."
+      },
       "AssembledRecipe": {
         "properties": {
           "fichero_recipe": {
@@ -51075,6 +51115,14 @@
             "type": "array",
             "title": "Automatic",
             "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeChange"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written (source.onboard.regen-shows-diff)"
           },
           "gaps": {
             "items": {
