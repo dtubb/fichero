@@ -63,7 +63,7 @@ def embedded(monkeypatch):
     return seen
 
 
-def test_every_step_setup_proposes_is_one_start_runs(client):
+def test_every_step_setup_proposes_is_one_start_runs(client, with_material):
     """source.onboard.auto.every-proposed-step-runs: "setup never proposes a step that Start has no card for. Each
     registered job either has a card in `start.py` or is not offered as a step that runs by itself." Test: "for
     every purpose, the assembled recipe's steps that have a model all appear in the Start plan's `runs`"; a job the
@@ -90,7 +90,7 @@ def test_every_step_setup_proposes_is_one_start_runs(client):
             purpose, plan["skipped"])
 
 
-def test_search_is_a_step_start_runs_not_one_it_skips(client):
+def test_search_is_a_step_start_runs_not_one_it_skips(client, with_material):
     """source.onboard.auto.every-proposed-step-runs: "Search is the first fix: its step is the embed job that already
     follows every reading, and the plan says so rather than 'skipped'." The rules name the engine's own search
     embedder, so the step runs."""

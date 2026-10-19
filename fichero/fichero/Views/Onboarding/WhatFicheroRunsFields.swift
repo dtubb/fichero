@@ -1,68 +1,67 @@
 import FicheroAPIClient
 import SwiftUI
 
-/// Models & Services (section 7d, ruled 2026-10-11, #5668; `source.onboard.app.what-fichero-runs`): what Fichero runs
-/// on this Mac, and with what; then the accounts that add to it, each added through Settings' own add-provider sheet
-/// (`AddProviderSheet`), one code path. It replaces "AI is optional".
+/// AI and ML Models (Set Up Fichero's second screen, ruled and worded by the owner 2026-10-19, #5828;
+/// `source.onboard.first-launch-three-screens`): five cards, each ticked to allow a place models may run, with the
+/// button that connects it where there is one. The ticks are the engine's setting (`AppPlacesStore`).
 enum WhatFicheroRuns {
-    static let title = "Where the work runs"
-    /// The page's opening, under its title (Daniel's words, 2026-10-11).
-    static let intro = "Fichero does its work with models: programs trained to read handwriting, find the lines on "
-        + "a page, or recognise names. They run in one of two places."
+    static let title = "AI and ML Models"
+    static let intro = "Fichero reads your pages with artificial intelligence (AI) and machine learning (ML) models. "
+        + "Some come with Fichero; others are downloaded when a project needs them, and run on your Mac. You can "
+        + "also run models elsewhere: on another Mac running Fichero, with a cloud AI service, or on a computing "
+        + "cluster."
+    static let question = "Where may models run? Tick every place you'll allow."
+    static let footnote = "You can change this later in Settings, and for each project."
 
-    /// The two places a model runs, side by side.
+    /// What a card's button opens (the existing sheets: one code path).
+    enum Connect: Equatable {
+        case addKey
+        case signIn
+        case addToken
+    }
+
+    /// One place: its engine id, symbol, title, its words (markdown: every named thing is a link that opens in the
+    /// browser), and the button beside it. Another Mac has none yet: reading on a paired Mac is #5830.
     struct Place: Equatable {
+        let place: WhereTheWorkRuns
         let symbol: String
         let title: String
         let body: String
+        let button: String?
+        let connect: Connect?
     }
 
     static let places: [Place] = [
-        Place(symbol: "laptopcomputer", title: "On this Mac",
-              body: "Free and private: your pages never leave this Mac. Fichero comes with Kraken and uses Apple's "
-                + "own text recognition, and it can download larger models made for your script and language. On a "
-                + "big archive it is slower, and this Mac's memory limits how large a model it can run."),
-        Place(symbol: "cloud", title: "In the cloud",
-              body: "Larger models, such as Claude, GPT or Gemini, often read difficult hands better. The pages go to "
-                + "the provider, and each page costs a little. Fichero asks before any page leaves this Mac and says "
-                + "what it will cost.")
+        Place(place: .thisMac, symbol: "laptopcomputer", title: "On this Mac",
+              body: "Free and private: your pages never leave this Mac. Fichero comes with [Kraken](https://kraken.re) "
+                + "and uses [Apple Vision](https://developer.apple.com/documentation/vision), Apple's own text "
+                + "recognition. It can also download open-source vision language models (VLMs) from "
+                + "[Hugging Face](https://huggingface.co/models), made for your script and language, and run them "
+                + "here with [MLX](https://github.com/ml-explore/mlx). On a big archive it is slower, and this Mac's "
+                + "memory limits how large a model it can run.",
+              button: nil, connect: nil),
+        Place(place: .anotherMac, symbol: "desktopcomputer", title: "Another Mac of mine",
+              body: "A bigger Mac you own, set up as a [Fichero server](https://tubb.ca/apps/fichero/), does the "
+                + "reading while you work here. Your pages go to your own Mac, and it costs nothing.",
+              button: nil, connect: nil),
+        Place(place: .cloud, symbol: "cloud", title: "In the cloud",
+              body: "Larger models, such as [Claude](https://www.anthropic.com/claude), "
+                + "[GPT](https://openai.com/api/) or [Gemini](https://ai.google.dev), often read difficult hands "
+                + "better. The pages go to the provider, and each page costs a little. Fichero asks before any page "
+                + "leaves this Mac and says what it will cost.",
+              button: "Add a Key…", connect: .addKey),
+        Place(place: .acenet, symbol: "server.rack", title: "ACENET",
+              body: "[ACENet](https://www.ace-net.ca) is Atlantic Canada's research computing cluster, free for "
+                + "researchers at member universities. For large batches and for training your own model. Your pages "
+                + "go to your account on the cluster, and jobs wait in a queue.",
+              button: "Sign In…", connect: .signIn),
+        Place(place: .huggingface, symbol: "shippingbox", title: "Hugging Face",
+              body: "Download open models made for your script from [Hugging Face](https://huggingface.co/models), "
+                + "and run large batches or training on "
+                + "[Hugging Face Jobs](https://huggingface.co/docs/huggingface_hub/guides/jobs). Downloading is "
+                + "free; Jobs cost by the hour, and your pages go to Hugging Face.",
+              button: "Add a Token…", connect: .addToken)
     ]
-
-    static let accountsTitle = "Accounts"
-    static let addAnother = "Add Another Provider…"
-    static let accountsFootnote = "You can add accounts later in Settings › AI."
-
-    /// What comes with Fichero, in one line (no table of engine names).
-    static let comesWith = "Fichero comes with readers for handwriting and print, a line finder and a name finder; "
-        + "it downloads others for your language when you need them."
-
-    /// The two accounts it suggests, by the engine's provider type, each with what it is for.
-    struct Account: Equatable {
-        let providerType: String
-        let title: String
-        let purpose: String
-    }
-
-    static let accounts: [Account] = [
-        Account(providerType: "huggingface", title: "Hugging Face",
-                purpose: "A free account. Fichero uses it to find and download models for your material."),
-        Account(providerType: "openrouter", title: "OpenRouter",
-                purpose: "One account for many cloud models, paid as you go. Pages leave this Mac.")
-    ]
-
-    /// One suggested account's row: added (with the account's name) or not.
-    struct AccountRow: Equatable {
-        let account: Account
-        /// The added provider's name; nil until it is added.
-        let addedAs: String?
-    }
-
-    /// The suggested accounts as the providers list has them.
-    static func accountRows(providers: [Components.Schemas.ProviderResponse]) -> [AccountRow] {
-        accounts.map { account in
-            AccountRow(account: account, addedAs: providers.first { $0.providerType == account.providerType }?.name)
-        }
-    }
 }
 
 /// Add… on an account row (preselected), or Add Another Provider… (nil): the shared sheet's request.
@@ -72,77 +71,56 @@ struct AddProviderRequest: Identifiable, Equatable {
 }
 
 struct WhatFicheroRunsFields: View {
-    let providers: [Components.Schemas.ProviderResponse]
-    /// Opens Settings' add-provider sheet: for that provider, or (nil) to choose one.
-    let add: (String?) -> Void
-
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    let store: AppPlacesStore
+    /// Opens the existing sheet for a card's button.
+    let connect: (WhatFicheroRuns.Connect) -> Void
 
     var body: some View {
-        // A grouped Form: the accounts are native rows, and the form scrolls itself (#5776).
-        Form {
-            Section {
-                Text(WhatFicheroRuns.intro)
-                    .fixedSize(horizontal: false, vertical: true)
-                // Side by side, the same height; stacked at compact width. (ViewThatFits stacked them always: a
-                // wrapping text's ideal width is its one-line length, so the row never "fit".)
-                if horizontalSizeClass == .compact {
-                    VStack(alignment: .leading, spacing: 12) { places }
-                } else {
-                    HStack(alignment: .top, spacing: 12) { places }
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Text(WhatFicheroRuns.comesWith)
-                    .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(WhatFicheroRuns.intro).fixedSize(horizontal: false, vertical: true)
+                Text(WhatFicheroRuns.question).font(.headline)
+                ForEach(WhatFicheroRuns.places, id: \.title) { card($0) }
+                Text(WhatFicheroRuns.footnote).foregroundStyle(.secondary)
+                if let message = store.errorMessage { Text(message).foregroundStyle(.red) }
             }
-            Section {
-                ForEach(WhatFicheroRuns.accountRows(providers: providers), id: \.account.providerType) { row in
-                    accountRow(row)
-                }
-                Button(WhatFicheroRuns.addAnother) { add(nil) }
-            } header: {
-                Text(WhatFicheroRuns.accountsTitle)
-            } footer: {
-                Text(WhatFicheroRuns.accountsFootnote)
-            }
+            .frame(maxWidth: 560, alignment: .leading)
         }
-        .formStyle(.grouped)
-        .frame(maxWidth: 560, alignment: .leading)
+        .task { await store.load() }
     }
 
-    private var places: some View {
-        ForEach(WhatFicheroRuns.places, id: \.title) { place in
-            VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: place.symbol)
-                    .font(.largeTitle)
-                    .foregroundStyle(Color.accentColor)
-                    .accessibilityHidden(true)
-                Text(place.title).font(.headline)
-                Text(place.body).font(.callout).fixedSize(horizontal: false, vertical: true)
+    private func card(_ place: WhatFicheroRuns.Place) -> some View {
+        let isThisMac = place.place == .thisMac
+        return HStack(alignment: .top, spacing: 12) {
+            Toggle(place.title, isOn: Binding(
+                get: { store.allows(place.place) },
+                set: { allowed in Task { await store.set(place.place, allowed: allowed) } }))
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .disabled(isThisMac)  // where the app is: always allowed
+                .accessibilityLabel(place.title)
+            VStack(alignment: .leading, spacing: 6) {
+                Label(place.title, systemImage: place.symbol).font(.headline)
+                Text(markdown: place.body).font(.callout).fixedSize(horizontal: false, vertical: true)
+                if isThisMac, let line = store.thisMacLine {
+                    Text(line).font(.callout).fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+            Spacer(minLength: 8)
+            if let button = place.button, let connectTo = place.connect {
+                Button(button) { connect(connectTo) }
+            }
         }
+        .padding(14)
+        .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.08), lineWidth: 1))
     }
+}
 
-    private func accountRow(_ row: WhatFicheroRuns.AccountRow) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.account.title).font(.callout.weight(.medium))
-                Text(row.account.purpose).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            if let name = row.addedAs {
-                Label(name, systemImage: "checkmark.circle.fill")
-                    .font(.callout)
-                    .foregroundStyle(.green)
-            } else {
-                Button("Add…") { add(row.account.providerType) }
-            }
-        }
+extension Text {
+    /// Markdown with links (each opens in the browser); the words as written if it does not parse.
+    init(markdown: String) {
+        self.init((try? AttributedString(markdown: markdown)) ?? AttributedString(markdown))
     }
 }
 
@@ -172,14 +150,13 @@ struct SetupBodyText: View {
     }
 }
 
-#Preview("Models & Services") {
-    WhatFicheroRunsFields(providers: [], add: { _ in })
+#Preview("AI and ML Models") {
+    WhatFicheroRunsFields(store: AppPlacesStore(client: AppState().ficheroClient), connect: { _ in })
         .padding()
-        .frame(width: 560, height: 600)
+        .frame(width: 600, height: 700)
 }
 
 #Preview("Setup body text") {
-    SetupBodyText(paragraphs: [FirstLaunchChoices.handOffIntro], numbered: FirstLaunchChoices.handOffSteps,
-                  closing: FirstLaunchChoices.handOffClosing)
+    SetupBodyText(paragraphs: FirstLaunchChoices.handOffParagraphs)
         .padding()
 }

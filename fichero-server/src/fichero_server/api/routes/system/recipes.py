@@ -18,9 +18,12 @@ from fichero_server.actions.registry import ActionContext, ChangeSpec, action, r
 from fichero_server.api.auth import action_context
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.api.main import get_library_database, get_library_database_for_write
+# Imported, never redefined: one schema component for every route's refusal sentence (#5094).
+from fichero_server.api.routes.document.format_import import ErrorDetail as _ErrorDetail
 from fichero_server.db import Database
 from fichero_server.db.embeddings import search_embedder
 
+from fichero_server.recipes import places
 from fichero_server.recipes.assemble import PURPOSE_PARENT, PURPOSE_STEPS, PURPOSES, READING_JOBS, Answers, assemble
 from fichero_server.recipes.run_view import RecipeRunStep, RecipeRunSummary, SkippedStep
 
@@ -955,7 +958,7 @@ def _answers(answers: dict[str, Any]) -> Answers:
         purposes=tuple(a["purposes"]), languages=frozenset(a.get("languages") or ()),
         scripts=frozenset(a.get("scripts") or ()), materials=tuple(a["materials"]),
         jobs=tuple(a.get("jobs") or ()), removed_jobs=tuple(a.get("removed_jobs") or ()),
-        pages=a.get("pages") or 0, cloud_allowed=bool(a.get("cloud_allowed")),
+        pages=a.get("pages") or 0, cloud_allowed=places.may_leave_to(a, "cloud"),
         mac_memory_gb=a.get("mac_memory_gb") or _this_machine_memory_gb(),
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
@@ -977,15 +980,34 @@ def _run_titles(step: dict[str, Any]) -> dict[str, Any]:
     return {"run_titles": normalise_run_titles((step.get("settings") or {}).get("target"))}
 
 
-@router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS)
+#: Assemble's refusal for an open project with nothing in it (#5813, ruled 2026-10-19): the plan follows from material.
+NO_MATERIAL_TO_PLAN = ("This project has no material yet: add your pages in Set Up › Your Material, and the plan "
+                       "follows from them.")
+
+
+def _without_material(http: Request) -> bool:
+    """Whether the project the caller names has no material (no page, no file); False with no project named."""
+    from fichero_server.recipes.start import count_pages
+
+    path = optional_library_path(http)
+    return bool(path) and count_pages(get_library_database(http, path)) == 0
+
+
+@router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS, responses={422: {
+    "model": _ErrorDetail,
+    "description": ("Refused, in one sentence: the named project has no material yet (`NO_MATERIAL_TO_PLAN`), or a "
+                    "language, script, purpose, material, job or direction Fichero does not know.")}})
 async def assemble_recipe(
-    request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
+    http: Request, request: AssembleRequest, library: Optional[Path] = Depends(_optional_library),
 ) -> AssembledRecipe:
     """The recipe the rules give for these answers, each choice with its reasons and each gap named
     once as a structured problem (`source.onboard.deterministic-recipe`, `source.onboard.says-no-model`).
     For an open project with a saved recipe, its overrides are kept and a project-scope one (Use This)
     sets its step's reader. Proposes; writes nothing. Refused with 422, in words, for a language,
-    script, purpose, material, job or direction Fichero does not know."""
+    script, purpose, material, job or direction Fichero does not know; and for a named project with no material yet
+    (#5813)."""
+    if library is not None and _without_material(http):
+        raise HTTPException(status_code=422, detail=NO_MATERIAL_TO_PLAN)
     try:
         recipe = _assemble(request.model_dump(), library)
     except ValueError as exc:
@@ -1340,7 +1362,7 @@ async def model_candidates(
     if not script_codes:
         raise HTTPException(status_code=422, detail="name at least one script")
     a = Answers(purposes=("transcribe",), languages=tags, scripts=script_codes, materials=(material,),
-                cloud_allowed=cloud_allowed, mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
+                cloud_allowed=cloud_allowed and places.allows("cloud"), mac_memory_gb=mac_memory_gb or _this_machine_memory_gb(),
                 search_embedder=search_embedder(), period=period or "")
     search = None
     if online and egress_allowed() and library_path:
@@ -1446,6 +1468,61 @@ class ProjectSetup(BaseModel):
 
 def _library(db: Database) -> Path:
     return Path(db.path).parent
+
+
+class PlacesSetting(BaseModel):
+    """Where models may run, app-wide (`source.onboard.first-launch-three-screens`, #5828)."""
+    places: list[str] = Field(description="The allowed places, from this-mac, another-mac, cloud, acenet, huggingface; "
+                                          "this Mac is always one.")
+
+
+class PlacesView(PlacesSetting):
+    answered: bool = Field(description="False until the person answers in Set Up Fichero; while false, no cap applies, "
+                                       "and places shows this Mac only.")
+    memory_gb: float = Field(description="This Mac's memory, worked out by the engine.")
+    this_mac: str = Field(description="What this Mac can run, in a sentence, from its real memory.")
+
+
+def _places_view() -> PlacesView:
+    gb = _this_machine_memory_gb()
+    said = places.get_places()
+    return PlacesView(places=said or list(places.DEFAULT), answered=said is not None, memory_gb=round(gb, 1),
+                      this_mac=places.this_mac_line(gb))
+
+
+@router.get("/places", response_model=PlacesView)
+async def get_places() -> PlacesView:
+    """Where models may run, and this Mac's line (its memory and what it can run)."""
+    return _places_view()
+
+
+@router.put("/places", response_model=PlacesView, responses={422: {"model": _ErrorDetail,
+            "description": "A place Fichero does not know."}})
+async def put_places(body: PlacesSetting, db: Database = Depends(get_library_database_for_write),
+                     ctx: ActionContext = Depends(action_context)) -> PlacesView:
+    """Allow these places (an audited action). Every project is capped by them: stricter, never looser."""
+    try:
+        registry.invoke(db, "recipes.set_places", body.model_dump(), ctx)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return _places_view()
+
+
+def _invert_places(before: dict | None, after: dict | None, ctx: ActionContext):
+    return ("recipes.set_places", {"places": (before or {}).get("places") or list(places.DEFAULT)})
+
+
+@action("recipes.set_places", PlacesSetting, domains=["project"], undoable=True, invert=_invert_places)
+def _action_set_places(db: Database, params: PlacesSetting, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
+    unknown = [p for p in params.places if p not in places.PLACES]
+    if unknown:
+        raise ValueError(f"Fichero does not know the place {unknown[0]!r}.")
+    before = places.get_places() or list(places.DEFAULT)
+    kept = list(places.normalise(params.places))
+    # Applied once the audit commits: a rolled-back action leaves the setting as it was.
+    db.add_after_commit_hook(lambda: places.set_places(kept))
+    return {"places": kept}, ChangeSpec(domains=["project"], target_ids=[], before={"places": before},
+                                        after={"places": kept}, emit_type="places.changed")
 
 
 @router.get("/project", response_model=ProjectSetup)
@@ -1845,7 +1922,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     setup = read_project_setup(library)
     started, proposal = read_start(library), read_proposed(library)
     # A project keeps its pages on this Mac unless setup's answer said otherwise.
-    stays_local = not (setup["answers"] or {}).get("cloud_allowed", False)
+    stays_local = not places.may_leave_to(setup["answers"], "cloud")
     # Steps the last run did not finish stay in the plan, to run again (#5498).
     unfinished = runner.unfinished_steps(db) if started else {}
     # Before the first yes Start runs the whole recipe, the added layer with it; after it, only what an
@@ -1857,7 +1934,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
-    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local,
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=places.may_leave_to(setup["answers"], "acenet"),
                bound_cluster=_bound_cluster(setup["answers"], clusters))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
@@ -1895,8 +1972,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     elif within is None and not pages["pages"]:
         # Nothing to run on: said, not run (seen 2026-10-11, a Start whose material never arrived ran every step
         # on nothing and failed each, "not run on 1 of 0 folders").
-        plan["refusals"] = [*plan["refusals"], "the project has no pages yet: add a folder or files to it, then "
-                                               "press Start"]
+        plan["refusals"] = [*plan["refusals"], NO_MATERIAL]
     annotate(db, plan, unfinished, within)
     return plan
 
@@ -1994,7 +2070,15 @@ class StartRequest(BaseModel):
         "(source.recipe.folder-scoped-start); null: the whole project"))
 
 
-@router.post("/project/start", response_model=StartPlan)
+#: Start's refusal for a project with nothing in it, declared as its 422 sentence (#5813, ruled 2026-10-19).
+NO_MATERIAL = "This project has no material yet: add your pages in Set Up › Your Material, then press Start."
+
+
+@router.post("/project/start", response_model=StartPlan, responses={422: {
+    "model": _ErrorDetail,
+    "description": ("Start is refused, in one sentence: the project has no material yet (`NO_MATERIAL`), a folder "
+                    "not in the project or with no pages, or the plan's refusals (a recipe that fails the check, "
+                    "nothing to run).")}})
 async def start_project(
     http: Request,
     request: Optional[StartRequest] = None,
@@ -2136,6 +2220,8 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
             plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
+        if NO_MATERIAL in plan["refusals"]:  # said alone: nothing else matters until there is material (#5813)
+            raise ValueError(NO_MATERIAL)
         if plan["refusals"]:
             raise ValueError("Start is refused: " + "; ".join(plan["refusals"]))
         from fichero_server.recipes import runner

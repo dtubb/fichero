@@ -59,7 +59,7 @@ def test_without_a_project_every_stage_is_off_with_its_defaults(client, monkeypa
     assert kinds["answer"] == kinds["default"] == [] and kinds["read_by_a_step"]  # every kind (#5805)
 
 
-def test_a_projects_recipe_and_answers_say_which_stages_are_on(client):
+def test_a_projects_recipe_and_answers_say_which_stages_are_on(client, with_material):
     answers = {"purposes": ["transcribe", "entities"], "languages": ["es"], "scripts": ["Latn"],
                "materials": ["handwriting"], "job_answers": {"entity_kinds": ["people"]}}
     recipe = client.post("/api/recipes/assemble", json=answers).json()

@@ -290,7 +290,14 @@ struct LibraryWindow: View {
                     libraryManager.setUpRequestedLibraryId = nil
                 }
             }
-        )) {
+        ), onDismiss: {
+            // Set Up a New Project… on the last screen: its Set Up opens here, in this window, now the welcome is gone
+            // (#5828; no new window).
+            if libraryManager.newProjectSetUpAfterWelcome {
+                libraryManager.newProjectSetUpAfterWelcome = false
+                showingNewProjectSetUp = true
+            }
+        }) {
             FirstRunWindow(mode: .firstRun, onProjectReady: { assignLibrary(id: $0) })
                 .environment(appState)
         }

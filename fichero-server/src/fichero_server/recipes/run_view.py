@@ -594,6 +594,7 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
         did = reviewed(db, pages)
         made.pages_reviewed, made.lines_reviewed = did["pages"], did["lines"]
         made.lines_corrected, made.lines_review_unreadable = did["corrected"], did["unreadable"]
+    from fichero_server.recipes import places
     from fichero_server.recipes.done import lines_state
     from fichero_server.recipes.project import read_project_setup
 
@@ -601,11 +602,11 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     states = [lines_state(db, p) for p in pages if p not in blank]
     made.next_reader = next_reader(setup["recipe"], lines_found=sum(s[0] for s in states),
                                    lines_blank=sum(s[2] for s in states), pages_read_nothing=made.pages_read_nothing,
-                                   cloud_allowed=bool((setup["answers"] or {}).get("cloud_allowed")))
+                                   cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
     from fichero_server.execution import jobs
 
     awaited = status.get("awaited") or []
     made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited},
-                                             setup["recipe"], cloud_allowed=bool((setup["answers"] or {}).get("cloud_allowed")))
+                                             setup["recipe"], cloud_allowed=places.may_leave_to(setup["answers"], "cloud"))
     made.lines = _lines(made, pages_split, ran)
     return made

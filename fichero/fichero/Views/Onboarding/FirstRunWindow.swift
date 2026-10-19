@@ -33,6 +33,9 @@ struct FirstRunWindow: View {
     /// Models & Services' Add… opens Settings' own add-provider sheet here, preselected or not
     /// (`source.onboard.app.provider-sheet-in-step`).
     @State var addProvider: AddProviderRequest?
+    /// Where models may run, the engine's setting (#5828).
+    @State private var placesStore: AppPlacesStore?
+    @State private var signingInToCluster = false
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
     @State var newProject = NewProjectStore(libraryManager: LibraryManager.shared)
@@ -43,7 +46,7 @@ struct FirstRunWindow: View {
     private let onProjectReady: (UUID) -> Void
 
     /// `initialStep` and `newProject`: the onboarding screenshots' seam (`OnboardingScreenshotsTests`); the app passes neither.
-    /// `setsUpAProject`: a first launch whose welcome already chose Set Up a New Project… (the previews' seam).
+    /// `setsUpAProject`: the previews' seam for the project's pages (a first launch itself never shows them).
     init(mode: Mode = .firstRun, project: LibraryManager.LibraryReference? = nil, initialStep: SetupStep? = nil,
          newProject: NewProjectStore? = nil, setsUpAProject: Bool = false,
          onProjectReady: @escaping (UUID) -> Void = { _ in }) {
@@ -103,13 +106,30 @@ struct FirstRunWindow: View {
             AddProviderSheet(onAdd: { await appState.loadProviders() }, preselectedType: request.providerType)
                 .environment(appState.providerService)
         }
-        .task { await appState.loadProviders() }
+        .sheet(isPresented: $signingInToCluster) {
+            AddClusterSheet(service: appState.hpcSignInService)
+        }
+        .task {
+            if placesStore == nil { placesStore = AppPlacesStore(client: appState.ficheroClient) }
+            await appState.loadProviders()
+        }
     }
 
-    /// The person chose to set up a project from the app's pages: the project's pages follow them.
-    func setUpAProject() {
-        flow.project = .new
-        step = step.next(in: steps)
+    /// A card's button opens the existing screen for that job (one code path): a cloud key or a Hugging Face token
+    /// through the add-provider sheet, ACENET through the cluster sign-in.
+    private func connectPlace(_ connect: WhatFicheroRuns.Connect) {
+        switch connect {
+        case .addKey: addProvider = AddProviderRequest(providerType: nil)
+        case .addToken: addProvider = AddProviderRequest(providerType: "huggingface")
+        case .signIn: signingInToCluster = true
+        }
+    }
+
+    /// Set Up a New Project… on Your First Project: this welcome closes, and the front window presents the new
+    /// project's own Set Up in place (#5828; no new window).
+    private func setUpNewProject() {
+        libraryManager.newProjectSetUpAfterWelcome = true
+        finish()
     }
 
     /// Advance within the steps; the LAST one finishes (#2807).
@@ -140,6 +160,13 @@ struct FirstRunWindow: View {
             finish()
             return
         }
+        // AI and ML Models: Continue writes the answer, the default included (`source.onboard.places-cap-projects`).
+        if step == .whatFicheroRuns, let placesStore {
+            Task {
+                if await placesStore.keepAnswer() { step = step.next(in: steps) }
+            }
+            return
+        }
         // Continue keeps the answers so far as a draft on the project, so setup can be closed
         // at any step; saving is not Start.
         guard step.savesDraft, let store else { step = step.next(in: steps); return }
@@ -154,7 +181,7 @@ struct FirstRunWindow: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Fichero")
+            Text("Set Up Fichero")
                 .font(.title2.weight(.semibold))
                 .padding(.horizontal, 8)
                 .padding(.bottom, 12)
@@ -191,26 +218,12 @@ extension FirstRunWindow {
                 SetupBodyText(paragraphs: FirstLaunchChoices.welcomeParagraphs)
             }
         case .whatFicheroRuns:
-            stepPage(
-                title: WhatFicheroRuns.title,
-                subtitle: "",
-                systemImage: SetupStep.whatFicheroRuns.icon
-            ) {
-                WhatFicheroRunsFields(providers: appState.providers,
-                                      add: { addProvider = AddProviderRequest(providerType: $0) })
+            stepPage(title: WhatFicheroRuns.title, subtitle: "", systemImage: SetupStep.whatFicheroRuns.icon) {
+                if let placesStore { WhatFicheroRunsFields(store: placesStore, connect: connectPlace) }
             }
         case .handOff:
-            stepPage(
-                title: flow.project == .none ? "Fichero is ready" : "Next, your project",
-                subtitle: flow.project == .none
-                    ? "Set up a project when you have material, or start in the one Fichero always has." : "",
-                systemImage: SetupStep.handOff.icon
-            ) {
-                if flow.project != .none {
-                    SetupBodyText(paragraphs: [FirstLaunchChoices.handOffIntro],
-                                  numbered: FirstLaunchChoices.handOffSteps,
-                                  closing: FirstLaunchChoices.handOffClosing)
-                }
+            stepPage(title: "Your First Project", subtitle: "", systemImage: SetupStep.handOff.icon) {
+                SetupBodyText(paragraphs: FirstLaunchChoices.handOffParagraphs)
             }
         default:
             recipeStepPage(step)
@@ -267,14 +280,16 @@ extension FirstRunWindow {
     /// The Mac setup assistant's footer (`SetupFooter`): the one secondary choice at the far left, then Back and
     /// the default button at the far right. Regular push buttons, no icons.
     private var footer: some View {
-        let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none)
+        let model = SetupFooter.of(step, in: steps, mode: mode, projectChosen: flow.project != .none,
+                                   hasMaterial: store?.hasMaterial ?? false)
+        let waits = model.waitsFor ?? (step == .ready ? store?.startDisabledReason : nil)
         return HStack {
             if let leading = model.leading {
                 Button(leading.title) { perform(leading.action) }
             }
             Spacer()
-            // A greyed Start says why beside it, not only on hover (#5801).
-            if step == .ready, let reason = store?.startDisabledReason {
+            // A greyed Start or Continue says why beside it, not only on hover (#5801, #5813).
+            if let reason = waits {
                 Text(reason).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     .accessibilityIdentifier("setup.footer.startReason")
             }
@@ -283,8 +298,8 @@ extension FirstRunWindow {
                 Button("Back") { step = step.previous(in: steps) }
             }
             Button(model.primary.title) { perform(model.primary.action) }
-                .disabled(step == .ready && !(store?.canStart ?? false))
-                .help(step == .ready ? (store?.startDisabledReason ?? "") : "")
+                .disabled(model.waitsFor != nil || (step == .ready && !(store?.canStart ?? false)))
+                .help(waits ?? "")
                 .keyboardShortcut(.defaultAction)
         }
         .accessibilityIdentifier("setup.footer")
@@ -296,12 +311,7 @@ extension FirstRunWindow {
         case .advance, .start:
             advance()
         case .setUpNewProject:
-            flow.project = .new
-            advance()
-        case .startWithoutProject:
-            advance()
-        case .addAProject:
-            setUpAProject()
+            setUpNewProject()
         case .skip:
             step = step.next(in: steps)
         case .finish, .close:

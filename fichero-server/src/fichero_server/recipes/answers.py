@@ -141,9 +141,12 @@ def spend_cap(answers: dict[str, Any] | None) -> float:
 def copies_may_stay(answers: dict[str, Any] | None) -> bool:
     """Whether downscaled working copies may stay on the cluster for re-runs (`source.onboard.copies-may-stay-on-cluster`):
     setup's answer, else what the project said about pages leaving this Mac."""
+    from fichero_server.recipes import places
+
     a = answers or {}
     said = a.get(COPIES_STAY)
-    return said if isinstance(said, bool) else bool(a.get("cloud_allowed"))
+    # The cluster is a place of its own: copies stay there only if the app allows it, whatever the answer says.
+    return places.allows("acenet") and (said if isinstance(said, bool) else bool(a.get("cloud_allowed")))
 
 
 #: The levels "Translate or normalise › Into what" may ask for (#5660 item 1): the page model's reading levels a
