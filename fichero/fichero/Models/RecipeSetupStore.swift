@@ -229,7 +229,9 @@ final class RecipeSetupStore {
             await resolveNames()
         } catch {
             if error.isCancellationError { return }
-            errorMessage = "Could not read this project's setup: \(error.localizedDescription)"
+            // Say which part could not be read (the field and where), and keep the path in the log.
+            NSLog("Fichero: reading the project's setup failed: %@", String(describing: error))
+            errorMessage = "Could not read this project's setup: \(error.inWords)"
         }
     }
 
@@ -472,8 +474,12 @@ final class RecipeSetupStore {
     /// are kept for the next save.
     func adoptEngineRecipe(_ recipeJSON: Data) {
         rememberOverrides(from: recipeJSON)
-        guard let saved = try? JSONDecoder().decode(Components.Schemas.AssembledRecipe.self, from: recipeJSON) else {
-            errorMessage = "Could not read the recipe the engine saved."
+        let saved: Components.Schemas.AssembledRecipe
+        do {
+            saved = try JSONDecoder().decode(Components.Schemas.AssembledRecipe.self, from: recipeJSON)
+        } catch {
+            NSLog("Fichero: reading the recipe the engine saved failed: %@", String(describing: error))
+            errorMessage = "Could not read the recipe the engine saved: \(error.inWords)"
             return
         }
         guard let current = recipe else {
