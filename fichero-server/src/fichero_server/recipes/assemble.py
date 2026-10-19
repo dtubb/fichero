@@ -963,7 +963,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
     automatic = [{"id": s["id"], "layer": s["layer"], "uses_cloud": bool(s.get("uses_cloud"))}
                  for s in steps if s["job"] in brought]
     for step in steps:
-        if needs.get(step["job"]):
+        if needs.get(step["job"]) and not step.get("built_in"):  # a comparison is never needed: Remove always works
             # Ready offers no Remove for a step a later one needs, and says which (#5627).
             step["needed_by"] = needs[step["job"]]
     # Where a cloud model would also fit if pages could leave this Mac: setup asks the egress
