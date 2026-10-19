@@ -80,7 +80,7 @@ the app, to that named client, and Activity says "Claude Code (MCP) for Daniel o
   audit token (`LOCAL_PEERTOKEN`) and runs the code-signing check on that token, never by mapping a pid to a path
   afterwards (pids get reused, a time-of-check race); the executable path shown is read from the same token. Loopback TCP serves only the network side (paired devices, who sign in with keys or passwords like
   anyone else); it carries no local-client routes and no bootstrap.
-- **[GAP] (→ #5797) The embedded app does not yet hand the secret to its engine on stdin** (`EmbeddedBackendService+Spawn.swift`). Until #5797 is landed and built, no slice may enforce sign-in or the removal of the ambient owner: first run and sign-in must not fail in the embedded app (manager rule, 2026-10-18).
+- **[OK] (→ #5797) The embedded app hands the secret to its engine on stdin** (`EmbeddedBackendService+Spawn.swift`: `LaunchSecretHandover` writes one line and closes both pipe ends on every spawn path; the engine reads it only when told to and stdin is a pipe, `security/launch_secret.py`). Test: `fichero-server/tests/unit/security/test_launch_secret_handover_to_spec.py`; Swift `LaunchSecretHandoverTests`. Slice 10 (sign-in required, ambient owner removed) still waits for the builder's build of this to be confirmed (manager rule, 2026-10-18).
 - **The launch secret** (replaces "the bootstrap token" on the sensitive routes): 32 random bytes made by the app at
   each launch, handed to the engine it spawns over an inherited pipe (never an environment variable, argv or a file),
   held only in the app's memory and the engine's memory. It authorises exactly three routes: first-run,

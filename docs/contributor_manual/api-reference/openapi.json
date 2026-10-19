@@ -72435,6 +72435,10 @@
           },
           "kind": {
             "type": "string",
+            "enum": [
+              "cli",
+              "mcp"
+            ],
             "title": "Kind"
           },
           "name": {
