@@ -1247,6 +1247,7 @@ and node, not by job); a retry action for failed pages.
   synced-folder rewrite so (`fichero-server/tests/unit/jobs/test_synced_folder.py`). Still a gap: other work a person
   waits for that is not handed in (an opened page).
 - `activity.throttle.person-started-first` — **[BUILT]** (#5820) on a shared lane the order is: work a person
+- `activity.throttle.try-ahead-of-bulk` — **[BUILT]** (#5839) a person's stage try is watched, and so are the model-lane rows its steps hand in (`jobs.person_is_waiting()`: its Kraken pages were `started_by` "workflow", equal to the bulk recipe run's, so they queued behind it in creation order). The pick order is three-ranked: watched, then a person's started work, then background, each oldest first; the waiting rows in Activity are listed in that same order (`_PERSON_RANK_SQL`), not by creation. A job already running is never preempted. Pinned by `test_person_started_work_goes_first_5820.py`.
   started (a run, a try, a Start; any starter but the engine, a synced folder or a kept export) or marked watched,
   then background work (embedding, derivatives, indexing). A queued person-started job never waits behind
   queued background work; behind a RUNNING background job it waits only for that one item (a job is one page's
