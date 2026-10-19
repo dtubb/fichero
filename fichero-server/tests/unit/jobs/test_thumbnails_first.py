@@ -166,7 +166,8 @@ def test_a_thumbnail_finishing_mid_look_does_not_strand_the_work_it_held(test_pa
 
     def thumbnail_finishes_right_after_the_pick(sql, params=None):
         row = real_fetchone(sql, params)
-        if sql.lstrip().startswith("SELECT id, kind, subject, model, created_at FROM jobs"):
+        # The pick's SELECT also returns who waits for it (person-started first, #5820, #5839): match its start and table.
+        if sql.lstrip().startswith("SELECT id, kind, subject, model, created_at") and " FROM jobs WHERE state = 'waiting'" in sql:
             db.execute("UPDATE jobs SET state = 'done', finished_at = ? WHERE id = 'thumb'", [utc_now()])
         return row
 

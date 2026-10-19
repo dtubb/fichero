@@ -185,7 +185,8 @@ def test_kraken_catalog_id_not_downloaded_says_install_it(tmp_path: Path, monkey
     monkeypatch.setattr(
         kraken_runtime, "recognition_model_path", lambda model_id, home=None: None
     )
-    with pytest.raises(RuntimeError, match="not downloaded"):
+    # 638060a4b (#5801) worded it plainly: the reader's name, "not on this Mac yet", and where it downloads.
+    with pytest.raises(RuntimeError, match="McCATMuS is not on this Mac yet: Start downloads it"):
         kraken_transcribe_page(str(tmp_path / "img.png"), "kraken-mccatmus")
 
 
