@@ -11,7 +11,6 @@ struct MacRemoteClientPairingSection: View {
     @State private var clientInvite = ""
     @State private var clientPairingError: String?
     @State private var isClientPairing = false
-    @State private var showingManualInvite = false
     // Shown only after the host answers "person required": a Multi-user host asks who this Mac is.
     @State private var needsPerson = false
     @State private var personName = ""
@@ -33,52 +32,48 @@ struct MacRemoteClientPairingSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            DisclosureGroup("Invite link", isExpanded: $showingManualInvite) {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Invite link", text: $clientInvite, axis: .vertical)
+            VStack(alignment: .leading, spacing: 12) {
+                TextField("Invite link", text: $clientInvite, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+
+                if let host = inviteHost {
+                    Text("Connects to \(host)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if needsPerson {
+                    Text("This library uses Multi-user. Sign in as the person using this Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Username", text: $personName)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
-
-                    if let host = inviteHost {
-                        Text("Connects to \(host)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if needsPerson {
-                        Text("This library uses Multi-user. Sign in as the person using this Mac.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("Username", text: $personName)
-                            .textFieldStyle(.roundedBorder)
-                            .autocorrectionDisabled()
-                        SecureField("Password", text: $personPassword)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    HStack {
-                        Button("Paste Link") {
-                            pasteInviteFromClipboard()
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button(isClientPairing ? "Connecting…" : "Connect This Mac") {
-                            Task { await connectThisMacAsRemoteClient() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isClientPairing || clientInvite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
+                    SecureField("Password", text: $personPassword)
+                        .textFieldStyle(.roundedBorder)
                 }
-                .padding(.top, 6)
+
+                HStack {
+                    Button("Paste Link") {
+                        pasteInviteFromClipboard()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button(isClientPairing ? "Connecting…" : "Connect This Mac") {
+                        Task { await connectThisMacAsRemoteClient() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isClientPairing || clientInvite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
             }
-            // A tapped fichero:// link lands here (#3788): prefill it and open the
-            // drawer so the user SEES what they are about to connect to and presses
+            // A tapped fichero:// link lands here (#3788): prefill it so the
+            // user SEES what they are about to connect to and presses
             // Connect themselves. Never pair silently — it repoints this Mac at a
             // remote host. Consumed once, so re-opening Settings doesn't re-fill it.
             .onChange(of: appState.pendingPairingInvite) { _, invite in
                 guard let invite, !invite.isEmpty else { return }
                 clientInvite = invite
-                showingManualInvite = true
                 appState.pendingPairingInvite = nil
             }
             .task {
@@ -86,7 +81,6 @@ struct MacRemoteClientPairingSection: View {
                 // launched by the link). onChange would never fire for that.
                 if let invite = appState.pendingPairingInvite, !invite.isEmpty {
                     clientInvite = invite
-                    showingManualInvite = true
                     appState.pendingPairingInvite = nil
                 }
             }
