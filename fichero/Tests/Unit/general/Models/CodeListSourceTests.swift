@@ -19,7 +19,7 @@ struct CodeListSourceTests {
     @Test("Languages name ISO 639-3, Glottolog and Unicode CLDR, each a link")
     func languages() {
         let text = String(CodeListSource.note(scripts: false).characters)
-        for name in ["ISO 639-3", "Glottolog", "Unicode CLDR", "historical languages and dialects"] {
+        for name in ["ISO 639-3", "Glottolog", "Unicode CLDR", "languages and dialects ISO 639-3 has no code for", "own name"] {
             #expect(text.contains(name), "\(name)")
         }
         #expect(links(false).count == 3)
