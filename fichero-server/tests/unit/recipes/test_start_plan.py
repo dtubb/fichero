@@ -80,7 +80,7 @@ def test_a_repository_reader_runs_as_itself_and_an_unfetchable_one_is_refused_by
     assert any(w.get("model_override") == "kraken-zenodo-21788410" for w in plan["workflows"])
     hf = {**READ, "model": {"hf": "someone/kraken-reader", "revision": "abc"}}
     skipped = plan_start(_recipe(LINES, hf), stays_local=True)["skipped"]
-    assert any(s["step"] == "read" and s["why"].startswith("step read:") for s in skipped), skipped
+    assert any(s["step"] == "read" and s["why"].startswith("Read each line:") for s in skipped), skipped
 
 
 def test_a_job_no_card_runs_is_skipped_by_name():
@@ -146,7 +146,7 @@ def test_a_step_with_no_model_is_skipped_never_run_with_a_default():
     and never runs the step's default."""
     gap = {"id": "correct", "job": "correct", "gap": "no model fits this step"}
     plan = plan_start(_recipe(LINES, READ, gap), stays_local=True)
-    assert any("step correct has no model" in s["why"] for s in plan["skipped"])
+    assert any("Correct has no model" in s["why"] for s in plan["skipped"])
     assert all("correct" not in r["steps"] for r in plan["runs"])
 
 

@@ -176,7 +176,7 @@ def test_nothing_leaves_without_a_yes(db, notebook):
 def test_a_base_reader_that_is_not_installed_is_refused_before_queueing(db, notebook):
     """WHY: discovering on Hugging Face, after the set was sent, that the base reader was never on this
     Mac wastes a send and a Job."""
-    with pytest.raises(RuntimeError, match="not downloaded"):
+    with pytest.raises(RuntimeError, match="not on this Mac"):
         _start(db, notebook, FakeHub(), base="kraken-mccatmus")
     assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [training_job.KIND])[0] == 0
 

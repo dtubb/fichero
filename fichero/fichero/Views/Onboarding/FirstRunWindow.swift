@@ -273,6 +273,11 @@ extension FirstRunWindow {
                 Button(leading.title) { perform(leading.action) }
             }
             Spacer()
+            // A greyed Start says why beside it, not only on hover (#5801).
+            if step == .ready, let reason = store?.startDisabledReason {
+                Text(reason).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    .accessibilityIdentifier("setup.footer.startReason")
+            }
             if isSaving || newProject.isCreating { ProgressView().controlSize(.small) }
             if model.showsBack {
                 Button("Back") { step = step.previous(in: steps) }

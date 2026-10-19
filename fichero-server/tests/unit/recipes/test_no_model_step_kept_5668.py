@@ -51,5 +51,6 @@ def test_a_step_that_needs_what_a_model_less_step_makes_waits_for_it():
     assert plan["refusals"] == [], plan["refusals"]
     why = {s["step"]: s["why"] for s in plan["skipped"]}
     assert "has no model" in why["read"]
-    assert why["names"] == "step names waits for read, which has no model yet"
+    assert why["names"] == ("Find names waits for Read each line, which has no model yet: choose a model for Read each "
+                           "line, and Find names runs after it")  # by title, what to do said (#5801)
     assert [r["steps"] for r in plan["runs"]] == [["lines"]]
