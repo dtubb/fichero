@@ -125,3 +125,19 @@ def test_a_recipe_step_never_waits_on_a_paused_run():  # review 259 MED 3
     _live("thread-a", ["p1"], status="paused")
     child, state, why = recipe._join_live_run("thread-a", "job-1")  # returns at once, not after a poll loop
     assert state == "failed" and "paused" in why
+
+
+def test_a_second_start_returns_while_the_first_is_joined():  # review 261 MED: the lock is not held while joining
+    from fichero_server.recipes import runner as recipe
+
+    wf, request = _wf(), _request(["p1"])
+    _live("thread-a", ["p1"], reader=runner.reader_key(wf, request))
+    joined = threading.Thread(target=recipe._join_live_run, args=("thread-a", "job-1"), daemon=True)
+    joined.start()  # waits on the live run
+    time.sleep(0.2)
+    assert runner.LIVE_CHECK_LOCK.acquire(timeout=1), "a join must not hold the check lock"
+    runner.LIVE_CHECK_LOCK.release()
+    with pytest.raises(runner.AlreadyReading):
+        asyncio.run(runner.start_run(SimpleNamespace(path=DB), wf, request, "thread-b"))
+    runner._running_workflows["thread-a"]["status"] = "completed"
+    joined.join(5)
