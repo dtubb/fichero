@@ -161,7 +161,7 @@ class TestTheLaneKeepsOneModelLoaded:
         import fichero_server.llm.kraken_runtime as kraken_runtime
 
         released = []
-        monkeypatch.setattr(kraken_runtime, "release_resident_models", lambda: released.append(True))
+        monkeypatch.setattr(kraken_runtime, "release_resident_models", lambda reason="": released.append(True))
         jobs.submit(db, "read-a-line", "p1", model="kraken:a", fn=lambda: None).result(10)
         jobs.submit(db, "read-a-line", "p2", model="kraken:b", fn=lambda: None).result(10)
         assert released == []
@@ -177,7 +177,7 @@ class TestSwitchingBetweenHeavyModels:
 
         released = []
         monkeypatch.setattr(embeddings, "release_idle_embedders",
-                            lambda idle_seconds=None: released.append(idle_seconds) or [])
+                            lambda idle_seconds=None, reason="": released.append(idle_seconds) or [])
         jobs.submit(db, "read-a-line", "p1", model="embedder", fn=lambda: None).result(10)
         jobs.submit(db, "read-a-line", "p2", model="kraken:a", fn=lambda: None).result(10)
         assert released == [0]

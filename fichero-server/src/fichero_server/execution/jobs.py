@@ -1947,19 +1947,19 @@ def _kraken_busy() -> bool:
     return runtime is not None and runtime._INFERENCE_LOCK.locked()
 
 
-def _release_kraken() -> None:
+def _release_kraken(reason: str = "another heavy model takes the lane") -> None:
     """Free Kraken's resident models. Under Kraken's own lock, which guards them."""
     runtime = sys.modules.get("fichero_server.llm.kraken_runtime")
     if runtime is not None:
         with runtime._INFERENCE_LOCK:
-            runtime.release_resident_models()
+            runtime.release_resident_models(reason)
 
 
-def _release_embedder() -> None:
+def _release_embedder(reason: str = "another heavy model takes the lane") -> None:
     """Free the embedding model, unless an embed or a search holds it right now."""
     embeddings = sys.modules.get("fichero_server.db.embeddings")
     if embeddings is not None:
-        embeddings.release_idle_embedders(idle_seconds=0)
+        embeddings.release_idle_embedders(idle_seconds=0, reason=reason)
 
 
 #: Providers whose models run in a server on this Mac (named `<provider>:<model>` on the lane).
@@ -1974,7 +1974,7 @@ def _family(model: str | None) -> str | None:
     return model
 
 
-def _keep_local_model_server() -> None:
+def _keep_local_model_server(_reason: str = "") -> None:
     # Not stopped on a switch: its server takes 30-300 s to start again. It does NOT free its own
     # memory (an idle `mlx_vlm.server` held 5.7 GB, #5529): the engine stops it after
     # `api.routes.ai.local_inference.IDLE_STOP_SECONDS` without a request, and when the engine ends.
@@ -1986,12 +1986,36 @@ def _keep_local_model_server() -> None:
 _RELEASE = {"kraken": _release_kraken, "embedder": _release_embedder,
             # Converting a trained model for MLX (#5398) holds a 7B model's weights itself; it frees
             # nothing when it ends (its process exits), but switching TO it frees Kraken or the embedder.
-            "mlx-convert": lambda: None,
+            "mlx-convert": lambda _reason="": None,
             "local-model": _keep_local_model_server}
 #: A background job for another heavy model waits until the loaded one has had no work for this
 #: long, so work that arrives in bursts (a run's Kraken pages, each followed by its page's embed)
 #: does not swap two models in and out page by page. Work a person waits for switches at once.
 SWITCH_AFTER_QUIET_SECONDS = 20.0
+
+
+#: The longest the loaded model's queued pages hold another heavy model off the lane since the loaded model last ran.
+LOADED_WORK_HOLD_SECONDS = 300.0
+
+
+def _loaded_work_queued(keys: list[str], lane: "_Lane") -> bool:
+    """Whether a page for the model the lane has loaded waits, in any of its libraries (background embeds wait for it)."""
+    from fichero_server.db.manager import db_manager
+
+    family = _family(lane.loaded_model)
+    prefix = KRAKEN_MODEL_PREFIX if family == "kraken" else None
+    if prefix is None:
+        return False
+    vision = sys.modules.get("fichero_server.workflows.tools.vision_base")  # pages a run has taken up, not yet queued
+    if vision is not None and vision._KrakenPageGate.in_flight > 0:
+        return True
+    for key in keys:
+        db = db_manager.open_database(key)
+        if db is not None and db.execute_fetchone(
+                "SELECT 1 FROM jobs WHERE state = 'waiting' AND (run_after IS NULL OR run_after <= ?) "
+                "AND COALESCE(model, '') LIKE ? LIMIT 1", [utc_now(), prefix + "%"]):
+            return True
+    return False
 
 
 def _heavy_switch(loaded: str | None, model: str | None) -> bool:
@@ -2370,7 +2394,14 @@ class _Scheduler:
         # light model's, or a page someone waits for) still runs.
         quiet_from = lane.loaded_used_at + SWITCH_AFTER_QUIET_SECONDS
         others = [f for f in _RELEASE if f != _family(lane.loaded_model)]
-        if _family(lane.loaded_model) in _RELEASE and time.monotonic() < quiet_from and others:
+        # And while pages for the loaded model are still queued (a slow page outlasts the spell): the queued pages
+        # finish before another heavy model takes the lane, so Kraken loads once for a run (#5846). Capped, so
+        # queued work that cannot run (held, out of memory) never starves the others for good.
+        loaded_work = (_family(lane.loaded_model) in _RELEASE and time.monotonic() < lane.loaded_used_at + LOADED_WORK_HOLD_SECONDS
+                       and _loaded_work_queued(keys, lane))
+        if loaded_work:
+            quiet_from = max(quiet_from, time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS)
+        if _family(lane.loaded_model) in _RELEASE and (time.monotonic() < quiet_from or loaded_work) and others:
             held_parts, held_params = [], []
             for f in others:
                 prefixes = ([KRAKEN_MODEL_PREFIX] if f == "kraken" else
@@ -2489,7 +2520,7 @@ class _Scheduler:
                     time.sleep(self.KRAKEN_POLL_SECONDS)
                 wait_over(db, job_id)
             if _heavy_switch(lane.loaded_model, model):
-                _RELEASE[_family(lane.loaded_model)]()
+                _RELEASE[_family(lane.loaded_model)](f"the lane switches to {_family(model)} for job {job_id}")
             if model is not None:
                 lane.loaded_model = model
         if os.environ.get("FICHERO_JOB_QOS", "1") != "0":  # the test suite runs jobs at normal priority
