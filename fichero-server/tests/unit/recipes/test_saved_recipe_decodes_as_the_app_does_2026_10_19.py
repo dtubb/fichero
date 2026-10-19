@@ -27,3 +27,16 @@ def test_a_recipe_stored_without_problems_reads_back_whole(client, with_material
     del recipe["problems"]
     assert client.put("/api/recipes/project", json={"answers": ANSWERS, "recipe": recipe}).status_code == 200
     assert isinstance(_read_as_the_app_does(client)["problems"], list)
+
+
+def test_use_this_hands_back_a_recipe_the_app_can_adopt(client, with_material):
+    """Use This's reply is adopted by the app as an AssembledRecipe; one it cannot read left the screen unchanged and
+    its next save put the stale copy over the choice (owner, 2026-10-19)."""
+    assert client.put("/api/recipes/project", json={"answers": ANSWERS}).status_code == 200
+    step = _read_as_the_app_does(client)["steps"][0]
+    items = client.get("/api/recipes/candidates", params={"job": step["job"], "scripts": "Latn", "languages": "es"}).json()["items"]
+    card = next(i for i in items if i.get("pin") and i["id"] != (step.get("card") or {}).get("id"))
+    used = client.post("/api/recipes/project/steps/use-candidate", json={"step": step["id"], "card": card["id"]})
+    assert used.status_code == 200, used.text
+    AssembledRecipe.model_validate(used.json()["recipe"])
+    assert isinstance(used.json()["recipe"]["problems"], list)
