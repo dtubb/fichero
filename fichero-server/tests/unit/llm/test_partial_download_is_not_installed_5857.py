@@ -54,3 +54,22 @@ def test_a_file_of_another_size_than_recorded_is_not_installed_and_the_right_one
     _marker(weights, bytes=100)
     assert kr.is_recognition_model_installed(READER)
     assert kr.recognition_download_problem(READER) is None
+
+
+def test_a_run_refuses_a_partial_reader_in_words(folder):
+    """Review 330 MED: the run's resolver asked only the marker; it now asks the one installed check."""
+    (folder / "medium.safetensors.part").write_bytes(b"x" * 13)
+    _marker(folder / "medium.safetensors")  # stale
+    assert kr.recognition_model_path(READER) is None
+    with pytest.raises(RuntimeError) as refused:
+        kr.resolve_recognition_model(READER)
+    said = str(refused.value)
+    assert "not downloaded whole" in said and "its model file is missing" in said and READER not in said
+
+
+def test_a_whole_reader_still_resolves(folder):
+    weights = folder / "medium.safetensors"
+    weights.write_bytes(b"w" * 100)
+    _marker(weights, bytes=100)
+    assert kr.recognition_model_path(READER) == str(weights)
+    assert kr.resolve_recognition_model(READER) == (str(weights), READER)
