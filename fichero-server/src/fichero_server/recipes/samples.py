@@ -529,10 +529,16 @@ def _measure(db: Any, stage_id: str, runs: list[dict[str, Any]]) -> list[dict[st
         elif stage_id in SHAPE_STAGES:
             from collections import Counter
 
+            # Only against candidates that found shapes: one that found none (it failed, or the page has none for it) is
+            # nothing to overlap with, and counting it scored every box 0% (owner, 2026-10-19).
+            found = [o for o in others if any(o["boxes"].values())]
             best = [max((_iou(box, other) for other in o["boxes"].get(p, [])), default=0.0)
-                    for o in others for p, boxes in run["boxes"].items() for box in boxes]
-            out.append({"kind": "shapes", "agreement": _mean(best), "cer": None, "found": len(run["items"]),
-                        "kinds": dict(Counter(run["items"]))})
+                    for o in found for p, boxes in run["boxes"].items() for box in boxes]
+            measured = {"kind": "shapes", "agreement": _mean(best), "cer": None, "found": len(run["items"]),
+                        "kinds": dict(Counter(run["items"]))}
+            if others and not found:
+                measured["not_measured"] = "nothing to compare with: the other candidates found no lines"
+            out.append(measured)
         elif stage_id in ITEM_STAGES:
             mine = set(run["items"])
             theirs = set().union(*(set(o["items"]) for o in others)) if others else set()
