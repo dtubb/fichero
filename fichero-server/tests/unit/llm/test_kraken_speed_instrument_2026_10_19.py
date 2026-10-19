@@ -1,0 +1,144 @@
+"""The speed review (2026-10-19): which priority a page landed on and what each stage took, one log line per page; a
+resident page checks its small working need, not the 2.5 GB cold-load figure; the reader batch floors at 8 unless memory
+is really short."""
+from __future__ import annotations
+
+import logging
+import re
+import sys
+import time
+import types
+
+import pytest
+
+from fichero_server.core import background_compute
+from fichero_server.llm import kraken_runtime as kr
+
+GIB = 1024**3
+
+
+@pytest.fixture(autouse=True)
+def _resident_state(monkeypatch):
+    saved = dict(kr._RESIDENT)
+    kr._RESIDENT.clear()
+    monkeypatch.setattr(kr, "require_installed", lambda: None)
+    monkeypatch.setattr(kr, "assert_memory_available_for_kraken", lambda: None)
+    monkeypatch.setattr(kr, "_release_when_idle", lambda: None)
+    yield
+    kr._RESIDENT.clear()
+    kr._RESIDENT.update(saved)
+
+
+def _fake_torch(monkeypatch):
+    seen = {}
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(
+        set_num_threads=lambda n: seen.__setitem__("threads", n), set_num_interop_threads=lambda n: None))
+    return seen
+
+
+def _decide(monkeypatch):
+    """The throttle's answer without the real Mac's battery, build and input state."""
+    from fichero_server.execution import throttle
+
+    monkeypatch.setattr(throttle, "decide", lambda person_waiting=False, **_: throttle.Decision(
+        "go", None, "fast" if person_waiting else "balanced"))
+
+
+def _run_as(monkeypatch, person: bool):
+    from fichero_server.execution import jobs
+
+    monkeypatch.setattr(jobs, "current_job_is_a_persons", lambda: person)
+    kr._kraken_call(lambda: None)
+
+
+def test_a_persons_start_lands_on_fast_with_every_core(monkeypatch, caplog):
+    seen = _fake_torch(monkeypatch)
+    _decide(monkeypatch)
+    with caplog.at_level(logging.INFO, logger=kr.logger.name):
+        _run_as(monkeypatch, True)
+    assert seen["threads"] == background_compute.cpu_count()
+    line = next(r.getMessage() for r in caplog.records if r.getMessage().startswith("kraken page"))
+    assert "priority=fast" in line and "qos=user-initiated" in line and "person=yes" in line
+    assert f"threads={background_compute.cpu_count()}" in line and "throttle=go" in line
+
+
+def test_an_automatic_run_lands_on_balanced(monkeypatch, caplog):
+    seen = _fake_torch(monkeypatch)
+    _decide(monkeypatch)
+    with caplog.at_level(logging.INFO, logger=kr.logger.name):
+        _run_as(monkeypatch, False)
+    assert seen["threads"] == max(1, background_compute.embed_threads())
+    line = next(r.getMessage() for r in caplog.records if r.getMessage().startswith("kraken page"))
+    assert "priority=balanced" in line and "qos=utility" in line and "person=no" in line
+
+
+def test_a_page_logs_one_line_with_every_stage_and_a_total_that_adds_up(monkeypatch, caplog):
+    _fake_torch(monkeypatch)
+    _decide(monkeypatch)
+
+    def op():
+        kr._page_is("/library/IMG_017.png")
+        for stage, seconds in (("load", 0.1), ("segment", 0.2), ("recognise", 0.3)):
+            with kr._stage(stage):
+                time.sleep(seconds)
+
+    with caplog.at_level(logging.INFO, logger=kr.logger.name):
+        kr._kraken_call(op)
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("kraken page")]
+    assert len(lines) == 1
+    m = re.match(r"kraken page IMG_017\.png: load ([\d.]+)s segment ([\d.]+)s recognise ([\d.]+)s total ([\d.]+)s", lines[0])
+    assert m, lines[0]
+    load, segment, recognise, total = map(float, m.groups())
+    assert (load, segment, recognise) == pytest.approx((0.1, 0.2, 0.3), abs=0.1)
+    assert total == pytest.approx(load + segment + recognise, abs=0.2)
+
+
+def test_a_resident_page_checks_its_small_working_need():
+    available, normal = lambda: 3 * GIB, lambda: 1  # noqa: E731
+    kr._RESIDENT["segment"] = ("blla", object())
+    assert kr.kraken_models_resident() and kr.kraken_need_bytes() < GIB
+    from fichero_server.execution.throttle import memory_short
+
+    assert memory_short(available_bytes=lambda: 1 * GIB, pressure_level=normal, need_bytes=kr.kraken_need_bytes()) is None
+    kr._RESIDENT.clear()
+    assert kr.kraken_need_bytes() == kr._kraken_memory_need_bytes()
+    assert memory_short(available_bytes=lambda: 1 * GIB, pressure_level=normal,
+                        need_bytes=kr.kraken_need_bytes()) is not None
+
+
+def test_the_guard_lets_a_resident_page_run_on_3_gb_but_refuses_a_cold_one_on_2(monkeypatch):
+    monkeypatch.undo()  # the fixture's stub of the guard; this test wants the real one
+    kr._RESIDENT.clear()
+    kr._RESIDENT["segment"] = ("blla", object())
+    kr.assert_memory_available_for_kraken(available_bytes=lambda: 1 * GIB, pressure_level=lambda: 1)  # no raise
+    kr._RESIDENT.clear()
+    with pytest.raises(kr.KrakenMemoryUnavailableError):
+        kr.assert_memory_available_for_kraken(available_bytes=lambda: 2 * GIB, pressure_level=lambda: 1)
+
+
+def test_the_lane_throttle_uses_the_same_resident_rule():
+    from fichero_server.execution.throttle import heavy_work_need_bytes
+
+    assert heavy_work_need_bytes() == kr._kraken_memory_need_bytes()
+    kr._RESIDENT["read"] = ("m", object())
+    assert heavy_work_need_bytes() == kr.kraken_need_bytes() < kr._kraken_memory_need_bytes()
+
+
+def test_the_reader_batch_is_at_least_8_while_memory_is_not_short(monkeypatch):
+    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 3 * GIB)
+    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
+    kr._RESIDENT["read"] = ("m", object())
+    assert kr.reader_batch_size() >= 8  # was (3 GiB - 2.5 GiB) // 256 MiB = 2 lines
+    kr._RESIDENT.clear()
+    assert kr.reader_batch_size() >= 8  # cold with 3 GiB free is not short either
+
+
+def test_the_reader_batch_shrinks_when_memory_really_is_short(monkeypatch):
+    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 400 * 1024**2)
+    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 1)
+    kr._RESIDENT["read"] = ("m", object())
+    assert kr.reader_batch_size() == 1
+    kr._RESIDENT.clear()
+    monkeypatch.setattr(kr, "_available_memory_bytes", lambda: 3 * GIB)
+    monkeypatch.setattr(kr, "_memory_pressure_level", lambda: 4)  # critical: the floor is not applied
+    assert kr.reader_batch_size() == 2  # (3 GiB - 2.5 GiB) // 256 MiB

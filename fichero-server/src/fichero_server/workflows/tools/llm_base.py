@@ -27,6 +27,7 @@ import asyncio
 import dataclasses
 import json
 import logging
+import time
 import re
 from dataclasses import dataclass
 from fichero_server.core.timeutil import utc_now
@@ -1017,7 +1018,8 @@ async def save_file_artifact(
     because callers key on the source path, but every call site uses keyword
     arguments.
     """
-    return await save_artifact(
+    began = time.perf_counter()
+    saved = await save_artifact(
         document_id=document_id,
         file_path=file_path,
         content=content,
@@ -1033,6 +1035,11 @@ async def save_file_artifact(
         promote_page_content_only_if_empty=promote_page_content_only_if_empty,
         attribute_value=attribute_value,
     )
+    if "kraken" in (getattr(llm_config, "provider", "") or "").lower() or getattr(ocr_geometry, "provider", "") == "kraken":
+        # What the page's write took (artifact + document save, segment rows, the change emit, the embed job row): the
+        # last of a Kraken page's stages (the speed review, 2026-10-19). Read by scripts/bench_reading.py.
+        logger.info("kraken write %s: %.2fs", Path(file_path or document_id or "?").name, time.perf_counter() - began)
+    return saved
 
 
 async def save_to_file(
