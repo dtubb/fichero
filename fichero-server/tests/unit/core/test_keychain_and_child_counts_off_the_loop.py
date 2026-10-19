@@ -70,3 +70,32 @@ def test_get_children_counts_children_off_the_loop(monkeypatch):
     monkeypatch.setattr(documents, "_with_child_counts", counts)
     asyncio.run(documents._child_counts_off_the_loop(None, []))
     assert seen == [True]
+
+
+def test_a_stale_answer_is_returned_at_once_and_refreshed_on_a_thread(monkeypatch):
+    """Review 306: the first lookup every 5 minutes ran `security` on the loop."""
+    calls = _security(monkeypatch, [(0, "sk-1\n", "")])
+    keychain.lookup_api_key("openai")
+    monkeypatch.setattr(keychain, "_LOOKUP_SECONDS", -1.0)  # everything kept is now stale
+    main = threading.get_ident()
+    seen: list[bool] = []
+    done = threading.Event()
+    real = keychain._read_api_key
+
+    def read(provider):
+        seen.append(threading.get_ident() != main)
+        try:
+            return real(provider)
+        finally:
+            done.set()
+
+    monkeypatch.setattr(keychain, "_read_api_key", read)
+    assert keychain.lookup_api_key("openai").key == "sk-1"  # the stale answer, no wait
+    assert done.wait(10) and seen == [True]  # re-read on a thread of its own
+
+
+def test_warming_reads_each_provider_once(monkeypatch):
+    calls = _security(monkeypatch, [(44, "", "none")])
+    keychain.warm_api_keys(["a", "b"])
+    keychain.lookup_api_key("a")
+    assert len(calls) == 2

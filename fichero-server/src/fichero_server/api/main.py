@@ -917,6 +917,12 @@ async def lifespan(app: FastAPI):
     from fichero_server.workflows.tools import vision_base as _vision_base
 
     threading.Thread(target=_vision_base.warm_supported_locales, name="vision-locales-warm", daemon=True).start()
+    from fichero_server.llm.providers import ProviderType
+    from fichero_server.security import keychain as _keychain
+
+    # Each provider's key is read from the Keychain once, here on a thread, so a route on the loop never spawns `security`.
+    threading.Thread(target=_keychain.warm_api_keys, args=([p.value for p in ProviderType],),
+                     name="keychain-warm", daemon=True).start()
     logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
     remote_backend_status = build_remote_backend_status()
