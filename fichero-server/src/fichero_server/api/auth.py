@@ -24,6 +24,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import utc_now
+import asyncio
 import hashlib
 import logging
 import os
@@ -791,7 +792,7 @@ def attach_auth_middleware(
                 raw_token = provided.removeprefix("Bearer ").strip()
                 if raw_token:
                     try:
-                        user, device, detail = _authenticate_device_token(raw_token)
+                        user, device, detail = await asyncio.to_thread(_authenticate_device_token, raw_token)
                     except AppDatabaseBusy:
                         return _busy_response(request, is_loopback)
                     if device is not None and detail is None:
@@ -872,7 +873,7 @@ def attach_auth_middleware(
             )
 
         try:
-            user, device, detail = _authenticate_device_token(raw_token)
+            user, device, detail = await asyncio.to_thread(_authenticate_device_token, raw_token)
         except AppDatabaseBusy:
             return _busy_response(request, is_loopback)
         if user is None or device is None:
