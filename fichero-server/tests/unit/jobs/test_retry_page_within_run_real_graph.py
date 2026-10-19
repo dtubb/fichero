@@ -1,9 +1,12 @@
-"""`activity.retry.page-within-run` against the REAL graph (review 293): the tester runs this on the M4. A run is read, then
-Retry on one of its pages re-enters the SAME thread id with the real LangGraph runner (only the cloud model is a stub).
-It checks what the unit test stubs away: the run id and its record are not overwritten, the run ends done again, and the
-state reducers keep the earlier pages (the run's account still counts the whole folder)."""
+"""`activity.retry.page-within-run` against the REAL graph (reviews 293, 295): the tester runs this on the M4. A run reads
+three pages and one FAILS; Retry on that failed page re-enters the SAME thread id with the real LangGraph runner (only the
+cloud model is a stub). It checks what the unit test stubs away: the run is the same run (no new thread, one record), the
+model really read the retried page again, the run ends done, and the state reducers kept the earlier pages (the run's
+account says done == total == all three pages, not just the retried one)."""
 # ruff: noqa: F811 -- pytest fixtures imported from the sibling tests are named as test arguments
 from __future__ import annotations
+
+import asyncio
 
 from tests.unit.jobs.test_runs_are_jobs import (  # noqa: F401
     _execute,
@@ -16,21 +19,45 @@ from tests.unit.jobs.test_runs_are_jobs import (  # noqa: F401
 )
 
 
-def test_retry_on_a_page_reopens_the_same_run_and_keeps_its_earlier_pages(client, db, workflow, pages, cloud):
-    run = _execute(client, workflow, pages)
-    assert _wait_for(lambda: _status(client, run) == "completed", 120)
-    before = client.get(f"/api/activity/jobs/{run}").json()
-    page_job = next(c["id"] for step in before["children"] for c in step["children"])
-    pages_before = client.get(f"/api/workflow-execution/threads/{run}/status").json()
+def _account(db, run):
+    from fichero_server.workflows import run_account as accounts
 
-    r = client.post(f"/api/activity/jobs/{page_job}/retry")
+    accounts.forget(run)
+    return asyncio.run(accounts.run_account(db, run))
+
+
+def test_retry_on_a_failed_page_reopens_the_same_run_and_keeps_its_earlier_pages(client, db, workflow, pages, cloud):
+    failing = {"left": 1}
+    reads = cloud.__call__
+
+    async def one_page_fails(images, prompt, config, **kwargs):
+        if failing["left"]:
+            failing["left"] -= 1
+            raise RuntimeError("the model refused this page")
+        return await reads(images, prompt, config, **kwargs)
+
+    import fichero_server.llm as llm
+
+    llm.vision = one_page_fails  # (the `cloud` fixture restores the original at teardown)
+    run = _execute(client, workflow, pages)
+    assert _wait_for(lambda: _status(client, run) in ("completed", "failed"), 120)
+    first = _account(db, run)
+    assert first.pages_failed == 1 and first.pages_done == len(pages) - 1  # the starting point: one failed page
+
+    failed_page = db.execute_fetchone(
+        "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') ORDER BY created_at LIMIT 1")
+    assert failed_page is not None, "the failed page has a job row to Retry"
+    before_calls = cloud.calls
+
+    r = client.post(f"/api/activity/jobs/{failed_page[0]}/retry")
 
     assert r.status_code == 200, r.text  # no 409, and not a new run
     assert "replaces" not in r.json()
-    assert _wait_for(lambda: _status(client, run) == "completed", 120)  # the same run id ends done again
+    assert _wait_for(lambda: cloud.calls > before_calls, 120), "the retried page was read again by the model"
+    assert _wait_for(lambda: _status(client, run) == "completed" and _account(db, run).pages_failed == 0, 120)
+    after = _account(db, run)
+    assert after.pages_total == len(pages) and after.pages_done == len(pages), (
+        "the state reducers lost the earlier pages, or the retry did not finish the run")
     runs = client.get("/api/workflow-execution/runs").json()
     ids = [x.get("thread_id") for x in (runs if isinstance(runs, list) else runs.get("runs", []))]
-    assert ids.count(run) == 1  # the run record was reopened, not duplicated or replaced
-    after = client.get(f"/api/workflow-execution/threads/{run}/status").json()
-    assert after.get("pages_total", pages_before.get("pages_total")) == pages_before.get("pages_total"), (
-        "the state reducers lost the earlier pages: the reopened pass counted only the retried one")
+    assert ids.count(run) == 1  # one record for the run: reopened, not duplicated
