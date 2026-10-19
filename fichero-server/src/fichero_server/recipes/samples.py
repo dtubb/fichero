@@ -390,11 +390,12 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
     from fichero_server.api.routes.system.recipes import _answers
     from fichero_server.recipes.assemble import _rank_key, _refusal
-    from fichero_server.recipes.discovery import discover, known_cards
+    from fichero_server.recipes.discovery import discover, known_cards, step_candidates
 
     job = str(step.get("job"))
     a = _answers(setup["answers"] or {})
     found, _ = discover(a, online=False, job=job)
+    found = step_candidates(found, job)  # Find a Reader's list: page readers, cloud and remote ones included (#5808)
     by_id = {c.id: c for c in [*known_cards(a, include_not_built=True), *found]}
     if wanted:
         named = [by_id[i] for i in dict.fromkeys(wanted) if i in by_id]
@@ -435,10 +436,12 @@ def _local(plan: dict[str, Any]) -> bool:
 def _column(card: Any, plan: dict[str, Any]) -> dict[str, Any]:
     """A candidate's column, before it runs: the bake-off row's fields (`bakeoff._candidate`'s shape)."""
     from fichero_server.recipes.bakeoff import _figure, reader_name
+    from fichero_server.recipes.discovery import model_link
 
     local = _local(plan)
     cost = plan["estimate"].get("total_cost_usd")
-    return {"card": card.id, "name": reader_name(card), "pin": dict(card.pin), "runs_on": card.runs_on,
+    return {"card": card.id, "name": reader_name(card), "link": model_link(card), "pin": dict(card.pin),
+            "runs_on": card.runs_on,
             "local": bool(card.local and local),
             "cost_usd": (_figure(0.0, "measured", "runs on this Mac") if local else
                          _figure(cost if isinstance(cost, (int, float)) else None, "estimate",

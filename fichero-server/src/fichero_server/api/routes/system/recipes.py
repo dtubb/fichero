@@ -1195,6 +1195,14 @@ class ModelCandidate(BaseModel):
     fit: Optional[ModelFit] = Field(default=None, description=(
         "for an MLX model: whether it fits this Mac to read with ('fits', 'tight', 'won't fit') and why, by the rule "
         "the load applies (#5641); null for any other model"))
+    compared_by_default: bool = Field(default=False, description="with `step`: Compare on These Pages runs it when "
+                                      "none is ticked (the step's own model and the next runnable ones), so the "
+                                      "page can name them before it runs (#5808)")
+    link: Optional[str] = Field(default=None, description="the page of its model (Hugging Face, Zenodo's DOI); null "
+                                "where it has none (#5808)")
+    other_period: bool = Field(default=False, description="made for another period than the project's "
+                               "(`answers.period`): the app lists it under 'Other periods', not beside the fitting "
+                               "ones (#5808)")
     chosen: bool = Field(default=False, description=(
         "with `step`: this is the step's reader now (the person's choice, or the rules' when none was made); "
         "listed first (#5660 item 8)"))
@@ -1307,6 +1315,21 @@ async def htr_united_datasets(languages: str, scripts: str = "") -> HtrUnitedDat
     return HtrUnitedDatasets(fetched_at=kept["fetched_at"] if kept else None, datasets=htr_united.offered(found))
 
 
+def _compared_by_default(library_path: str, step_id: str) -> set[str]:
+    """The cards Compare on These Pages runs for this step when none is ticked: the engine's own choice, so the
+    page names them before the run (#5808). Empty where the project has no saved answers or the step is not in it."""
+    from fichero_server.recipes import samples
+
+    setup = read_project_setup(Path(library_path))
+    step = next((s for s in (setup["recipe"] or {}).get("steps") or [] if s.get("id") == step_id), None)
+    if step is None or not setup["answers"]:
+        return set()
+    try:
+        return {c.id for c in samples._cards_for(setup, step, None)}
+    except ValueError:  # answers the rules do not read (an old project): nothing is named as the default
+        return set()
+
+
 @router.get("/candidates", response_model=ModelCandidateList)
 async def model_candidates(
     request: Request,
@@ -1334,9 +1357,12 @@ async def model_candidates(
     from starlette.concurrency import run_in_threadpool
 
     from fichero_server.recipes.assemble import READ_MATERIALS, READING_JOBS, _refusal, needs_permission, rank_key
+    from fichero_server.recipes.assemble import other_period
     from fichero_server.recipes.discovery import (
         NO_PROJECT,
         candidate_availability,
+        model_link,
+        step_candidates,
         candidate_download,
         candidate_installed,
         candidate_place,
@@ -1373,14 +1399,7 @@ async def model_candidates(
     not_searched = None if library_path else NO_PROJECT
     cards, sources = await run_in_threadpool(
         discover, a, online=online, search=search, not_searched=not_searched, job=job)
-    if job == "read-a-line":
-        # A page reader reads the lines' pictures too (`start._reading_run`, the bake-off's `fits`): offered for the
-        # line step, the person's to choose; the rules rank only the line readers (#5683).
-        from dataclasses import replace as _replace
-
-        cards = [c if job in c.jobs or "read-a-page" not in c.jobs
-                 else _replace(c, jobs=c.jobs | {job}, offered_only=True) for c in cards]
-    cards = [c for c in cards if job in c.jobs]
+    cards = step_candidates(cards, job)  # the one list Compare reads too (#5808)
     if step is None and library_path:
         # No step named: the open project's step for this job is the one whose model is `chosen` (#5688).
         step = await run_in_threadpool(_step_for_job, request, library_path, job)
@@ -1436,6 +1455,7 @@ async def model_candidates(
         d = downloads.get(c.id)
         return f"Downloading{': ' + d['progress'] if d.get('progress') else ''}" if d and d.get("downloading") else said
 
+    compared = await run_in_threadpool(_compared_by_default, library_path, step) if library_path and step else set()
     items = [ModelCandidate(
         id=c.id, name=c.note.strip().rstrip(".") or c.id, source=c.source,
         offered_because=c.offered_because or "a card that ships with Fichero", pin=dict(c.pin),
@@ -1449,6 +1469,7 @@ async def model_candidates(
         installed=candidate_installed(c), download=downloads[c.id],
         runs_where=candidate_place(c), availability=candidate_availability(c)[0],
         availability_words=availability_words(c), chosen=c.id == chosen_id, fit=fit(c),
+        link=model_link(c), other_period=other_period(c, a), compared_by_default=c.id in compared,
     ) for c in sorted(cards, key=lambda c: (c.id != chosen_id, rank.get(c.id, len(rank) + 1), c.id))]
     return ModelCandidateList(
         job=job, items=items, count=len(items), sources=[CandidateSource(**s) for s in sources],
