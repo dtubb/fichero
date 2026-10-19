@@ -61,8 +61,9 @@ def test_a_landed_thumbnail_counts_as_movement(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(derivatives, "_progress_touch", touched.append)
     monkeypatch.setattr(derivatives, "_open_stage_db", lambda lib, doc_id: None)
     derivatives._thumbnail_stage("doc-1", library)
+    assert touched == [library, library], "a thumbnail stage moves the queue when it starts and when it ends"
     derivatives._embed_stage("doc-1", library)
-    assert touched == [library, library]
+    assert touched == [library] * 3, "and an embed stage when it starts"
 
 
 def test_one_long_embed_reports_the_model_loading_not_a_stall(watched, monkeypatch):
