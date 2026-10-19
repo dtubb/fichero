@@ -8,6 +8,7 @@ Contains:
 
 from __future__ import annotations
 
+import json
 import logging
 import queue
 import re
@@ -236,6 +237,42 @@ class WorkflowEventHub:
 def _get_workflow_state(thread_id: str) -> dict[str, Any] | None:
     """Get the current state of a running workflow."""
     return _running_workflows.get(thread_id)
+
+
+#: A run in one of these is reading its pages now. A paused run is not: it reads nothing until resumed, so a new run
+#: on its pages reads them (#5848, review 259).
+LIVE_RUN_STATUSES = ("accepted", "running")
+
+#: Held from the check for a live read to the run's registration, by `start_run` (the loop) and a recipe step (a
+#: worker thread), so two starts on the same pages cannot both pass the check.
+LIVE_CHECK_LOCK = threading.Lock()
+
+
+def reader_key(workflow: Workflow, request: ExecuteWorkflowRequest) -> str:
+    """What reads the pages: every node's tool and settings plus the run's provider and model. A run with another
+    reader (Kraken model B beside a run with model A) is a different read, never joined (#5848, review 259)."""
+    import hashlib  # noqa: PLC0415
+
+    nodes = [[n.get("id"), n.get("tool"), n.get("config")] for n in workflow.nodes]
+    raw = json.dumps([nodes, request.provider_override, request.model_override], sort_keys=True, default=str)
+    return hashlib.sha1(raw.encode()).hexdigest()  # noqa: S324 -- a comparison key, not a secret
+
+
+def live_run_reading(db_path: str, workflow_id: str, documents: list[str] | None, reader: str, *,
+                     exclude: str | None = None) -> tuple[str, set[str]] | None:
+    """(the thread id of a live run of `workflow_id` reading with the same `reader` in this project, which of
+    `documents` it reads), else None (#5848): a second run joins what a live one reads and reads the rest itself.
+    A run records its pages as `documents`; one that recorded none is not matched."""
+    wanted = set(documents or [])
+    if not wanted:
+        return None
+    for thread_id, state in list(_running_workflows.items()):
+        if (thread_id != exclude and state.get("db_path") == db_path and state.get("workflow_id") == workflow_id
+                and state.get("reader") == reader and state.get("status") in LIVE_RUN_STATUSES):
+            covered = wanted & set(state.get("documents") or ())
+            if covered:
+                return thread_id, covered
+    return None
 
 
 def close_all_event_hubs_for_shutdown() -> int:
@@ -968,6 +1005,14 @@ def _generate_workflow_python_code(workflow: Workflow) -> str:
 # =============================================================================
 
 
+class AlreadyReading(Exception):
+    """A live run is already reading these pages (#5848); `thread_id` is that run."""
+
+    def __init__(self, thread_id: str) -> None:
+        super().__init__(f"Run {thread_id} is already reading these pages")
+        self.thread_id = thread_id
+
+
 async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRequest, thread_id: str,
                     *, parent_job: str | None = None, started_by: str | None = None) -> threading.Event:
     """Start a run: the one way every run starts, by hand or as a batch's item (#5374,
@@ -977,21 +1022,34 @@ async def start_run(db: Database, workflow: Workflow, request: ExecuteWorkflowRe
     Returns an event set when the run's thread ends."""
     import asyncio  # noqa: PLC0415
 
+    # Pages a live run of the same reader already reads are joined, not read again (#5848): when every page is
+    # covered the caller says it joined that run; otherwise this run reads only the rest.
+    documents = [str(i) for i in (request.inputs or {}).get("selected_doc_ids") or []]
+    reader = reader_key(workflow, request)
     # A WorkflowEventHub (#2546) fans events out to every SSE subscriber (editor + Activity, late
     # or concurrent); the producer side is thread-safe.
     event_hub = WorkflowEventHub()
-    _set_workflow_state(
-        thread_id,
-        {
-            "workflow_id": request.workflow_id,
-            "workflow_name": workflow.name,
-            "db_path": str(db.path),
-            "status": "accepted",
-            "events": event_hub,
-            "error": None,
-            "final_state": None,
-        },
-    )
+    with LIVE_CHECK_LOCK:
+        live = live_run_reading(str(db.path), request.workflow_id, documents, reader)
+        if live and live[1] >= set(documents):
+            raise AlreadyReading(live[0])
+        if live:
+            documents = [d for d in documents if d not in live[1]]
+            request.inputs = {**request.inputs, "selected_doc_ids": documents}
+        _set_workflow_state(
+            thread_id,
+            {
+                "workflow_id": request.workflow_id,
+                "workflow_name": workflow.name,
+                "db_path": str(db.path),
+                "documents": documents,
+                "reader": reader,
+                "status": "accepted",
+                "events": event_hub,
+                "error": None,
+                "final_state": None,
+            },
+        )
     await get_activity_tracker(str(db.path)).store.save_workflow_run(
         thread_id=thread_id,
         workflow_id=request.workflow_id,

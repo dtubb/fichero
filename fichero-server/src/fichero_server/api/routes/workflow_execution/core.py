@@ -373,9 +373,12 @@ async def execute_workflow(
             thread_id = request.thread_id
 
         # The one way a run starts (#5374): its event hub, its record and its worker thread.
-        from fichero_server.execution.runner import start_run
+        from fichero_server.execution.runner import AlreadyReading, start_run
 
-        await start_run(db, workflow, request, thread_id)
+        try:
+            await start_run(db, workflow, request, thread_id)
+        except AlreadyReading as live:  # joins the run already reading these pages (#5848)
+            thread_id = live.thread_id
 
         # Build stream URL. The live SSE handler is `stream_workflow_events`,
         # registered on THIS router (`@router.get("/stream/{thread_id}")`), which
@@ -721,7 +724,7 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
     """Start a run that reads the pages a run did not do: (its thread id, the workflow, how many pages). The one way a
     run is run again, from `read-again` and from Retry on the run's row in Activity (`activity.retry.one-row`).
     HTTPException 404 for no such run or workflow, 409 for a run with nothing to read again."""
-    from fichero_server.execution.runner import start_run  # noqa: PLC0415
+    from fichero_server.execution.runner import AlreadyReading, start_run  # noqa: PLC0415
     from fichero_server.workflows import run_account as accounts  # noqa: PLC0415
     from fichero_server.workflows.default_workflows import resolve_default_workflow  # noqa: PLC0415
 
@@ -739,6 +742,11 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
     if workflow is None:
         raise HTTPException(status_code=404, detail=f"The run's workflow {run.workflow_name!r} is gone")
     snapshot = run.workflow_snapshot if isinstance(run.workflow_snapshot, dict) else {}
+    if isinstance(snapshot.get("nodes"), list) and snapshot["nodes"]:
+        # The nodes the run ran with (a recipe step's settings laid over the preset), so its reader key matches the
+        # recipe's and a Retry joins a resuming recipe's live read (#5848, review 261).
+        workflow = workflow.model_copy(update={"nodes": snapshot["nodes"],
+                                               "edges": snapshot.get("edges") or workflow.edges})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
     inputs["selected_doc_ids"] = account.not_done_ids
@@ -751,7 +759,10 @@ async def read_again(db: Database, thread_id: str) -> tuple[str, Any, int]:
         force_recompute=bool(started_with.get("force_recompute")),
     )
     _validate_workflow_for_execution(workflow, request, db)
-    await start_run(db, workflow, request, new_thread, started_by=f"{READ_AGAIN_PREFIX}{thread_id}")
+    try:
+        await start_run(db, workflow, request, new_thread, started_by=f"{READ_AGAIN_PREFIX}{thread_id}")
+    except AlreadyReading as live:  # a live run already reads these pages: Retry joins it (#5848)
+        new_thread = live.thread_id
     accounts.forget(thread_id)
     return new_thread, workflow, len(account.not_done_ids)
 
