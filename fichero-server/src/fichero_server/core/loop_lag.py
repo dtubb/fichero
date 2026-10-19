@@ -67,3 +67,8 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
 
     threading.Thread(target=watch, name="loop-lag-watch", daemon=True).start()
     return stop
+
+
+def stop_watchdog() -> None:
+    """Engine stop: no stack dump after the loop is gone."""
+    faulthandler.cancel_dump_traceback_later()
