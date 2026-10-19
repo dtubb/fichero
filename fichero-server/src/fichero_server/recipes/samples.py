@@ -204,8 +204,13 @@ def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
         why = _sentence(row.get("reason")) if row else None
         error = result.get("error") or why or "The try did not finish: try it again"
         return {**result, "state": "failed", "error": error}
-    return {**result, "state": state if state == "running" else result["state"]}
-    return result
+    followed = {**result, "state": state if state == "running" else result["state"]}
+    if state == "waiting" and "comparison" not in followed:
+        # A try waiting its turn says what for, beside the app's spinner (#5837): the same field a bake-off's wait uses.
+        said = jobs.state_and_reason(db, job_id)
+        if said and said[1]:
+            followed["comparison"] = {"state": "waiting", "reason": said[1]}
+    return followed
 
 
 def _write(library: Path, stage: str, result: dict[str, Any]) -> None:
