@@ -1247,6 +1247,7 @@ and node, not by job); a retry action for failed pages.
   synced-folder rewrite so (`fichero-server/tests/unit/jobs/test_synced_folder.py`). Still a gap: other work a person
   waits for that is not handed in (an opened page).
 - `activity.throttle.person-started-first` — **[BUILT]** (#5820) on a shared lane the order is: work a person
+- `activity.lane.no-wait-on-a-job-that-will-not-run` — **[BUILT]** (#5845) heavy work queued after thumbnails waits for them (`activity.lane.thumbnails-first`), so a thumbnail job that will never run must not hold it: on opening a project every thumbnail job waiting or set aside whose thumbnail file already exists ends `done` (`settle_made_thumbnails`), and Stop on a failed or set-aside job ends it `cancelled` (Delete and Stop work on it; it stops offering Resume). A restart is all it needs. The false "queue stalled" alarm is #5807. `test_stuck_thumbnail_waiters_5845.py`.
   started (a run, a try, a Start; any starter but the engine, a synced folder or a kept export) or marked watched,
   then background work (embedding, derivatives, indexing). A queued person-started job never waits behind
   queued background work; behind a RUNNING background job it waits only for that one item (a job is one page's
