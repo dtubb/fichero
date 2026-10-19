@@ -66666,6 +66666,11 @@
             "type": "array",
             "title": "Missing Dependencies"
           },
+          "device_token_migration_error": {
+            "type": "string",
+            "nullable": true,
+            "title": "Device Token Migration Error"
+          },
           "dependencies": {
             "additionalProperties": {
               "type": "string"
