@@ -77,14 +77,18 @@ OTHER_CARDS = {"check": "check", "tie-text-to-lines": "check", "export": "export
 #: Jobs that need no model.
 #: The fixes setup offers as a button for a skipped step (`RecipeStepRow.fixTitle`).
 _FIX_BUTTONS = frozenset({"choose-model", "allow-cloud"})
-#: How a step that runs no model works, in the engine's words, sent on its run (`how`) so the app shows the sentence
-#: and never writes it (`source.onboard.setup-says-what-is-happening`, #5791).
-HOW_IT_WORKS: dict[str, str] = {
-    "work-out-dates": (
-        "Works out dates with rules, not a model: it reads the date written at the head of each page, or in the "
-        "source's own date field, understands feast days and regnal years, and keeps a range when a date is "
-        "imprecise. It reads Gregorian dates, on this Mac; nothing leaves it."),
-}
+def how_it_works(job: str) -> str | None:
+    """How a step that runs no model works, in the engine's words, sent on its run (`how`) so the app shows the sentence
+    and never writes it (`source.onboard.setup-says-what-is-happening`, #5791): the job's topic text after "How it
+    works:" (`recipes/seed/topics.yaml`, the one place it is written), or None when the topic gives none."""
+    from fichero_server.recipes.topics import get_topic
+
+    topic = get_topic(job)
+    marker = "How it works:"
+    if topic is None or not topic.long.startswith(marker):
+        return None
+    said = topic.long[len(marker):].strip()
+    return said[:1].upper() + said[1:]
 
 
 def download_sentence(download: dict[str, Any]) -> str:
@@ -468,8 +472,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         entry = {"steps": [sid], "job": job, "card": "workflow", "workflow": name,
                  "workflow_id": workflow_id, "provider_override": None, "model_override": None,
                  "runs_on": runs_on}
-        if job in HOW_IT_WORKS:
-            entry["how"] = HOW_IT_WORKS[job]
+        if (how := how_it_works(job)) is not None:
+            entry["how"] = how
         if job == "split-pages":
             if pin.get("builtin") != "page-splitter":
                 skip(sid, f"{label}: {name} cuts pages with the built-in page splitter only, not {pin}",
