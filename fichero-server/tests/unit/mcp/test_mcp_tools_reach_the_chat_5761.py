@@ -148,10 +148,14 @@ def _second_server(client):
 def test_tools_are_namespaced_and_two_servers_with_the_same_tool_name_do_not_collide(client, db, monkeypatch, server):
     client.put(f"/api/mcp-servers/{server['id']}", json={"available_to_chat": True})
     _second_server(client)
-    step = lambda llm: _resp(tool_calls=[{"name": "mcp__echoer2__echo", "args": {"text": "hi"}, "id": "c2"}])  # noqa: E731
+    def step(llm):  # the manager may prefix the server's tool names itself, so match the namespaced name by its ends
+        name = next(n for n in _names(llm) if n.startswith("mcp__echoer2__") and n.endswith("echo"))
+        return _resp(tool_calls=[{"name": name, "args": {"text": "hi"}, "id": "c2"}])
+
     llm, data = _chat(client, monkeypatch, [step, _resp(content="done")])
     names = _names(llm)
-    assert "mcp__echoer__echo" in names and "mcp__echoer2__echo" in names, names
+    assert any(n.startswith("mcp__echoer__") and n.endswith("echo") for n in names), names
+    assert any(n.startswith("mcp__echoer2__") and n.endswith("echo") for n in names), names
     (call,) = data["tool_calls"]
     assert call["status"] == "ok", call
     assert db.get(ActionAudit, call["audit_id"]).params["server"] == "echoer2"
