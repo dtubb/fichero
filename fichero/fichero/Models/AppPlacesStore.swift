@@ -56,6 +56,7 @@ final class AppPlacesStore {
         guard !sending else { return }
         sending = true
         defer { sending = false }
+        var failed = false
         while let sendNow = wanted {
             wanted = nil
             do {
@@ -65,13 +66,19 @@ final class AppPlacesStore {
                 case .ok(let success): if wanted == nil { take(try success.body.json) }
                 case .unprocessableContent(let error):
                     errorMessage = (try? error.body.json)?.detail ?? "That place was refused."
-                case .undocumented(let code, _): errorMessage = "Could not change where models may run (HTTP \(code))"
+                    failed = true
+                case .undocumented(let code, _):
+                    errorMessage = "Could not change where models may run (HTTP \(code))"
+                    failed = true
                 }
             } catch {
                 if error.isCancellationError { return }
                 errorMessage = "Could not change where models may run: \(error.localizedDescription)"
+                failed = true
             }
         }
+        // The ticks show what the engine holds, not what was asked for.
+        if failed { await load() }
     }
 
     private func take(_ view: Components.Schemas.PlacesView) {
