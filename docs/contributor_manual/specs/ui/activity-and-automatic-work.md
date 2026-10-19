@@ -1355,14 +1355,15 @@ and node, not by job); a retry action for failed pages.
   using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
   an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
-- `activity.lane.same-model-pages-together` — **[GAP]** (speed round 2 (b); r1's measurement: two Kraken pages at once with five
-  threads each took 6.3 s a page against 9.7-10.2 s one after the other) the model lane runs TWO pages of the SAME model together
-  when a person started their run (`person_waits_on`) and this Mac's spare memory beyond the model holds both
-  (`kraken_runtime.page_fan_out(2)`), and never while memory is busy (`one-heavy-when-memory-tight` stands). A third page waits;
-  a different model waits (one model at a time stands); background work stays at one. `kraken_runtime._INFERENCE_LOCK` keeps its
-  name and means "every slot taken" (`jobs._kraken_busy`, `_release_kraken`, `local_inference.release_idle_engine_models` read
-  it so: a page outside the queue and a release wait for both slots)
-  (`fichero-server/tests/unit/jobs/test_same_model_pages_together.py`).
+- `activity.lane.same-model-pages-together` — **[PARTIAL]** (speed round 2 (b); r1's measurement: two Kraken pages at once with five
+  threads each took 6.3 s a page against 9.7-10.2 s one after the other) two halves. THIS half, the lane (built, not yet run):
+  `_Lane.may_start` admits a second page of the SAME model on the model lane when a person started its run
+  (`person_waits_on`) and `kraken_runtime.page_fan_out(2)` finds memory for both; never while memory is busy
+  (`one-heavy-when-memory-tight` stands); a third page waits, a different model waits, background stays at one
+  (`fichero-server/tests/unit/jobs/test_same_model_pages_together.py`, with the work faked). NOT this commit: the pages do not
+  yet READ together, because `kraken_runtime._INFERENCE_LOCK` is still one lock that each Kraken call holds; r1's two-slot
+  gate is the other half, and the speed-up exists only when both are in. `_kraken_busy`, `_release_kraken` and
+  `local_inference.release_idle_engine_models` must then read that lock as "every slot taken".
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
