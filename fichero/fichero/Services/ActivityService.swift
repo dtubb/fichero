@@ -256,7 +256,8 @@ class ActivityService {
                 cpuCount: body.cpuCount,
                 paused: body.paused ?? false,
                 mode: ActivityMode(engine: body.mode?.rawValue),
-                machine: body.machine
+                machine: body.machine,
+                activity: body.activity
             )
         case .undocumented(let statusCode, let payload):
             // A refusal keeps the engine's typed body (#5469): the footer names
