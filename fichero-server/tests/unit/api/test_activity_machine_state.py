@@ -26,6 +26,7 @@ def mac(monkeypatch):
     monkeypatch.setattr(throttle, "thermal_state_level", lambda: state["thermal"])
     monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
+    monkeypatch.setattr(throttle, "_build", (float("inf"), False))  # no build running: the reading is trusted
     return state
 
 
