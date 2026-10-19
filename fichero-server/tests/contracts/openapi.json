@@ -81899,6 +81899,85 @@
         "title": "RecipeRunStep",
         "description": "One stage of a recipe run: the card that carries one or more recipe steps."
       },
+      "NextCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what to call it on screen: the catalogue's name for it, else its model's name, else its id"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Model",
+            "description": "its pin"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On",
+            "description": "this-mac, or cloud:<provider>"
+          },
+          "needs_permission": {
+            "type": "boolean",
+            "title": "Needs Permission",
+            "description": "a cloud candidate while pages may not leave this Mac"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "runs_on",
+          "needs_permission"
+        ],
+        "title": "NextCandidate",
+        "description": "The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."
+      },
+      "DownloadFailed": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model that did not download"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "retry_job_id": {
+            "type": "string",
+            "title": "Retry Job Id",
+            "description": "the download's job: POST /api/activity/jobs/{id}/retry"
+          },
+          "next_candidate": {
+            "$ref": "#/components/schemas/NextCandidate",
+            "nullable": true,
+            "description": "null: the chain has nothing else"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "model",
+          "reason",
+          "retry_job_id"
+        ],
+        "title": "DownloadFailed",
+        "description": "A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."
+      },
       "RecipeRunSummary": {
         "properties": {
           "job_id": {
@@ -81951,12 +82030,11 @@
           },
           "download_failed": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/DownloadFailed"
             },
             "type": "array",
             "title": "Download Failed",
-            "description": "steps waiting on a model download that failed: the steps, the reason, `retry_job_id` (the download's job, retried in Activity) and `next_candidate` (the step's next chain entry, with needs_permission for a cloud one) (#5352)"
+            "description": "steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)"
           },
           "lines_unread_why": {
             "additionalProperties": {

@@ -177,6 +177,26 @@ class StageFailures(BaseModel):
     offer: Optional[str] = Field(default=None, description='"Read the 3 pages that failed"; null: nothing to offer')
 
 
+class NextCandidate(BaseModel):
+    """The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."""
+
+    id: str = Field(description="the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it")
+    name: str = Field(description="what to call it on screen: the catalogue's name for it, else its model's name, else its id")
+    model: Optional[dict[str, Any]] = Field(default=None, description="its pin")
+    runs_on: str = Field(description="this-mac, or cloud:<provider>")
+    needs_permission: bool = Field(description="a cloud candidate while pages may not leave this Mac")
+
+
+class DownloadFailed(BaseModel):
+    """A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."""
+
+    steps: list[str]
+    model: str = Field(description="the model that did not download")
+    reason: str
+    retry_job_id: str = Field(description="the download's job: POST /api/activity/jobs/{id}/retry")
+    next_candidate: Optional[NextCandidate] = Field(default=None, description="null: the chain has nothing else")
+
+
 class RecipeRunSummary(BaseModel):
     """What a recipe run made (`source.onboard.auto.results-summary`, #5577)."""
 
@@ -190,7 +210,7 @@ class RecipeRunSummary(BaseModel):
     lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
     next_reader: Optional[dict[str, Any]] = Field(default=None, description="when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)")
-    download_failed: list[dict[str, Any]] = Field(default_factory=list, description="steps waiting on a model download that failed: the steps, the reason, `retry_job_id` (the download's job, retried in Activity) and `next_candidate` (the step's next chain entry, with needs_permission for a cloud one) (#5352)")
+    download_failed: list[DownloadFailed] = Field(default_factory=list, description="steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
     dates: int = Field(description="the dates named on those pages (the KG's Dates group)")
@@ -294,6 +314,17 @@ def next_reader(recipe: dict | None, *, lines_found: int, lines_blank: int, page
             "why": "the reader left the hand mostly blank; this is the next reader in the chain"}
 
 
+def candidate_name(entry: dict[str, Any]) -> str:
+    """A chain entry's name on screen: the catalogue's name for its MLX model, else the pin's own name, else its id."""
+    from fichero_server.llm.mlx_model_store import MANAGED_MLX_MODELS
+    from fichero_server.recipes.cards import mlx_model_for
+
+    pin = entry.get("model") or {}
+    repo = mlx_model_for(pin) if pin else None
+    named = next((m.display_name for i, m in MANAGED_MLX_MODELS.items() if repo and repo in (i, m.repo_id)), None)
+    return named or pin.get("name") or entry["id"]
+
+
 def download_failures(awaited: list[dict[str, Any]], states: dict[str, dict[str, Any] | None],
                       recipe: dict | None, *, cloud_allowed: bool) -> list[dict[str, Any]]:
     """The downloads a run's steps wait on that failed or were cancelled (`states`: download job id -> its row), each
@@ -312,8 +343,8 @@ def download_failures(awaited: list[dict[str, Any]], states: dict[str, dict[str,
         out.append({"steps": entry["steps"], "model": entry["name"], "reason": row["reason"] or row["state"],
                     "retry_job_id": entry["job_id"],
                     "next_candidate": None if nxt is None else {
-                        "id": nxt["id"], "model": nxt.get("model"), "runs_on": nxt.get("runs_on", "this-mac"),
-                        "needs_permission": cloud and not cloud_allowed}})
+                        "id": nxt["id"], "name": candidate_name(nxt), "model": nxt.get("model"),
+                        "runs_on": nxt.get("runs_on", "this-mac"), "needs_permission": cloud and not cloud_allowed}})
     return out
 
 
