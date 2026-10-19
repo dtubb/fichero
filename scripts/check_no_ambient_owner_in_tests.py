@@ -26,20 +26,24 @@ BASELINE = ROOT / "scripts" / "ambient_owner_in_tests_baseline.json"
 PATTERN = re.compile(r"Bearer \{[^}]*(bootstrap|initialize_token)|\.host\(\)")
 
 
-# Tests allowed to act as the ambient owner, by id ("path relative to the repo::test name"). Each is one named
-# exception; the ratchet counts it in the total but a NEW unnamed offender cannot hide behind it.
+# Tests allowed to act as the ambient owner, by id ("path relative to the repo::test name"): (allowed pattern lines,
+# why). The ratchet counts them in the total, but a NEW unnamed offender cannot hide behind one, and a named test
+# cannot grow past its allowed lines to take a slot an unnamed test freed.
 NAMED = {
     "fichero-server/tests/unit/security/test_embedded_set_up_end_to_end_to_spec.py::"
     "test_the_shipped_embedded_path_with_the_bootstrap_bearer": (
+        1,
         "shipped embedded path (bootstrap bearer, first-run 409 -> migrate-owner -> sign-in -> Set Up/Start); "
-        "delete at slice 10"
+        "delete at slice 10",
     ),
 }
 
+_ALLOWED = sum(lines for lines, _ in NAMED.values())
 
-def _named_lines(root: pathlib.Path) -> tuple[int, list[str]]:
-    """Pattern lines inside the named tests, and the named ids that no longer exist."""
-    lines, missing = 0, []
+
+def _named_lines(root: pathlib.Path) -> tuple[int, list[str], list[str]]:
+    """Pattern lines inside the named tests, the ids that no longer exist, and the ids over their allowed lines."""
+    lines, missing, over = 0, [], []
     for test_id in NAMED:
         path, name = test_id.split("::")
         file = root / path
@@ -54,28 +58,33 @@ def _named_lines(root: pathlib.Path) -> tuple[int, list[str]]:
                 body.append(line)
         if not body:
             missing.append(test_id)
-        lines += sum(1 for line in body if PATTERN.search(line))
-    return lines, missing
+        found = sum(1 for line in body if PATTERN.search(line))
+        if found > NAMED[test_id][0]:
+            over.append(test_id)
+        lines += found
+    return lines, missing, over
 
 
-def scan(root: pathlib.Path = ROOT) -> tuple[int, int, list[str]]:
-    """(all pattern lines, those outside the named tests, named ids that vanished)."""
+def scan(root: pathlib.Path = ROOT) -> tuple[int, int, list[str], list[str]]:
+    """(all pattern lines, those outside the named tests, named ids that vanished, named ids over their lines)."""
     total = 0
     for path in scan_rglob(root / "fichero-server" / "tests", "*.py"):
         if path.name == "signed_in.py":
             continue
         total += sum(1 for line in path.read_text(errors="ignore").splitlines() if PATTERN.search(line))
-    named, missing = _named_lines(root)
-    return total, total - named, missing
+    named, missing, over = _named_lines(root)
+    return total, total - named, missing, over
 
 
-def verdict(total: int, unnamed: int, missing: list[str], stored: int) -> str | None:
+def verdict(total: int, unnamed: int, missing: list[str], over: list[str], stored: int) -> str | None:
     """None when it passes, else why not. `stored` counts the named tests too; unnamed offenders get the rest."""
     if missing:
         return f"FAIL: named exception no longer exists, drop it from NAMED and lower the baseline: {missing}"
-    if total > stored or unnamed > stored - len(NAMED):
+    if over:
+        return f"FAIL: a named test uses the ambient owner on more lines than it is allowed: {over}"
+    if total > stored or unnamed > stored - _ALLOWED:
         return (
-            f"FAIL: {unnamed} unnamed tests act as the ambient owner (allowed {stored - len(NAMED)}; {total} in all, "
+            f"FAIL: {unnamed} unnamed tests act as the ambient owner (allowed {stored - _ALLOWED}; {total} in all, "
             f"baseline {stored}). Use tests/signed_in.py::signed_in_client."
         )
     if total < stored:
@@ -84,7 +93,7 @@ def verdict(total: int, unnamed: int, missing: list[str], stored: int) -> str | 
 
 
 def main() -> int:
-    total, unnamed, missing = scan()
+    total, unnamed, missing, over = scan()
     stored = json.loads(BASELINE.read_text())["count"] if BASELINE.exists() else None
     if "--update-baseline" in sys.argv:
         if stored is not None and total > stored:
@@ -96,7 +105,7 @@ def main() -> int:
     if stored is None:
         print("no baseline yet: run with --update-baseline")
         return 1
-    why = verdict(total, unnamed, missing, stored)
+    why = verdict(total, unnamed, missing, over, stored)
     if why:
         print(why)
         return 1

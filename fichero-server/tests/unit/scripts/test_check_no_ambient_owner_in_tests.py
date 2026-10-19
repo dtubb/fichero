@@ -56,5 +56,11 @@ def test_a_vanished_named_test_must_be_dropped_from_the_allowlist(tmp_path):
 
 
 def test_the_real_tree_is_at_the_baseline():
-    total, unnamed, missing = _mod.scan()
-    assert not missing and total == STORED and unnamed == STORED - len(_mod.NAMED)
+    total, unnamed, missing, over = _mod.scan()
+    assert not missing and not over and total == STORED and unnamed == STORED - _mod._ALLOWED
+
+
+def test_a_named_test_cannot_grow_past_its_allowed_lines(tmp_path):
+    # One unnamed slot is free (42), the named walk gains a second line: the total stays 44 but the walk is over.
+    body = f"    app = harness{OWNER_CALL}\n    other = harness{OWNER_CALL}\n"
+    assert "more lines" in (_verdict(_tree(tmp_path, 42, named_body=body)) or "")

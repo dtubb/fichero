@@ -645,6 +645,14 @@ workflow by hand: a hand run is a job like any other.
   project, the same delete as Delete (`deleteRuns(statuses:)`); runs still going stay. ⌘A then Delete
   already works on the table (`.onDeleteCommand`). Pinned by `ActivityClearFinishedShapeTests`. Not
   yet seen in the app. Left: the first row drawn under the title bar (needs a screen).
+- `activity.jobs-added-columns` — **[OK]** (#5814) A library made by an older release reads its jobs without
+  error: the columns later releases added to `jobs` (`target`, `detail`, `parent_id`, `run_after`, `watched`,
+  `cleared_at`) are applied when the library opens (on the write connection, `Database._apply_added_jobs_columns`) and once per CONNECTION after that, so a connection that came back after an invalidated one, or a
+  library opened afresh at the same path, is altered again. Before: once per process per path, so after a reconnect
+  every poll of `GET /api/activity/jobs` failed with "column cleared_at not found" (352 times in one log). A column that cannot be added is logged once per library and statement, and the
+  list still reads (every failed job is shown, none can be marked cleared) instead of raising on every poll.
+  Test: `fichero-server/tests/unit/jobs/test_added_columns_survive_a_reconnect_5814.py`. The cause on the owner's
+  library is the likeliest of the issue's suspects, not read off that file.
 - `activity.window.clear-failed` — **[PARTIAL]** (#5634, ruled 2026-10-09) *Clear Failed* in the
   window's toolbar clears every failed row the window shows, in every open project and this Mac's
   own: failed workflow runs (`workflow_run.delete` with a status filter, soft-deleted as before) and
