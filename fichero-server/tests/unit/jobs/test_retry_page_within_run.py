@@ -39,8 +39,8 @@ def _stub_run(monkeypatch, status):
 
     monkeypatch.setattr(core, "get_activity_tracker", lambda _p: type("T", (), {"store": Store()})())
 
-    async def read_again(_db, thread_id, *, documents=None, reopen=False):
-        reopened.append((thread_id, documents, reopen))
+    async def read_again(_db, thread_id, *, documents=None, reopen=False, only_these=False):
+        reopened.append((thread_id, documents, reopen) + ((only_these,) if only_these else ()))
         return thread_id, object(), len(documents or [])
 
     monkeypatch.setattr(core, "read_again", read_again)
@@ -98,3 +98,38 @@ def test_a_workflow_edited_since_its_run_hands_validation_only_edges_among_the_r
              {"source": "gone", "target": "transcribe"},
              {"source": "files-source", "route_map": {"a": "transcribe", "b": "added-since"}}]
     assert edges_among(edges, nodes) == [edges[0]]
+
+
+def test_retry_on_a_done_page_answers_in_words_and_does_nothing(run, monkeypatch):
+    import pytest
+    from fastapi import HTTPException
+
+    core, reopened = _stub_run(monkeypatch, "failed")
+    run.execute("UPDATE jobs SET state = 'done' WHERE id = 'page-1'")
+    with pytest.raises(HTTPException) as refused:
+        asyncio.run(core.retry_page_in_run(run, "page-1"))
+    assert refused.value.status_code == 409 and "already read" in refused.value.detail
+    assert reopened == []
+
+
+def test_retry_in_a_stopped_run_reads_only_that_page(run, monkeypatch):
+    """A stopped run never read some pages: its checkpoint is dropped and the reopen is over this page alone."""
+    from fichero_server.workflows import checkpointer as ckpt
+
+    core, reopened = _stub_run(monkeypatch, "cancelled")
+    dropped: list[str] = []
+
+    class Ckpt:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_a):
+            return False
+
+        async def adelete_thread(self, thread_id):
+            dropped.append(thread_id)
+
+    monkeypatch.setattr(ckpt.AsyncDuckDBCheckpointer, "from_db_path", staticmethod(lambda *_a, **_k: Ckpt()))
+    run.execute("UPDATE jobs SET state = 'cancelled' WHERE id = 'page-1'")
+    assert asyncio.run(core.retry_page_in_run(run, "page-1")) == ("run-1", "reopened")
+    assert dropped == ["run-1"] and reopened == [("run-1", ["doc-7"], True, True)]

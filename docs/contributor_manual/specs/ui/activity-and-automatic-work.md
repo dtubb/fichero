@@ -687,16 +687,15 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   ("Node 'x' started", "completed in", a row's start, what a row waits for now, a server's output), each line tagged
   `detail` (`fichero-server/tests/unit/jobs/test_person_log_levels.py`). Not yet: the Developer switch in the details view
   (`fichero/Tests/Unit/general/Models/ActivityDetailsTests.swift`, after the regen).
-- `activity.retry.page-within-run` — **[PARTIAL]** (#5853) Retry on a page retries it within its run, not as a new run
-  (`activity.retry.one-row` keeps a whole failed run's Retry). A run that has ended reopens for the page: the same run id
-  goes back to running and reads that page. A run still going takes the page into its queue (no 409): the page row waits
-  ("Retried by you; waits in its run") and the run reopens for it as soon as its pass ends. Pinned by
-  `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` (a retry queued as the run ends reopens it too). [PARTIAL]
-  (a reopened run is the same run over all its pages with the node cache on, so only the retried page calls the model and the
-  other pages keep their readings and counts; the real-graph test asserts one model call)
-  until the real-graph test `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py` (the same thread id
-  re-entered with the real LangGraph runner: the run record kept, the earlier pages kept) is run green on the M4; its counts may read
-  only the reopened pass until then.
+- `activity.retry.page-within-run` — **[OK]** (#5853) Retry on a page retries it within its run, not as a new run
+  (`activity.retry.one-row` keeps a whole failed run's Retry). Retry is for a page that failed or was stopped; a done
+  page answers in words ("This page is already read") and does nothing. A run that has ended reopens for the page: the
+  same run id goes back to running over all its pages with the node cache on, so only the retried page calls the model
+  and the other pages keep their readings and counts; a STOPPED run, whose other pages were never read, reopens over
+  that page alone (its checkpoint dropped). A run still going takes the page into its queue (no 409): the page row waits
+  ("Retried by you; waits in its run") and the run reopens for it when its pass ends. Pinned by
+  `fichero-server/tests/unit/jobs/test_retry_page_within_run.py` and, against the real graph (one model call, the run
+  id and record kept, done == total), `fichero-server/tests/unit/jobs/test_retry_page_within_run_real_graph.py`.
 - `activity.popover.same-summary` — **[PARTIAL]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
   …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of
