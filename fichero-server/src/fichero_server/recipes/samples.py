@@ -558,6 +558,14 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
     stage_id = stage.id
     out: dict[str, Any] = {"state": "failed", "ran": [], "made": {"per_page": [], "names": []}, "texts": {},
                            "boxes": {}, "items": []}
+    # A linked page whose original is not on this Mac fails every card with a bare errno, page after page (#5811, 28
+    # times in a minute). Say it once, in words, with the fix.
+    from fichero_server.importers import relink
+
+    said = relink.missing_originals(db, set(page_ids))
+    if said:
+        out["error"] = said["sentence"]
+        return out
     scratch = _folder(library) / f"{scratch_name}.fichero"
     shutil.rmtree(scratch, ignore_errors=True)
     for sub in ("lance", "storage", "files"):
