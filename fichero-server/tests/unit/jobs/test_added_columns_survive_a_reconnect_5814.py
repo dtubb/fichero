@@ -45,3 +45,43 @@ def test_the_columns_are_not_altered_again_on_every_read(db, monkeypatch):
     jobs.snapshot(db)
 
     assert not [sql for sql in seen if "ALTER TABLE jobs" in sql]
+
+
+def _columns(db) -> set[str]:
+    return {r[0] for r in db.execute_fetchall(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'jobs'")}
+
+
+def test_opening_a_library_made_before_5634_adds_the_columns_without_any_read(db):
+    jobs._ensure(db)
+    _as_a_library_made_before_5634(db)
+    assert "cleared_at" not in _columns(db)
+
+    db._apply_added_jobs_columns()  # the open-time step, on the write connection
+
+    assert {"target", "detail", "parent_id", "run_after", "watched", "cleared_at"} <= _columns(db)
+
+
+def test_opening_a_library_with_no_jobs_table_makes_none(db):
+    db.execute("DROP TABLE IF EXISTS jobs")
+
+    db._apply_added_jobs_columns()
+
+    assert not _columns(db)
+
+
+def test_a_column_that_cannot_be_added_is_logged_once_and_the_list_still_reads(db, monkeypatch, caplog):
+    jobs._ensure(db)
+    _as_a_library_made_before_5634(db)
+    db.execute("INSERT INTO jobs (id, kind, subject, state, attempts, created_at, finished_at) "
+               "VALUES ('j1', 'find-lines', 'p1', 'failed', 1, now(), now())")
+    monkeypatch.setattr(jobs, "_ADDED_COLUMNS", ("ALTER TABLE no_such_table ADD COLUMN IF NOT EXISTS x TEXT",))
+    monkeypatch.setattr(jobs, "_ALTER_FAILURES_LOGGED", set())
+    db._jobs_columns_on = None
+
+    with caplog.at_level("ERROR", logger=jobs.logger.name):
+        for _ in range(3):
+            listed = jobs.snapshot(db)
+
+    assert [row["id"] for row in listed] == ["j1"]  # every failed job is listed: nothing can be marked cleared
+    assert len([r for r in caplog.records if "could not apply" in r.getMessage()]) == 1

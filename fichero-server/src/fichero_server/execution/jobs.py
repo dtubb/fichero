@@ -647,15 +647,45 @@ def _still_open(db: "Database") -> bool:
     return db_manager.open_database(_key(db)) is db
 
 
+_ALTER_FAILURES_LOGGED: set[str] = set()
+
+
+def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
+    """Add the columns later releases gave `jobs` (idempotent). A statement that fails is logged ONCE per library
+    and statement and the rest still run, so a library that cannot take one column still lists its jobs
+    (#5814). Returns whether every statement applied."""
+    done = True
+    for statement in _ADDED_COLUMNS:
+        try:
+            execute(statement)
+        except Exception as exc:
+            done = False
+            if f"{path}|{statement}" not in _ALTER_FAILURES_LOGGED:
+                _ALTER_FAILURES_LOGGED.add(f"{path}|{statement}")
+                logger.error("%s: could not apply %r (%s: %s); the jobs list degrades until it can",
+                             path, statement, type(exc).__name__, str(exc).splitlines()[0][:200])
+    return done
+
+
 def _ensure(db: "Database") -> None:
     db.execute(_SCHEMA)
     # Once per CONNECTION, not per path (#5814): a reconnect after an invalidated connection (an ALTER that
     # was never committed is gone) or a library opened afresh at the same path starts from the file's
     # real columns, and a path-keyed cache skipped the ALTER there, so every read said "column not found".
+    # Also applied when the library opens (`Database._apply_added_jobs_columns`). A failed ALTER is tried
+    # again at the next read (cheap, IF NOT EXISTS) and logged once.
     if getattr(db, "_jobs_columns_on", None) is not db.conn:
-        for statement in _ADDED_COLUMNS:
-            db.execute(statement)
-        db._jobs_columns_on = db.conn
+        if apply_added_columns(db.execute, str(db.path)):
+            db._jobs_columns_on = db.conn
+
+
+def _has_cleared_at(db: "Database") -> bool:
+    """Whether `jobs.cleared_at` is there; false only when its ALTER failed, and the lists then show every failed job."""
+    if getattr(db, "_jobs_columns_on", None) is db.conn:
+        return True
+    return db.execute_fetchone(
+        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = 'cleared_at'"
+    ) is not None
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
@@ -1484,7 +1514,7 @@ def retry_job(db: "Database", job_id: str) -> str:
     detail.pop("cancel", None)
     detail.pop("interrupted", None)  # a download's rounds of broken connections start again (#5660)
     db.execute("UPDATE jobs SET state = 'waiting', reason = 'Retried by you', attempts = 0, finished_at = NULL, "
-               "cleared_at = NULL, run_after = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
+               f"{'cleared_at = NULL, ' if _has_cleared_at(db) else ''}run_after = NULL, detail = ? WHERE id = ?", [json.dumps(detail) if detail else None, job_id])
     key = _key(db)
     db.add_after_commit_hook(lambda: _scheduler.wake(key))
     return "waiting"
@@ -1555,12 +1585,13 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     than one waits, with `count`: an import queues thousands), and the most recent failures, each
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
+    cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
     rows = db.execute_fetchall(
         "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
-        " AND cleared_at IS NULL ORDER BY finished_at DESC LIMIT ?)"
+        f"{cleared_filter} ORDER BY finished_at DESC LIMIT ?)"
         ") ORDER BY CASE state WHEN 'running' THEN 0 WHEN 'waiting' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, "
         "CASE WHEN state = 'failed' THEN -epoch_ms(finished_at) ELSE epoch_ms(created_at) END",  # finished: newest first
         [failed_limit],
@@ -1605,6 +1636,8 @@ def clear_failed(db: "Database") -> list[str]:
     longer listed; a retry lists it again. Workflow runs are cleared through `workflow_run.delete`.
     Returns the ids cleared."""
     _ensure(db)
+    if not _has_cleared_at(db):
+        return []  # nothing can be marked cleared; the failure was logged when the column was tried
     ids = [row[0] for row in db.execute_fetchall(
         "SELECT id FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step') "
         "AND cleared_at IS NULL ORDER BY id")]
