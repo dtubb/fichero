@@ -1569,7 +1569,14 @@ async def put_places(body: PlacesSetting, request: Request) -> PlacesView:
 @router.get("/project", response_model=ProjectSetup)
 async def get_project_setup(db: Database = Depends(get_library_database)) -> ProjectSetup:
     """The open project's saved setup answers and recipe."""
-    return ProjectSetup(**read_project_setup(_library(db)))
+    setup = read_project_setup(_library(db))
+    recipe = setup.get("recipe")
+    if isinstance(recipe, dict) and "problems" not in recipe:
+        # A recipe stored from the rules alone (answers saved without one) has no check result: the contract's
+        # AssembledRecipe requires it, so the app could not read the project's setup back.
+        recipe["gaps"] = recipe.get("gaps") or []
+        recipe["problems"] = [] if recipe["gaps"] else check_recipe(recipe)
+    return ProjectSetup(**setup)
 
 
 @router.put("/project", response_model=ProjectSetup)
