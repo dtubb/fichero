@@ -330,6 +330,31 @@ def _emit_queue_progress(
         logger.warning("derivatives: progress emit failed", exc_info=True)
 
 
+def _jobs_say(library: str) -> str | None:
+    """What the project's job table says about this queue: "moving" while another kind of job is running (the queue
+    waits its turn behind it: a Kraken run holds the model lane for minutes), "over" when its stages' jobs have all
+    ended with some set aside or failed and none waits or runs, else None (nothing explains the silence)."""
+    from fichero_server.db.manager import db_manager
+
+    kinds = [THUMBNAIL_KIND, EMBED_KIND, NLP_KIND]
+    marks = ", ".join("?" for _ in kinds)
+    try:
+        db = db_manager.open_database(library)
+        if db is None:
+            return None
+        if db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE state = 'running' AND kind NOT IN ({marks}) LIMIT 1", kinds) is not None:
+            return "moving"
+        if db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'running', 'paused') LIMIT 1",
+                kinds) is None and db.execute_fetchone(
+                f"SELECT 1 FROM jobs WHERE kind IN ({marks}) AND state = 'failed' LIMIT 1", kinds) is not None:
+            return "over"
+    except Exception:  # noqa: BLE001 -- the job table cannot be read: say nothing, the stall rule decides
+        logger.debug("derivatives: job table unreadable for the stall check", exc_info=True)
+    return None
+
+
 def _arm_stall_watchdog(library: str) -> None:
     """Say so when the queue stops moving (#4574 follow-up).
 
@@ -366,6 +391,18 @@ def _arm_stall_watchdog(library: str) -> None:
             return
         with _progress_lock:
             flying = list(_busy.get(library, {}).values())
+        # Work that is queued behind other work is waiting its turn, not stalled; and a queue whose jobs have all ended
+        # (set aside after their kills, failed, stopped) has nothing left to wait for (#5807, #5845).
+        said = _jobs_say(library)
+        if said == "moving":
+            _arm_stall_watchdog(library)
+            return
+        if said == "over":
+            with _progress_lock:
+                _progress.pop(library, None)
+                _queue_db_paths.pop(library, None)
+            logger.info("derivatives: no queued job is left for %s at %d of %d; the queue is over", library, done, total)
+            return
         # The ceiling counts from the OLDEST start: a newer embed must not hide one that never returns.
         if flying and time.monotonic() - min(start for _, start in flying) < BUSY_CEILING_SECONDS:
             _emit_queue_progress(library, done, total, working=min(flying, key=lambda f: f[1])[0])

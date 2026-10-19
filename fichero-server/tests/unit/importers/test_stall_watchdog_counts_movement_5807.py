@@ -131,3 +131,33 @@ def test_the_search_model_is_loading_again_after_an_idle_release(monkeypatch):
     assert embeddings.embedder_loaded() is True
     monkeypatch.setattr(embeddings, "_EMBEDDER_CACHE", {})
     assert embeddings.embedder_loaded() is False
+
+
+def test_a_queue_waiting_behind_another_kind_of_job_is_not_stalled(watched, monkeypatch):
+    # A Kraken run holds the model lane for minutes; the embeds queued behind it are waiting their turn (#5807).
+    library, warnings = watched
+    monkeypatch.setattr(derivatives, "_jobs_say", lambda lib: "moving")
+    time.sleep(0.8)
+    assert warnings == []
+
+
+def test_a_queue_whose_jobs_all_ended_set_aside_is_over_not_stalled(watched, monkeypatch):
+    # The pages left in the count were set aside or failed: nothing is queued, so there is nothing to stall on (#5845).
+    library, warnings = watched
+    monkeypatch.setattr(derivatives, "_jobs_say", lambda lib: "over")
+    time.sleep(0.8)
+    assert warnings == [] and library not in derivatives._progress
+
+
+def test_the_job_table_says_moving_only_for_another_kind_running(tmp_path, db, monkeypatch):
+    from fichero_server.db.manager import db_manager
+    from fichero_server.execution import jobs
+
+    jobs._ensure(db)
+    monkeypatch.setattr(db_manager, "open_database", lambda library: db)
+    running_embed = jobs._insert(db, derivatives.EMBED_KIND, "p1", None, "automatic")
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [running_embed])
+    assert derivatives._jobs_say("any") is None  # its own kind running is the busy ceiling's business
+    other = jobs._insert(db, "read-a-page", "p2", None, "automatic")
+    db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [other])
+    assert derivatives._jobs_say("any") == "moving"
