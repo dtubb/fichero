@@ -551,6 +551,8 @@ async def list_background_jobs(
     for row in await asyncio.to_thread(job_queue.snapshot, db):
         state, reason = row["state"], row["reason"]
         name, current, total = job_queue.kind_name(row["kind"]), 0, row["count"]
+        if row.get("done"):  # one row for a whole kind of work: "12 of 41" (#5839)
+            current, total = row["done"], row["done"] + row["count"]
         if row["kind"] == RECIPE_KIND and row["count"] == 1:
             # A recipe run's row says what its tree says, from the one place (#5606). A run whose stages
             # cannot be read still shows, with its row's own state and reason (FIX 3).

@@ -1740,12 +1740,23 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     for job_id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on in rows:
         # The first (oldest) row of a kind stands for all of its waiting ones, and for all of its paused
         # ones (`activity.pause.per-queue`: pausing 137 pages lists one row, not 137).
-        group = (state, kind) if state in ("waiting", "paused") else None
-        if state == "waiting":
-            reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         # A running row that is waiting for something (a try whose page waits for the lane, a page held for Kraken or
         # memory) is listed as waiting until the wait ends: by the row's `waiting_on`, not by its reason's words (#5839).
         shown = "waiting" if state == "running" and waiting_on else state
+        # ONE row per kind of queued work (#5839): its running and its waiting jobs are one row with the total, running
+        # while any of them is really making one. A recipe run or a try is a thing of its own, so each keeps its row.
+        one_row = state in ("waiting", "running") and parent_id is None and kind not in _OWN_ROW_KINDS
+        group = ("queue", kind) if one_row else (state, kind) if state in ("waiting", "paused") else None
+        if group is not None and group in waiting:
+            rep = waiting[group]
+            rep["count"] += 1
+            if shown == "running" and rep["state"] != "running":  # a job that is really going makes the row running
+                rep.update(state="running", id=job_id, reason=reason, subject=subject)
+            elif rep["state"] != "running":
+                rep["id"] = f"{shown}:{kind}"
+            continue
+        if state == "waiting":
+            reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
         row = {"id": job_id, "kind": kind, "subject": subject, "state": shown, "reason": reason,
                "attempts": attempts, "created_at": created_at, "count": counts.get(group, 1), "parent_id": parent_id,
                "started_by": started_by,
@@ -1754,6 +1765,16 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
         if group is not None and row["count"] > 1:
             row["id"] = f"{state}:{kind}"
         out.append(row)
+    # How many of this kind's work are already done (since its oldest job still queued was queued), so a row reads
+    # "12 of 41" (#5839). Only for the rows that stand for a whole kind.
+    for (group_kind, name), rep in waiting.items():
+        if group_kind == "queue":
+            since = db.execute_fetchone(
+                "SELECT MIN(created_at) FROM jobs WHERE kind = ? AND parent_id IS NULL "
+                "AND state IN ('waiting', 'running', 'paused')", [name])[0]
+            rep["done"] = 0 if since is None else db.execute_fetchone(
+                "SELECT count(*) FROM jobs WHERE kind = ? AND parent_id IS NULL AND state = 'done' AND finished_at >= ?",
+                [name, since])[0]
     # The run each row's work is for (#5615): a page's parent is its step's row ("<run id>:<step name>"),
     # whose own parent is the run.
     parents = sorted({r["parent_id"] for r in out if r["parent_id"]})
@@ -1782,6 +1803,9 @@ def clear_failed(db: "Database") -> list[str]:
         db.execute(f"UPDATE jobs SET cleared_at = ? WHERE id IN ({marks})", [utc_now(), *ids])
     return ids
 
+
+#: Kinds whose every job is a row of its own in Activity, however many are queued (`snapshot`).
+_OWN_ROW_KINDS = frozenset({"run-a-recipe", "try-a-stage"})
 
 #: What a waiting row calls the lane it waits for (`activity.waiting-says-why`, #5606).
 LANE_WORDS = {"local-ml": "the model lane", "images": "the thumbnail lane", "remote": "the remote lane",
