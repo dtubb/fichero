@@ -450,6 +450,10 @@ async def transfer_to_machine(
     source = str(Path(db.path).parent)
     if not body.pages_may_leave:
         raise HTTPException(status_code=403, detail="These pages go to another machine only with your yes (pages_may_leave).")
+    from fichero_server.recipes import places
+
+    if (no := places.refusal("another-mac")):
+        raise HTTPException(status_code=403, detail=no)  # the app's places cap the request's yes (#5831)
     if is_local_only():
         raise HTTPException(status_code=403, detail="Fichero is working offline on this Mac: nothing is sent to another machine.")
     items, transfer_id = body.items, remote.new_transfer_id()

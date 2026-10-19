@@ -227,3 +227,21 @@ def test_refused_in_words_sending_nothing(client, db, tmp_path, far, monkeypatch
     assert far.puts == 0 and source.all(TransferRecord) == [] and not _landed(db)
     not_a_tailnet = client.post("/api/machines/pair", json={"address": "192.168.1.4", "code": "X"})
     assert not_a_tailnet.status_code == 422
+
+
+def test_a_copy_to_another_machine_is_refused_when_the_app_allows_only_this_mac(client, db, tmp_path, far, monkeypatch):
+    """#5831 (review 217): the request's own pages_may_leave=yes does not open a place the app keeps shut. Refused
+    (403) in words before anything is looked up or sent, even for a machine that is not paired."""
+    from fichero_server.recipes import places
+
+    monkeypatch.setattr(places, "get_places", lambda: ["this-mac"])
+    source_package = open_source(tmp_path)
+    sent = []
+    monkeypatch.setattr(remote, "contract", lambda: sent.append("contacted") or "x")
+
+    refused = _send(client, source_package, db, "0" * 32)
+
+    assert refused.status_code == 403, refused.text
+    assert refused.json()["detail"] == places.refusal("another-mac")
+    assert "another Mac of yours" in refused.json()["detail"]
+    assert sent == []

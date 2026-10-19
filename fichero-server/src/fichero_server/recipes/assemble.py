@@ -801,7 +801,13 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
         price = (f"at about ${offered['cost_usd']:.2f}" if offered["cost_usd"] is not None
                  else "with nothing to look for, as every lens of the review is off" if passes == 0
                  else "at a price Fichero cannot work out (its review passes could not be counted)")
-        cost += (f"; or{', letting pages leave this Mac,' if not a.cloud_allowed else ''} {provider} {price} "
+        # Worded from the app's places too (#5831): where the app forbids the cloud, letting pages leave is not enough.
+        from fichero_server.recipes import places
+
+        letting = ("" if a.cloud_allowed else
+                   ", letting pages leave this Mac," if places.allows("cloud") else
+                   ", once you allow the cloud in Set Up Fichero… and let pages leave this Mac,")
+        cost += (f"; or{letting} {provider} {price} "
                  f"for {pages} {'page' if pages == 1 else 'pages'}" + (f" ({unlisted})" if unlisted else ""))
     return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 

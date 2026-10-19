@@ -59,6 +59,20 @@ def may_leave_to(answers: dict[str, Any] | None, place: str) -> bool:
     return bool((answers or {}).get("cloud_allowed")) and allows(place)
 
 
+#: Each place in the person's words, for a refusal.
+PLACE_WORDS = {"another-mac": "another Mac of yours", "cloud": "a cloud AI service", "acenet": "ACENET",
+               "huggingface": "Hugging Face"}
+
+
+def refusal(place: str) -> str | None:
+    """Why pages may not go to `place`, in words, or None when the app allows it: a route that sends pages on the
+    request's own yes asks this too, whatever the request says (#5831, review 214)."""
+    if allows(place):
+        return None
+    return (f"Your places do not include {PLACE_WORDS.get(place, place)}, so no pages are sent there. "
+            "Allow it in Set Up Fichero… under where models may run.")
+
+
 def this_mac_line(memory_gb: float) -> str:
     """What this Mac can run, from its real memory (the owner's words, 2026-10-19)."""
     gb = round(memory_gb)
