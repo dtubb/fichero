@@ -857,7 +857,8 @@ async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], 
     from fichero_server.execution import jobs as job_queue
     from fichero_server.recipes import run_view, runner
 
-    status = await run_view.with_accounts(db, runner.status(db, job_id))
+    # Off the loop (#5843): `runner.status` reads the library's rows and waits on the transaction gate behind a write.
+    status = await run_view.with_accounts(db, await asyncio.to_thread(runner.status, db, job_id))
     state, reason = job_queue.state_and_reason(db, job_id) or (status["state"], status["reason"])
     if state == "running" and status["waiting_for"]:
         reason = status["waiting_for"]
