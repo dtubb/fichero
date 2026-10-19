@@ -30,19 +30,13 @@ final class ActivityWaitingLooksWaitingTests: XCTestCase {
         XCTAssertEqual(waiting.secondsText, "")
     }
 
-    func testARunningRunWithNothingDoneWhoseWorkWaitsLooksWaiting() {
-        let account = ActivityRunAccount(state: "running", pagesTotal: 1, pagesDone: 0, pagesLeft: 1,
-                                         waitingReason: "Waiting for the model lane", estimateSecondsLeft: nil)
-        let waiting = row(phase: .running, account: account)
-        XCTAssertTrue(waiting.looksWaiting)
-        XCTAssertEqual(waiting.stateText, "Waiting for the model lane")
-        XCTAssertEqual(waiting.progressText, "")
-    }
-
-    func testARunWithPagesDoneIsRunningEvenWhileAPageWaits() {
-        let account = ActivityRunAccount(state: "running", pagesTotal: 4, pagesDone: 1, pagesLeft: 3,
-                                         waitingReason: "Waiting: memory is tight", estimateSecondsLeft: nil)
-        XCTAssertFalse(row(phase: .running, done: 1, total: 4, account: account).looksWaiting)
+    func testARunWhoseOnePageWaitsWhileAnotherRunsIsRunningNotWaiting() {
+        // WHY: review 233: page 1 running and page 2 waiting leaves done 0; the row is going, so it keeps its progress.
+        let account = ActivityRunAccount(state: "running", pagesTotal: 2, pagesDone: 0, pagesLeft: 2,
+                                         waitingReason: "Waiting: the model lane", estimateSecondsLeft: nil)
+        let going = row(phase: .running, done: 0, total: 2, account: account)
+        XCTAssertFalse(going.looksWaiting)
+        XCTAssertEqual(going.progressText, "0 of 2")
     }
 
     func testTheDefaultOrderIsRunningThenWaitingInTheEnginesQueueOrder() {

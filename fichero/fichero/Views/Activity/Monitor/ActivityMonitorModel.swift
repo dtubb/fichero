@@ -150,15 +150,11 @@ struct ActivityMonitorRow: Identifiable, Equatable {
 
     // MARK: - Waiting looks like waiting (#5839)
 
-    /// Not started yet, whatever the run's own word: a waiting row, or a running run with nothing done whose work is waiting (for the
-    /// model lane, for memory) or a job the engine says "Waiting ..." for. It shows no spinner, no progress and no
-    /// ticking timer, only a grey "Waiting: <reason>".
-    var looksWaiting: Bool {
-        if phase == .waiting { return true }
-        guard phase == .running else { return false }
-        if done == 0, let waiting = account?.waitingReason, !waiting.isEmpty { return true }  // one page done: it is running
-        return kind == .job && (reason ?? "").hasPrefix("Waiting")
-    }
+    /// Not started yet: the engine lists the row as waiting (a queued job, or a running one whose wait it has named,
+    /// like a try whose page waits for the lane). It shows no spinner, no progress and no ticking timer, only a grey
+    /// "Waiting: <reason>". Never inferred from the reason's words or a run's counts: a run with one page running
+    /// and another waiting is running.
+    var looksWaiting: Bool { phase == .waiting }
 
     // MARK: - Icons (#5560)
 
