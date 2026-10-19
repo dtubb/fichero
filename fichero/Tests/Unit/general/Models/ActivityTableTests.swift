@@ -330,7 +330,7 @@ final class ActivityTableTests: XCTestCase {
                               state: .waiting, reason: "Waiting: memory is tight")
         let row = ActivityMonitorRow.job(job, libraryId: Self.libraryId, projectName: "Marshall Diaries")
         XCTAssertEqual(row.stateText, "Waiting: memory is tight")
-        XCTAssertEqual(row.progressText, "0 of 12")
+        XCTAssertEqual(row.progressText, "", "a waiting job shows no progress (#5839)")
     }
 
     // MARK: - activity.window.working-on
