@@ -106,3 +106,24 @@ def test_derivations_of_different_pages_never_overlap(monkeypatch):
 
     asyncio.run(go())
     assert most[0] == 1, "two text derivations ran at once beside a read"
+
+
+def test_gets_waiting_their_turn_leave_the_executor_free_for_auth(monkeypatch):
+    """Review 352: the one-at-a-time lock sat INSIDE the worker thread, so every waiting GET held a thread of the default
+    executor and auth's device lookup queued behind them. Four GETs on a two-thread executor must leave one free."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    monkeypatch.setattr(segment_readings, "document_text", lambda *_a, **_k: (time.sleep(0.6), "derived")[1])
+
+    async def go() -> float:
+        asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=2))
+        db = _Db()
+        gets = [asyncio.ensure_future(_ask(document_id=f"doc-{n}", db=db)) for n in range(4)]
+        await asyncio.sleep(0.1)  # all four are in; one derives, three wait their turn
+        started = time.monotonic()
+        await asyncio.get_running_loop().run_in_executor(None, lambda: None)  # what auth does
+        waited = time.monotonic() - started
+        await asyncio.gather(*gets)
+        return waited
+
+    assert asyncio.run(go()) < 0.3, "a waiting GET held an executor thread"

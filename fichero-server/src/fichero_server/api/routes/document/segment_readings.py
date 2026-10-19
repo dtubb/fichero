@@ -34,7 +34,6 @@ pattern slice 7 set.
 from __future__ import annotations
 
 import asyncio
-import threading
 from datetime import datetime
 from typing import Any, Optional
 
@@ -1932,24 +1931,31 @@ def document_text(
     )
 
 
-_TEXT_DERIVATION = threading.Lock()
+_text_slot: asyncio.Semaphore | None = None
+_text_slot_loop: asyncio.AbstractEventLoop | None = None
 
 
-def _derive_text_alone(*args: Any, **kwargs: Any) -> "DerivedText":
-    """One derivation at a time: it is numpy and DuckDB work that holds the GIL, and three at once beside a Kraken read
-    starved the read (blla is mostly single-threaded; r1's profile, `activity.read.page-read-once`)."""
-    with _TEXT_DERIVATION:
-        return document_text(*args, **kwargs)
+def _text_semaphore() -> asyncio.Semaphore:
+    """One text derivation at a time, taken BEFORE a worker thread is: a GET waiting its turn holds no thread, so the
+    default executor stays free for what else needs it (auth's device lookup)."""
+    global _text_slot, _text_slot_loop
+    loop = asyncio.get_running_loop()
+    if _text_slot is None or _text_slot_loop is not loop:
+        _text_slot, _text_slot_loop = asyncio.Semaphore(1), loop
+    return _text_slot
 
 
 @single_flight
 async def _shared_text(*, db: Database, document_id: str, pass_id: Optional[str], order: Optional[str],
                        kind: str, include_furniture: bool) -> "DerivedText":
-    """Callers asking for the same page's text at once share ONE derivation (`single_flight`), on a worker thread."""
-    return await asyncio.to_thread(
-        _derive_text_alone, db, document_id,
-        pass_id=pass_id, order=order, kind=kind, include_furniture=include_furniture,
-    )
+    """Callers asking for the same page's text at once share ONE derivation (`single_flight`). It is numpy and DuckDB
+    work that holds the GIL: three at once beside a Kraken read starved the read (r1's profile,
+    `activity.read.page-read-once`), so they take turns."""
+    async with _text_semaphore():
+        return await asyncio.to_thread(
+            document_text, db, document_id,
+            pass_id=pass_id, order=order, kind=kind, include_furniture=include_furniture,
+        )
 
 
 @router.get("/document/{document_id}/text", response_model=DerivedText)
