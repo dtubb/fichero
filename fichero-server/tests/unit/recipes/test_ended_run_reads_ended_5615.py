@@ -102,16 +102,16 @@ def test_a_set_aside_recipe_run_reads_ended_named_and_offers_resume(client, db, 
     assert row["name"] == "Run the recipe: Transcribe + names", row["name"]
     assert (row["current"], row["total"], row["percent"]) == (0, 2, 0.0), row
     reason = row["reason"]
-    assert reason.startswith("Interrupted 3 times: the engine stopped while it ran"), reason
-    assert "Its last try started 2026-10-08 09:41 UTC" in reason and "Resume carries it on" in reason, reason
+    # Said once, short, no clock (#5844; it was a long sentence with UTC times).
+    assert reason == "Stopped 3 times by the engine stopping; set aside. Resume to carry on.", reason
     assert row["offer"] == "Resume"
 
     status = client.get(f"/api/recipes/project/runs/{job_id}").json()
     stages = {s["steps"][0]: s for s in status["steps"]}
     assert stages["correct"]["state"] == "not run", stages
-    assert stages["correct"]["why"].startswith("stopped when the run ended, before this step finished: Interrupted 3")
+    assert stages["correct"]["why"].startswith("stopped when the run ended, before this step finished: Stopped 3")
     assert stages["names"]["state"] == "not run"
-    assert stages["names"]["why"].startswith("the run ended before this step: Interrupted 3 times")
+    assert stages["names"]["why"].startswith("the run ended before this step: Stopped 3 times")
     tree = client.get(f"/api/activity/jobs/{job_id}").json()
     assert [s["state"] for s in tree["stages"]] == ["not run", "not run"]
     assert tree["reason"] == reason  # the list and the tree say the same
