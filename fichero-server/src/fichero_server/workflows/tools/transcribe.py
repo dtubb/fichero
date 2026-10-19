@@ -125,8 +125,9 @@ TRANSCRIBE_CONFIG = {
 
 
 def _project_language(state: Any) -> str | None:
-    """The project's own language (Set Up's answer), so a page that states none is read as the project says (es, not
-    'auto'); None when the project says nothing or the library cannot be read."""
+    """The project's own language: the project-fact row when one was written, else what Set Up saved
+    (`answers.languages`, the first), so a page that states none is read as the project says (es, not 'auto'); None
+    when the project says nothing or the library cannot be read."""
     library = state.get("library_path", "") if state else ""
     if not library:
         return None
@@ -134,7 +135,13 @@ def _project_language(state: Any) -> str | None:
         from fichero_server.db import db_manager
         from fichero_server.models.source_declarations import project_facts
 
-        return project_facts(db_manager.get_database(library)).language
+        fact = project_facts(db_manager.get_database(library)).language
+        if fact:
+            return fact
+        from fichero_server.recipes.project import read_project_setup
+
+        languages = ((read_project_setup(Path(library)).get("answers") or {}).get("languages")) or []
+        return str(languages[0]) if languages else None
     except Exception:  # noqa: BLE001 -- no project language is the old behaviour
         return None
 
