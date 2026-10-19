@@ -11,21 +11,22 @@ KIND = "derivatives.thumbnail"
 
 
 def _row(db, id, state, reason, at):
-    db.execute("INSERT INTO jobs (id, kind, subject, state, reason, attempts, started_by, created_at) "
-               "VALUES (?, ?, ?, ?, ?, 0, 'automatic', ?)", [id, KIND, id, state, reason, at])
+    db.execute("INSERT INTO jobs (id, kind, subject, state, reason, attempts, started_by, created_at, finished_at) "
+               "VALUES (?, ?, ?, ?, ?, 0, 'automatic', ?, ?)",
+               [id, KIND, id, state, reason, at, at if state == "failed" else None])
 
 
-def test_bare_when_there_is_nothing_more_to_say(db):
+def test_bare_when_nothing_failed(db):
     jobs._ensure(db)
-    _row(db, "a", "waiting", None, "2026-10-19 08:00:00")
-    assert jobs.first_reason(db, [KIND]) == jobs.FIRST_REASON
+    assert jobs.first_reason(db, [KIND], "2026-10-19 08:00:00") == jobs.FIRST_REASON
 
 
-def test_names_the_mode_and_the_failed_pages(db):
+def test_names_the_pages_that_failed_since_the_held_job_was_queued_newest_first(db):
     jobs._ensure(db)
-    _row(db, "a", "waiting", "Waiting: you're using the Mac: running slower", "2026-10-19 08:00:00")
+    _row(db, "old", "failed", "OLD.jpg isn't where it was imported from: Locate Originals…", "2026-10-18 08:00:00")
     _row(db, "b", "failed", "IMG_1.jpg isn't where it was imported from: Locate Originals…", "2026-10-19 08:00:01")
-    said = jobs.first_reason(db, [KIND])
-    assert "thumbnails are made first" in said
-    assert "you're using the Mac: running slower" in said
-    assert "IMG_1.jpg isn't where it was imported from" in said
+    _row(db, "c", "failed", "IMG_2.jpg isn't where it was imported from: Locate Originals…", "2026-10-19 08:00:02")
+    said = jobs.first_reason(db, [KIND], "2026-10-19 08:00:00")
+    assert said.startswith(jobs.FIRST_REASON)
+    assert said.index("IMG_2.jpg") < said.index("IMG_1.jpg")
+    assert "OLD.jpg" not in said
