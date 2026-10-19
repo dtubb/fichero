@@ -101,6 +101,8 @@ JOB_ANSWER_SETTINGS = {"find-names-tag-words": ("entity_kinds", "kinds"),
                        "place-in-a-gazetteer": ("gazetteer", "gazetteer"),
                        "translate-transliterate-normalise": ("normalise_how_far", "target"),
                        "correct": ("review_lenses", "lenses")}
+#: Job answers whose empty list says "none of them", never "not answered".
+_EMPTY_IS_AN_ANSWER = frozenset({"review_lenses"})
 #: Setup's kinds of names -> the sections the entity extraction finds (`extract_entities_only.entity_types`).
 _ENTITY_SECTIONS = {"people": "people", "places": "places", "organisations": "organizations",
                     "organizations": "organizations", "events": "events", "dates": "dates"}
@@ -371,8 +373,11 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         pin = step.get("model") or {}
         settings = dict(step.get("settings") or {})
         answer, setting = JOB_ANSWER_SETTINGS.get(job, (None, None))
-        if answer and setting not in settings and (job_answers or {}).get(answer) not in (None, "", []):
-            settings[setting] = job_answers[answer]
+        given = (job_answers or {}).get(answer) if answer else None
+        # An empty list is an answer where it turns things off (every review lens off, #5723); elsewhere it is none.
+        if (answer and setting not in settings and given not in (None, "")
+                and (given != [] or answer in _EMPTY_IS_AN_ANSWER)):
+            settings[setting] = given
         runs_on = step.get("runs_on") or "this-mac"
         if job == EMBED_JOB:
             from fichero_server.db.embeddings import search_embedder

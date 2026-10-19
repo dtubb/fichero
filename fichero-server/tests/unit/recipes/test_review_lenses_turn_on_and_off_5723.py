@@ -82,8 +82,9 @@ def test_the_runner_runs_the_preset_without_the_lenses_turned_off(db, monkeypatc
     from fichero_server.api.routes.workflow import chains
 
     monkeypatch.setattr(chains, "_validate_step_workflow", validate)
-    card = {"workflow": "Paleographer Review", "workflow_id": "transcribe_paleography_review",
-            "provider_override": "openai", "model_override": "gpt-5", "lenses": ["orthography"]}
+    name, workflow_id = start._shipped(start.WORKFLOW_FOR_JOB["correct"])
+    card = {"workflow": name, "workflow_id": workflow_id, "provider_override": "openai", "model_override": "gpt-5",
+            "lenses": ["orthography"]}
     assert runner._run_workflow(db, card, ["p1"], "recipe-job")[1:] == ("failed", "stop here")
     assert "r1" not in seen["nodes"] and "r3" not in seen["nodes"] and "r2" in seen["nodes"]
 
