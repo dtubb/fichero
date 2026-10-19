@@ -24,12 +24,12 @@ def _path(library: Path, part: str) -> Path:
     return Path(library) / FOLDER / _FILES[part]
 
 
-def read_project_setup(library: Path, *, raw: bool = False) -> dict[str, Any]:
+def read_project_setup(library: Path) -> dict[str, Any]:
     """`{"answers": ..., "recipe": ...}`, each None when the project has not saved one. The answers
     are read in today's shape (`recipes/answers.py`): a project saved with one `purpose` reads as a
-    list of one, a language name as its tag where it resolves; nothing is lost. The answers are read under the app's
-    places (`recipes/places.py`): `cloud_allowed` is false unless the app allows a place off this Mac. `raw` is what
-    the project saved, for saving and showing it back."""
+    list of one, a language name as its tag where it resolves; nothing is lost. What the project saved, never
+    narrowed by the app's places (`recipes/places.py`): those cap at USE (`places.may_leave_to`), so no save can
+    narrow a stored answer."""
     import yaml
 
     from fichero_server.recipes.answers import normalise
@@ -39,10 +39,6 @@ def read_project_setup(library: Path, *, raw: bool = False) -> dict[str, Any]:
         path = _path(library, part)
         out[part] = yaml.safe_load(path.read_text(encoding="utf-8")) if path.is_file() else None
     out["answers"] = normalise(out["answers"], strict=False)
-    if not raw:
-        from fichero_server.recipes.places import cap
-
-        out["answers"] = cap(out["answers"])
     return out
 
 

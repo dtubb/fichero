@@ -2,8 +2,9 @@
 
 Set Up Fichero asks once, for the whole app, which places the person allows: this Mac, another Mac of theirs, a cloud
 AI service, ACENET, Hugging Face. The answer is an app setting (`models_may_run`), set by the audited action
-`recipes.set_places`, and it CAPS every project: a project may be stricter, never looser. Pages leave this Mac for every
-place but the first, so a project's `cloud_allowed` reads false unless some other place is allowed.
+`recipes.set_places`, and it CAPS every project: a project may be stricter, never looser. A project's `cloud_allowed` is its own
+yes; pages go to a place only when the project said yes AND the app allows that place (`may_leave_to`), checked where
+pages would leave.
 """
 from __future__ import annotations
 
@@ -44,23 +45,23 @@ def set_places(places: list[str]) -> list[str]:
     return kept
 
 
-def pages_may_leave(places: list[str] | None = None) -> bool:
-    """Whether the app allows any place but this Mac."""
-    return any(p != THIS_MAC for p in (places if places is not None else get_places()))
+def allows(place: str, places: list[str] | None = None) -> bool:
+    """Whether the app allows `place`. Per place, never one flag: allowing another Mac opens neither the cloud nor
+    Hugging Face Jobs nor the cluster (review 213)."""
+    return place == THIS_MAC or place in (places if places is not None else get_places())
 
 
-def cap(answers: dict[str, Any] | None) -> dict[str, Any] | None:
-    """A project's answers under the app's setting: `cloud_allowed` is false unless the app allows a place off this Mac."""
-    if not answers or not answers.get("cloud_allowed") or pages_may_leave():
-        return answers
-    return {**answers, "cloud_allowed": False}
+def may_leave_to(answers: dict[str, Any] | None, place: str) -> bool:
+    """Whether a project's pages may go to `place`: the project said so AND the app allows the place. Read where pages
+    would actually leave, never at read time, so no save can narrow a project's stored answer."""
+    return bool((answers or {}).get("cloud_allowed")) and allows(place)
 
 
 def this_mac_line(memory_gb: float) -> str:
     """What this Mac can run, from its real memory (the owner's words, 2026-10-19)."""
     gb = round(memory_gb)
     if memory_gb <= SMALL_MAC_GB:
-        return (f"This Mac has {gb} GB of memory: enough for Kraken and Apple's text recognition, but too little for "
+        return (f"This Mac has {gb} GB of memory: enough for Kraken and Apple Vision, but too little for "
                 "larger models. For difficult hands, allow another Mac, the cloud, or a cluster below.")
     return (f"This Mac has {gb} GB of memory: enough for the models made for your script, but not the largest AI "
             "models.")

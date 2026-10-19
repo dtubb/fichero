@@ -278,7 +278,9 @@ def _offers_now(db: Any, *, mac_memory_gb: float | None = None) -> list[dict[str
 
     setup = read_project_setup(Path(db.path).parent)
     answers = setup["answers"] or {}
-    stays_local = not answers.get("cloud_allowed", False)
+    from fichero_server.recipes import places
+
+    stays_local = not places.may_leave_to(answers, "huggingface")  # Hugging Face Jobs is a place of its own
     setting = training_setting(answers.get("training"), mac_memory_gb=mac_memory_gb or this_mac_memory_gb(),
                                hf_configured=bool(get_api_key("huggingface")), stays_local=stays_local,
                                spend_cap=spend_cap(answers))

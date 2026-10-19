@@ -220,10 +220,12 @@ def _stage_plan(db: Any, stage: Any, setup: dict[str, Any], page_count: int) -> 
     """The Start plan's cards for this stage's own steps, and what they would cost on the samples."""
     from fichero_server.recipes.start import estimate, plan_start
 
+    from fichero_server.recipes import places
+
     recipe = setup["recipe"] or {}
     answers = setup["answers"] or {}
     steps = {s.get("id") for s in recipe.get("steps") or [] if s.get("job") in stage.jobs}
-    plan = plan_start(recipe, stays_local=not answers.get("cloud_allowed", False), only=steps,
+    plan = plan_start(recipe, stays_local=not places.may_leave_to(answers, "cloud"), only=steps,
                       job_answers=answers.get("job_answers"), db=db)
     plan["estimate"] = estimate(plan["workflows"], page_count)
     return plan
