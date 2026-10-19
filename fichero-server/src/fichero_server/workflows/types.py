@@ -305,6 +305,10 @@ class State(TypedDict):
 
     # UI selection — document IDs selected when the user clicked Run
     selected_doc_ids: list[str]
+    #: A reopened run (Retry on a stopped run's page) reads only these documents; the fan-out still walks the run's whole
+    #: file list (its checkpoint keeps it) and skips every file whose document is not listed. Empty: no narrowing.
+    #: Declared for the same reason as `selected_doc_ids`.
+    only_doc_ids: list[str]
     #: A run on segments (#5604): the segment ids pointed at, any level. `selected_doc_ids` then
     #: holds the pages they are on. Declared for the same reason as `selected_doc_ids`.
     selected_segment_ids: list[str]
