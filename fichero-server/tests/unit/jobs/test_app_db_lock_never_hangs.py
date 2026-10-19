@@ -18,9 +18,9 @@ from fichero_server.execution import jobs
 
 @pytest.fixture(autouse=True)
 def _fresh_pause_cache():
-    jobs._paused_cache.clear()
+    jobs._flag_cache.clear()
     yield
-    jobs._paused_cache.clear()
+    jobs._flag_cache.clear()
 
 
 def _count_reads(monkeypatch, app_db) -> list[str]:
@@ -41,6 +41,17 @@ def test_is_paused_reads_the_database_once_and_set_paused_clears_it(app_db, monk
     assert jobs.is_paused() is False
     jobs.set_mode("paused")
     assert jobs.is_paused() is True
+    assert len(reads) == 1, "a write replaces the cached flag; it is never read back from the database"
+
+
+def test_a_claim_reads_the_flags_before_it_takes_heavy_pick(db, monkeypatch):
+    """Review 317: the holder sat in an app-DB call with `_heavy_pick` held. The flags are warmed first."""
+    seen: list[bool] = []
+    lane = jobs._scheduler.lanes["local-ml"]
+    monkeypatch.setattr(jobs, "_flag", lambda key: seen.append(jobs._scheduler._heavy_pick.locked()) or False)
+    monkeypatch.setattr(jobs._scheduler, "_claim_one", lambda _lane: None)
+    jobs._scheduler._claim(lane)
+    assert seen and not any(seen), "an app-DB read happened with _heavy_pick held"
 
 
 def test_a_device_lookup_behind_a_held_lock_gives_up_instead_of_hanging(app_db):
@@ -100,3 +111,56 @@ def test_a_try_page_in_its_scratch_library_resolves_to_a_person(db):
     # Control: the same shape under an automatic starter is background.
     db.execute("UPDATE jobs SET started_by = 'automatic' WHERE id = 'thread-try'")
     assert jobs.person_waits_on(db, "page-1") is False
+
+
+def test_a_busy_database_answers_503_through_the_middleware_without_stalling_the_event_loop(app_db, monkeypatch):
+    """Review 317: the bounded wait ran ON the loop, so every request still blocked it for the whole wait."""
+    import asyncio
+    import time
+
+    import httpx
+    from fastapi import FastAPI
+
+    monkeypatch.setattr(auth, "get_app_db", lambda: app_db)
+    monkeypatch.setattr(auth, "AUTH_DB_WAIT_SECONDS", 0.6)
+    monkeypatch.setattr(auth, "_use_multiuser_auth", lambda: False)
+    app = FastAPI()
+    auth.attach_auth_middleware(app, "bootstrap-secret")
+
+    @app.get("/api/thing")
+    async def thing():
+        return {}
+
+    held, release = threading.Event(), threading.Event()
+
+    def hold():
+        with app_db._lock:
+            held.set()
+            release.wait(10)
+
+    threading.Thread(target=hold, daemon=True).start()
+    assert held.wait(5)
+    lags: list[float] = []
+
+    async def run():
+        async def watch():
+            last = time.monotonic()
+            while True:
+                await asyncio.sleep(0.02)
+                now = time.monotonic()
+                lags.append(now - last - 0.02)
+                last = now
+
+        watcher = asyncio.ensure_future(watch())
+        transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 1234))
+        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+            response = await client.get("/api/thing", headers={"Authorization": "Bearer a-device-token"})
+        watcher.cancel()
+        return response
+
+    try:
+        response = asyncio.run(run())
+    finally:
+        release.set()
+    assert response.status_code == 503 and response.json()["code"] == "app_db_busy"
+    assert max(lags, default=0) < 0.3, f"the event loop stalled {max(lags):.2f} s behind the app-DB wait"
