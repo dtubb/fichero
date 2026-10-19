@@ -30,7 +30,7 @@ def _jobs(recipe: dict) -> list[str]:
 # --- Purposes are checkboxes (#5478, source.onboard.purpose-sets-layers) ----------------------------
 
 
-def test_several_purposes_give_the_union_of_their_jobs_each_once_in_step_order(client):
+def test_several_purposes_give_the_union_of_their_jobs_each_once_in_step_order(client, with_material):
     """WHY: a project can be for any combination of purposes; if the union repeated a job, Start would
     read every page twice, and if the order followed the ticking, the same answers would give two
     recipes (the spec's own test case: transcribe, map places, search). Placing in a gazetteer has no card
@@ -44,7 +44,7 @@ def test_several_purposes_give_the_union_of_their_jobs_each_once_in_step_order(c
     assert r.json()["purposes"] == ["transcribe", "search", "map-places"]  # in the order setup offers them
 
 
-def test_each_step_carries_its_topic(client):
+def test_each_step_carries_its_topic(client, with_material):
     """WHY: setup shows each step by its topic's title and one sentence (screen 6); the words must be
     the registry's, written once, not a second copy in the app."""
     steps = _assemble(client, purposes=["transcribe"]).json()["steps"]
@@ -65,7 +65,7 @@ def test_every_purpose_lists_its_jobs_and_the_new_purposes_are_offered(client):
     assert items["decipher"]["jobs"] == [] and items["not-sure"]["jobs"] == []
 
 
-def test_every_registered_job_can_be_ticked_on_its_own_and_takes_its_place_in_the_order(client):
+def test_every_registered_job_can_be_ticked_on_its_own_and_takes_its_place_in_the_order(client, with_material):
     """WHY: every job is a checkbox (ruled 2026-10-05). A job the step order did not know could be
     ticked but never placed; a job ticked on its own joins the purposes' jobs once, in order."""
     from fichero_server.recipes.assemble import STEP_ORDER
@@ -80,7 +80,7 @@ def test_every_registered_job_can_be_ticked_on_its_own_and_takes_its_place_in_th
     assert refused.status_code == 422 and "no job 'tell-hands-apart'" in refused.text
 
 
-def test_a_purpose_fichero_does_not_have_is_refused_in_words(client):
+def test_a_purpose_fichero_does_not_have_is_refused_in_words(client, with_material):
     r = _assemble(client, purposes=["transcribe", "astrology"])
     assert r.status_code == 422 and "no purpose 'astrology'" in r.text
 
@@ -88,7 +88,7 @@ def test_a_purpose_fichero_does_not_have_is_refused_in_words(client):
 # --- Material is checkboxes (#5478, source.onboard.material-any-mix) ------------------------------
 
 
-def test_several_materials_get_one_reader_each(client):
+def test_several_materials_get_one_reader_each(client, with_material):
     """WHY: a project of letters and printed forms needs a reader for each; one reader for all would read
     the print with the handwriting model or the reverse."""
     recipe = _assemble(client, purposes=["transcribe"], materials=["print", "handwriting"]).json()
@@ -118,7 +118,7 @@ def test_a_project_saved_with_one_purpose_reads_as_a_list_of_one(client, test_pa
     assert "entities" not in addable and addable  # its purpose's layer is known as its own
 
 
-def test_the_old_single_purpose_request_still_assembles(client):
+def test_the_old_single_purpose_request_still_assembles(client, with_material):
     r = _assemble(client, purpose="transcribe", material="print")
     assert r.status_code == 200, r.text
     assert _jobs(r.json()) == TRANSCRIBE and r.json()["suits"]["material"] == ["print"]
@@ -127,7 +127,7 @@ def test_the_old_single_purpose_request_still_assembles(client):
 # --- Languages are tags (#5479, source.onboard.language-stored-as-tag) ----------------------------
 
 
-def test_a_typed_language_name_is_saved_as_its_tag(client):
+def test_a_typed_language_name_is_saved_as_its_tag(client, with_material):
     """WHY: "spanish" reached the rules as typed and every reader was refused, since cards list `es`."""
     r = client.put("/api/recipes/project", json={"answers": {
         "purposes": ["entities"], "languages": ["spanish"], "scripts": ["latin"]}, "recipe": None})
@@ -139,7 +139,7 @@ def test_a_typed_language_name_is_saved_as_its_tag(client):
     assert names.get("model") and "problem" not in {k for k, v in names.items() if v}
 
 
-def test_an_unknown_language_word_is_refused_in_words_and_nothing_is_saved(client, test_package):
+def test_an_unknown_language_word_is_refused_in_words_and_nothing_is_saved(client, with_material, test_package):
     r = client.put("/api/recipes/project", json={"answers": {
         "purposes": ["transcribe"], "languages": ["klingonese"], "scripts": ["Latn"]}, "recipe": None})
     assert r.status_code == 422
@@ -170,7 +170,7 @@ def test_direction_is_prefilled_from_the_script_and_a_change_is_kept(client):
 # --- A step's problem is one structured reason (#5481, source.onboard.says-no-model) -------------
 
 
-def test_a_step_with_no_model_has_one_problem_in_words_with_its_fix_and_no_raw_ids(client):
+def test_a_step_with_no_model_has_one_problem_in_words_with_its_fix_and_no_raw_ids(client, with_material):
     """WHY: setup showed the rules' raw reason, model ids and all, twice. The sentence is what a
     historian reads; the raw reason stays, apart, for the Inspector and the log."""
     recipe = _assemble(client, purposes=["transcribe"], languages=["chr"], scripts=["Cher"]).json()

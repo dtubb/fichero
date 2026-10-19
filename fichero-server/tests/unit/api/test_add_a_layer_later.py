@@ -185,7 +185,7 @@ def test_what_cannot_be_added_is_refused_in_words(client, db):
     assert "layers" not in client.get("/api/recipes/project").json()["answers"]
 
 
-def test_setup_assembles_an_added_layer_too(client):
+def test_setup_assembles_an_added_layer_too(client, with_material):
     """The app re-proposes from the saved answers; an added layer in them keeps its steps, in order."""
     r = client.post("/api/recipes/assemble", json={"purpose": "transcribe", "languages": ["es"],
                                                    "scripts": ["Latn"], "layers": ["entities"]})

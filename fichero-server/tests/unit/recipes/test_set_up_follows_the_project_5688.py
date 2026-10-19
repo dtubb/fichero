@@ -23,7 +23,7 @@ def _save(client, answers=ANSWERS, jobs=()):
     return recipe
 
 
-def test_the_hands_offered_follow_the_projects_saved_period_and_language(client, db):
+def test_the_hands_offered_follow_the_projects_saved_period_and_language(client, with_material, db):
     _save(client)
     listed = client.get("/api/recipes/hands").json()
     ids = {h["id"] for h in listed["items"]}
@@ -31,7 +31,7 @@ def test_the_hands_offered_follow_the_projects_saved_period_and_language(client,
     assert "procesal" in ids and "kurrent" not in ids and "caroline-minuscule" not in ids
 
 
-def test_the_steps_own_model_is_chosen_when_no_step_is_named(client, db):
+def test_the_steps_own_model_is_chosen_when_no_step_is_named(client, with_material, db):
     recipe = _save(client, jobs=["find-regions"])
     own = next(s for s in recipe["steps"] if s["job"] == "find-regions")["card"]["id"]
     items = client.get("/api/recipes/candidates", params={"job": "find-regions", "scripts": "Latn"}).json()["items"]

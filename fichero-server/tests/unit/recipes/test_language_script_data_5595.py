@@ -19,7 +19,7 @@ def _assemble(client, **answers):
     return client.post("/api/recipes/assemble", json={"mac_memory_gb": 16, "purposes": ["transcribe"], **answers})
 
 
-def test_names_scholars_use_find_the_language(client):
+def test_names_scholars_use_find_the_language(client, with_material):
     """"Old Church Slavonic", "Slavonic", "Ge'ez" and "Ethiopic" find their language, not nothing."""
     assert "cu" in _codes(client, "Old Church Slavonic") and "cu" in _codes(client, "Slavonic")
     assert "gez" in _codes(client, "Ge'ez") and "gez" in _codes(client, "Ethiopic")
@@ -28,7 +28,7 @@ def test_names_scholars_use_find_the_language(client):
     assert r.json()["suits"]["languages"] == ["cu"]
 
 
-def test_a_name_without_its_dates_resolves_and_a_miss_says_what_is_near(client):
+def test_a_name_without_its_dates_resolves_and_a_miss_says_what_is_near(client, with_material):
     """"Old Irish" is ISO's "Old Irish (to 900)": it resolves to sga (the dialect row sharing the code does not make it
     ambiguous). A name Fichero lacks is refused with the nearest languages; a script's name says it is a script."""
     r = _assemble(client, languages=["Old Irish"], scripts=["Latn"])
@@ -40,7 +40,7 @@ def test_a_name_without_its_dates_resolves_and_a_miss_says_what_is_near(client):
     assert script.status_code == 422 and "is a script (Ethi)" in script.json()["detail"], script.text
 
 
-def test_a_syriac_reader_covers_classical_syriac(client):
+def test_a_syriac_reader_covers_classical_syriac(client, with_material):
     """Classical Syriac is stored as syc; a card listing Syriac (syr) covers it, so no rule refuses it for the
     language alone: the same readers and language-checked steps as for Syriac."""
     from fichero_server.recipes.assemble import CORRECT_QUESTION, Answers, Card, assemble
@@ -58,7 +58,7 @@ def test_a_syriac_reader_covers_classical_syriac(client):
     assert step.get("model") == card.pin, step
 
 
-def test_vertical_scripts_default_to_their_columns(client):
+def test_vertical_scripts_default_to_their_columns(client, with_material):
     """Mongolian defaults to top to bottom with columns left to right, Han and Japanese to columns right to left
     (ruled 2026-09-28); Latin stays left to right; a chosen direction is kept."""
     r = _assemble(client, languages=["mn", "ja", "lzh", "en"], scripts=["Mong", "Jpan", "Hant", "Latn"])

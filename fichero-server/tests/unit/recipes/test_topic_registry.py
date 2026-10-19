@@ -39,7 +39,7 @@ def _flatten(source: str) -> str:
     return " ".join(joined.split())
 
 
-def test_every_job_any_purpose_can_propose_has_a_topic(client):
+def test_every_job_any_purpose_can_propose_has_a_topic(client, with_material):
     """Every step setup can put in a recipe, for every purpose (and the training step a large volume
     adds), has its explanation in the registry. WHY: a step setup cannot explain is a step the
     person is asked to accept blind (`source.onboard.teaches-the-method`)."""

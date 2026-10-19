@@ -27,7 +27,7 @@ def test_a_project_never_set_up_has_nothing_saved(client):
     assert r.json() == {"answers": None, "recipe": None}
 
 
-def test_saved_answers_and_recipe_come_back_and_live_in_the_project_folder(client, test_package):
+def test_saved_answers_and_recipe_come_back_and_live_in_the_project_folder(client, with_material, test_package):
     recipe = _recipe(client)
     r = client.put("/api/recipes/project", json={"answers": ANSWERS, "recipe": recipe})
     assert r.status_code == 200, r.text

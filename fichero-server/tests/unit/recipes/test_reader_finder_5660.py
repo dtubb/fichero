@@ -81,7 +81,7 @@ def test_the_online_search_finds_the_htr_models_made_for_manuscripts(client, db,
     assert {"htr", "manuscript", "trocr", "spanish"} <= searched_for
 
 
-def test_a_found_model_this_build_cannot_run_is_never_chosen_by_the_rules(client, db, store, hub):
+def test_a_found_model_this_build_cannot_run_is_never_chosen_by_the_rules(client, with_material, db, store, hub):
     _searched(client, db)
     recipe = client.post("/api/recipes/assemble", json={"purposes": ["transcribe"], "languages": ["es"],
                                                         "scripts": ["Latn"], "materials": ["handwriting"]})

@@ -15,7 +15,7 @@ def test_answers_alone_to_a_project_with_no_recipe_store_the_assembled_one(clien
     assert "read-a-line" in [s["job"] for s in saved["recipe"]["steps"]]
 
 
-def test_a_recipe_already_stored_is_kept_when_only_the_answers_are_saved(client, db):
+def test_a_recipe_already_stored_is_kept_when_only_the_answers_are_saved(client, with_material, db):
     recipe = client.post("/api/recipes/assemble", json=ANSWERS).json()
     recipe["title"] = "the person's own"
     client.put("/api/recipes/project", json={"answers": ANSWERS, "recipe": recipe})

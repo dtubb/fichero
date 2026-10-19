@@ -13,7 +13,7 @@ def test_the_job_registry_is_served_with_its_descriptions(client):
     assert "find-lines" in jobs and jobs["find-lines"]["description"]
 
 
-def test_assembling_spanish_letters_names_its_choices_and_reasons(client):
+def test_assembling_spanish_letters_names_its_choices_and_reasons(client, with_material):
     r = client.post("/api/recipes/assemble", json={
         "purpose": "search", "languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 16})
     assert r.status_code == 200, r.text
@@ -43,7 +43,7 @@ def test_setup_reads_its_purposes_from_the_engine(client):
     assert all(p["title"] and p["description"] for p in items.values())
 
 
-def test_an_assembled_step_names_its_card(client):
+def test_an_assembled_step_names_its_card(client, with_material):
     r = client.post("/api/recipes/assemble", json={
         "purpose": "search", "languages": ["es"], "scripts": ["Latn"], "mac_memory_gb": 16})
     step = next(s for s in r.json()["steps"] if s["job"] == "find-lines")

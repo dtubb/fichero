@@ -8,6 +8,7 @@ refuses Start, saying there is nothing to run on and how to add material, and no
 
 from __future__ import annotations
 
+from fichero_server.api.routes.system.recipes import NO_MATERIAL
 from tests.unit.recipes.test_recipe_execution_to_spec import _recipe, _runs, _save, _steps, engine, pages  # noqa: F401 (fixtures)
 
 
@@ -15,16 +16,16 @@ def test_start_on_an_empty_project_is_refused_in_words(client, db, tmp_path):
     _save(client, _recipe(tmp_path, *_steps(tmp_path)))
 
     plan = client.get("/api/recipes/project/start").json()
-    (empty,) = [r for r in plan["refusals"] if "no pages" in r]
+    (empty,) = [r for r in plan["refusals"] if r == NO_MATERIAL]
     assert "add" in empty.lower() and "/api/" not in empty, empty
 
     r = client.post("/api/recipes/project/start")
     assert r.status_code == 422, r.text
-    assert "no pages" in r.json()["detail"], r.json()
+    assert r.json()["detail"] == NO_MATERIAL, r.json()
     assert _runs(client) == [], "a run was queued on a project with nothing in it"
 
 
 def test_start_with_pages_is_not_refused_for_material(client, db, pages, tmp_path):
     _save(client, _recipe(tmp_path, *_steps(tmp_path)))
     plan = client.get("/api/recipes/project/start").json()
-    assert not [r for r in plan["refusals"] if "no pages" in r], plan["refusals"]
+    assert not [r for r in plan["refusals"] if r == NO_MATERIAL], plan["refusals"]
