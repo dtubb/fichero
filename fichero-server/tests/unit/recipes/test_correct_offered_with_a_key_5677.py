@@ -32,6 +32,14 @@ def test_the_offer_prices_only_the_lenses_turned_on_5677():
     assert offer["calls_per_page"] == 1 and offer["cost_usd"] == 10.0
 
 
+def test_with_every_lens_off_the_offer_says_so_5677():
+    """Review 163: not 'cannot work out', which reads as a fault; the person turned every lens off."""
+    a = Answers(**A, cloud_keys=("anthropic",), job_answers={"review_lenses": []})
+    off = _correct_left_off([MLX, CLOUD], a)
+    assert off["offered"]["calls_per_page"] == 0 and off["offered"]["cost_usd"] is None
+    assert "every lens of the review is off" in off["sentence"] and "cannot work" not in off["sentence"]
+
+
 def test_with_no_key_no_cloud_is_offered_or_priced_5677():
     off = _correct_left_off([MLX, CLOUD], Answers(**A))
     assert off is not None and off.get("offered") is None and "$" not in off["sentence"]

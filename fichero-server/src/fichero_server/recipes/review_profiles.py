@@ -80,8 +80,9 @@ REVIEW_PRESET = "transcribe_paleography_review"
 
 def review_passes(preset: str, lenses: list[str] | None) -> int | None:
     """The model calls a page takes in the shipped review preset `preset` (its key, or the name a run carries as its
-    `workflow`) with `lenses` on (None: every lens): one for each pass `keep_lenses` keeps (#5723). None when the
-    preset cannot be read or has no review pass: unpriced, never a $0 review (#5590, review 160)."""
+    `workflow`) with `lenses` on (None: every lens): one for each pass `keep_lenses` keeps (#5723), so 0 with every
+    lens off; 1 for a preset with no review pass (one call a page, review 163). None only when the preset cannot be
+    read: unpriced, never a $0 review (#5590, review 160)."""
     import json
 
     from fichero_server.workflows.default_workflows import _PRESETS_DIR, shipped_preset
@@ -98,9 +99,11 @@ def review_passes(preset: str, lenses: list[str] | None) -> int | None:
                 break
     if not found:
         return None
-    kept, _ = keep_lenses(found.get("nodes") or [], found.get("edges") or [],
-                          lens_ids() if lenses is None else lenses)
-    return sum(1 for node in kept if node.get("tool") == "transcribe_review") or None
+    nodes = found.get("nodes") or []
+    if not any(node.get("tool") == "transcribe_review" for node in nodes):
+        return 1
+    kept, _ = keep_lenses(nodes, found.get("edges") or [], lens_ids() if lenses is None else lenses)
+    return sum(1 for node in kept if node.get("tool") == "transcribe_review")
 
 
 def keep_lenses(nodes: list[dict[str, Any]], edges: list[dict[str, Any]],
