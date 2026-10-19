@@ -292,6 +292,8 @@ public final class FicheroClient: ObservableObject {
     /// session, the same middlewares. Nothing changes when neither differs.
     public func reconfigure(baseURL: URL, transportMode newMode: TransportMode) {
         guard self.baseURL != baseURL || transportMode != newMode else { return }
+        NSLog("FicheroClient: endpoint re-resolved: %@ via %@ (was %@ via %@)",
+              baseURL.absoluteString, String(describing: newMode), self.baseURL.absoluteString, String(describing: transportMode))
         self.baseURL = baseURL
         if transportMode != newMode {
             transportMode = newMode
