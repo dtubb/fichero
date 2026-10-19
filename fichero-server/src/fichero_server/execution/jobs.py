@@ -656,8 +656,10 @@ _ALTER_FAILURES_LOGGED: set[str] = set()
 
 def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
     """Add the columns later releases gave `jobs` (idempotent). A statement that fails is logged ONCE per library
-    and statement and the rest still run, so a library that cannot take one column still lists its jobs
-    (#5814). Returns whether every statement applied."""
+    and statement and the rest still run. Only `cleared_at`, the newest column, has a fallback: the list shows every
+    failed job when it is missing (`_has_cleared_at`); the older columns are required, and a failure that hits all of
+    them (a read-only file, a lock) is not hidden by a list that degrades (#5814, review 204). Returns whether every
+    statement applied."""
     done = True
     for statement in _ADDED_COLUMNS:
         try:
