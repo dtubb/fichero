@@ -106,6 +106,17 @@ def propose_run(db: Any) -> list[dict[str, str]]:
 
 
 def chosen(db: Any, stage: str | None = None) -> dict[str, Any]:
+    """The samples (`_chosen`), each marked as the person's own page (`yours`: a page of this project, never the shipped
+    example image) with whether its thumbnail is made yet, so the stage page can draw them (#5808 b)."""
+    from fichero_server.db.storage import has_thumbnail
+
+    found = _chosen(db, stage)
+    package = Path(db.path).parent
+    return {**found, "pages": [{**p, "yours": True, "thumbnail": bool(has_thumbnail(p["id"], package))}
+                               for p in found["pages"]]}
+
+
+def _chosen(db: Any, stage: str | None = None) -> dict[str, Any]:
     """The samples: the person's choice when there is one, else Fichero's proposal. For Organise, the run of
     consecutive pages it is tried on (`propose_run`): pages chosen across the material cannot show a document's
     end."""
