@@ -1065,6 +1065,11 @@ plan's peak memory across steps. Ready shows none of it.
   statements line names only the figures of stages the run had (Work out dates: pages dated; Names: dates
   named; Find statements: statements) or that are not zero, so a run without them no longer says "0 pages dated · 0 dates named ·
   0 statements". Pinned by `fichero-server/tests/unit/recipes/test_run_visible_to_spec.py`.
+  **Built 2026-10-18 (engine):** a run with a review step counts what the review did, "Reviewed 12 lines on 2
+  pages: 3 corrected, 1 it could not read and left as read" (`run_view.reviewed`: each page's newest review, the
+  lines it answered by id, those given a new reading, those flagged unreadable; `pages_reviewed`, `lines_reviewed`,
+  `lines_corrected`, `lines_review_unreadable`, null for a run without one), pinned by
+  `fichero-server/tests/unit/recipes/test_run_summary_counts_the_reviewed_lines.py` (R3 live exit step 6).
   *Not built:* lines (of text); each figure opening what it counts.
 - `source.onboard.auto.failed-pages-roll-up` — **[PARTIAL]** (#5555) the recipe run's own row counts
   the pages that failed inside its steps and offers Read Again for them. Built: per workflow run
