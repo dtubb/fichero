@@ -18,6 +18,9 @@ enum PaneFocus: Hashable {
     /// The Segments pane (#4942): a click in it claims command focus, so Split / Close act on it.
     case segments
 
+    /// Where focus starts when a window opens (#5824): the sidebar, never a text field such as the reader's find field.
+    static let launchDefault: PaneFocus = .sidebar
+
     /// Human name for the pane — VoiceOver announcements on pane moves.
     var paneTitle: String {
         switch self {
@@ -826,6 +829,7 @@ struct ContentView: View {
                     LaunchProfile.endLaunch()
                 }
         }
+        .defaultFocus($focusedPane, PaneFocus.launchDefault)
         // Multi-user sign-in / first-run owner-setup / invite redemption
         // (#2021/#3157), presented ONLY once the backend has answered AND the
         // session phase has RESOLVED to needs-login / needs-owner-setup. The
