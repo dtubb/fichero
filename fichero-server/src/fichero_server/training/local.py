@@ -229,7 +229,7 @@ def run(db: Any, subject: str) -> str:
             shutil.copy2(base_path, data / "base" / base_path.name)
             detail["base_file"] = base_path.name
 
-    jobs._release_kraken()  # no resident Kraken reader beside the trainer
+    jobs._release_kraken("a training starts")  # no resident Kraken reader beside the trainer
     resume = out / "last.ckpt"
     threads = max(1, embed_threads())
     argv = ketos_args(request, data, out, base_file=detail.get("base_file"),
