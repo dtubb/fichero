@@ -1,4 +1,5 @@
-"""Your Material's two questions, the sample pages, and trying a stage on them before Start (#5668, section 7c).
+"""Your Material's two questions, the sample pages (`source.onboard.samples-first`), and trying a stage on them before
+Start (#5668, section 7c).
 
 WHY: the person must see each stage work on a few of their own pages before Start, and nothing may be written as
 the project's work by it: a try that left names or readings in the project would make Start skip pages as done, and

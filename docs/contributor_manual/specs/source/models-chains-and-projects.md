@@ -3447,7 +3447,7 @@ Setup
   maintainer's to rule (recorded on the issue). Not built.
 - `source.onboard.set-up-later` — **[PARTIAL]** (#4951) **Built 2026-10-03:** Skip leaves the project unset and saves nothing; `fichero/Tests/Unit/general/Views/Onboarding/FirstRunStepSelectionTests.swift`. "Set up later" makes a project with no settings
   that behaves as today, and Set Up… in its Inspector runs setup at any time.
-- `source.onboard.samples-first` — **[GAP]** (#4951) given material, setup picks up to ten sample
+- `source.onboard.samples-first` — **[PARTIAL]** (#4951; built (#5668, section 7c): `recipes/samples.propose` picks 3 to 5 pages spread across the material (first, last, largest, smallest, then evenly spaced; every page of a small project), each saying why, and the person's own choice holds and can go back (`fichero-server/tests/unit/recipes/test_setup_samples_5668.py`); from the sample, setup proposes text material when every page is already text (`prepare.sample_is_text`) and preparing faded images (`prepare.sample_shows_faded`). Not built: up to ten (section 7c ruled 3 to 5); suggesting scripts, languages, period and layout from the pages, labelled "suggested from your pages") given material, setup picks up to ten sample
   pages spread across it (first, last, evenly spaced, largest and smallest), which the person can
   swap; from them, where a local model is available, it suggests scripts, languages, material,
   period and layout, each labelled "suggested from your pages" until accepted.
