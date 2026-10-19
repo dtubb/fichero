@@ -29,6 +29,11 @@ struct SetupStageSamples: View {
             if let refusal = store.refusal {
                 Label(refusal, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
             }
+            if store.samples.isEmpty, store.refusal == nil, !store.isTrying {
+                // The button is off without sample pages: say why rather than leave it dead (#5806).
+                Text("Add some pages to the project first: there are none to compare on yet.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             if let result = store.result { resultView(result) }
         }
         .task { await store.load(); await store.follow() }
@@ -36,7 +41,7 @@ struct SetupStageSamples: View {
 
     @ViewBuilder
     private func resultView(_ result: SetupStageTryResult) -> some View {
-        if let error = result.error {
+        if let error = result.failure {
             Label(error, systemImage: "xmark.octagon").font(.callout).foregroundStyle(.red)
         }
         ForEach(result.perPage ?? [], id: \.id) { page in

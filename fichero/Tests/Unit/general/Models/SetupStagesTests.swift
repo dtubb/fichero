@@ -199,6 +199,40 @@ struct SetupStagesTests {
         #expect(result.names?.map(\.name) == ["Juan de Mosquera"])
     }
 
+    // MARK: A try that is refused, failed or not made yet (#5806)
+
+    @Test("a refused try (422) shows the engine's sentence and stops the spinner")
+    func aRefusedTryShowsTheSentence() async {
+        StagesMockURLProtocol.replies = [
+            "GET /api/recipes/samples": (200, TryJSON.oneSample),
+            "POST /api/recipes/stages/prepare-images/try": (422, TryJSON.refused)
+        ]
+        let store = SetupStageTryStore(client: StagesMockURLProtocol.client(), stageId: "prepare-images")
+        await store.load()
+        await store.tryIt()
+        #expect(store.refusal == "Prepare Images cannot run yet: step 3 (read): the reader is not a model Fichero can find here")
+        #expect(!store.isTrying)
+    }
+
+    @Test("a failed try says why, and a comparison that ended stops the spinner")
+    func aFailedTryAndAFinishedComparison() throws {
+        let failed = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(TryJSON.failedNoReason.utf8))
+        #expect(!failed.isUnderWay)
+        #expect(failed.failure == "No line finder can be compared on this Mac yet.")
+        let ended = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(TryJSON.comparisonDone.utf8))
+        #expect(ended.state == "waiting" && !ended.isUnderWay, "the comparison's state is what is running")
+        let running = try JSONDecoder().decode(SetupStageTryResult.self, from: Data(TryJSON.comparisonRunning.utf8))
+        #expect(running.isUnderWay)
+    }
+
+    @Test("a 404 on the stage's result is not tried yet, not still running")
+    func aMissingResultIsNotTriedYet() async {
+        StagesMockURLProtocol.replies = ["GET /api/recipes/samples": (200, TryJSON.oneSample)]
+        let store = SetupStageTryStore(client: StagesMockURLProtocol.client(), stageId: "find-lines")
+        await store.load()
+        #expect(store.result == nil && !store.isTrying)
+    }
+
     // MARK: About the material
 
     @Test("source.onboard.material.which-hand: the engine's hands for the script; Not sure stands alone; typed is kept")
@@ -285,6 +319,19 @@ struct SetupStagesTests {
 
 /// The engine's answers for a stage tried on the samples (`recipes/samples.py`).
 private enum TryJSON {
+    static let refused = """
+    {"detail": "Prepare Images cannot run yet: step 3 (read): the reader is not a model Fichero can find here"}
+    """
+    static let failedNoReason = """
+    {"stage": "find-lines", "state": "failed", "comparison": {"state": "failed",
+     "reason": "No line finder can be compared on this Mac yet."}}
+    """
+    static let comparisonDone = """
+    {"stage": "find-lines", "state": "waiting", "bakeoff": "b1", "comparison": {"state": "done", "reason": null}}
+    """
+    static let comparisonRunning = """
+    {"stage": "find-lines", "state": "waiting", "bakeoff": "b1", "comparison": {"state": "running", "reason": null}}
+    """
     static let twoSamples = """
     {"chosen_by": "fichero", "pages": [{"id": "p1", "name": "f. 1r", "why": "your first page"},
      {"id": "p9", "name": "f. 9v", "why": "the largest image"}]}
