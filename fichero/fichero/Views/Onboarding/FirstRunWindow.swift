@@ -35,6 +35,7 @@ struct FirstRunWindow: View {
     @State var addProvider: AddProviderRequest?
     /// Where models may run, the engine's setting (#5828).
     @State private var placesStore: AppPlacesStore?
+    @State private var clusterNames: [String] = []
     @State private var signingInToCluster = false
     /// The project setup works on: given for Set Up…, made by Your project otherwise.
     @State var project: LibraryManager.LibraryReference?
@@ -106,13 +107,18 @@ struct FirstRunWindow: View {
             AddProviderSheet(onAdd: { await appState.loadProviders() }, preselectedType: request.providerType)
                 .environment(appState.providerService)
         }
-        .sheet(isPresented: $signingInToCluster) {
+        .sheet(isPresented: $signingInToCluster, onDismiss: { Task { await loadClusterNames() } }) {
             AddClusterSheet(service: appState.hpcSignInService)
         }
         .task {
             if placesStore == nil { placesStore = AppPlacesStore(client: appState.ficheroClient) }
             await appState.loadProviders()
+            await loadClusterNames()
         }
+    }
+
+    private func loadClusterNames() async {
+        clusterNames = await appState.hpcSignInService.listClusters().map(\.name)
     }
 
     /// A card's button opens the existing screen for that job (one code path): a cloud key or a Hugging Face token
@@ -219,7 +225,10 @@ extension FirstRunWindow {
             }
         case .whatFicheroRuns:
             stepPage(title: WhatFicheroRuns.title, subtitle: "", systemImage: SetupStep.whatFicheroRuns.icon) {
-                if let placesStore { WhatFicheroRunsFields(store: placesStore, connect: connectPlace) }
+                if let placesStore { WhatFicheroRunsFields(
+                    store: placesStore,
+                    setUp: WhatFicheroRuns.SetUp(providers: appState.providers, clusters: clusterNames),
+                    connect: connectPlace) }
             }
         case .handOff:
             stepPage(title: "Your First Project", subtitle: "", systemImage: SetupStep.handOff.icon) {

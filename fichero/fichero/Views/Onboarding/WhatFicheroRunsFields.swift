@@ -20,6 +20,39 @@ enum WhatFicheroRuns {
         case addToken
     }
 
+    /// What is already set up, read from the existing provider and cluster routes (`source.onboard.places-cap-projects`):
+    /// shown on a card, never ticking it (the ticks are the person's choice).
+    struct SetUp: Equatable {
+        var keys: [String] = []
+        var hasToken = false
+        var clusters: [String] = []
+
+        init(keys: [String] = [], hasToken: Bool = false, clusters: [String] = []) {
+            self.keys = keys
+            self.hasToken = hasToken
+            self.clusters = clusters
+        }
+
+        init(providers: [Components.Schemas.ProviderResponse], clusters: [String]) {
+            self.init(keys: providers.filter { $0.hasApiKey && $0.providerType != "huggingface" }.map(\.name),
+                      hasToken: providers.contains { $0.hasApiKey && $0.providerType == "huggingface" },
+                      clusters: clusters)
+        }
+
+        /// The sentence a card shows for what is set up, nil when nothing is.
+        func line(for place: WhereTheWorkRuns) -> String? {
+            switch place {
+            case .cloud: keys.isEmpty ? nil : "Keys saved: " + keys.joined(separator: ", ")
+            case .huggingface: hasToken ? "Token saved" : nil
+            case .acenet: clusters.isEmpty ? nil : clusters.joined(separator: ", ")
+            case .thisMac, .anotherMac: nil
+            }
+        }
+
+        /// A saved Hugging Face token replaces "Add a Token…"; a key or a cluster leaves its button (add another).
+        func hidesButton(for place: WhereTheWorkRuns) -> Bool { place == .huggingface && hasToken }
+    }
+
     /// One place: its engine id, symbol, title, its words (markdown: every named thing is a link that opens in the
     /// browser), and the button beside it. Another Mac has none yet: reading on a paired Mac is #5830.
     struct Place: Equatable {
@@ -72,6 +105,7 @@ struct AddProviderRequest: Identifiable, Equatable {
 
 struct WhatFicheroRunsFields: View {
     let store: AppPlacesStore
+    var setUp = WhatFicheroRuns.SetUp()
     /// Opens the existing sheet for a card's button.
     let connect: (WhatFicheroRuns.Connect) -> Void
 
@@ -110,9 +144,12 @@ struct WhatFicheroRunsFields: View {
                 if isThisMac, let line = store.thisMacLine {
                     Text(line).font(.callout).fixedSize(horizontal: false, vertical: true)
                 }
+                if let saved = setUp.line(for: place.place) {
+                    Label(saved, systemImage: "checkmark.circle").font(.callout).foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
-            if let button = place.button, let connectTo = place.connect {
+            if let button = place.button, let connectTo = place.connect, !setUp.hidesButton(for: place.place) {
                 Button(button) { connect(connectTo) }
             }
         }
