@@ -246,6 +246,13 @@ class RecipeStep(BaseModel):
     run_titles: Optional[list[str]] = Field(default=None, description=(
         "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the "
         "order Start makes them (#5795); null for every other step"))
+    built_in: bool = Field(default=False, description=(
+        "Fichero's own algorithm, with no model to choose (Find where the readers disagree, #5812): the row never "
+        "says it has no model, and Remove from Plan always works"))
+    compares: Optional[list[str]] = Field(default=None, description=(
+        "a built-in comparison's readers, by name, when the plan has two or more"))
+    needs: Optional[str] = Field(default=None, description=(
+        "what a built-in step waits for, in words (\"needs a second reader: tick one in Read\"); never a block"))
 
 
 class AutomaticStep(BaseModel):
