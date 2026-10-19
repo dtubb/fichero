@@ -82,9 +82,14 @@ struct WhatFicheroRunsFields: View {
                 Text(WhatFicheroRuns.question).font(.headline)
                 ForEach(WhatFicheroRuns.places, id: \.title) { card($0) }
                 Text(WhatFicheroRuns.footnote).foregroundStyle(.secondary)
-                if let message = store.errorMessage { Text(message).foregroundStyle(.red) }
             }
             .frame(maxWidth: 560, alignment: .leading)
+        }
+        // Outside the scroll view, so a refused Continue is seen without scrolling.
+        .safeAreaInset(edge: .bottom, alignment: .leading) {
+            if let message = store.errorMessage {
+                Text(message).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            }
         }
         .task { await store.load() }
     }
