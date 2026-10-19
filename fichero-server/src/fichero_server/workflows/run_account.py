@@ -232,8 +232,13 @@ _FINISHED_LIMIT = 500
 async def _checkpoint(db: Any, thread_id: str) -> tuple[dict[str, Any], list[Any]]:
     from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer
 
-    found = await AsyncDuckDBCheckpointer.from_db_path(db.path).aget_tuple(
-        {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
+    import asyncio
+
+    # Opened off the loop (the connect and the table setup wait on the database) and closed when the read ends: a
+    # poll opened one per call and never closed it, 121 in a 34-minute run (RSS investigation, #5843).
+    checkpointer = await asyncio.to_thread(AsyncDuckDBCheckpointer.from_db_path, db.path)
+    async with checkpointer:
+        found = await checkpointer.aget_tuple({"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}})
     if not found:
         return {}, []
     return found.checkpoint.get("channel_values", {}) or {}, list(found.pending_writes or [])
