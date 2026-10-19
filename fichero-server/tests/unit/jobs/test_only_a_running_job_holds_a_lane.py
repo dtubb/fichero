@@ -63,17 +63,6 @@ def test_the_waiting_words_name_only_a_holder_whose_row_is_running(db, lane):
     assert "Embed for search is running" not in said  # its row says waiting: it is not named as the holder
 
 
-def test_a_holder_whose_row_left_running_is_released_at_once(db, lane):
-    holder = _holding(db, lane)
-    for state in ("waiting", "cancelled", "failed"):  # interrupted, stopped, set aside
-        lane.lane.running[holder] = None  # (re-held for each state)
-        db.execute("UPDATE jobs SET state = ?, reason = 'x' WHERE id = ?", [state, holder])
-        assert jobs._scheduler.release_stale_holders(lane.lane) == [holder]
-        assert holder not in lane.lane.running and lane.lane.may_start(NEXT, None)
-        db.execute("UPDATE jobs SET state = 'running' WHERE id = ?", [holder])
-    assert jobs._scheduler.release_stale_holders(lane.lane) == []  # a running holder is kept
-
-
 def test_a_stale_holder_from_a_previous_engine_run_is_cleared_at_startup(db, lane):
     jobs._ensure(db)
     db.execute("INSERT INTO jobs (id, kind, subject, state, created_at, started_by) "
@@ -85,3 +74,25 @@ def test_a_stale_holder_from_a_previous_engine_run_is_cleared_at_startup(db, lan
     queued = jobs.enqueue(db, NEXT, "n1")
     assert _wait_for(lambda: "n1" in lane.ran)  # the next job takes the lane at once
     assert "old" not in lane.lane.running
+
+
+def test_reopening_during_a_live_attached_page_leaves_it_running_and_the_lane_held(db, lane):
+    """Review 278: resume() cancelled an attached Kraken page, set aside a live one past its attempts, and ended a
+    stopping one, though a lane thread ran them. All three leave a live id alone; an id no thread runs is still settled."""
+    jobs._ensure(db)
+    rows = {"live-attached": ("find-lines", "running", None, 0), "live-attempts": (HOLDER, "running", None, jobs.MAX_ATTEMPTS),
+            "live-stopping": (HOLDER, "running", jobs.STOPPING, 0),
+            "dead-attached": ("find-lines", "running", None, 0), "dead-stopping": (HOLDER, "running", jobs.STOPPING, 0)}
+    for job_id, (kind, state, reason, attempts) in rows.items():
+        db.execute("INSERT INTO jobs (id, kind, subject, state, reason, attempts, created_at, started_at, started_by) "
+                   "VALUES (?, ?, ?, ?, ?, ?, now(), now(), 'workflow')", [job_id, kind, job_id, state, reason, attempts])
+        if job_id.startswith("live"):
+            lane.lane.running[job_id] = None
+    jobs.resume(db)
+    for job_id in ("live-attached", "live-attempts", "live-stopping"):
+        assert jobs.read_job(db, job_id)["state"] == "running", job_id
+        assert job_id in lane.lane.running  # the lane stays held
+    assert jobs.read_job(db, "dead-attached")["state"] == "cancelled"
+    assert jobs.read_job(db, "dead-stopping")["state"] == "cancelled"
+    for job_id in ("live-attached", "live-attempts", "live-stopping"):
+        lane.lane.running.pop(job_id, None)

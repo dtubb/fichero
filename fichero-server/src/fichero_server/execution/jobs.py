@@ -1286,12 +1286,16 @@ def resume(db: "Database") -> None:
         "DELETE FROM jobs WHERE state IN ('done', 'cancelled') AND finished_at < ?",
         [utc_now() - timedelta(days=KEEP_FINISHED_DAYS)],
     )
+    # A job one of this engine's lane threads runs right now is not one an earlier engine left: a library opened again
+    # while a page runs must leave it running, in every update below (review 278: an attached Kraken page was cancelled).
+    live = _scheduler.running_ids()
+    not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
     attached = [name for name in KINDS if _is_attached(name)]
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', finished_at = ?, "
         f"reason = 'Its workflow run stopped before this page was done' "
-        f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)})",
-        [utc_now(), *attached],
+        f"WHERE state IN ('waiting', 'running') AND kind IN ({', '.join('?' for _ in attached)}){not_live}",
+        [utc_now(), *attached, *live],
     )
     # A job watching a Job on Hugging Face or a cluster is never set aside for being interrupted: the Job runs (and
     # costs) there whatever happens here, and only a watcher can follow or cancel it (#5449, #5769).
@@ -1299,8 +1303,8 @@ def resume(db: "Database") -> None:
     for job_id, attempts, started_at in db.execute_fetchall(
         "SELECT id, attempts, started_at FROM jobs "
         "WHERE state = 'running' AND attempts >= ? AND COALESCE(target, '') <> 'huggingface-jobs' "
-        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)})",
-        [MAX_ATTEMPTS, *FAR_SIDE_KINDS],
+        f"AND kind NOT IN ({', '.join('?' for _ in FAR_SIDE_KINDS)}){not_live}",
+        [MAX_ATTEMPTS, *FAR_SIDE_KINDS, *live],
     ):
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
@@ -1309,15 +1313,10 @@ def resume(db: "Database") -> None:
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
         f"UPDATE jobs SET state = 'cancelled', reason = 'Stopped by you', finished_at = ? "
-        f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)})",
-        [utc_now(), STOPPING, *RUN_KINDS],
+        f"WHERE state = 'running' AND reason = ? AND kind NOT IN ({', '.join('?' for _ in RUN_KINDS)}){not_live}",
+        [utc_now(), STOPPING, *RUN_KINDS, *live],
     )
-    # Not a job this engine's own lane threads are running right now: a library opened again while one of its jobs runs
-    # (a project switched back to) must not mark it "Interrupted; carries on" while it works, which left the lane held
-    # by a job whose row said it was waiting (owner, 2026-10-19). Only rows no live thread runs were left by an engine
-    # that is gone.
-    live = _scheduler.running_ids()
-    not_live = f" AND id NOT IN ({', '.join('?' for _ in live)})" if live else ""
+    # (Same rule: only rows no live thread runs were left by an engine that is gone; owner, 2026-10-19.)
     db.execute(
         f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} "
         f"WHERE state = 'running'{not_live}", live
@@ -2383,32 +2382,6 @@ class _Scheduler:
         """The jobs this engine's lane threads are running now, on every lane."""
         return [job_id for lane in self.lanes.values() for job_id in list(lane.running)]
 
-    def release_stale_holders(self, lane: _Lane) -> list[str]:
-        """Only a job that is actually running holds a lane (owner, 2026-10-19: Kraken waited 3 min 49 s on "Embed for
-        search is running" while that row said "Interrupted; carries on"). A holder whose row has left `running`
-        (interrupted, waiting, set aside, paused, cancelled, failed) is let go at once; a holder not found in any open
-        library is kept (it belongs to a project this scan cannot see). Returns the ids released."""
-        from fichero_server.db.manager import db_manager
-
-        ids = list(lane.running)
-        if not ids:
-            return []
-        with self._lock:
-            keys = list(lane.libraries)
-        released: list[str] = []
-        for key in keys:
-            db = db_manager.open_database(key)
-            if db is None:
-                continue
-            marks = ", ".join("?" for _ in ids)
-            for (job_id,) in db.execute_fetchall(
-                    f"SELECT id FROM jobs WHERE id IN ({marks}) AND state <> 'running'", ids):
-                if lane.running.pop(job_id, "gone") != "gone":
-                    lane.calls.discard(job_id)
-                    released.append(job_id)
-                    logger.warning("lane %s: released %s, whose row is no longer running", lane.name, job_id)
-        return released
-
     def heavy_running(self, besides: str | None = None) -> str | None:
         """A job running on a heavy lane now (its id), other than `besides`, or None."""
         for name in HEAVY_LANES:
@@ -2432,7 +2405,6 @@ class _Scheduler:
             return self._claim_one(lane)
 
     def _claim_one(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
-        self.release_stale_holders(lane)
         with lane.pick:
             # Heavy local work waits while the Mac needs itself (`activity.throttle.power-heat-
             # memory`). Background jobs wait on all four signals, so while any holds, only work a
