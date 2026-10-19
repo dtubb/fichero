@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from fichero_server.actions.registry import ActionContext, ChangeSpec, action, registry, started_by_for
 from fichero_server.api.auth import action_context
+from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
 from fichero_server.api.library_header import optional_library_path
 from fichero_server.llm.local_model_facts import GIB
 from fichero_server.api.main import get_library_database, get_library_database_for_write
@@ -1499,31 +1500,29 @@ async def get_places() -> PlacesView:
 
 @router.put("/places", response_model=PlacesView, responses={422: {"model": _ErrorDetail,
             "description": "A place Fichero does not know."}})
-async def put_places(body: PlacesSetting, db: Database = Depends(get_library_database_for_write),
-                     ctx: ActionContext = Depends(action_context)) -> PlacesView:
-    """Allow these places (an audited action). Every project is capped by them: stricter, never looser."""
-    try:
-        registry.invoke(db, "recipes.set_places", body.model_dump(), ctx)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return _places_view()
-
-
-def _invert_places(before: dict | None, after: dict | None, ctx: ActionContext):
-    return ("recipes.set_places", {"places": (before or {}).get("places") or list(places.DEFAULT)})
-
-
-@action("recipes.set_places", PlacesSetting, domains=["project"], undoable=True, invert=_invert_places)
-def _action_set_places(db: Database, params: PlacesSetting, ctx: ActionContext) -> tuple[dict, ChangeSpec]:
-    unknown = [p for p in params.places if p not in places.PLACES]
+async def put_places(body: PlacesSetting, request: Request) -> PlacesView:
+    """Allow these places, with no project open (the setting is the app's, so is its audit row). Every project is
+    capped by them: stricter, never looser. Owner only: it decides where every project's pages may go."""
+    _require_owner_or_bootstrap(request)
+    unknown = [p for p in body.places if p not in places.PLACES]
     if unknown:
-        raise ValueError(f"Fichero does not know the place {unknown[0]!r}.")
+        raise HTTPException(status_code=422, detail=f"Fichero does not know the place {unknown[0]!r}.")
     before = places.get_places() or list(places.DEFAULT)
-    kept = list(places.normalise(params.places))
-    # Applied once the audit commits: a rolled-back action leaves the setting as it was.
-    db.add_after_commit_hook(lambda: places.set_places(kept))
-    return {"places": kept}, ChangeSpec(domains=["project"], target_ids=[], before={"places": before},
-                                        after={"places": kept}, emit_type="places.changed")
+    kept = list(places.normalise(body.places))
+    from fichero_server.api.routes.auth.accounts import _current_session_user
+    from fichero_server.db.app import get_app_db
+    from fichero_server.models import ActionAudit
+
+    # The chain's actor format, as accounts writes it: "bootstrap", or "user:<id>".
+    user = _current_session_user(request)
+    actor = "bootstrap" if getattr(request.state, "bootstrap_auth", False) else f"user:{user.id}" if user else "system"
+    app_db = get_app_db()
+    # Audited first: if the audit cannot be written the setting is not changed.
+    app_db.save_chained_account_audit(ActionAudit(
+        action_name="recipes.set_places", actor=actor,
+        target_ids=[], params=body.model_dump(), before={"places": before}, after={"places": kept}))
+    places.set_places(kept)
+    return _places_view()
 
 
 @router.get("/project", response_model=ProjectSetup)
