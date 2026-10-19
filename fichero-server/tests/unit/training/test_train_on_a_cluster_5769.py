@@ -108,3 +108,23 @@ def test_a_cluster_with_no_key_is_refused_by_name_before_anything_is_queued(db, 
     with pytest.raises(NoKey, match="r"):
         training_job.start(db, _request(notebook, target="r"), started_by="historian")
     assert db.execute_fetchone("SELECT count(*) FROM jobs WHERE kind = ?", [training_job.KIND])[0] == 0
+
+
+def test_a_cluster_training_row_says_where_it_runs_and_is_never_set_aside(db, notebook, tmp_path):  # noqa: F811
+    """Review 111: the row's target is the cluster, not Hugging Face, so Activity names where it runs; and like a Job
+    on Hugging Face it is never set aside for the engine's restarts, since the job runs there whatever happens here."""
+    target, _shell = _target(tmp_path)
+    job_id = training_job.start(db, _request(notebook, target="r"), started_by="historian",
+                                target_factory=lambda: target)["job_id"]
+    assert db.execute_fetchone("SELECT target FROM jobs WHERE id = ?", [job_id])[0] == "r"
+    db.execute("UPDATE jobs SET state = 'running', attempts = ? WHERE id = ?", [jobs.MAX_ATTEMPTS + 2, job_id])
+    jobs.resume(db)
+    assert db.execute_fetchone("SELECT state FROM jobs WHERE id = ?", [job_id])[0] != "failed"
+
+
+def test_nothing_leaves_for_a_cluster_without_a_yes_and_the_refusal_names_it(db, notebook):  # noqa: F811
+    from fichero_server.training.job import PagesMayNotLeave
+
+    with pytest.raises(PagesMayNotLeave, match="the cluster r") as refused:
+        training_job.start(db, _request(notebook, target="r", pages_may_leave=False), started_by="historian")
+    assert "Hugging Face" not in str(refused.value)

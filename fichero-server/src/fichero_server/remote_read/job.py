@@ -114,7 +114,8 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     from fichero_server.training.hf_jobs import HfJobsTarget
 
     if not request.pages_may_leave:
-        raise PagesMayNotLeave("Reading on Hugging Face sends these pages (or their IIIF addresses) there. "
+        where = "Hugging Face" if request.target == TARGET else f"the cluster {request.target}"
+        raise PagesMayNotLeave(f"Reading on {where} sends these pages (or their IIIF addresses) there. "
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to read")
@@ -128,7 +129,7 @@ def start(db: Any, request: ReadAtScaleRequest, *, started_by: str,
     detail = {"request": request.model_dump(), "step": step, "flavor": request.flavor,
               "price_per_hour_usd": target.price_per_hour(request.flavor),
               "yes": {"by": started_by, "at": _now(), "to": request.target}, "phase": "waiting"}
-    job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
+    job_id = jobs.enqueue_remote(db, KIND, f"read:{uuid.uuid4()}", target=request.target, detail=json.dumps(detail),
                                  reason="Waiting to send to Hugging Face" if request.target == TARGET else "Waiting to send to the cluster",
                                  started_by=started_by)
     if request.parent_job_id:

@@ -101,6 +101,15 @@ class TriangulatedFact(BaseModel):
     source_document_ids: list[str]
 
 
+def _stale_reason(db, entity: KnowledgeEntity) -> str | None:
+    """Why this entity's stored vector is out of date (#5360), or None when it is current."""
+    from fichero_server.db.embeddings import KG_ENTITY_EMBEDDINGS_TABLE
+
+    return db.stale_reasons(
+        KG_ENTITY_EMBEDDINGS_TABLE, [entity], [db.entity_embedding_text(entity)]
+    ).get(entity.id)
+
+
 class EntityInspectorResponse(BaseModel):
     """Everything the entity-detail view needs in one shot."""
     entity_id: str
@@ -119,6 +128,9 @@ class EntityInspectorResponse(BaseModel):
     projects: list[Project]
     similar_entities: list[SimilarEntity]
     triangulated_facts: list[TriangulatedFact]
+    # Set when the entity's stored vector no longer matches it: "text-changed", "model-changed"
+    # or "not-embedded" (#5360). The Inspector says "out of date" until it is remade.
+    stale_reason: str | None = None
 
 
 @router.get(
@@ -232,4 +244,5 @@ async def inspector(
         projects=projects,
         similar_entities=similar,
         triangulated_facts=triangulated,
+        stale_reason=_stale_reason(db, entity),
     )

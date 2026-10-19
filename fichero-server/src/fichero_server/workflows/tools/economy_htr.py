@@ -29,6 +29,7 @@ add PDF page rendering here if a real workflow needs it.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import tempfile
@@ -310,10 +311,24 @@ async def economy_htr(inputs: dict[str, Any], state: State, llm_config: LLMConfi
     options = {key: inputs[key] for key in ECONOMY_HTR_CONFIG if key in inputs}
     documents = list(inputs.get("documents") or []) or documents_from_state_outputs(state, files)
 
-    results = [
-        economy_htr_file(file_path, **options, library_path=state.get("library_path"))
-        for file_path in files
-    ]
+    # Stop and Pause take effect between files (#5375, `activity.run.stop-reaches-economy-htr`), and each file runs off the
+    # run's event loop so the log and the stream keep moving while a page is read.
+    from fichero_server.execution.cancellation import (  # noqa: PLC0415
+        WorkflowCancelled,
+        WorkflowPaused,
+        cancellation_requested,
+        pause_requested,
+    )
+
+    run_id = state.get("task_id", "")
+    results = []
+    for file_path in files:
+        if cancellation_requested(run_id):
+            raise WorkflowCancelled(run_id)
+        if pause_requested(run_id):
+            raise WorkflowPaused(run_id)
+        results.append(await asyncio.to_thread(
+            economy_htr_file, file_path, **options, library_path=state.get("library_path")))
 
     records = []
     for index, result in enumerate(results):

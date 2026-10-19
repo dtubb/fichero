@@ -159,3 +159,61 @@ def test_the_start_plan_carries_the_spend(client):
                                  "model": {"kraken": "blla", "kraken_version": "bundled"}}))
     spend = client.get("/api/recipes/project/start").json()["hf_spend"]
     assert spend["cap_usd"] == 0.0 and spend["spent_at_most_usd"] == 0.0 and "$0.00 of $0.00" in spend["sentence"]
+
+
+def test_setup_reads_the_money_and_place_settings_from_the_engine(client, monkeypatch):
+    """The setup screen shows the three settings as the engine holds them (on the stages it reads), and works none
+    out: the copies question's value follows pages-may-leave until the person answers it, and is asked only where a
+    cluster is set up."""
+    from fichero_server.api.routes.system import recipes as routes
+
+    monkeypatch.setattr(routes, "_cluster_names", lambda request: ["Rorqual"])
+
+    def put(answers):
+        body = {"answers": {"purposes": ["transcribe"], **answers}, "recipe": None}
+        r = client.put("/api/recipes/project", json=body)
+        assert r.status_code == 200, r.text
+        r = client.get("/api/recipes/stages")
+        assert r.status_code == 200, r.text
+        return r.json()["money_and_place"]
+
+    shown = put({"cloud_allowed": True})
+    assert shown["hf_spend_cap_usd"] == 0.0 and shown["clusters"] == ["Rorqual"]
+    assert shown["copies_may_stay_on_cluster"] is True and shown["copies_follow_pages_may_leave"] is True
+    shown = put({"cloud_allowed": True, "copies_may_stay_on_cluster": False, "hf_spend_cap_usd": 20})
+    assert shown["copies_may_stay_on_cluster"] is False and shown["copies_follow_pages_may_leave"] is False
+    assert shown["hf_spend_cap_usd"] == 20.0
+
+
+@pytest.mark.parametrize("owner", [True, False])
+def test_cluster_names_reach_only_the_owner(client, monkeypatch, owner):
+    """Review 124: every /api/hpc route is owner-only (review 85), so the stages' money_and_place and the Start plan's
+    cluster offer name no cluster to anyone else."""
+    from fastapi import HTTPException
+
+    from fichero_server.api.routes.ai import hpc
+    from fichero_server.api.routes.auth import accounts
+    from fichero_server.db import app as app_db
+
+    def check(request):
+        if not owner:
+            raise HTTPException(status_code=403, detail="owner access required")
+
+    monkeypatch.setattr(accounts, "_require_owner_or_bootstrap", check)
+    monkeypatch.setattr(app_db, "get_app_db", lambda: None)
+    monkeypatch.setattr(hpc, "_load_clusters", lambda db: {"r": {"name": "Rorqual", "cluster_id": "r"}})
+    r = client.put("/api/recipes/project", json={"answers": {"purposes": ["transcribe"]}, "recipe": None})
+    assert r.status_code == 200, r.text
+    shown = client.get("/api/recipes/stages").json()["money_and_place"]
+    assert shown["clusters"] == (["Rorqual"] if owner else [])
+    from fichero_server.api.routes.system import recipes as routes
+
+    seen, real = [], routes._start_plan
+
+    def plan(db, folder_id=None, *, clusters=()):
+        seen.append(list(clusters))
+        return real(db, folder_id, clusters=clusters)
+
+    monkeypatch.setattr(routes, "_start_plan", plan)
+    client.get("/api/recipes/project/start")
+    assert seen == [["Rorqual"] if owner else []]

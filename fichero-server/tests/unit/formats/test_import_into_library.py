@@ -543,12 +543,13 @@ class TestTheRefusalsSayWhatTheyActuallySay:
                 "the sentence the code sends"
             )
 
-    def test_the_declared_shape_is_a_plain_string(self):
+    def test_the_declared_shape_is_a_sentence_or_object_never_an_array(self):
+        """A sentence, or an object for the structured refusals (#5094); never FastAPI's validation array."""
         from fichero_server.api.main import app
 
         model = app.openapi()["components"]["schemas"]["ErrorDetail"]
 
-        assert model["properties"]["detail"]["type"] == "string"
+        assert {branch.get("type") for branch in model["properties"]["detail"]["anyOf"]} == {"string", "object"}
         assert model.get("required") == ["detail"]
 
     def test_an_unrecognised_upload_really_sends_that_shape(self, db, client):

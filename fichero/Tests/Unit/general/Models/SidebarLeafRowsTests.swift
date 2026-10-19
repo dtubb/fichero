@@ -28,6 +28,26 @@ struct SidebarLeafRowsTests {
         #expect(row(folder).isExpandable)
     }
 
+    @Test("a multi-page PDF opens; an empty folder and a childless PDF do not")
+    func containersOpenOnlyWithChildren() {
+        var pdf = Document(id: "d", docType: .file, fileType: .pdf, name: "Scan")
+        pdf.childCount = 12
+        #expect(row(pdf).isExpandable)
+        pdf.childCount = 0
+        #expect(!row(pdf).isExpandable)
+        #expect(!row(Document(id: "e", docType: .folder, name: "Empty")).isExpandable)
+    }
+
+    @Test("the invisible chevron slot is only for a row that opens and has not fetched its children")
+    func slotOnlyForOpeningRows() {
+        var page = Document(id: "p", docType: .file, fileType: .image, name: "Page")
+        page.childCount = 3
+        #expect(!sidebarNeedsDeferredDisclosureContent(row(page)))
+        var folder = Document(id: "f", docType: .folder, name: "Box")
+        folder.childCount = 2
+        #expect(sidebarNeedsDeferredDisclosureContent(row(folder)))
+    }
+
     @Test("Trash and a trained model are drawn without a disclosure group")
     func nodesAreLeaves() throws {
         #expect(!(try AppSource.code("Views/Sidebar/Sections/SidebarTrashRow.swift")).contains("DisclosureGroup"))
