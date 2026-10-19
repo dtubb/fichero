@@ -775,14 +775,25 @@ def _raw_regions(segmentation: object) -> list[dict[str, object]]:
     return out
 
 
-def _segment_raw(image_path: str | Path) -> dict[str, object]:
+#: A page's direction (`language_policy` and setup's `directions`) as Kraken's segmenter takes it: the shape of the
+#: lines it looks for and the order it puts them in (`source.onboard.direction-chosen`, #5728). Left to right is its
+#: own default; a direction it has no word for (boustrophedon, follows-baseline) is left to that default too.
+KRAKEN_TEXT_DIRECTIONS = {"rtl": "horizontal-rl", "ttb": "vertical-rl", "ttb-lr": "vertical-lr"}
+
+
+def text_direction(direction: str | None) -> dict[str, str]:
+    """`blla.segment`'s keyword for the page's direction; nothing for left to right or none known."""
+    return {"text_direction": KRAKEN_TEXT_DIRECTIONS[direction]} if direction in KRAKEN_TEXT_DIRECTIONS else {}
+
+
+def _segment_raw(image_path: str | Path, direction: str | None = None) -> dict[str, object]:
     from PIL import Image
     from kraken import blla
 
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
-        segmentation = blla.segment(image, model=_segmenter())
+        segmentation = blla.segment(image, model=_segmenter(), **text_direction(direction))
         width, height = image.width, image.height
     return {"width": width, "height": height, "lines": _raw_lines(segmentation),
             "regions": _raw_regions(segmentation)}
@@ -910,7 +921,7 @@ def _line_confidence(record: object) -> float | None:
     return round(sum(values) / len(values), 4) if values else None
 
 
-def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]:
+def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
     from PIL import Image
     from kraken import blla
     from kraken.configs import RecognitionInferenceConfig
@@ -919,7 +930,7 @@ def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]
     with Image.open(image_path) as image:
         if image.mode != "RGB":
             image = image.convert("RGB")
-        segmentation = blla.segment(image, model=_segmenter())
+        segmentation = blla.segment(image, model=_segmenter(), **text_direction(direction))
         # Kraken 7's recognition task: it loads both a .mlmodel and a .safetensors reader (the
         # format of Kraken 7 models such as PP-OCRv6), where the old load_any read only .mlmodel.
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
@@ -937,7 +948,7 @@ def _recognize_raw(image_path: str | Path, model_path: str) -> dict[str, object]
 
 
 def segment_lines(
-    image_path: str | Path, *, run_call: Callable[[Callable[[], _T]], _T] | None = None
+    image_path: str | Path, *, run_call: Callable[[Callable[[], _T]], _T] | None = None, direction: str | None = None
 ) -> dict[str, object]:
     """Run the segmenter and return raw pixel geometry plus its frame."""
     if not str(image_path).strip():
@@ -945,7 +956,7 @@ def segment_lines(
         raise KrakenSegmentationError("No image path was supplied for this page; the engine could not resolve its source file.")
     caller = run_call or _kraken_call
     try:
-        return caller(lambda: _segment_raw(image_path))
+        return caller(lambda: _segment_raw(image_path, direction))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
         # Both are already the plain-language, non-programmer-actionable
         # message #4987/#4959 want on screen — wrapping either as "Kraken
@@ -961,11 +972,12 @@ def recognize_lines(
     model_path: str,
     *,
     run_call: Callable[[Callable[[], _T]], _T] | None = None,
+    direction: str | None = None,
 ) -> dict[str, object]:
     """Segment + RECOGNISE one image; raw per-line text plus pixel geometry."""
     caller = run_call or _kraken_call
     try:
-        return caller(lambda: _recognize_raw(image_path, model_path))
+        return caller(lambda: _recognize_raw(image_path, model_path, direction))
     except (KrakenRuntimeMissingError, KrakenMemoryUnavailableError):
         raise
     except Exception as exc:
@@ -1195,8 +1207,9 @@ def segment_to_geometry(
     image_path: str | Path,
     *,
     rendition_id: str | None = None,
+    direction: str | None = None,
 ) -> OCRGeometryResult:
-    """Segment one image into the shared OCR geometry vocabulary.
+    """Segment one image into the shared OCR geometry vocabulary, its lines found in the page's `direction`.
 
     ``rendition_id`` names WHICH PICTURE these boxes were measured on. Kraken
     works in absolute pixels of the exact file it was handed, so a result whose
@@ -1208,7 +1221,8 @@ def segment_to_geometry(
     "no lines found" and "not bundled" are different facts, and only one
     of them is about the page.
     """
-    payload = segment_lines(image_path)
+    # Only a direction known is passed: a stand-in segmenter that takes the path alone still stands in.
+    payload = segment_lines(image_path, **({"direction": direction} if direction else {}))
     result = geometry_from_segmentation(payload, source_name=str(image_path), rendition_id=rendition_id)
     if not any(box.level is OCRGeometryLevel.LINE for box in result.boxes):
         return geometry_unavailable(
@@ -1288,6 +1302,7 @@ def recognize_to_geometry(
     *,
     model_id: str | None = None,
     rendition_id: str | None = None,
+    direction: str | None = None,
 ) -> OCRGeometryResult:
     """Segment + recognise one image into the shared OCR geometry vocabulary.
 
@@ -1301,7 +1316,7 @@ def recognize_to_geometry(
     ``model_id`` is the catalog id to stamp on the boxes (e.g. "kraken-mccatmus")
     when ``model_path`` is a resolved filesystem path; falls back to the path.
     """
-    payload = recognize_lines(image_path, model_path)
+    payload = recognize_lines(image_path, model_path, **({"direction": direction} if direction else {}))
     width = float(payload.get("width") or 0)
     height = float(payload.get("height") or 0)
     if width <= 0 or height <= 0:

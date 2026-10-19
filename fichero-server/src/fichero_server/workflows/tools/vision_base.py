@@ -3695,6 +3695,31 @@ def frame_true_rendition_path(
 READ_FROM_ROLES = ("prepared", "background_removed")
 
 
+def page_direction(library_path: str | None, doc_id: str | None) -> dict[str, str]:
+    """The page's direction as the keyword Kraken's line finding takes (`source.onboard.direction-chosen`, #5728):
+    stated on the page, its source or the project (setup's `directions`), else worked out from its script, by the
+    one cascade every caller reads (`direction_rungs`). Nothing for left to right, an unknown page or none known,
+    so a stand-in segmenter that takes no direction still stands in."""
+    if not library_path or not doc_id:
+        return {}
+    try:
+        from fichero_server.api.routes.document.segment_readings import direction_rungs
+        from fichero_server.db import db_manager
+        from fichero_server.llm.language_policy import STATUS_UNKNOWN, resolve_direction
+        from fichero_server.models import Document
+
+        db = db_manager.get_database(library_path)
+        document = db.get(Document, doc_id)
+        if document is None:
+            return {}
+        resolved = resolve_direction(document=document, **direction_rungs(db, document))
+    except Exception as exc:  # noqa: BLE001 -- the lines are still found, left to right, and the log says why
+        logger.warning("page_direction: no direction for %s: %s", doc_id, exc)
+        return {}
+    said = resolved.language if resolved.status != STATUS_UNKNOWN else None
+    return {"direction": said} if said and said != "ltr" else {}
+
+
 def _frame_true_background_removed_path(
     library_path: str, doc_id: str | None
 ) -> str | None:
@@ -4748,7 +4773,8 @@ async def process_vision(
                             library_path, "read-a-line", _page_subject,
                             model=f"kraken:{_model_id or _model_path}", run_id=task_id,
                             fn=lambda: recognize_to_geometry(
-                                image_path, _model_path, model_id=_model_id, rendition_id=None
+                                image_path, _model_path, model_id=_model_id, rendition_id=None,
+                                **page_direction(library_path, doc_id_for_file),
                             ),
                         )
                     else:
@@ -4760,7 +4786,10 @@ async def process_vision(
                         result = await run_on_lane(
                             library_path, "find-lines", _page_subject, model="kraken:blla",
                             run_id=task_id,
-                            fn=lambda: segment_to_geometry(image_path, rendition_id=None),
+                            fn=lambda: segment_to_geometry(
+                                image_path, rendition_id=None,
+                                **page_direction(library_path, doc_id_for_file),
+                            ),
                         )
                         if lines_read_by in ("model", "apple"):
                             from fichero_server.llm.line_reader import read_lines
