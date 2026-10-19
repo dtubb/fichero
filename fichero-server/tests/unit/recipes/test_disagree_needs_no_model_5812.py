@@ -71,3 +71,34 @@ def test_the_finder_for_a_sampled_reader_offers_vision_readers_never_a_text_sear
     assert asked["job"] == "read-a-line"
     assert cards == [sampleable], "Kraken cannot be sampled as a vision model"
     assert not [s for s in sources if s["detail"] == discovery.NO_STEP_SEARCH]
+
+
+def _assembled(*jobs):
+    from fichero_server.recipes.assemble import Answers, assemble
+    from tests.unit.recipes.test_assemble_by_rule import CARDS
+
+    return assemble(Answers(purposes=("transcribe",), languages=frozenset({"es"}), scripts=frozenset({"Latn"}),
+                            materials=("handwriting",), jobs=tuple(jobs)), CARDS)
+
+
+def test_ticked_with_one_reader_the_step_is_built_in_says_it_needs_a_second_reader_and_never_blocks_start(mac):
+    """`source.disagree.built-in-needs-second-reader` (#5812): never "has no model", never a Choose a model, Start goes."""
+    recipe = _assembled(DISAGREE_JOB)
+    (step,) = [s for s in recipe["steps"] if s["job"] == DISAGREE_JOB]
+    assert step["built_in"] and not step.get("gap") and not step.get("problem")
+    assert step["needs"] == "needs a second reader: tick one in Read"
+    assert not [g for g in recipe["gaps"] if DISAGREE_JOB in g]
+
+    plan = plan_start(recipe, stays_local=True)
+    (skipped,) = [s for s in plan["skipped"] if s["step"] == DISAGREE_JOB]
+    assert "second reader" in skipped["why"] and skipped["fix"] is None
+    assert not plan.get("needs_a_model") and plan["runs"], "the other steps still start"
+
+
+def test_ticked_with_two_readers_the_step_names_them_and_is_built_in(mac):
+    recipe = _assembled(DISAGREE_JOB, "correct")
+    (step,) = [s for s in recipe["steps"] if s["job"] == DISAGREE_JOB]
+    assert step["built_in"] and "needs" not in step and len(step["compares"]) == 2
+    assert step["reasons"][0].startswith("Compares ") and step["compares"][0] in step["reasons"][0]
+    plan = plan_start(recipe, stays_local=True)
+    assert [b["step"] for b in plan["built_in"]] == [DISAGREE_JOB] and not plan["skipped"]

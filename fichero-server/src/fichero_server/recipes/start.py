@@ -241,6 +241,8 @@ def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
 
 #: What the plan says of the disagree step when its readers are already in the plan: nothing runs, nothing is stored.
 BUILT_IN_DISAGREE = "built in: worked out when you open a page, from the readers above; there is nothing to run"
+#: What the plan says of the disagree step when the plan has only one reader.
+SECOND_READER = "needs a second reader: tick one in Read"
 #: The jobs whose steps are a reader of the lines (or the page) in a plan.
 READER_STEP_JOBS = frozenset({"read-a-line", "read-a-page", "correct"})
 
@@ -260,13 +262,18 @@ def disagreement_runs(step: dict, recipe: dict) -> tuple[list[tuple[dict[str, An
     settings = dict(step.get("settings") or {})
     pins = [p for p in settings.get("readers") or [] if isinstance(p, dict)]
     temperature = settings.get("temperature", DISAGREE_TEMPERATURE)
-    if not pins and not step.get("model") and _readers_in_plan(recipe) >= 2:
+    own = step.get("model") if not step.get("built_in") else None  # the plan's built-in marker names no model
+    if not pins and not own and _readers_in_plan(recipe) >= 2:
         # Two readers already in the plan: the disagreement is the alignment of the readings they make, and the page
         # worked out when it is opened (`GET /api/documents/{id}/disagreement` is read-only and keeps nothing), so the
         # step has nothing to run and no model (`source.disagree.built-in-with-two-readers`, #5812, #5816).
         return [], BUILT_IN_DISAGREE
+    if not pins and step.get("built_in") and not own:
+        # Built in and one reader only: nothing to compare yet, which is the person's to fix, never a block
+        # (`source.disagree.built-in-needs-second-reader`, #5812).
+        return [], SECOND_READER
     if not pins:
-        pin = step.get("model") or next((s.get("model") for s in recipe.get("steps") or []
+        pin = own or next((s.get("model") for s in recipe.get("steps") or []
                                          if s.get("job") == "read-a-line" and isinstance(s.get("model"), dict)), None)
         if not isinstance(pin, dict) or _override(pin) is None:
             return [], ("it compares readers, and the plan has one that cannot be sampled: add a second reader, such "
