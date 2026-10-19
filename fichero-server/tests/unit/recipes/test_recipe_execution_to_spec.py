@@ -161,7 +161,7 @@ def _start(client):
     return r.json()["started"]["job_id"]
 
 
-def test_source_recipe_start_runs_the_steps(client, db, pages, tmp_path, engine):
+def test_source_recipe_start_runs_the_steps(client, db, pages, tmp_path, engine, with_material):
     """source.recipe.start-runs-the-steps: "pressing Start runs the recipe over the project's material: its
     steps in order, each as the job its card names (a shipped workflow run for finding lines, reading a line
     or a page, correcting, finding names and finding statements; a check run for `check`; the project's synced
@@ -227,7 +227,7 @@ def _import(client, tmp_path, name):
     return path
 
 
-def test_source_project_automatic_after_first_yes(client, db, pages, tmp_path, engine):
+def test_source_project_automatic_after_first_yes(client, db, pages, tmp_path, engine, with_material):
     """source.project.automatic-after-first-yes: "nothing in a project runs by itself until the person presses
     Start at the end of setup (the first yes), which shows what will run, on how many pages, with an estimate".
     Before the yes, new material runs nothing; the yes runs the recipe."""

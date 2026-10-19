@@ -182,7 +182,7 @@ RECIPE = [
 ]
 
 
-def test_a_failed_step_stops_only_the_steps_that_need_it(client, db, pages, steps):
+def test_a_failed_step_stops_only_the_steps_that_need_it(client, db, pages, steps, with_material):
     """source.recipe.start-runs-the-steps (#5498): "a step that fails stops only the steps that need what it would
     have given". WHY: Correct failing (a model too big for the Mac) stopped names, which reads the lines whether
     they were corrected or not, so People and places never got found. Names runs on the uncorrected reading; a
@@ -200,7 +200,7 @@ def test_a_failed_step_stops_only_the_steps_that_need_it(client, db, pages, step
     assert run["state"] == "failed" and "correct failed" in run["reason"] and "statements did not run" in run["reason"]
 
 
-def test_failed_steps_stay_in_the_plan_to_run_again(client, db, pages, steps):
+def test_failed_steps_stay_in_the_plan_to_run_again(client, db, pages, steps, with_material):
     """source.recipe.failed-step-offered-again (#5498): "after a run, a step it did not finish stays in the Start
     plan, marked failed (or not run) with why, and Start runs it again". WHY: once a run failed, the plan listed
     only an added layer's step; Transcribe was gone and `--redo` had to be guessed."""

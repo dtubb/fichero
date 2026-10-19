@@ -78,7 +78,7 @@ def test_it_says_how_many_more_corrected_lines_and_pages_it_needs():
     assert regions["sentence"].endswith("Draw or correct the regions on 1 more page.")
 
 
-def test_the_start_plan_carries_the_offers_counted_on_the_project(client, db, tmp_path, folder):  # noqa: F811
+def test_the_start_plan_carries_the_offers_counted_on_the_project(client, db, tmp_path, folder, with_material):  # noqa: F811
     """Through the route: the offers are on the Start plan, counted on the project's corrected pages and a
     person's regions, and never among what Start runs (`source.recipe.train-never-automatic`)."""
     _set_up(client)

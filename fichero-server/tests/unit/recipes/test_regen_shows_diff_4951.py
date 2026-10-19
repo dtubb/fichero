@@ -31,7 +31,7 @@ def test_an_unchanged_recipe_has_no_changes_and_no_recipe_is_not_an_error():
     assert diff_recipes(r, r) == [] and diff_recipes(None, r)[0]["kind"] == "added" and diff_recipes(r, None)[0]["kind"] == "removed"
 
 
-def test_assembling_for_a_project_with_a_saved_recipe_says_what_would_change_and_writes_nothing(client, db, folder):  # noqa: F811
+def test_assembling_for_a_project_with_a_saved_recipe_says_what_would_change_and_writes_nothing(client, db, folder, with_material):  # noqa: F811
     saved = _set_up(client)
     answers = {"purposes": ["transcribe", "entities"], "languages": ["es"], "scripts": ["Latn"],
                "materials": ["handwriting"], "pages": 1000}

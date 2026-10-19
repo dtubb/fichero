@@ -92,7 +92,7 @@ def test_a_recipe_run_finds_the_documents_under_its_row(client, db, tmp_path, jo
     assert AUTO_ACCEPT_ABOVE is None and {d.state for d in proposal.documents} == {"proposed"}
 
 
-def test_on_by_default_for_a_project_holding_loose_pages(client, db, tmp_path, jobs_run_by_the_test):
+def test_on_by_default_for_a_project_holding_loose_pages(client, db, tmp_path, jobs_run_by_the_test, with_material):
     """§7b "Everything automatic after Start": a box of loose page images is organised as a stage of the run, unless
     the answers say it is not loose pages."""
     assert "find-documents-in-a-folder" not in [s["job"] for s in _assemble(client, purposes=["transcribe"])["steps"]]

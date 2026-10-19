@@ -5,7 +5,7 @@ from __future__ import annotations
 from tests.unit.recipes.test_bakeoff_readers import _set_up, folder  # noqa: F401
 
 
-def test_the_start_plan_offers_the_bakeoff_cost_first_and_never_runs_it(client, db, folder):  # noqa: F811
+def test_the_start_plan_offers_the_bakeoff_cost_first_and_never_runs_it(client, db, folder, with_material):  # noqa: F811
     _set_up(client)
     body = client.get("/api/recipes/project/start").json()
     offer = body["bakeoff_offer"]
