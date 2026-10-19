@@ -450,6 +450,10 @@ Where the readers disagree (#5665; the engine half is worker C's, the app half b
 - `source.find.no-finder-for-no-model-jobs` — **[GAP]** (#5812) the Ready page and Set Up show no "Choose a model" row or
   finder for a job that needs none (the engine side is `source.recipe.every-job-declares-needs-a-model`; the pure-Swift check
   of the Ready rows is not written).
+- `source.recipe.second-model-tickbox-matches-the-plan` — **[OK]** (#5812; `recipes/project.py` `_tick_what_the_plan_has`; tested in
+  `fichero-server/tests/unit/recipes/test_correct_tickbox_agrees_with_plan_5812.py`) the Read page's "Have a second model
+  check the reading?" and the plan's Correct step never disagree: a plan that has the step reads as ticked unless the
+  person answered; ticking adds the step and unticking removes it (the existing re-assembly).
 - `source.disagree.agreement-not-accuracy` — **[PARTIAL]** (#5665; the route's fields say agreement only; a checked
   line is not yet scored as accuracy) the figure is labelled agreement everywhere
   (route, lens, Inspector) unless a person checked the line, as `compare_readings` labels its score.
