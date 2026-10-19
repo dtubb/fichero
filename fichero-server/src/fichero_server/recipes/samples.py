@@ -375,6 +375,10 @@ def _main_step(recipe: dict[str, Any], stage: Any) -> dict[str, Any] | None:
     return next((s for s in steps if s.get("model")), steps[0] if steps else None)
 
 
+#: What can do a step, said where a wrong choice is refused (#5838).
+_WHO_DOES = {"find-lines": "the line finders are Kraken and Apple Vision (print); cloud vision models cannot find lines yet"}
+
+
 def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | None) -> list[Any]:
     """The cards compared for the step: `wanted` in its order, else the step's own and the per-step finder's next
     ones runnable here (`source.find.candidates-fit-the-step`), up to `COMPARED`."""
@@ -387,7 +391,12 @@ def _cards_for(setup: dict[str, Any], step: dict[str, Any], wanted: list[str] | 
     found, _ = discover(a, online=False, job=job)
     by_id = {c.id: c for c in [*known_cards(a, include_not_built=True), *found]}
     if wanted:
-        return [by_id[i] for i in dict.fromkeys(wanted) if i in by_id]
+        named = [by_id[i] for i in dict.fromkeys(wanted) if i in by_id]
+        wrong = [c for c in named if job not in c.jobs]
+        if wrong:  # a model that cannot do the step is never compared on it (#5838)
+            raise ValueError(", ".join(c.note.strip().rstrip(".") or c.id for c in wrong)
+                             + f" cannot do the step {step.get('id') or job} ({job}); " + _WHO_DOES.get(job, "pick another model"))
+        return named
     own = (step.get("card") or {}).get("id") if isinstance(step.get("card"), dict) else None
     if own is None:
         own = next((c.id for c in found if dict(c.pin) == step.get("model")), None)

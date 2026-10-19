@@ -59,6 +59,9 @@ struct SetupStagePage: View {
             }
             if stage.sampleable, let tryStore {
                 Divider()
+                if let who = StageCandidateChooser.whoDoes(stageId: stage.id) {
+                    Text(who).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
                 // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
                 if let finder = candidateFinder, finder.candidates.count >= 2 {
                     StageCandidateChooser(
