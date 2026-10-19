@@ -104,3 +104,23 @@ def test_ticked_with_two_readers_the_step_names_them_and_is_built_in(mac):
     assert step["reasons"][0].startswith("Compares ") and step["compares"][0] in step["reasons"][0]
     plan = plan_start(recipe, stays_local=True)
     assert [b["step"] for b in plan["built_in"]] == [DISAGREE_JOB] and not plan["skipped"]
+
+
+def test_one_vision_reader_is_still_sampled_and_one_kraken_reader_needs_a_second(mac):
+    """Review 316: `needs a second reader` is said only when the one reader cannot be sampled (Kraken); a vision reader
+    is read again several times at a temperature, as `source.disagree.recipe-step` has it."""
+    from fichero_server.recipes.assemble import _disagree_step
+
+    built_in = {**DOUBT, "built_in": True, "model": {"builtin": "reader-comparison"}}
+    vision = {"id": "read", "job": "read-a-line", "model": SEVEN, "runs_on": "this-mac"}
+
+    sampled = plan_start(_recipe(LINES, vision, built_in), stays_local=True)
+    assert len([r for r in sampled["runs"] if r["job"] == DISAGREE_JOB]) == 5 and not sampled["skipped"]
+
+    kraken = plan_start(_recipe(LINES, KRAKEN_READS, built_in), stays_local=True)
+    (skipped,) = [s for s in kraken["skipped"] if s["step"] == "doubt"]
+    assert "second reader" in skipped["why"] and skipped["fix"] is None
+
+    # The plan's own words follow the same rule.
+    assert "needs" not in _disagree_step([{**vision, "card": {"note": "Qwen"}}])
+    assert "second reader" in _disagree_step([{**KRAKEN_READS, "card": {"note": "Kraken"}}])["needs"]
