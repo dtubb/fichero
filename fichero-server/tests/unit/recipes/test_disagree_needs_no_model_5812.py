@@ -124,3 +124,15 @@ def test_one_vision_reader_is_still_sampled_and_one_kraken_reader_needs_a_second
     # The plan's own words follow the same rule.
     assert "needs" not in _disagree_step([{**vision, "card": {"note": "Qwen"}}])
     assert "second reader" in _disagree_step([{**KRAKEN_READS, "card": {"note": "Kraken"}}])["needs"]
+
+
+def test_the_plan_and_start_look_at_the_same_reader_when_only_a_page_reader_is_there(mac):
+    """Review 319 LOW: Start samples only the read-a-line model, so a lone page reader (a vision model) is not
+    something the plan may call sampled. One helper (`start.line_reader_pin`) now serves both."""
+    from fichero_server.recipes.assemble import _disagree_step
+
+    page = {"id": "page", "job": "read-a-page", "model": SEVEN, "runs_on": "this-mac", "card": {"note": "Qwen"}}
+    built_in = {**DOUBT, "built_in": True, "model": {"builtin": "reader-comparison"}}
+    assert "second reader" in _disagree_step([page])["needs"]
+    plan = plan_start(_recipe(LINES, {**page, "model": SEVEN}, built_in), stays_local=True)
+    assert [s for s in plan["skipped"] if s["step"] == "doubt" and "second reader" in s["why"]]
