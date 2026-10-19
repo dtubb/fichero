@@ -14,7 +14,7 @@ extension FirstRunWindow {
                 subtitle: "Name it and say where it lives; most projects live inside Fichero.",
                 systemImage: step.icon
             ) {
-                recipeCard { SetupWhereItLivesFields(store: newProject) }
+                recipeCard(step) { SetupWhereItLivesFields(store: newProject) }
             }
         } else if let store {
             setupPage(step, store: store)
@@ -38,7 +38,7 @@ extension FirstRunWindow {
                 subtitle: "Teach Fichero your hand. Once you have corrected some pages, it can train a model of your own, here or elsewhere.",
                 systemImage: step.icon
             ) {
-                recipeCard { RecipeTrainOffersFields(store: store) }
+                recipeCard(step) { RecipeTrainOffersFields(store: store) }
             }
         default:
             stepPage(
@@ -46,7 +46,7 @@ extension FirstRunWindow {
                 subtitle: "The plan from your answers; nothing runs before you press Start.",
                 systemImage: step.icon
             ) {
-                recipeCard {
+                recipeCard(step) {
                     RecipeReadyFields(
                         store: store,
                         onFix: { fix in handle(fix: fix, store: store) },
@@ -68,7 +68,7 @@ extension FirstRunWindow {
                 subtitle: "Add files or folders, and say how they come in.",
                 systemImage: step.icon
             ) {
-                recipeCard {
+                recipeCard(step) {
                     RecipeMaterialSourceFields(
                         store: store, importer: project?.importService, syncFolders: project?.syncFolderStore,
                         icloud: project?.icloudStore, actionsService: project?.actionsService
@@ -81,7 +81,7 @@ extension FirstRunWindow {
                 subtitle: "What it is, when and where it was written, and in which hand.",
                 systemImage: step.icon
             ) {
-                recipeCard { RecipeAboutFields(store: store) }
+                recipeCard(step) { RecipeAboutFields(store: store) }
             }
         }
     }
@@ -96,7 +96,7 @@ extension FirstRunWindow {
                 subtitle: "Tick each stage of the work this project needs; each has its own page next.",
                 systemImage: step.icon
             ) {
-                recipeCard { SetupStageChooser(store: store) }
+                recipeCard(step) { SetupStageChooser(store: store) }
             }
         case .stage(let stageId):
             let stage = store.stage(stageId)
@@ -105,7 +105,7 @@ extension FirstRunWindow {
                 subtitle: stage?.sentence ?? "",
                 systemImage: step.icon
             ) {
-                recipeCard {
+                recipeCard(step) {
                     if let stage {
                         SetupStagePage(store: store, stage: stage, onFix: { fix in handle(fix: fix, store: store) },
                                        bakeoff: project.map(BakeoffSection.Context.init(project:)), project: project)
@@ -128,12 +128,17 @@ extension FirstRunWindow {
         }
     }
 
-    private func recipeCard<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    /// What a page's scroll view is keyed on: a page opens at its top, never at the last page's position (#5801).
+    static func scrollResetID(for step: SetupStep) -> String { step.id }
+
+    private func recipeCard<Content: View>(_ step: SetupStep, @ViewBuilder _ content: () -> Content) -> some View {
         ScrollView {
             content()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(22)
         }
+        // Back, Next or the sidebar: two stage pages share one ScrollView unless each has its own identity.
+        .id(Self.scrollResetID(for: step))
         .background(Color(platformColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
         .overlay {
             RoundedRectangle(cornerRadius: 12)
