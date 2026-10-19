@@ -16,6 +16,11 @@ extension RecipeSetupStore {
         finderFixes.contains(fix)
     }
 
+    /// How a step that runs no model works, in the engine's words (`StartRun.how`, #5791); nil for any other.
+    func how(ofStep step: String) -> String? {
+        startPlan?.runs.first { $0.steps.contains(step) }?.how.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     /// The job of a step in the recipe on screen, by its id; nil for a step the recipe does not have.
     func job(ofStepId step: String) -> String? {
         recipe?.steps.first { $0.id == step }?.job
