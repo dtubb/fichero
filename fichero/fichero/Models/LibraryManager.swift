@@ -90,6 +90,12 @@ class LibraryManager {
     /// Fichero › Set Up Fichero… was chosen: the front window shows the app's welcome again (`appWelcomeIsDue`).
     var appSetUpRequested = false
 
+    /// Set Up Fichero… from the key window `libraryId`: that window becomes the front one and shows the welcome (#5821).
+    func requestAppSetUp(from libraryId: UUID) {
+        currentLibraryId = libraryId
+        appSetUpRequested = true
+    }
+
     /// Inside Fichero: where a project lives when the person does not choose a place (section 7b
     /// screen 1, ruled 2026-10-05), beside the app's own Local project in the app's data folder
     /// (`~/Library/Application Support/Fichero`, or the container's, which the engine serves).

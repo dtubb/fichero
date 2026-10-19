@@ -295,4 +295,21 @@ extension LibraryManagerCreateProjectTests {
         XCTAssertFalse(appWelcomeIsDue(requested: false, isFrontWindow: true, firstRunCompleted: true, libraryIsLoadedAndEmpty: true))
         XCTAssertFalse(appWelcomeIsDue(requested: false, isFrontWindow: true, firstRunCompleted: false, libraryIsLoadedAndEmpty: false))
     }
+
+    /// #5821: Set Up Fichero… chosen from a window makes that window the front one, even when another project was
+    /// the last one opened, so the welcome shows there (`FirstRunWindow(.firstRun)`) and nowhere else.
+    func testSetUpFicheroFromAWindowMakesItTheFrontWindow() {
+        let window = UUID()
+        let other = UUID()
+        libraryManager.currentLibraryId = other
+        libraryManager.requestAppSetUp(from: window)
+        defer { libraryManager.appSetUpRequested = false }
+        func due(_ id: UUID) -> Bool {
+            appWelcomeIsDue(requested: libraryManager.appSetUpRequested,
+                            isFrontWindow: libraryManager.currentLibraryId == id,
+                            firstRunCompleted: true, libraryIsLoadedAndEmpty: false)
+        }
+        XCTAssertTrue(due(window))
+        XCTAssertFalse(due(other))
+    }
 }
