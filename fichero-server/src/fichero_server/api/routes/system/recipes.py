@@ -496,6 +496,10 @@ class SamplePage(BaseModel):
     id: str
     name: str
     why: str = Field(description="why it is a sample: your first page, the largest image, chosen by you…")
+    yours: bool = Field(default=True, description="a page of this project, marked as the person's own: never the shipped "
+                        "example image (#5808)")
+    thumbnail: bool = Field(default=False, description="whether the page's thumbnail is made yet "
+                            "(`GET /api/storage/thumbnail/{id}`), so the stage page can draw it (#5808)")
 
 
 class SamplePages(BaseModel):

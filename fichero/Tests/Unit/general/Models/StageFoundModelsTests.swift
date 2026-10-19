@@ -34,4 +34,12 @@ struct StageFoundModelsTests {
         #expect(StageCandidateChooser.defaultNames(try candidates()) == ["CATMuS Print 20th century, a long full name that must wrap"])
         #expect(StageCandidateChooser.defaultNames([]).isEmpty)
     }
+
+    @Test("a sample page is marked as the person's own and says whether its thumbnail is made")
+    func samplesAreHis() throws {
+        let page = try JSONDecoder().decode(Components.Schemas.SamplePage.self, from: Data(
+            #"{"id":"a","name":"f. 1r","why":"your first page","yours":true,"thumbnail":false}"#.utf8))
+        #expect(page.yours == true)
+        #expect(page.thumbnail == false)
+    }
 }
