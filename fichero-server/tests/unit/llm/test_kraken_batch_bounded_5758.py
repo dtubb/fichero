@@ -17,24 +17,17 @@ class _Config:
     batch_size: int = 64
 
 
-def test_the_batch_follows_the_available_memory(monkeypatch):
-    sizes = {}
-    for gb in (1, 4, 8, 16):
-        monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda gb=gb: gb * GB)
-        sizes[gb] = kraken_runtime.reader_batch_size()
-    assert sizes[1] == 1 and 1 <= sizes[4] <= sizes[8] <= sizes[16] <= 16, sizes
-    assert sizes[16] > sizes[1]
-
-
-def test_the_batch_is_unknown_memory_safe(monkeypatch):
-    monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: None)
-    assert kraken_runtime.reader_batch_size() == 1
+def test_the_batch_is_one_line_whatever_the_memory(monkeypatch):
+    """#5854: a batch pads every crop to its widest; 1 line read a 33-line page in 3.0 s, 16 in 43.5 s (M4)."""
+    for avail in (None, 1 * GB, 4 * GB, 16 * GB, 64 * GB):
+        monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda avail=avail: avail)
+        assert kraken_runtime.reader_batch_size() == 1, avail
 
 
 def test_the_reader_config_carries_the_bound_when_kraken_takes_one(monkeypatch):
     monkeypatch.setattr(kraken_runtime, "_available_memory_bytes", lambda: 4 * GB)
     config = kraken_runtime._reader_config(_Config)
-    assert config.batch_size == kraken_runtime.reader_batch_size() < 64
+    assert config.batch_size == kraken_runtime.reader_batch_size() == 1
     assert config.num_line_workers == 0
 
 
