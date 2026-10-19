@@ -335,9 +335,19 @@ def mac_is_hot() -> str | None:
     return "Waiting: the Mac is hot" if state is not None and state >= _THERMAL_SERIOUS else None
 
 
+IN_USE_REASON = "Waiting: you're using the Mac"
+BUILD_REASON = "Waiting: a build is running"
+
+
+def only_slows(reason: str | None) -> bool:
+    """A reason that slows a long job between its items but never stops it: the person using the Mac, or a build
+    (#5819, "work goes slower and at lower priority; it never stops"). Memory, heat and battery still hold."""
+    return reason in (IN_USE_REASON, BUILD_REASON)
+
+
 def mac_is_in_use() -> str | None:
     idle = seconds_since_input()
-    return "Waiting: you're using the Mac" if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
+    return IN_USE_REASON if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
 
 
 #: Programs whose running means the person is building: background work holds back for them (#5819).
@@ -360,7 +370,7 @@ def a_build_is_running() -> str | None:
         except Exception:  # noqa: BLE001 -- no reading is no reason to wait
             building = False
         _build = (now, building)
-    return "Waiting: a build is running" if _build[1] else None
+    return BUILD_REASON if _build[1] else None
 
 
 _battery: tuple[float, bool] | None = None
