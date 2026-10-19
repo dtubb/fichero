@@ -23,7 +23,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from fichero_server.security import accounts, launch_secret
 from fichero_server.api.auth import _rate_limit_scope_from_request, _use_multiuser_auth, auth_kind_from_request
@@ -1090,6 +1090,12 @@ class LocalClientRequestBody(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     host: str = Field(default="", max_length=120)
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def _strip_name(cls, value: object) -> object:
+        # Before min_length, so a whitespace-only name is refused instead of stored as "".
+        return value.strip() if isinstance(value, str) else value
+
 
 class LocalClientPeer(BaseModel):
     pid: int
@@ -1099,7 +1105,7 @@ class LocalClientPeer(BaseModel):
 
 class LocalClientRequestResponse(BaseModel):
     id: str
-    kind: str
+    kind: Literal["cli", "mcp"]
     name: str
     host: str
     peer: LocalClientPeer
