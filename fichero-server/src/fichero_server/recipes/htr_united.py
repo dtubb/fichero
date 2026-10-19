@@ -26,6 +26,11 @@ def _store_root() -> Path:
 
 def _harvest() -> dict[str, dict[str, Any]]:
     """The catalogue as GitHub serves it, {id: entry}. The one network boundary here; tests replace it."""
+    return _fetch_catalogue()
+
+
+def _fetch_catalogue() -> dict[str, dict[str, Any]]:
+    """The request itself, apart from `_harvest` so a test of the request is not a test of the stub that replaces it."""
     with urllib.request.urlopen(CATALOG_URL, timeout=30, context=https_context()) as response:  # noqa: S310 (a fixed https URL)
         return json.load(response)
 
