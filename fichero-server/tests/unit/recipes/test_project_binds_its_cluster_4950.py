@@ -89,7 +89,7 @@ def _pages_may_leave(monkeypatch, allowed):
                                                                         "recipe": None})
 
 
-def test_a_read_placed_on_the_cluster_is_sent_there_under_its_step(db, monkeypatch):
+def test_a_read_placed_on_the_cluster_is_sent_there_under_its_step(db, monkeypatch, with_material):
     from fichero_server.recipes import runner
     from fichero_server.remote_read import job as read_job
 
@@ -109,7 +109,7 @@ def test_a_read_placed_on_the_cluster_is_sent_there_under_its_step(db, monkeypat
     assert waited == [("read-1", "recipe-job")]
 
 
-def test_a_cluster_that_refuses_fails_the_step_by_name(db, monkeypatch):
+def test_a_cluster_that_refuses_fails_the_step_by_name(db, monkeypatch, with_material):
     from fichero_server.recipes import runner
     from fichero_server.remote_read import job as read_job
     from fichero_server.remote_read.slurm_target import NoKey

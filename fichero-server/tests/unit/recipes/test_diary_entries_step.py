@@ -61,7 +61,7 @@ def _entries(db, page_id):
                   key=lambda d: d.sequence)
 
 
-def test_the_step_is_a_card_start_runs_after_reading_with_its_own_model(client, tmp_path):
+def test_the_step_is_a_card_start_runs_after_reading_with_its_own_model(client, tmp_path, with_material):
     """"At Start: the step is a card of its own (`entries`), after reading: it takes the pages' reading [...] It needs
     a model, the step's own (a cloud or local text model as the run's provider and model, never another); a step
     with none is skipped with "choose-model"." """
@@ -79,7 +79,7 @@ def test_the_step_is_a_card_start_runs_after_reading_with_its_own_model(client, 
     assert skip["fix"] == "choose-model" and "no model" in skip["why"]
 
 
-def test_start_splits_each_read_page_into_dated_entries(client, db, pages, tmp_path, engine, splitter):
+def test_start_splits_each_read_page_into_dated_entries(client, db, pages, tmp_path, engine, splitter, with_material):
     """"Each page is split by the Diary Entries workflow's own splitter [...]: one `entry` child per dated entry, its
     date as the `date` attribute, in the page's order [...] The step's account in the run status (`entries`) says
     how many pages it split [...] and how many entries it made". Run again, it matches the entries it made rather
@@ -129,7 +129,7 @@ def test_only_pages_with_text_are_split(jobs_run_by_the_test, client, db, pages,
     assert len(_entries(db, first.id)) == 2 and _entries(db, second.id) == []
 
 
-def test_a_failed_reading_stops_the_step(client, db, pages, tmp_path, engine, splitter):
+def test_a_failed_reading_stops_the_step(client, db, pages, tmp_path, engine, splitter, with_material):
     """"it takes the pages' reading [...], so a failed read stops it": the step says not run, and why."""
     engine.fail_reading = True
     _save(client, _recipe(tmp_path, LINES, READ, ENTRIES))

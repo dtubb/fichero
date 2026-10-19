@@ -156,7 +156,7 @@ def test_names_is_tried_on_a_copy_of_the_samples_and_the_project_is_untouched(cl
     assert _counts(db) == before  # nothing written as the project's work
 
 
-def test_read_is_tried_by_the_bake_off_one_evaluation_job(client, db, tmp_path, monkeypatch):
+def test_read_is_tried_by_the_bake_off_one_evaluation_job(client, db, tmp_path, monkeypatch, with_material):
     from fichero_server.recipes import samples as s
 
     _set_up(client, ("transcribe",))
@@ -177,7 +177,7 @@ def test_read_is_tried_by_the_bake_off_one_evaluation_job(client, db, tmp_path, 
     assert s.TRY_KIND not in {row["kind"] for row in jobs.find_jobs(db, kinds=[s.TRY_KIND])}
 
 
-def test_a_cloud_stage_says_its_cost_and_runs_only_with_the_yes(client, db, tmp_path, monkeypatch):
+def test_a_cloud_stage_says_its_cost_and_runs_only_with_the_yes(client, db, tmp_path, monkeypatch, with_material):
     _set_up(client)
     _pages(db, tmp_path, 2)
     monkeypatch.setattr(samples, "_stage_plan", lambda db, stage, setup, n: {

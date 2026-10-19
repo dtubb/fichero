@@ -131,7 +131,7 @@ def test_find_names_offers_spacy_apple_mlx_and_the_cloud_saying_what_runs(client
     assert claude["availability"] == "not_here" and "add Claude (Anthropic) in Settings" in claude["availability_words"]
 
 
-def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(client, mac, claude_row):
+def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(client, mac, claude_row, with_material):
     items = _names(client)
     [card] = [c for c in items.values() if c["pin"] == {"cloud": "anthropic", "model": "claude-sonnet-4-5"}]
     assert card["runs_where"] == "provider" and card["refused"] and "cloud" in card["refused"]
@@ -142,7 +142,7 @@ def test_a_configured_cloud_model_is_offered_and_kept_where_pages_may_leave(clie
 
 @pytest.mark.parametrize("who", ["mlx", "apple", "cloud"])
 def test_the_person_chooses_who_finds_names_and_the_run_honours_it(client, db, pages, mac, claude_row, monkeypatch,
-                                                                   who):
+                                                                   who, with_material):
     monkeypatch.setattr("fichero_server.llm.local_model_choice.apple_intelligence_in_this_build", lambda: True)
     answers = {"purposes": ["transcribe", "entities"], "languages": ["es"], "scripts": ["Latn"],
                "materials": ["handwriting"], "cloud_allowed": who == "cloud", "mac_memory_gb": 32}

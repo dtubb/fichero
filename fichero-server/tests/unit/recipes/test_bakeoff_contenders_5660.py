@@ -90,7 +90,7 @@ def test_claude_reads_only_where_pages_may_leave(app_db, apple_here, claude_row)
 
 
 def test_apple_vision_reads_the_same_pages_scored_by_cer_and_wer(client, db, tmp_path, folder, readers, apple_here,
-                                                                  monkeypatch):
+                                                                  monkeypatch, with_material):
     """Apple Vision's recognised text is the reading (not a JSON array); every reader gets a WER beside its CER."""
     _set_up(client)
     pages = [_corrected(db, tmp_path, f"SM_NPQ_C01_00{i}", folder) for i in (1, 2, 3)]
@@ -122,7 +122,7 @@ def test_apple_vision_reads_the_same_pages_scored_by_cer_and_wer(client, db, tmp
 
 
 def test_the_line_finders_are_scored_by_the_checked_lines_they_find(client, db, tmp_path, folder, apple_here,
-                                                                     monkeypatch):
+                                                                     monkeypatch, with_material):
     from fichero_server.execution import jobs
 
     monkeypatch.setattr("fichero_server.llm.kraken_runtime.is_installed", lambda: True)

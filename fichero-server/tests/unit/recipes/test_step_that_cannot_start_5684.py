@@ -19,7 +19,7 @@ DLOPEN = ("dlopen(/Users/x/.venv/lib/python3.12/site-packages/scipy/linalg/_flap
           "Library not loaded: @rpath/libgfortran.5.dylib\n  Referenced from: <...>\n" + "  Reason: tried: ...\n" * 200)
 
 
-def test_a_step_that_cannot_start_fails_alone_in_one_plain_line(client, db, pages, steps):
+def test_a_step_that_cannot_start_fails_alone_in_one_plain_line(client, db, pages, steps, with_material):
     _save(client, RECIPE)
     plain_run = steps.run
 

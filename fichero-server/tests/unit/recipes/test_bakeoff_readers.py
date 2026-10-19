@@ -144,7 +144,7 @@ def _evaluation_jobs(db) -> int:
     return db.execute_fetchone("SELECT COUNT(*) FROM jobs WHERE kind = ?", [evaluation.KIND])[0]
 
 
-def test_below_the_threshold_it_says_how_many_more_and_runs_nothing(client, db, tmp_path, folder, readers):
+def test_below_the_threshold_it_says_how_many_more_and_runs_nothing(client, db, tmp_path, folder, readers, with_material):
     """source.onboard.bakeoff-minimum: "at least 100 corrected lines on at least two pages ... below that it
     says how many more are needed".
     WHY: a bake-off on a handful of lines ranks readers by noise; the person needs to know what to correct
@@ -194,7 +194,7 @@ def test_tesseract_joins_for_print_and_never_for_handwriting():
 
 
 def test_every_candidate_is_scored_by_the_one_cer_on_the_same_pages(client, db, tmp_path, folder, readers,
-                                                                     monkeypatch):
+                                                                     monkeypatch, with_material):
     """source.try.bakeoff-is-the-same-tool: "there is one comparison code path"; section 8a: "All run on the
     same pages".
     WHY: a ranking is only fair when every reader reads exactly the same corrected pages and is scored by
@@ -235,7 +235,7 @@ def test_every_candidate_is_scored_by_the_one_cer_on_the_same_pages(client, db, 
     assert [e["job_id"] for e in kept] == [started["job_id"]] and kept[0]["trust"] == {"person": 3}
 
 
-def test_the_table_is_ranked_by_the_fixed_order(client, db, tmp_path, folder, readers):
+def test_the_table_is_ranked_by_the_fixed_order(client, db, tmp_path, folder, readers, with_material):
     """Section 8: "accuracy first, in bands (candidates within one point of character error rate of the
     best are tied on accuracy); within a band, local before remote, then cheaper, then faster ...".
     WHY: the ranking must be deterministic and explainable: a remote reader a hair more accurate must not
@@ -265,7 +265,7 @@ def test_the_table_is_ranked_by_the_fixed_order(client, db, tmp_path, folder, re
                                            "d:local-two-points-worse", "e:not-scored"]
 
 
-def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tmp_path, folder, readers):
+def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tmp_path, folder, readers, with_material):
     """source.try.use-this-scope: "Use This makes the winner the step's ... choice for the project or for one
     folder, stored as an override on the recipe".
     WHY: the person's choice must reach the recipe Start runs, for exactly the scope they picked, be kept
@@ -309,7 +309,7 @@ def test_use_this_writes_an_audited_override_for_the_chosen_scope(client, db, tm
     assert not_a_folder.status_code == 422
 
 
-def test_the_comparison_is_kept_and_readable_later(client, db, tmp_path, folder, readers, test_package):
+def test_the_comparison_is_kept_and_readable_later(client, db, tmp_path, folder, readers, test_package, with_material):
     """source.try.kept-and-rerunnable: "a comparison is kept with its selection and options and can be run
     again later".
     WHY: finished jobs are cleared from Activity; a bake-off whose table lived only in the job row would be
@@ -336,7 +336,7 @@ def test_the_comparison_is_kept_and_readable_later(client, db, tmp_path, folder,
 # --- the gaps the app found (2026-10-05): names, Use This kept, readiness up front, no ids in refusals -------
 
 
-def test_a_row_names_its_reader_by_the_cards_own_name(client, db, tmp_path, folder, readers):
+def test_a_row_names_its_reader_by_the_cards_own_name(client, db, tmp_path, folder, readers, with_material):
     """Section 7b: "never a raw model id"; the table names each reader as a recipe step names its model.
     WHY: a person choosing a reader must read the reader's name from its card (the words the reading step
     shows), not an id, and not a name the app makes up from the reader's kind and rule place."""
@@ -358,7 +358,7 @@ def test_a_row_names_its_reader_by_the_cards_own_name(client, db, tmp_path, fold
     assert names[step["card"]["id"]] == step["card"]["note"].rstrip(".")
 
 
-def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, readers):
+def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, readers, with_material):
     """source.try.use-this-scope: Use This "makes the winner the step's choice ... stored as an override on
     the recipe, like any other".
     WHY: setup's How it will be done screen proposes the recipe again each time it is shown; if that ignored
@@ -389,7 +389,7 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL), ("folder", PPOCR)]
 
 
-def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db, tmp_path, folder):
+def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db, tmp_path, folder, with_material):
     """source.onboard.bakeoff-minimum: "below that it says how many more are needed and is offered again when
     there are enough".
     WHY: setup must say what to correct before the person presses anything, and hide the button until it
@@ -417,7 +417,7 @@ def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db,
         3 * LINES_PER_PAGE, 3, 0, 0)
 
 
-def test_no_card_id_in_a_refusal(client, db, tmp_path, folder):
+def test_no_card_id_in_a_refusal(client, db, tmp_path, folder, with_material):
     """Section 7b: "a step's problem is shown once, in words a historian reads ... never a raw model id".
     WHY: when no reader can be scored on this Mac (none downloaded), the refusal is all the person reads;
     an id like kraken:zenodo/10.5281/... tells them nothing, the reader's name does."""

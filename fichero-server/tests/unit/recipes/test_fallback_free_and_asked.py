@@ -46,7 +46,7 @@ def _elsewhere(plan: dict) -> dict:
 
 
 def test_ai_where_fallback_free_and_asked_offers_a_free_place_and_applies_it_only_on_the_press(
-        client, db, pages, mac, place):
+        client, db, pages, mac, place, with_material):
     """ai.where.fallback-free-and-asked: "a step whose model this Mac cannot run is offered the same model at a
     free place … in the plan's `instead`, never applied without the person's press." Start stays refused until
     the press; the press sets the step to that place, said "chosen by you"; Start then has nothing to refuse."""
@@ -81,7 +81,7 @@ def test_ai_where_fallback_free_and_asked_offers_a_free_place_and_applies_it_onl
 
 
 @pytest.mark.parametrize("price", [2e-6, None], ids=["paid", "unpriced"])
-def test_a_paid_or_unpriced_place_is_never_offered(client, db, pages, mac, place, price):
+def test_a_paid_or_unpriced_place_is_never_offered(client, db, pages, mac, place, price, with_material):
     """A place the price list does not say is free (it costs money, or its price is not known) is not offered; the
     refusal says why, and the use-instead press for it is refused."""
     place.price = price
@@ -110,7 +110,7 @@ def test_a_local_only_project_is_offered_no_place_off_this_mac(client, db, pages
 
 
 @pytest.mark.parametrize("cloud_allowed", [True, False], ids=["pages-may-leave", "local-only"])
-def test_the_persons_own_machine_is_a_free_place(client, db, pages, mac, app_db, monkeypatch, cloud_allowed):
+def test_the_persons_own_machine_is_a_free_place(client, db, pages, mac, app_db, monkeypatch, cloud_allowed, with_material):
     """ai.where.fallback-free-and-asked: the person's own machine (a model server at an address off this Mac) costs
     nothing, so it is offered like a $0 place, whatever the price list says (here it prices nothing); still never
     applied without the press, and never in a project that keeps its pages on this Mac."""

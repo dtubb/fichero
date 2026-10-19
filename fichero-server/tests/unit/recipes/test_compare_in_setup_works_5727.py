@@ -7,7 +7,7 @@ from tests.unit.recipes.test_bakeoff_readers import (  # noqa: F401  (fixtures)
     _corrected, _run, _set_up, folder, readers)
 
 
-def test_compare_in_set_up_runs_from_the_offer_to_use_this(client, db, tmp_path, folder, readers):  # noqa: F811
+def test_compare_in_set_up_runs_from_the_offer_to_use_this(client, db, tmp_path, folder, readers, with_material):  # noqa: F811
     _set_up(client)
     before = client.get("/api/recipes/project/bakeoffs").json()
     assert before["readiness"]["ready"] is False and before["next_run"]["sentence"]

@@ -46,7 +46,7 @@ def test_every_offer_carries_the_setting_and_what_it_does():
     assert offered["setting"]["mode"] == "offered" and "offered" in offered["does"], offered
 
 
-def test_the_start_plan_carries_the_setting_from_the_projects_answers(client, db, tmp_path, folder, monkeypatch):  # noqa: F811
+def test_the_start_plan_carries_the_setting_from_the_projects_answers(client, db, tmp_path, folder, monkeypatch, with_material):  # noqa: F811
     """source.onboard.auto.train-offer-comes: through the route, the saved `answers.training` is on the plan's offers."""
     _set_up(client)
     _corrected(db, tmp_path, "SM_NPQ_C01_001", folder)
