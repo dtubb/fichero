@@ -253,6 +253,11 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     marker = _marker_path(model_id, home)
     if not marker.exists():
         return None
+    # The one installed check (`is_recognition_model_installed`): a stale marker over a partial download, a missing file
+    # or a file of another size than the download recorded resolves to nothing, so no path (a run, Start, the
+    # evaluation, training) picks a reader that is not whole (`source.model.partial-download-is-not-installed`, #5857).
+    if not is_recognition_model_installed(model_id, home):
+        return None
     try:
         data = json.loads(marker.read_text(encoding="utf-8"))
     except Exception:
@@ -368,6 +373,12 @@ def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
     if recognition_spec(model_ref):
         resolved = recognition_model_path(model_ref)
         if not resolved:
+            problem = recognition_download_problem(model_ref) if _marker_path(model_ref).exists() else None
+            if problem:  # a partial download is said in words, and Start fetches the rest (#5857)
+                raise RuntimeError(
+                    f"The Kraken reader {recognition_display_name(model_ref)} was not downloaded whole ({problem}): "
+                    "Start downloads the rest before the steps that read with it, or Settings › Models downloads it now."
+                )
             # By its name, never its id; Start fetches it itself, so never "download it first" (#5801).
             raise RuntimeError(
                 f"The Kraken reader {recognition_display_name(model_ref)} is not on this Mac yet: Start downloads "
