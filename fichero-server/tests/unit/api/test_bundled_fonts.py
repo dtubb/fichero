@@ -138,3 +138,18 @@ def test_the_reader_page_declares_every_face_and_names_them_after_the_system_fon
         assert f'font-family: "{family}"; src: url("/api/fonts/{file}")' in page, family
     stack = re.search(r"--font-system:([^;]+);", page).group(1)
     assert stack.index("system-ui") < stack.index('"Junicode"') < stack.index("sans-serif"), stack
+
+
+def test_every_font_a_script_is_shown_in_is_bundled_with_its_licence():
+    """#5835: "Shown in Noto Sans Syriac" is only true if the family is served and its file and OFL are present."""
+    from fichero_server.recipes.derived import FONT_SCRIPTS, script_facts
+
+    served = {family: (file, licence) for family, file, _covers, licence in FONTS}
+    assert set(FONT_SCRIPTS) == set(served), "FONT_SCRIPTS and the served list name the same families"
+    for family, (file, licence) in served.items():
+        assert (FONT_DIR / file).is_file() and (FONT_DIR / licence).is_file(), family
+    for family, scripts in FONT_SCRIPTS.items():
+        for code in scripts:
+            if code not in ("Latn", "Latf"):  # the system draws Latin; Junicode is only its medieval fallback
+                assert script_facts(code)["font"] == family
+
