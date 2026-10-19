@@ -30,15 +30,17 @@ def test_an_editor_is_refused_through_actions_invoke(two_macs, app_db, test_pack
     assert response.status_code == 403, response.text
 
 
-def test_a_paired_device_is_refused_through_actions_invoke(two_macs):  # noqa: F811
-    a, b = two_macs["a"], two_macs["b"]
-    session = _login(a, "owner")
-    code = a.post("/api/pair/code", headers=_bearer(session)).json()["code"]
-    token = b.post("/api/pair", json={"code": code, "device_name": "Mac B"}).json()["device_token"]
-    response = b.post("/api/actions/invoke", json=CALL, headers=_bearer(token))
-    assert response.status_code in (401, 403), response.text
+def test_a_device_paired_by_an_editor_is_refused_through_actions_invoke(two_macs, app_db, test_package):  # noqa: F811
+    # A device acts as the account that paired it (an owner's own Mac is the owner), so this one is the editor's.
+    user = app_db.create_user(username="ed", display_name="Ed", password_hash=accounts.hash_password("password"),
+                              is_owner=False)
+    app_db.set_library_role(user_id=user.id, library_path=authz.normalize_library_path(str(test_package)), role="editor")
+    token = accounts.new_session_token()
+    app_db.create_device(name="Ed's Mac", user_id=user.id, token_hash=accounts.hash_token(token))
+    response = two_macs["b"].post("/api/actions/invoke", json=CALL, headers=_bearer(token))
+    assert response.status_code == 403, response.text
 
 
-def test_an_unsigned_local_client_is_refused_through_actions_invoke(two_macs):  # noqa: F811
-    response = two_macs["a"].post("/api/actions/invoke", json=CALL)
+def test_a_client_with_no_valid_credential_is_refused_through_actions_invoke(two_macs):  # noqa: F811
+    response = two_macs["a"].post("/api/actions/invoke", json=CALL, headers=_bearer("not-a-credential"))
     assert response.status_code in (401, 403), response.text
