@@ -1387,7 +1387,8 @@ async def model_candidates(
     if chosen_id and chosen_id not in {c.id for c in cards}:
         from fichero_server.recipes.discovery import known_cards
 
-        cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id][:1]
+        # Only a model that does the step's job: a cloud model added by hand is not a line finder (#5838).
+        cards += [c for c in known_cards(None, include_not_built=True) if c.id == chosen_id and job in c.jobs][:1]
     kept = sorted((c for c in cards if c.runs_here and not c.offered_only and _refusal(job, c, a, material) is None),
                   key=lambda c: rank_key(job, c, material, a))
     rank = {c.id: i for i, c in enumerate(kept, 1)}
