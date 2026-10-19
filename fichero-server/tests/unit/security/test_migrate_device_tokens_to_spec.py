@@ -93,12 +93,10 @@ def test_a_failing_migration_never_stops_the_db_opening_and_old_tokens_still_wor
         db.close()
 
 
-def test_health_names_a_pending_migration_as_a_warning_and_stays_healthy(harness, monkeypatch):
-    import types
-
-    from fichero_server.db import app as app_module
-
-    monkeypatch.setattr(app_module, "_app_db", types.SimpleNamespace(device_token_migration_error="RuntimeError"))
+def test_health_names_a_pending_migration_as_a_warning_and_stays_healthy(harness):
+    # The fixture's db IS the app singleton; set the warning on it. (Never monkeypatch the `_app_db` global here: the
+    # shared monkeypatch is undone AFTER the app_db fixture closes its db, which puts the closed db back.)
+    harness.app_db.device_token_migration_error = "RuntimeError"
     body = harness.client().get("/api/health").json()
     assert body["device_token_migration_error"] == "RuntimeError" and body["status"] == "healthy"
 
