@@ -51034,8 +51034,12 @@
           },
           "kind": {
             "type": "string",
-            "title": "Kind",
-            "description": "added, removed or changed"
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
           },
           "words": {
             "type": "string",

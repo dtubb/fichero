@@ -281,7 +281,7 @@ class RecipeChange(BaseModel):
     """One step a fresh assembly would add, take out or run differently from the project's saved recipe."""
 
     step: str
-    kind: str = Field(description="added, removed or changed")
+    kind: Literal["added", "removed", "changed"]
     words: str = Field(description="the change in a sentence: 'Work out dates would be added'")
     was: Optional[dict[str, Any]] = Field(default=None, description="the saved step's model")
     now: Optional[dict[str, Any]] = Field(default=None, description="the fresh step's model")

@@ -41,3 +41,11 @@ def test_assembling_for_a_project_with_a_saved_recipe_says_what_would_change_and
     same = {"purposes": ["transcribe"], "languages": ["es"], "scripts": ["Latn"], "materials": ["handwriting"],
             "pages": 1000}  # the answers `_set_up` saved
     assert client.post("/api/recipes/assemble", json=same).json()["changes"] == []
+
+
+def test_a_default_the_engine_added_since_saving_is_not_a_change():
+    saved = _recipe({"id": "read", "model": KRAKEN, "settings": {"dpi": 300}})
+    fresh = _recipe({"id": "read", "model": KRAKEN, "settings": {"dpi": 300, "new_default": True}})
+    assert diff_recipes(saved, fresh) == []
+    fresh["steps"][0]["settings"]["dpi"] = 400
+    assert [c["step"] for c in diff_recipes(saved, fresh)] == ["read"]
