@@ -81949,6 +81949,15 @@
             "title": "Next Reader",
             "description": "when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)"
           },
+          "download_failed": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Download Failed",
+            "description": "steps waiting on a model download that failed: the steps, the reason, `retry_job_id` (the download's job, retried in Activity) and `next_candidate` (the step's next chain entry, with needs_permission for a cloud one) (#5352)"
+          },
           "lines_unread_why": {
             "additionalProperties": {
               "type": "integer"
