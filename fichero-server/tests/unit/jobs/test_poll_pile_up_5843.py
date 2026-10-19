@@ -61,7 +61,9 @@ def test_a_ten_thousand_row_jobs_table_is_read_as_one_row_per_group(db):
     started = time.monotonic()
     rows = jobs.snapshot(db)
     assert time.monotonic() - started < 1.0  # generous: the shape below is the point; a full fetch of 10k rows is not
-    waiting = [r for r in rows if r["state"] == "waiting"]
-    assert sorted(r["count"] for r in waiting) == [4995, 4995]  # one row per kind, each with its whole count
-    assert {r["id"] for r in waiting} == {"waiting:make-thumbnail", "waiting:embed-for-search"}
-    assert len([r for r in rows if r["state"] == "running"]) == 5
+    queue = [r for r in rows if r["state"] != "failed"]
+    # One row per kind (#5839): its running and waiting jobs together, Running while one is really going.
+    assert sorted(r["kind"] for r in queue) == ["embed-for-search", "make-thumbnail"]
+    assert sum(r["count"] for r in queue) == 9995 and all(r["state"] == "running" for r in queue)
+    assert {r["id"] for r in queue} == {"waiting:make-thumbnail", "waiting:embed-for-search"}
+    assert len([r for r in rows if r["state"] == "failed"]) == 5
