@@ -528,6 +528,11 @@ def in_period(card: Card, a: Answers | None) -> bool | None:
     return card.period[0] <= years[1] and years[0] <= card.period[1]
 
 
+def other_period(card: Card, a: Answers | None) -> bool:
+    """A reader made for another period than the project's (#5808): False where either states none."""
+    return in_period(card, a) is False
+
+
 def _period_rank(card: Card, a: Answers | None) -> tuple[int, int]:
     """0: its period covers the project's; 1: either states none; 2: its period is another (#5516). Among those that
     cover it, the one centred nearest the project's period, in whole centuries (#5683: the medieval cards reach the

@@ -12,9 +12,22 @@ struct SetupStageSamples: View {
             Text("On your pages").font(.headline)
             // A sample's name is the engine's for that page ("f. 1r"), never a Document's raw name.
             ForEach(store.samples, id: \.id) { sample in
-                HStack(alignment: .firstTextBaseline) {
-                    Text(sample.name).font(.callout)
-                    Text(sample.why).font(.caption).foregroundStyle(.secondary)
+                HStack(alignment: .center) {
+                    // The person's own page, drawn from its own picture (#5808): a placeholder until its thumbnail
+                    // is made, never the shipped example image.
+                    if sample.thumbnail ?? false {
+                        LibraryImageView(documentId: sample.id, imageType: .thumbnail)
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 28, height: 36)
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                    } else {
+                        RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 28, height: 36)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(sample.name).font(.callout)
+                        Text(sample.yours ?? true ? "Your page · \(sample.why)" : sample.why)
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
             HStack(alignment: .firstTextBaseline) {

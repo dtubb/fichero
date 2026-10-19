@@ -63,7 +63,7 @@ struct SetupStagePage: View {
                     Text(who).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 // Which of the step's candidates Compare on These Pages runs (up to three; none: the engine's own).
-                if let finder = candidateFinder, finder.candidates.count >= 2 {
+                if let finder = candidateFinder, !finder.candidates.isEmpty {
                     StageCandidateChooser(
                         candidates: finder.candidates,
                         chosen: Binding(get: { tryStore.chosenCandidates }, set: { tryStore.chosenCandidates = $0 }),
