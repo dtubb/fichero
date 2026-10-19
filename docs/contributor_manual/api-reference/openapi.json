@@ -82039,6 +82039,30 @@
             "title": "Pages With Regions",
             "description": "of the run's pages, the ones with regions; null when the run had neither Find Regions nor Find Lines (whose segmenter finds regions too)"
           },
+          "pages_reviewed": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Pages Reviewed",
+            "description": "of the run's pages, the ones the review step answered for; null when the run had no review step"
+          },
+          "lines_reviewed": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines Reviewed",
+            "description": "the lines the review answered, each by its id; null as above"
+          },
+          "lines_corrected": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines Corrected",
+            "description": "of those, the lines the review gave a new reading; null as above"
+          },
+          "lines_review_unreadable": {
+            "type": "integer",
+            "nullable": true,
+            "title": "Lines Review Unreadable",
+            "description": "of those, the lines the review could not read, left as they were read; null as above"
+          },
           "lines": {
             "items": {
               "type": "string"

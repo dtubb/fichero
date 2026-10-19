@@ -29,7 +29,9 @@ def test_the_plan_places_each_read_step_by_scale_and_says_what_a_run_that_size_c
     from fichero_server.recipes.start import place_runs
 
     def runs():
-        return [{"steps": ["read"], "job": "read-a-line", "card": "workflow"}, {"steps": ["embed"], "job": "embed", "card": "embed"}]
+        # A Kraken reader's run: the one a cluster is sent (`test_project_binds_its_cluster_4950.py` for a vision one).
+        return [{"steps": ["read"], "job": "read-a-line", "card": "workflow", "provider_override": "kraken"},
+                {"steps": ["embed"], "job": "embed", "card": "embed"}]
 
     read, embed = place_runs(runs(), 100_000, cloud_allowed=True)
     assert read["place"] == "this-mac" and "No cluster is set up" in read["why"]

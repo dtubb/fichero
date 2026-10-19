@@ -438,6 +438,24 @@ async def list_stages(request: Request) -> SetupStageList:
                           money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
 
 
+def _bound_cluster(answers: dict[str, Any] | None, clusters: list[str] | tuple[str, ...]) -> str | None:
+    """The cluster the project binds its cluster steps to (`answers.cluster`, by the name Set Up shows), as its id;
+    None unless it is one of `clusters`, those set up here that this caller may see (owner-only, review 124)."""
+    from fichero_server.recipes.answers import CLUSTER
+
+    name = (answers or {}).get(CLUSTER)
+    if not name or name not in clusters:
+        return None
+    from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.db.app import get_app_db
+
+    try:
+        return next((str(cid) for cid, c in _load_clusters(get_app_db()).items()
+                     if str(c.get("name") or c.get("cluster_id") or "a cluster") == name), None)
+    except Exception:  # noqa: BLE001 -- the settings cannot be read: no cluster, never a failed plan
+        return None
+
+
 def _money_and_place(answers: dict[str, Any], clusters: list[str]) -> MoneyAndPlace:
     from fichero_server.recipes.answers import COPIES_STAY, copies_may_stay, spend_cap
 
@@ -1775,7 +1793,8 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     pages = material(db, within)
     plan["estimate"] = estimate(plan["workflows"], pages["pages"])
     plan["estimate"]["counted"] = pages["sentence"]
-    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local)
+    place_runs(plan["runs"], pages["pages"], cloud_allowed=not stays_local,
+               bound_cluster=_bound_cluster(setup["answers"], clusters))
     # Pages whose originals are in iCloud, not on this Mac: warned of, with the offer to copy them in (#5669).
     from fichero_server.importers.keep_a_copy import summary as in_icloud
 
@@ -1895,6 +1914,9 @@ class StartParams(BaseModel):
                             "their output (`source.recipe.done-is-not-redone`)")
     folder_id: Optional[str] = Field(default=None, description="run on this folder alone "
                                      "(`source.recipe.folder-scoped-start`); null: the whole project")
+    clusters: list[str] = Field(default_factory=list, description="the clusters set up here that the person pressing "
+                                "Start may use, by name (the route's own, owner-only): the project's cluster binds "
+                                "only to one of them")
 
 
 class StartRequest(BaseModel):
@@ -1924,8 +1946,8 @@ async def start_project(
     The response is the plan as started: its `runs` and `workflows` are the run's, as `started.workflows` is."""
     folder_id = request.folder_id if request else None
     try:
-        registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id},
-                        ctx)
+        registry.invoke(db, "project.start", {"redo": request.redo if request else [], "folder_id": folder_id,
+                                              "clusters": _cluster_names(http)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return StartPlan(**_as_started(db, _start_plan(db, folder_id, clusters=_cluster_names(http))))
@@ -2047,7 +2069,7 @@ def _action_start(db: Database, params: StartParams, ctx: ActionContext) -> tupl
         record = None
     else:
         try:
-            plan = _start_plan(db, params.folder_id)
+            plan = _start_plan(db, params.folder_id, clusters=params.clusters)
         except LookupError as exc:  # a folder not in the project
             raise ValueError(str(exc)) from exc
         if plan["refusals"]:
