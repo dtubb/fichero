@@ -106,3 +106,31 @@ def test_a_model_lane_row_made_while_a_person_waits_is_watched(db):
     other = jobs.submit(db, "read-page", "p2", model="m", fn=lambda: None, lane="recipes")
     flags = {r[0]: r[1] for r in db.execute_fetchall("SELECT id, COALESCE(watched, FALSE) FROM jobs")}
     assert flags[future.job_id] is True and flags[other.job_id] is False
+
+
+def test_a_try_row_says_what_its_page_waits_for_then_reads_running_again(db, monkeypatch):
+    import asyncio
+
+    monkeypatch.setattr(jobs, "ECHO_WAIT_SECONDS", 0.01)
+    try_id = jobs.enqueue(db, WATCHED, "try", started_by="owner", watched=True)
+    call_id = jobs._insert(db, "read-a-page", "p1", "m", "workflow")
+    db.execute("UPDATE jobs SET reason = 'the model lane: Kraken read' WHERE id = ?", [call_id])
+
+    async def go():
+        task = asyncio.ensure_future(jobs._echo_wait(db, call_id, (db, try_id)))
+        await asyncio.sleep(0.1)
+        said = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [try_id])[0]
+        task.cancel()  # the page started
+        await asyncio.gather(task, return_exceptions=True)
+        return said
+
+    said = asyncio.run(go())
+    assert said and said.startswith("Waiting") and "Kraken read" in said
+    assert db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [try_id])[0] is None
+
+
+def test_a_running_row_the_engine_words_waiting_is_listed_as_waiting(db, lane):
+    job_id = jobs.enqueue(db, WATCHED, "try", started_by="owner", watched=True)
+    assert _wait_for(lambda: lane.started == ["try"])
+    db.execute("UPDATE jobs SET reason = 'Waiting: the model lane' WHERE id = ?", [job_id])
+    assert [r["state"] for r in jobs.snapshot(db) if r["id"] == job_id] == ["waiting"]

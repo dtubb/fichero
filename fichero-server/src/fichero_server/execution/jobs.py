@@ -279,21 +279,42 @@ _holding: ContextVar[bool] = ContextVar("_holding_a_lane", default=False)
 #: The row of this task's latest model call's slot. Kept after the slot closes, because a call's
 #: usage is read from its answer after the call (`llm.chat_structured`); cleared when this task's
 #: next call starts outside a slot (`forget_call_row`).
-#: Set while a person is looking at the result of the code running (a stage try): the lane rows it hands in are watched.
+_call_row: ContextVar[tuple[Any, str] | None] = ContextVar("_call_row", default=None)
+
+#: Set while a person is looking at the result of the code running (a stage try): the lane rows it hands in are watched,
+#: and (with `job`) the try's own row says "Waiting: ..." while its page waits for the lane (#5839).
 _person_waiting: ContextVar[bool] = ContextVar("_person_waiting", default=False)
+_waiting_job: ContextVar[tuple[Any, str] | None] = ContextVar("_waiting_job", default=None)
 
 
 @contextlib.contextmanager
-def person_is_waiting():
-    """Every model-lane row `submit` makes inside this is watched: ahead of a bulk run's rows (#5839)."""
+def person_is_waiting(db: "Database | None" = None, job_id: str | None = None):
+    """Every model-lane row `submit` makes inside this is watched: ahead of a bulk run's rows (#5839). With `job_id`,
+    that row (the try's own) takes on the reason its page waits for, and reads running again once the page starts."""
     token = _person_waiting.set(True)
+    job_token = _waiting_job.set((db, job_id) if db is not None and job_id else None)
     try:
         yield
     finally:
+        _waiting_job.reset(job_token)
         _person_waiting.reset(token)
 
 
-_call_row: ContextVar[tuple[Any, str] | None] = ContextVar("_call_row", default=None)
+#: How often a try's row looks again at what its waiting page waits for.
+ECHO_WAIT_SECONDS = 1.0
+
+
+async def _echo_wait(db: "Database", call_id: str, job: tuple[Any, str]) -> None:
+    """Say on `job`'s row what the call row `call_id` waits for, until cancelled (the page started)."""
+    job_db, job_id = job
+    try:
+        while True:
+            said = state_and_reason(db, call_id)
+            if said and said[0] == "waiting" and said[1]:
+                say(job_db, job_id, said[1] if said[1].startswith("Waiting") else f"Waiting: {said[1]}")
+            await asyncio.sleep(ECHO_WAIT_SECONDS)
+    finally:
+        job_db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND reason LIKE 'Waiting%'", [job_id])
 
 
 def forget_call_row() -> None:
@@ -906,12 +927,13 @@ def _is_attached(kind: str) -> bool:
     return kind in KINDS and KINDS[kind].run is None
 
 
-def _insert(db: "Database", kind: str, subject: str, model: str | None, started_by: str) -> str:
+def _insert(db: "Database", kind: str, subject: str, model: str | None, started_by: str,
+            watched: bool = False) -> str:
     job_id = str(uuid.uuid4())
     db.execute(
-        "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, created_at) "
-        "VALUES (?, ?, ?, ?, 'waiting', 0, ?, ?)",
-        [job_id, kind, subject, model, started_by, utc_now()],
+        "INSERT INTO jobs (id, kind, subject, model, state, attempts, started_by, watched, created_at) "
+        "VALUES (?, ?, ?, ?, 'waiting', 0, ?, ?, ?)",
+        [job_id, kind, subject, model, started_by, watched, utc_now()],
     )
     return job_id
 
@@ -933,9 +955,7 @@ def submit(db: "Database", kind: str, subject: str, *, model: str, fn: Callable[
     `resume` cancels it."""
     _ensure(db)
     future: Future = Future()
-    job_id = _insert(db, kind, subject, model, started_by)
-    if _person_waiting.get():
-        db.execute("UPDATE jobs SET watched = TRUE WHERE id = ?", [job_id])
+    job_id = _insert(db, kind, subject, model, started_by, watched=_person_waiting.get())
     parent = _current_step()
     if parent:  # a page of a step of a run (`activity.jobs-are-a-tree`)
         _ensure_step_row(db, parent)
@@ -1106,6 +1126,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
 
     future = submit(db, kind, subject, model=model, fn=hold, lane=lane, run_id=run_id)
     token = None
+    waiting_job = _waiting_job.get()
+    echo = asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job)) if waiting_job else None
     try:
         waiting = asyncio.wrap_future(future)
         try:
@@ -1114,6 +1136,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             # its caller is gone: the slot is not wanted
             _scheduler.withdraw(db, future, reason="Its run had ended before this page started")
             raise
+        if echo is not None:  # the page starts: the try's row reads running again
+            echo.cancel()
         token = _holding.set(True)
         _call_row.set((db, future.job_id))
         try:
@@ -1123,6 +1147,8 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             raise
         outcome["result"] = "done"
     finally:
+        if echo is not None:
+            echo.cancel()
         if token is not None:
             _holding.reset(token)
         release.set()
@@ -1644,7 +1670,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             continue
         if state == "waiting":
             reason = waiting_reason(db, job_id, kind, stored=reason, created_at=created_at, run_after=run_after)
-        row = {"id": job_id, "kind": kind, "subject": subject, "state": state, "reason": reason,
+        # A running row the engine words "Waiting ..." (a try whose page waits for the lane, a job held by the throttle)
+        # is listed as waiting until it really starts (#5839).
+        shown = "waiting" if state == "running" and (reason or "").startswith("Waiting") else state
+        row = {"id": job_id, "kind": kind, "subject": subject, "state": shown, "reason": reason,
                "attempts": attempts, "created_at": created_at, "count": 1, "parent_id": parent_id,
                "started_by": started_by,
                # When it failed: its end, for a failed row only; a retry sets it waiting and clears its end.
