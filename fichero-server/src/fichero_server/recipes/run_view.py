@@ -394,26 +394,41 @@ def _pages_with(db: Any, pages: list[str], kind: str) -> int:
 
 def reviewed(db: Any, pages: list[str]) -> dict[str, int]:
     """What the review step did on these pages (R3's run summary): each page's newest review, the lines it answered
-    by id, those it gave a new reading, and those it could not read (`source.job.review-is-segment-native`)."""
+    by id, those it gave a new reading, and those it could not read (`source.job.review-is-segment-native`). Three
+    queries over all the pages, however many there are (review 153): the summary is read on every GET."""
+    import json
+
     from fichero_server.llm.working_lines import answer_line
-    from fichero_server.models import Artifact, ContentRepresentation
-    from fichero_server.models.segments import Segment
 
     counted = {"pages": 0, "lines": 0, "corrected": 0, "unreadable": 0}
-    for page in pages:
-        reviews = db.query(Artifact, document_id=page, artifact_type="transcription_review")
-        if not reviews:
-            continue
-        review = max(reviews, key=lambda a: str(a.created_at or ""))
-        lines = {seg.id for seg in db.query(Segment, document_id=page) if seg.kind == "line"}
-        answered = {answer_line(text)[0] for text in (review.content or "").splitlines()} & lines
+    if not pages:
+        return counted
+    newest: dict[str, tuple[str, str | None, Any, str]] = {}
+    for review_id, page, content, data, made in db.execute_fetchall(
+            "SELECT id, document_id, content, data, created_at FROM artifacts WHERE artifact_type = "
+            "'transcription_review' AND document_id IN (SELECT unnest(?::VARCHAR[]))", [list(pages)]):
+        if page not in newest or str(made) > newest[page][3]:
+            newest[page] = (review_id, content, data, str(made))
+    if not newest:
+        return counted
+    lines: dict[str, set[str]] = {}
+    for segment_id, page in db.execute_fetchall(
+            "SELECT id, document_id FROM segments WHERE kind = 'line' AND document_id IN "
+            "(SELECT unnest(?::VARCHAR[]))", [list(newest)]):
+        lines.setdefault(page, set()).add(segment_id)
+    corrected = dict(db.execute_fetchall(
+        "SELECT derived_from_artifact_id, count(DISTINCT segment_id) FROM contentrepresentations WHERE "
+        "retracted_at IS NULL AND derived_from_artifact_id IN (SELECT unnest(?::VARCHAR[])) GROUP BY 1",
+        [[review[0] for review in newest.values()]]))
+    for page, (review_id, content, data, _made) in newest.items():
+        answered = {answer_line(text)[0] for text in (content or "").splitlines()} & lines.get(page, set())
         if not answered:  # not tied to the lines: the page's review, not a review of its lines
             continue
+        data = json.loads(data) if isinstance(data, str) else (data or {})
         counted["pages"] += 1
         counted["lines"] += len(answered)
-        counted["corrected"] += len({r.segment_id for r in db.query(ContentRepresentation, document_id=page)
-                                     if r.derived_from_artifact_id == review.id and not r.retracted_at})
-        counted["unreadable"] += len(set((review.data or {}).get("unreadable_lines") or []) & answered)
+        counted["corrected"] += int(corrected.get(review_id, 0))
+        counted["unreadable"] += len(set(data.get("unreadable_lines") or []) & answered)
     return counted
 
 

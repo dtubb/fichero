@@ -8,7 +8,11 @@ from __future__ import annotations
 import pytest
 
 from fichero_server.recipes import run_view
-from tests.unit.workflows.test_review_corrects_the_lines_5654 import _lines, _review, page  # noqa: F401  (fixture)
+from tests.unit.workflows.test_review_corrects_the_lines_5654 import (  # noqa: F401  (fixture)
+    _lines,
+    _review,
+    page,
+)
 
 
 @pytest.mark.asyncio
@@ -18,6 +22,26 @@ async def test_the_summary_counts_the_lines_the_review_answered_corrected_and_le
                                      f"{second.id} | certain | vezino de la ciudad\n{third.id} | unreadable")
 
     assert run_view.reviewed(page["db"], [page["doc"].id]) == {"pages": 1, "lines": 3, "corrected": 1, "unreadable": 1}
+
+
+@pytest.mark.asyncio
+async def test_the_count_is_three_queries_however_many_pages_the_run_has(page, monkeypatch):  # noqa: F811
+    """Read on every GET of the summary: never a query per page (review 153)."""
+    first = _lines(page)[0]
+    await _review(page, monkeypatch, f"{first.id} | certain | el dicho escrivano")
+    db, calls = page["db"], []
+    real = db._execute
+
+    def counting(*args, **kwargs):
+        calls.append(args[0])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(db, "_execute", counting)
+    run_view.reviewed(db, [page["doc"].id])
+    one = len(calls)
+    calls.clear()
+    run_view.reviewed(db, [page["doc"].id, *[f"page-{n}" for n in range(200)]])
+    assert one == len(calls) == 3, calls
 
 
 def test_a_page_with_no_review_counts_nothing(db):
