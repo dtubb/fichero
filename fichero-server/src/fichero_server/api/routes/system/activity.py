@@ -16,6 +16,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from fichero_server.core.timeutil import utc_now
+from fichero_server.core.single_flight import single_flight
 from pathlib import Path
 from typing import Any, Literal, Optional
 from uuid import uuid4
@@ -443,6 +444,7 @@ async def get_recent_activities(
 
 
 @router.get("/jobs", response_model=BackgroundJobsResponse)
+@single_flight
 async def list_background_jobs(
     db: Database = Depends(get_library_database),
 ) -> BackgroundJobsResponse:
@@ -596,6 +598,7 @@ async def list_background_jobs(
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
+@single_flight
 async def get_job_tree(
     job_id: str,
     depth: Optional[int] = Query(None, ge=0, description=(
@@ -1018,6 +1021,7 @@ def _action_background_mode(
 
 
 @router.get("/stats", response_model=ActivityStatsResponse)
+@single_flight
 async def get_activity_stats(
     db: Database = Depends(get_library_database),
     hours: int = Query(24, ge=1, le=720, description="Number of hours to analyze"),

@@ -30,6 +30,7 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 # before anything can pull in transformers, primes the kreuzberg cache, and
 # starts the import-timing epoch. See _startup.py (#5051).
 from fichero_server.api._startup import api_stamp as _api_stamp
+from fichero_server.core.single_flight import single_flight
 
 import logging
 from contextlib import asynccontextmanager, suppress
@@ -2074,6 +2075,7 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
 
 
 @app.get("/api/stats", response_model=LibraryStatsResponse)
+@single_flight
 async def get_stats(db: Database = Depends(get_library_database)):
     """Get library statistics for the current library."""
     from fichero_server.models import Document, Artifact
