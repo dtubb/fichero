@@ -75,3 +75,49 @@ def test_the_real_embed_kinds_are_on_the_embed_lane_and_stay_background():
         assert jobs.KINDS[kind].lane == "embed" and jobs.KINDS[kind].model == "embedder"
         assert jobs.KINDS[kind].qos is set_background_qos  # background class
     assert "embed" in jobs.THROTTLED_LANES and "embed" in jobs.HEAVY_LANES  # held by battery/memory/heat like the model lane
+
+
+# --- 3c: a page held for memory goes on as soon as the throttle's decision lets it ---------------------------------------
+
+
+def _memory_short_once(monkeypatch, decisions):
+    """A handed-in page that finds memory short the first time; `decisions` are what `decide` answers, in turn."""
+    from fichero_server.execution import throttle
+
+    asked = iter(decisions)
+    last = [throttle.Decision("go", None, "fast")]
+
+    def decide(*_a, **_k):
+        last[0] = next(asked, last[0])
+        return last[0]
+
+    monkeypatch.setattr(throttle, "decide", decide)
+    attempts = []
+
+    def fn():
+        attempts.append(time.monotonic())
+        if len(attempts) == 1:
+            raise throttle.MemoryShortError("Waiting: memory is tight")
+        return "read"
+
+    return fn, attempts
+
+
+def test_a_resident_models_page_does_not_pay_the_five_second_look_again(db, lanes, monkeypatch):
+    from fichero_server.execution import throttle
+
+    assert jobs.THROTTLE_LOOK_AGAIN_SECONDS >= 5.0
+    fn, attempts = _memory_short_once(monkeypatch, [throttle.Decision("go", None, "fast")])
+    started = time.monotonic()
+    assert jobs.submit(db, PAGE, "p", model="kraken:blla", fn=fn).result(timeout=30) == "read"
+    assert len(attempts) == 2 and attempts[1] - started < 2.0  # asked again at once: no 5 s
+
+
+def test_a_page_really_held_for_memory_goes_the_moment_it_fits(db, lanes, monkeypatch):
+    from fichero_server.execution import throttle
+
+    hold, go = throttle.Decision("hold", "Waiting: memory is tight", "background"), throttle.Decision("go", None, "fast")
+    fn, attempts = _memory_short_once(monkeypatch, [hold, hold, hold, go])
+    started = time.monotonic()
+    assert jobs.submit(db, PAGE, "p", model="kraken:blla", fn=fn).result(timeout=30) == "read"
+    assert 0.4 < attempts[1] - started < 3.0  # it waited while memory was short, then went: not a fixed 5 s
