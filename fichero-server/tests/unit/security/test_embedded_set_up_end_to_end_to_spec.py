@@ -75,3 +75,45 @@ def test_a_fresh_library_goes_from_first_launch_through_set_up_to_start(harness,
     started = _ok(app.post("/api/recipes/project/start", json={}), "POST /api/recipes/project/start")
     assert started.get("runs") or started.get("workflows"), f"POST /api/recipes/project/start ran nothing: {started}"
     assert plan is not None
+
+
+@pytest.mark.xfail(
+    strict=False,
+    reason="slices 7-11: after slice 10 the session token, not the bootstrap bearer, runs Set Up. First refusal: see below.",
+)
+def test_the_same_walk_with_multi_user_on_and_the_session_token_as_the_bearer(harness, monkeypatch, tmp_path):
+    # As it will run after slice 10: Multi-user always on, no bootstrap bearer, the owner's session token.
+    # Not strict: it records what slices 7-11 still have to fix without turning the gate red; it XPASSes when they have.
+    monkeypatch.setenv("FICHERO_MULTIUSER", "1")
+    key, pem = new_key()
+    sock = uds_client(harness)
+    sent = {"X-Fichero-Launch-Secret": SECRET}
+    body = {"public_key_pem": pem, "client": {"kind": "app", "name": "Fichero", "host": "MacBook Pro"}}
+    made = sock.post("/api/auth/first-run", json={**body, "display_name": "Daniel"}, headers=sent)
+    if made.status_code == 409:
+        made = sock.post("/api/auth/migrate-owner", json=body, headers=sent)
+    client_id = _ok(made, "POST /api/auth/first-run|migrate-owner")["client"]["id"]
+    issued = _ok(sock.post("/api/auth/challenge", json={"client_id": client_id}), "POST /api/auth/challenge")
+    signed = _ok(
+        sock.post(
+            "/api/auth/sign-in",
+            json={"client_id": client_id, "nonce": issued["nonce"], "signature": signature_for(key, client_id, issued)},
+        ),
+        "POST /api/auth/sign-in",
+    )
+    app = harness.client()
+    app.headers["Authorization"] = f"Bearer {signed['session_token']}"
+
+    from fichero_server.db import db_manager
+
+    library = db_manager.get_database(harness.library)
+    seed_default_workflows(library)
+    library.save(Document(name="p0.png", doc_type=DocType.file, file_type=FileType.image, path=str(_png(tmp_path / "p0.png"))))
+
+    _ok(app.get("/api/recipes/stages"), "GET /api/recipes/stages")
+    _ok(app.put("/api/recipes/project", json={"answers": INTAKE}), "PUT /api/recipes/project")
+    saved = _ok(app.get("/api/recipes/project"), "GET /api/recipes/project")
+    assert saved["recipe"] is not None, "PUT /api/recipes/project stored no recipe"
+    _ok(app.get("/api/recipes/project/start"), "GET /api/recipes/project/start")
+    started = _ok(app.post("/api/recipes/project/start", json={}), "POST /api/recipes/project/start")
+    assert started.get("runs") or started.get("workflows"), f"POST /api/recipes/project/start ran nothing: {started}"
