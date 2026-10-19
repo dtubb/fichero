@@ -261,8 +261,10 @@ def due_starts(offers: list[dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]
 def this_mac_memory_gb() -> float:
     import os
 
+    from fichero_server.llm.local_model_facts import gib
+
     try:
-        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+        return gib(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES"))
     except (ValueError, OSError):
         return 8.0
 
