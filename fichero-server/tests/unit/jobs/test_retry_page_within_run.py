@@ -112,24 +112,16 @@ def test_retry_on_a_done_page_answers_in_words_and_does_nothing(run, monkeypatch
     assert reopened == []
 
 
-def test_retry_in_a_stopped_run_reads_only_that_page(run, monkeypatch):
-    """A stopped run never read some pages: its checkpoint is dropped and the reopen is over this page alone."""
-    from fichero_server.workflows import checkpointer as ckpt
-
+def test_retry_in_a_stopped_run_reopens_over_the_done_pages_plus_this_one_and_keeps_the_checkpoint(run, monkeypatch):
+    """Review 305: a stopped run's Retry never deletes its checkpoint (the account is built from it); it reopens over the
+    pages it read (cache hits) plus this one, leaving the never-read pages out."""
     core, reopened = _stub_run(monkeypatch, "cancelled")
-    dropped: list[str] = []
 
-    class Ckpt:
-        async def __aenter__(self):
-            return self
+    async def done(_db, run_id):
+        return ["doc-1", "doc-2"]
 
-        async def __aexit__(self, *_a):
-            return False
-
-        async def adelete_thread(self, thread_id):
-            dropped.append(thread_id)
-
-    monkeypatch.setattr(ckpt.AsyncDuckDBCheckpointer, "from_db_path", staticmethod(lambda *_a, **_k: Ckpt()))
+    monkeypatch.setattr(core, "_done_documents", done)
     run.execute("UPDATE jobs SET state = 'cancelled' WHERE id = 'page-1'")
     assert asyncio.run(core.retry_page_in_run(run, "page-1")) == ("run-1", "reopened")
-    assert dropped == ["run-1"] and reopened == [("run-1", ["doc-7"], True, True)]
+    assert reopened == [("run-1", ["doc-1", "doc-2", "doc-7"], True, True)]
+    assert "adelete_thread" not in __import__("inspect").getsource(core.retry_page_in_run)
