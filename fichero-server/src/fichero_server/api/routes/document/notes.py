@@ -23,6 +23,7 @@ from fichero_server.actions.registry import audit_with_digests, registry
 from fichero_server.db import Database
 from fichero_server.models.knowledge import Note, NoteKind, NoteLink
 from fichero_server.models import DocType, Document, NoteListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/notes")
@@ -372,7 +373,8 @@ class NoteLinkCreateRequest(BaseModel):
     response_model=NoteLink,
     summary="Create a bidirectional link between two notes",
 )
-async def create_note_link(
+@off_loop
+def create_note_link(
     note_id: str,
     request: NoteLinkCreateRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -417,7 +419,8 @@ async def create_note_link(
 
 
 @router.delete("/{note_id}/links/{link_id}", status_code=204)
-async def delete_note_link(
+@off_loop
+def delete_note_link(
     note_id: str,
     link_id: str,
     db: Database = Depends(get_library_database_for_write),
@@ -466,7 +469,8 @@ async def delete_note_link(
         "query — the graph IS the analysis."
     ),
 )
-async def backlinks(
+@off_loop
+def backlinks(
     note_id: str,
     db: Database = Depends(get_library_database),
 ) -> list[Note]:
@@ -484,7 +488,8 @@ async def backlinks(
     response_model=NoteListResponse,
     summary="Every note this one links to",
 )
-async def forward_links(
+@off_loop
+def forward_links(
     note_id: str,
     db: Database = Depends(get_library_database),
 ) -> list[Note]:

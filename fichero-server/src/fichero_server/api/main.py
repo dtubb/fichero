@@ -70,6 +70,7 @@ from fichero_server.db.storage import (
     start_periodic_snapshot_task,
     stop_periodic_snapshot_task,
 )
+from fichero_server.core.off_loop import off_loop
 
 # Suppress LangChain's `allowed_objects` PendingDeprecationWarning (#1083).
 # It fires from langgraph.checkpoint.serde.encrypted's `LC_REVIVER = Reviver()`
@@ -2093,7 +2094,8 @@ async def get_stats(db: Database = Depends(get_library_database)):
 
 
 @app.get("/api/stats/knowledge", response_model=KnowledgeRowCountsResponse)
-async def get_knowledge_row_counts(db: Database = Depends(get_library_database)):
+@off_loop
+def get_knowledge_row_counts(db: Database = Depends(get_library_database)):
     """How many items each knowledge row in a project's sidebar holds (#5413).
 
     The app shows a knowledge row (Entities, Claims, Citations, the hermeneutic rows) only when

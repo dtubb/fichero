@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.models import Conversation, DocType, Document, SavedSearch, Workflow
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -386,7 +387,8 @@ async def move_items(
 
 
 @router.delete("/{entity_type}/folders")
-async def delete_folder(
+@off_loop
+def delete_folder(
     entity_type: EntityType,
     folder_path: str,
     delete_contents: bool = False,

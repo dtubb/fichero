@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from fichero_server.api.main import get_library_database
 from fichero_server.db import Database
 from fichero_server.models import KGGraphListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/graph")
@@ -143,7 +144,8 @@ class GraphMetricsResponse(BaseModel):
         "/api/kg namespace with the modern model shapes. (#919 5b)"
     ),
 )
-async def metrics(
+@off_loop
+def metrics(
     db: Database = Depends(get_library_database),
 ) -> GraphMetricsResponse:
     from fichero_server.models.hermeneutics import Interpretation
@@ -214,7 +216,8 @@ class TraverseResponse(BaseModel):
         "lives under the canonical /api/kg/graph namespace. (#919 5b)"
     ),
 )
-async def traverse(
+@off_loop
+def traverse(
     entity_id: str,
     max_depth: int = Query(default=2, ge=1, le=5),
     include_claims: bool = Query(default=True),
@@ -665,7 +668,8 @@ class PageRankRow(BaseModel):
         "(#987)"
     ),
 )
-async def pagerank(
+@off_loop
+def pagerank(
     top_k: int = Query(default=20, ge=1, le=500),
     entity_type: str | None = Query(default=None),
     db: Database = Depends(get_library_database),
@@ -723,7 +727,8 @@ class CommunityRow(BaseModel):
         "zoom-out cluster-map view. (#987)"
     ),
 )
-async def communities(
+@off_loop
+def communities(
     method: str = Query(default="louvain", pattern="^(louvain|label_propagation)$"),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
@@ -785,7 +790,8 @@ class SimilarEntityRow(BaseModel):
         "structural* similarity. (#987)"
     ),
 )
-async def similar(
+@off_loop
+def similar(
     entity_id: str,
     method: str = Query(
         default="jaccard",
@@ -890,7 +896,8 @@ class TriangleRow(BaseModel):
         "this entity sits in a dense local cluster. (#987)"
     ),
 )
-async def triangles(
+@off_loop
+def triangles(
     entity_id: str,
     db: Database = Depends(get_library_database),
 ) -> TriangleRow:
@@ -933,7 +940,8 @@ class ClusteringRow(BaseModel):
         "neighbors are independent. (#987)"
     ),
 )
-async def clustering(
+@off_loop
+def clustering(
     top_k: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:

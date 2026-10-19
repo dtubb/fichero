@@ -20,6 +20,7 @@ from fichero_server.api.main import get_library_database
 from fichero_server.db import Database, _fold_for_search
 from fichero_server.models.knowledge import KnowledgeClaim
 from fichero_server.models import Document
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/search", tags=["search-explain"])
@@ -394,7 +395,8 @@ async def list_rag_modes() -> RAGModesResponse:
     summary="Get search metrics",
     description="Returns aggregated search metrics and usage statistics.",
 )
-async def get_search_metrics(
+@off_loop
+def get_search_metrics(
     db: Database = Depends(get_library_database),
 ) -> SearchMetricsSummary:
     """Get search system metrics."""

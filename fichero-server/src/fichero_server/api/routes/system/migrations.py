@@ -19,6 +19,7 @@ from fichero_server.db import Database
 
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db.migrations.runner import MigrationRunner, MigrationStatus
+from fichero_server.core.off_loop import off_loop
 
 # No own prefix: main.py already mounts this router at /api/migrations — the
 # doubled /api/migrations/migrations segment was a mount+prefix stutter
@@ -374,7 +375,8 @@ async def rollback_migration(
 
 
 @router.get("/integrity-check", response_model=DataIntegrityCheckResponse)
-async def data_integrity_check(
+@off_loop
+def data_integrity_check(
     db: Database = Depends(get_library_database),
 ) -> DataIntegrityCheckResponse:
     """Run data integrity checks on the knowledge graph.

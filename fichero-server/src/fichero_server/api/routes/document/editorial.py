@@ -24,6 +24,7 @@ from fichero_server.editorial.leiden import draw
 from fichero_server.models import Segment
 from fichero_server.models.editorial import EditorialFact, EditorialFactKind
 from fichero_server.models.segments import assert_not_provisional
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter(prefix="/editorial")
 
@@ -166,7 +167,8 @@ class EditorialListResponse(BaseModel):
 
 
 @router.get("/segment/{segment_id}", response_model=EditorialListResponse)
-async def facts_of_segment(
+@off_loop
+def facts_of_segment(
     segment_id: str,
     db: Database = Depends(get_library_database),
 ) -> EditorialListResponse:

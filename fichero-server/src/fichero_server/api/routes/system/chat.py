@@ -42,6 +42,7 @@ from fichero_server.security.keychain import has_api_key
 from fichero_server.models.node_aliases import DanglingAliasError, is_alias, resolve_alias
 from fichero_server.llm.providers import get_provider_info
 from fichero_server.retrieval.graph_rag import GraphAwareRetriever
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 
@@ -1528,7 +1529,8 @@ class ExtractTextResponse(BaseModel):
 
 
 @router.post("/extract-text")
-async def extract_text(
+@off_loop
+def extract_text(
     request: ExtractTextRequest,
     db: Database = Depends(get_library_database_for_write),
 ) -> ExtractTextResponse:

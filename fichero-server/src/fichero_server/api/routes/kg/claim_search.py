@@ -176,10 +176,15 @@ async def find_similar_claims(
     db: Database = Depends(get_library_database),
 ) -> KGGraphListResponse:
     """Find claims similar to a given claim (excludes the claim itself)."""
-    claim = db.get(KnowledgeClaim, claim_id)
+    # The database and LanceDB reads run in a thread (#5843): they wait on the transaction gate and the lancedb import.
+    def prepare():
+        found = db.get(KnowledgeClaim, claim_id)
+        return found, found is not None and KG_CLAIM_EMBEDDINGS_TABLE in db._lance_tables()
+
+    claim, embedded = await asyncio.to_thread(prepare)
     if claim is None:
         raise HTTPException(status_code=404, detail=f"Claim not found: {claim_id}")
-    if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
+    if not embedded:
         raise HTTPException(status_code=503, detail="Claims not embedded yet.")
 
     try:
@@ -187,10 +192,14 @@ async def find_similar_claims(
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Embedding failed: {exc}") from exc
 
-    results = db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit + 1)
-    results = [r for r in results if r["id"] != claim_id]
+    def search():
+        found = [r for r in db.search_vectors(KG_CLAIM_EMBEDDINGS_TABLE, query_vector, limit=limit + 1)
+                 if r["id"] != claim_id]
+        wanted = {r["id"] for r in found}
+        return found, {c.id: c for c in db.all(KnowledgeClaim) if c.id in wanted}
+
+    results, claim_map = await asyncio.to_thread(search)
     ids = [r["id"] for r in results]
-    claim_map = {c.id: c for c in db.all(KnowledgeClaim) if c.id in ids}
     score_map = {r["id"]: _vector_similarity(r) for r in results}
     items = [
         {**claim_map[rid].model_dump(), "similarity_score": score_map.get(rid, 0.0)}

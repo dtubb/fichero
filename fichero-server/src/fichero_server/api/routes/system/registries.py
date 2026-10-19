@@ -30,6 +30,7 @@ from fichero_server.models.knowledge import (
     ClassificationValue,
 )
 from fichero_server.models import ClassificationListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/registries")
@@ -172,7 +173,8 @@ async def create_epistemic_status(
     response_model=ClassificationValue,
     summary="Update an epistemic status",
 )
-async def patch_epistemic_status(
+@off_loop
+def patch_epistemic_status(
     value_id: str,
     request: RegistryPatchRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -210,7 +212,8 @@ async def patch_epistemic_status(
     "/epistemic-statuses/{value_id}",
     status_code=204,
 )
-async def delete_epistemic_status(
+@off_loop
+def delete_epistemic_status(
     value_id: str,
     db: Database = Depends(get_library_database_for_write),
 ) -> None:
@@ -303,7 +306,8 @@ async def create_claim_kind(
     response_model=ClassificationValue,
     summary="Update a claim kind",
 )
-async def patch_claim_kind(
+@off_loop
+def patch_claim_kind(
     value_id: str,
     request: RegistryPatchRequest,
     db: Database = Depends(get_library_database_for_write),
@@ -341,7 +345,8 @@ async def patch_claim_kind(
     "/claim-kinds/{value_id}",
     status_code=204,
 )
-async def delete_claim_kind(
+@off_loop
+def delete_claim_kind(
     value_id: str,
     db: Database = Depends(get_library_database_for_write),
 ) -> None:

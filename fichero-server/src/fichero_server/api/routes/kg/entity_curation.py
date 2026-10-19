@@ -36,6 +36,7 @@ from fichero_server.models.knowledge import (
     MutationOperationType,
 )
 from fichero_server.models import EntityAuditListResponse, KGGraphListResponse
+from fichero_server.core.off_loop import off_loop
 
 if TYPE_CHECKING:
     from fichero_server.knowledge.dedupe import EntityMergeGroup
@@ -1242,7 +1243,8 @@ def _dedupe_group_payload(group: EntityMergeGroup) -> EntityDedupeGroup:
         "are absorbed unless include_reviewed is set. (#4508)"
     ),
 )
-async def dedupe_entities(
+@off_loop
+def dedupe_entities(
     request: EntityDedupeRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),

@@ -20,6 +20,7 @@ from fichero_server.models.knowledge import (
     MutationOperationType,
 )
 from fichero_server.models import MutationListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/mutations")
@@ -134,7 +135,8 @@ def _find_owning_action_audit(db: Database, log: "MutationLog"):
         "auditable. (#901)"
     ),
 )
-async def undo_mutation(
+@off_loop
+def undo_mutation(
     mutation_id: str,
     db: Database = Depends(get_library_database_for_write),
     actor: str = Depends(request_actor),

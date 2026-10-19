@@ -35,6 +35,7 @@ from fichero_server.models.knowledge import (
     PendingMatchState,
 )
 from fichero_server.models import ReviewListResponse, KGGraphListResponse
+from fichero_server.core.off_loop import off_loop
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/kg/review")
@@ -141,7 +142,8 @@ async def review_summary(
     response_model=ReviewListResponse,
     summary="List pending entity-match pairs",
 )
-async def list_pairs(
+@off_loop
+def list_pairs(
     limit: int = Query(default=50, ge=1, le=500),
     db: Database = Depends(get_library_database),
 ) -> ReviewListResponse:

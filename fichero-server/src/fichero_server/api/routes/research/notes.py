@@ -26,6 +26,7 @@ from fichero_server.models.research import (
     SearchSource,
     SearchSourceType,
 )
+from fichero_server.core.off_loop import off_loop
 
 router = APIRouter()
 
@@ -130,7 +131,8 @@ async def create_search_source(
 
 
 @router.get("/projects/{project_id}/sources", response_model=ResearchNotesListResponse)
-async def list_search_sources(
+@off_loop
+def list_search_sources(
     project_id: str,
     db: Database = Depends(get_library_database),
 ) -> ResearchNotesListResponse:
