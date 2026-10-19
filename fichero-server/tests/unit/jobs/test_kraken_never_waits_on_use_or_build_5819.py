@@ -23,11 +23,7 @@ def mac(monkeypatch):
     monkeypatch.setattr(throttle, "thermal_state_level", lambda: 0)
     monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
-    # "in use" is no longer a probe of why_wait; the run must not stop for it if one reports it (a build, or in use)
     monkeypatch.setattr(throttle, "a_build_is_running", lambda: throttle.BUILD_REASON if state["build"] else None)
-    monkeypatch.setattr(throttle, "PROBES", [(throttle.memory_is_tight, True), (throttle.mac_is_hot, True),
-                                             (throttle.on_battery, False), (throttle.mac_is_in_use, False),
-                                             (throttle.a_build_is_running, False)])
     monkeypatch.setattr(regions.time, "sleep", lambda seconds: state["sleeps"].append(seconds))
     return state
 
@@ -100,9 +96,18 @@ def test_the_priority_of_a_page_by_who_started_it(monkeypatch):
 
     monkeypatch.delenv("FICHERO_COMPUTE_PRIORITY", raising=False)
     monkeypatch.setattr(prefs, "stored_preferences", lambda: {"priority": "balanced", "device": "auto"})
+    monkeypatch.setenv("FICHERO_JOB_THROTTLE", "1")
+    monkeypatch.setattr(throttle, "memory_pressure_level", lambda: 1)
+    monkeypatch.setattr(throttle, "memory_available_bytes", lambda: 64 * 1024**3)
+    monkeypatch.setattr(throttle, "thermal_state_level", lambda: 0)
+    monkeypatch.setattr(throttle, "seconds_since_input", lambda: 600.0)
+    monkeypatch.setattr(throttle, "a_build_is_running", lambda: None)
+    battery = {"on": False}
+    monkeypatch.setattr(throttle, "battery_or_low_power", lambda: battery["on"])
     assert prefs.priority_for(True) == "fast"  # Start: flat out
     assert prefs.priority_for(False) == "balanced"  # background: balanced
-    assert prefs.priority_for(True, on_battery=True) == "balanced"  # only battery slows a person's run
+    battery["on"] = True
+    assert prefs.priority_for(True) == "balanced"  # only battery slows a person's run
     monkeypatch.setenv("FICHERO_COMPUTE_PRIORITY", "background")
     assert prefs.priority_for(True) == "background"  # the environment's override wins
 
@@ -135,7 +140,7 @@ def test_a_kraken_page_of_a_persons_run_gets_fast_threads_and_a_background_one_b
     monkeypatch.setattr(kr, "bound_native_thread_pools", lambda n: None)
     monkeypatch.setattr(prefs, "stored_preferences", lambda: {"priority": "balanced", "device": "auto"})
     monkeypatch.delenv("FICHERO_COMPUTE_PRIORITY", raising=False)
-    monkeypatch.setattr(throttle, "on_battery", lambda: None)
+    monkeypatch.setenv("FICHERO_JOB_THROTTLE", "0")  # off: a person's page is fast, background balanced
     monkeypatch.setattr("fichero_server.core.background_compute.set_background_qos", lambda qos=0x09: None)
 
     jobs._current.person = True

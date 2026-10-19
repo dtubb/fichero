@@ -56,15 +56,17 @@ def compute_preferences() -> dict[str, str]:
     return prefs
 
 
-def priority_for(person_waiting: bool, *, on_battery: bool = False) -> str:
-    """The priority a page of model work runs at (#5819). Work a person started and waits for goes flat out ("fast":
-    every core, user-initiated QoS); only the Mac being on battery slows it (to the person's own setting; memory and
-    heat hold it in the lane). Background work stays at the person's setting, "balanced" by default. The environment's
-    override (`FICHERO_COMPUTE_PRIORITY`) wins over both."""
+def priority_for(person_waiting: bool) -> str:
+    """The priority a page of model work runs at, from the throttle's one decision (`throttle.decide`, #5819): flat out
+    for a person's work, the lowest class for background work under a build or while the Mac is used, else the
+    person's own setting (balanced by default). The environment's override (`FICHERO_COMPUTE_PRIORITY`) wins."""
+    from fichero_server.execution.throttle import decide
+
     prefs = compute_preferences()
     if os.environ.get("FICHERO_COMPUTE_PRIORITY", "").strip().lower() in PRIORITIES:
         return prefs["priority"]
-    return "fast" if person_waiting and not on_battery else prefs["priority"]
+    chosen = decide(person_waiting).priority
+    return prefs["priority"] if chosen == "balanced" else chosen
 
 
 def save_preferences(priority: str, device: str) -> dict[str, str]:
