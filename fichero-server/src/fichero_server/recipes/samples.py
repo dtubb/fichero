@@ -234,12 +234,23 @@ def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
     return followed
 
 
+#: One lock per kept result file: the try's thread and its progress watcher both write it (review 323).
+_FILE_LOCKS: dict[str, threading.RLock] = {}
+_FILE_LOCKS_GUARD = threading.Lock()
+
+
+def _file_lock(path: Path) -> threading.RLock:
+    with _FILE_LOCKS_GUARD:
+        return _FILE_LOCKS.setdefault(str(path), threading.RLock())
+
+
 def _write(library: Path, stage: str, result: dict[str, Any]) -> None:
     path = _result_path(library, stage)
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8")
-    tmp.replace(path)
+    with _file_lock(path):
+        tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")  # unique: no two writers share a temp file
+        tmp.write_text(json.dumps(result, ensure_ascii=False, default=str), encoding="utf-8")
+        tmp.replace(path)
 
 
 def _stage_plan(db: Any, stage: Any, setup: dict[str, Any], page_count: int) -> dict[str, Any]:
@@ -612,12 +623,10 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     total = len(result["pages"])
     for i, card in enumerate(cards or [None]):
         started = time.monotonic()
-        publish = None
-        if card is not None:
-            def publish(made, state="running", page=None, _card=card.id):  # noqa: E306 -- one candidate's progress in place
-                publish_progress(library, stage_id, _card, progress_of(made, total, stage_id, state, page), made)
+        def publish(made, state="running", page=None, _card=card.id if card is not None else None):  # noqa: E306
+            publish_progress(library, stage_id, _card, progress_of(made, total, stage_id, state, page), made)
 
-            publish([], "running")  # the column says it is running, with 0 of N, before its first page is made
+        publish([], "running")  # it says it is running, with 0 of N, before its first page is made
         one = _run_one(db, stage, _with_card(setup, step, card), result["pages"], job_id,
                        stage_id if i == 0 else f"{stage_id}-{i}",
                        name=card.note if card is not None else stage.title, publish=publish)
@@ -630,10 +639,12 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     by_card = {card.id: run for card, run in zip(cards, runs)}
     for column, measures in zip([c for c in columns if c["card"] in by_card], _measure(db, stage_id, runs)):
         run = by_card[column["card"]]
-        column.update(state=run["state"], seconds=run["seconds"], per_page=run["made"]["per_page"],
+        column.update(progress=finished_progress(run["state"], run["made"]["per_page"], total, stage_id),
+                      state=run["state"], seconds=run["seconds"], per_page=run["made"]["per_page"],
                       names=run["made"]["names"], measures=measures, agreement=measures["agreement"],
                       cer=measures["cer"], why=run.get("error"))
     result["candidates"] = columns
+    result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
     return result
 
@@ -699,9 +710,11 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
         before = _snapshot(copy)
         ran, extra = [], {}
         stop = threading.Event()
+        watcher = None
         if publish is not None:
-            threading.Thread(target=_watch, args=(copy, before, back, publish, stop), name="try-progress",
-                             daemon=True).start()
+            watcher = threading.Thread(target=_watch, args=(copy, before, back, publish, stop), name="try-progress",
+                                       daemon=True)
+            watcher.start()
         for card in cards:
             if card.get("card") in ("find-documents", "entries"):
                 jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
@@ -729,18 +742,22 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                 why = "; ".join(filter(None, [why, *(f"{e['page']}: {e['why']}" for e in uncertain)]))
             ran.append({"steps": card["steps"], "workflow": card["workflow"], "state": state, "why": why})
         stop.set()
+        if watcher is not None:
+            watcher.join()  # no late publish may land after the final result is written (review 323)
         made = _collect(copy, before, back)
         texts, boxes, items = _for_comparing(copy, before, back, stage_id)
         out.update(state="done" if all(r["state"] != "failed" for r in ran) else "failed", ran=ran,
                    made={**made, **extra}, texts=texts, boxes=boxes, items=items)
-        failed = [_sentence(r["why"]) for r in ran if r["state"] == "failed" and r.get("why")]
+        failed = [_sentence(r["why"]) or "the run stopped before it finished" for r in ran if r["state"] == "failed"]
         if failed:
-            out["error"] = "; ".join(failed)
+            out["error"] = "; ".join(failed)  # a failure always says why in words, never a blank
     except Exception as exc:  # noqa: BLE001 -- the try says why, in words; the project is untouched either way
         out.update(state="failed", error=_sentence(str(exc)) or "the run stopped")
     finally:
         if "stop" in locals():
             stop.set()
+            if watcher is not None:
+                watcher.join()
         db_manager.close_database(scratch)
         shutil.rmtree(scratch, ignore_errors=True)
     return out
@@ -865,15 +882,25 @@ def progress_of(made: list[dict[str, Any]], total: int, stage_id: str, state: st
             "waiting_for": waiting_for}
 
 
-def publish_progress(library: Path, stage_id: str, card_id: str, progress: dict[str, Any],
+def publish_progress(library: Path, stage_id: str, card_id: str | None, progress: dict[str, Any],
                      made: list[dict[str, Any]]) -> None:
     """Write one candidate's progress and the pages it has finished into the kept result, so the app sees each page
-    as it finishes. Nothing when the try's record is gone (it was replaced or cleared)."""
-    try:
-        result = json.loads(_result_path(library, stage_id).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return
-    for column in result.get("candidates") or []:
-        if column.get("card") == card_id:
-            column.update(progress=progress, per_page=made, state=progress["state"])
-    _write(library, stage_id, result)
+    as it finishes; a stage try with no compared candidates (`card_id` None) publishes on the result itself. Read,
+    changed and written under the file's lock. Nothing when the try's record is gone (replaced or cleared)."""
+    path = _result_path(library, stage_id)
+    with _file_lock(path):
+        try:
+            result = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        if card_id is None:
+            result.update(progress=progress, per_page=made)
+        for column in result.get("candidates") or []:
+            if column.get("card") == card_id:
+                column.update(progress=progress, per_page=made, state=progress["state"])
+        _write(library, stage_id, result)
+
+
+def finished_progress(state: str, made: list[dict[str, Any]], total: int, stage_id: str) -> dict[str, Any]:
+    """A run's last progress: how it ended and how many pages have a result."""
+    return progress_of(made, total, stage_id, state)

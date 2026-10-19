@@ -58,3 +58,53 @@ def test_publishing_a_candidates_progress_updates_only_its_column_and_keeps_the_
 
 def test_publishing_into_a_try_with_no_record_is_quietly_nothing(tmp_path):
     samples.publish_progress(tmp_path, "find-lines", "b", {"state": "running"}, [])  # no error: the try may be gone
+
+
+# --- review 323 and the M4 TRYPROGRESS run -------------------------------------------------------------------------
+
+def test_concurrent_writes_to_one_result_never_raise_and_leave_a_whole_file(tmp_path):
+    """The watcher and the try thread both wrote the same `.tmp` name: a replace could find it gone."""
+    import threading
+
+    samples._write(tmp_path, "find-lines", {"state": "waiting", "candidates": [{"card": "a"}]})
+    errors: list[BaseException] = []
+
+    def hammer(kind):
+        try:
+            for n in range(150):
+                if kind == "publish":
+                    samples.publish_progress(tmp_path, "find-lines", "a", {"state": "running", "done": n}, [])
+                else:
+                    samples._write(tmp_path, "find-lines", {"state": "done", "candidates": [{"card": "a"}]})
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=hammer, args=(k,)) for k in ("publish", "publish", "write", "write")]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert not errors
+    assert json.loads(samples._result_path(tmp_path, "find-lines").read_text())["candidates"][0]["card"] == "a"
+    assert not list(samples._folder(tmp_path).glob("*.tmp")), "no temp file is left behind"
+
+
+def test_a_stage_try_with_no_candidates_publishes_its_progress_on_the_result(tmp_path):
+    samples._write(tmp_path, "names", {"stage": "names", "state": "waiting"})
+    made = [_page("p1", line=2)]
+    samples.publish_progress(tmp_path, "names", None, samples.progress_of(made, 3, "names", "running"), made)
+    result = json.loads(samples._result_path(tmp_path, "names").read_text())
+    assert result["progress"]["done"] == 1 and result["progress"]["total"] == 3 and result["per_page"] == made
+
+
+def test_a_run_that_ended_paused_says_so_in_words_and_no_failure_is_blank():
+    from fichero_server.recipes.runner import outcome_why
+
+    assert outcome_why("paused", None) == "the engine stopped while this was running; try it again"
+    assert outcome_why("failed", "the model is missing") == "the model is missing"
+    assert outcome_why("cancelled", None) and outcome_why("something-odd", "")
+
+
+def test_the_final_progress_counts_the_pages_with_a_result_and_names_how_it_ended():
+    made = [_page("p1", line=2), _page("p2", line=1)]
+    assert samples.finished_progress("failed", made, 5, "find-lines")["state"] == "failed"
+    assert samples.finished_progress("failed", made, 5, "find-lines")["done"] == 2
+    assert samples.finished_progress("done", made, 2, "find-lines")["state"] == "done"
