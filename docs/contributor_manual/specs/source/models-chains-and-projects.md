@@ -4525,7 +4525,7 @@ Each is described in the paragraph named; the id lets a test cite it.
   Hugging Face; today the train offer for Find Names says "not available yet: Fichero has no spaCy trainer".
 - `source.train.regions-yolo` — **[PARTIAL]** (#5525; *built in part, pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`;
   the table detectors are not built*) a YOLO layout model is trained on the person's corrected regions, on this Mac.
-- `source.lines.teacher-check-honest-end` — **[GAP]** (#5524) a teacher-line check that lands its verdicts ends "completed" with correct status counts,
+- `source.lines.teacher-check-honest-end` — **[PARTIAL]** (#5524; built 2026-10-08: a stop for memory waits and carries on after its last finished page, the run ends done with the whole run's counts and no line given a second verdict, pinned by `fichero-server/tests/unit/check/test_line_check_memory.py`; not built, and contradicted by `source.lines.reading-checked-against-the-page`, which says a passing line gets no verdict and is counted: whether a passing line gets a verdict, for the maintainer to rule) a teacher-line check that lands its verdicts ends "completed" with correct status counts,
   and never "failed" with a memory message that contradicts the verdicts that landed; a passing line gets a verdict.
 - `source.lines.correct-this-line-verb` — **[PARTIAL]** (#5499; *built in part, pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`
   and `test_import_ground_truth.py`*) correcting a line is one verb, not three ids and six flags, and a person's corrections count as the
