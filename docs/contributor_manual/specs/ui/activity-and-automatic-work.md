@@ -1370,6 +1370,15 @@ and node, not by job); a retry action for failed pages.
   using the Mac slows its jobs and never holds them (`activity.throttle.use-means-slower`), and they stay background work. Pinned by
   `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
   an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
+- `activity.lane.each-unit-its-own-lane` — **[PARTIAL]** (speed round 2, `briefs/bugs-vision-alongside-2026-10-19.md`) each compute unit has its
+  own lane and they run at once: Kraken on the CPU, Apple Vision on the Neural Engine, MLX on the GPU, hosted readers on the
+  network. Apple Vision runs beside Kraken: an Apple page takes no model-lane job, does not count as a "local page in flight"
+  against Kraken's memory fan-out (`kraken_runtime.page_fan_out`), and never waits for a Kraken page; its own gate
+  (`vision_base._APPLE_VISION_GATE`, at most 2, one when memory is short) bounds it. Already true, pinned by reading the code:
+  the Vision bundle and its locales load once per engine at startup, off the loop (`warm_supported_locales`), and one
+  `VNRecognizeTextRequest` per page carries the lines and the words (a per-line Apple read is a different feature, and gap
+  escalation adds a request only for a band Vision missed)
+  (`fichero-server/tests/unit/workflows/test_apple_vision_runs_beside_kraken.py`; the job lane already runs a Vision page beside a Kraken page, `tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py`).
 - `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
   model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
   model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
