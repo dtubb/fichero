@@ -44,7 +44,9 @@ extension FirstRunWindow {
                         onFix: { fix in handle(fix: fix, store: store) },
                         bakeoff: project.map(BakeoffSection.Context.init(project:)),
                         keptExports: project?.keptExportStore,
-                        project: project
+                        project: project,
+                        onStart: { startFromReady() },
+                        isStarting: isSaving
                     )
                     // Training is offered once there is enough corrected work, never before (#5804): no row, no count.
                     if !store.trainOffers.isEmpty {

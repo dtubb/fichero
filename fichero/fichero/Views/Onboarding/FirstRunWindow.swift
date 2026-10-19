@@ -297,8 +297,9 @@ extension FirstRunWindow {
                 Button(leading.title) { perform(leading.action) }
             }
             Spacer()
-            // A greyed Start or Continue says why beside it, not only on hover (#5801, #5813).
-            if let reason = waits {
+            // A greyed Start or Continue says why beside it, not only on hover (#5801, #5813). Ready's Start and its
+            // reason are in the page's last box instead (#5840).
+            if let reason = waits, !model.primaryLivesInPage {
                 Text(reason).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     .accessibilityIdentifier("setup.footer.startReason")
             }
@@ -306,13 +307,18 @@ extension FirstRunWindow {
             if model.showsBack {
                 Button("Back") { step = step.previous(in: steps) }
             }
-            Button(model.primary.title) { perform(model.primary.action) }
-                .disabled(model.waitsFor != nil || (step == .ready && !(store?.canStart ?? false)))
-                .help(waits ?? "")
-                .keyboardShortcut(.defaultAction)
+            if !model.primaryLivesInPage {
+                Button(model.primary.title) { perform(model.primary.action) }
+                    .disabled(model.waitsFor != nil || (step == .ready && !(store?.canStart ?? false)))
+                    .help(waits ?? "")
+                    .keyboardShortcut(.defaultAction)
+            }
         }
         .accessibilityIdentifier("setup.footer")
     }
+
+    /// Ready's Start, pressed in the page's last box (#5840).
+    func startFromReady() { advance() }
 
     /// What a footer button does.
     private func perform(_ action: SetupFooter.Action) {
