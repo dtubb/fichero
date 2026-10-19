@@ -99,3 +99,43 @@ def test_warming_reads_each_provider_once(monkeypatch):
     keychain.warm_api_keys(["a", "b"])
     keychain.lookup_api_key("a")
     assert len(calls) == 2
+
+
+def test_a_read_begun_before_a_save_never_stores_its_old_answer(monkeypatch):
+    """Review 309 LOW: a refresh in flight when a key is saved or deleted must not put the old answer back."""
+    started, release = threading.Event(), threading.Event()
+
+    def slow_security(*args, input_data=None):
+        started.set()
+        release.wait(10)
+        return (0, "old-key\n", "")
+
+    monkeypatch.setattr(keychain, "_run_security", slow_security)
+    out = []
+    reader = threading.Thread(target=lambda: out.append(keychain.lookup_api_key("openai")))
+    reader.start()
+    assert started.wait(10)
+    keychain.forget_cached_lookups("openai")  # the key was saved while the read ran
+    release.set()
+    reader.join(10)
+    assert out[0].key == "old-key"  # that caller still gets what it read...
+    assert "openai" not in keychain._LOOKUPS  # ...but it was not kept for the next one
+
+
+def test_startup_warms_only_the_providers_the_person_has_set_up(monkeypatch):
+    """Review 309: never probe every provider type (a Keychain dialog per unread legacy item)."""
+    from types import SimpleNamespace as NS
+
+    from fichero_server.api import main
+    from fichero_server.db import app as app_module
+
+    warmed: list[list[str]] = []
+    monkeypatch.setattr(keychain, "warm_api_keys", lambda names: warmed.append(list(names)))
+    rows = [NS(provider_type=NS(value="openai"), enabled=True), NS(provider_type=NS(value="anthropic"), enabled=False),
+            NS(provider_type=NS(value="mlx"), enabled=True)]
+    monkeypatch.setattr(app_module, "get_app_db", lambda: NS(list_providers=lambda: rows))
+    from fichero_server.llm import providers
+
+    monkeypatch.setattr(providers, "get_provider_info", lambda t: NS(is_local=(t == "mlx")))
+    main._warm_configured_provider_keys()
+    assert warmed == [["openai"]]  # enabled and not on-device; the disabled and the local ones are not asked

@@ -149,21 +149,33 @@ _LOOKUPS_LOCK = threading.Lock()
 def forget_cached_lookups(provider: str | None = None) -> None:
     """Drop the cached answer for a provider (a key was saved or deleted), or for all."""
     with _LOOKUPS_LOCK:
-        if provider is None:
-            _LOOKUPS.clear()
-        else:
-            _LOOKUPS.pop(provider, None)
+        for name in ([provider] if provider is not None else list(_LOOKUPS) + list(_GENERATION)):
+            _GENERATION[name] = _GENERATION.get(name, 0) + 1  # a read begun before this must not store its old answer
+            _LOOKUPS.pop(name, None)
 
 
 _REFRESHING: set[str] = set()
+#: Bumped by every save or delete, so a read begun before one never stores its (now old) answer after it.
+_GENERATION: dict[str, int] = {}
+
+
+def _store(provider: str, found: "KeychainLookup", generation: int) -> None:
+    if found.state is ProviderKeyState.UNREADABLE:
+        return
+    with _LOOKUPS_LOCK:
+        if _GENERATION.get(provider, 0) == generation:
+            _LOOKUPS[provider] = (time.monotonic(), found)
+
+
+def _generation(provider: str) -> int:
+    with _LOOKUPS_LOCK:
+        return _GENERATION.get(provider, 0)
 
 
 def _refresh(provider: str) -> None:
     try:
-        found = _read_api_key(provider)
-        if found.state is not ProviderKeyState.UNREADABLE:
-            with _LOOKUPS_LOCK:
-                _LOOKUPS[provider] = (time.monotonic(), found)
+        generation = _generation(provider)
+        _store(provider, _read_api_key(provider), generation)
     finally:
         with _LOOKUPS_LOCK:
             _REFRESHING.discard(provider)
@@ -183,10 +195,9 @@ def lookup_api_key(provider: str) -> KeychainLookup:
         if refresh:
             threading.Thread(target=_refresh, args=(provider,), name=f"keychain-refresh-{provider}", daemon=True).start()
         return kept[1]
+    generation = _generation(provider)
     found = _read_api_key(provider)
-    if found.state is not ProviderKeyState.UNREADABLE:
-        with _LOOKUPS_LOCK:
-            _LOOKUPS[provider] = (time.monotonic(), found)
+    _store(provider, found, generation)
     return found
 
 

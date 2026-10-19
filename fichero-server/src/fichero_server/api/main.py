@@ -875,6 +875,18 @@ def _log_fm_bridge_presence() -> None:
         )
 
 
+def _warm_configured_provider_keys() -> None:
+    from fichero_server.db.app import get_app_db
+    from fichero_server.llm.providers import get_provider_info
+    from fichero_server.security import keychain
+
+    try:
+        types = [p.provider_type.value for p in get_app_db().list_providers() if p.enabled]
+        keychain.warm_api_keys([t for t in types if (info := get_provider_info(t)) is not None and not info.is_local])
+    except Exception as exc:  # noqa: BLE001 -- a warm-up that fails leaves the lookups to read on demand
+        logger.warning("Keychain warm-up skipped: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
@@ -917,12 +929,10 @@ async def lifespan(app: FastAPI):
     from fichero_server.workflows.tools import vision_base as _vision_base
 
     threading.Thread(target=_vision_base.warm_supported_locales, name="vision-locales-warm", daemon=True).start()
-    from fichero_server.llm.providers import ProviderType
-    from fichero_server.security import keychain as _keychain
-
-    # Each provider's key is read from the Keychain once, here on a thread, so a route on the loop never spawns `security`.
-    threading.Thread(target=_keychain.warm_api_keys, args=([p.value for p in ProviderType],),
-                     name="keychain-warm", daemon=True).start()
+    # The keys of the providers the person has set up (the app's own record: enabled, not on-device), read from the
+    # Keychain once on a thread, so a route on the loop finds them cached. Never every provider type: each unread legacy
+    # item can raise a Keychain dialog for a rebuilt/bundled python (#4534).
+    threading.Thread(target=_warm_configured_provider_keys, name="keychain-warm", daemon=True).start()
     logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
     remote_backend_status = build_remote_backend_status()
