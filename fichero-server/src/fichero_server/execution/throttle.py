@@ -340,6 +340,40 @@ def mac_is_in_use() -> str | None:
     return "Waiting: you're using the Mac" if idle is not None and idle < IDLE_BEFORE_HEAVY_SECONDS else None
 
 
+#: Programs whose running means the person is building: background work holds back for them (#5819).
+BUILD_PROCESSES = ("xcodebuild", "swift-build", "SWBBuildService")
+#: How long a build reading is trusted (it costs a subprocess).
+BUILD_READING_SECONDS = 10.0
+_build: tuple[float, bool] | None = None
+
+
+def a_build_is_running() -> str | None:
+    """A build is running on this Mac (Xcode, SwiftPM): background work holds back so the build is quick.
+    Read at most every `BUILD_READING_SECONDS`; unreadable is no reason."""
+    global _build
+    now = time.monotonic()
+    if _build is None or now - _build[0] > BUILD_READING_SECONDS:
+        building = False
+        for name in BUILD_PROCESSES:
+            try:
+                building = subprocess.run(["/usr/bin/pgrep", "-x", name], capture_output=True,
+                                          timeout=5).returncode == 0
+            except Exception:  # noqa: BLE001 -- no reading is no reason to wait
+                building = False
+            if building:
+                break
+        _build = (now, building)
+    return "Waiting: a build is running" if _build[1] else None
+
+
+def slowed_for_use(workers: int) -> int:
+    """How many workers background work takes while the person uses the Mac: half, at least one. Using the
+    Mac means slower, never stopped (#5819); the four holds (battery, memory, heat, a build) are in `PROBES`."""
+    if _enabled() and mac_is_in_use() is not None:
+        return max(1, workers // 2)
+    return workers
+
+
 _battery: tuple[float, bool] | None = None
 
 
@@ -373,7 +407,7 @@ PROBES: list[tuple[Callable[[], str | None], bool]] = [
     (memory_is_tight, True),
     (mac_is_hot, True),
     (on_battery, False),
-    (mac_is_in_use, False),
+    (a_build_is_running, False),
 ]
 
 

@@ -22,20 +22,21 @@ from fichero_server.importers import derivatives
 from fichero_server.models import DocType, Document, FileType, Status
 
 HELD = "Waiting for the model lane: Paleographer Review is reading"
-IN_USE = "Waiting: you're using the Mac"
+ON_BATTERY = "Waiting: the Mac is on battery"
 
 
 @pytest.fixture
 def mac(monkeypatch):
     """A calm, idle Mac on AC with the throttle on (the suite turns it off by default)."""
-    state = {"idle": 600.0}
+    state = {"idle": 600.0, "battery": False}
     monkeypatch.setenv("FICHERO_JOB_THROTTLE", "1")
     monkeypatch.setattr(jobs, "THROTTLE_LOOK_AGAIN_SECONDS", 0.05)
     monkeypatch.setattr(throttle, "memory_pressure_level", lambda: 1)
     monkeypatch.setattr(throttle, "memory_available_bytes", lambda: 64 * 1024**3)
     monkeypatch.setattr(throttle, "thermal_state_level", lambda: 0)
-    monkeypatch.setattr(throttle, "battery_or_low_power", lambda: False)
+    monkeypatch.setattr(throttle, "battery_or_low_power", lambda: state["battery"])
     monkeypatch.setattr(throttle, "seconds_since_input", lambda: state["idle"])
+    monkeypatch.setattr(throttle, "_build", (float("inf"), False))  # no build running: the reading is trusted
     return state
 
 
@@ -91,13 +92,13 @@ def test_a_job_behind_the_model_lane_names_what_holds_it_not_the_mac(db, client,
     row) while `machine.in_use` was false; the true wait was the lane, held by Paleographer Review."""
     derivatives.register_job_kinds()
     jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
-    db.execute("UPDATE jobs SET reason = ? WHERE kind = ?", [IN_USE, derivatives.EMBED_KIND])  # stale
+    db.execute("UPDATE jobs SET reason = ? WHERE kind = ?", [ON_BATTERY, derivatives.EMBED_KIND])  # stale
     rows, machine = _rows(client)
-    assert machine["in_use"] is False and machine["why_wait"] is None
+    assert machine["on_battery"] is False and machine["why_wait"] is None
     assert (rows["embed"]["state"], rows["embed"]["reason"]) == ("waiting", HELD)
 
 
-def test_the_mac_in_use_is_the_reason_only_while_the_throttle_says_so(db, client, mac, stages, lane_held):
+def test_the_battery_is_the_reason_only_while_the_throttle_says_so(db, client, mac, stages, lane_held):
     """WHY: "you're using the Mac" is true only while the throttle reads the Mac as in use. And while the
     lane is held, the row names what holds it (#5622): the rows read "you're using the Mac" while heavy
     runs were plainly working, and the lane is what the job would still wait for if the person stepped
@@ -105,25 +106,25 @@ def test_the_mac_in_use_is_the_reason_only_while_the_throttle_says_so(db, client
     says it all along."""
     derivatives.register_job_kinds()
     jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
-    mac["idle"] = 3.0
+    mac["battery"] = True
     rows, machine = _rows(client)
-    assert machine["in_use"] is True and machine["why_wait"] == IN_USE
+    assert machine["on_battery"] is True and machine["why_wait"] == ON_BATTERY
     assert rows["embed"]["reason"] == HELD
-    mac["idle"] = 600.0
+    mac["battery"] = False
     rows, machine = _rows(client)
-    assert machine["in_use"] is False
+    assert machine["on_battery"] is False
     assert rows["embed"]["reason"] == HELD
 
 
-def test_with_the_lane_free_the_mac_in_use_is_the_reason(db, client, mac, stages):
+def test_with_the_lane_free_the_battery_is_the_reason(db, client, mac, stages):
     """WHY (#5622): with nothing on the lane, the person at the Mac is what holds the job, and it says so;
     the moment the Mac is idle the job runs."""
     derivatives.register_job_kinds()
-    mac["idle"] = 3.0
+    mac["battery"] = True
     jobs.enqueue(db, derivatives.EMBED_KIND, "doc-1")
     rows, machine = _rows(client)
-    assert machine["why_wait"] == IN_USE and rows["embed"]["reason"] == IN_USE
-    mac["idle"] = 600.0
+    assert machine["why_wait"] == ON_BATTERY and rows["embed"]["reason"] == ON_BATTERY
+    mac["battery"] = False
     assert _wait_for(lambda: ("embed", "doc-1") in stages)
 
 
