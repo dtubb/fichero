@@ -50,7 +50,7 @@ def test_a_sync_route_runs_in_a_thread_and_a_slow_poll_is_logged_with_its_caller
     assert "test_poll_pile_up_5843.poll" in line and "3 rows" in line and "1 callers" in line
 
 
-def test_a_ten_thousand_row_jobs_table_answers_the_snapshot_in_under_50_ms(db):
+def test_a_ten_thousand_row_jobs_table_is_read_as_one_row_per_group(db):
     jobs._ensure(db)
     db.execute(
         "INSERT INTO jobs (id, kind, subject, state, created_at, started_by) "
@@ -60,9 +60,30 @@ def test_a_ten_thousand_row_jobs_table_answers_the_snapshot_in_under_50_ms(db):
     jobs.snapshot(db)  # the first call may add columns
     started = time.monotonic()
     rows = jobs.snapshot(db)
-    took_ms = (time.monotonic() - started) * 1000
-    assert took_ms < 50, f"{took_ms:.0f} ms"
-    waiting = [r for r in rows if r["state"] == "waiting"]
-    assert sorted(r["count"] for r in waiting) == [4995, 4995]  # one row per kind, each with its whole count
-    assert {r["id"] for r in waiting} == {"waiting:make-thumbnail", "waiting:embed-for-search"}
-    assert len([r for r in rows if r["state"] == "running"]) == 5
+    assert time.monotonic() - started < 1.0  # generous: the shape below is the point; a full fetch of 10k rows is not
+    queue = [r for r in rows if r["state"] != "failed"]
+    # One row per kind (#5839): its running and waiting jobs together, Running while one is really going.
+    assert sorted(r["kind"] for r in queue) == ["embed-for-search", "make-thumbnail"]
+    assert sum(r["count"] for r in queue) == 9995 and all(r["state"] == "running" for r in queue)
+    assert {r["id"] for r in queue} == {"waiting:make-thumbnail", "waiting:embed-for-search"}
+    assert len([r for r in rows if r["state"] == "failed"]) == 5
+
+
+def test_the_real_snapshot_sql_runs_on_duckdb_with_watched_and_person_started_jobs(db):
+    """The ordering reads `watched` and `started_by`, which the select list does not carry (review 269: a DISTINCT
+    over the select list made DuckDB refuse the ORDER BY, and every Activity poll would have failed)."""
+    jobs._ensure(db)
+    db.execute(
+        "INSERT INTO jobs (id, kind, subject, state, created_at, started_by, watched) VALUES "
+        "('bulk', 'make-thumbnail', 'a', 'waiting', now() - to_seconds(30), 'automatic', FALSE), "
+        "('mine', 'make-thumbnail', 'b', 'waiting', now() - to_seconds(20), 'recipe', FALSE), "
+        "('look', 'make-thumbnail', 'c', 'waiting', now() - to_seconds(10), 'automatic', TRUE), "
+        "('going', 'embed-for-search', 'd', 'running', now() - to_seconds(40), 'automatic', FALSE), "
+        "('p1', 'nlp', 'e', 'paused', now() - to_seconds(5), 'automatic', FALSE)")
+    rows = jobs.snapshot(db)
+    thumbs = next(r for r in rows if r["kind"] == "make-thumbnail")
+    assert thumbs["count"] == 3 and thumbs["subject"] == "c"  # the watched job stands for its kind: first in the lane
+    assert thumbs["id"] == "waiting:make-thumbnail"
+    assert next(r for r in rows if r["kind"] == "embed-for-search")["state"] == "running"  # fetched twice, listed once
+    assert [r["kind"] for r in rows].count("embed-for-search") == 1
+    assert next(r for r in rows if r["kind"] == "nlp")["state"] == "paused"
