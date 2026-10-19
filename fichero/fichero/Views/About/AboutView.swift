@@ -159,6 +159,12 @@ enum AboutAcknowledgements {
         .init(name: "Jinja2", license: "BSD-3-Clause License", url: URL(string: "https://jinja.palletsprojects.com")!, layer: .engine),
         .init(name: "rdflib", license: "BSD-3-Clause License", url: URL(string: "https://rdflib.readthedocs.io")!, layer: .engine),
         .init(name: "PyObjC", license: "MIT License", url: URL(string: "https://pyobjc.readthedocs.io")!, layer: .engine),
+        // The fonts the engine ships for scripts the system lacks (`resources/fonts`, #5835); each file is upstream's,
+        // with its own OFL text beside it.
+        .init(name: "Junicode", license: "SIL Open Font License 1.1",
+              url: URL(string: "https://github.com/psb1558/Junicode-font")!, layer: .engine),
+        .init(name: "Noto Sans (Syriac, Mongolian, Coptic, Cherokee)", license: "SIL Open Font License 1.1",
+              url: URL(string: "https://github.com/notofonts")!, layer: .engine),
 
         // On-device AI — provisioned at runtime by the local-inference runtimes
         .init(name: "MLX (mlx-lm, mlx-vlm, mlx-whisper)", license: "MIT License",

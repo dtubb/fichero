@@ -57,4 +57,11 @@ final class AboutAcknowledgementsTests: XCTestCase {
         }
         return match
     }
+
+    /// Every font the engine ships is credited with its licence (#5835): Junicode and the Noto Sans families, all OFL 1.1.
+    func testTheBundledFontsAreCreditedUnderTheirLicence() {
+        for name in ["Junicode", "Noto Sans (Syriac, Mongolian, Coptic, Cherokee)"] {
+            XCTAssertEqual(entry(named: name).license, "SIL Open Font License 1.1")
+        }
+    }
 }
