@@ -53,6 +53,23 @@ def counted(n: int, word: str) -> str:
     return f"{n} {word}{'' if n == 1 else 's'}"
 
 
+def taught_by(teacher: str) -> str:
+    """Who taught a reader, in the card's words: a model by its name, the person as their corrections (#5700)."""
+    from fichero_server.training.kraken_set import PERSON
+
+    return "your corrections" if teacher == PERSON else teacher
+
+
+def lessons(teacher: str, ts: dict[str, Any]) -> str:
+    """What a reader learned from: the person's corrected lines, or a model's lines no person checked (#5700)."""
+    from fichero_server.training.kraken_set import PERSON
+
+    pages, lines = counted(ts["pages"], "page"), counted(ts["lines"], "line")
+    if teacher == PERSON:
+        return f"Trained on {pages} ({lines} you corrected)"
+    return f"Taught by {teacher} on {pages} ({lines}, none checked by a person)"
+
+
 def _card_of(request: _TrainRequest) -> str:
     return next(name for name, model in CARDS.items() if type(request) is model)
 
@@ -85,33 +102,54 @@ def _save(db: Any, job_id: str, detail: dict[str, Any], *, phase: str | None = N
     jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
 
 
+def _place_of(request: _TrainRequest) -> str:
+    """Where the training runs: Hugging Face Jobs, or a cluster set up here by its id (#5769)."""
+    return getattr(request, "target", TARGET) or TARGET
+
+
+def _target_for(place: str) -> Callable[[], Any]:
+    from fichero_server.training.hf_jobs import HfJobsTarget
+
+    if place == TARGET:
+        return HfJobsTarget
+    from fichero_server.remote_read.job import cluster_target
+
+    return cluster_target(place)  # no key yet: refused by name (#5238); tests and the live run inject the target
+
+
+def _place_words(target: Any, place: str) -> str:
+    return "Hugging Face" if place == TARGET else getattr(getattr(target, "cluster", None), "name", None) or place
+
+
 def start(db: Any, request: _TrainRequest, *, started_by: str,
           target_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
     """Queue a training job; refuses before anything is queued when it could not run."""
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
-    from fichero_server.training.hf_jobs import LORA_FLAVORS, HfJobsTarget, kraken_batch
+    from fichero_server.training.hf_jobs import LORA_FLAVORS, kraken_batch
 
+    place = _place_of(request)
     if not request.pages_may_leave:
-        raise PagesMayNotLeave("Training on Hugging Face sends this project's pages there. "
+        where = "Hugging Face" if place == TARGET else f"the cluster {place}"
+        raise PagesMayNotLeave(f"Training on {where} sends this project's pages there. "
                                "Say yes for this project first (pages_may_leave).")
     if not request.scope_ids:
         raise ValueError("name the folders or pages to train on")
     if isinstance(request, TrainKrakenRequest) and request.base:
         resolve_recognition_model(request.base)  # not installed: refused here, by name
-    target = (target_factory or HfJobsTarget)()  # no token: refused here, by name
+    target = (target_factory or _target_for(place))()  # no token (or key): refused here, by name
     target.check_token()  # a token that can't run Jobs: refused here, in words (#5526)
     from fichero_server.training.kraken_set import refuse_an_empty_set
 
     refuse_an_empty_set(db, request)  # nothing to train on: refused here, with the preview's reason (#5699)
-    flavor = request.flavor or target.cheapest(LORA_FLAVORS)
+    flavor = (request.flavor or target.cheapest(LORA_FLAVORS)) if place == TARGET else ""  # a cluster: one GPU a job
     price = target.price_per_hour(flavor)
     batch = kraken_batch(flavor, request.batch_size) if isinstance(request, TrainKrakenRequest) else None
     detail = {"card": _card_of(request), "request": request.model_dump(), "flavor": flavor,
-              "price_per_hour_usd": price, "yes": {"by": started_by, "at": _now(), "to": TARGET},
+              "price_per_hour_usd": price, "yes": {"by": started_by, "at": _now(), "to": place},
               "phase": "waiting", "history": [{"phase": "waiting", "at": _now()}],
               **({"batch_size": batch} if batch else {})}
-    job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=TARGET, detail=json.dumps(detail),
-                                 reason="Waiting to send to Hugging Face", started_by=started_by)
+    job_id = jobs.enqueue_remote(db, KIND, f"training:{uuid.uuid4()}", target=place, detail=json.dumps(detail),
+                                 reason=f"Waiting to send to {_place_words(target, place)}", started_by=started_by)
     return {"job_id": job_id, "flavor": flavor, "timeout": request.timeout, "price_per_hour_usd": price,
             "batch_size": batch}
 
@@ -131,13 +169,14 @@ def request_cancel(db: Any, job_id: str, *, target_factory: Callable[[], Any] | 
     be taken up again, out of this engine's reach, or failed by an engine that could not reach it)
     is cancelled on Hugging Face now (#5449, `compute.job.another-engine-never-fails-what-it-cannot-reach`).
     Returns the row's state after the request."""
-    from fichero_server.training.hf_jobs import HfJobsTarget, cannot_reach
+    from fichero_server.training.hf_jobs import cannot_reach
 
     state, detail = _row(db, job_id)
     followed_here = state == "running" and not detail.get("out_of_reach")
     if _may_run_there(detail) and state in ("waiting", "paused", "running", "failed") and not followed_here:
         try:
-            (target_factory or HfJobsTarget)().cancel(detail["far_id"])
+            (target_factory or _target_for(_place_of(CARDS[detail.get("card", "kraken")](**detail["request"]))))(
+            ).cancel(detail["far_id"])
         except Exception as exc:
             if not cannot_reach(exc):
                 raise
@@ -174,7 +213,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     """Carry a training job through its phases; returns the landed model's id."""
     from fichero_server.llm.kraken_runtime import resolve_recognition_model
     from fichero_server.training.hf_jobs import (
-        LORA_TRAINER, TRAINER, HfJobsTarget, cannot_reach, kraken_args, kraken_batch, lora_args, ran_out_of_gpu_memory,
+        LORA_TRAINER, TRAINER, cannot_reach, kraken_args, kraken_batch, lora_args, ran_out_of_gpu_memory,
     )
     from fichero_server.training.kraken_set import EmptyTrainingSet, export_training_set
     from fichero_server.training.line_pairs import write_line_pairs
@@ -184,13 +223,15 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     card_name = detail.get("card", "kraken")
     request = CARDS[card_name](**detail["request"])
     vision = isinstance(request, TrainVisionLoraRequest)
-    flavor = detail.get("flavor") or request.flavor
+    flavor = detail.get("flavor", request.flavor)
+    place = _place_of(request)
     if target is None:
         try:
-            target = HfJobsTarget()
+            target = _target_for(place)()
         except Exception as exc:
             _out_of_reach_if_running_there(db, job_id, detail, exc)
             raise
+    there = _place_words(target, place)
     work = _work_dir(job_id)
     poll = POLL_SECONDS if poll_seconds is None else poll_seconds
 
@@ -232,7 +273,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
             detail["batch_size"] = batch
             script, args = TRAINER, kraken_args(job_id, base_file=base_file, model_name=request.name, batch_size=batch)
         _save(db, job_id, detail, phase="sending",
-              reason=f"Sending {counted(len(made.pages), 'page')} ({counted(made.lines, 'line')}) to Hugging Face")
+              reason=f"Sending {counted(len(made.pages), 'page')} ({counted(made.lines, 'line')}) to {there}")
         try:
             target.send(data, job_id)
             far_id = target.submit(job_id, script=script, script_args=args, flavor=flavor, timeout=request.timeout)
@@ -241,7 +282,7 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
                 raise target.rejected(exc) from exc  # the token, in words, not a failed Job (#5526)
             raise
         detail["far_id"] = far_id
-        _save(db, job_id, detail, phase="submitted", reason=f"Sent to Hugging Face ({flavor})")
+        _save(db, job_id, detail, phase="submitted", reason=f"Sent to {there}" + (f" ({flavor})" if flavor else ""))
 
     far_id = detail["far_id"]
     while True:
@@ -264,20 +305,20 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         if far.state in ("waiting", "running"):
             words = "Queued on" if far.state == "waiting" else "Training on"
             _save(db, job_id, detail, phase="queued" if far.state == "waiting" else "running",
-                  reason=f"{words} Hugging Face ({flavor})")
+                  reason=f"{words} {there}" + (f" ({flavor})" if flavor else ""))
             sleep(poll)
             continue
         detail["last_lines"] = target.last_lines(far_id)
         if far.state == "cancelled":
             _save(db, job_id, detail, phase="cancelled")
-            raise jobs.JobCancelled("The Job was cancelled on Hugging Face")
+            raise jobs.JobCancelled(f"The Job was cancelled on {there}")
         if far.state == "failed":
             _save(db, job_id, detail, phase="failed")
             tail = " | ".join(detail["last_lines"][-3:])
-            why = f"Hugging Face: {far.message or far.stage}" + (f"; last lines: {tail}" if tail else "")
+            why = f"{there}: {far.message or far.stage}" + (f"; last lines: {tail}" if tail else "")
             if batch and ran_out_of_gpu_memory(detail["last_lines"]):  # #5527
-                why = (f"Too big for this GPU ({flavor}) at batch {batch}: try a smaller batch or a larger GPU. "
-                       + why)
+                gpu = f"this GPU ({flavor})" if flavor else "this GPU"
+                why = f"Too big for {gpu} at batch {batch}: try a smaller batch or a larger GPU. " + why
             raise RuntimeError(why)
         break
 
@@ -285,12 +326,11 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
     out = target.fetch(job_id, work / "out")
     ts = detail["training_set"]
     card = {
-        "display_name": request.display_name or f"{request.name} (taught by {request.teacher})",
-        "summary": (f"Taught by {request.teacher} on {counted(ts['pages'], 'page')} ({counted(ts['lines'], 'line')}, "
-                    f"none checked by a person); {counted(len(request.held_out_ids), 'page')} held out as the test; "
+        "display_name": request.display_name or f"{request.name} (taught by {taught_by(request.teacher)})",
+        "summary": (f"{lessons(request.teacher, ts)}; {counted(len(request.held_out_ids), 'page')} held out as the test; "
                     f"{counted(ts.get('lines_left_out', 0), 'flagged line')} left out."),
         "teacher": request.teacher, "training_set": ts, "held_out": ts.get("held_out", []),
-        "target": TARGET, "far_id": far_id, "flavor": flavor,
+        "target": place, "far_id": far_id, "flavor": flavor,
         "not_for_release": request.not_for_release,
         "release_note": request.release_note or (NOT_FOR_RELEASE_NOTE if request.not_for_release else None),
         "project": project_of(db),  # the model shows only in this project's training node (#5483)
@@ -308,7 +348,12 @@ def run(db: Any, subject: str, *, target: Any | None = None, sleep: Callable[[fl
         model_id = land_trained_reader(out, job_id=job_id, model_name=request.name, card={**card, "base": request.base},
                                         project=Path(db.path).parent)  # lands inside the project (#5539)
         detail["reader_id"] = model_id
-    _save(db, job_id, detail, phase="done", reason=f"Done: {model_id} is ready to read with")
+    done = f"Done: {model_id} is ready to read with"
+    if hasattr(target, "remove"):  # a cluster: the set's copies stay only where the project said so (#5769)
+        from fichero_server.remote_read.job import copies_left
+
+        done += copies_left(db, target, job_id)
+    _save(db, job_id, detail, phase="done", reason=done)
     return model_id
 
 

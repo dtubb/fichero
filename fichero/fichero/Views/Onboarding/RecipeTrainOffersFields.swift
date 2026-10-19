@@ -77,7 +77,7 @@ struct RecipeTrainOffersFields: View {
                     .font(.callout).foregroundStyle(.secondary)
             } else if !way.targets.isEmpty {
                 HStack(spacing: 8) {
-                    ForEach(way.targets, id: \.starts) { target in
+                    ForEach(way.targets, id: \.name) { target in
                         Button("Train on \(target.name)") {
                             let pending = Pending(offer: offer, way: way, target: target)
                             if RecipeSetupStore.sendsPagesAway(target) {

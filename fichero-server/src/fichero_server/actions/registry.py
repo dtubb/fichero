@@ -84,10 +84,14 @@ class ActionContext:
 
 
 def started_by_for(ctx: "ActionContext") -> str:
-    """Who a run says started it: the person, plus the paired device when it came from another Mac (#5732)."""
+    """Who a run says started it: "<client> for <person>" for a CLI or MCP client, "<person> on <device>" for a
+    device, else the person (#5732, #2403)."""
     person = ctx.actor or "owner"
-    name = (ctx.device or {}).get("name")
-    return f"{person} on {name}" if name else person
+    device = ctx.device or {}
+    name = device.get("name")
+    if not name:
+        return person
+    return f"{name} for {person}" if device.get("kind") in ("cli", "mcp") else f"{person} on {name}"
 
 
 @dataclass
@@ -201,6 +205,10 @@ class ActionRegistration:
     # as overwriting it (`safety.undo.refuses-when-changed`). Set only where the inverse has been read and does
     # that: `document.write_extracted_date` passes `expected` and keeps a date changed since (#5597).
     undo_keeps_later_work: bool = False
+    # Only a library OWNER may run this action (`sharing.owner-only-asserted-in-the-action`, #5766). Asserted here,
+    # in `invoke`, before `execute`, so every door (`POST /api/actions/invoke`, MCP, chat, a route) is held to it
+    # with library WRITE alone never enough. The loopback owner (bootstrap) passes. Declared per action.
+    owner_only: bool = False
 
 
 class ActionNotFoundError(KeyError):
@@ -269,6 +277,8 @@ class ActionRegistry:
 
         from fichero_server.security import authz
 
+        if reg.owner_only and not ctx.is_bootstrap:
+            authz.require_owner(ctx.actor, ctx.library_path)  # raises AuthorizationError: nothing has run yet
         target_ids = authz.target_ids_from_params(params)
         if not ctx.is_bootstrap:
             if not target_ids:
@@ -369,6 +379,7 @@ class ActionRegistry:
                 actor=ctx.actor,
                 origin_window=ctx.origin_window,
                 origin_user=ctx.actor,
+                device=(ctx.device or {}).get("name"),
                 **id_list_kwargs,
             )
         except Exception as exc:  # pragma: no cover - emit is already best-effort
@@ -442,6 +453,7 @@ def action(
     read_only: bool = False,
     redo_via_own_invert: bool = False,
     undo_keeps_later_work: bool = False,
+    owner_only: bool = False,
 ) -> Callable[[ExecuteFn], ExecuteFn]:
     """Decorator: register ``fn`` as the action ``name``.
 
@@ -468,6 +480,7 @@ def action(
                 read_only=read_only,
                 redo_via_own_invert=redo_via_own_invert,
                 undo_keeps_later_work=undo_keeps_later_work,
+                owner_only=owner_only,
             )
         )
         return fn

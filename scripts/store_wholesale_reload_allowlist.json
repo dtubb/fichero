@@ -304,11 +304,5 @@
     "method": "resync",
     "class": "by-design",
     "reason": "by-design 2026-10-11 (#5243): an explicit RESYNC after a reconnect re-reads the Trash, since events were missed while the stream was down; load() merges by id (TrashStore.merge), so entries are removed, inserted and replaced one at a time, never reassigned (TrashStoreTests.reloadMergesOneEntryAtATime)"
-  },
-  {
-    "file": "fichero/fichero/Models/ActivityStore.swift",
-    "method": "setLoadFailure",
-    "class": "by-design",
-    "reason": "by-design 2026-10-18: a false match on the local `LoadFailureKey` name: it sets one footer line in place, no scope, query, sort or resync changes, and reloads nothing"
   }
 ]

@@ -16,6 +16,7 @@ def test_pages_that_may_not_leave_stay_here_whatever_the_scale():
 
 
 def test_a_recipe_with_no_bound_cluster_never_places_there_and_says_so():
+    """`source.recipe.runs-on-binds-to-a-target`: an unbound step waits here with "No cluster is set up"."""
     placed = place_step(100_000, pages_may_leave=True, bound_cluster=None)
     assert placed["place"] == "this-mac" and "No cluster is set up" in placed["why"]
 

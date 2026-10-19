@@ -184,6 +184,7 @@ def _require_cluster(app_db: AppDatabase, cluster_id: str) -> HpcClusterConfig:
 
 @router.get("/clusters", response_model=HpcClusterListResponse)
 async def list_clusters(
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> HpcClusterListResponse:
     """List configured HPC cluster connections."""
@@ -199,6 +200,7 @@ async def list_clusters(
 @router.get("/clusters/{cluster_id}", response_model=HpcClusterResponse)
 async def get_cluster(
     cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> HpcClusterResponse:
     """Get one HPC cluster connection."""
@@ -257,6 +259,7 @@ async def delete_cluster(
 @router.post("/clusters/{cluster_id}/test", response_model=HpcTestResponse)
 async def test_cluster(
     cluster_id: str,
+    _owner: None = Depends(_require_owner_or_bootstrap),
     app_db: AppDatabase = Depends(get_app_database),
 ) -> HpcTestResponse:
     """Dry-run Test-connection: build the ``sinfo`` SSH probe command.

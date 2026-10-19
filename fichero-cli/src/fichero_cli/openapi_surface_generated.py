@@ -1622,6 +1622,46 @@ def register_generated_openapi_commands(
         root_app.add_typer(target_app, name='auth')
         existing_apps['auth'] = target_app
 
+    @target_app.command("challenge")
+    def auth_challenge_post(
+        ctx: typer.Context,
+        client_id: str = typer.Option(..., '--client-id', help='Client Id.'),
+    ) -> None:
+        """Challenge (POST /api/auth/challenge)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/challenge"
+            params = None
+            payload = _build_json_payload({
+                "client_id": client_id,
+            }, {
+                "client_id": {'type': 'string', 'title': 'Client Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("first-run")
+    def auth_first_run_post(
+        ctx: typer.Context,
+        client: str = typer.Option(..., '--client', help='FirstRunClient. JSON.'),
+        display_name: str = typer.Option(..., '--display-name', help='Display Name.'),
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+    ) -> None:
+        """First Run (POST /api/auth/first-run)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/first-run"
+            params = None
+            payload = _build_json_payload({
+                "client": client,
+                "display_name": display_name,
+                "public_key_pem": public_key_pem,
+            }, {
+                "client": {'properties': {'kind': {'type': 'string', 'const': 'app', 'title': 'Kind', 'default': 'app'}, 'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'FirstRunClient', 'x-cli-required': True},
+                "display_name": {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Display Name', 'x-cli-required': True},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("identity")
     def auth_identity_get(
         ctx: typer.Context,
@@ -1670,19 +1710,25 @@ def register_generated_openapi_commands(
     @target_app.command("redeem-invite")
     def auth_redeem_invite_post(
         ctx: typer.Context,
+        client: Optional[str] = typer.Option(None, '--client', help='InviteRedeemClient. JSON.'),
         invite_token: str = typer.Option(..., '--invite-token', help='Invite Token.'),
-        new_password: str = typer.Option(..., '--new-password', help='New Password.'),
+        new_password: Optional[str] = typer.Option(None, '--new-password', help='New Password.'),
+        public_key_pem: Optional[str] = typer.Option(None, '--public-key-pem', help='Public Key Pem.'),
     ) -> None:
         """Redeem Invite (POST /api/auth/invites/redeem)."""
         def op_call(client: FicheroClient) -> Any:
             endpoint_path = "/api/auth/invites/redeem"
             params = None
             payload = _build_json_payload({
+                "client": client,
                 "invite_token": invite_token,
                 "new_password": new_password,
+                "public_key_pem": public_key_pem,
             }, {
+                "client": {'properties': {'kind': {'type': 'string', 'enum': ['app', 'device'], 'title': 'Kind', 'default': 'app'}, 'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'InviteRedeemClient', 'x-cli-required': False},
                 "invite_token": {'type': 'string', 'minLength': 1, 'title': 'Invite Token', 'x-cli-required': True},
-                "new_password": {'type': 'string', 'minLength': 1, 'title': 'New Password', 'x-cli-required': True},
+                "new_password": {'type': 'string', 'minLength': 1, 'nullable': True, 'title': 'New Password', 'x-cli-required': False},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'nullable': True, 'title': 'Public Key Pem', 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
@@ -1697,6 +1743,109 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/auth/invites/{invite_id}/revoke"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("register-local-client")
+    def auth_register_local_client_post(
+        ctx: typer.Context,
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+        request_id: str = typer.Option(..., '--request-id', help='Request Id.'),
+    ) -> None:
+        """Register Local Client (POST /api/auth/local-clients/register)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/register"
+            params = None
+            payload = _build_json_payload({
+                "public_key_pem": public_key_pem,
+                "request_id": request_id,
+            }, {
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+                "request_id": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Request Id', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("request-local-client")
+    def auth_request_local_client_post(
+        ctx: typer.Context,
+        host: Optional[str] = typer.Option(None, '--host', help='Host. Default: "".'),
+        kind: str = typer.Option(..., '--kind', help='Kind. One of: cli, mcp.'),
+        name: str = typer.Option(..., '--name', help='Name.'),
+    ) -> None:
+        """Request Local Client (POST /api/auth/local-clients/request)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/request"
+            params = None
+            payload = _build_json_payload({
+                "host": host,
+                "kind": kind,
+                "name": name,
+            }, {
+                "host": {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': '', 'x-cli-required': False},
+                "kind": {'type': 'string', 'enum': ['cli', 'mcp'], 'title': 'Kind', 'x-cli-required': True},
+                "name": {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("list-local-client-requests")
+    def auth_list_local_client_requests_get(
+        ctx: typer.Context,
+    ) -> None:
+        """List Local Client Requests (GET /api/auth/local-clients/requests)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/requests"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("decide-local-client-request")
+    def auth_decide_local_client_request_post(
+        ctx: typer.Context,
+        request_id: str = typer.Argument(..., help='Request Id'),
+        allow: bool = typer.Option(..., '--allow/--no-allow', help='Allow.'),
+    ) -> None:
+        """Decide Local Client Request (POST /api/auth/local-clients/requests/{request_id}/decision)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = f"/api/auth/local-clients/requests/{request_id}/decision"
+            params = None
+            payload = _build_json_payload({
+                "allow": allow,
+            }, {
+                "allow": {'type': 'boolean', 'title': 'Allow', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("get-local-client-switches")
+    def auth_get_local_client_switches_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Get Local Client Switches (GET /api/auth/local-clients/switches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/switches"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("put-local-client-switches")
+    def auth_put_local_client_switches_put(
+        ctx: typer.Context,
+        cli: bool = typer.Option(..., '--cli/--no-cli', help='Cli.'),
+        mcp: bool = typer.Option(..., '--mcp/--no-mcp', help='Mcp.'),
+    ) -> None:
+        """Put Local Client Switches (PUT /api/auth/local-clients/switches)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/local-clients/switches"
+            params = None
+            payload = _build_json_payload({
+                "cli": cli,
+                "mcp": mcp,
+            }, {
+                "cli": {'type': 'boolean', 'title': 'Cli', 'x-cli-required': True},
+                "mcp": {'type': 'boolean', 'title': 'Mcp', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     @target_app.command("login-auth-login")
@@ -1744,6 +1893,26 @@ def register_generated_openapi_commands(
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
 
+    @target_app.command("migrate-owner")
+    def auth_migrate_owner_post(
+        ctx: typer.Context,
+        client: str = typer.Option(..., '--client', help='FirstRunClient. JSON.'),
+        public_key_pem: str = typer.Option(..., '--public-key-pem', help='Public Key Pem.'),
+    ) -> None:
+        """Migrate Owner (POST /api/auth/migrate-owner)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/migrate-owner"
+            params = None
+            payload = _build_json_payload({
+                "client": client,
+                "public_key_pem": public_key_pem,
+            }, {
+                "client": {'properties': {'kind': {'type': 'string', 'const': 'app', 'title': 'Kind', 'default': 'app'}, 'name': {'type': 'string', 'maxLength': 120, 'minLength': 1, 'title': 'Name'}, 'host': {'type': 'string', 'maxLength': 120, 'title': 'Host', 'default': ''}}, 'type': 'object', 'required': ['name'], 'title': 'FirstRunClient', 'x-cli-required': True},
+                "public_key_pem": {'type': 'string', 'maxLength': 2000, 'minLength': 1, 'title': 'Public Key Pem', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
     @target_app.command("list-sessions")
     def auth_list_sessions_get(
         ctx: typer.Context,
@@ -1765,6 +1934,29 @@ def register_generated_openapi_commands(
             endpoint_path = f"/api/auth/sessions/{session_id}/revoke"
             params = None
             return client.request("POST", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("sign-in")
+    def auth_sign_in_post(
+        ctx: typer.Context,
+        client_id: str = typer.Option(..., '--client-id', help='Client Id.'),
+        nonce: str = typer.Option(..., '--nonce', help='Nonce.'),
+        signature: str = typer.Option(..., '--signature', help='Signature.'),
+    ) -> None:
+        """Sign In (POST /api/auth/sign-in)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/auth/sign-in"
+            params = None
+            payload = _build_json_payload({
+                "client_id": client_id,
+                "nonce": nonce,
+                "signature": signature,
+            }, {
+                "client_id": {'type': 'string', 'title': 'Client Id', 'x-cli-required': True},
+                "nonce": {'type': 'string', 'title': 'Nonce', 'x-cli-required': True},
+                "signature": {'type': 'string', 'title': 'Signature', 'x-cli-required': True},
+            }, required=True)
+            return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
     target_app = existing_apps.get('authz')
@@ -10929,201 +11121,6 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
-    @target_app.command("list-knowledge-claims", hidden=True)
-    @target_app.command("knowledge-claims-list")
-    def mcp_knowledge_claims_list_get(
-        ctx: typer.Context,
-        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='Claim Type.'),
-        entity_id: Optional[str] = typer.Option(None, '--entity-id', help='Entity Id.'),
-        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
-        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
-        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
-    ) -> None:
-        """List knowledge claims (GET /api/mcp/tools/knowledge/claims)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/mcp/tools/knowledge/claims"
-            params = {
-                "claim_type": claim_type,
-                "entity_id": entity_id,
-                "limit": limit,
-                "offset": offset,
-                "q": q,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("create-knowledge-claim", hidden=True)
-    @target_app.command("knowledge-claim-create")
-    def mcp_knowledge_claim_create_post(
-        ctx: typer.Context,
-        claim_type: Optional[str] = typer.Option(None, '--claim-type', help='Type: fact, analysis, interpretation, argument, historiography, theory. Default: "fact".'),
-        confidence: Optional[float] = typer.Option(None, '--confidence', help='Confidence. Default: 0.5.'),
-        created_by: Optional[str] = typer.Option(None, '--created-by', help='IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility. Default: "mcp".'),
-        curation_state: Optional[str] = typer.Option(None, '--curation-state', help='State: unreviewed, shortlisted, curated, rejected. Default: "unreviewed".'),
-        entity_ids: Optional[list[str]] = typer.Option(None, '--entity-ids', help='Linked entity IDs. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
-        epistemic_status: Optional[str] = typer.Option(None, '--epistemic-status', help='Status: tentative, confirmed, rejected. Default: "tentative".'),
-        language: Optional[str] = typer.Option(None, '--language', help='ISO 639-1 language code.'),
-        metadata: Optional[str] = typer.Option(None, '--metadata', help='Metadata. JSON.'),
-        source_document_id: Optional[str] = typer.Option(None, '--source-document-id', help='Primary source document ID.'),
-        source_ids: Optional[list[str]] = typer.Option(None, '--source-ids', help='Multiple source document IDs. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
-        source_languages: Optional[list[str]] = typer.Option(None, '--source-languages', help='ISO 639-1 codes per source. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
-        source_page_labels: Optional[list[str]] = typer.Option(None, '--source-page-labels', help='Source Page Labels. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
-        source_type: Optional[str] = typer.Option(None, '--source-type', help='Source type: document, claim, multiple, synthesis. Default: "document".'),
-        text: str = typer.Option(..., '--text', help='Claim text content.'),
-    ) -> None:
-        """Create knowledge claim (POST /api/mcp/tools/knowledge/claims/create)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/mcp/tools/knowledge/claims/create"
-            params = None
-            payload = _build_json_payload({
-                "claim_type": claim_type,
-                "confidence": confidence,
-                "created_by": created_by,
-                "curation_state": curation_state,
-                "entity_ids": entity_ids,
-                "epistemic_status": epistemic_status,
-                "language": language,
-                "metadata": metadata,
-                "source_document_id": source_document_id,
-                "source_ids": source_ids,
-                "source_languages": source_languages,
-                "source_page_labels": source_page_labels,
-                "source_type": source_type,
-                "text": text,
-            }, {
-                "claim_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Claim Type', 'description': 'Type: fact, analysis, interpretation, argument, historiography, theory', 'default': 'fact', 'x-cli-required': False},
-                "confidence": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Confidence', 'default': 0.5, 'x-cli-required': False},
-                "created_by": {'type': 'string', 'maxLength': 128, 'minLength': 1, 'title': 'Created By', 'description': 'IGNORED (#4485). Who asserted a claim is the difference between evidence and hearsay; it derives exclusively from authenticated request state and a body value can never claim another principal. Accepted only for wire compatibility.', 'default': 'mcp', 'x-cli-required': False},
-                "curation_state": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Curation State', 'description': 'State: unreviewed, shortlisted, curated, rejected', 'default': 'unreviewed', 'x-cli-required': False},
-                "entity_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Entity Ids', 'description': 'Linked entity IDs', 'x-cli-required': False},
-                "epistemic_status": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Epistemic Status', 'description': 'Status: tentative, confirmed, rejected', 'default': 'tentative', 'x-cli-required': False},
-                "language": {'type': 'string', 'maxLength': 16, 'minLength': 2, 'nullable': True, 'title': 'Language', 'description': 'ISO 639-1 language code', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'x-cli-required': False},
-                "source_document_id": {'type': 'string', 'maxLength': 255, 'nullable': True, 'title': 'Source Document Id', 'description': 'Primary source document ID', 'x-cli-required': False},
-                "source_ids": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Source Ids', 'description': 'Multiple source document IDs', 'x-cli-required': False},
-                "source_languages": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Source Languages', 'description': 'ISO 639-1 codes per source', 'x-cli-required': False},
-                "source_page_labels": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Source Page Labels', 'x-cli-required': False},
-                "source_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Source Type', 'description': 'Source type: document, claim, multiple, synthesis', 'default': 'document', 'x-cli-required': False},
-                "text": {'type': 'string', 'maxLength': 10000, 'minLength': 1, 'title': 'Text', 'description': 'Claim text content', 'x-cli-required': True},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("delete-knowledge-claim", hidden=True)
-    @target_app.command("knowledge-claim-delete")
-    def mcp_knowledge_claim_delete_delete(
-        ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help='Claim Id'),
-        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
-    ) -> None:
-        """Delete knowledge claim (DELETE /api/mcp/tools/knowledge/claims/{claim_id})."""
-        if not yes:
-            typer.confirm("Delete mcp?", abort=True)
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
-            params = None
-            return client.request("DELETE", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-knowledge-claim", hidden=True)
-    @target_app.command("knowledge-claim-get")
-    def mcp_knowledge_claim_get_get(
-        ctx: typer.Context,
-        claim_id: str = typer.Argument(..., help='Claim Id'),
-    ) -> None:
-        """Get knowledge claim (GET /api/mcp/tools/knowledge/claims/{claim_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/mcp/tools/knowledge/claims/{claim_id}"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("list-knowledge-entities", hidden=True)
-    @target_app.command("knowledge-entities-list")
-    def mcp_knowledge_entities_list_get(
-        ctx: typer.Context,
-        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity Type.'),
-        limit: Optional[int] = typer.Option(None, '--limit', help='Limit.'),
-        offset: Optional[int] = typer.Option(None, '--offset', help='Offset.'),
-        q: Optional[str] = typer.Option(None, '--q', help='Q.'),
-    ) -> None:
-        """List knowledge entities (GET /api/mcp/tools/knowledge/entities)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/mcp/tools/knowledge/entities"
-            params = {
-                "entity_type": entity_type,
-                "limit": limit,
-                "offset": offset,
-                "q": q,
-            }
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("upsert-knowledge-entity", hidden=True)
-    @target_app.command("knowledge-entity-upsert")
-    def mcp_knowledge_entity_upsert_post(
-        ctx: typer.Context,
-        aliases: Optional[list[str]] = typer.Option(None, '--aliases', help='Alternative names. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
-        canonical_name: str = typer.Option(..., '--canonical-name', help='Canonical entity name.'),
-        description: Optional[str] = typer.Option(None, '--description', help='Entity description.'),
-        entity_type: Optional[str] = typer.Option(None, '--entity-type', help='Entity type. Default: "other".'),
-        id: Optional[str] = typer.Option(None, '--id', help='Entity ID for updates.'),
-        language: Optional[str] = typer.Option(None, '--language', help='ISO 639-1 language code.'),
-        metadata: Optional[str] = typer.Option(None, '--metadata', help='Custom metadata. JSON.'),
-    ) -> None:
-        """Upsert knowledge entity (POST /api/mcp/tools/knowledge/entities/upsert)."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = "/api/mcp/tools/knowledge/entities/upsert"
-            params = None
-            payload = _build_json_payload({
-                "aliases": aliases,
-                "canonical_name": canonical_name,
-                "description": description,
-                "entity_type": entity_type,
-                "id": id,
-                "language": language,
-                "metadata": metadata,
-            }, {
-                "aliases": {'items': {'type': 'string'}, 'type': 'array', 'maxItems': 200, 'title': 'Aliases', 'description': 'Alternative names', 'x-cli-required': False},
-                "canonical_name": {'type': 'string', 'maxLength': 512, 'minLength': 1, 'title': 'Canonical Name', 'description': 'Canonical entity name', 'x-cli-required': True},
-                "description": {'type': 'string', 'maxLength': 4000, 'nullable': True, 'title': 'Description', 'description': 'Entity description', 'x-cli-required': False},
-                "entity_type": {'type': 'string', 'maxLength': 64, 'minLength': 1, 'title': 'Entity Type', 'description': 'Entity type', 'default': 'other', 'x-cli-required': False},
-                "id": {'type': 'string', 'maxLength': 255, 'nullable': True, 'title': 'Id', 'description': 'Entity ID for updates', 'x-cli-required': False},
-                "language": {'type': 'string', 'maxLength': 16, 'minLength': 2, 'nullable': True, 'title': 'Language', 'description': 'ISO 639-1 language code', 'x-cli-required': False},
-                "metadata": {'additionalProperties': True, 'type': 'object', 'title': 'Metadata', 'description': 'Custom metadata', 'x-cli-required': False},
-            }, required=True)
-            return client.request("POST", endpoint_path, params=params, json=payload)
-        invoke(ctx, op_call)
-
-    @target_app.command("delete-knowledge-entity", hidden=True)
-    @target_app.command("knowledge-entity-delete")
-    def mcp_knowledge_entity_delete_delete(
-        ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help='Entity Id'),
-        yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt."),
-    ) -> None:
-        """Delete knowledge entity (DELETE /api/mcp/tools/knowledge/entities/{entity_id})."""
-        if not yes:
-            typer.confirm("Delete mcp?", abort=True)
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
-            params = None
-            return client.request("DELETE", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
-    @target_app.command("get-knowledge-entity", hidden=True)
-    @target_app.command("knowledge-entity-get")
-    def mcp_knowledge_entity_get_get(
-        ctx: typer.Context,
-        entity_id: str = typer.Argument(..., help='Entity Id'),
-    ) -> None:
-        """Get knowledge entity (GET /api/mcp/tools/knowledge/entities/{entity_id})."""
-        def op_call(client: FicheroClient) -> Any:
-            endpoint_path = f"/api/mcp/tools/knowledge/entities/{entity_id}"
-            params = None
-            return client.request("GET", endpoint_path, params=params)
-        invoke(ctx, op_call)
-
     target_app = existing_apps.get('mcp-servers')
     if target_app is None:
         target_app = typer.Typer(help='Generated OpenAPI commands for mcp-servers endpoints.', no_args_is_help=True)
@@ -12281,6 +12278,34 @@ def register_generated_openapi_commands(
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)
 
+    @target_app.command("set-multiuser")
+    def pair_set_multiuser_put(
+        ctx: typer.Context,
+        enabled: bool = typer.Option(..., '--enabled/--no-enabled', help='Enabled.'),
+    ) -> None:
+        """Set Multiuser (PUT /api/pair/multiuser)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/multiuser"
+            params = None
+            payload = _build_json_payload({
+                "enabled": enabled,
+            }, {
+                "enabled": {'type': 'boolean', 'title': 'Enabled', 'x-cli-required': True},
+            }, required=True)
+            return client.request("PUT", endpoint_path, params=params, json=payload)
+        invoke(ctx, op_call)
+
+    @target_app.command("sharing-state")
+    def pair_sharing_state_get(
+        ctx: typer.Context,
+    ) -> None:
+        """Sharing State (GET /api/pair/sharing)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/pair/sharing"
+            params = None
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
     @target_app.command("detected-tailnet")
     def pair_detected_tailnet_get(
         ctx: typer.Context,
@@ -13377,6 +13402,22 @@ def register_generated_openapi_commands(
                 "languages": languages,
                 "period": period,
                 "script": script,
+            }
+            return client.request("GET", endpoint_path, params=params)
+        invoke(ctx, op_call)
+
+    @target_app.command("htr-united-datasets")
+    def recipes_htr_united_datasets_get(
+        ctx: typer.Context,
+        languages: str = typer.Option(..., '--languages', help='Languages.'),
+        scripts: Optional[str] = typer.Option(None, '--scripts', help='Scripts.'),
+    ) -> None:
+        """Htr United Datasets (GET /api/recipes/htr-united)."""
+        def op_call(client: FicheroClient) -> Any:
+            endpoint_path = "/api/recipes/htr-united"
+            params = {
+                "languages": languages,
+                "scripts": scripts,
             }
             return client.request("GET", endpoint_path, params=params)
         invoke(ctx, op_call)
@@ -17408,6 +17449,7 @@ def register_generated_openapi_commands(
         pages_may_leave: Optional[bool] = typer.Option(None, '--pages-may-leave/--no-pages-may-leave', help="The person's yes for these pages to go to Hugging Face. Default: false."),
         release_note: Optional[str] = typer.Option(None, '--release-note', help='Release Note.'),
         scope_ids: list[str] = typer.Option(..., '--scope-ids', help='Folders or pages whose teacher-read lines are the lessons. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        target: Optional[str] = typer.Option(None, '--target', help='Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there). Default: "huggingface-jobs".'),
         teacher: str = typer.Option(..., '--teacher', help='The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.'),
         timeout: Optional[str] = typer.Option(None, '--timeout', help='The Job\'s time limit; always sent (the service\'s default is 30 minutes). Default: "4h".'),
     ) -> None:
@@ -17426,6 +17468,7 @@ def register_generated_openapi_commands(
                 "pages_may_leave": pages_may_leave,
                 "release_note": release_note,
                 "scope_ids": scope_ids,
+                "target": target,
                 "teacher": teacher,
                 "timeout": timeout,
             }, {
@@ -17439,6 +17482,7 @@ def register_generated_openapi_commands(
                 "pages_may_leave": {'type': 'boolean', 'title': 'Pages May Leave', 'description': "The person's yes for these pages to go to Hugging Face.", 'default': False, 'x-cli-required': False},
                 "release_note": {'type': 'string', 'nullable': True, 'title': 'Release Note', 'x-cli-required': False},
                 "scope_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Scope Ids', 'description': 'Folders or pages whose teacher-read lines are the lessons.', 'x-cli-required': True},
+                "target": {'type': 'string', 'title': 'Target', 'description': 'Where it trains: `huggingface-jobs`, or the id of a cluster set up here (one GPU job; `flavor` does not apply there).', 'default': 'huggingface-jobs', 'x-cli-required': False},
                 "teacher": {'type': 'string', 'title': 'Teacher', 'description': 'The model whose line readings are the lessons, e.g. google/gemini-3-flash-preview.', 'x-cli-required': True},
                 "timeout": {'type': 'string', 'title': 'Timeout', 'description': "The Job's time limit; always sent (the service's default is 30 minutes).", 'default': '4h', 'x-cli-required': False},
             }, required=True)
@@ -17582,7 +17626,7 @@ def register_generated_openapi_commands(
         contenders: str = typer.Option(..., '--contenders', help='The answer-only student, the reasoning students, the teacher and a cheap baseline. JSON.'),
         held_out_ids: list[str] = typer.Option(..., '--held-out-ids', help='The held-out checked pages: no arm trained on them. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
         language: Optional[str] = typer.Option(None, '--language', help='Language.'),
-        noise_band: Optional[float] = typer.Option(None, '--noise-band', help='A reasoning student is adopted only if it beats the answer-only one by more than this CER. Default: 0.005.'),
+        noise_band: Optional[float] = typer.Option(None, '--noise-band', help="A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692)."),
     ) -> None:
         """Measure answer-only against reasoning students on held-out checked pages (POST /api/training/reasons-ab)."""
         def op_call(client: FicheroClient) -> Any:
@@ -17599,7 +17643,7 @@ def register_generated_openapi_commands(
                 "contenders": {'items': {'$ref': '#/components/schemas/ContenderSpec'}, 'type': 'array', 'minItems': 2, 'title': 'Contenders', 'description': 'The answer-only student, the reasoning students, the teacher and a cheap baseline.', 'x-cli-required': True},
                 "held_out_ids": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Held Out Ids', 'description': 'The held-out checked pages: no arm trained on them.', 'x-cli-required': True},
                 "language": {'type': 'string', 'nullable': True, 'title': 'Language', 'x-cli-required': False},
-                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'title': 'Noise Band', 'description': 'A reasoning student is adopted only if it beats the answer-only one by more than this CER.', 'default': 0.005, 'x-cli-required': False},
+                "noise_band": {'type': 'number', 'maximum': 1.0, 'minimum': 0.0, 'nullable': True, 'title': 'Noise Band', 'description': "A reasoning student is adopted only if it beats the answer-only one by more than this CER; null: the project's noise band (measured, else the ruled 0.005, #5692).", 'x-cli-required': False},
             }, required=True)
             return client.request("POST", endpoint_path, params=params, json=payload)
         invoke(ctx, op_call)

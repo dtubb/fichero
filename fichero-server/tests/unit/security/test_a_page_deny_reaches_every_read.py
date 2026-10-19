@@ -90,7 +90,8 @@ FILTERED_LISTS = {
 #: GET routes that take an id and do not read the library through the library dependency, with why.
 APP_LEVEL = {
     **{path: "the engine's own jobs and settings" for path in (
-        "/api/ingest/status/{task_id}", "/api/hpc/clusters/{cluster_id}", "/api/settings/model-profiles/{profile_id}",
+        "/api/ingest/status/{task_id}", "/api/hpc/clusters/{cluster_id}", "/api/hpc/clusters/{cluster_id}/key/public",
+        "/api/settings/model-profiles/{profile_id}",
         "/api/storage/snapshots/{snapshot_id}", "/api/tasks/{task_id}", "/api/tasks/{task_id}/result",
         "/api/tasks/reindex/{task_id}/progress", "/api/tasks/metrics/{task_id}/data",
         "/api/tasks/vector-repair/{task_id}/progress", "/api/tasks/kg-metrics/{task_id}/data",

@@ -170,6 +170,13 @@ very engine spawn those tests exist to exercise.
 
 ### A. Ownership and the app-scoped controller
 
+- `engine.mcp-never-spawns-a-second-engine` — **[PARTIAL]** (#5512) an MCP client attaches to the engine
+  that is running and never launches one: nothing under `fichero-mcp/src` or the CLI's `client.py`
+  imports `engine_manager`, `uvicorn` or `multiprocessing`, and only `ui_control.py` imports `subprocess` (to run `osascript` against the app's panes). Ruled 2026-10-17: attach-only; if none is
+  running the call fails saying so. Pinned by a source scan:
+  `fichero-server/tests/unit/seams/test_mcp_never_spawns_an_engine_5512.py`. PARTIAL because the 2026-10-05
+  stray engines came from the user-level `~/.local/bin/fichero-mcp`, whose installed copy this scan
+  cannot see; the checkout has no spawn path to remove.
 - `engine.owned-by-app-not-window` — **[OK]** (→ #3945) `EngineLifecycleController` is
   owned by `FicheroAppDelegate`, started from `applicationDidFinishLaunching`, stopped from
   `applicationWillTerminate`; no `WindowGroup`/scene owns or triggers it. Pinned:
@@ -277,13 +284,12 @@ very engine spawn those tests exist to exercise.
   while the top-level health probe stayed green (fixed 670772e77). No behavior in this spec
   claims the readiness handshake validates more than "the process is up and answering" — stated
   here so a future reader doesn't assume health-green implies route-correct.
-- `engine.readable-py-import-is-a-startup-single-point-of-failure` — **[GAP, architectural fact]** (#4875)
-  (→ #4875, filed this pass) the engine imports `knowledge/readable.py` transitively through the
-  render routes wired into `api/main.py` at load time — a broken import anywhere in that
-  module's own dependency chain stops the ENTIRE engine from starting, not just the
-  KG-readable-representation feature. Whether this deserves import isolation (lazy-import per
-  route group) or is an acceptable cost of a monolithic FastAPI app is an open question for
-  whoever owns this spec's approval, not decided here.
+- `engine.readable-py-import-is-a-startup-single-point-of-failure` — **[OK]** (#4875) a broken
+  `knowledge/readable.py` import costs only the readable-paragraph route: the engine starts, and
+  `GET /api/kg/render/entities/{id}/readable` answers 503 naming the module. Ruled 2026-10-17:
+  isolate that one module, lazily, inside its route; the rest of the monolith keeps eager imports
+  (a broken module elsewhere should still fail loudly at start). Pinned:
+  `fichero-server/tests/unit/api/test_engine_starts_without_readable_4875.py`.
 - `engine.provider-keys-pushed-every-connect` — **[PARTIAL, cross-referenced, not restated]**
   (→ #4534; see `ai/ai-settings.md` (section K, provider keys) for the pinning, not duplicated here) `finishSuccessfulConnect`
   pushes app-owned provider keys to the engine on every successful connect
@@ -349,7 +355,7 @@ very engine spawn those tests exist to exercise.
 
 ### E. Typed errors, not silent fallbacks
 
-- `engine.error-detail-reaches-the-caller` — **[BROKEN]** (#5094, #3931) 216 call sites (up from the
+- `engine.error-detail-reaches-the-caller` — **[PARTIAL]** (#5094, #3931) 216 call sites (up from the
   issue's own count of 182, re-measured fresh this pass) discard the engine's error body via
   `case .undocumented(let statusCode, _)` — the underlying taxonomy
   (`AccessError.classify(statusCode:body:)`, `DenialBody.decode`) exists and works; these sites
@@ -357,6 +363,7 @@ very engine spawn those tests exist to exercise.
   in an allowed location") is unreportable at these sites — the user gets a generic failure. The
   issue's own guidance (fix the shared generator/helper seam, not a 216-site hand-sweep) still
   stands.
+  **Engine half (#5094), WITHDRAWN as app-wide (review 112):** the one shared `ErrorDetail` body (`api/errors.py`; `detail` is a string or an object) is no longer declared on every operation. An app-wide 400/403/404/409 made each one a typed case in the generated client, which broke the Swift branches that read those statuses through `.undocumented(...)` (296 sites, e.g. Grant Access's 403 `code` in `ImportService+Ingest.swift`) and the build cannot catch it. The rule now: declare `responses={400: {"model": ErrorDetail}, ...}` per route where a client reads the body, as #5089 did. The app-wide assertions in `test_every_operation_declares_its_refusals_5094.py` are strict xfails until that per-route pass lands. Still open: the per-route declarations, and the Swift half (#3931: the 216 `.undocumented` sites).
 
 ### F. Distribution and bundle hygiene (P3, not urgent)
 
@@ -447,7 +454,7 @@ filed during Pass 1) — none closed, none recommended for closure by this pass.
 - `engine.launch-to-authenticated-ready-profiled` — **[GAP]** (#4538) Dev Local launch reaches first authenticated ready in a measured budget, with the time before LibraryManager init (about 19s) profiled and ratcheted.
 - `engine.startup-never-shows-outage-before-first-connect` — **[GAP]** (#4560) the content pane shows a connecting state, not Cannot Reach the Server, until the first connection has actually failed.
 - `engine.foreign-engine-stops-respawn` — **[GAP]** (#4561) after the first identityMismatch the spawn supervisor stops respawning and surfaces the foreign-engine decision once.
-- `engine.readiness-probe-proves-routes` — **[GAP]** (#4874) the readiness probe exercises a representative route set, not only that the process answers health.
+- `engine.readiness-probe-proves-routes` — **[OK]** (#4874) `GET /api/health` answers `unhealthy`, naming the routes in `error` (no new response field, so the OpenAPI schema and Swift client are untouched), when any of a small fixed list of route groups (documents, search, segments, projects) is not in the route table; otherwise it is unchanged. No database or library call: it matches paths against the route table already loaded. Pinned: `fichero-server/tests/unit/api/test_health_proves_routes_4874.py`. A route that is registered but fails inside its handler is still not caught (that is `engine.health-green-does-not-mean-every-route-works`).
 - `engine.stays-warm-between-launches-opt-in` — **[GAP]** (#5272) an engine that outlives quit so launch dials it warm is an advanced-user option, off by default, allowed only under an idle memory ceiling (models unloaded when idle); the idle footprint is measured before any design.
 - `engine.idle-footprint-ceiling` — **[GAP]** (#4999) an idle embedded engine unloads torch, spaCy and onnxruntime models and holds a small footprint (2.3 GB seen idle after launch).
 - `engine.launch-asks-only-for-what-the-window-shows` **[GAP]** (#5228): a cold first launch reaches ready in a measured budget, and at launch the app asks the engine only for what the first window shows, not ~350 requests (58 document views, 32 artifacts, repeated registry reads), and builds no window before the engine is asked. (Front library first and the open-time fixes landed: e7d94b986, b11be645d, be3ec8783, ab0fae457 and others; warm launch 4.9 s to ready.)

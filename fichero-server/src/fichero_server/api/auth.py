@@ -54,6 +54,12 @@ _UNAUTHENTICATED_PATHS = frozenset(
     {
         "/api/health",
         "/api/auth/login",
+        "/api/auth/challenge",
+        "/api/auth/sign-in",
+        "/api/auth/first-run",
+        "/api/auth/migrate-owner",
+        "/api/auth/local-clients/request",
+        "/api/auth/local-clients/register",
         "/api/auth/invites/redeem",
         "/api/pair",
         "/openapi.json",
@@ -612,12 +618,21 @@ def action_context(
 
 
 def _device_attribution(request: Request) -> dict | None:
-    """The paired device behind this request's token, as the audit names it (#5319)."""
+    """The paired device or signed-in client behind this request, as the audit names it (#5319, #2403).
+
+    A device token names {id, name}. A session signed in through a client names {id, name, kind}, so the row
+    carries the person (actor) AND the client."""
     device = getattr(request.state, "device", None)
     device_id = getattr(device, "id", None)
-    if not device_id:
+    if device_id:
+        return {"id": str(device_id), "name": getattr(device, "name", None)}
+    session = getattr(request.state, "session", None)
+    if session is None:
         return None
-    return {"id": str(device_id), "name": getattr(device, "name", None)}
+    client = get_app_db().session_client(session.token_hash)
+    if client is None:
+        return None
+    return {"id": client.id, "name": client.name, "kind": client.kind}
 
 
 CANONICAL_OWNER_USERNAME = "owner"

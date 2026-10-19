@@ -412,9 +412,12 @@ extension EngineConfig {
 /// `host` lands on `LibraryReference`, only that one call site changes — the
 /// badge UI keeps reading `library.locationDescriptor`.
 struct LibraryLocationDescriptor: Equatable {
+    /// The small shared mark, here and on the host's row: one constant, `SharedMark.symbol`.
+    static var sharedSymbol: String { SharedMark.symbol }
+
     /// True when the engine runs on the same machine as the app.
     let isLocal: Bool
-    /// Short human label, e.g. "On this Mac" or "On studio.local".
+    /// Short human label, e.g. "On this Mac" or "Shared from studio.local".
     let label: String
     /// SF Symbol for the badge.
     let systemImage: String
@@ -448,8 +451,9 @@ struct LibraryLocationDescriptor: Equatable {
         let hostName = host.url.host ?? host.url.absoluteString
         return LibraryLocationDescriptor(
             isLocal: false,
-            label: "On \(hostName)",
-            systemImage: "network"
+            // A shared project: a small mark on its row, the host named in the Inspector (sharing.sidebar.guest-row).
+            label: "Shared from \(hostName)",
+            systemImage: sharedSymbol
         )
     }
 }

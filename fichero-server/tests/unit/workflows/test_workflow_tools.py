@@ -5,7 +5,7 @@ Tests the source, vision, and LLM tools for workflows.
 """
 
 import pytest
-from unittest.mock import ANY, AsyncMock, MagicMock, call, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 from pathlib import Path
 import base64
 
@@ -2039,6 +2039,29 @@ class TestLanguageIdentificationTool:
     async def test_language_identification_detects_primary_language(
         self, mock_llm_config, mock_state
     ):
+        """A script the heuristic can tell (Cyrillic) is detected (#5572)."""
+        from fichero_server.workflows.tools.language_identification import language_identification
+
+        text = (
+            "протокол заседания совета был записан в архиве.\n\n"
+            "имена и даты встречи указаны в документе."
+        )
+        result = await language_identification(
+            {"text": text, "save_to_db": False, "chunk_size_chars": 120},
+            mock_state,
+            mock_llm_config,
+        )
+
+        payload = result["value"]
+        assert payload["primary_language"] == "ru"
+        assert len(payload["languages"]) >= 1
+        assert result["text"].startswith("# Language Identification")
+
+    @pytest.mark.asyncio
+    async def test_language_identification_latin_text_is_unknown_not_guessed(
+        self, mock_llm_config, mock_state
+    ):
+        """Latin script cannot be told apart by character range: unknown, never a guessed en (#5572)."""
         from fichero_server.workflows.tools.language_identification import language_identification
 
         # Detection is by script (#5572): Cyrillic and Arabic carry a language,
@@ -2050,7 +2073,6 @@ class TestLanguageIdentificationTool:
             mock_llm_config,
         )
 
-        assert "value" in result and result["value"] is not None
         payload = result["value"]
         assert payload["primary_language"] in {"ru", "ar"}
         assert len(payload["languages"]) >= 1

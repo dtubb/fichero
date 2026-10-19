@@ -17,9 +17,12 @@ from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 
 from fichero_server.security import accounts
-from fichero_server.actions import ActionContext, ChangeSpec, action
-from fichero_server.api.auth import _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
+from fichero_server.actions import ActionContext, ChangeSpec, action, registry
+from fichero_server.actions.registry import ActionRefused
+from fichero_server.api.auth import action_context, _has_proxy_origin_headers, _rate_limit_scope_from_request, _use_multiuser_auth, actor_from_request, ensure_owner_account
 from fichero_server.api.routes.auth.accounts import _current_session_user
+from fichero_server.api.main import get_library_database_for_write
+from fichero_server.db import Database
 from fichero_server.db.app import AppDatabase, get_app_db
 from fichero_server.models import AccountUser, ActionAudit, Device
 from fichero_server.security.remote_access_tls import validate_spki_pin, validate_tailnet_url
@@ -68,6 +71,7 @@ class _PairingCode:
     expires_at: datetime
     used: bool = False
     paired_by_device_id: str | None = None  # the paired device that minted it (#5351)
+    ambient: bool = False  # minted by the host app (no signed-in person): the device must say who it is
 
     def __post_init__(self) -> None:
         # This table is a store, so it gets the same hydration seam as a DB row
@@ -96,6 +100,53 @@ class PairCodeResponse(BaseModel):
 
 class TailnetOfferResponse(BaseModel):
     tailnet_url: str | None = None
+
+
+class SharingStateResponse(BaseModel):
+    multiuser_enabled: bool
+    tailnet_url: str | None = None
+    # The one command to paste in Terminal when this engine cannot make the tailnet forward itself
+    # (a sandboxed app cannot run the Tailscale CLI, #5317); None when nothing is missing.
+    tailnet_serve_command: str | None = None
+    paired_device_count: int
+    # The audit row of a change this answer follows (PUT /multiuser): what ⌘Z takes back.
+    audit_id: str | None = None
+
+
+class MultiuserRequest(BaseModel):
+    enabled: bool
+
+
+def _tailnet_serve_command() -> str | None:
+    import shlex
+    import subprocess
+
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+
+    if not tailscale_serve.tailnet_url():
+        return None
+    port = int(os.environ.get("FICHERO_TCP_PORT") or "8765")
+    cli = tailscale_serve.tailscale_cli()
+    want = tailscale_serve.wanted_target(port)
+    try:
+        already_serving = bool(cli) and tailscale_serve.forward_target(tailscale_serve.serve_status(cli), port) == want
+    except (OSError, subprocess.SubprocessError, ValueError):
+        already_serving = False  # CLI refused, timed out or printed no JSON: we cannot tell, so show the command
+    if already_serving:
+        return None
+    return shlex.join([cli or "tailscale", "serve", "--bg", f"--https={port}", want])
+
+
+def _sharing_state(app_db: AppDatabase) -> SharingStateResponse:
+    from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
+    from fichero_server.security.multiuser import multiuser_enabled
+
+    return SharingStateResponse(
+        multiuser_enabled=multiuser_enabled(),
+        tailnet_url=tailscale_serve.detected_tailnet_url() or None,
+        tailnet_serve_command=_tailnet_serve_command(),
+        paired_device_count=sum(1 for d in app_db.list_devices() if not d.revoked),
+    )
 
 
 class PairRequest(BaseModel):
@@ -379,8 +430,9 @@ def _require_secure_pairing_transport(request: Request) -> None:
         return
     if request.url.scheme != "https":
         raise HTTPException(status_code=400, detail="remote pairing requires https")
-    # A .ts.net host is served with Tailscale's publicly trusted certificate: system trust, no pin (#5753).
-    if (request.url.hostname or "").lower().endswith(".ts.net"):
+    # Sharing at a .ts.net name means Tailscale's publicly trusted certificate: system trust, no pin
+    # (#5753). Decided by what this engine shares at, not by the caller-supplied Host header.
+    if _shares_at_ts_net():
         return
     try:
         validate_spki_pin(os.environ.get("FICHERO_TLS_SPKI_HASH", ""))
@@ -413,6 +465,72 @@ def _record_device_audit(
     return audit
 
 
+def _owner_only(request: Request, app_db: AppDatabase) -> None:
+    if not _pairing_user(request, app_db).is_owner:
+        raise HTTPException(status_code=403, detail="only the owner can change Sharing settings")
+
+
+@router.get("/sharing", response_model=SharingStateResponse)
+def sharing_state(request: Request, app_db: AppDatabase = Depends(get_app_database)) -> SharingStateResponse:
+    """Read Sharing state: Multi-user, the detected tailnet address, paired device count (#5751)."""
+    _owner_only(request, app_db)
+    return _sharing_state(app_db)
+
+
+@router.put("/multiuser", response_model=SharingStateResponse)
+def set_multiuser(
+    request: Request,
+    body: MultiuserRequest,
+    app_db: AppDatabase = Depends(get_app_database),
+    db: Database = Depends(get_library_database_for_write),
+    ctx: ActionContext = Depends(action_context),
+) -> SharingStateResponse:
+    """Set the persisted Multi-user switch through the audited action layer (#5751); the Settings
+    switch, the CLI and MCP share this route."""
+    _owner_only(request, app_db)
+    try:
+        result = registry.invoke(db, "sharing.set_multiuser", body.model_dump(), ctx)
+    except ActionRefused as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _sharing_state(app_db).model_copy(update={"audit_id": result.audit_id})
+
+
+class MultiuserParams(BaseModel):
+    enabled: bool
+
+
+def _multiuser_invert(before: dict | None, after: dict | None, ctx: ActionContext) -> tuple[str, dict] | None:
+    return ("sharing.set_multiuser", {"enabled": before["enabled"]}) if before else None
+
+
+@action("sharing.set_multiuser", MultiuserParams, domains=["sharing"], undoable=True, invert=_multiuser_invert, owner_only=True)
+def _set_multiuser_action(_db, params: MultiuserParams, ctx: ActionContext):
+    """Who sees every library: audited and undoable. Owner only at the route; the environment wins."""
+    from fichero_server.security.authz import AuthorizationError
+    from fichero_server.security.multiuser import MULTIUSER_SETTING_KEY, multiuser_enabled
+
+    # Owner-only HERE, not only at the route: POST /api/actions/invoke, MCP and chat reach this action
+    # with library WRITE alone, and an editor who turned Multi-user off would own every library (review 58).
+    if not ctx.is_bootstrap:
+        person = next((u for u in get_app_db().list_users() if u.username == ctx.actor), None)
+        if not (person and person.active and person.is_owner):
+            raise AuthorizationError("only the owner can change Multi-user", required="owner")
+    if (os.environ.get("FICHERO_MULTIUSER") or "").strip():
+        raise ActionRefused("Multi-user is set by FICHERO_MULTIUSER; unset it to change it here")
+    app_db = get_app_db()
+    before = {"enabled": multiuser_enabled()}
+    app_db.set_setting(MULTIUSER_SETTING_KEY, "true" if params.enabled else "false")
+    after = {"enabled": params.enabled}
+    return after, ChangeSpec(domains=["sharing"], before=before, after=after)
+
+
+def _shares_at_ts_net() -> bool:
+    from urllib.parse import urlparse
+
+    public = (os.environ.get("FICHERO_PUBLIC_BASE_URL") or "").strip()
+    return (urlparse(public).hostname or "").lower().endswith(".ts.net")
+
+
 @router.get("/tailnet", response_model=TailnetOfferResponse)
 def detected_tailnet(
     request: Request,
@@ -442,6 +560,7 @@ def create_pairing_code(
         user_id=user.id,
         expires_at=expires_at,
         paired_by_device_id=getattr(getattr(request.state, "device", None), "id", None),
+        ambient=_use_multiuser_auth() and _current_session_user(request) is None,
     )
     # FICHERO_TAILNET_URL, else a `.ts.net` sharing address -- which is all the app sets (#2603).
     from fichero_server.security import tailscale_serve  # lazy: app-import budget (#3950)
@@ -456,8 +575,9 @@ def create_pairing_code(
         code=code,
         expires_at=expires_at,
         tailnet_url=tailnet_url or None,
-        # No pin for a tailnet address: pin only for .local (#5753).
-        spki_pin=None if tailnet_url else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
+        # By the sharing address the guest uses, not by whether Tailscale is up: .ts.net is system
+        # trust (no pin), anything else (.local, an IP) is pinned (#5753).
+        spki_pin=None if _shares_at_ts_net() else (os.environ.get("FICHERO_TLS_SPKI_HASH") or "").strip() or None,
     )
 
 
@@ -497,6 +617,11 @@ def pair_device(
                 raise HTTPException(status_code=403, detail="user is disabled")
             user_id = chosen.id
         if _use_multiuser_auth():
+            if chosen is None and record.ambient:
+                # The host owner is never ambient on a remote device: the device says who it is.
+                raise HTTPException(
+                    status_code=401, detail="person required: this library uses Multi-user, sign in as a person"
+                )
             user = chosen or app_db.get_user(record.user_id)
             if user is None or not user.active:
                 record.used = True
@@ -512,6 +637,8 @@ def pair_device(
         )
         if record.paired_by_device_id:
             app_db.set_device_paired_by(device.id, record.paired_by_device_id)
+        # Through `tailscale serve` (its identity headers) vs straight onto the .local/LAN listener.
+        app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         record.used = True
         _PAIRING_CODES.pop(code, None)
         return _to_pair_response(device, raw_token)
@@ -550,6 +677,7 @@ def enroll_device(
             user_id=user.id,
             token_hash=accounts.hash_token(raw_token),
         )
+        app_db.set_device_route(device.id, "tailnet" if _has_proxy_origin_headers(request) else "lan")
         _record_device_audit(
             action_name="device.enroll",
             actor=f"enrollment:{secret.id}",

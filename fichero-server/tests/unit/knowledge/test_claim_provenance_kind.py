@@ -19,10 +19,6 @@ import fichero_server.api.routes.claim.claims  # noqa: F401 -- registers claim.*
 import fichero_server.api.routes.document.annotations  # noqa: F401 -- registers annotation.* actions
 from fichero_server.actions.registry import ActionContext, registry
 from fichero_server.api.routes.claim.claims import ClaimCreateRequest, create_claim_impl
-from fichero_server.api.routes.mcp.tools import (
-    KnowledgeClaimCreateRequest,
-    mcp_knowledge_claim_create,
-)
 from fichero_server.knowledge._common import resolve_claim_provenance_kind
 from fichero_server.models import Document, DocType
 from fichero_server.models.knowledge import KnowledgeClaim, ProvenanceKind
@@ -81,14 +77,15 @@ class TestEachWritePathSetsItsOwnValue:
         assert claim.created_by == "alice"
 
     def test_claim_create_via_mcp_sets_agent(self, db):
+        # The MCP knowledge routes are retired (#1439): an agent's claim goes through claim.create with via_mcp.
         doc = _doc(db)
-        request = KnowledgeClaimCreateRequest(
-            text="An agent-created claim.", source_document_id=doc.id
+        result = registry.invoke(
+            db,
+            "claim.create",
+            {"text": "An agent-created claim.", "source_document_id": doc.id},
+            _ctx(actor="agent-session", via_mcp=True),
         )
-        result = asyncio.run(
-            mcp_knowledge_claim_create(request, db=db, actor="agent-session")
-        )
-        claim = db.get(KnowledgeClaim, result.claim_id)
+        claim = db.get(KnowledgeClaim, result.result["id"])
         assert claim.provenance_kind == ProvenanceKind.agent
         assert claim.created_by == "agent-session"
 
@@ -147,14 +144,14 @@ class TestClientSuppliedValueIsIgnored:
 
     def test_forged_provenance_kind_via_mcp_is_ignored(self, db):
         doc = _doc(db)
-        request = KnowledgeClaimCreateRequest(text="t", source_document_id=doc.id)
-        result = asyncio.run(
-            mcp_knowledge_claim_create(request, db=db, actor="agent-session")
+        result = registry.invoke(
+            db,
+            "claim.create",
+            {"text": "t", "source_document_id": doc.id, "provenance_kind": "human"},  # forged
+            _ctx(actor="agent-session", via_mcp=True),
         )
-        # The MCP request model has no client-facing provenance_kind field
-        # at all -- an agent write is ALWAYS `agent`, never anything the
-        # client could claim instead.
-        claim = db.get(KnowledgeClaim, result.claim_id)
+        # An agent write is ALWAYS `agent`, never anything the client could claim instead.
+        claim = db.get(KnowledgeClaim, result.result["id"])
         assert claim.provenance_kind == ProvenanceKind.agent
 
 
@@ -232,16 +229,6 @@ class TestSerializationSitesApplyTheDerivation:
         found = next(c for c in items if c.id == legacy.id)
         assert found.provenance_kind == ProvenanceKind.unknown
         assert db.get(KnowledgeClaim, legacy.id).provenance_kind is None
-
-    def test_mcp_claim_get_resolves_a_legacy_row(self, db):
-        from fichero_server.api.routes.mcp.tools import mcp_knowledge_claim_get
-
-        legacy = KnowledgeClaim(
-            text="t", source_document_id="doc-1", created_by="wikidata", provenance_kind=None
-        )
-        db.save(legacy)
-        result = asyncio.run(mcp_knowledge_claim_get(legacy.id, db=db))
-        assert result.provenance_kind == ProvenanceKind.external_import
 
     def test_search_claim_hit_resolves_a_legacy_row(self):
         """#4869 follow-up: team-lead's regen diff showed `SearchClaimHit`

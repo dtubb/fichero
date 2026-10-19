@@ -237,6 +237,9 @@ class RecipeStep(BaseModel):
     needed_by: Optional[list[str]] = Field(default=None, description=(
         "the later steps (by job) that need what this one gives: it cannot be taken out of the plan while they "
         "stay (source.onboard.plan-editable)"))
+    run_titles: Optional[list[str]] = Field(default=None, description=(
+        "the Normalise step's runs by title, one for each reading level asked and one for a translation, in the "
+        "order Start makes them (#5795); null for every other step"))
 
 
 class AutomaticStep(BaseModel):
@@ -269,6 +272,9 @@ class LeftOffStep(BaseModel):
     job: str
     title: str
     sentence: str
+    offered: Optional[dict[str, Any]] = Field(default=None, description=(
+        "Correct offered at Ready (ruled Q3 2026-10-17, #5677): a cloud corrector whose provider has a key set here, "
+        "`card`, `runs_on` (the provider), `pages` and `cost_usd` for them; never turned on by itself. Null: none"))
 
 
 class AssembledRecipe(BaseModel):
@@ -313,6 +319,23 @@ def _hf_token_set() -> bool:
     from fichero_server.llm import get_api_key
 
     return bool(get_api_key("huggingface"))
+
+
+def _cluster_names(request: Request) -> list[str]:
+    """The clusters set up on this Mac, by name (#5769); none when the app's settings cannot be read, and none for a
+    caller who is not the owner: every /api/hpc route is owner-only (review 85, review 124)."""
+    from fichero_server.api.routes.ai.hpc import _load_clusters
+    from fichero_server.api.routes.auth.accounts import _require_owner_or_bootstrap
+    from fichero_server.db.app import get_app_db
+
+    try:
+        _require_owner_or_bootstrap(request)
+    except HTTPException:
+        return []
+    try:
+        return sorted(str(c.get("name") or c.get("cluster_id") or "a cluster") for c in _load_clusters(get_app_db()).values())
+    except Exception:  # noqa: BLE001 -- no clusters to offer, never a failed plan
+        return []
 
 
 def _this_machine_memory_gb() -> float:
@@ -380,9 +403,24 @@ class SetupStage(BaseModel):
     tried_by: Literal["bake-off", "workflow"]
 
 
+class MoneyAndPlace(BaseModel):
+    """The three ruled money-and-place settings as the engine holds them (#5769), for the setup screen to show; this
+    month's spend against the cap is on the Start plan (`hf_spend`)."""
+
+    hf_spend_cap_usd: float = Field(description="the monthly Hugging Face cap (`answers.hf_spend_cap_usd`); $0 offers "
+                                    "only")
+    copies_may_stay_on_cluster: bool = Field(description="whether working copies stay on a cluster for re-runs, as it "
+                                             "stands: the person's answer, else what they said about pages leaving")
+    copies_follow_pages_may_leave: bool = Field(description="true while the person has not answered the copies "
+                                                "question, so its value follows pages-may-leave")
+    clusters: list[str] = Field(description="the clusters set up here, by name: the copies question and the cluster "
+                                "offer apply only where there is one")
+
+
 class SetupStageList(BaseModel):
     items: list[SetupStage]
     count: int
+    money_and_place: Optional[MoneyAndPlace] = None
 
 
 @router.get("/stages", response_model=SetupStageList)
@@ -396,7 +434,16 @@ async def list_stages(request: Request) -> SetupStageList:
     library = _optional_library(request)
     setup = read_project_setup(library) if library else {"recipe": None, "answers": None}
     items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
-    return SetupStageList(items=items, count=len(items))
+    return SetupStageList(items=items, count=len(items),
+                          money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
+
+
+def _money_and_place(answers: dict[str, Any], clusters: list[str]) -> MoneyAndPlace:
+    from fichero_server.recipes.answers import COPIES_STAY, copies_may_stay, spend_cap
+
+    return MoneyAndPlace(hf_spend_cap_usd=spend_cap(answers), copies_may_stay_on_cluster=copies_may_stay(answers),
+                         copies_follow_pages_may_leave=not isinstance(answers.get(COPIES_STAY), bool),
+                         clusters=clusters)
 
 
 class SamplePage(BaseModel):
@@ -653,6 +700,7 @@ class ScriptFacts(BaseModel):
     may_be_vertical: bool
     font: Optional[str] = None
     font_from: str
+    audit_id: Optional[str] = Field(default=None, description="the audit row of a choice just made; Undo reverses it")
 
 
 class MacFacts(BaseModel):
@@ -741,10 +789,11 @@ async def choose_font(
     else:
         answers.pop("fonts", None)
     try:
-        registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
+        done = registry.invoke(db, "project.save_setup", {"answers": normalise_answers(answers, strict=True)}, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return ScriptFacts(**derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script)))
+    facts = derived.script_facts(body.script, str(answers.get("period") or ""), fonts.get(body.script))
+    return ScriptFacts(**facts, audit_id=done.audit_id)
 
 
 @router.get("/scripts", response_model=NamedCodeList)
@@ -788,7 +837,15 @@ def _assemble(answers: dict[str, Any], library: Optional[Path] = None) -> dict[s
         if sample_is_text(db_manager.get_database(str(library))):
             answers = {**answers, "materials": ["text"]}
     a = _answers(answers)
-    recipe = assemble(a, known_cards(a))
+    if library is not None:
+        from dataclasses import replace
+
+        from fichero_server.recipes.project import read_noise_band
+
+        band = read_noise_band(library)
+        if band["measured"]:  # measured readers tie inside the project's own band (#4950, #5692)
+            a = replace(a, noise_band=band["value"])
+    recipe = assemble(a, known_cards(a), offered=_cloud_correctors(a.cloud_keys))
     saved = (read_project_setup(library)["recipe"] or {}) if library is not None else {}
     if saved.get("overrides"):
         from fichero_server.recipes.bakeoff import apply_project_overrides
@@ -825,6 +882,31 @@ def _optional_library(request: Request) -> Optional[Path]:
     return _library(get_library_database(request, path)) if path else None
 
 
+def _providers_with_keys() -> list[str]:
+    from fichero_server.recipes.derived import _providers_with_keys as keyed
+
+    return keyed()
+
+
+def _cloud_correctors(keys: tuple[str, ...] | list[str]) -> list[Any]:
+    """The person's cloud vision readers whose provider has a key here, as correctors priced per page from the price
+    list (#5677): what Correct is offered with at Ready, never the rules' choice. A reader with no known price is
+    left out: the offer states its cost. ponytail: a vision reader is assumed to correct; a card of its own when not."""
+    from dataclasses import replace
+
+    from fichero_server.recipes.bakeoff import cloud_readers
+    from fichero_server.recipes.routes import _cloud_cost
+
+    out = []
+    for card in cloud_readers():
+        if not card.runs_here or card.runs_on.split(":", 1)[-1] not in keys:
+            continue
+        price = _cloud_cost(f"{card.pin['cloud']}/{card.pin['model']}", 1)
+        if price:
+            out.append(replace(card, jobs=card.jobs | {"correct"}, cost_per_page=price))
+    return out
+
+
 def _answers(answers: dict[str, Any]) -> Answers:
     """Setup's answers as the rules read them (the one place they are turned into `Answers`)."""
 
@@ -838,13 +920,21 @@ def _answers(answers: dict[str, Any]) -> Answers:
         layers=frozenset(a.get("layers") or ()), loose_pages=bool(a.get("loose_pages")),
         faded_pages=bool(a.get("faded_pages")), photographs=bool(a.get("photographs")),
         job_answers=dict(a.get("job_answers") or {}), period=str(a.get("period") or ""),
-        search_embedder=search_embedder(),
+        search_embedder=search_embedder(), cloud_keys=tuple(_providers_with_keys()),
     )
 
 
 #: A route that takes its question as a body but writes nothing: its generated MCP tool says it reads
 #: (`openapi.mcp.reads-say-so`, #5584).
 READS = {"x-fichero-reads": True}
+
+
+def _run_titles(step: dict[str, Any]) -> dict[str, Any]:
+    from fichero_server.recipes.answers import normalise_run_titles
+
+    if step.get("job") != "translate-transliterate-normalise":
+        return {}
+    return {"run_titles": normalise_run_titles((step.get("settings") or {}).get("target"))}
 
 
 @router.post("/assemble", response_model=AssembledRecipe, openapi_extra=READS)
@@ -864,7 +954,7 @@ async def assemble_recipe(
     return AssembledRecipe(
         fichero_recipe=recipe["fichero_recipe"], version=recipe["version"], suits=recipe["suits"],
         id=recipe["id"], title=recipe["title"], purposes=recipe["purposes"],
-        steps=[RecipeStep(**s) for s in recipe["steps"]], automatic=recipe.get("automatic") or [],
+        steps=[RecipeStep(**s, **_run_titles(s)) for s in recipe["steps"]], automatic=recipe.get("automatic") or [],
         gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
         cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
@@ -1311,11 +1401,18 @@ async def save_project_setup(
     (`source.project.setup-saves-what-is-sent`). The answers are saved in today's shape: `purposes`
     and `materials` as lists, languages as tags and scripts as codes (a word is resolved to its tag,
     or refused), and one direction per script. Refused with 422 when either holds code or
-    credentials, or an answer Fichero does not know."""
+    credentials, or an answer Fichero does not know. Answers saved alone to a project with no recipe yet
+    also store the recipe the rules assemble from them (#5747); a recipe already stored is kept."""
     try:
         params = request.model_dump(mode="json", exclude_unset=True)
         if "answers" in params:
             params["answers"] = normalise_answers(params["answers"], strict=True)
+            if params["answers"] and "recipe" not in params:
+                # Answers alone to a project with no recipe yet: Start needs one, so the rules assemble it (#5747).
+                # A recipe already stored is kept: the person's own choices of model stay.
+                library = _library(db)
+                if read_project_setup(library).get("recipe") is None:
+                    params["recipe"] = _assemble(params["answers"], library)
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1532,13 +1629,20 @@ class ProposedJobs(BaseModel):
 class TrainTarget(BaseModel):
     """A place a way of training runs, and the audited action that starts it there (#5660 item 9)."""
 
-    place: str = Field(description="this-mac or huggingface-jobs: only the places the engine trains on today")
+    place: str = Field(description=(
+        "this-mac, huggingface-jobs, or cluster (a cluster set up here, the free alternative offered beside Hugging "
+        "Face; no start action yet)"))
     name: str
-    starts: str = Field(description="the action that starts it, e.g. training.start_here")
+    starts: Optional[str] = Field(default=None, description=(
+        "the action that starts it, e.g. training.start_here; null for a cluster, offered with its first-run steps"))
     params: Optional[dict[str, Any]] = Field(default=None, description=(
         "what to send with `starts`, as-is (the scope and, for a distillation, the teacher); null: the engine cannot "
         "fill it yet, e.g. no reader has read this project's lines. On Hugging Face Jobs the person's yes for "
         "pages to leave (`pages_may_leave`) is asked at start, never sent here"))
+    held: Optional[str] = Field(default=None, description=(
+        "why this place stays an offer, never started by itself: a $0 Hugging Face spend cap (#5769)"))
+    first_run: Optional[list[str]] = Field(default=None, description=(
+        "a cluster's attended first run, step by step (`source.onboard.cluster-offer`, #5769)"))
 
 
 class TrainWay(BaseModel):
@@ -1566,6 +1670,10 @@ class TrainOffer(BaseModel):
         "how training happens in this project (the onboarding setting `answers.training`, or the machine's default): "
         "`mode` here, huggingface or offered, and `why`"))
     does: str = Field(description="what the setting does once the corrected lines reach the threshold, in a sentence")
+    noise_band: Optional[dict[str, Any]] = Field(default=None, description=(
+        "the project's noise band (#5692): `value`, the CER difference a trained model must beat its base by; "
+        "`measured`, whether this project's pages measured it (CER spread over 3 held-out splits) or it is the ruled "
+        "0.5 CER points; `basis` in words"))
 
 
 class BakeoffOffer(BaseModel):
@@ -1576,6 +1684,18 @@ class BakeoffOffer(BaseModel):
     pages: int = Field(description="the corrected sample pages it would read")
     ready: bool = Field(description="false until the project holds enough corrected lines")
     readiness_sentence: Optional[str] = Field(default=None, description="when not ready, what to correct")
+
+
+class HfSpend(BaseModel):
+    """This month's Hugging Face spend against the project's cap (`source.onboard.spend-cap`, #5769)."""
+
+    cap_usd: float = Field(description="the project's monthly cap (`answers.hf_spend_cap_usd`); $0 offers only")
+    spent_at_most_usd: float = Field(description=(
+        "this calendar month's Jobs at their most: each one's hardware price an hour times its time limit"))
+    jobs: int = Field(description="the Jobs sent to Hugging Face this month (training and reading at scale)")
+    unpriced: int = Field(description="of them, the Jobs with no listed price: not counted in the spend, said so")
+    month: str = Field(description="the month, YYYY-MM (UTC)")
+    sentence: str
 
 
 class StartPlan(BaseModel):
@@ -1591,6 +1711,8 @@ class StartPlan(BaseModel):
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
+    hf_spend: Optional[HfSpend] = Field(default=None, description=(
+        "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"))
     bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
         "a comparison of readers on the sample, offered with its cost first and never run by Start; null when the "
         "recipe has no reading step (#5660 item 7)"))
@@ -1626,7 +1748,8 @@ class StartPlan(BaseModel):
         "(source.recipe.folder-scoped-start)"))
 
 
-def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]:
+def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list[str] | tuple[str, ...] = ()
+                ) -> dict[str, Any]:
     """The Start plan, over the whole project or one folder's live pages (`source.recipe.folder-scoped-start`).
     LookupError for a folder not in the project."""
     from fichero_server.recipes import runner
@@ -1666,9 +1789,23 @@ def _start_plan(db: Database, folder_id: Optional[str] = None) -> dict[str, Any]
     plan["folder_id"] = folder_id
     from fichero_server.recipes.train_offers import training_setting
 
+    from fichero_server.recipes.answers import spend_cap
+    from fichero_server.recipes.project import read_noise_band
+
+    cap = spend_cap(setup["answers"])
     setting = training_setting((setup["answers"] or {}).get("training"), mac_memory_gb=_this_machine_memory_gb(),
-                               hf_configured=_hf_token_set(), stays_local=stays_local)
-    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting)
+                               hf_configured=_hf_token_set(), stays_local=stays_local, spend_cap=cap)
+    from fichero_server.recipes.train_offers import held_after_failure
+
+    held = held_after_failure(db) if setting["mode"] == "here" else None
+    if held:  # the last training here failed: said on the plan, where the person looks (#5440)
+        setting = {**setting, "why": held}
+    plan["train_offers"] = train_offers(setup["recipe"], counted(db), stays_local=stays_local, setting=setting,
+                                        spend_cap=cap, clusters=clusters,
+                                        noise_band=read_noise_band(library))
+    from fichero_server.recipes.train_offers import spend_this_month
+
+    plan["hf_spend"] = spend_this_month(db, cap=cap)
     plan["bakeoff_offer"] = _bakeoff_offer(db, setup, pages["pages"])
     if within is not None and not pages["pages"]:
         plan["refusals"] = [*plan["refusals"], "the folder has no pages to run on"]
@@ -1737,6 +1874,7 @@ def _compute_bakeoff_offer(db: Database, setup: dict, volume: int) -> dict | Non
 
 @router.get("/project/start", response_model=StartPlan)
 async def get_start_plan(
+    http: Request,
     folder_id: Optional[str] = Query(default=None, description=(
         "plan Start on this folder alone: its live pages, its folders inside it included "
         "(source.recipe.folder-scoped-start); omit for the whole project")),
@@ -1745,7 +1883,7 @@ async def get_start_plan(
     """What Start would run on this project, or on one folder of it, with the estimate, before anything runs
     (`source.onboard.estimate-before-start`). 422 for a folder not in the project."""
     try:
-        return StartPlan(**_start_plan(db, folder_id))
+        return StartPlan(**_start_plan(db, folder_id, clusters=_cluster_names(http)))
     except LookupError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -1772,6 +1910,7 @@ class StartRequest(BaseModel):
 
 @router.post("/project/start", response_model=StartPlan)
 async def start_project(
+    http: Request,
     request: Optional[StartRequest] = None,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -1789,7 +1928,7 @@ async def start_project(
                         ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_as_started(db, _start_plan(db, folder_id)))
+    return StartPlan(**_as_started(db, _start_plan(db, folder_id, clusters=_cluster_names(http))))
 
 
 class UseInsteadRequest(BaseModel):
@@ -1875,8 +2014,13 @@ async def use_candidate_for_step(
     from fichero_server.recipes.discovery import other_text_cards
 
     # The rules' cards, and the text models the finder offers a person beyond them (#5660 item 4) that can run.
-    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here)]
-    card = next((c for c in offered if c.id == request.card), None)
+    # And the keyed cloud correctors: Correct's offer at Ready is taken here (#5677). A text card shares a corrector's
+    # id, so the card that does the step's job is the one taken.
+    offered = [*known_cards(a), *(c for c in other_text_cards() if c.runs_here),
+               *_cloud_correctors(a.cloud_keys if a else ())]
+    job = next((s.get("job") for s in (setup["recipe"] or {}).get("steps") or [] if s.get("id") == request.step), None)
+    named = [c for c in offered if c.id == request.card]
+    card = next((c for c in named if job in c.jobs), named[0] if named else None)
     if card is None:
         raise HTTPException(status_code=422, detail=f"{request.card} is not a model Fichero has found here: list "
                                                     "the candidates (online, to search) and choose one of them")
@@ -1956,6 +2100,7 @@ class LayerChangeParams(LayerChangeRequest):
 
 @router.post("/project/layers", response_model=StartPlan)
 async def change_project_layers(
+    http: Request,
     request: LayerChangeRequest,
     db: Database = Depends(get_library_database_for_write),
     ctx: ActionContext = Depends(action_context),
@@ -1969,7 +2114,7 @@ async def change_project_layers(
         registry.invoke(db, "project.add_layer", request.model_dump(mode="json"), ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return StartPlan(**_start_plan(db))
+    return StartPlan(**_start_plan(db, clusters=_cluster_names(http)))
 
 
 def _invert_add_layer(before: dict | None, after: dict | None, ctx: ActionContext):

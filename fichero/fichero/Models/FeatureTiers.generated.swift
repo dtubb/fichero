@@ -335,10 +335,10 @@ enum FeatureTiers {
         ),
         .workflowToolsMcp: .init(
             name: "Workflow tools MCP",
-            tier: .dev,
+            tier: .alpha,
             swiftFlag: "fichero.features.workflow_tools_mcp",
             uxGroup: "Processing",
-            notes: "MCP-backed workflow tools still under review."
+            notes: "An enabled MCP server's tools are in the workflow palette (mcp.client.tools-reach-a-workflow,"
         ),
         .workflowToolsAgents: .init(
             name: "Workflow tools agents",

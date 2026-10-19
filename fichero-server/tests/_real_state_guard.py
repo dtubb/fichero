@@ -59,7 +59,7 @@ _installed = False
 _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND
 
 
-def real_state_root(path) -> str | None:
+def real_state_root(path, *, nofollow: bool = False) -> str | None:
     """The real state root ``path`` falls under (after resolving links), or None."""
     if isinstance(path, int) or path is None:
         return None
@@ -70,6 +70,9 @@ def real_state_root(path) -> str | None:
     if not text or text == ":memory:" or text.startswith(":memory:"):
         return None
     candidates = {os.path.abspath(text), os.path.realpath(text)}
+    if nofollow and os.path.islink(text):
+        # Removing a link removes the LINK: a symlink in a fake HOME to the real model cache is not the cache.
+        candidates = {os.path.abspath(text), os.path.join(os.path.realpath(os.path.dirname(text)), os.path.basename(text))}
     for root in ROOTS:
         for candidate in candidates:
             if candidate == root or candidate.startswith(root + os.sep):
@@ -91,13 +94,13 @@ def _refuse(action: str, path) -> None:
     raise AssertionError(message)
 
 
-def check(action: str, path) -> None:
+def check(action: str, path, *, nofollow: bool = False) -> None:
     """Refuse ``action`` on ``path`` when it falls under a real state root."""
     if getattr(_busy, "on", False):
         return
     _busy.on = True
     try:
-        hit = real_state_root(path) is not None
+        hit = real_state_root(path, nofollow=nofollow) is not None
     finally:
         _busy.on = False
     if hit:
@@ -127,7 +130,7 @@ def _audit(event: str, args: tuple) -> None:
         check("moves", args[0])
         check("moves onto", args[1])
     elif event in ("os.remove", "os.rmdir", "shutil.rmtree"):
-        check("removes", args[0])
+        check("removes", args[0], nofollow=event == "os.remove")
     elif event == "os.symlink":
         check("makes a link at", args[1])
     elif event == "socket.bind":

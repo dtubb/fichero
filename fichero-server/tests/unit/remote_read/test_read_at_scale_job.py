@@ -283,6 +283,8 @@ class FakeClusterShell:
         if argv[0] == "mkdir":
             for d in argv[2:]:
                 self._at(d).mkdir(parents=True, exist_ok=True)
+        if argv[0] == "rm":
+            shutil.rmtree(self._at(argv[-1]), ignore_errors=True)
         return 0, "", ""
 
     def put(self, local, remote):
@@ -324,6 +326,48 @@ def test_the_same_loop_reads_on_a_cluster(db, archive, tmp_path):
     assert counts == {"pending": 0, "submitted": 0, "landed": 4, "failed": 0}
     assert len(shell.sbatched) == 4
     assert read_job.status(db, started["job_id"])["landing"]["landed"] == 7
+
+
+def _copies(db, *, may_stay):
+    from pathlib import Path
+
+    from fichero_server.recipes.project import write_project_setup
+
+    write_project_setup(Path(db.path).parent, {"purposes": ["transcribe"], "copies_may_stay_on_cluster": may_stay},
+                        None)
+
+
+def test_working_copies_leave_the_cluster_when_the_project_said_no_5769(db, archive, tmp_path):
+    """WHY (`source.onboard.copies-may-stay-on-cluster`): nothing stays when the answer is no; the run's folder on
+    the cluster, the downscaled pages with it, is removed once every shard has landed."""
+    _copies(db, may_stay=False)
+    job_id, subject, target = _cluster_run(db, archive, tmp_path)
+    read_job.run(db, subject, target=target, sleep=lambda s: None)
+    assert not (tmp_path / "login" / "project/def-lab/u/fichero/runs" / job_id).exists()
+    assert "removed from the cluster" in jobs.read_job(db, job_id)["reason"]
+
+
+def test_working_copies_stay_for_re_runs_when_the_project_said_yes_5769(db, archive, tmp_path):
+    _copies(db, may_stay=True)
+    job_id, subject, target = _cluster_run(db, archive, tmp_path)
+    read_job.run(db, subject, target=target, sleep=lambda s: None)
+    assert (tmp_path / "login" / "project/def-lab/u/fichero/runs" / job_id / "images").is_dir()
+    assert "stay on the cluster" in jobs.read_job(db, job_id)["reason"]
+
+
+def test_removing_copies_refuses_anything_but_one_runs_own_folder(tmp_path):
+    """Review 104: `rm -rf` on `<base>/fichero/runs/<key>` only ever for a run's own key."""
+    from fichero_server.remote_read.slurm_target import SlurmReadTarget
+    from fichero_server.workflows.remote_jobs import HpcClusterConfig
+
+    cluster = HpcClusterConfig(cluster_id="r", name="Rorqual", host_alias="rorqual", username="u",
+                               remote_base_dir="/project/def-lab/u", account="def-lab")
+    shell = FakeClusterShell(tmp_path / "login")
+    target = SlurmReadTarget(cluster, shell)
+    for key in ("", "a/b", "..", "."):
+        with pytest.raises(ValueError):
+            target.remove(key)
+    assert not (tmp_path / "login").exists()
 
 
 # --- remote runs in Activity (`activity.remote-under-its-step`, #5740) -------------------------------------

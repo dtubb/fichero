@@ -230,14 +230,16 @@ class TestTheRefusalsAreDeclaredAndNotOnlyRaised:
             name for name in schema["components"]["schemas"] if name.endswith("__ErrorDetail")
         ], "a qualified ErrorDetail means two classes collided instead of one being shared"
 
-    def test_detail_is_a_plain_required_string(self, client):
+    def test_detail_is_a_required_sentence_or_object_never_an_array(self, client):
         """Not FastAPI's validation-error ARRAY, which is what an undeclared 422 documents and
-        what the client could not decode. And required, so the app has no optional to unwrap and
-        no placeholder to invent when the engine did write a sentence."""
+        what the client could not decode. A sentence, or an object for the structured refusals
+        (#5094). And required, so the app has no optional to unwrap and no placeholder to invent
+        when the engine did write a sentence."""
         from fichero_server.api.main import app
 
         model = app.openapi()["components"]["schemas"]["ErrorDetail"]
-        assert model["properties"]["detail"]["type"] == "string"
+        kinds = {branch.get("type") for branch in model["properties"]["detail"]["anyOf"]}
+        assert kinds == {"string", "object"}
         assert model.get("required") == ["detail"]
 
     def test_a_document_with_no_pass_sends_that_sentence_on_the_wire(self, db, client):

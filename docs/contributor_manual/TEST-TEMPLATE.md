@@ -19,7 +19,7 @@ grounded in the real harness** so writing it is mechanical.
 | **Availability** (Swift) | a capability must be REACHABLE in a surface | "this surface wires this capability" | same, source-string via `AppSource.root()` |
 | **Visual / A11y** (Apple tools) | a surface has UI to verify | `performAccessibilityAudit()` passes + `.xctestplan` captures a screenshot (no pixel-diff) | in the Click-around leg below (`fichero/Tests/UI/**`) |
 | **Backend** (pytest) | the surface calls an endpoint / writes data | the endpoint's contract + that data was DELIVERED | `fichero-server/tests/**` |
-| **MCP** | the capability should be agent-reachable | the MCP tool maps + routes | `fichero-mcp/tests/test_mcp_full.py` |
+| **MCP** | the capability should be agent-reachable | the MCP tool maps + routes | `fichero-mcp/tests/test_mcp_generated.py` |
 | **CLI** | the capability should be scriptable | the CLI command wires the endpoint | `fichero-cli/tests/test_*.py` |
 | **Click-around** (XCUITest, Mac) | a user drives it in the UI | the end-to-end path: click → effect | `fichero/Tests/UI/**` (subclass `FicheroUISessionTests`) |
 | **iPhone (iOS)** | the surface ships on iPhone | the touch path exists on iPhone | `fichero/Tests/UI/ios` + the `fichero-ui-ios` plan |
@@ -78,7 +78,7 @@ def test_<verb>_persists(client, db):
     assert db.get(<Model>, r.json()["id"]) is not None
 ```
 
-### 4. MCP (mirror `test_mcp_full.py`: a fake client records the call)
+### 4. MCP (mirror `test_mcp_generated.py`: a fake client records the call)
 ```python
 def test_<tool>_routes(monkeypatch):
     fake = FakeClient(); ...
