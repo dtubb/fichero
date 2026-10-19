@@ -3656,8 +3656,8 @@ The recipe and its format
   (`fichero-server/tests/unit/recipes/test_project_binds_its_cluster_4950.py`). Not built: a binding per step (one
   cluster serves the project's cluster steps), a `gpu-service` target, the Set Up question (Swift), and a live run,
   which waits on the app's key and sign-in (#5238).*
-- `source.recipe.alternatives-in-order` — **[PARTIAL]** (#4950) when this Mac cannot run a step's pin,
-  the first listed alternative that can is used, and the choice is recorded and shown. *Built 2026-10-17 for a missing key: the step's `chain`, first entry that can run, `plan.fallbacks`; pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`. Not built: a model this Mac cannot serve (memory) still goes through `elsewhere`, offered and never used without the person's press (`ai.where.fallback-free-and-asked`): the two rules need the maintainer to say which wins.*
+- `source.recipe.alternatives-in-order` — **[OK]** (#4950; ruled 2026-10-18 by default, manager may veto: free and asked) when this Mac cannot run a step's pin,
+  the first listed alternative that can is used where it sends nothing anywhere new (a missing key: the step's `chain`, first entry that can run, recorded in `plan.fallbacks`, pinned by `fichero-server/tests/unit/recipes/test_candidates_fallback_chain.py`); a model this Mac cannot serve (memory) is never replaced unasked: a free place is offered and used only on the person's press (`ai.where.fallback-free-and-asked`, pinned by `fichero-server/tests/unit/recipes/test_fallback_free_and_asked.py`). The choice is recorded and shown.
 - `source.recipe.conditions-fixed-list` — **[OK]** (#4950) a step's `when` and `offered_when` use
   only a fixed list of conditions (spreads detected, a confidence threshold, a corrected-line
   count); anything else is refused when the recipe is checked. *Built: `recipe.CONDITIONS`
@@ -4525,8 +4525,8 @@ Each is described in the paragraph named; the id lets a test cite it.
   Hugging Face; today the train offer for Find Names says "not available yet: Fichero has no spaCy trainer".
 - `source.train.regions-yolo` — **[PARTIAL]** (#5525; *built in part, pinned by `fichero-server/tests/unit/training/test_yolo_regions_training.py`;
   the table detectors are not built*) a YOLO layout model is trained on the person's corrected regions, on this Mac.
-- `source.lines.teacher-check-honest-end` — **[PARTIAL]** (#5524; built 2026-10-08: a stop for memory waits and carries on after its last finished page, the run then finishes its work with the whole run's counts in its words, no memory message, and no line given a second verdict (the queue marks a job whose work returns done), pinned by `fichero-server/tests/unit/check/test_line_check_memory.py`; not built, and contradicted by `source.lines.reading-checked-against-the-page`, which says a passing line gets no verdict and is counted: whether a passing line gets a verdict, for the maintainer to rule) a teacher-line check that lands its verdicts ends "completed" with correct status counts,
-  and never "failed" with a memory message that contradicts the verdicts that landed; a passing line gets a verdict.
+- `source.lines.teacher-check-honest-end` — **[OK]** (#5524; built 2026-10-08: a stop for memory waits and carries on after its last finished page, then finishes with the whole run's counts in its words, no memory message, and no line given a second verdict (the queue marks a job whose work returns done), pinned by `fichero-server/tests/unit/check/test_line_check_memory.py`; a passing line is counted and gets no verdict, pinned by `fichero-server/tests/unit/check/test_line_against_page.py::test_a_good_line_passes_and_gets_no_verdict`; the built rule, as `source.lines.reading-checked-against-the-page` says, ruled 2026-10-18 by default, manager may veto) a teacher-line check that lands its verdicts ends "completed" with correct status counts,
+  and never "failed" with a memory message that contradicts the verdicts that landed; a passing line is counted, with no verdict.
 - `source.lines.correct-this-line-verb` — **[PARTIAL]** (#5499; *built in part, pinned by `fichero-server/tests/unit/api/test_correct_a_line.py`
   and `test_import_ground_truth.py`*) correcting a line is one verb, not three ids and six flags, and a person's corrections count as the
   bake-off's ground truth.

@@ -1,6 +1,7 @@
 """`source.recipe.candidates-fallback-chain` (#4950, #5582, ruled 2026-10-17): a step's candidates are ranked best
 first (accuracy in one-point bands: measured on the person's pages, else published); local and cheaper only break
-ties inside the band. The step carries the rest, in order, as its chain."""
+ties inside the band. The step carries the rest, in order, as its chain; a step whose key is missing runs the next
+that can (`source.recipe.alternatives-in-order`)."""
 from __future__ import annotations
 
 from dataclasses import replace
