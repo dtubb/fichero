@@ -1189,16 +1189,13 @@ def _line_confidence(record: object) -> float | None:
 
 
 def _own_copy(task: object) -> object:
-    """This page's own handle on the resident reader: Kraken keeps a page's state on the model object (`_len`,
-    `_line_iter`, the scales), so two pages at once through one object clobber each other ("list index out of range",
-    M4 2026-10-19). A shallow copy shares the weights (no memory) and has its own state."""
+    """This page's own reader (`source.read.two-pages-at-once`): Kraken keeps a page's state on the model object
+    (`_len`, `_line_iter`, the scales, its line-extraction pool), so two pages at once through one object clobber each
+    other ("list index out of range", M4 2026-10-19; a shallow copy still failed one run in three). A deep copy is the
+    reader's 16M weights, about 60 MB, once a page."""
     import copy
 
-    own = copy.copy(task)
-    inner = getattr(task, "net", None)
-    if inner is not None:
-        own.net = copy.copy(inner)  # type: ignore[attr-defined]
-    return own
+    return copy.deepcopy(task)
 
 
 def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
