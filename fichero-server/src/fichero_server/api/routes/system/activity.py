@@ -565,7 +565,8 @@ async def list_background_jobs(
 
     from fichero_server.recipes import runner as recipe_runner
 
-    listed = job_queue.snapshot(db)  # once per poll: the summary reads this one too
+    # Once per poll: the summary reads this one too. Off the loop (#5843): the reads wait on the transaction gate.
+    listed = await asyncio.to_thread(job_queue.snapshot, db)
     for row in listed:
         state, reason = row["state"], row["reason"]
         name, current, total = job_queue.kind_name(row["kind"]), 0, row["count"]
@@ -615,7 +616,7 @@ async def list_background_jobs(
         paused=job_queue.is_paused(),
         mode=job_queue.mode(),
         machine=MachineState(**throttle.machine_state()),
-        summary=_queue_summary(db, listed),
+        summary=await asyncio.to_thread(_queue_summary, db, listed),
     )
 
 
@@ -637,7 +638,8 @@ async def list_queued_items(
     order the lane will pick them, running first."""
     from fichero_server.execution import jobs as job_queue
 
-    return [QueuedItem(**i) for i in job_queue.items_of_kind(db, kind, limit=limit, offset=offset)]
+    items = await asyncio.to_thread(job_queue.items_of_kind, db, kind, limit=limit, offset=offset)
+    return [QueuedItem(**i) for i in items]
 
 
 @router.get("/jobs/{job_id}", response_model=JobTree)
@@ -815,7 +817,8 @@ async def get_job_log(job_id: str, db: Database = Depends(get_library_database))
     started, it failed and why, it waits and for what). Nothing about another row."""
     from fichero_server.execution import jobs as job_queue
 
-    found = job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id)
+    found = await asyncio.to_thread(
+        lambda: job_queue.queue_tree(db, job_id) if job_queue.queue_of(job_id) else job_queue.tree(db, job_id))
     if found is None:
         raise HTTPException(status_code=404, detail=f"no job {job_id!r} in this project")
     lines = _job_rows_log(found)
