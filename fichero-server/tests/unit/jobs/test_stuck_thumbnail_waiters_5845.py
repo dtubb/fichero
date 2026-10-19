@@ -69,3 +69,14 @@ def test_stopping_a_waiting_job_works_through_the_route_the_app_calls(client, db
     response = client.post(f"/api/activity/jobs/{job_id}/cancel")
 
     assert response.status_code == 200 and response.json()["state"] == "cancelled"
+
+
+def test_a_thumbnail_job_that_was_running_when_the_engine_stopped_is_settled_too(db, thumbs):
+    jobs._ensure(db)
+    running = jobs._insert(db, THUMB, "page-002", None, "automatic")
+    db.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE id = ?", [running])
+    thumbs.add("page-002")
+
+    jobs.resume(db)
+
+    assert _state(db, running) == "done"
