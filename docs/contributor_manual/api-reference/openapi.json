@@ -51026,50 +51026,6 @@
         ],
         "title": "AssembleRequest"
       },
-      "RecipeChange": {
-        "properties": {
-          "step": {
-            "type": "string",
-            "title": "Step"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "added",
-              "removed",
-              "changed"
-            ],
-            "title": "Kind"
-          },
-          "words": {
-            "type": "string",
-            "title": "Words",
-            "description": "the change in a sentence: 'Work out dates would be added'"
-          },
-          "was": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Was",
-            "description": "the saved step's model"
-          },
-          "now": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Now",
-            "description": "the fresh step's model"
-          }
-        },
-        "type": "object",
-        "required": [
-          "step",
-          "kind",
-          "words"
-        ],
-        "title": "RecipeChange",
-        "description": "One step a fresh assembly would add, take out or run differently from the project's saved recipe."
-      },
       "AssembledRecipe": {
         "properties": {
           "fichero_recipe": {
@@ -61775,6 +61731,45 @@
           "count"
         ],
         "title": "DocumentsProposalList"
+      },
+      "DownloadFailed": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model that did not download"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "retry_job_id": {
+            "type": "string",
+            "title": "Retry Job Id",
+            "description": "the download's job: POST /api/activity/jobs/{id}/retry"
+          },
+          "next_candidate": {
+            "$ref": "#/components/schemas/NextCandidate",
+            "nullable": true,
+            "description": "null: the chain has nothing else"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "model",
+          "reason",
+          "retry_job_id"
+        ],
+        "title": "DownloadFailed",
+        "description": "A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."
       },
       "DownloadStartedResponse": {
         "properties": {
@@ -76371,6 +76366,46 @@
         ],
         "title": "NeighboursResponse"
       },
+      "NextCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what to call it on screen: the catalogue's name for it, else its model's name, else its id"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Model",
+            "description": "its pin"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On",
+            "description": "this-mac, or cloud:<provider>"
+          },
+          "needs_permission": {
+            "type": "boolean",
+            "title": "Needs Permission",
+            "description": "a cloud candidate while pages may not leave this Mac"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "runs_on",
+          "needs_permission"
+        ],
+        "title": "NextCandidate",
+        "description": "The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."
+      },
       "NodeCompareRequest": {
         "properties": {
           "workflow_id": {
@@ -81782,6 +81817,50 @@
         "title": "RecipeCard",
         "description": "The facts on the chosen model's card that setup shows (`source.onboard.proposes-chain`)."
       },
+      "RecipeChange": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "the change in a sentence: 'Work out dates would be added'"
+          },
+          "was": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Was",
+            "description": "the saved step's model"
+          },
+          "now": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Now",
+            "description": "the fresh step's model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "kind",
+          "words"
+        ],
+        "title": "RecipeChange",
+        "description": "One step a fresh assembly would add, take out or run differently from the project's saved recipe."
+      },
       "RecipeRunStatus": {
         "properties": {
           "job_id": {
@@ -81977,85 +82056,6 @@
         ],
         "title": "RecipeRunStep",
         "description": "One stage of a recipe run: the card that carries one or more recipe steps."
-      },
-      "NextCandidate": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id",
-            "description": "the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "description": "what to call it on screen: the catalogue's name for it, else its model's name, else its id"
-          },
-          "model": {
-            "additionalProperties": true,
-            "type": "object",
-            "nullable": true,
-            "title": "Model",
-            "description": "its pin"
-          },
-          "runs_on": {
-            "type": "string",
-            "title": "Runs On",
-            "description": "this-mac, or cloud:<provider>"
-          },
-          "needs_permission": {
-            "type": "boolean",
-            "title": "Needs Permission",
-            "description": "a cloud candidate while pages may not leave this Mac"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "runs_on",
-          "needs_permission"
-        ],
-        "title": "NextCandidate",
-        "description": "The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."
-      },
-      "DownloadFailed": {
-        "properties": {
-          "steps": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Steps"
-          },
-          "model": {
-            "type": "string",
-            "title": "Model",
-            "description": "the model that did not download"
-          },
-          "reason": {
-            "type": "string",
-            "title": "Reason"
-          },
-          "retry_job_id": {
-            "type": "string",
-            "title": "Retry Job Id",
-            "description": "the download's job: POST /api/activity/jobs/{id}/retry"
-          },
-          "next_candidate": {
-            "$ref": "#/components/schemas/NextCandidate",
-            "nullable": true,
-            "description": "null: the chain has nothing else"
-          }
-        },
-        "type": "object",
-        "required": [
-          "steps",
-          "model",
-          "reason",
-          "retry_job_id"
-        ],
-        "title": "DownloadFailed",
-        "description": "A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."
       },
       "RecipeRunSummary": {
         "properties": {
