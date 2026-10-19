@@ -3,6 +3,7 @@
  "status": 200,
  "response": {
   "lines_unread": 0,
+  "download_failed": [],
   "lines_unread_why": {},
   "lines_seen_blank": 0,
   "next_reader": null,

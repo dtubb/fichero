@@ -1144,7 +1144,7 @@ def status(db: Any, job_id: str) -> dict[str, Any]:
         if ahead:
             reason = f"Waiting for the recipe run {ahead[0]} to finish: recipe runs go one at a time"
     return {"job_id": job_id, "state": row["state"], "reason": reason, "documents": detail.get("documents"),
-            "steps": steps, "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
+            "steps": steps, "awaited": detail.get("awaited") or [], "skipped": detail.get("skipped", []), "refusals": detail.get("refusals", []),
             "started_by": row["started_by"], "folder_id": detail.get("folder_id"),
             # `activity.run.progress-per-folder`: written by the run as it goes; absent before it starts.
             "folders_done": detail.get("folders_done"), "folders_total": detail.get("folders_total")}

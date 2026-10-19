@@ -2911,7 +2911,7 @@ Profiles (the defaults section of a recipe)
   every run. A stage's account counts every page done when it read them all in one call and ended well (Names,
   Dates: never "0 of 92" after 1,193 names), and its offer says the stage's own verb ("Find names on the 3 pages
   that failed", `run_view.offer_words`). *Test:* `fichero-server/tests/unit/recipes/test_steps_count_what_they_did_5706.py`.
-- `source.job.publish` — **[PARTIAL]** (#5390, #2535; *not built: no purpose turns `publish` on (`assemble.PURPOSE_STEPS` lists none, found live 2026-10-17), so a recipe has the step only when a person adds it by hand and names its `where` folder; which purpose should bring it, and where its folder comes from, is the maintainer's to say*; built: the `publish` card in `recipes/start.py` and `recipes/runner.py`; tested in `fichero-server/tests/unit/recipes/test_publish_to_spec.py`) a recipe's `publish` step writes the project as a static
+- `source.job.publish` — **[PARTIAL]** (#5390, #2535; *not built: no purpose turns `publish` on (`assemble.PURPOSE_STEPS` lists none, found live 2026-10-17), so a recipe has the step only when a person adds it (by hand, or as a layer through `POST /api/recipes/project/layers`) and names its `where` folder; which purpose should bring it, and where its folder comes from, is the maintainer's to say*; built: the `publish` card in `recipes/start.py` and `recipes/runner.py`; tested in `fichero-server/tests/unit/recipes/test_publish_to_spec.py`) a recipe's `publish` step writes the project as a static
   website (an 11ty project that builds with `npx @11ty/eleventy` and deploys to Netlify) through the one
   site export (`export_service.export_eleventy_site`), into the folder its `where` setting names on the
   engine's disk, as a card of a started recipe; publishing again rewrites that site in place. A step that
@@ -3409,7 +3409,7 @@ Setup
   a project uses; the app-wide client is never used for setup, so `GET`/`PUT /api/recipes/project`
   never answer 400 in first run. *Test:* first run through the real app environment saves the
   Your material answers and `GET /api/recipes/project` on the new project returns them.
-- `source.onboard.start-works-in-first-run` — **[PARTIAL]** (#5477) **Built 2026-10-05 (app), not yet seen:** first run's Start plans and starts through the project made on Where it lives (its store), as Set Up… does. *Not pinned: first run to Start on a fixture folder against the real engine.* the Start screen in first run plans
+- `source.onboard.start-works-in-first-run` — **[PARTIAL]** (#5477) **Built 2026-10-05 (app), not yet seen:** first run's Start plans and starts through the project made on Where it lives (its store), as Set Up… does. *Engine half pinned (2026-10-18): the saved setup's plan has no refusals and Start records the first yes, with no setup refused in words (`fichero-server/tests/unit/recipes/test_first_run_start_5477.py`). Not pinned: the app's first run against the real engine.* the Start screen in first run plans
   and starts exactly as Set Up… from a project does (`GET`/`POST /api/recipes/project/start` on the
   project made on screen 1); Start enables once the plan has no refusals. *Test:* first run to Start
   on a fixture folder enables Start and records the first yes in the new project.
@@ -3834,8 +3834,11 @@ Running and failure
   minutes apart: more than three), its row in Activity carries the reason, and the run's steps on it are not run
   with "Model download failed: <model> did not download (<reason>). Retry it in Activity, or choose the step's next
   candidate in Set Up" while the other steps run (`runner._await_downloads`,
-  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Not built: Retry and the next candidate
-  as actions on the run's summary itself (they are said, and done in Activity and Set Up).*
+  `fichero-server/tests/unit/recipes/test_start_while_models_download.py`). Built (engine, #5352): the run summary's `download_failed` lists each step waiting on a download that failed, with the
+  download's `job_id` to retry (`POST /api/activity/jobs/{job_id}/retry`), and `next_candidate`, the first other entry of the step's
+  `chain` (local first; a cloud one carries `needs_permission` until pages may leave), chosen with
+  `POST /api/recipes/project/steps/use-candidate` (`run_view.download_failures`;
+  `fichero-server/tests/unit/recipes/test_download_failed_actions_5352.py`). Not built: the buttons in the app.*
 - `source.recipe.missing-key-never-substitutes` — **[PARTIAL]** (#5364) *Built 2026-10-17 (engine): `start.provider_without_key`; Start skips the step with "Needs a key for <provider>" and runs no model that sends pages somewhere new for it: a LOCAL model, or one of the same provider, from the step's `chain` runs on its own and is named in `plan.fallbacks` (`used` true, `source.recipe.candidates-fallback-chain`); another cloud provider is offered there (`used` false) and never used without the person's press; pinned by `fichero-server/tests/unit/recipes/test_missing_key_never_substitutes_5364.py`. Not built: the app's Add Key… button, and the person's chosen replacement kept as an override.* a cloud step whose provider has
   no key waits with "Needs a key for <provider>" and Add Key…; no other model is used in its place
   unless the person chooses one, which is kept as an override.

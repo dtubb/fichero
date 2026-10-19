@@ -190,6 +190,7 @@ class RecipeRunSummary(BaseModel):
     lines_seen_blank: int = Field(default=0, description="lines the reader looked at and found no writing on, on pages that also have text (#5758)")
     pages_read_nothing: int = Field(default=0, description="pages the reader returned nothing for, line by line: failed reads (#5758)")
     next_reader: Optional[dict[str, Any]] = Field(default=None, description="when the reader left a page empty or mostly blank: the next candidate of the step's chain, with needs_permission for a cloud one (#5758)")
+    download_failed: list[dict[str, Any]] = Field(default_factory=list, description="steps waiting on a model download that failed: the steps, the reason, `retry_job_id` (the download's job, retried in Activity) and `next_candidate` (the step's next chain entry, with needs_permission for a cloud one) (#5352)")
     lines_unread_why: dict[str, int] = Field(default_factory=dict, description="why those lines have none: each reason with its count (#5758)")
     names: list[NamesOfAKind] = Field(description="the names found on those pages, by kind, as the KG groups them")
     dates: int = Field(description="the dates named on those pages (the KG's Dates group)")
@@ -291,6 +292,29 @@ def next_reader(recipe: dict | None, *, lines_found: int, lines_blank: int, page
     return {"id": nxt["id"], "model": nxt.get("model"), "runs_on": nxt.get("runs_on", "this-mac"),
             "needs_permission": cloud and not cloud_allowed,
             "why": "the reader left the hand mostly blank; this is the next reader in the chain"}
+
+
+def download_failures(awaited: list[dict[str, Any]], states: dict[str, dict[str, Any] | None],
+                      recipe: dict | None, *, cloud_allowed: bool) -> list[dict[str, Any]]:
+    """The downloads a run's steps wait on that failed or were cancelled (`states`: download job id -> its row), each
+    with Retry (that job) and the next candidate of the step's chain: the first local one other than the failed
+    model, else the first cloud one, needing permission until pages may leave (#5352)."""
+    out: list[dict[str, Any]] = []
+    for entry in awaited:
+        row = states.get(entry["job_id"])
+        if not row or row["state"] not in ("failed", "cancelled"):
+            continue
+        step = next((s for s in (recipe or {}).get("steps") or [] if s.get("id") in entry["steps"]), None)
+        chain = [c for c in (step or {}).get("chain") or []
+                 if entry["name"] not in (c.get("id"), (c.get("model") or {}).get("name"))]
+        nxt = next((c for c in chain if c.get("runs_on", "this-mac") == "this-mac"), None) or next(iter(chain), None)
+        cloud = nxt is not None and nxt.get("runs_on", "this-mac") != "this-mac"
+        out.append({"steps": entry["steps"], "model": entry["name"], "reason": row["reason"] or row["state"],
+                    "retry_job_id": entry["job_id"],
+                    "next_candidate": None if nxt is None else {
+                        "id": nxt["id"], "model": nxt.get("model"), "runs_on": nxt.get("runs_on", "this-mac"),
+                        "needs_permission": cloud and not cloud_allowed}})
+    return out
 
 
 def pages_read_nothing(db: Any, pages: list[str]) -> int:
@@ -497,5 +521,10 @@ async def summary(db: Any, job_id: str) -> RecipeRunSummary:
     made.next_reader = next_reader(setup["recipe"], lines_found=sum(s[0] for s in states),
                                    lines_blank=sum(s[2] for s in states), pages_read_nothing=made.pages_read_nothing,
                                    cloud_allowed=bool((setup["answers"] or {}).get("cloud_allowed")))
+    from fichero_server.execution import jobs
+
+    awaited = status.get("awaited") or []
+    made.download_failed = download_failures(awaited, {e["job_id"]: jobs.read_job(db, e["job_id"]) for e in awaited},
+                                             setup["recipe"], cloud_allowed=bool((setup["answers"] or {}).get("cloud_allowed")))
     made.lines = _lines(made, pages_split, ran)
     return made
