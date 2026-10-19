@@ -157,7 +157,7 @@ async def _wait_for_memory() -> None:
 
 
 @asynccontextmanager
-async def vision_slot(remote: bool = False):
+async def vision_slot(remote: bool = False, neural: bool = False):
     """Hold exactly ONE shared vision/LLM concurrency slot, RE-ENTRANTLY.
 
     ``asyncio.Semaphore`` is not reentrant, and two layers both wrap vision
@@ -182,13 +182,15 @@ async def vision_slot(remote: bool = False):
     if _vision_slot_held.get():
         yield
         return
-    # A hosted model's branch draws from its own, wider pool (#5264).
-    semaphore = _get_remote_vision_semaphore() if remote else _get_vision_semaphore()
+    # A hosted model's branch draws from its own, wider pool (#5264). So does an Apple Vision page, which runs on the
+    # Neural Engine: it is not a Kraken page, so it neither waits for Kraken's memory fan-out nor counts against it
+    # (`activity.lane.each-unit-its-own-lane`); `vision_base._APPLE_VISION_GATE` bounds it.
+    semaphore = _get_remote_vision_semaphore() if remote or neural else _get_vision_semaphore()
     global _local_in_flight
     token = _vision_slot_held.set(True)
     try:
         async with semaphore:
-            if remote:
+            if remote or neural:
                 yield
             else:
                 await _wait_for_memory()
@@ -202,6 +204,11 @@ async def vision_slot(remote: bool = False):
 
 
 _IN_PROCESS_READERS = frozenset({"kraken", "mlx", "apple"})
+
+
+def _is_neural_model(config: LLMConfig | None) -> bool:
+    """A node read by Apple Vision runs on the Neural Engine, beside Kraken's CPU work."""
+    return config is not None and str(getattr(config, "provider", "") or "").lower() == "apple"
 
 
 def _is_remote_model(config: LLMConfig | None) -> bool:
@@ -2076,7 +2083,7 @@ def _make_parallel_node_function(
             tries_left = 1
             while True:
                 caught: Exception | None = None
-                async with vision_slot(remote=_is_remote_model(node_llm_config)):
+                async with vision_slot(remote=_is_remote_model(node_llm_config), neural=_is_neural_model(node_llm_config)):
                     # #4317: branches queued behind the semaphore re-check after
                     # acquiring it, so a cancel stops the queue within one file
                     # boundary instead of draining every waiting branch.
