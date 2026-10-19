@@ -78,6 +78,32 @@ final class TransportModeTests: XCTestCase {
         XCTAssertTrue(url.path.isEmpty, "UDS base URL must carry an empty path")
     }
 
+    // MARK: - Re-resolving the endpoint (activity.reconnects-after-engine-restart)
+
+    func testReconfigureWithANewSocketPathDialsTheNewSocket() {
+        // An engine that restarted under another socket path: the client must dial that, not the first connect's.
+        let base = URL(string: "https://127.0.0.1:8765")!
+        let client = FicheroClient(baseURL: base, transportMode: .uds(path: "/tmp/fichero-first.sock"))
+        client.reconfigure(baseURL: base, transportMode: .uds(path: "/tmp/fichero-second.sock"))
+        XCTAssertEqual(client.transportMode, .uds(path: "/tmp/fichero-second.sock"))
+    }
+
+    func testReconfigureBetweenTheSocketAndHTTPSSwitchesTheTransport() {
+        let base = URL(string: "https://127.0.0.1:8765")!
+        let client = FicheroClient(baseURL: base, transportMode: .uds(path: "/tmp/fichero-first.sock"))
+        client.reconfigure(baseURL: base, transportMode: .https)
+        XCTAssertEqual(client.transportMode, .https)
+        XCTAssertTrue(client.transport is URLSessionTransport, "the https mode dials with URLSession again")
+    }
+
+    func testReconfigureWithNothingChangedKeepsTheTransport() {
+        let base = URL(string: "https://127.0.0.1:8765")!
+        let client = FicheroClient(baseURL: base, transportMode: .uds(path: "/tmp/fichero-first.sock"))
+        let before = client.transport as AnyObject
+        client.reconfigure(baseURL: base, transportMode: .uds(path: "/tmp/fichero-first.sock"))
+        XCTAssertTrue(client.transport as AnyObject === before, "the same pool is kept when nothing differs")
+    }
+
     // MARK: - Per-instance wiring (mixed transports in one app)
 
     func testConcurrentClientsCanUseDifferentTransports() {

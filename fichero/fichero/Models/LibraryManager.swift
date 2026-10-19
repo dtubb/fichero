@@ -595,6 +595,14 @@ class LibraryManager {
             stopAccessingSecurityScope()
         }
 
+        /// The engine's endpoint read again from `EngineConfig` (its host and its socket path), for a library whose engine
+        /// restarted: the clients built at the first connect keep dialling what they were given
+        /// (`activity.reconnects-after-engine-restart`).
+        func reresolveEndpoint() {
+            ficheroClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+            apiClient.reconfigure(baseURL: EngineConfig.host, transportMode: EngineConfig.transportMode)
+        }
+
         func reconfigureBackendHost() {
             // Every library is currently created on the app-default host, so it
             // follows the Settings engine-host switch (unchanged behavior). When
