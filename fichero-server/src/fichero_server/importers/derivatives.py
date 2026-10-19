@@ -1104,7 +1104,10 @@ def register_job_kinds() -> None:
                        # after them (`activity.lane.thumbnails-first`, #5585).
                        first=True)
     jobs.register_kind(EMBED_KIND, lambda db, doc_id: _embed_stage(doc_id, _library_of(db)),
-                       model="embedder", name="Embed for search")
+                       model="embedder", name="Embed for search",
+                       # Its own lane (#5847: the embedder is a child process): an embed beside a Kraken page must not
+                       # unload Kraken's models at the end of a step and reload them for the next.
+                       lane="embed")
     jobs.register_kind(NLP_KIND, lambda db, doc_id: _nlp_stage(doc_id, _library_of(db)),
                        model="spacy", name="Read names (NLP draft)")
     # The import's "Processing imported pages" row (`background_jobs_snapshot`, id `derivatives`)

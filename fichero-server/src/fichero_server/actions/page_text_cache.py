@@ -448,7 +448,7 @@ def _reembed(db: Any, document_id: str) -> None:
 def _register() -> None:
     from fichero_server.execution import jobs
 
-    jobs.register_kind(REEMBED_KIND, _reembed, model="embedder")
+    jobs.register_kind(REEMBED_KIND, _reembed, model="embedder", lane="embed")  # off the model lane (#5847)
     jobs.register_kind(REREAD_NAMES_KIND, lambda db, doc_id: reread_names_after_commit(db, doc_id), model="spacy",
                        name="Read names again after a correction")
 
