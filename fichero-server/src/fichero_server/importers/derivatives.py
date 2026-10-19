@@ -655,6 +655,10 @@ def _probe_source_readable(path: Path) -> str | None:
     return None
 
 
+#: What a page says when its original is gone; the same words #5811 gives a try (`importer.missing-original-fails-in-words`).
+MISSING_ORIGINAL_TAIL = "isn't where it was imported from: Locate Originals…"
+
+
 def _source_error(doc: Document, db: "Database", library: str) -> str | None:
     """Why this document's bytes cannot be read right now, or None.
 
@@ -675,7 +679,7 @@ def _source_error(doc: Document, db: "Database", library: str) -> str | None:
     if path is None:
         # A page child whose parent PDF is gone, or a row whose file moved.
         # Named, not silent: "no source" is an answer; a stalled bar is not.
-        return f"source not found for {doc.name!r}"
+        return f"{doc.name} {MISSING_ORIGINAL_TAIL}"
     return _probe_source_readable(path)
 
 
@@ -735,6 +739,10 @@ def _open_stage_db(library: str, doc_id: str) -> "tuple[Database, Document] | No
     return db, doc
 
 
+class SourceMissing(Exception):
+    """A page's original is not where it was imported from; the message is the sentence the job row shows (#5818)."""
+
+
 def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     """Generate one document's thumbnail and announce it IMMEDIATELY — the
     change event used to wait behind that document's ~1.3s embed, so the grid
@@ -743,6 +751,8 @@ def _thumbnail_stage(doc_id: str, library: str) -> Path | None:
     _progress_touch(library)
     try:
         return _thumbnail_stage_body(doc_id, library)
+    except SourceMissing:
+        return None
     finally:
         _progress_touch(library)
 
@@ -764,6 +774,8 @@ def _thumbnail_stage_body(doc_id: str, library: str) -> Path | None:
         # queue stops dead with the progress bar at 0% (#4574 follow-up).
         if source_error := _source_error(doc, db, library):
             _record_source_failure(db, doc_id, library, source_error)
+            if source_error.endswith(MISSING_ORIGINAL_TAIL):
+                raise SourceMissing(source_error)
             return None
         try:
             thumb = ensure_thumbnail(doc, package_path=Path(library), db=db)
@@ -1013,6 +1025,16 @@ def _library_of(db: "Database") -> str:
     return str(Path(db.path).parent)
 
 
+def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
+    """The thumbnail kind: the stage, and a missing original fails the job in words (#5818)."""
+    thumb = _thumbnail_stage(doc_id, _library_of(db))
+    doc = db.get(Document, doc_id)
+    error = str((doc.metadata or {}).get("derivative_error") or "") if doc is not None else ""
+    if error.endswith(MISSING_ORIGINAL_TAIL):
+        raise SourceMissing(error)
+    return thumb
+
+
 _kinds_registered = False
 
 
@@ -1025,7 +1047,7 @@ def register_job_kinds() -> None:
     _kinds_registered = True
     from fichero_server.execution import jobs
 
-    jobs.register_kind(THUMBNAIL_KIND, lambda db, doc_id: _thumbnail_stage(doc_id, _library_of(db)),
+    jobs.register_kind(THUMBNAIL_KIND, _thumbnail_job,
                        model=None, lane="images", name="Make thumbnails",
                        # Cheap, and what the person sees: made before the heavy local work queued
                        # after them (`activity.lane.thumbnails-first`, #5585).
