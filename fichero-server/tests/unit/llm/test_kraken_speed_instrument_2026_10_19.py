@@ -57,6 +57,7 @@ def _run_as(monkeypatch, person: bool):
     from fichero_server.execution import jobs
 
     monkeypatch.setattr(jobs, "current_job_is_a_persons", lambda: person)
+    monkeypatch.setattr(kr, "pages_at_once", lambda person: 1)  # one page: every core (two pages at once: its own test)
     kr._kraken_call(lambda: None)
 
 

@@ -28,6 +28,7 @@ cards:
     memory_gb: 3.6          # measured 2.3-3.6 GB resident after a page (#5370)
     trainable: true          # ketos segtrain
     note: Kraken's built-in line and region finder (blla); ships inside the app.
+    short_name: Kraken line finder (blla)
   - id: kraken:zenodo/10.5281/zenodo.13788177@unpinned
     pin: {zenodo: 10.5281/zenodo.13788177}
     jobs: [read-a-line, tie-text-to-lines]
@@ -98,6 +99,7 @@ cards:
     licence: system
     pinnable: false
     note: Apple's on-device text recognition used to find the lines of print only; it keeps no text.
+    short_name: Apple Vision (lines)
   - id: apple:vision/recognize-text@os
     pin: {builtin: apple-vision}
     jobs: [read-a-page]
@@ -109,6 +111,7 @@ cards:
     licence: system
     pinnable: false
     note: Apple's on-device text recognition; changes with macOS.
+    short_name: Apple Vision
   - id: spacy:pkg/es_core_news_sm@bundled
     pin: {spacy: es_core_news_sm, version: bundled}
     jobs: [find-names-tag-words]

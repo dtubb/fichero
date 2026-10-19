@@ -158,8 +158,8 @@ final class ModelFinderStore {
     /// Where a candidate came from, in words.
     static func sourceWords(_ source: String) -> String {
         switch source {
-        case "shipped": "Ships with Fichero"
-        case "installed": "Installed on this Mac"
+        case "shipped": "Available"
+        case "installed": "Downloaded"
         case "kraken-repository": "Kraken's model repository"
         case "hugging-face": "Found on Hugging Face"
         default: source

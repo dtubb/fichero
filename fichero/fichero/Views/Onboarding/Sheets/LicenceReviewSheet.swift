@@ -125,7 +125,7 @@ extension ModelFinderStore {
            "offered_because":"a card that ships with Fichero","pin":{"hf":"fichero/regions-open"},
            "jobs":["find-regions"],"open_licence":true,"size":"0.05 GB","size_gb":0.05,
            "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,
-           "runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"},
+           "runs_where":"this_mac","availability":"ships","availability_words":"Available"},
           {"id":"yolo:hf/ultralytics/yolov8-layout@main","name":"YOLOv8 document layout","source":"hugging-face",
            "offered_because":"finds text blocks, marginalia and seals on manuscript pages",
            "pin":{"hf":"ultralytics/yolov8-layout","revision":"main"},"jobs":["find-regions"],"licence":"agpl-3.0",

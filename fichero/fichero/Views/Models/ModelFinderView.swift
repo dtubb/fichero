@@ -98,7 +98,7 @@ struct ModelFinderCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
-                Text(candidate.name).font(.headline)
+                Text(candidate.shortName ?? candidate.name).font(.headline).help(candidate.name)
                 Spacer()
                 actions
             }
@@ -221,7 +221,7 @@ struct ModelFinderCard: View {
         return false
     }
 
-    /// Where the card stands for this Mac, as the engine words it ("Ships with Fichero", "Download (2.3 GB)",
+    /// Where the card stands for this Mac, as the engine words it ("Available", "Download (2.3 GB)",
     /// "Runs at openai"), and a licence that is not open: "Download (16 MB) · licence: cc-by-nc-4.0" (#5660).
     static func facts(_ candidate: Components.Schemas.ModelCandidate) -> String {
         var parts = [candidate.availabilityWords]
@@ -311,7 +311,7 @@ extension ModelFinderStore {
            "offered_because":"a card that ships with Fichero","pin":{"zenodo":"10.5281/zenodo.1"},
            "jobs":["read-a-line"],"open_licence":true,"size":"0.02 GB","size_gb":0.02,
            "measured":"unmeasured on your pages until a bake-off measures it","in_recipe_rules":true,"rule_rank":1,
-           "runs_where":"this_mac","availability":"ships","availability_words":"Ships with Fichero"},
+           "runs_where":"this_mac","availability":"ships","availability_words":"Available"},
           {"id":"mlx:hf/example/ocr-mlx@main","name":"Example OCR (MLX)","source":"hugging-face",
            "offered_because":"reads handwriting; lists Spanish; an MLX build this Mac runs",
            "pin":{"hf":"example/ocr-mlx","revision":"main"},"jobs":["read-a-line"],"licence":"cc-by-nc-4.0",

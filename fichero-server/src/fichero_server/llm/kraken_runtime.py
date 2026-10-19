@@ -204,8 +204,43 @@ def _marker_path(model_id: str, home: Path | None = None) -> Path:
 
 
 def is_recognition_model_installed(model_id: str, home: Path | None = None) -> bool:
-    """Whether a recognition model has been fetched (our marker is the signal)."""
-    return _marker_path(model_id, home).exists()
+    """Whether a recognition model has been fetched whole: our marker, and for a downloaded reader its file is there,
+    nothing half-fetched (`*.part`) sits beside it, and it is the size the download recorded
+    (`source.model.partial-download-is-not-installed`, #5857). A partial download is never offered as installed."""
+    marker = _marker_path(model_id, home)
+    if not marker.exists():
+        return False
+    if model_id.startswith(TRAINED_READER_PREFIX):
+        return True  # a reader Fichero trained lands whole from its job; it is not downloaded
+    return not recognition_download_problem(model_id, home)
+
+
+def recognition_download_problem(model_id: str, home: Path | None = None) -> str | None:
+    """Why a downloaded reader is not whole, in words, or None when it is: its file missing, a `.part` beside it, or
+    a size other than the one recorded."""
+    marker = _marker_path(model_id, home)
+    try:
+        record = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "its record is unreadable"
+    path = record.get("model_path")
+    if not path:
+        return None
+    file = Path(marker.parent / path)
+    if not file.is_file():
+        return "its model file is missing"
+    if any(file.parent.glob("*.part")):
+        return "its download did not finish"
+    recorded = record.get("bytes")
+    if isinstance(recorded, int) and recorded and file.stat().st_size != recorded:
+        return "its file is not the size that was downloaded"
+    return None
+
+
+def recognition_partial_bytes(model_id: str, home: Path | None = None) -> int:
+    """How much of an unfinished download is on disk (its `.part` files); 0 when none."""
+    folder = recognition_data_home(home) / model_id
+    return sum(p.stat().st_size for p in folder.rglob("*.part")) if folder.is_dir() else 0
 
 
 def recognition_model_path(model_id: str, home: Path | None = None) -> str | None:
@@ -217,6 +252,11 @@ def recognition_model_path(model_id: str, home: Path | None = None) -> str | Non
     """
     marker = _marker_path(model_id, home)
     if not marker.exists():
+        return None
+    # The one installed check (`is_recognition_model_installed`): a stale marker over a partial download, a missing file
+    # or a file of another size than the download recorded resolves to nothing, so no path (a run, Start, the
+    # evaluation, training) picks a reader that is not whole (`source.model.partial-download-is-not-installed`, #5857).
+    if not is_recognition_model_installed(model_id, home):
         return None
     try:
         data = json.loads(marker.read_text(encoding="utf-8"))
@@ -333,6 +373,12 @@ def resolve_recognition_model(model_ref: str) -> tuple[str, str | None]:
     if recognition_spec(model_ref):
         resolved = recognition_model_path(model_ref)
         if not resolved:
+            problem = recognition_download_problem(model_ref) if _marker_path(model_ref).exists() else None
+            if problem:  # a partial download is said in words, and Start fetches the rest (#5857)
+                raise RuntimeError(
+                    f"The Kraken reader {recognition_display_name(model_ref)} was not downloaded whole ({problem}): "
+                    "Start downloads the rest before the steps that read with it, or Settings › Models downloads it now."
+                )
             # By its name, never its id; Start fetches it itself, so never "download it first" (#5801).
             raise RuntimeError(
                 f"The Kraken reader {recognition_display_name(model_ref)} is not on this Mac yet: Start downloads "
@@ -705,7 +751,85 @@ def require_installed() -> None:
 # here. See the module docstring for why in-process, not a subprocess.
 # =============================================================================
 
-_INFERENCE_LOCK = threading.Lock()
+class _PageGate:
+    """The seam's gate (`source.read.two-pages-at-once`): `page(n)` lets up to `n` pages in at once; taking it whole
+    (`acquire`, `with gate:`; the model lane unloading Kraken, `local_inference`) waits for every page and holds new
+    ones off. `locked()` is True while any page runs or it is held whole. Named `_INFERENCE_LOCK`, which it replaces."""
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self._active = 0
+        self._whole = False
+        self._wanting_whole = 0
+
+    @contextlib.contextmanager
+    def page(self, allowed: int = 1):
+        with self._cond:
+            while self._whole or self._wanting_whole or self._active >= max(1, allowed):
+                self._cond.wait()
+            self._active += 1
+        try:
+            yield
+        finally:
+            with self._cond:
+                self._active -= 1
+                self._cond.notify_all()
+
+    def acquire(self, blocking: bool = True) -> bool:
+        with self._cond:
+            if not blocking and (self._whole or self._active):
+                return False
+            self._wanting_whole += 1
+            try:
+                while self._whole or self._active:
+                    self._cond.wait()
+            finally:
+                self._wanting_whole -= 1
+            self._whole = True
+            return True
+
+    def release(self) -> None:
+        with self._cond:
+            self._whole = False
+            self._cond.notify_all()
+
+    def pages_inside(self) -> int:
+        with self._cond:
+            return self._active
+
+    def locked(self) -> bool:
+        with self._cond:
+            return self._whole or self._active > 0
+
+    def held_beside(self, queued: int) -> bool:
+        """Held whole, or by more pages than the `queued` ones the job queue itself is running (the model lane's own
+        pages must not read as a page outside the queue)."""
+        with self._cond:
+            return self._whole or self._active > queued
+
+    def __enter__(self) -> "_PageGate":
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.release()
+
+
+_INFERENCE_LOCK = _PageGate()
+
+#: Pages read at once for a person-started (fast) run when this Mac's memory holds that many.
+PAGES_AT_ONCE = 2
+
+
+def pages_at_once(person: bool) -> int:
+    """How many pages may be read at once (`source.read.two-pages-at-once`): `PAGES_AT_ONCE` for a person-started run
+    on the fast priority when there are cores for it and `page_fan_out` says the memory holds that many (so one on an
+    8 GB Mac); one for every automatic or background run."""
+    from fichero_server.core.compute_preferences import priority_for
+
+    if priority_for(person) != "fast" or (os.cpu_count() or 1) < 4:
+        return 1
+    return page_fan_out(PAGES_AT_ONCE)
 
 #: The environment variables the thread pools around torch read when they load.
 _THREAD_POOL_ENV = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
@@ -776,9 +900,11 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     jobs_module = sys.modules.get("fichero_server.execution.jobs")
     person = bool(jobs_module and jobs_module.current_job_is_a_persons())
     wanted = _WANTED.get()  # likewise: the thread below starts with no context
+    allowed = pages_at_once(person)  # two for a person's run when memory holds two, else one
 
     def _throttled() -> None:
         _WANTED.set(wanted)
+        _PAGE.clear()  # this page's notes: each page's own thread keeps its own
         try:
             # #4987 "know before running": checked INSIDE the lock, before
             # ANY kraken/torch import — a queued second call must see the
@@ -804,7 +930,8 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority = priority_for(person)
-            threads = apply_to_this_thread(priority)
+            # The cores are shared by the pages actually inside now: one page reads with all of them, two with half each.
+            threads = max(1, apply_to_this_thread(priority) // max(1, _INFERENCE_LOCK.pages_inside()))
             _PAGE.update(priority=priority, threads=threads, person=person, throttle=decide(person).action)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
@@ -832,12 +959,11 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
         except BaseException as exc:  # noqa: BLE001 — re-raised on the caller's thread
             outcome.append((False, exc))
 
-    with _INFERENCE_LOCK:
-        _PAGE.clear()
+    with _INFERENCE_LOCK.page(allowed):
         worker = threading.Thread(target=_throttled, name="kraken-inference", daemon=True)
         worker.start()
         worker.join()
-        _release_when_idle()
+    _release_when_idle()
     ok, value = outcome[0]  # type: ignore[misc]
     if not ok:
         raise value  # type: ignore[misc]
@@ -920,7 +1046,26 @@ _RESIDENT: dict[str, tuple[str, object]] = {}
 
 #: The page being read: its name, what each stage took (seconds) and the priority it ran at. Touched only inside
 #: `_kraken_call`'s lock (one page at a time), logged as one line when the page ends.
-_PAGE: dict[str, object] = {}
+class _PageNotes(threading.local):
+    """The notes of the page this thread is reading: each page's own thread keeps its own (two pages at once)."""
+
+    def __init__(self) -> None:
+        self.notes: dict[str, object] = {}
+
+    def get(self, name: str, default: object = None) -> object:
+        return self.notes.get(name, default)
+
+    def update(self, **more: object) -> None:
+        self.notes.update(more)
+
+    def clear(self) -> None:
+        self.notes.clear()
+
+    def __setitem__(self, name: str, value: object) -> None:
+        self.notes[name] = value
+
+
+_PAGE = _PageNotes()
 
 
 @contextlib.contextmanager
@@ -937,7 +1082,15 @@ def _page_is(image_path: str | Path) -> None:
     _PAGE["name"] = Path(str(image_path)).name
 
 
+_LOAD_LOCK = threading.RLock()
+
+
 def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
+    with _LOAD_LOCK:  # two pages asking at the same moment load a model once
+        return _resident_locked(kind, key, load)
+
+
+def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
     held = _RESIDENT.get(kind)
     if held is not None and held[0] == key:
         return held[1]
@@ -1046,6 +1199,16 @@ def _line_confidence(record: object) -> float | None:
     return round(sum(values) / len(values), 4) if values else None
 
 
+def _own_copy(task: object) -> object:
+    """This page's own reader (`source.read.two-pages-at-once`): Kraken keeps a page's state on the model object
+    (`_len`, `_line_iter`, the scales, its line-extraction pool), so two pages at once through one object clobber each
+    other ("list index out of range", M4 2026-10-19; a shallow copy still failed one run in three). A deep copy is the
+    reader's 16M weights, about 60 MB, once a page."""
+    import copy
+
+    return copy.deepcopy(task)
+
+
 def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
     from PIL import Image
     from kraken import blla
@@ -1064,7 +1227,7 @@ def _recognize_raw(image_path: str | Path, model_path: str, direction: str | Non
         # blla's neural baseline segmentation gives us the lines; the reader reads each one in the
         # SAME order -- so prediction i belongs to segmented line i, and every line keeps its own
         # baseline/polygon geometry.
-        net = _resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path))
+        net = _own_copy(_resident("read", model_path, lambda: RecognitionTaskModel.load_model(model_path)))
         with _stage("recognise"):
             predictions = list(net.predict(image, segmentation, _reader_config(RecognitionInferenceConfig)))
         width, height = image.width, image.height
@@ -1297,7 +1460,7 @@ def download_recognition_model(
     marker_dir = recognition_model_dir(home)
     marker_dir.mkdir(parents=True, exist_ok=True)
     _marker_path(model_id, home).write_text(
-        json.dumps({"doi": str(spec["doi"]), "model_path": model_path}),
+        json.dumps({"doi": str(spec["doi"]), "model_path": model_path, "bytes": found[0].stat().st_size}),
         encoding="utf-8",
     )
 
@@ -1595,6 +1758,8 @@ __all__ = [
     "download_recognition_model",
     "is_installed",
     "is_recognition_model_installed",
+    "recognition_download_problem",
+    "recognition_partial_bytes",
     "recognition_data_home",
     "recognition_model_dir",
     "recognition_model_bytes",
