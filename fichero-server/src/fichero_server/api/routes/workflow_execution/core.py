@@ -759,9 +759,13 @@ def edges_among(edges: list[dict[str, Any]], nodes: list[dict[str, Any]]) -> lis
     """The workflow's own edges whose endpoints (and route targets) are all among the nodes a run ran with: a workflow
     edited since its run (a node removed or renamed) must not hand validation an edge to a node that is no longer there."""
     ids = {n.get("id") for n in nodes}
-    return [e for e in edges
+    kept = [e for e in edges
             if e.get("source") in ids and (not e.get("target") or e["target"] in ids)
             and all(t in ids for t in (e.get("route_map") or {}).values())]
+    for dropped in (e for e in edges if e not in kept):
+        logger.info("read again: left out edge %s -> %s: a node it names is not among the run's nodes",
+                    dropped.get("source"), dropped.get("target") or dropped.get("route_map"))
+    return kept
 
 
 async def read_again(db: Database, thread_id: str, *, documents: list[str] | None = None,
@@ -797,14 +801,21 @@ async def read_again(db: Database, thread_id: str, *, documents: list[str] | Non
                                                "edges": edges_among(workflow.edges, snapshot["nodes"])})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
-    inputs["selected_doc_ids"] = list(documents) if documents is not None else account.not_done_ids
+    if reopen:
+        # A reopened run is the SAME run over ALL its pages, with the node cache on: the pages it did are cache hits
+        # (no model call, their readings and the run's counts stay), and only the retried page, which has no result
+        # yet, is read. Narrowing the run to `documents` re-entered the thread's checkpoint, which kept the old files
+        # and read every page again (the M4 real-graph retry: three model calls, not one).
+        inputs["selected_doc_ids"] = list(inputs.get("selected_doc_ids") or documents or [])
+    else:
+        inputs["selected_doc_ids"] = list(documents) if documents is not None else account.not_done_ids
     new_thread = thread_id if reopen else f"thread-{uuid4().hex[:12]}"  # a reopened run keeps its id
     request = ExecuteWorkflowRequest(
         workflow_id=workflow.id, inputs=inputs, thread_id=new_thread,
         provider_override=started_with.get("provider_override"),
         model_override=started_with.get("model_override"),
-        skip_cache=bool(started_with.get("skip_cache")),
-        force_recompute=bool(started_with.get("force_recompute")),
+        skip_cache=bool(started_with.get("skip_cache")) and not reopen,
+        force_recompute=bool(started_with.get("force_recompute")) and not reopen,
     )
     _validate_workflow_for_execution(workflow, request, db)
     try:
