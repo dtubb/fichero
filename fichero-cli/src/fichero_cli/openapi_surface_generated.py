@@ -11142,6 +11142,7 @@ def register_generated_openapi_commands(
     def mcp_servers_create_post(
         ctx: typer.Context,
         args: Optional[list[str]] = typer.Option(None, '--args', help='Args. Default: []. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        available_to_chat: Optional[bool] = typer.Option(None, '--available-to-chat/--no-available-to-chat', help='Available To Chat. Default: false.'),
         command: Optional[str] = typer.Option(None, '--command', help='Command.'),
         description: Optional[str] = typer.Option(None, '--description', help='Description. Default: "".'),
         enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled. Default: true.'),
@@ -11158,6 +11159,7 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "args": args,
+                "available_to_chat": available_to_chat,
                 "command": command,
                 "description": description,
                 "enabled": enabled,
@@ -11169,6 +11171,7 @@ def register_generated_openapi_commands(
                 "url": url,
             }, {
                 "args": {'items': {'type': 'string'}, 'type': 'array', 'title': 'Args', 'default': [], 'x-cli-required': False},
+                "available_to_chat": {'type': 'boolean', 'title': 'Available To Chat', 'default': False, 'x-cli-required': False},
                 "command": {'type': 'string', 'nullable': True, 'title': 'Command', 'x-cli-required': False},
                 "description": {'type': 'string', 'title': 'Description', 'default': '', 'x-cli-required': False},
                 "enabled": {'type': 'boolean', 'title': 'Enabled', 'default': True, 'x-cli-required': False},
@@ -11247,6 +11250,7 @@ def register_generated_openapi_commands(
         ctx: typer.Context,
         server_id: str = typer.Argument(..., help='Server Id'),
         args: Optional[list[str]] = typer.Option(None, '--args', help='Args. A list: repeat the flag, or give the values comma-separated, or as JSON.'),
+        available_to_chat: Optional[bool] = typer.Option(None, '--available-to-chat/--no-available-to-chat', help='Available To Chat.'),
         command: Optional[str] = typer.Option(None, '--command', help='Command.'),
         description: Optional[str] = typer.Option(None, '--description', help='Description.'),
         enabled: Optional[bool] = typer.Option(None, '--enabled/--no-enabled', help='Enabled.'),
@@ -11263,6 +11267,7 @@ def register_generated_openapi_commands(
             params = None
             payload = _build_json_payload({
                 "args": args,
+                "available_to_chat": available_to_chat,
                 "command": command,
                 "description": description,
                 "enabled": enabled,
@@ -11274,6 +11279,7 @@ def register_generated_openapi_commands(
                 "url": url,
             }, {
                 "args": {'items': {'type': 'string'}, 'type': 'array', 'nullable': True, 'title': 'Args', 'x-cli-required': False},
+                "available_to_chat": {'type': 'boolean', 'nullable': True, 'title': 'Available To Chat', 'x-cli-required': False},
                 "command": {'type': 'string', 'nullable': True, 'title': 'Command', 'x-cli-required': False},
                 "description": {'type': 'string', 'nullable': True, 'title': 'Description', 'x-cli-required': False},
                 "enabled": {'type': 'boolean', 'nullable': True, 'title': 'Enabled', 'x-cli-required': False},

@@ -58957,6 +58957,11 @@
             "type": "boolean",
             "title": "Enabled",
             "default": true
+          },
+          "available_to_chat": {
+            "type": "boolean",
+            "title": "Available To Chat",
+            "default": false
           }
         },
         "type": "object",
@@ -73507,6 +73512,11 @@
           "enabled": {
             "type": "boolean",
             "title": "Enabled"
+          },
+          "available_to_chat": {
+            "type": "boolean",
+            "title": "Available To Chat",
+            "default": false
           },
           "created_at": {
             "type": "string",
@@ -95824,6 +95834,11 @@
             "type": "boolean",
             "nullable": true,
             "title": "Enabled"
+          },
+          "available_to_chat": {
+            "type": "boolean",
+            "nullable": true,
+            "title": "Available To Chat"
           }
         },
         "type": "object",
