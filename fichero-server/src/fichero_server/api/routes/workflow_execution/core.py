@@ -754,17 +754,27 @@ async def retry_page_in_run(db: Database, page_job_id: str) -> tuple[str, str]:
                 return run_id, "reopened"
         return run_id, "queued"
     if status in ("cancelled", "stopped"):
-        # A stopped run never read some of its pages; reopening it over all of them would read those too. Its checkpoint
-        # is dropped so the reopen is over this page alone (its other pages' readings are saved artifacts already).
-        from fichero_server.workflows.checkpointer import AsyncDuckDBCheckpointer  # noqa: PLC0415
-
-        checkpointer = await asyncio.to_thread(lambda: AsyncDuckDBCheckpointer.from_db_path(db.path, setup_once=True))
-        async with checkpointer:
-            await checkpointer.adelete_thread(run_id)
-        await read_again(db, run_id, documents=[document], reopen=True, only_these=True)
+        # A stopped run never read some of its pages; reopening it over all of them would read those too. It reopens
+        # over the pages it DID read plus this one: the done pages are cache hits (no model call), the never-read ones
+        # are left out, and the run's checkpoint is never touched (its account, and the offer to read the rest, are
+        # built from it; review 305).
+        done = await _done_documents(db, run_id)
+        await read_again(db, run_id, documents=[*done, document], reopen=True, only_these=True)
         return run_id, "reopened"
     await read_again(db, run_id, documents=[document], reopen=True)
     return run_id, "reopened"
+
+
+async def _done_documents(db: Database, run_id: str) -> list[str]:
+    """The documents a run read: those of its snapshot's selection that its account does not list as not done."""
+    from fichero_server.workflows import run_account as accounts  # noqa: PLC0415
+
+    run = await get_activity_tracker(str(db.path)).store.get_workflow_run(run_id)
+    snapshot = run.workflow_snapshot if run is not None and isinstance(run.workflow_snapshot, dict) else {}
+    chosen = list((snapshot.get("inputs") or {}).get("selected_doc_ids") or [])
+    account = await accounts.run_account(db, run_id, run=run)
+    left = set(account.not_done_ids) if account is not None else set()
+    return [d for d in chosen if d not in left]
 
 
 async def reopen_run_for_pages(db: Database, run_id: str, documents: list[str]) -> None:
