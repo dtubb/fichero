@@ -781,8 +781,10 @@ async def read_again(db: Database, thread_id: str, *, documents: list[str] | Non
     if isinstance(snapshot.get("nodes"), list) and snapshot["nodes"]:
         # The nodes the run ran with (a recipe step's settings laid over the preset), so its reader key matches the
         # recipe's and a Retry joins a resuming recipe's live read (#5848, review 261).
-        workflow = workflow.model_copy(update={"nodes": snapshot["nodes"],
-                                               "edges": snapshot.get("edges") or workflow.edges})
+        # Only the nodes: a recipe's settings lie on nodes, and the snapshot's edges can carry ones the run added for
+        # itself, which fail validation again ("Edge references unknown source port 'output' on node 'files-source'",
+        # the M4's real-graph retry). The workflow's own edges name the same node ids.
+        workflow = workflow.model_copy(update={"nodes": snapshot["nodes"]})
     started_with = snapshot.get("request") if isinstance(snapshot.get("request"), dict) else {}
     inputs = dict(snapshot["inputs"]) if isinstance(snapshot.get("inputs"), dict) else {}
     inputs["selected_doc_ids"] = list(documents) if documents is not None else account.not_done_ids
