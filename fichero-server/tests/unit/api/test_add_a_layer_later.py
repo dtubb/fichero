@@ -199,3 +199,21 @@ def test_the_plan_says_which_layers_can_be_added_now(client, project):
     assert all(layer not in before for layer in ("check", "output", "train"))
     after = _add(client, layers=["entities"]).json()["addable"]
     assert "entities" not in after and set(after) < set(before)
+
+
+def test_swapping_the_reader_after_start_queues_no_run_over_the_pages_already_there(client, project):
+    """`source.onboard.rerun-rewrites-nothing` (#4951): a model swap is a default for new work. Start after it queues
+    nothing more for the pages the first Start already took, and the saved recipe says the new reader."""
+    _start(client)
+    before = _runs(client)
+    swapped = {"zenodo": "10.5281/zenodo.99"}
+    saved = client.get("/api/recipes/project").json()
+    for step in saved["recipe"]["steps"]:
+        if step["job"] == "read-a-line":
+            step["model"] = swapped
+    r = client.put("/api/recipes/project", json={"answers": saved["answers"], "recipe": saved["recipe"]})
+    assert r.status_code == 200, r.text
+    _start(client)
+    assert _runs(client) == before
+    again = client.get("/api/recipes/project").json()["recipe"]
+    assert next(s for s in again["steps"] if s["job"] == "read-a-line")["model"] == swapped
