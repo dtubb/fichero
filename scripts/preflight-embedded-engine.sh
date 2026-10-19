@@ -164,6 +164,14 @@ fi
   mkdir -p build
   uv export --frozen --all-extras --no-hashes --no-emit-project --no-emit-workspace \
     --format requirements-txt -o build/lock-constraints.txt >/dev/null
+  # Briefcase installs wheels only (--only-binary :all:). A lock pin that ships only an sdist
+  # (pymeeus) cannot be met, and pip once quietly downgraded convertdate to dodge it. Build
+  # those pins into wheels here; requirement_installer_args finds them with --find-links.
+  rm -rf build/lock-wheels && mkdir -p build/lock-wheels
+  python3 "$ROOT_DIR/scripts/check_bundle_matches_lock.py" --sdist-only uv.lock \
+    | while read -r _pin; do
+        "$(dirname "$BRIEFCASE")/python" -m pip wheel --quiet --disable-pip-version-check --no-deps -w build/lock-wheels "$_pin"
+      done
   if [ ! -d "$ENGINE_DIR/build/fichero_server/macos/app" ]; then
     "$BRIEFCASE" create macOS --app fichero_server
   fi

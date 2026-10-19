@@ -55,8 +55,8 @@ sources = [
     "../fichero-cli/src/fichero_cli",
     "../fichero-mcp/src/fichero_mcp",
 ]
-# uv.lock's versions as pip constraints; scripts/preflight-embedded-engine.sh writes the file.
-requirement_installer_args = ["-c", "./build/lock-constraints.txt"]
+# uv.lock's versions as pip constraints, plus wheels for its sdist-only pins; preflight writes both.
+requirement_installer_args = ["-c", "./build/lock-constraints.txt", "--find-links", "./build/lock-wheels"]
 requires = [
     # Core — 0.0.1 release surface (keep slim for bundle size)
     # Floors below are security/resolution floors only (#4337). Never `==` —

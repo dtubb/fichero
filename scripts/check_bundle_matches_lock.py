@@ -7,6 +7,7 @@ of the lock's versions. Packages the lock does not know (Kraken, MLX, their extr
 installed by their own steps and are not checked here.
 
 usage: check_bundle_matches_lock.py <app_packages> <uv.lock>
+       check_bundle_matches_lock.py --sdist-only <uv.lock>   (print name==version for pins with no wheel)
 """
 
 import re
@@ -41,7 +42,15 @@ def main(app_packages: Path, lock: Path) -> int:
     return 0
 
 
+def sdist_only(lock: Path) -> None:
+    for pkg in tomllib.loads(lock.read_text())["package"]:
+        if "version" in pkg and "sdist" in pkg and not pkg.get("wheels"):
+            print(f"{pkg['name']}=={pkg['version']}")
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--sdist-only":
+        sys.exit(sdist_only(Path(sys.argv[2])))
     if len(sys.argv) != 3:
         sys.exit(__doc__)
     sys.exit(main(Path(sys.argv[1]), Path(sys.argv[2])))
