@@ -85,3 +85,24 @@ def test_a_column_that_cannot_be_added_is_logged_once_and_the_list_still_reads(d
 
     assert [row["id"] for row in listed] == ["j1"]  # every failed job is listed: nothing can be marked cleared
     assert len([r for r in caplog.records if "could not apply" in r.getMessage()]) == 1
+
+
+def test_the_columns_added_at_open_are_checkpointed_not_left_in_the_wal(db, monkeypatch):
+    jobs._ensure(db)
+    _as_a_library_made_before_5634(db)
+    seen: list[str] = []
+    real = db.conn
+
+    class Spy:
+        def execute(self, sql, *args):
+            seen.append(sql)
+            return real.execute(sql, *args)
+
+    monkeypatch.setattr(db, "conn", Spy())
+
+    db._apply_added_jobs_columns()
+    assert "CHECKPOINT" in seen and seen.index("CHECKPOINT") > max(i for i, q in enumerate(seen) if "ALTER TABLE jobs" in q)
+
+    seen.clear()
+    db._apply_added_jobs_columns()  # nothing to add the second time: no checkpoint
+    assert "CHECKPOINT" not in seen
