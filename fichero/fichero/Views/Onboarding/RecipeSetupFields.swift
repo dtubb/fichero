@@ -274,13 +274,13 @@ private struct DerivedScriptRow: View {
 }
 
 /// Where a field's list comes from, as the engine's search routes really draw it (`recipes/names.py`): languages are
-/// ISO 639-3 joined with Glottolog (historical languages and dialects ISO has no code for), their names in their own
-/// language from Unicode CLDR; scripts are ISO 15924. One grey line under each field, with links (#5834).
+/// ISO 639-3 (historic languages included) joined with Glottolog (the languages and dialects ISO gives no code), each
+/// language's own name from Unicode CLDR only adds a way to find it; scripts are ISO 15924. One grey line under each field, with links (#5834).
 enum CodeListSource {
     static func markdown(scripts: Bool) -> String {
         scripts
             ? "From [ISO 15924](https://www.unicode.org/iso15924/)."
-            : "From [ISO 639-3](https://iso639-3.sil.org), plus [Glottolog](https://glottolog.org) for historical languages and dialects; names from [Unicode CLDR](https://cldr.unicode.org)."
+            : "From [ISO 639-3](https://iso639-3.sil.org), plus [Glottolog](https://glottolog.org) for the languages and dialects ISO 639-3 has no code for; a language's own name (from [Unicode CLDR](https://cldr.unicode.org)) finds it too."
     }
 
     static func note(scripts: Bool) -> AttributedString {
@@ -310,9 +310,6 @@ struct CodeTokenField: View {
             LabeledContent(title) {
                 field
             }
-            Text(CodeListSource.note(scripts: scripts))
-                .font(.caption)
-                .foregroundStyle(.secondary)
             // The matches as the person types, under the field, on every platform
             // (`source.onboard.project.language-as-you-type`): the Mac's text-field dropdown did not show them.
             if !unchosen.isEmpty {
@@ -325,6 +322,9 @@ struct CodeTokenField: View {
                 .padding(6)
                 .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
             }
+            Text(CodeListSource.note(scripts: scripts))
+                .font(.caption)
+                .foregroundStyle(.secondary)
             if let refusal = store.typedRefusal, refusal.scripts == scripts {
                 Label(refusal.text, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
             }
