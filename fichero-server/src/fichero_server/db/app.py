@@ -17,6 +17,9 @@ This is separate from library databases which store:
 import contextlib
 import json
 import logging
+import sys
+import threading
+import traceback
 from datetime import datetime, timedelta
 from fichero_server.core.timeutil import ensure_utc, utc_now
 from pathlib import Path
@@ -101,6 +104,60 @@ def get_db_path() -> str:
     return str(settings.app_db_path)
 
 
+#: How long a wait on the app-DB lock lasts before it says who holds it, and again every interval after.
+LOCK_LOG_AFTER_SECONDS = 5.0
+
+
+class _OwnedLock:
+    """The app-DB lock (a reentrant one) that knows its holder: an unbounded wait logs the holder's thread and stack every
+    `log_after` seconds and keeps waiting (`activity.engine.app-db-lock-names-its-holder`). A thread dump of a hang showed
+    the waiters and no holder; this names it. Bounded waits (`timeout=`) behave as `threading.RLock`'s do."""
+
+    def __init__(self, log_after: float = LOCK_LOG_AFTER_SECONDS) -> None:
+        self._lock = threading.RLock()
+        self.log_after = log_after
+        self._owner: int | None = None
+        self._depth = 0
+
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        if not blocking:
+            got = self._lock.acquire(False)
+        elif timeout is not None and timeout >= 0:
+            got = self._lock.acquire(timeout=timeout)
+        else:
+            got = self._lock.acquire(timeout=self.log_after)
+            while not got:
+                self._say_who_holds_it()
+                got = self._lock.acquire(timeout=self.log_after)
+        if got:
+            self._owner = threading.get_ident()
+            self._depth += 1
+        return got
+
+    def release(self) -> None:
+        self._depth -= 1
+        if self._depth == 0:
+            self._owner = None
+        self._lock.release()
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *exc) -> None:
+        self.release()
+
+    def _say_who_holds_it(self) -> None:
+        owner = self._owner
+        names = {t.ident: t.name for t in threading.enumerate()}
+        frame = sys._current_frames().get(owner) if owner is not None else None
+        logger.warning(
+            "app-DB lock: %s has waited %g s; held by %s%s",
+            names.get(threading.get_ident(), "a thread"), self.log_after,
+            names.get(owner, f"thread {owner}") if owner is not None else "no Python thread (just released, or a C-level call)",
+            ":\n" + "".join(traceback.format_stack(frame)) if frame else "",
+        )
+
+
 class AppDatabaseBusy(RuntimeError):
     """The app-DB lock was not free within the wait a caller allowed (`activity.engine.auth-never-hangs`)."""
 
@@ -148,8 +205,9 @@ class AppDatabase:
         # closed pending query result`. A reentrant lock around every conn
         # operation serializes access on this single shared connection. (#704
         # follow-up observed on 2026-04-25.)
-        import threading
-        self._lock = threading.RLock()
+        self._lock = _OwnedLock()
+        #: `get_setting` reads each key once; `set_setting` / `delete_setting` replace it (single engine process).
+        self._settings: dict[str, str | None] = {}
 
         logger.info(f"Opened app-wide database: {path}")
         self._initialize_schema()
@@ -782,12 +840,15 @@ class AppDatabase:
     # =========================================================================
 
     def get_setting(self, key: str) -> str | None:
-        """Get a setting value by key."""
+        """Get a setting value by key (from memory after the first read)."""
+        if key in self._settings:
+            return self._settings[key]
         with self._lock:
             result = self.conn.execute(
                 "SELECT value FROM settings WHERE key = ?", [key]
             ).fetchone()
-        return result[0] if result else None
+            self._settings[key] = result[0] if result else None
+        return self._settings[key]
 
     def set_setting(self, key: str, value: str):
         """Set a setting value (upsert)."""
@@ -806,6 +867,7 @@ class AppDatabase:
                 [key, value, now],
             )
             self.conn.commit()
+            self._settings[key] = value
 
     def delete_setting(self, key: str):
         """Delete a setting."""
@@ -818,6 +880,7 @@ class AppDatabase:
             table_name="settings",
         )
         self.conn.commit()
+        self._settings[key] = None
 
     def get_ai_defaults(self) -> dict[str, str]:
         """Get all AI default settings as a dict.
