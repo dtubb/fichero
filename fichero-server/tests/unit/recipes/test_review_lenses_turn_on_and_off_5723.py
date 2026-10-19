@@ -80,7 +80,12 @@ def test_the_runner_runs_the_preset_without_the_lenses_turned_off(db, monkeypatc
         raise ValueError("stop here")
 
     from fichero_server.api.routes.workflow import chains
+    from fichero_server.models import Workflow
+    from fichero_server.workflows import default_workflows
 
+    shipped = Workflow(**json.loads((PRESETS / "transcribe_paleography_review.json").read_text()))
+    monkeypatch.setattr(chains, "_load_step_workflow", lambda db, workflow_id: None)
+    monkeypatch.setattr(default_workflows, "resolve_shipped_workflow", lambda db, workflow_id, name: shipped)
     monkeypatch.setattr(chains, "_validate_step_workflow", validate)
     name, workflow_id = start._shipped(start.WORKFLOW_FOR_JOB["correct"])
     card = {"workflow": name, "workflow_id": workflow_id, "provider_override": "openai", "model_override": "gpt-5",
