@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
-#: The step fields a person sees change: the model it runs and its settings.
-_COMPARED = ("model", "settings")
+def _settings_differ(was: dict | None, now: dict | None) -> bool:
+    """Only the keys both recipes carry: a default the engine added since the recipe was saved is on one side only, and
+    is not a change the answers made (so it would otherwise read as one for every old project)."""
+    was, now = was or {}, now or {}
+    return any(was[k] != now[k] for k in was.keys() & now.keys())
 
 
 def _title(step: dict[str, Any]) -> str:
@@ -25,7 +28,8 @@ def diff_recipes(saved: dict | None, fresh: dict | None) -> list[dict[str, Any]]
             out.append({"step": sid, "kind": "added", "words": f"{_title(step)} would be added", "was": None,
                         "now": step.get("model")})
             continue
-        changed = [f for f in _COMPARED if (was.get(f) or None) != (step.get(f) or None)]
+        changed = [f for f, differs in (("model", (was.get("model") or None) != (step.get("model") or None)),
+                                        ("settings", _settings_differ(was.get("settings"), step.get("settings")))) if differs]
         if changed:
             what = " and ".join("its model" if f == "model" else "its settings" for f in changed)
             out.append({"step": sid, "kind": "changed", "words": f"{_title(step)}: {what} would change",
