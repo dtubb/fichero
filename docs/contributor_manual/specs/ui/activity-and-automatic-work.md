@@ -1220,6 +1220,35 @@ and node, not by job); a retry action for failed pages.
   measuring, and co-running when both fit. One model is not two (#5654): several reads of the one model the
   engine's model server has loaded run at once, as many as `compute.memory.reads-follow-memory` allows, and
   nothing else runs beside them (`fichero-server/tests/unit/jobs/test_model_lane_reads_what_the_plan_says_5654.py`).
+- `activity.lane.embed-off-the-heavy-lane` — **[OK]** (speed review 2026-10-19, #5847) the search embedder is a child
+  process, so its jobs (Embed for search and the like) run on a lane of their own, "the small-model lane" (`embed`, one
+  at a time), not on the model lane (`local-ml`). An embed beside a Kraken page neither waits for the model lane nor
+  unloads Kraken's models, so a step followed by an embed keeps Kraken resident and the next step does not reload the line
+  finder and the reader. The lane is held by the same signals as the model lane (battery, memory, heat, a build, the
+  person using the Mac) and its jobs stay background work. Pinned by
+  `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a step followed by an embed keeps Kraken resident;
+  an embed runs beside a Kraken page; the real embed kinds are on the embed lane and stay background).
+- `activity.lane.one-model-at-a-time` — **[OK]** (owner rulings 2026-10-19, speed review) the model lane loads one heavy
+  model at a time. Its next background job is the oldest for the model already loaded; it switches to another heavy
+  model only when the loaded one has nothing queued (a short grace after its last page covers a run's next page, and a
+  page a run has taken up but not yet queued counts as queued). Work a person started or watches goes first, at a page
+  boundary, and its own model then becomes the loaded one, so its queued pages follow it. The loaded model is unloaded
+  only when the next one does not fit beside it (the throttle's one memory rule: Kraken's need is its small working need
+  while its models are resident, else the cold figure, a served model's own size); when both fit they stay loaded
+  together, and the engine log says which (`model-lane: keep … loaded beside …`, or the unload with the memory it
+  needed). Small models (the embedder, spaCy) run beside the big ones and are never "the loaded model"; Apple Vision is
+  built in, takes no lane and evicts nothing. Pinned by
+  `fichero-server/tests/unit/jobs/test_one_model_at_a_time_on_the_lane.py` (vision work and an embed during a Kraken run
+  unload nothing; a VLM and Kraken that both fit stay loaded; when they do not, ten interleaved pages cause at most two
+  swaps; embed, Kraken and a VLM interleaved load each heavy model once; a person's job for another model goes at the
+  next page boundary and its pages follow it).
+- `activity.lane.memory-look-again-follows-the-throttle` — **[OK]** (speed review 3c) a page held for memory goes on the
+  moment the throttle's one decision (`decide`) lets it, asked again every quarter second inside the look-again time, not
+  after a fixed five seconds; a resident model's page, sized by its small working need, does not wait at all, and one
+  really held goes the moment it fits. Under *warn* memory pressure a Kraken page no longer waits for an embed (the embed
+  lane is not a heavy lane). Pinned by `fichero-server/tests/unit/jobs/test_embed_off_the_reading_lane.py` (a resident
+  models' page does not pay the five-second look-again; a page held for memory goes the moment it fits; under warn
+  pressure a Kraken page runs while an embed runs).
 - `activity.lane.thumbnails-first` — **[PARTIAL]** (#5585) a new import's thumbnails are made before
   heavy local work queued after them: they are cheap, and they are what the person sees. The local
   ML lane takes no job of a library while a thumbnail job of that library queued at or before it is
@@ -1328,6 +1357,14 @@ and node, not by job); a retry action for failed pages.
 
 ### E. Durability
 
+- `activity.durable.dies-with-the-engine` — **[OK]** (review 278) a job a lane thread is running ends only when the
+  engine does. Opening a library again (`resume`) leaves every job a lane thread of this engine is running alone: its
+  row stays running, an attached Kraken page is not cancelled and no row is reset to waiting or set aside; only an engine
+  restart ends them, and the next open then settles them (`activity.durable.queue-is-rows`). The release of a stale
+  lane holder is gone, as it could free a lane under a running thread; a lane's holder in the waiting words is named
+  only while its row is running. Pinned by
+  `fichero-server/tests/unit/jobs/test_only_a_running_job_holds_a_lane.py` (reopening during a live attached page leaves it
+  running and the lane held; the waiting words name only a running holder).
 - `activity.durable.queue-is-rows` — **[PARTIAL]** (#5357) the task queue and batches
   persist rows; the derivative queue uses `Status.pending` as its queue (`db/manager.py:222-243`);
   ingest, chains, downloads, the re-embed thread and reindex are in memory. Built (2026-10-03):
