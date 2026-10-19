@@ -48,6 +48,44 @@ extension ActivityDetails {
         let lines: [String]
         let failed: [Failed]
         let skipped: [Skipped]
+        /// A step waiting on a model download that failed (#5352).
+        var downloadFailed: [DownloadFailed] = []
+    }
+
+    /// A step waiting on a failed download: Retry the download's job, or take the step's next candidate (#5352,
+    /// `source.recipe.download-failure-waits`). Read from the run summary's `download_failed`, which the engine
+    /// words and orders; nothing is decided here.
+    struct DownloadFailed: Equatable, Identifiable {
+        struct Next: Equatable {
+            let card: String
+            let name: String
+            /// A cloud candidate until pages may leave: shown, never pressed.
+            let needsPermission: Bool
+        }
+        let steps: [String]
+        let model: String
+        let reason: String
+        let retryJobId: String
+        let next: Next?
+        var id: String { retryJobId }
+        var text: String { "\(model) did not download: \(reason)" }
+    }
+
+    /// `download_failed` rows (`[String: Any]`, the generated client holds them untyped); a row without a step or
+    /// a retry job is dropped, never guessed.
+    static func downloadFailures(_ rows: [[String: Any]]) -> [DownloadFailed] {
+        rows.compactMap { row in
+            guard let steps = row["steps"] as? [String], !steps.isEmpty, let job = row["retry_job_id"] as? String
+            else { return nil }
+            let next = (row["next_candidate"] as? [String: Any]).flatMap { candidate -> DownloadFailed.Next? in
+                guard let card = candidate["id"] as? String else { return nil }
+                let model = candidate["model"] as? [String: Any]
+                return .init(card: card, name: model?["name"] as? String ?? card,
+                             needsPermission: candidate["needs_permission"] as? Bool ?? false)
+            }
+            return DownloadFailed(steps: steps, model: row["model"] as? String ?? steps[0],
+                                  reason: row["reason"] as? String ?? "no reason given", retryJobId: job, next: next)
+        }
     }
 
     /// The stages of a recipe run's node, in order; empty for any other job.
@@ -105,6 +143,9 @@ extension ActivityDetails {
         let skipped = summary.skipped.map {
             Summary.Skipped(id: $0.step, text: "\($0.step): \($0.why)", hasFix: $0.fix != nil)
         }
-        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped)
+        let download = downloadFailures(summary.downloadFailed.map { row in
+            row.value.compactMapValues { $0 }.mapValues { $0 as Any }
+        })
+        return Summary(lines: summary.lines ?? [], failed: failed, skipped: skipped, downloadFailed: download)
     }
 }

@@ -92,6 +92,17 @@ extension ActivityStore {
         }
     }
 
+    /// The step takes the next candidate of its chain after a failed download (#5352). Returns the engine's
+    /// refusal, in its words, or nil.
+    func useNextCandidate(step: String, card: String) async -> String? {
+        do {
+            try await activityService.useCandidate(step: step, card: card)
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
     /// Read the pages a finished run did not do (#5555): the engine starts one
     /// new run; the run list picks it up on the next resync. Returns what went
     /// wrong, in words, or nil.
