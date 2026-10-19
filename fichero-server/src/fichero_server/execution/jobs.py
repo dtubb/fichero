@@ -1986,6 +1986,12 @@ _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automat
 _PERSON_RANK_SQL = f"(CASE WHEN COALESCE(watched, FALSE) THEN 2 WHEN {_PERSON_WAITS_SQL} THEN 1 ELSE 0 END)"
 
 
+def person_waits_on(db: "Database", job_id: str) -> bool:
+    """A person started this job (a run, a try, a Start) or watches it: it waits only for memory and heat."""
+    _ensure(db)
+    return _watched(db, job_id)
+
+
 def _watched(db: "Database", job_id: str) -> bool:
     """A person waits on this stored job (`activity.throttle.watched-first`)."""
     row = db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id])
