@@ -1672,16 +1672,23 @@ def model_key(card: Card) -> str:
     return f"id:{card.id}"
 
 
-def dedupe_cards(cards: list[Card]) -> list[Card]:
+def dedupe_cards(cards: list[Card], own_ids: frozenset[str] = frozenset(),
+                 own_pin: dict | None = None) -> list[Card]:
     """No model twice: the first card for a model is kept, so the order the sources are listed in (shipped, installed,
-    then what a search found) says which source keeps it."""
+    then what a search found) says which source keeps it. Except the step's own card -- its id in `own_ids`, or the pin
+    it runs (`own_pin`, a revision included) -- which keeps its model's place whatever came first (#5808, review 296):
+    otherwise a shipped twin at another revision drops the project's own."""
+    def is_own(card: Card) -> bool:
+        return card.id in own_ids or (own_pin is not None and dict(card.pin) == own_pin)
+
+    winners = {model_key(c): c for c in reversed(cards) if is_own(c)}
     seen: set[str] = set()
     out = []
     for card in cards:
         key = model_key(card)
         if key not in seen:
             seen.add(key)
-            out.append(card)
+            out.append(winners.get(key, card))
     return out
 
 
@@ -1697,7 +1704,8 @@ def model_link(card: Card) -> str | None:
     return None
 
 
-def step_candidates(cards: list[Card], job: str) -> list[Card]:
+def step_candidates(cards: list[Card], job: str, own_ids: frozenset[str] = frozenset(),
+                    own_pin: dict | None = None) -> list[Card]:
     """The one list of a step's candidates (#5808, `source.find.one-candidate-source`), for Find a Reader, the stage
     page and Compare alike: the cards naming the job, and for the line step the page readers too (a vision model or
     Apple's recognition reads the lines' pictures: offered, the person's to choose), every model once."""
@@ -1706,4 +1714,4 @@ def step_candidates(cards: list[Card], job: str) -> list[Card]:
     if job == "read-a-line":
         cards = [c if job in c.jobs or "read-a-page" not in c.jobs else replace(c, jobs=c.jobs | {job}, offered_only=True)
                  for c in cards]
-    return dedupe_cards([c for c in cards if job in c.jobs])
+    return dedupe_cards([c for c in cards if job in c.jobs], own_ids, own_pin)

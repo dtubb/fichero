@@ -1403,11 +1403,12 @@ async def model_candidates(
     not_searched = None if library_path else NO_PROJECT
     cards, sources = await run_in_threadpool(
         discover, a, online=online, search=search, not_searched=not_searched, job=job)
-    cards = step_candidates(cards, job)  # the one list Compare reads too (#5808)
     if step is None and library_path:
         # No step named: the open project's step for this job is the one whose model is `chosen` (#5688).
         step = await run_in_threadpool(_step_for_job, request, library_path, job)
     chosen_id = await run_in_threadpool(_step_reader, request, library_path, step) if step else None
+    # The one list Compare reads too (#5808); the step's own card keeps its place against a twin at another revision.
+    cards = step_candidates(cards, job, frozenset({chosen_id} if chosen_id else ()))
     if chosen_id and chosen_id not in {c.id for c in cards}:
         from fichero_server.recipes.discovery import known_cards
 
