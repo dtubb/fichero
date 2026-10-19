@@ -1,6 +1,7 @@
 import FicheroAPIClient
 import Foundation
 import Observation
+import OpenAPIRuntime
 
 /// A stage's result on the sample pages (section 7c, #5668; `source.onboard.stages.samples-proposed`,
 /// `.sample-result`): the 3 to 5 pages Fichero proposes (or the person chose), Try on These Pages, and what the try
@@ -40,7 +41,8 @@ final class SetupStageTryStore {
             }
         } catch {
             if error.isCancellationError { return }
-            refusal = "Could not read the sample pages: \(error.localizedDescription)"
+            let words = await Self.engineWords(error)
+            refusal = "Could not read the sample pages: \(words ?? error.localizedDescription)"
         }
         await readResult()
     }
@@ -72,7 +74,9 @@ final class SetupStageTryStore {
             }
         } catch {
             if error.isCancellationError { return }
-            refusal = error.localizedDescription
+            // A 422 the engine wrote in words is documented as a validation array, so the client throws; its sentence is in
+            // the error's body (#5806).
+            refusal = await Self.engineWords(error) ?? error.localizedDescription
         }
     }
 
@@ -86,14 +90,24 @@ final class SetupStageTryStore {
 
     private func readResult() async {
         do {
-            if case .ok(let success) = try await client.api.stageTryResultApiRecipesStagesStageTryGet(
-                path: .init(stage: stageId)
-            ) {
+            let response = try await client.api.stageTryResultApiRecipesStagesStageTryGet(path: .init(stage: stageId))
+            switch response {
+            case .ok(let success):
                 result = try Self.decode(success.body.json)
+            case .undocumented(let code, _) where code == 404:
+                result = nil  // not tried yet (or no longer chosen): a normal state, never "still running" (#5806)
+            default:
+                break
             }
         } catch {
             if error.isCancellationError { return }
         }
+    }
+
+    private static func engineWords(_ error: Error) async -> String? {
+        guard let clientError = error as? ClientError, let body = clientError.responseBody,
+              let data = try? await Data(collecting: body, upTo: 1 << 16) else { return nil }
+        return EngineErrorDetail.message(from: data)
     }
 
     /// The engine's untyped result, read into the app's shape.
@@ -145,9 +159,17 @@ struct SetupStageTryResult: Decodable, Equatable {
     /// The same samples done by each of 2 or 3 candidates (`source.onboard.stages.compares-candidates`), when the
     /// engine compared them.
     let candidates: [StageCandidate]?
+    /// The comparison of candidates a Read or Find Lines try started: its own state and why (the stage result stays
+    /// "waiting" for the file; the comparison's job is what is running).
+    let comparison: Comparison?
+
+    struct Comparison: Decodable, Equatable {
+        let state: String?
+        let reason: String?
+    }
 
     enum CodingKeys: String, CodingKey {
-        case state, error, how, names, bakeoff, documents, entries, pages, candidates
+        case state, error, how, names, bakeoff, documents, entries, pages, candidates, comparison
         case perPage = "per_page"
     }
 
@@ -157,7 +179,16 @@ struct SetupStageTryResult: Decodable, Equatable {
         return [document.kind, sure].compactMap { $0 }.joined(separator: " · ")
     }
 
-    var isUnderWay: Bool { state == "waiting" || state == "running" }
+    var isUnderWay: Bool { Self.underWay.contains(comparison?.state ?? state) }
+
+    private static let underWay: Set<String> = ["waiting", "running"]
+
+    /// Why the try failed, in the engine's words, or nil when it did not: the stage's error, else the comparison's reason,
+    /// else a plain sentence (a failed try is never blank).
+    var failure: String? {
+        guard state == "failed" || comparison?.state == "failed" else { return error }
+        return error ?? comparison?.reason ?? "The try did not finish. Try it again."
+    }
 
     /// One line per page for the page: what was read, how many lines and regions, how many statements.
     static func summary(of page: Page) -> String {

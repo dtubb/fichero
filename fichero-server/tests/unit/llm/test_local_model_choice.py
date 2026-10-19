@@ -302,7 +302,7 @@ def _read_with(repo: str) -> dict:
 def test_the_plan_refuses_a_model_whose_card_says_this_mac_cannot_run_it(mac):
     plan = _plan(_read_with("mlx-community/Qwen3-VL-8B-Instruct-4bit"))
     [refusal] = plan["refusals"]
-    assert "steps read cannot run on this Mac" in refusal
+    assert "Read a page cannot run on this Mac" in refusal
     assert "24 GB" in refusal and "Choose Qwen2.5-VL 3B (OCR) instead" in refusal
 
 

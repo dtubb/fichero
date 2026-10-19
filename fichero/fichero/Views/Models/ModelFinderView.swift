@@ -78,7 +78,7 @@ struct ModelFinderView: View {
     /// What the finder says when the engine lists nothing for the step's job: a reader can be searched for
     /// online; any other job's model is one already on this Mac or on a server of yours (#5619).
     static func nothingFound(job: String) -> String {
-        job == ModelFinderStore.readingJob || job == "read-a-page"
+        job == ModelFinderStore.readingJob || job == "read-a-page" || job == "find-where-readers-disagree"
             ? "No reader was found for these answers yet. Search Online looks further."
             : "No model on this Mac does this yet. A text model in your MLX store, or on an Ollama or LM Studio "
               + "server of yours (Settings › AI), is offered here once it is there."
@@ -188,7 +188,7 @@ struct ModelFinderCard: View {
     private var runnableActions: some View {
         HStack(spacing: 6) {
             if let key = ModelFinderStore.downloadKey(candidate), Self.offersDownload(candidate) {
-                if store.downloads.isActive(key) {
+                if Self.isDownloading(candidate, tracked: store.downloads.isActive(key)) {
                     ProgressView().controlSize(.small)
                 } else if store.downloads.state(key) != .done {
                     Button(Self.failed(store.downloads.state(key)) ? "Try Again" : "Download") {
@@ -208,6 +208,12 @@ struct ModelFinderCard: View {
                 .help("Use it for this step; a model still to download is then a download Start offers")
             }
         }
+    }
+
+    /// A download is under way when this app is tracking it OR the engine says a `download-model` job is fetching it
+    /// (`download.downloading`): a card the engine words "Downloading" never shows a Download button beside it (#5809).
+    static func isDownloading(_ candidate: Components.Schemas.ModelCandidate, tracked: Bool) -> Bool {
+        tracked || candidate.download?.downloading == true
     }
 
     static func failed(_ state: ModelDownloads.State?) -> Bool {

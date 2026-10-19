@@ -393,6 +393,10 @@ class StageQuestion(BaseModel):
     default: Any = None
     answer: Any = Field(default=None, description="this project's answer, else the default")
     read_by_a_step: bool = Field(description="true: a step reads it today; false: kept with the answers")
+    open_ended: bool = Field(default=False, description="a question that names kinds: every kind by default (an empty answer), "
+                       "the person can type their own, and `options` stay empty (#5805)")
+    suggestions: list[str] = Field(default_factory=list, description="for an open question: only the kinds a sample try "
+                                   "found; empty until a try returns them")
 
 
 class StageNeed(BaseModel):
@@ -407,6 +411,8 @@ class SetupStage(BaseModel):
     title: str
     sentence: str = Field(description="what it does, in one sentence")
     example: str
+    example_from_samples: Optional[str] = Field(default=None, description="an example from the person's sample pages, "
+                                                "once a try found one (Passages)")
     jobs: list[str] = Field(description="the registry jobs it carries, in step order")
     on: bool = Field(description="whether this project's recipe has any of its jobs")
     jobs_in_recipe: list[str]
@@ -446,7 +452,10 @@ async def list_stages(request: Request) -> SetupStageList:
 
     library = _optional_library(request)
     setup = read_project_setup(library) if library else {"recipe": None, "answers": None}
-    items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"])]
+    from fichero_server.recipes import samples
+
+    tried = samples.stored_results(library, setup["recipe"]) if library else {}
+    items = [SetupStage(**s) for s in listing(setup["recipe"], setup["answers"], tried)]
     return SetupStageList(items=items, count=len(items),
                           money_and_place=_money_and_place(setup["answers"] or {}, _cluster_names(request)))
 
