@@ -217,40 +217,55 @@ def spill_directory() -> Path:
 
 
 #: The open instances by file (connections to one file share an instance, and so its limit): key -> live
-#: connections. Weakly held where a connection allows it; a closed one is dropped when next looked at.
+#: connections, weakly held where a connection allows it. `_applied` is the limit last set on each, in bytes.
 _instances: dict[str, list[Any]] = {}
+_applied: dict[str, int] = {}
 _instances_lock = threading.Lock()
+#: How many connections of one file are remembered: enough to find one that is still open, not one per poll.
+_REFS_PER_INSTANCE = 4
 
 
-def _live(ref: Any) -> Any:
-    conn = ref() if isinstance(ref, weakref.ReferenceType) else ref
-    if conn is None:
-        return None
-    try:  # on a cursor of its own: a connection is not for two threads, and another may be mid-query on this one
-        conn.cursor().execute("SELECT 1")
-    except Exception:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
-        return None
-    return conn
+def _live(refs: list[Any]) -> Any:
+    """The first still-open connection among `refs`, or None. Probed on a cursor of its own: a connection is not for
+    two threads, and another may be mid-query on this one."""
+    for ref in refs:
+        conn = ref() if isinstance(ref, weakref.ReferenceType) else ref
+        if conn is None:
+            continue
+        try:
+            conn.cursor().execute("SELECT 1")
+            return conn
+        except Exception:  # noqa: BLE001 -- closed (or invalidated): no longer an open instance
+            continue
+    return None
+
+
+def _set_limit(conn: Any, limit: int) -> None:
+    """THE one place a limit is set (a seam for tests); on the instance, whichever connection asks."""
+    conn.cursor().execute(f"SET memory_limit='{limit // 1024**2}MiB'")
 
 
 def _rebalance() -> None:
-    """Give every open instance its share of the budget again (called as one opens). A close is seen at the next
-    open or rebalance; until then the others keep a smaller share than they could, which stays within the budget."""
+    """Give every open instance its share of the budget. The shares are worked out under the lock; the SETs, one per
+    instance whose share CHANGED, run outside it. A close is seen here (the instance no longer answers)."""
     with _instances_lock:
         keepers: dict[str, Any] = {}
         for key, refs in list(_instances.items()):
-            live = [r for r in refs if _live(r) is not None]
-            if live:
-                _instances[key] = live
-                keepers[key] = _live(live[0])
-            else:
+            conn = _live(refs)
+            if conn is None:
                 del _instances[key]
+                _applied.pop(key, None)
+            else:
+                keepers[key] = conn
         limit = instance_limit_bytes(len(keepers))
-        for conn in keepers.values():
-            try:
-                conn.cursor().execute(f"SET memory_limit='{limit // 1024**2}MiB'")  # the instance's, whoever asks
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Could not re-apply the DuckDB memory limit: %s", exc)
+        todo = [(key, conn) for key, conn in keepers.items() if _applied.get(key) != limit]
+    for key, conn in todo:
+        try:
+            _set_limit(conn, limit)
+            with _instances_lock:
+                _applied[key] = limit
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not re-apply the DuckDB memory limit: %s", exc)
 
 
 def rebalance_memory_limits() -> None:
@@ -259,8 +274,12 @@ def rebalance_memory_limits() -> None:
 
 
 def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) -> duckdb.DuckDBPyConnection:
-    """Register this connection's instance, cap every open instance at its share of the budget, and point the
-    spill at the app temp dir.
+    """Register this connection's instance and cap it, and the others, at their share of the budget; point the spill
+    at the app temp dir.
+
+    A connect to a file already open (every poll) costs one read of its limit: it joins the instance, which already has
+    its share, so nothing else is touched. Only a NEW instance (or one that was closed and opened again, back at
+    DuckDB's default) re-shares the budget.
 
     The cap IS the Air-OOM guard (2026-08-24): an uncapped DuckDB claims 80% of RAM per open database. A cap that
     silently fails to apply is the #4395 shape -- a protection that reads as present and does nothing -- so an
@@ -277,9 +296,22 @@ def apply_memory_limit(conn: duckdb.DuckDBPyConnection, key: str | None = None) 
             ref: Any = weakref.ref(conn)
         except TypeError:  # ponytail: a connection that cannot be weakly held is held strongly until closed
             ref = conn
+        key = key or f"memory:{id(conn)}"
         with _instances_lock:
-            _instances.setdefault(key or f"memory:{id(conn)}", []).append(ref)
-        _rebalance()
+            known = key in _instances
+            refs = _instances.setdefault(key, [])
+            if len(refs) < _REFS_PER_INSTANCE:
+                refs.append(ref)
+            expected = _applied.get(key)
+        # Joined an instance that already has its share: its limit is what we set (a reopened one is back at default).
+        # (DuckDB prints a size rounded -- "1.6 GiB" -- so "the same" is within 6%, not to the byte.)
+        shared = known and expected is not None and abs(parse_size(
+            conn.execute("SELECT current_setting('memory_limit')").fetchone()[0].replace(" ", "")) - expected
+        ) <= max(1024**2, expected * 0.06)
+        if not shared:
+            with _instances_lock:
+                _applied.pop(key, None)  # whatever was set is gone with the instance: set it again
+            _rebalance()
         if explicit:
             total_budget_bytes()  # raises for an unparsable explicit value, before the connection is handed out
     except Exception as exc:  # pragma: no cover - setting unsupported
