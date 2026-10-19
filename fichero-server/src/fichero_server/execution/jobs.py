@@ -1242,6 +1242,27 @@ def run_on_lane_blocking(library_path: str | None, kind: str, subject: str, *, m
     return submit(db, kind, subject, model=model, fn=fn).result()
 
 
+def settle_made_thumbnails(db: "Database") -> int:
+    """End every thumbnail job (a `first` kind) waiting or set aside whose thumbnail file already exists: `done`,
+    "Its thumbnail was already made". Returns how many (#5845)."""
+    from fichero_server.db.storage import has_thumbnail
+
+    if not any(kind.first for kind in KINDS.values()):
+        load_kinds()
+    first_kinds = [name for name, kind in KINDS.items() if kind.first]
+    if not first_kinds:
+        return 0
+    package = Path(db.path).parent
+    marks = ", ".join("?" for _ in first_kinds)
+    made = [row[0] for row in db.execute_fetchall(
+        f"SELECT id, subject FROM jobs WHERE kind IN ({marks}) AND state IN ('waiting', 'failed') "
+        "AND parent_id IS NULL", first_kinds) if has_thumbnail(row[1], package)]
+    for job_id in made:
+        db.execute("UPDATE jobs SET state = 'done', reason = NULL, finished_at = COALESCE(finished_at, ?) "
+                   "WHERE id = ?", [utc_now(), job_id])
+    return len(made)
+
+
 def resume(db: "Database") -> None:
     """On library open: jobs left running were interrupted. Back to waiting, or failed after
     `MAX_ATTEMPTS`; then, if anything is waiting, wake the scheduler for this library. A library
@@ -1270,6 +1291,9 @@ def resume(db: "Database") -> None:
         # What interrupted it, when, and what carries it on, in words (#5615): not "Interrupted 3 times; set aside".
         db.execute("UPDATE jobs SET state = 'failed', finished_at = ?, reason = ? WHERE id = ?",
                    [now, set_aside_reason(attempts, started_at, now), job_id])
+    # A page whose thumbnail is already there needs no job: one left queued, or set aside after its kills, would
+    # hold the heavy work queued after it for good (#5845).
+    settle_made_thumbnails(db)
     # A job a person stopped that was still winding down when the engine went away is not taken up again
     # (#5609): it ends as stopped. (A workflow run's row is settled with its record, `mark_interrupted_runs`.)
     db.execute(
@@ -1427,6 +1451,12 @@ def cancel_job(db: "Database", job_id: str) -> str:
     registered = KINDS.get(kind)
     if registered is not None and registered.cancel is not None:
         return registered.cancel(db, job_id)
+    if state == "failed":
+        # A job set aside (or failed) that a person stops has nothing running: it ends cancelled, so Delete and Stop
+        # work on it, and it no longer offers Resume (#5845).
+        db.execute("UPDATE jobs SET state = 'cancelled', reason = ?, finished_at = COALESCE(finished_at, ?) "
+                   "WHERE id = ? AND state = 'failed'", [stopped_by(job_id), utc_now(), job_id])
+        return "cancelled"
     if state not in ("waiting", "paused"):
         return state
     with _scheduler._lock:
