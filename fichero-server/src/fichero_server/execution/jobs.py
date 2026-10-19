@@ -1986,10 +1986,30 @@ _PERSON_WAITS_SQL = ("(COALESCE(watched, FALSE) OR COALESCE(started_by, 'automat
 _PERSON_RANK_SQL = f"(CASE WHEN COALESCE(watched, FALSE) THEN 2 WHEN {_PERSON_WAITS_SQL} THEN 1 ELSE 0 END)"
 
 
+#: The roots of a run that are not a person's: the engine, a synced folder, a kept export, and the recipe run an import
+#: starts by itself (a person's Start is the other kind).
+RUN_BACKGROUND_STARTERS = BACKGROUND_STARTERS + ("import",)
+
+
 def person_waits_on(db: "Database", job_id: str) -> bool:
-    """A person started this job (a run, a try, a Start) or watches it: it waits only for memory and heat."""
+    """Whether a person started this job's RUN, or watches the job (#5819): the job's chain of parents (a page, its
+    step, the run, the recipe) is followed to its root, whose starter says who started it. A page's own row says
+    'workflow' for every page, which is nobody; the run that handed it in is what a person started or did not."""
     _ensure(db)
-    return _watched(db, job_id)
+    current, last = job_id, None
+    for _ in range(8):
+        row = db.execute_fetchone(
+            "SELECT parent_id, COALESCE(started_by, 'automatic'), COALESCE(watched, FALSE) FROM jobs WHERE id = ?", [current])
+        if row is None:
+            break
+        parent, started_by, watched = row
+        if watched:
+            return True
+        last = started_by
+        if not parent:
+            break
+        current = parent
+    return last is not None and last not in RUN_BACKGROUND_STARTERS
 
 
 def _watched(db: "Database", job_id: str) -> bool:
@@ -2641,7 +2661,7 @@ class _Scheduler:
             set_utility_qos() if watched else kind.qos()
         state, reason, result, error = "done", None, None, None
         _current.job_id = job_id
-        _current.person = bool((db.execute_fetchone(f"SELECT {_PERSON_WAITS_SQL} FROM jobs WHERE id = ?", [job_id]) or [False])[0])
+        _current.person = person_waits_on(db, job_id)  # who started the RUN this page is of, not the page's own row
         try:
             result = self._work(db, job_id, kind, subject, handed_in)
         except JobCancelled as exc:

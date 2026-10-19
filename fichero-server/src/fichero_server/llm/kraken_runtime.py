@@ -751,9 +751,8 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             from fichero_server.core.compute_preferences import apply_to_this_thread, compute_preferences
 
             from fichero_server.core.compute_preferences import priority_for
-            from fichero_server.execution import throttle as _throttle
 
-            threads = apply_to_this_thread(priority_for(person, on_battery=_throttle.on_battery() is not None))
+            threads = apply_to_this_thread(priority_for(person))
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
             bound_native_thread_pools(threads)

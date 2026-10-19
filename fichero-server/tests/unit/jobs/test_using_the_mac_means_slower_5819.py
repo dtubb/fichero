@@ -48,39 +48,44 @@ def test_using_the_mac_alone_holds_nothing_back(mac):
     ({"battery": True}, "Waiting: the Mac is on battery"),
     ({"pressure": 4}, throttle.MEMORY_REASON),
     ({"thermal": 2}, "Waiting: the Mac is hot"),
-    ({"procs": ["swift-frontend"]}, "Waiting: a build is running"),
 ])
-def test_each_of_the_four_holds_background_work_with_its_sentence(mac, change, sentence):
+def test_each_of_the_three_holds_background_work_with_its_sentence(mac, change, sentence):
     mac["idle"] = 3.0  # in use as well: use does not matter, the hold does
     mac.update(change)
     assert throttle.why_wait().startswith(sentence)
 
 
 def test_leaving_the_hold_resumes(mac):
-    mac["procs"] = ["xcodebuild"]
-    assert throttle.why_wait() == "Waiting: a build is running"
-    mac["procs"] = []
+    mac["battery"] = True
+    assert throttle.why_wait() == "Waiting: the Mac is on battery"
+    mac["battery"] = False
     assert throttle.why_wait() is None
 
 
-def test_a_build_does_not_hold_work_a_person_waits_for(mac):
+def test_a_build_slows_background_work_and_never_holds_it(mac):
+    """Owner ruling A (2026-10-19): a build is like the Mac in use -- background goes on at the lowest priority."""
     mac["procs"] = ["xcodebuild"]
-    assert throttle.why_wait(person_waiting=True) is None
+    assert throttle.why_wait() is None and throttle.why_wait(person_waiting=True) is None
+    slowed = throttle.decide()
+    assert (slowed.action, slowed.reason, slowed.priority) == ("slow", throttle.BUILD_REASON, "background")
+    assert throttle.decide(person_waiting=True).action == "go"
+    mac["procs"] = []
+    assert throttle.decide().action == "go"
 
 
 def test_xcode_open_is_not_a_build(mac):
     """Review 200: SWBBuildService lives as long as Xcode is open; only what runs while compiling is a build."""
     mac["procs"] = ["Xcode", "SWBBuildService", "XCBBuildService"]
-    assert throttle.why_wait() is None
+    assert throttle.decide().action == "go"
 
 
 @pytest.mark.parametrize("name", ["xcodebuild", "swift-build", "swift-frontend", "clang"])
 def test_each_compiling_process_is_a_build(mac, name):
     mac["procs"] = [name]
-    assert throttle.why_wait() == "Waiting: a build is running"
+    assert throttle.decide().reason == "Waiting: a build is running"
 
 
 def test_one_pgrep_with_a_short_timeout(mac):
     mac["procs"] = []
-    throttle.why_wait()
+    throttle.decide()
     assert len(mac["calls"]) == 1 and mac["calls"][0][1]["timeout"] == 1

@@ -1281,15 +1281,20 @@ and node, not by job); a retry action for failed pages.
   work outright (#5524); it only stops heavy work running side by side. Built (2026-10-09):
   `execution/jobs.py` `_Scheduler._claim`, tested with the real lanes (`fichero-server/tests/unit/jobs/test_one_heavy_when_memory_tight.py`).
   Not yet seen in the app.
-- `activity.throttle.use-means-slower` — **[BUILT]** (#5819, owner ruling 2026-10-19) *Run automatically* keeps
-  working while the person uses the Mac: slower, because it runs at background QoS (the lowest class, which yields to the
-  person's apps), never stopped. Background work holds back fully only on four things: the Mac
-  on battery or in Low Power Mode, memory pressure, a serious thermal state, or a build running (xcodebuild,
-  swift-build, swift-frontend, clang: what runs only while compiling, one `pgrep`, never Xcode merely being open;
-  `throttle.a_build_is_running`), and the waiting line says which ("Waiting: the Mac is on battery",
-  "Waiting: memory is tight", "Waiting: the Mac is hot", "Waiting: a build is running"). Leaving the hold resumes.
-  Work a person waits for waits only for memory and heat. This supersedes the "input in the last 30 s" hold below
-  (`fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`).
+- `activity.throttle.use-means-slower` — **[BUILT]** (#5819, owner rulings 2026-10-19) ONE rule for the Mac being used, a
+  build, battery, memory and heat, taken by every caller from `throttle.decide` (Find Lines, the lane scheduler,
+  derivatives, embeddings, training, Kraken's threads, the machine state; `why_wait` is its holds). *Run
+  automatically* keeps working while the person uses the Mac **or a build runs** (`throttle.a_build_is_running`:
+  xcodebuild, swift-build, swift-frontend, clang, what runs only while compiling, one `pgrep`, never Xcode merely being
+  open): slower, at the lowest priority (background QoS, few threads), never held. Background work holds fully only on
+  the Mac on battery or in Low Power Mode, memory pressure, or a serious thermal state, and the waiting line says which
+  ("Waiting: the Mac is on battery", "Waiting: memory is tight", "Waiting: the Mac is hot"). Work a person started (a run
+  they Started, a try, a watched job; the RUN's starter decides, not each page's own row: an import's own recipe run,
+  a synced folder and a kept export are background) goes flat out: fast priority, every core, no waits for use or a
+  build; memory and heat hold it, and the Mac on battery slows it (balanced) and says so ("The Mac is on battery:
+  going slower"). Leaving the hold resumes. This supersedes the "input in the last 30 s" hold below
+  (`fichero-server/tests/unit/jobs/test_using_the_mac_means_slower_5819.py`, `test_one_throttle_rule_5819.py`,
+  `test_kraken_never_waits_on_use_or_build_5819.py`).
 - `activity.throttle.power-heat-memory` — **[PARTIAL]** (#5358) background lanes slow
   or wait in Low Power Mode, on low battery, under serious thermal state or memory pressure, and
   say so; no setting. Built (2026-10-04): the local-model lane holds a background job while

@@ -69,21 +69,15 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     started = time.monotonic()
     person = jobs.person_waits_on(db, run_id)
     for number, doc_id in enumerate(documents):
-        # A run the person started waits only for memory and heat (`person_waiting`); any run goes slower, never
-        # stops, while the person uses the Mac or a build runs: one short yield per page, not a wait loop (#5819).
-        while (why := throttle.why_wait(person_waiting=person)) and not (stop is not None and stop()):
-            if throttle.only_slows(why):
-                if say is not None:
-                    say(f"{why.removeprefix('Waiting: ').capitalize()}: going slower")
-                time.sleep(SLOWER_YIELD_SECONDS)
-                break
+        # The throttle's one decision (#5819): memory and heat hold (and battery, for background work); a person's run
+        # on battery, and background work under a build or while the Mac is used, goes on slower and says so.
+        while (decision := throttle.decide(person)).action == "hold" and not (stop is not None and stop()):
             if say is not None:
-                say(why)
+                say(decision.reason)
             time.sleep(WAIT_POLL_SECONDS)
-        if person and not (stop is not None and stop()) and throttle.on_battery():
-            # On battery a person's run goes slower, and says so; it does not stop (#5819).
+        if decision.action == "slow" and not (stop is not None and stop()):
             if say is not None:
-                say("The Mac is on battery: going slower")
+                say(decision.words)
             time.sleep(SLOWER_YIELD_SECONDS)
         if stop is not None and stop():
             break
