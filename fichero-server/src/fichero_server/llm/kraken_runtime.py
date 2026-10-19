@@ -751,7 +751,75 @@ def require_installed() -> None:
 # here. See the module docstring for why in-process, not a subprocess.
 # =============================================================================
 
-_INFERENCE_LOCK = threading.Lock()
+class _PageGate:
+    """The seam's gate (`source.read.two-pages-at-once`): `page(n)` lets up to `n` pages in at once; taking it whole
+    (`acquire`, `with gate:`; the model lane unloading Kraken, `local_inference`) waits for every page and holds new
+    ones off. `locked()` is True while any page runs or it is held whole. Named `_INFERENCE_LOCK`, which it replaces."""
+
+    def __init__(self) -> None:
+        self._cond = threading.Condition()
+        self._active = 0
+        self._whole = False
+        self._wanting_whole = 0
+
+    @contextlib.contextmanager
+    def page(self, allowed: int = 1):
+        with self._cond:
+            while self._whole or self._wanting_whole or self._active >= max(1, allowed):
+                self._cond.wait()
+            self._active += 1
+        try:
+            yield
+        finally:
+            with self._cond:
+                self._active -= 1
+                self._cond.notify_all()
+
+    def acquire(self, blocking: bool = True) -> bool:
+        with self._cond:
+            if not blocking and (self._whole or self._active):
+                return False
+            self._wanting_whole += 1
+            try:
+                while self._whole or self._active:
+                    self._cond.wait()
+            finally:
+                self._wanting_whole -= 1
+            self._whole = True
+            return True
+
+    def release(self) -> None:
+        with self._cond:
+            self._whole = False
+            self._cond.notify_all()
+
+    def locked(self) -> bool:
+        with self._cond:
+            return self._whole or self._active > 0
+
+    def __enter__(self) -> "_PageGate":
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.release()
+
+
+_INFERENCE_LOCK = _PageGate()
+
+#: Pages read at once for a person-started (fast) run when this Mac's memory holds that many.
+PAGES_AT_ONCE = 2
+
+
+def pages_at_once(person: bool) -> int:
+    """How many pages may be read at once (`source.read.two-pages-at-once`): `PAGES_AT_ONCE` for a person-started run
+    on the fast priority when there are cores for it and `page_fan_out` says the memory holds that many (so one on an
+    8 GB Mac); one for every automatic or background run."""
+    from fichero_server.core.compute_preferences import priority_for
+
+    if priority_for(person) != "fast" or (os.cpu_count() or 1) < 4:
+        return 1
+    return page_fan_out(PAGES_AT_ONCE)
 
 #: The environment variables the thread pools around torch read when they load.
 _THREAD_POOL_ENV = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
@@ -822,9 +890,11 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     jobs_module = sys.modules.get("fichero_server.execution.jobs")
     person = bool(jobs_module and jobs_module.current_job_is_a_persons())
     wanted = _WANTED.get()  # likewise: the thread below starts with no context
+    allowed = pages_at_once(person)  # two for a person's run when memory holds two, else one
 
     def _throttled() -> None:
         _WANTED.set(wanted)
+        _PAGE.clear()  # this page's notes: each page's own thread keeps its own
         try:
             # #4987 "know before running": checked INSIDE the lock, before
             # ANY kraken/torch import — a queued second call must see the
@@ -850,7 +920,7 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             from fichero_server.execution.throttle import decide
 
             priority = priority_for(person)
-            threads = apply_to_this_thread(priority)
+            threads = max(1, apply_to_this_thread(priority) // allowed)  # two pages share the cores
             _PAGE.update(priority=priority, threads=threads, person=person, throttle=decide(person).action)
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
@@ -878,12 +948,11 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
         except BaseException as exc:  # noqa: BLE001 — re-raised on the caller's thread
             outcome.append((False, exc))
 
-    with _INFERENCE_LOCK:
-        _PAGE.clear()
+    with _INFERENCE_LOCK.page(allowed):
         worker = threading.Thread(target=_throttled, name="kraken-inference", daemon=True)
         worker.start()
         worker.join()
-        _release_when_idle()
+    _release_when_idle()
     ok, value = outcome[0]  # type: ignore[misc]
     if not ok:
         raise value  # type: ignore[misc]
@@ -966,7 +1035,26 @@ _RESIDENT: dict[str, tuple[str, object]] = {}
 
 #: The page being read: its name, what each stage took (seconds) and the priority it ran at. Touched only inside
 #: `_kraken_call`'s lock (one page at a time), logged as one line when the page ends.
-_PAGE: dict[str, object] = {}
+class _PageNotes(threading.local):
+    """The notes of the page this thread is reading: each page's own thread keeps its own (two pages at once)."""
+
+    def __init__(self) -> None:
+        self.notes: dict[str, object] = {}
+
+    def get(self, name: str, default: object = None) -> object:
+        return self.notes.get(name, default)
+
+    def update(self, **more: object) -> None:
+        self.notes.update(more)
+
+    def clear(self) -> None:
+        self.notes.clear()
+
+    def __setitem__(self, name: str, value: object) -> None:
+        self.notes[name] = value
+
+
+_PAGE = _PageNotes()
 
 
 @contextlib.contextmanager
@@ -983,7 +1071,15 @@ def _page_is(image_path: str | Path) -> None:
     _PAGE["name"] = Path(str(image_path)).name
 
 
+_LOAD_LOCK = threading.RLock()
+
+
 def _resident(kind: str, key: str, load: Callable[[], object]) -> object:
+    with _LOAD_LOCK:  # two pages asking at the same moment load a model once
+        return _resident_locked(kind, key, load)
+
+
+def _resident_locked(kind: str, key: str, load: Callable[[], object]) -> object:
     held = _RESIDENT.get(kind)
     if held is not None and held[0] == key:
         return held[1]

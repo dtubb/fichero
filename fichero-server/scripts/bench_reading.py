@@ -118,7 +118,7 @@ def _synthetic_pages(folder: Path, count: int) -> list[Path]:
     return out
 
 
-def run(model: str, pages: int, images: Path | None) -> tuple[list[dict], Counter]:
+def run(model: str, pages: int, images: Path | None, concurrency: int = 1) -> tuple[list[dict], Counter]:
     """Read the pages through Kraken's own seam, as a person's Start would: flat out, the engine's per-page lines
     collected."""
     import tempfile
@@ -130,11 +130,26 @@ def run(model: str, pages: int, images: Path | None) -> tuple[list[dict], Counte
     logging.getLogger().addHandler(collect)
     logging.getLogger().setLevel(logging.INFO)
     files = sorted(images.glob("*.*"))[:pages] if images else _synthetic_pages(Path(tempfile.mkdtemp()), pages)
-    jobs._current.person = True  # a job a person started or watches (`current_job_is_a_persons`)
-    began = time.perf_counter()
-    for path in files:
+    def read(path: Path) -> None:
+        jobs._current.person = True  # a job a person started or watches (`current_job_is_a_persons`); per thread
         kraken_runtime.recognize_lines(str(path), model)
-    print(f"read {len(files)} pages in {time.perf_counter() - began:.1f}s\n")
+
+    began = time.perf_counter()
+    if concurrency > 1:  # the engine's own fan-out: pages arrive on pooled threads, the seam lets two read at once
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=concurrency) as pool:
+            list(pool.map(read, files))
+    else:
+        for path in files:
+            read(path)
+    wall = time.perf_counter() - began
+    import resource
+
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on macOS (kilobytes on Linux)
+    peak_gb = peak / 1024**3 if sys.platform == "darwin" else peak / 1024**2
+    print(f"read {len(files)} pages in {wall:.1f}s with {concurrency} at once: {wall / max(1, len(files)):.1f} s a page "
+          f"(wall), peak memory {peak_gb:.1f} GB\n")
     return parse(collect.lines)
 
 
@@ -144,11 +159,13 @@ def main() -> int:
     ap.add_argument("--model", help="a Kraken reader (.mlmodel / .safetensors) to read with")
     ap.add_argument("--pages", type=int, default=20)
     ap.add_argument("--images", type=Path, help="a folder of page images (default: drawn pages)")
+    ap.add_argument("--concurrency", type=int, default=1,
+                    help="pages sent at once, as the engine's fan-out does (the seam reads two together when memory allows)")
     args = ap.parse_args()
     if args.log:
         pages, lane = parse(Path(args.log).read_text(errors="replace").splitlines())
     elif args.model:
-        pages, lane = run(args.model, args.pages, args.images)
+        pages, lane = run(args.model, args.pages, args.images, args.concurrency)
     else:
         ap.error("give --model (to run) or --log (to read an engine log)")
     return report(pages, lane)
