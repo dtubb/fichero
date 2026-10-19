@@ -2657,8 +2657,27 @@ class _Scheduler:
                 if stopped:
                     raise JobCancelled(stopped) from exc
                 wait_on(db, job_id, str(exc))
-                time.sleep(THROTTLE_LOOK_AGAIN_SECONDS)
+                self._wait_until_memory_fits(db, job_id)
                 wait_over(db, job_id)
+
+    #: How often a page held for memory asks again, inside the `THROTTLE_LOOK_AGAIN_SECONDS` it may wait.
+    MEMORY_POLL_SECONDS = 0.25
+
+    def _wait_until_memory_fits(self, db: "Database", job_id: str) -> None:
+        """A page held for memory goes on the moment the throttle's one decision (`decide`, which sizes a resident
+        model by its small working need) lets it, not after a fixed 5 s: it asked once and the answer was already
+        "go" for a resident model, or memory freed a moment later. Gives up after the look-again time and lets the
+        page try again, as before."""
+        from fichero_server.execution.throttle import decide
+
+        found = db.execute_fetchone("SELECT model FROM jobs WHERE id = ?", [job_id])
+        model = found[0] if found else None
+        loaded = model is not None and model == self.lanes["local-ml"].loaded_model
+        deadline = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
+        while decide(True, model=model, loaded=loaded).action == "hold":
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(self.MEMORY_POLL_SECONDS)
 
     def _run(self, lane: _Lane, key: str, db: "Database", row: tuple, handed_in: Any) -> None:
         from fichero_server.db.manager import db_manager
