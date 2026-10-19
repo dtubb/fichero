@@ -216,6 +216,11 @@ def _following_its_job(db: Any, result: dict[str, Any]) -> dict[str, Any]:
         error = result.get("error") or why or "The try did not finish: try it again"
         return {**result, "state": "failed", "error": error}
     followed = {**result, "state": state if state == "running" else result["state"]}
+    said_now = jobs.state_and_reason(db, job_id)
+    if said_now and said_now[1]:
+        # What the try is doing or waiting for, in words, always beside its spinner (`recipes.try.says-what-it-waits-for`):
+        # "Copying the sample pages", "Waiting for the model lane: …", "Trying Read: …". Never a spinner with no words.
+        followed["waiting_for"] = said_now[1]
     if state in ("waiting", "running") and "comparison" not in followed:
         # A try waiting its turn, or running while its page waits for the lane ("Waiting: ..." on its row), says what
         # for beside the app's spinner (#5837): the same field a bake-off's wait uses.
@@ -646,6 +651,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
     if said:
         out["error"] = said["sentence"]
         return out
+    jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Copying the sample pages for {stage.title}")
     scratch = _folder(library) / f"{scratch_name}.fichero"
     shutil.rmtree(scratch, ignore_errors=True)
     for sub in ("lance", "storage", "files"):
