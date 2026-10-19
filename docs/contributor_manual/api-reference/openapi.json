@@ -51026,6 +51026,50 @@
         ],
         "title": "AssembleRequest"
       },
+      "RecipeChange": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed"
+            ],
+            "title": "Kind"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "the change in a sentence: 'Work out dates would be added'"
+          },
+          "was": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Was",
+            "description": "the saved step's model"
+          },
+          "now": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Now",
+            "description": "the fresh step's model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "step",
+          "kind",
+          "words"
+        ],
+        "title": "RecipeChange",
+        "description": "One step a fresh assembly would add, take out or run differently from the project's saved recipe."
+      },
       "AssembledRecipe": {
         "properties": {
           "fichero_recipe": {
@@ -51075,6 +51119,14 @@
             "type": "array",
             "title": "Automatic",
             "description": "the steps the purpose or an added layer turns on by itself, with their layer and whether each may use the cloud; worked out from the answers, never written by hand (source.recipe.steps-name-layers). A snapshot of the assembly it came from: saved with the recipe, and nothing compares a saved recipe with a fresh assembly"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeChange"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "for an open project with a saved recipe: what this assembly would change in it, step by step; nothing is written (source.onboard.regen-shows-diff)"
           },
           "gaps": {
             "items": {
@@ -53563,6 +53615,24 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Params"
+          },
+          "downloading": {
+            "type": "boolean",
+            "title": "Downloading",
+            "description": "a download-model job is already fetching it (#5791)",
+            "default": false
+          },
+          "job_id": {
+            "type": "string",
+            "nullable": true,
+            "title": "Job Id",
+            "description": "that job, as Activity lists it, while downloading (#5791)"
+          },
+          "progress": {
+            "type": "string",
+            "nullable": true,
+            "title": "Progress",
+            "description": "how far it has got, as the job last said it (#5791)"
           }
         },
         "type": "object",
@@ -81908,6 +81978,85 @@
         "title": "RecipeRunStep",
         "description": "One stage of a recipe run: the card that carries one or more recipe steps."
       },
+      "NextCandidate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "the candidate's card id, as POST /api/recipes/project/steps/use-candidate takes it"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "what to call it on screen: the catalogue's name for it, else its model's name, else its id"
+          },
+          "model": {
+            "additionalProperties": true,
+            "type": "object",
+            "nullable": true,
+            "title": "Model",
+            "description": "its pin"
+          },
+          "runs_on": {
+            "type": "string",
+            "title": "Runs On",
+            "description": "this-mac, or cloud:<provider>"
+          },
+          "needs_permission": {
+            "type": "boolean",
+            "title": "Needs Permission",
+            "description": "a cloud candidate while pages may not leave this Mac"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "runs_on",
+          "needs_permission"
+        ],
+        "title": "NextCandidate",
+        "description": "The next entry of a step's chain, offered in place of a model that could not be had (#5352, #5758)."
+      },
+      "DownloadFailed": {
+        "properties": {
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "the model that did not download"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "retry_job_id": {
+            "type": "string",
+            "title": "Retry Job Id",
+            "description": "the download's job: POST /api/activity/jobs/{id}/retry"
+          },
+          "next_candidate": {
+            "$ref": "#/components/schemas/NextCandidate",
+            "nullable": true,
+            "description": "null: the chain has nothing else"
+          }
+        },
+        "type": "object",
+        "required": [
+          "steps",
+          "model",
+          "reason",
+          "retry_job_id"
+        ],
+        "title": "DownloadFailed",
+        "description": "A step waiting on a model download that failed or was cancelled (`source.recipe.download-failure-waits`)."
+      },
       "RecipeRunSummary": {
         "properties": {
           "job_id": {
@@ -81960,12 +82109,11 @@
           },
           "download_failed": {
             "items": {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/components/schemas/DownloadFailed"
             },
             "type": "array",
             "title": "Download Failed",
-            "description": "steps waiting on a model download that failed: the steps, the reason, `retry_job_id` (the download's job, retried in Activity) and `next_candidate` (the step's next chain entry, with needs_permission for a cloud one) (#5352)"
+            "description": "steps waiting on a model download that failed, each with Retry (the download's job) and the next candidate of the step's chain (#5352)"
           },
           "lines_unread_why": {
             "additionalProperties": {
@@ -90586,6 +90734,12 @@
             "nullable": true,
             "title": "Job Id",
             "description": "the download-model job fetching it, while downloading"
+          },
+          "sentence": {
+            "type": "string",
+            "nullable": true,
+            "title": "Sentence",
+            "description": "the download in words: 'Downloading X: 1.2 GB of 5.6 GB; its steps wait for it.', or 'X is not on this Mac yet (60 MB): Start downloads it, and its steps wait for it.'; shown as given (#5791)"
           }
         },
         "type": "object",
@@ -91177,6 +91331,12 @@
             "type": "string",
             "nullable": true,
             "title": "Layer"
+          },
+          "how": {
+            "type": "string",
+            "nullable": true,
+            "title": "How",
+            "description": "how the step works, in the engine's words, for a step that runs no model (Work out dates); the app shows it as given (`source.onboard.setup-says-what-is-happening`, #5791)"
           },
           "check": {
             "type": "string",
