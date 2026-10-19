@@ -55,7 +55,7 @@ def test_every_step_names_its_model_with_a_link_or_says_which_answer_is_missing(
     recipe = assemble(_answers(jobs=("find-regions", "read-a-line", "find-names-tag-words")), CARDS)
     assert recipe["steps"]
     for step in recipe["steps"]:
-        if isinstance(step.get("model"), dict) and step["model"].get("builtin") != "image-preparer":
+        if isinstance(step.get("model"), dict):
             assert step["model_name"], step
             assert step["model_link"] is None or step["model_link"].startswith("https://"), step
         else:

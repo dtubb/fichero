@@ -3087,13 +3087,13 @@ Setup
 - `source.onboard.stages.page-says-what-it-does` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` (the sentence as the page's subtitle, then its example). each stage page opens with what
   the stage does in one sentence, with an example, in the job registry's words (section 7a).
   *Test:* pure Swift, the page's first line is the engine's sentence for that stage.
-- `source.onboard.stages.layout-forms` — **[GAP]** (#5802) Find Regions' "Columns, margins and glosses? Tables on the
+- `source.onboard.stages.layout-forms` — **[PARTIAL]** (#5802; built: the choice, and the answer in the step's `settings.layout`, `fichero-server/tests/unit/recipes/test_layout_forms_mixed_writing_model_links_5802.py`; not built: Find Regions acting on it, and the app's checkbox beyond what the stage questions already draw) Find Regions' "Columns, margins and glosses? Tables on the
   pages?" gains Forms; the answer reaches the plan as the find-regions step's `settings.layout`.
-- `source.onboard.stages.mixed-writing-per-region` — **[GAP]** (#5802) a Find Regions answer, worded "Handwriting and
+- `source.onboard.stages.mixed-writing-per-region` — **[PARTIAL]** (#5802; built: the plan's two readers and `route_by` (same test file); not built: the runner routing region by region) a Find Regions answer, worded "Handwriting and
   print on the same page", makes the plan route each region to a reader that fits it: the reading step carries one
   reader for handwriting and one for print and `settings.route_by` "region". Running the routing region by region is
   a later piece.
-- `source.onboard.stages.step-names-its-model` — **[GAP]** (#5802, #5808) "Which model does it" never shows a bare
+- `source.onboard.stages.step-names-its-model` — **[PARTIAL]** (#5802, #5808; built: the plan's `model_name`/`model_link`/`needs` (same test file); not built: the app drawing them instead of the radio button, and #5808's candidate links) "Which model does it" never shows a bare
   radio button: every plan step carries `model_name` and `model_link` (Hugging Face, Zenodo or the tool's own page),
   or `needs`, the answer still missing, in words. The candidate source is the one the stage's Compare uses (#5808).
 - `source.onboard.stages.page-who-runs-it` — **[PARTIAL]** (#5668) **Built 2026-10-11 (app), not yet seen:** `SetupStagePage` shows the plan's rows for its own jobs (`RecipeStepsView(onlyJobs:)`) with the finder and, for Read and Find Lines, the comparison; the finder still searches readers only (`source.onboard.models.chooser-per-step`). each stage page shows who runs each of
