@@ -174,6 +174,13 @@ final class ActivityStore: ChangeEventConsumer {
     /// How often the jobs endpoint is polled. Loopback + a point-in-time read,
     /// so 2s is live enough for a progress bar without adding real load.
     private let jobsPollInterval: Duration = .seconds(2)
+    /// Jobs reads that failed in a row, for the reconnect backoff and the one reload when the engine answers again.
+    private(set) var jobsPollFailures = 0
+
+    /// How long to wait after `failures` failed reads in a row: 2 s, doubling to at most 30 s.
+    static func pollInterval(afterFailures failures: Int) -> Duration {
+        .seconds(min(30, 2 << min(max(failures, 0), 4)))
+    }
 
     /// `projectKey` names the project the put-away runs are kept for when there is no
     /// `library` (tests); with a library it is the library's id.
@@ -213,8 +220,8 @@ final class ActivityStore: ChangeEventConsumer {
             await self?.restoreProjectRun()
             while !Task.isCancelled {
                 await self?.refreshBackgroundJobs()
-                guard let interval = self?.jobsPollInterval else { return }
-                try? await Task.sleep(for: interval)
+                guard let self else { return }
+                try? await Task.sleep(for: jobsPollFailures == 0 ? jobsPollInterval : Self.pollInterval(afterFailures: jobsPollFailures))
             }
         }
     }
@@ -253,7 +260,9 @@ final class ActivityStore: ChangeEventConsumer {
             }
             await followProjectRun(in: snapshot.jobs)
             if let library { setLoadFailure(nil, library: library.id, source: .jobs) }
+            jobsPollSucceeded()
         } catch {
+            jobsPollFailed(error)
             // A refusal is a standing answer, not a blip: it reaches the footer
             // with its cause, through the run list's own message (#5469).
             // Anything else (a restarting engine) stays quiet; the next tick recovers.
@@ -265,6 +274,30 @@ final class ActivityStore: ChangeEventConsumer {
             log.error("ActivityStore: jobs poll refused: \(message, privacy: .public)")
             setLoadFailure(message, library: library.id, source: .jobs)
         }
+    }
+
+    /// A read failed. An engine that is not there (a restart, a held socket gone) is said in words in the footer and read
+    /// again with a growing wait; the run list, which loaded once and failed, reloads when the engine answers
+    /// (`activity.reconnects-after-engine-restart`).
+    func jobsPollFailed(_ error: Error) {
+        guard AccessError.classify((error as? ClientError)?.underlyingError ?? error) == .engineUnreachable else { return }
+        jobsPollFailures += 1
+        // Each failed read dials the endpoint as the engine config says now, not as it was at the first connect.
+        reresolveEndpoint()
+        if let library {
+            setLoadFailure(Self.runLoadFailureMessage(libraryName: library.displayName, error: error),
+                           library: library.id, source: .jobs)
+        }
+    }
+
+    /// How the store reads the endpoint again; the library's by default, replaceable by a test.
+    @ObservationIgnored lazy var reresolveEndpoint: () -> Void = { [weak self] in self?.library?.reresolveEndpoint() }
+
+    /// A read succeeded: after failures, the run list is read again (the window reloads on `refreshToken`).
+    func jobsPollSucceeded() {
+        guard jobsPollFailures > 0 else { return }
+        jobsPollFailures = 0
+        refreshToken += 1
     }
 
     /// The jobs read's figures beside its rows (CPU, the pause, the mode, this
