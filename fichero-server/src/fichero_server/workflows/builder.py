@@ -1527,6 +1527,7 @@ def _make_fan_out_function(
                             "task_id": state.get("task_id", ""),
                             "workflow_id": state.get("workflow_id", ""),
                             "library_path": state.get("library_path", ""),
+                            "only_doc_ids": state.get("only_doc_ids") or [],
                         },
                     )
                 )
@@ -1683,6 +1684,7 @@ def _make_route_map_fan_out_function(
                         "task_id": state.get("task_id", ""),
                         "workflow_id": state.get("workflow_id", ""),
                         "library_path": state.get("library_path", ""),
+                        "only_doc_ids": state.get("only_doc_ids") or [],
                     },
                 )
             )
@@ -1864,6 +1866,15 @@ def _make_parallel_node_function(
 
         if _run_cancelled():
             return _with_chaining(_cancelled_result(), failed=True, error="cancelled")
+
+        # A reopened run reads only the documents it names (`State.only_doc_ids`): the others stay as they were, and
+        # are not read, whatever file list the run's checkpoint still holds (Retry on a stopped run's page).
+        only_docs = state.get("only_doc_ids") or []
+        if only_docs and isinstance(document, dict) and not ({document.get("id"), document.get("parent_id")} & set(only_docs)):
+            return _with_chaining(
+                {"parallel_results": {node_id: [{"file": file_path, "index": index, "total": total, "success": False,
+                                                 "cancelled": True, "skipped": True, "error": "not part of this reopen"}]}},
+                failed=True, error="not part of this reopen")
 
         event_document_meta: dict[str, Any] = {}
         if isinstance(document, dict):
@@ -2332,8 +2343,9 @@ def _make_aggregation_function(node_id: str):
             )
             return {}
 
-        # Sort by index to maintain order
-        sorted_results = sorted(parallel_results, key=lambda x: x.get("index", 0))
+        # Sort by index to maintain order. A file a reopen left out (`only_doc_ids`) is neither read nor failed: it is not
+        # counted at all, so it can neither fail the run nor raise the error rate.
+        sorted_results = sorted((r for r in parallel_results if not r.get("skipped")), key=lambda x: x.get("index", 0))
 
         # Aggregate results
         all_texts = []
