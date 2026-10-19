@@ -55,4 +55,23 @@ struct ActivityPopoverAgreesWithWindowTests {
         #expect(section.blocks.count == 2 && section.blocks[0] == popover.blocks[0])
         #expect(section.background.map(\.text) == popover.background.map(\.text) + popover.background.map(\.text))
     }
+
+    @Test func oneOfOneReadsAsASingularPageAndFolder() throws {
+        let json = """
+        {"live": [{"id": "r", "recipe": "R", "stage": "S", "workflow": "W", "state": "running", "done": 1,
+                   "failed": 0, "left": 0, "total": 1, "folders_done": 1, "folders_total": 1}],
+         "background": [], "history": 0}
+        """
+        let one = try JSONDecoder().decode(Components.Schemas.ActivitySummary.self, from: Data(json.utf8))
+        let block = try #require(ActivityPopoverSummary(jobs: [], paused: false, activity: one).blocks.first)
+        #expect(block.counts == "1 of 1 page · 1 of 1 folder")
+    }
+
+    @Test func aRunningJobOfAKindTheSummaryHasALineForIsNotSaidTwice() throws {
+        let jobs = [ActivityJob(id: "t", taskType: "thumbnail", name: "Thumbnails", current: 5, total: 9, state: .running),
+                    ActivityJob(id: "x", taskType: "other", name: "Something else", current: 1, total: 2, state: .running)]
+        let popover = ActivityPopoverSummary(jobs: jobs, paused: false, activity: try summary())
+        #expect(popover.running.map(\.name) == ["Something else"])
+        #expect(popover.background.map(\.id).contains("thumbnail"))
+    }
 }

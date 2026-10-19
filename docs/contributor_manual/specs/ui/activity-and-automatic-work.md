@@ -653,7 +653,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   job as the first thing seen (`activity.window.table` keeps the rows underneath). Engine side: `activity.live` in the jobs
   response is one `LiveBlock` per live recipe run (recipe, the stage running, its workflow, done / failed / left, folders done
   of total) and per workflow run outside a recipe (`fichero-server/tests/unit/jobs/test_activity_summary_one_source.py`).
-  The window draws it above the table, in the popover's words (`ActivityLiveSection`; needs compile; `fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`). Not yet: opening it to the files (`activity.window.acts-on`).
+  The window draws it above the table, in the popover's words (`ActivityLiveSection`; needs compile; `fichero/Tests/Unit/general/Models/ActivityPopoverAgreesWithWindowTests.swift`; counts use the singular for 1, and a job of a kind the summary has a line for is not also a running row). Not yet: opening it to the files (`activity.window.acts-on`).
 - `activity.window.acts-on` — **[GAP]** (#5839) the live block says what it acts on with counts ("Read: 7 of 20 pages,
   folder X"), and the whole list of pages expands under it, each with its state. Supersedes the next-three-rows view in
   `activity.run.says-what-it-reads` and `activity.window.expand` for a recipe run. (Not yet written:

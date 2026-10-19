@@ -165,14 +165,7 @@ struct ActivityMonitorWindow: View {
             } else {
                 OutlineGroup(sortedRows, children: \.children) { row in TableRow(row) }
             }
-            // Ended, stopped and interrupted jobs the engine folded away (`activity.window.history-group`, #5851).
-            if !historyRows.isEmpty {
-                Section {
-                    OutlineGroup(historyRows, children: \.children) { row in TableRow(row) }
-                } header: {
-                    Text("History").accessibilityIdentifier("activity.group.history")
-                }
-            }
+            historyTableRows
         }
         .accessibilityIdentifier("activity.table")
         .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
@@ -192,6 +185,17 @@ struct ActivityMonitorWindow: View {
         #if os(macOS)
         .onDeleteCommand { Task { await deleteRuns(withIDs: selectedIDs) } }
         #endif
+    }
+
+    /// Ended, stopped and interrupted work the engine folded away (`activity.window.history-group`, #5851); its own
+    /// property so the table's row builder stays small enough to type-check.
+    @TableRowBuilder<ActivityMonitorRow>
+    private var historyTableRows: some TableRowContent<ActivityMonitorRow> {
+        if !historyRows.isEmpty {
+            Section("History") {
+                OutlineGroup(historyRows, children: \.children) { row in TableRow(row) }
+            }
+        }
     }
 
     @ViewBuilder
