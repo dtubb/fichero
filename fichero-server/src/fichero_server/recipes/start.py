@@ -197,6 +197,17 @@ def _override(pin: dict) -> tuple[str, str] | None:
     return ("omlx", model) if model else None
 
 
+def _about(problem: str, only: set[str] | None) -> bool:
+    """Whether a recipe-check problem concerns the steps asked for: a stage's plan (`only`) is refused for its own
+    steps' problems, not another step's (#5806); the recipe's own (schema, a missing key) are everyone's."""
+    return only is None or not problem.startswith("step ") or any(f"({sid})" in problem for sid in only)
+
+
+def _pin_words(pin: dict) -> str:
+    """A pin as a person reads it: its repository or DOI, else the pin itself."""
+    return str(pin.get("hf") or pin.get("zenodo") or pin)
+
+
 def _reading_run(job: str, pin: dict) -> dict[str, Any] | None:
     """The shipped workflow and run override that read with `pin` for a `read-a-line` or override job, or None
     when no workflow can: a vision model reads the lines Kraken found; a Kraken reader finds and reads them; the
@@ -321,6 +332,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
     fallbacks: list[dict[str, Any]] = []
     #: Steps kept in the recipe with no model (`source.onboard.no-model-step-kept`): skipped, never refusing Start.
     needs_a_model: list[dict[str, Any]] = []
+    #: A saved reader pin no workflow can run (#5800): refused in words, never quietly kept as the old reader.
+    unrunnable: list[str] = []
 
     def skip(sid: str, why: str, fix: str | None = None) -> None:
         # `fix`: the button setup offers for it, in the words of a step problem's `fix` (choose-model,
@@ -504,6 +517,9 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
         elif job == "read-a-line" or job in _OVERRIDE_JOBS:
             reading = _reading_run(job, pin)
             if reading is None:
+                if job == "read-a-line":
+                    unrunnable.append(f"{_pin_words(pin)} is not a model Fichero can find here: choose another reader "
+                                      f"for {step.get('title') or sid}")
                 skip(sid, f"{label}: the reader {pin} is not in the Kraken catalogue this Mac can fetch, so no "
                           "workflow can read with it" if job == "read-a-line" else
                           f"{label}: {name} cannot run the model {pin}", "choose-model")
@@ -580,7 +596,8 @@ def plan_start(recipe: dict | None, *, stays_local: bool, only: set[str] | None 
                      for i, s in enumerate(recipe.get("steps") or [], start=1)
                      if s.get("id") in kept_ids and "model" in s and s["model"] is None}
     # A recipe that does not pass the check never starts (`source.recipe.steps-are-jobs`).
-    refusals = [r for r in check_recipe(recipe) if r not in no_model_said]
+    refusals = [r for r in check_recipe(recipe) if r not in no_model_said and _about(r, only)]
+    refusals += unrunnable
     every = _with_readers(runs)  # each step's readers per kind are fetched and checked like its own model (#5578)
     downloads = runtime_to_set_up(every) + missing_models(every) + local_models_to_download(every)
     if db is not None:

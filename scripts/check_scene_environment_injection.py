@@ -124,9 +124,9 @@ DETACHED_SCENES: dict[str, str] = {
     "document-detail (WindowGroup)":
         "Injects libraryManager + the claim/KG focus states; resolves its own library services from those.",
     "Activity (Window)":
-        "Injects libraryManager + the app execution observer; resolves the active library's stores itself.",
+        "Injects libraryManager, appState (#5811) + the app execution observer; resolves the active library's stores itself.",
     "Activity Detail (Window)":
-        "Injects libraryManager, the execution observer, and the per-library stores its panes read "
+        "Injects libraryManager, appState (#5811), the execution observer, and the per-library stores its panes read "
         "(activityStore/apiClient/documentStore/workflowExecutionStore/artifactService — #4513).",
     "Settings (Settings)":
         "Separate scene by construction; re-injects appState, backendService, libraryManager, "
@@ -281,7 +281,7 @@ def injected_types(text: str, services: set[str], property_types: dict[str, str]
     for arg in _ENVIRONMENT_CALL.findall(text):
         arg = arg.strip()
         bare = arg.split(".")[-1]
-        for candidate in (property_types.get(bare), arg.split(".")[0], bare):
+        for candidate in (property_types.get(bare), arg.split(".")[0], bare, bare[:1].upper() + bare[1:]):
             if candidate in services:
                 injected.add(candidate)
                 break
@@ -456,7 +456,9 @@ def scan(
     helper_env_file: Path = SERVICE_ENV_HELPER_FILE,
 ) -> tuple[dict[str, str], int]:
     """`({"<scene> needs <Service>": detail}, scenes examined)`."""
-    services = canonical_services(workspace_file, manager_file, helper_env_file)
+    # AppState is app-scoped, not library-scoped, but crosses a scene boundary no better (#5811: the Activity Detail
+    # window Start opens read it and trapped, killing the app).
+    services = canonical_services(workspace_file, manager_file, helper_env_file) | {"AppState"}
     property_types = library_property_types(manager_file)
     helper_services = frozenset(
         injected_types(_read_text(helper_env_file), services, property_types) if helper_env_file.exists() else ()

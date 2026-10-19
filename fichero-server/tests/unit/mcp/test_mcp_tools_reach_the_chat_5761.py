@@ -185,3 +185,26 @@ def test_a_chat_whose_actor_is_not_the_owner_is_offered_no_mcp_tools(client, db,
     ctx = ActionContext(actor="an-editor", library_path=None)
     asyncio.run(_run_chat_tools_loop(llm, [], db=db, ctx=ctx))
     assert not [n for n in _names(llm) if n.startswith("mcp__")], _names(llm)
+
+
+def test_names_stay_within_64_characters_and_sanitised_names_do_not_collide():
+    from fichero_server.actions.mcp_chat import tool_key
+
+    long_a, long_b = tool_key("s" * 40, "t" * 40 + "a"), tool_key("s" * 40, "t" * 40 + "b")
+    assert len(long_a) <= 64 and len(long_b) <= 64 and long_a != long_b
+    assert tool_key("srv", "a.b") != tool_key("srv", "a_b")
+    assert tool_key("x.y", "t") != tool_key("x_y", "t")
+    assert all(c.isalnum() or c in "_-" for c in tool_key("my server", "get.thing"))
+
+
+def test_an_editors_direct_invoke_of_mcp_call_tool_is_refused_even_when_the_server_is_switched_on(client, db, server):
+    from fichero_server.actions.registry import ActionContext, registry
+    from fichero_server.security.authz import AuthorizationError
+
+    client.put(f"/api/mcp-servers/{server['id']}", json={"available_to_chat": True})
+    before = len(db.list_action_audits()) if hasattr(db, "list_action_audits") else None
+    editor = ActionContext(actor="an-editor", library_path=None)
+    with pytest.raises(AuthorizationError):
+        registry.invoke(db, "mcp.call_tool", {"server": "echoer", "tool": "echo", "arguments": {"text": "hi"}}, editor)
+    if before is not None:
+        assert len(db.list_action_audits()) == before
