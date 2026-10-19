@@ -157,6 +157,8 @@ def build_initial_state(
         # Without this, selected_doc_ids gets dropped when LangGraph initialises
         # channels from the State TypedDict.
         "selected_doc_ids": inputs.get("selected_doc_ids") or [],
+        # A reopened run reads only these documents (`State.only_doc_ids`); declared so LangGraph keeps it.
+        "only_doc_ids": inputs.get("only_doc_ids") or [],
         # A run on segments (#5604); dropped as an undeclared channel, it would read whole pages.
         # Never taken from `inputs`: only the runner sets it, from a selection the execute route
         # checked against the workflow's steps (`selection.refuse_unfit_selection`).
