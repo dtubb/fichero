@@ -5993,7 +5993,7 @@ async def process_vision(
         activity_scope = _vision_activity_db_path.set(activity_db_path)
         try:
             # The page gate first, so a page waiting for Kraken does not hold a vision slot others could use.
-            async with _page_gate(), vision_slot():
+            async with _page_gate(), vision_slot(neural=vision_mode == "apple"):
                 return await _process_file(file_index, file_path)
         except TypeError as exc:
             # The inner handler deliberately re-raises a malformed CALL (#4504).
