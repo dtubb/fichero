@@ -56,10 +56,7 @@ def embed_threads() -> int:
     Combined with :func:`embed_concurrency` (default 1) this keeps total embedding
     CPU near half the machine even under a bulk import.
     """
-    from fichero_server.execution.throttle import slowed_for_use
-
-    # Half again while the person uses the Mac: slower, never stopped (#5819).
-    return slowed_for_use(_env_positive_int("FICHERO_EMBED_THREADS", max(1, cpu_count() // 2)))
+    return _env_positive_int("FICHERO_EMBED_THREADS", max(1, cpu_count() // 2))
 
 
 def embed_concurrency() -> int:

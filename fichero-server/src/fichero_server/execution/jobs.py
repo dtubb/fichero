@@ -68,7 +68,7 @@ logger = logging.getLogger(__name__)
 
 #: App setting holding the global pause (`activity.pause.global-survives-relaunch`).
 PAUSE_SETTING_KEY = "background_work_paused"
-#: App setting holding *Start* (`activity.mode.start-stop`, #5621): the holds for the person at the Mac
+#: App setting holding *Start* (`activity.mode.start-stop`, #5621): the holds for a build
 #: and for battery are lifted for waiting work until the person goes back to automatic.
 STARTED_SETTING_KEY = "background_work_started"
 #: The three modes of background work (`activity.mode.start-stop`).
@@ -1543,7 +1543,7 @@ def set_paused(paused: bool) -> None:
 
 def is_started() -> bool:
     """*Start* is on (`activity.mode.start-stop`, #5621): waiting work goes ahead although the person is
-    at the Mac or it is on battery. Memory and heat still hold it (`throttle.why_wait`)."""
+    on battery or a build runs. Memory and heat still hold it (`throttle.why_wait`)."""
     from fichero_server.db.app import get_app_db
 
     try:
@@ -1560,7 +1560,7 @@ def mode() -> str:
 
 def set_mode(new_mode: str) -> None:
     """THE one way the Start / Stop control changes how work runs (`activity.mode.start-stop`): *Stop*
-    pauses all background work, *Start* lifts the holds for the person at the Mac and for battery,
+    pauses all background work, *Start* lifts the holds for a build and for battery,
     *automatic* clears both. Both settings are written, so the mode is one of the three, never a mix."""
     if new_mode not in MODES:
         raise ValueError(f"no mode {new_mode!r}; one of {', '.join(MODES)}")
@@ -1663,7 +1663,7 @@ PAUSED_REASON = "Paused by you"
 def _decided_here(reason: str) -> bool:
     """A reason this function decides afresh each time it is asked (the throttle's, thumbnails first,
     the pause): one stored on the row by an earlier scan says what held the job THEN, not now (#5606:
-    "you're using the Mac" was still shown long after the Mac was idle)."""
+    "the Mac is on battery" was still shown long after it was plugged in)."""
     return reason.startswith("Waiting: ") or reason == PAUSED_REASON
 
 
