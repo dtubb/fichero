@@ -279,11 +279,16 @@ final class ActivityStore: ChangeEventConsumer {
     func jobsPollFailed(_ error: Error) {
         guard AccessError.classify((error as? ClientError)?.underlyingError ?? error) == .engineUnreachable else { return }
         jobsPollFailures += 1
+        // Each failed read dials the endpoint as the engine config says now, not as it was at the first connect.
+        reresolveEndpoint()
         if let library {
             setLoadFailure(Self.runLoadFailureMessage(libraryName: library.displayName, error: error),
                            library: library.id, source: .jobs)
         }
     }
+
+    /// How the store reads the endpoint again; the library's by default, replaceable by a test.
+    @ObservationIgnored lazy var reresolveEndpoint: () -> Void = { [weak self] in self?.library?.reresolveEndpoint() }
 
     /// A read succeeded: after failures, the run list is read again (the window reloads on `refreshToken`).
     func jobsPollSucceeded() {

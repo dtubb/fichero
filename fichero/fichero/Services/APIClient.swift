@@ -76,6 +76,11 @@ class APIClient {
         client.reconfigure(baseURL: baseURL)
     }
 
+    /// The host and how to dial it, read again (`activity.reconnects-after-engine-restart`).
+    func reconfigure(baseURL: URL, transportMode: TransportMode) {
+        client.reconfigure(baseURL: baseURL, transportMode: transportMode)
+    }
+
     /// Test seam: wrap an already-configured `FicheroClient` (e.g. one bound to a
     /// MockURLProtocol session) so service unit tests can drive the real
     /// response-mapping switch without a live engine. Not used in production.

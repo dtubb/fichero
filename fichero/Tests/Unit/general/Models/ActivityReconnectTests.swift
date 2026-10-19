@@ -51,4 +51,15 @@ struct ActivityReconnectTests {
         store.jobsPollFailed(AccessError.unauthenticated)
         #expect(store.jobsPollFailures == 0)
     }
+
+    @Test func eachFailedReadReadsTheEndpointAgain() {
+        let store = store()
+        var resolved = 0
+        store.reresolveEndpoint = { resolved += 1 }
+        store.jobsPollFailed(socketError)
+        store.jobsPollFailed(socketError)
+        #expect(resolved == 2, "a retry dials the endpoint as the engine config says now, not the first connect's")
+        store.jobsPollFailed(AccessError.unauthenticated)
+        #expect(resolved == 2, "a refusal is not the engine being away")
+    }
 }
