@@ -305,13 +305,15 @@ def person_is_waiting(db: "Database | None" = None, job_id: str | None = None):
 
 def wait_on(db: "Database", job_id: str, words: str) -> None:
     """A running job starts waiting for something: its reason says what, and Activity lists it as waiting (#5839)."""
-    db.execute("UPDATE jobs SET reason = ?, waiting_on = ? WHERE id = ?", [words, words, job_id])
+    if _has_column(db, "waiting_on"):
+        db.execute("UPDATE jobs SET reason = ?, waiting_on = ? WHERE id = ?", [words, words, job_id])
 
 
 def wait_over(db: "Database", job_id: str) -> None:
     """The wait ended: the row reads running again, its wait's words gone from its reason."""
-    db.execute("UPDATE jobs SET reason = CASE WHEN reason = waiting_on THEN NULL ELSE reason END, waiting_on = NULL "
-               "WHERE id = ?", [job_id])
+    if _has_column(db, "waiting_on"):
+        db.execute("UPDATE jobs SET reason = CASE WHEN reason = waiting_on THEN NULL ELSE reason END, "
+                   "waiting_on = NULL WHERE id = ?", [job_id])
 
 
 #: How often a try's row looks again at what its waiting page waits for.
@@ -708,9 +710,10 @@ _ALTER_FAILURES_LOGGED: set[str] = set()
 
 def apply_added_columns(execute: Callable[..., Any], path: str) -> bool:
     """Add the columns later releases gave `jobs` (idempotent). A statement that fails is logged ONCE per library
-    and statement and the rest still run. Only `cleared_at`, the newest column, has a fallback: the list shows every
-    failed job when it is missing (`_has_cleared_at`); the older columns are required, and a failure that hits all of
-    them (a read-only file, a lock) is not hidden by a list that degrades (#5814, review 204). Returns whether every
+    and statement and the rest still run. Only the two newest columns have a fallback: the list shows every failed job
+    when `cleared_at` is missing (`_has_cleared_at`) and lists no row as waiting by `waiting_on` when that is missing
+    (`wait_on` and `wait_over` do nothing); the older columns are required, and a failure that hits all of them (a
+    read-only file, a lock) is not hidden by a list that degrades (#5814, review 204, review 237). Returns whether every
     statement applied."""
     done = True
     for statement in _ADDED_COLUMNS:
@@ -737,13 +740,24 @@ def _ensure(db: "Database") -> None:
             db._jobs_columns_on = db.conn
 
 
-def _has_cleared_at(db: "Database") -> bool:
-    """Whether `jobs.cleared_at` is there; false only when its ALTER failed, and the lists then show every failed job."""
+def _has_column(db: "Database", name: str) -> bool:
+    """Whether `jobs.<name>` is there; false only when its ALTER failed (every added column was applied when this
+    connection's `_jobs_columns_on` is set)."""
     if getattr(db, "_jobs_columns_on", None) is db.conn:
         return True
     return db.execute_fetchone(
-        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = 'cleared_at'"
+        "SELECT 1 FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = ?", [name]
     ) is not None
+
+
+def _has_cleared_at(db: "Database") -> bool:
+    """The lists show every failed job when `cleared_at` is missing."""
+    return _has_column(db, "cleared_at")
+
+
+def _clear_waiting_on(db: "Database") -> str:
+    """`, waiting_on = NULL` for an UPDATE's SET list when the column is there, else nothing."""
+    return ", waiting_on = NULL" if _has_column(db, "waiting_on") else ""
 
 
 def enqueue(db: "Database", kind: str, subject: str, *, started_by: str = "automatic",
@@ -1264,7 +1278,7 @@ def resume(db: "Database") -> None:
         [utc_now(), STOPPING, *RUN_KINDS],
     )
     db.execute(
-        "UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on' WHERE state = 'running'"
+        f"UPDATE jobs SET state = 'waiting', reason = 'Interrupted; carries on'{_clear_waiting_on(db)} WHERE state = 'running'"
     )
     if db.execute_fetchone("SELECT 1 FROM jobs WHERE state = 'waiting' LIMIT 1"):
         _scheduler.wake(_key(db))
@@ -1661,8 +1675,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
     with the reason in words. Read by `/api/activity/jobs`."""
     _ensure(db)
     cleared_filter = " AND cleared_at IS NULL" if _has_cleared_at(db) else ""
+    waiting_on_col = "waiting_on" if _has_column(db, "waiting_on") else "NULL AS waiting_on"
     rows = db.execute_fetchall(
-        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, waiting_on FROM ("
+        "SELECT id, kind, subject, state, reason, attempts, created_at, parent_id, run_after, finished_at, started_by, "
+        f"{waiting_on_col} FROM ("
         " SELECT * FROM jobs WHERE state IN ('waiting', 'running', 'paused') AND kind NOT IN ('workflow', 'workflow-step')"
         " UNION ALL"
         " (SELECT * FROM jobs WHERE state = 'failed' AND kind NOT IN ('workflow', 'workflow-step')"
@@ -2221,7 +2237,7 @@ class _Scheduler:
                     continue
                 db.execute(
                     "UPDATE jobs SET state = 'running', started_at = ?, attempts = attempts + 1, "
-                    "reason = ? WHERE id = ? AND state = 'waiting'",
+                    f"reason = ?{_clear_waiting_on(db)} WHERE id = ? AND state = 'waiting'",
                     [utc_now(), "Running although background work is paused"
                      if handed_in is not None and is_paused() else None, row[0]],
                 )
@@ -2465,7 +2481,7 @@ class _Scheduler:
         if state in ("waiting", "running"):  # deferred or out of reach: not finished, and not failed;
             # it comes back (deferred: soon; out of reach: when the library next opens), and its watchers wait on
             if db_manager.open_database(key) is db:
-                db.execute("UPDATE jobs SET state = ?, reason = ?, waiting_on = NULL, attempts = attempts - 1 WHERE id = ?",
+                db.execute(f"UPDATE jobs SET state = ?, reason = ?{_clear_waiting_on(db)}, attempts = attempts - 1 WHERE id = ?",
                            [state, reason, job_id])
             if state == "waiting":
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
@@ -2477,7 +2493,7 @@ class _Scheduler:
             return
         # The row first, then whoever waits: a caller told the outcome must find it on the row.
         if db_manager.open_database(key) is db:
-            db.execute("UPDATE jobs SET state = ?, reason = ?, finished_at = ?, waiting_on = NULL WHERE id = ?",
+            db.execute(f"UPDATE jobs SET state = ?, reason = ?, finished_at = ?{_clear_waiting_on(db)} WHERE id = ?",
                        [state, reason, utc_now(), job_id])
         # (closed while it ran: the row stays `running` and resumes when the library opens)
         with self._lock:

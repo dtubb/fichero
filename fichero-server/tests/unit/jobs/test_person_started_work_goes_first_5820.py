@@ -174,3 +174,29 @@ def test_parallel_pages_of_one_try_do_not_fight_over_its_row(db, monkeypatch):
     said, later = asyncio.run(go())
     assert "first lane wait" in said
     assert "second lane wait" in later
+
+
+def test_a_library_without_the_waiting_on_column_still_lists_and_waits_become_no_ops(db, lane, monkeypatch):
+    jobs._ensure(db)
+    db.execute("DROP TABLE jobs")
+    db.execute(jobs._SCHEMA)
+    monkeypatch.setattr(jobs, "_ADDED_COLUMNS", tuple(s for s in jobs._ADDED_COLUMNS if "waiting_on" not in s))
+    db._jobs_columns_on = None
+    job_id = jobs.enqueue(db, WATCHED, "try", started_by="owner", watched=True)
+    assert _wait_for(lambda: lane.started == ["try"])
+
+    jobs.wait_on(db, job_id, "Waiting for Kraken")  # no column: nothing to write
+    jobs.wait_over(db, job_id)
+
+    assert [r["state"] for r in jobs.snapshot(db) if r["id"] == job_id] == ["running"]
+
+
+def test_a_stale_waiting_on_does_not_survive_the_row_starting(db, lane):
+    jobs.set_paused(True)
+    job_id = jobs.enqueue(db, WATCHED, "try", started_by="owner", watched=True)
+    db.execute("UPDATE jobs SET waiting_on = 'Waiting for Kraken (left over)' WHERE id = ?", [job_id])
+    lane.release.set()
+    jobs.set_paused(False)
+    assert _wait_for(lambda: lane.started == ["try"])
+    assert [r["state"] for r in jobs.snapshot(db) if r["id"] == job_id] in (["running"], [])
+    assert db.execute_fetchone("SELECT waiting_on FROM jobs WHERE id = ?", [job_id])[0] is None
