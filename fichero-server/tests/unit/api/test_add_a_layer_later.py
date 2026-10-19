@@ -216,7 +216,7 @@ def test_swapping_the_reader_after_start_rewrites_nothing_and_a_new_page_gets_th
     _page(db, lines=3, read=2)
     _start(client)
     before, made = _runs(client), _everything(db)
-    swapped = {"zenodo": "10.5281/zenodo.99"}
+    swapped = {"hf": "mlx-community/swapped-vlm-4bit", "revision": "main"}  # a pin the plan can run: an MLX build
     saved = client.get("/api/recipes/project").json()
     for step in saved["recipe"]["steps"]:
         if step["job"] == "read-a-line":
@@ -237,4 +237,4 @@ def test_swapping_the_reader_after_start_rewrites_nothing_and_a_new_page_gets_th
     assert job_id and len(_runs(client)) == count + 1
     newest = _runs(client)[0]
     assert newest["started_by"] == "import" and newest["documents"] == [arrived.id]
-    assert "zenodo.99" in str(jobs.read_job(db, job_id)), "the new page is read with the swapped reader"
+    assert "mlx-community/swapped-vlm-4bit" in str(jobs.read_job(db, job_id)), "the new page is read with the swapped reader"
