@@ -42,3 +42,19 @@ def test_a_locale_this_mac_lacks_is_said_in_words_without_the_dump(monkeypatch):
     with pytest.raises(ValueError) as caught:
         vision_base.validate_vision_language("es")
     assert str(caught.value) == "Apple Vision can't read Spanish on this Mac. Choose another reader for this step."
+
+
+def test_set_up_saved_languages_are_the_projects_language_when_no_fact_row_was_written(tmp_path, monkeypatch):
+    """Set Up saves `answers.languages`, never the project-fact row (review 350): the function the run calls must read it."""
+    from fichero_server.db import db_manager
+    from fichero_server.recipes.project import write_project_setup
+    from fichero_server.workflows.tools.transcribe import _project_language
+
+    class NoFacts:
+        def get(self, *_args):
+            return None
+
+    monkeypatch.setattr(db_manager, "get_database", lambda path: NoFacts())
+    write_project_setup(tmp_path, {"languages": ["es"], "scripts": ["Latn"]}, None)
+    assert _project_language({"library_path": str(tmp_path)}) == "es"
+    assert _project_language({"library_path": ""}) is None
