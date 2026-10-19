@@ -704,6 +704,15 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   (`fichero-server/tests/unit/core/test_keychain_and_child_counts_off_the_loop.py`).
 - `activity.engine.child-counts-off-the-loop` — **[OK]** (owner, 2026-10-19) `GET /documents/{id}/children` counts each child's
   children on a worker thread, not the event loop (same test).
+- `activity.throttle.person-heavy-first` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun for ever while the
+  project's thumbnails, 47-61 s each, took every heavy slot in turn) while memory is busy and only one heavy job runs at a time,
+  a heavy lane's background work steps aside for a page handed in on another heavy lane whose run a PERSON started and that the
+  throttle lets go now, for at most 20 s in a row (a background run's page, or a person's page that cannot start, never makes it
+  yield), so that page takes the next slot (`fichero-server/tests/unit/jobs/test_person_heavy_first.py`).
+- `recipes.try.says-what-it-waits-for` — **[OK]** (owner, 2026-10-19) the try's result (`GET /api/recipes/stages/{stage}/try`)
+  carries `waiting_for`, in words, while its job waits or runs ("Copying the sample pages for Find Lines", "Waiting for the model
+  lane: …", "Trying Read: …"), so the stage page never shows a spinner with no words (same test file). The stage page shows
+  it: Set Up's Swift (r1, `briefs/r1-try-progress-2026-10-19.md`).
 - `activity.popover.same-summary` — **[PARTIAL]** (#5852) the popover and the window read ONE engine summary and always
   agree (section A's one-summary rule); the popover shows the live Recipe › Stage › Workflow with "7 of 20 pages · folder
   …", one line per background kind, waits that look waiting, no stale runs, and Open Activity. Supersedes the content of

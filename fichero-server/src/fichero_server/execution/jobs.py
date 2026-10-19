@@ -1168,6 +1168,11 @@ READING_FIRST_REASON = "Waiting for reading to finish"
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
 
+#: How soon a heavy lane that stepped aside for a person's page on another heavy lane looks again.
+PERSON_HEAVY_LOOK_AGAIN_SECONDS = 0.25
+#: The most a heavy lane steps aside, in a row, for a person's page on another heavy lane.
+PERSON_HEAVY_YIELD_SECONDS = 20.0
+
 #: How soon the model lane looks again at a job held by the throttle.
 THROTTLE_LOOK_AGAIN_SECONDS = 5.0
 
@@ -2384,6 +2389,7 @@ class _Scheduler:
         #: Work handed in by waiting callers, by job id: (the work, the caller's future).
         self._attached: dict[str, tuple[Callable[[], Any], Future]] = {}
         self._stopping: set[str] = set()  # running pages a person stopped: their result is dropped
+        self._yielding_since: dict[str, float] = {}  # heavy lane -> when it began stepping aside for a person's page
         #: Futures waiting on stored jobs, by job id (`enqueue_many`).
         self._watchers: dict[str, list[Future]] = {}
         _SCHEDULERS.add(self)
@@ -2563,7 +2569,48 @@ class _Scheduler:
             if memory_is_busy() and self.heavy_running() is not None:
                 lane.look_again_at = time.monotonic() + THROTTLE_LOOK_AGAIN_SECONDS
                 return None
+            if memory_is_busy() and self._yields_to_a_person(lane):
+                lane.look_again_at = time.monotonic() + PERSON_HEAVY_LOOK_AGAIN_SECONDS
+                return None
             return self._claim_one(lane)
+
+    def _yields_to_a_person(self, lane: _Lane) -> bool:
+        """Whether this heavy lane's background work lets a PERSON'S page on another heavy lane have the next slot
+        (`activity.throttle.person-heavy-first`; review 308): only a page whose run a person started, that can start now
+        (the throttle does not hold it), and for at most `PERSON_HEAVY_YIELD_SECONDS` in a row, so a page that cannot
+        start never holds this lane for good. A background run's handed-in page never makes it yield."""
+        if self.someone_is_waiting(lane.name):
+            return False  # this lane has a person's page of its own: it goes on
+        waiting = self._person_page_waiting(lane.name)
+        now = time.monotonic()
+        if not waiting:
+            self._yielding_since.pop(lane.name, None)
+            return False
+        since = self._yielding_since.setdefault(lane.name, now)
+        return now - since < PERSON_HEAVY_YIELD_SECONDS
+
+    def _person_page_waiting(self, besides: str) -> bool:
+        """A waiting page handed in on another heavy lane whose run a person started, and that the throttle lets go."""
+        from fichero_server.db.manager import db_manager
+        from fichero_server.execution.throttle import decide
+
+        with self._lock:
+            handed = {job_id: entry for job_id, entry in self._attached.items()
+                      if entry[2] in HEAVY_LANES and entry[2] != besides}
+            keys = [key for name in HEAVY_LANES if name != besides for key in self.lanes[name].libraries]
+        if not handed:
+            return False
+        for key in set(keys):
+            db = db_manager.open_database(key)
+            if db is None:
+                continue
+            marks = ", ".join("?" for _ in handed)
+            for job_id, model in db.execute_fetchall(
+                    f"SELECT id, model FROM jobs WHERE state = 'waiting' AND id IN ({marks})", list(handed)):
+                # The RUN's starter decides (`person_waits_on`), never the page's own row ('workflow' for every page).
+                if person_waits_on(db, job_id) and decide(True, model=model).action != "hold":
+                    return True
+        return False
 
     def _claim_one(self, lane: _Lane) -> tuple[str, Any, tuple, Any] | None:
         with lane.pick:
