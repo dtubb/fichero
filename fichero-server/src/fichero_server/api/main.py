@@ -907,6 +907,9 @@ async def lifespan(app: FastAPI):
 
     # Startup: initialize database manager
     logger.info("Fichero API starting up...")
+    from fichero_server.core import loop_lag
+
+    _loop_watch = loop_lag.start(asyncio.get_running_loop())  # a held-up loop is logged with its stack (#5843)
     logger.info("Engine binary: %s", sys.executable)
     logger.info("DatabaseManager initialized")
     remote_backend_status = build_remote_backend_status()
@@ -1108,6 +1111,7 @@ async def lifespan(app: FastAPI):
 
     _api_stamp("lifespan pre-yield complete")
     yield
+    _loop_watch.set()
     signal_sse_shutdown()
     # #4553 follow-up: the WORKFLOW SSE stream never participated in shutdown.
     # Its generator loops forever emitting keepalives, so uvicorn's "Waiting for
@@ -1732,10 +1736,25 @@ def _static_dependency_versions() -> dict[str, str]:
     return versions
 
 
+#: How long health holds the provisioned-runtime versions it last read: the app polls health continuously, and each
+#: read touches the disk (metadata files) while a model loads (#5843).
+_DEPENDENCY_VERSIONS_HELD_SECONDS = 30.0
+_held_dependencies: tuple[float, dict[str, str]] | None = None
+
+
 def _dependency_versions() -> dict[str, str]:
+    """Health's dependency versions, held for `_DEPENDENCY_VERSIONS_HELD_SECONDS` (provisioning mid-session shows
+    within that)."""
+    global _held_dependencies
+    now = time.monotonic()
+    if _held_dependencies is None or now - _held_dependencies[0] > _DEPENDENCY_VERSIONS_HELD_SECONDS:
+        _held_dependencies = (now, _read_dependency_versions())
+    return dict(_held_dependencies[1])
+
+
+def _read_dependency_versions() -> dict[str, str]:
     """Static deps plus the runtime-provisioned venvs (mlx-*, kraken), which
-    live OUTSIDE this process — read from their recorded metadata when present,
-    per call since provisioning can happen mid-session."""
+    live OUTSIDE this process — read from their recorded metadata when present."""
     deps = dict(_static_dependency_versions())
     try:
         from fichero_server.llm.mlx_runtime import get_mlx_runtime
