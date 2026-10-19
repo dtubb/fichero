@@ -3728,6 +3728,32 @@ def _frame_true_background_removed_path(
     return frame_true_rendition_path(library_path, doc_id, READ_FROM_ROLES)
 
 
+class _KrakenPageGate:
+    """ONE gate for the whole engine process (#5846, review 246): transcribe fans out one file per `process_vision`
+    call, so a gate made per call let four pages in. A `threading.Lock` taken by polling, so it holds across event
+    loops and threads and never uses a thread-pool worker while a page waits."""
+
+    _lock = threading.Lock()
+
+    async def __aenter__(self) -> None:
+        while not self._lock.acquire(blocking=False):
+            await asyncio.sleep(0.05)
+
+    async def __aexit__(self, *exc: object) -> None:
+        self._lock.release()
+
+
+_KRAKEN_PAGE_GATE = _KrakenPageGate()
+
+
+def one_page_at_a_time(vision_mode: str | None):
+    """A factory of async context managers: with Kraken, at most ONE page inside at a time across the whole process;
+    with any other reader, no extra limit (`vision_slot` still bounds it)."""
+    import contextlib
+
+    return (lambda: _KRAKEN_PAGE_GATE) if vision_mode == "kraken" else contextlib.nullcontext
+
+
 async def process_vision(
     files: list[str],
     documents: list[dict],
@@ -5921,10 +5947,15 @@ async def process_vision(
                 exc,
             )
 
+    # Kraken reads one page at a time (its own lock already serialises the reading; this stops four pages at once
+    # loading and decoding images beside it, #5846).
+    _page_gate = one_page_at_a_time(vision_mode)
+
     async def _run_one(file_index: int, file_path: str) -> dict:
         activity_scope = _vision_activity_db_path.set(activity_db_path)
         try:
-            async with vision_slot():
+            # The page gate first, so a page waiting for Kraken does not hold a vision slot others could use.
+            async with _page_gate(), vision_slot():
                 return await _process_file(file_index, file_path)
         except TypeError as exc:
             # The inner handler deliberately re-raises a malformed CALL (#4504).
