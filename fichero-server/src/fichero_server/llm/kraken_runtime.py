@@ -724,6 +724,10 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
     """
     require_installed()
     outcome: list[object] = []
+    # Read here, on the job's own thread: the thread below is new and has no job. A page of a run the person started
+    # goes flat out; the Mac on battery slows it (#5819, `activity.throttle.use-means-slower`).
+    jobs_module = sys.modules.get("fichero_server.execution.jobs")
+    person = bool(jobs_module and jobs_module.current_job_is_a_persons())
 
     def _throttled() -> None:
         try:
@@ -746,7 +750,9 @@ def _kraken_call(op: Callable[[], _T]) -> _T:
             # throttle; background yields to everything.
             from fichero_server.core.compute_preferences import apply_to_this_thread, compute_preferences
 
-            threads = apply_to_this_thread(compute_preferences()["priority"])
+            from fichero_server.core.compute_preferences import priority_for
+
+            threads = apply_to_this_thread(priority_for(person))
             # The other thread pools (OpenMP, the BLAS libraries) read these when torch first loads, so they are
             # bound before the import: `set_num_threads` below only bounds torch's own pool (#5846).
             bound_native_thread_pools(threads)

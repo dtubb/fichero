@@ -56,6 +56,19 @@ def compute_preferences() -> dict[str, str]:
     return prefs
 
 
+def priority_for(person_waiting: bool) -> str:
+    """The priority a page of model work runs at, from the throttle's one decision (`throttle.decide`, #5819): flat out
+    for a person's work, the lowest class for background work under a build or while the Mac is used, else the
+    person's own setting (balanced by default). The environment's override (`FICHERO_COMPUTE_PRIORITY`) wins."""
+    from fichero_server.execution.throttle import decide
+
+    prefs = compute_preferences()
+    if os.environ.get("FICHERO_COMPUTE_PRIORITY", "").strip().lower() in PRIORITIES:
+        return prefs["priority"]
+    chosen = decide(person_waiting).priority
+    return prefs["priority"] if chosen == "balanced" else chosen
+
+
 def save_preferences(priority: str, device: str) -> dict[str, str]:
     if priority not in PRIORITIES or device not in DEVICES:
         raise ValueError(f"priority must be one of {PRIORITIES} and device one of {DEVICES}")
@@ -71,10 +84,12 @@ def apply_to_this_thread(priority: str) -> int:
         cpu_count,
         embed_threads,
         set_background_qos,
+        set_fast_qos,
         set_utility_qos,
     )
 
     if priority == "fast":
+        set_fast_qos()
         return cpu_count()
     if priority == "background":
         set_background_qos()

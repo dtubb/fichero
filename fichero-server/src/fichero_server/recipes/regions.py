@@ -15,6 +15,8 @@ from typing import Any, Callable
 
 #: How often a page waiting on the throttle looks again (#5685).
 WAIT_POLL_SECONDS = 5.0
+#: What a run waits between pages while the person uses the Mac or a build runs: slower, not stopped.
+SLOWER_YIELD_SECONDS = 1.0
 
 
 def geometry(regions: list[Any], width: int, height: int, *, model: str, provider: str = "yolo") -> Any:
@@ -51,7 +53,7 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at). `stop` is
     asked before each page. Before each page, while the throttle holds background work, it waits, and `say` is told
     why; between pages `say` is told the pages done and the time left (#5685, #5689, `activity.throttle.power-heat-memory`)."""
-    from fichero_server.execution import throttle
+    from fichero_server.execution import jobs, throttle
 
     from PIL import Image
 
@@ -65,11 +67,18 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     library = str(Path(db.path).parent)
     account = {"pages": 0, "regions": 0, "no_image": 0}
     started = time.monotonic()
+    person = jobs.person_waits_on(db, run_id)
     for number, doc_id in enumerate(documents):
-        while (why := throttle.why_wait()) and not (stop is not None and stop()):
+        # The throttle's one decision (#5819): memory and heat hold (and battery, for background work); a person's run
+        # on battery, and background work under a build or while the Mac is used, goes on slower and says so.
+        while (decision := throttle.decide(person)).action == "hold" and not (stop is not None and stop()):
             if say is not None:
-                say(why)
+                say(decision.reason)
             time.sleep(WAIT_POLL_SECONDS)
+        if decision.action == "slow" and not (stop is not None and stop()):
+            if say is not None:
+                say(decision.words)
+            time.sleep(SLOWER_YIELD_SECONDS)
         if stop is not None and stop():
             break
         if say is not None:
