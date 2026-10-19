@@ -2,7 +2,7 @@
 
 Set Up Fichero asks once, for the whole app, which places the person allows: this Mac, another Mac of theirs, a cloud
 AI service, ACENET, Hugging Face. The answer is an app setting (`models_may_run`), set by the audited action
-`recipes.set_places`, and it CAPS every project: a project may be stricter, never looser. A project's `cloud_allowed` is its own
+the app's audited `PUT /api/recipes/places`, and it CAPS every project: a project may be stricter, never looser. A project's `cloud_allowed` is its own
 yes; pages go to a place only when the project said yes AND the app allows that place (`may_leave_to`), checked where
 pages would leave.
 """
