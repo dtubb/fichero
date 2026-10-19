@@ -29,17 +29,13 @@ struct MacRemoteClientPairingSection: View {
 
     var body: some View {
         Section("Connect This Mac to Another Fichero") {
-            Text("Scan the QR code shown on the host Mac.")
+            Text("Paste the invite link from the host Mac.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            DisclosureGroup("Manual link", isExpanded: $showingManualInvite) {
+            DisclosureGroup("Invite link", isExpanded: $showingManualInvite) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Use this only if the camera is unavailable.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextField("Invite link or QR text", text: $clientInvite, axis: .vertical)
+                    TextField("Invite link", text: $clientInvite, axis: .vertical)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
 
