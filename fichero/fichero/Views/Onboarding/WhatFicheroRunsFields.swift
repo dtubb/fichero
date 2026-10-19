@@ -77,8 +77,8 @@ struct WhatFicheroRunsFields: View {
     let add: (String?) -> Void
 
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    /// Where models may run (#5828): this Mac only until the person says otherwise.
-    @State private var runsAt = WhereTheWorkRuns.current()
+    /// Where models may run (#5828): view state only until #5810 makes it the engine's setting.
+    @State private var runsAt = WhereTheWorkRuns.default
 
     var body: some View {
         // A grouped Form: the accounts are native rows, and the form scrolls itself (#5776).
@@ -94,7 +94,6 @@ struct WhatFicheroRunsFields: View {
                 #endif
                 Text(runsAt.detail).foregroundStyle(.secondary)
             }
-            .onChange(of: runsAt) { _, choice in WhereTheWorkRuns.keep(choice) }
             Section {
                 Text(WhatFicheroRuns.intro)
                     .fixedSize(horizontal: false, vertical: true)

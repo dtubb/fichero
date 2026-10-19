@@ -1,8 +1,9 @@
 import Foundation
 
 /// Where Fichero's models may run (`source.onboard.first-launch-three-screens`, #5828, ruled 2026-10-19): the first
-/// launch's second screen. This Mac only is the default; the others are choices a person makes. #5810 reads the cloud
-/// answer; the words here are placeholders until the owner hands the text back.
+/// launch's second screen. This Mac only is the default. VIEW STATE ONLY: nothing is stored and nothing reads it yet;
+/// #5810 makes it the engine's app setting, set by an audited action (the default for each project's `cloud_allowed`).
+/// The words are placeholders until the owner hands the text back.
 enum WhereTheWorkRuns: String, CaseIterable, Identifiable {
     case thisMac
     case anotherMac
@@ -11,7 +12,6 @@ enum WhereTheWorkRuns: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static let defaultsKey = "setup.whereTheWorkRuns"
     static let `default`: WhereTheWorkRuns = .thisMac
 
     var title: String {
@@ -23,22 +23,13 @@ enum WhereTheWorkRuns: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Placeholder copy.
+    /// Placeholder copy; it promises nothing the engine does not yet hold.
     var detail: String {
         switch self {
-        case .thisMac: "Your pages never leave this Mac."
-        case .anotherMac: "Use a Mac of yours as well; its pages stay on your Macs."
-        case .cloud: "Pages go to the provider you choose; Fichero asks before any page leaves."
-        case .cluster: "Send large jobs to a computing cluster you have access to."
+        case .thisMac: "Models run on this Mac."
+        case .anotherMac: "Models also run on a Mac of yours."
+        case .cloud: "Models also run in the cloud."
+        case .cluster: "Large jobs also go to a computing cluster you have access to."
         }
-    }
-
-    /// The kept answer; this Mac only when none was kept.
-    static func current(_ defaults: UserDefaults = .standard) -> WhereTheWorkRuns {
-        defaults.string(forKey: defaultsKey).flatMap(WhereTheWorkRuns.init(rawValue:)) ?? .default
-    }
-
-    static func keep(_ choice: WhereTheWorkRuns, _ defaults: UserDefaults = .standard) {
-        defaults.set(choice.rawValue, forKey: defaultsKey)
     }
 }
