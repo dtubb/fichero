@@ -16,6 +16,7 @@ from __future__ import annotations
 from fichero_server.media import quartz_warm  # (#5745: warm() resolves Quartz names under a lock at first use)
 
 import asyncio
+import collections
 import concurrent.futures
 from contextvars import ContextVar
 import os
@@ -3749,19 +3750,35 @@ class _KrakenPageGate:
     _lock = threading.Lock()
     #: Kraken pages inside or waiting for the gate: the model lane holds other heavy models off while any (#5846).
     in_flight = 0
+    #: Who waits, in the order they came: pages take the gate first come, first served, so a run reads its pages in
+    #: the order it queued them (Finder order, #5849) and not in whichever order a poll happens to win.
+    _queue: "collections.deque[object]" = collections.deque()
+    _queue_guard = threading.Lock()
 
     async def __aenter__(self) -> None:
-        type(self).in_flight += 1  # += on a class attribute across loops: the GIL makes the pair atomic enough
+        cls = type(self)
+        ticket = object()
+        with cls._queue_guard:
+            cls._queue.append(ticket)
+            cls.in_flight += 1
         try:
-            while not self._lock.acquire(blocking=False):
+            while True:
+                with cls._queue_guard:
+                    if cls._queue[0] is ticket and self._lock.acquire(blocking=False):
+                        cls._queue.popleft()
+                        return
                 await asyncio.sleep(0.05)
         except BaseException:
-            type(self).in_flight -= 1  # cancelled while waiting
+            with cls._queue_guard:  # cancelled while waiting: leave the line
+                if ticket in cls._queue:
+                    cls._queue.remove(ticket)
+                cls.in_flight -= 1
             raise
 
     async def __aexit__(self, *exc: object) -> None:
         self._lock.release()
-        type(self).in_flight -= 1
+        with type(self)._queue_guard:
+            type(self).in_flight -= 1
 
 
 _KRAKEN_PAGE_GATE = _KrakenPageGate()
