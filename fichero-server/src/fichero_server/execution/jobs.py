@@ -1153,6 +1153,9 @@ def first_reason(db: "Database", first_kinds: list[str], since: Any) -> str:
     if any(is_set_aside(r[0]) for r in failed):  # its own row says why, once; this one only says it is waiting on it
         return "Waiting for thumbnails (set aside)"
     return FIRST_REASON + ("; failed: " + "; ".join(r[0] for r in failed) if failed else "")
+#: The page jobs that read: the text the embedder and spaCy work on comes out of them.
+READING_KINDS = ("find-lines", "read-a-line", "read-a-page", "ask-a-model")
+READING_FIRST_REASON = "Waiting for reading to finish"
 #: How soon the local ML lane looks again at work held behind thumbnails (each takes well under this).
 FIRST_LOOK_AGAIN_SECONDS = 0.5
 
@@ -2594,6 +2597,20 @@ class _Scheduler:
             waiting_on_first = (f"{where} AND {first_clause}", [*params, *first_kinds])
             where += f" AND NOT {first_clause}"
             params += first_kinds
+        # Embedding and name-reading work on the TEXT, so they come after the reading (owner, 2026-10-19 16:27): a
+        # background text job waits while any reading page of the library is queued or running, whatever was queued
+        # first. A person's own (a correction's re-embed) never waits behind background reading.
+        text_kinds = ([name for name, kind in KINDS.items() if kind.run is not None and kind.lane == "embed"
+                       and is_light(kind.model)] if lane.name == "embed" else [])
+        text_held_sql = ""
+        text_params: list[Any] = []
+        if text_kinds:
+            text_held_sql = (f"(kind IN ({', '.join('?' for _ in text_kinds)}) AND {_PERSON_RANK_SQL} = 0 AND EXISTS "
+                             f"(SELECT 1 FROM jobs AS r WHERE r.kind IN ({', '.join('?' for _ in READING_KINDS)}) "
+                             f"AND r.state IN ('waiting', 'running')))")
+            text_params = [*text_kinds, *READING_KINDS]
+            where += f" AND NOT {text_held_sql}"
+            params += text_params
         # One provider's calls never take the whole network lane while another provider's call is
         # waiting (`activity.run.lane-cap-per-mac`, the cap per provider): a provider stuck on a rate
         # limit leaves a slot for the others. Work-conserving: with no other provider's call waiting,
@@ -2682,6 +2699,13 @@ class _Scheduler:
                            f"AND reason IS DISTINCT FROM ?", [said_first, *waiting_on_first[1], said_first])
                 due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
                 lane.look_again_at = min(lane.look_again_at or due, due)
+            if text_held_sql and db.execute_fetchone(
+                    f"SELECT 1 FROM jobs WHERE state = 'waiting' AND {text_held_sql} LIMIT 1", text_params):
+                db.execute(f"UPDATE jobs SET reason = ? WHERE state = 'waiting' AND {text_held_sql} "
+                           f"AND reason IS DISTINCT FROM ?", [READING_FIRST_REASON, *text_params, READING_FIRST_REASON])
+                due = time.monotonic() + FIRST_LOOK_AGAIN_SECONDS
+                lane.look_again_at = min(lane.look_again_at or due, due)
+                held_back = True  # waiting, not absent: the library stays on the lane
             row = first(share_clause, share_params) if share_clause else None
             # Only a provider at its share is waiting here: it may take the spare slot, after any
             # other library's call that is within its share.
