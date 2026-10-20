@@ -1875,8 +1875,17 @@ code path.
   into Kraken's lock and joined thread (`llm/kraken_runtime.py:499-556`) or into a model's HTTP call.
   Built (2026-10-03): Stop reaches a Kraken page still waiting for the lane: its row is cancelled
   ("Stopped by you") and the step ends as stopped, not as a file error
-  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Still broken: a page already running is waited for, and
-  economy HTR's pages are not reached.
+  (`fichero-server/tests/unit/jobs/test_kraken_on_the_lane.py`). Built (2026-10-20, unrun): a model call already RUNNING (a hosted
+  or local model's page, which holds its slot while its body awaits the answer in the caller's loop) ends when its run is stopped:
+  while the call runs, a guard task in that loop looks at the run's in-memory stop signal (`cancellation_requested`; it never
+  queries DuckDB on the loop) every `STOP_POLL_SECONDS`, cancels the awaiting call, and `lane_slot` raises `WorkflowCancelled`; the
+  slot's row ends `cancelled` ("Stopped by you"), not `failed`, the slot is released (the next page starts), and the guard ends with
+  the call, never outliving the slot. A stopped CLOUD call still books its cost on its row: when no usage came back it is booked as
+  an estimate (kind `stopped`, `estimated`, a floor of `STOPPED_CALL_INPUT_TOKENS` = 1,000 input tokens: the provider never said
+  what it billed and the prompt's size is not known at the lane), so a Stop never hides spend; when usage did come back, that is the
+  figure (`fichero-server/tests/unit/jobs/test_stop_ends_a_running_call_5392.py`). Still broken: a Kraken page already running is
+  waited for (C code on a thread: it cannot be interrupted, but its result is dropped and the run moves on), and economy HTR's pages
+  are not reached.
 - `activity.run.record-keeps-all-history` — **[OK]** (#5376) a long run's record keeps every
   step and page from the start: the event hub keeps every event but the log lines for the saved timeline
   (`WorkflowEventHub.record`), while a late viewer's replay stays the newest 2,000; pinned by
