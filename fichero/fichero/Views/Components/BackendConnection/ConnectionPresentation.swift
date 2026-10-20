@@ -297,7 +297,9 @@ enum ConnectionPresentation {
 
     /// Reads the kept stall and clears it in ONE step, so a health read landing between a get and a set cannot be lost.
     static func takePreviousStall() -> String? {
-        previousStallLock.withLock { stall in
+        // A restart is a new engine life: the same "<N>s in <func>" from a second death is news again.
+        lastSeenStallLock.withLock { $0 = nil }
+        return previousStallLock.withLock { stall in
             defer { stall = nil }
             return stall
         }
