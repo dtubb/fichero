@@ -1303,12 +1303,15 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
                 break
         if outcome["result"] is None:
             raise JobCancelled("Its run had ended before this page was read")
+        if outcome["result"] == STOPPED_BY_YOU:
+            raise JobCancelled(STOPPED_BY_YOU)  # its run was stopped while the call ran: 'cancelled', not 'failed'
         if outcome["result"] != "done":
             raise RuntimeError(outcome["result"])
 
     future = submit(db, kind, subject, model=model, fn=hold, lane=lane, run_id=run_id)
     job_ref.append(future.job_id)
     token = None
+    guard = None
     waiting_job = _waiting_job.get()
     echo = asyncio.ensure_future(_echo_wait(db, future.job_id, waiting_job)) if waiting_job else None
     try:
@@ -1323,20 +1326,74 @@ async def lane_slot(library_path: str | None, kind: str, subject: str, *, model:
             echo.cancel()
         token = _holding.set(True)
         _call_row.set((db, future.job_id))
+        stop_state: dict[str, bool] = {"fired": False, "over": False}
+        guard = asyncio.ensure_future(_end_call_on_stop(run_id, asyncio.current_task(), stop_state)) if run_id else None
         try:
             yield
+        except asyncio.CancelledError:
+            if not stop_state["fired"]:
+                raise  # cancelled by someone else (its caller went away): not ours to turn into a stop
+            asyncio.current_task().uncancel()
+            outcome["result"] = STOPPED_BY_YOU
+            if lane == "network":  # a cloud call may have been billed: a Stop never hides spend
+                await asyncio.to_thread(_note_stopped_cost, model)  # off the loop: it reads and writes the library's database
+            from fichero_server.execution.cancellation import WorkflowCancelled
+
+            raise WorkflowCancelled(run_id) from None
         except Exception as exc:
             outcome["result"] = str(exc) or type(exc).__name__
             raise
+        finally:
+            stop_state["over"] = True
         outcome["result"] = "done"
         if _scheduler.is_stopping(future.job_id):
             raise PageStopped(stopped_by(future.job_id))  # stopped while it ran: the caller's next step is skipped
     finally:
         if echo is not None:
             echo.cancel()
+        if guard is not None:
+            guard.cancel()
         if token is not None:
             _holding.reset(token)
         release.set()
+
+
+#: The reason a call's row carries when its run was stopped while the call ran.
+STOPPED_BY_YOU = "Stopped by you"
+#: What a cloud call stopped before its provider answered is booked at: a FLOOR, not a measurement (the provider never said how
+#: many tokens it billed, and the prompt's size is not known at the lane). Labelled `estimated`, kind `stopped`.
+STOPPED_CALL_INPUT_TOKENS = 1000
+
+
+def _note_stopped_cost(model: str) -> None:
+    """Book a stopped cloud call on its slot's row when no usage came back, so the run's cost still counts it (`estimated`)."""
+    held = _call_row.get()
+    if held is None:
+        return
+    db, job_id = held
+    row = db.execute_fetchone("SELECT detail FROM jobs WHERE id = ?", [job_id])
+    if row and row[0] and json.loads(row[0]).get("usage"):
+        return  # the provider did answer with usage before the Stop: that is the figure
+    provider, _, name = (model or "").partition(":")
+    note_usage({"provider": provider, "model": name, "kind": "stopped", "input_tokens": STOPPED_CALL_INPUT_TOKENS,
+                "output_tokens": 0, "total_tokens": STOPPED_CALL_INPUT_TOKENS, "cache_read_tokens": 0,
+                "estimated": True, "place": "cloud"})
+
+
+async def _end_call_on_stop(run_id: str, task: "asyncio.Task | None", state: dict[str, bool]) -> None:
+    """While a model call holds its slot, look at its run's Stop every `STOP_POLL_SECONDS` and end the call the moment it is
+    pressed (`activity.run.stop-reaches-in-flight-calls`): cancel the awaiting task, which `lane_slot` turns into
+    `WorkflowCancelled`. Without this a Stop waited for the call to answer, up to the hold limit with a hung server."""
+    if task is None:
+        return
+    while not state["over"]:
+        await asyncio.sleep(STOP_POLL_SECONDS)
+        if state["over"]:
+            return
+        if _stop_requested(run_id):
+            state["fired"] = True
+            task.cancel()
+            return
 
 
 def _first_of(granted: "asyncio.Future", lane: "asyncio.Future") -> "asyncio.Future":
