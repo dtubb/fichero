@@ -2374,9 +2374,14 @@ def _family(model: str | None) -> str | None:
 
 def is_hosted(model: str | None) -> bool:
     """A page read by a hosted provider (`openai:gpt-...`): no weights on this Mac, only a request over the network.
-    The built-in readers and the models this Mac runs (Kraken, a local model server, Apple) are not."""
+    Fail-closed: only a provider the registry knows and does not call local or built-in is hosted; an unknown one
+    (Kraken, YOLO, Whisper, a name nobody registered) counts as LOCAL."""
+    from fichero_server.llm.model_profiles import provider_is_local_or_builtin
+    from fichero_server.llm.providers import get_provider_info
+
     provider, sep, _ = (model or "").partition(":")
-    return bool(sep) and provider not in LOCAL_MODEL_SERVERS and provider not in ("kraken", "apple")
+    provider = provider.strip().lower()
+    return bool(sep) and get_provider_info(provider) is not None and not provider_is_local_or_builtin(provider)
 
 
 def _keep_local_model_server(_reason: str = "") -> None:
@@ -2511,7 +2516,9 @@ class _Lane:
         if (self.name == "local-ml" and is_hosted(model) and is_person()
                 and sum(1 for m in running.values() if is_hosted(m)) < LANES["network"]):
             # A hosted reader's page needs no model memory, so it runs beside whatever is running, for a person's run
-            # (`activity.lane.each-unit-its-own-lane`, #5863).
+            # (`activity.lane.each-unit-its-own-lane`, #5863). ponytail: no production kind puts a hosted model on this lane today
+            # (`llm.model_call_slot` sends a hosted `ask-a-model` call to the network lane, already beside a local page); this keeps
+            # the lane right if one ever does.
             return True
         if (self.name == "local-ml" and (model or "").startswith(KRAKEN_MODEL_PREFIX) and not (set(running) & self.calls)
                 and set(running.values()) == {model}):
