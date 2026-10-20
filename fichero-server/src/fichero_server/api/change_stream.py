@@ -169,6 +169,7 @@ class _Subscriber:
     queue: asyncio.Queue
     loop: asyncio.AbstractEventLoop | None
     active: bool = True
+    device_id: str | None = None  # the paired device holding this stream (None: the host's own window)
 
 
 @dataclass
@@ -243,6 +244,7 @@ class _ChangeHub:
         library_path: str,
         *,
         last_event_id: str | None = None,
+        device_id: str | None = None,
     ) -> _Subscription:
         """Register a subscriber and atomically snapshot replay state."""
         library_path = self._canonical_key(library_path)
@@ -251,7 +253,7 @@ class _ChangeHub:
         except RuntimeError:
             loop = None
         queue: asyncio.Queue = asyncio.Queue(maxsize=self._subscriber_queue_maxsize)
-        subscriber = _Subscriber(queue=queue, loop=loop)
+        subscriber = _Subscriber(queue=queue, loop=loop, device_id=device_id)
         with self._lock:
             self._subscribers[library_path].add(subscriber)
             self._subscriber_by_queue[queue] = subscriber
@@ -323,6 +325,18 @@ class _ChangeHub:
                 other_live_keys,
             )
         return delivered
+
+    def revoke_devices(self, device_ids: list[str]) -> int:
+        """End the streams these paired devices hold: each gets a last `sharing.revoked` frame (#5913). Others are untouched."""
+        gone = set(device_ids)
+        with self._lock:
+            targets = [(key, sub) for key, subs in self._subscribers.items() for sub in subs if sub.device_id in gone]
+        for key, subscriber in targets:
+            try:
+                self._dispatch_to_subscriber(key, subscriber, ChangeEvent(type="sharing.revoked"))
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("change-hub: could not tell one revoked stream: %s", exc)
+        return len(targets)
 
     def subscriber_count(self, library_path: str) -> int:
         library_path = self._canonical_key(library_path)
@@ -492,6 +506,10 @@ class _ChangeHub:
 
 # Process-global singleton.
 _change_hub = _ChangeHub()
+
+from fichero_server.security import revocation as _revocation  # noqa: E402
+
+_revocation.on_revoked(_change_hub.revoke_devices)  # a revoked device's open streams end (#5913)
 
 
 def emit_change(
