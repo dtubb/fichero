@@ -721,7 +721,7 @@ builder (not injected services) under `fichero/Tests/Unit/general/Models/`.
   holds it), and keeps waiting; the next hang names its holder. `get_setting` reads each key from the database once and then
   from memory (`set_setting` / `delete_setting`, its only writers, replace the cached value), so none of its 28 callers
   (`_use_multiuser_auth` runs on the event loop for every request) waits on the lock again
-  (`fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py`).
+  (`fichero-server/tests/unit/jobs/test_app_db_lock_never_hangs.py`; `fichero-server/tests/unit/llm/test_providers.py::TestAppDatabase::test_get_setting_reads_from_memory_and_takes_no_lock`).
 - `activity.throttle.person-heavy-first` — **[OK]** (owner, 2026-10-19: "Compare on These Pages" spun for ever while the
   project's thumbnails, 47-61 s each, took every heavy slot in turn) while memory is busy and only one heavy job runs at a time,
   a heavy lane's background work steps aside for a page handed in on another heavy lane whose run a PERSON started and that the

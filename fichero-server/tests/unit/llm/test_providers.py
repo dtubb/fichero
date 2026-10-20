@@ -596,7 +596,7 @@ class TestAppDatabase:
         assert app_db.conn is not None
 
     def test_get_setting_reads_from_memory_and_takes_no_lock(self, app_db):
-        """`activity.engine.app-db-reads-from-memory` (owner, 2026-10-19; replaces the #709 rule that a read takes the
+        """`activity.engine.app-db-lock-names-its-holder` (owner, 2026-10-19; replaces the #709 rule that a read takes the
         RLock): a setting is read from the copy `set_setting` keeps, so a read never waits behind a write's lock."""
         app_db.set_setting("test_lock_key", "v")
         lock = self._TrackingLock()
