@@ -1126,6 +1126,11 @@ def _withdrawn(db: "Database", future: Future, run_id: str | None) -> BaseExcept
     job_id = getattr(future, "job_id", None)
     found = db.execute_fetchone("SELECT reason FROM jobs WHERE id = ?", [job_id]) if job_id else None
     said = (found[0] if found else None) or stopped_by(job_id)  # the words its withdrawal wrote on the row
+    if run_id and said == "Paused with its run":
+        # The run's pause flag is cleared once it has settled, which can be before this waiter wakes: the row's words
+        # still say why it was withdrawn. A paused page is not a failed one (it would be recorded as the page's error
+        # and never read on Resume: `activity.durable.paused-stays-paused`).
+        return WorkflowPaused(run_id)
     if said == CLOSED_BEFORE_RUN or not said.startswith("Stopped"):
         return JobCancelled(said)  # closed, or withdrawn for another reason: not a person's Stop of this page
     return PageStopped(said)  # skip this page; the run goes on
@@ -1981,7 +1986,10 @@ def snapshot(db: "Database", *, failed_limit: int = 20) -> list[dict[str, Any]]:
             params += [kind, kind]
         elif g in ("waiting", "paused"):
             first = f"{_PERSON_RANK_SQL} DESC, " if g == "waiting" else ""
-            parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? AND NOT {queued} "
+            # A paused job is never in a "queue" group (that holds waiting and running ones), so every paused job of
+            # the kind stands for the kind's paused row; only waiting ones of a kind with its own rows are left here.
+            own_only = f"AND NOT {queued} " if g == "waiting" else ""
+            parts.append(f"(SELECT * FROM jobs WHERE state = ? AND kind = ? {own_only}"
                          f"ORDER BY {first}epoch_ms(created_at), rowid LIMIT 1)")
             params += [g, kind]
     parts.append(f"(SELECT * FROM jobs WHERE state = 'failed' AND {runs}{cleared_filter} ORDER BY finished_at DESC LIMIT ?)")

@@ -16,7 +16,7 @@ import pytest
 from fichero_server.execution import jobs
 from tests.unit.jobs.test_run_tree_rolls_up import _workflow
 from tests.unit.jobs.test_runs_are_jobs import _execute, _status, _tree, _wait_for, no_embedding_model  # noqa: F401
-from tests.unit.jobs.test_text_calls_on_the_lane import ChatModel, pages  # noqa: F401
+from tests.unit.jobs.test_text_calls_on_the_lane import ChatModel, page_sets, pages  # noqa: F401
 
 
 class HeldModel(ChatModel):
@@ -63,14 +63,14 @@ def _anthropic(db):
     return wf
 
 
-def test_activity_run_lane_cap_per_mac__one_provider_alone_keeps_the_whole_lane(client, db, pages, providers, monkeypatch):
+def test_activity_run_lane_cap_per_mac__one_provider_alone_keeps_the_whole_lane(client, db, page_sets, providers, monkeypatch):
     """Behaviour `activity.run.lane-cap-per-mac`, the cap per provider, work-conserving: a Mac using
     one provider loses no slot to a share held for nobody. Three runs on one provider, alone on a
     three-wide lane, make three calls at once."""
     stuck, _quick = providers
     monkeypatch.setitem(jobs.LANES, "network", 3)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
-    runs = [_execute(client, _workflow(db, "gpt-5"), pages) for _ in range(3)]
+    runs = [_execute(client, _workflow(db, "gpt-5"), page_sets()) for _ in range(3)]
     assert _wait_for(lambda: stuck.live == 3)
     assert stuck.peak == 3
     for _ in range(9):
@@ -78,7 +78,7 @@ def test_activity_run_lane_cap_per_mac__one_provider_alone_keeps_the_whole_lane(
     assert _wait_for(lambda: all(_status(client, run) == "completed" for run in runs))
 
 
-def test_activity_run_lane_cap_per_mac__a_stuck_provider_leaves_room_for_another(client, db, pages, providers, monkeypatch):
+def test_activity_run_lane_cap_per_mac__a_stuck_provider_leaves_room_for_another(client, db, page_sets, providers, monkeypatch):
     """Behaviour `activity.run.lane-cap-per-mac`, the cap per provider: a provider stuck on a rate
     limit holding the whole three-wide lane (a fourth of its runs waiting too) gives up a slot to
     another provider's waiting call as soon as one of its calls ends, ahead of its own older
@@ -87,11 +87,11 @@ def test_activity_run_lane_cap_per_mac__a_stuck_provider_leaves_room_for_another
     stuck, quick = providers
     monkeypatch.setitem(jobs.LANES, "network", 3)
     monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
-    slow = [_execute(client, _workflow(db, "gpt-5"), pages) for _ in range(4)]
+    slow = [_execute(client, _workflow(db, "gpt-5"), page_sets()) for _ in range(4)]
     # Three hold the lane; the fourth's call waits, older than any of the other provider's.
     assert _wait_for(lambda: stuck.live == 3 and any(
         c["state"] == "waiting" for step in _tree(client, slow[3])["children"] for c in step["children"]))
-    fast = _execute(client, _anthropic(db), pages)
+    fast = _execute(client, _anthropic(db), page_sets())
     released = 0
     while _status(client, fast) != "completed" and released < 6:
         # Its next call is waiting for the lane (as `GET /api/activity/jobs/{run}` shows); then one

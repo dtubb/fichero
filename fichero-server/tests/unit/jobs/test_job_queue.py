@@ -336,7 +336,7 @@ class TestPerJobControls:
 
         gate = _threading.Event()
         first = jobs.submit(db, "find-lines", "first", model="kraken:blla", fn=lambda: gate.wait(30))
-        page = jobs.submit(db, "find-lines", "page", model="kraken:blla", fn=lambda: None)
+        page = jobs.submit(db, "find-lines", "page", model="kraken:other", fn=lambda: None)  # another model: it cannot join the running page (same-model-pages-together)
         try:
             assert client.put(f"/api/activity/jobs/{page.job_id}/paused", json={"paused": True}).status_code == 409
             assert client.post("/api/activity/jobs/no-such-job/cancel").status_code == 404
