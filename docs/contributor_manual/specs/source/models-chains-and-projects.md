@@ -3684,9 +3684,9 @@ The bake-off's behaviours (`source.onboard.bakeoff`, `-combinations`, `-records-
 - `source.onboard.no-model-step-kept` — **[OK]** (#4951, #5668) *Built 2026-10-11: `start.plan_start` skips it with its fix (choose-model) and drops its refusal; `start._without_what_waits` skips a run that needs what it would make ("waits for <step>"); pinned by `fichero-server/tests/unit/recipes/test_no_model_step_kept_5668.py`.* a step with no model stays in the recipe
   marked "needs a model"; steps that do not depend on it run, and those that do wait with that
   reason.
-- `source.onboard.train-path` — **[GAP]** (#4951, #5336) where no candidate fits a reading step,
+- `source.onboard.train-path` — **[PARTIAL]** (#4951, #5336; built 2026-10-20: the early sentence; not built: the offer where *no candidate fits*, the offer stays tied to the corrected-line threshold, #5804) where no candidate fits a reading step,
   setup offers the train-your-own path (`compute/distillation.md`) and shows the corrected-line
-  count at which training will be offered.
+  count at which training will be offered. *Early count (2026-10-20):* the Start plan carries `train_ahead`, one sentence for each trainable step that is not ready ("Training a model of your own for Read a line is offered once the project has the corrected work. Needs 2,000 corrected lines on at least 2 pages; this project has 0 on 0 pages. Correct 2,000 more lines, on at least 2 more pages."), and the stage page shows it; a step nothing here can train has none. It is a sentence, not an offer and not a greyed row (`source.recipe.train-offered-once-ready`, #5804 stands: the offer itself waits for the threshold). *Test:* `fichero-server/tests/unit/recipes/test_train_path_says_the_count_early_2026_10_20.py`; the app line needs the client regenerated and a compile.
 - `source.onboard.egress-asked-twice` — **[PARTIAL]** (#4951) superseded 2026-10-01 by
   `source.onboard.cloud-asked-once` (the question is asked once, only when a cloud model fits, default nothing leaves; built).
   What the question must show is built in the engine and not yet in the app: see `cloud-asked-once`.
@@ -3853,7 +3853,7 @@ Trying another option
   a region, lines, a document) in the Inspector and the context menu, for a step or a run of
   steps, with one or two alternatives (a model, a combination or a prompt), at any time after setup.
 - `source.try.every-job` — **[GAP]** (#4950) it works for every registered job, reading and beyond:
-  layout, entities, statements, authority links, dates and search vectors.
+  layout, entities, statements, authority links, dates and search vectors. *Said plainly (2026-10-20):* a stage that can be tried on the sample pages (`sampleable`: Find Regions, Find Lines, Read, Organise, Names, Statements, Dates, Normalise, Translate and Prepare Images, by the comparison of candidates, their own steps or their workflow) shows Compare on These Pages; one that cannot (Structured Data and Search today) says so in one sentence from the engine (`SetupStage.not_tried`: "This one can't be tried on your pages yet: it runs at Start, and you can check what it made then."), never silence. No try is built for them yet; the line stays [GAP]. *Test:* `fichero-server/tests/unit/recipes/test_train_path_says_the_count_early_2026_10_20.py` (`test_every_stage_says_whether_it_can_be_tried_and_one_that_cannot_says_so_in_words`).
 - `source.try.never-over-existing` — **[PARTIAL]** (#4950; *built for the readers' and the line finders' bake-off: it runs as a job and changes nothing that exists, the pages, segments, readings, passes and text are the same after it, pinned by `fichero-server/tests/unit/recipes/test_bakeoff_never_over_existing_4950.py`. Not built: the alternatives of the other jobs, and landing a try as new passes or readings beside the current ones*) each alternative shows its cost and time,
   runs as a job in Activity, and lands as new passes, readings, mentions or claims (a vector
   alternative as an index beside the current one); nothing existing changes.

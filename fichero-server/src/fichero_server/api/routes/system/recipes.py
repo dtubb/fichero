@@ -460,6 +460,9 @@ class SetupStage(BaseModel):
     needs: list[StageNeed] = Field(description="the stages it needs, ticked with it")
     sampleable: bool = Field(description="it can be tried on the sample pages before Start")
     tried_by: Literal["bake-off", "workflow"]
+    not_tried: Optional[str] = Field(default=None, description=(
+        "when it cannot be tried on the sample pages yet, one plain sentence saying so (`source.try.every-job`); "
+        "null when it can"))
 
 
 class MoneyAndPlace(BaseModel):
@@ -1891,6 +1894,14 @@ class TrainWay(BaseModel):
     why: Optional[str] = Field(default=None, description="why it is not available, in words")
 
 
+class TrainAhead(BaseModel):
+    """One sentence on a trainable step that is not ready: how many corrected lines training needs (`source.onboard.train-path`)."""
+
+    step: str
+    job: str
+    sentence: str
+
+
 class TrainOffer(BaseModel):
     """'Train a model of your own for this step' for one trainable step, offered later, never run at Start."""
 
@@ -1956,6 +1967,9 @@ class StartPlan(BaseModel):
     train_offers: list[TrainOffer] = Field(default_factory=list, description=(
         "for each step a model can be trained for, how to train it on the corrected pages and where; offered "
         "later, never run at Start (#5660 item 9)"))
+    train_ahead: list[TrainAhead] = Field(default_factory=list, description=(
+        "for each trainable step not ready yet, one sentence saying how many corrected lines training a model of "
+        "your own will need and how many the project has; not an offer (`source.onboard.train-path`)"))
     hf_spend: Optional[HfSpend] = Field(default=None, description=(
         "this month's Hugging Face spend against the project's cap (#5769); null for a plan with no project setup"))
     bakeoff_offer: Optional[BakeoffOffer] = Field(default=None, description=(
@@ -2002,7 +2016,7 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     from fichero_server.recipes.layers import addable_now, explain
     from fichero_server.recipes.project import read_proposed, read_start
     from fichero_server.recipes.start import estimate, place_runs, plan_start
-    from fichero_server.recipes.train_offers import counted, offered, train_offers
+    from fichero_server.recipes.train_offers import counted, offered, train_ahead, train_offers
 
     library = _library(db)
     setup = read_project_setup(library)
@@ -2048,9 +2062,10 @@ def _start_plan(db: Database, folder_id: Optional[str] = None, *, clusters: list
     held = held_after_failure(db) if setting["mode"] == "here" else None
     if held:  # the last training here failed: said on the plan, where the person looks (#5440)
         setting = {**setting, "why": held}
-    plan["train_offers"] = offered(train_offers(setup["recipe"], counted(db), stays_local=train_local, setting=setting,
-                                        spend_cap=cap, clusters=clusters,
-                                        noise_band=read_noise_band(library), stays_why=train_why))
+    every_offer = train_offers(setup["recipe"], counted(db), stays_local=train_local, setting=setting,
+                               spend_cap=cap, clusters=clusters, noise_band=read_noise_band(library), stays_why=train_why)
+    plan["train_offers"] = offered(every_offer)
+    plan["train_ahead"] = train_ahead(every_offer)
     from fichero_server.recipes.train_offers import spend_this_month
 
     plan["hf_spend"] = spend_this_month(db, cap=cap)
