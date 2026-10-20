@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fichero_server.security.multiuser import multiuser_enabled
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ValidationError
@@ -9,7 +11,7 @@ from pydantic import BaseModel, ValidationError
 from fichero_server.security import authz
 from fichero_server.actions import ActionContext, registry
 from fichero_server.db.app import get_app_db
-from fichero_server.api.auth import action_context, auth_kind_from_request, library_access_denial_payload
+from fichero_server.api.auth import action_context, auth_kind_from_request, ensure_owner_account, library_access_denial_payload
 from fichero_server.api.routes.library.registry import get_global_database
 from fichero_server.api.library_header import require_library_path
 from fichero_server.api.main import LibraryAccessDeniedError, get_library_database_for_write
@@ -26,6 +28,8 @@ from fichero_server.models import (
 )
 
 _SHARE_OBJECT_TYPES = {"library", "entity", "document"}
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/authz", tags=["authz"])
 
@@ -290,6 +294,20 @@ def _build_share_url(request: Request, object_type: str, object_id: str | None) 
     return base
 
 
+def _name_the_host_in_the_project(library_path: str, ctx: ActionContext) -> None:
+    """Write `sharing-host.json` into the shared project's root: where its host is and which person to ask (#5898). The host's
+    person is the sharer (else the owner). Never raises: sharing works without it."""
+    from fichero_server import sharing_host_file
+
+    try:
+        app_db = get_app_db()
+        person = app_db.get_user_by_username(ctx.actor) if ctx.actor else None
+        person = person or ensure_owner_account(app_db)
+        sharing_host_file.write(library_path, person.display_name or person.username)
+    except Exception:
+        logger.warning("could not name the host in the shared project", exc_info=True)
+
+
 @router.post("/share", response_model=ShareResponse)
 def share_library_object(
     body: ShareRequest,
@@ -335,6 +353,7 @@ def share_library_object(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     library_path = authz.normalize_library_path(x_fichero_library_path) or x_fichero_library_path
+    _name_the_host_in_the_project(library_path, ctx)
     return ShareResponse(
         user=body.user,
         role=body.role,
