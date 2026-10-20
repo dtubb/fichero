@@ -676,6 +676,16 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     return result
 
 
+def _say_on_row(db: Any, job_id: str, stage_id: str, reason: str) -> None:
+    """What the try's row says it is doing now, keeping the count it already carries (a new card's words must not wipe
+    the pages done and tried)."""
+    from fichero_server.execution import jobs
+
+    kept = json.loads((jobs.read_job(db, job_id) or {}).get("detail") or "{}")
+    detail = {"stage": stage_id, **{k: kept[k] for k in ("done", "total") if k in kept}}
+    jobs.save_detail(db, job_id, json.dumps(detail), reason=reason)
+
+
 def _count_on_the_row(db: Any, job_id: str, stage_id: str, progress: dict[str, Any]) -> None:
     """The try's own row carries the pages done and tried (`activity.details.progress-counts`): its pages live in a
     scratch copy that is deleted when the try ends, so the row's tree could only say 0 of 1."""
@@ -725,7 +735,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
     if said:
         out["error"] = said["sentence"]
         return out
-    jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Copying the sample pages for {stage.title}")
+    _say_on_row(db, job_id, stage_id, f"Copying the sample pages for {stage.title}")
     scratch = _folder(library) / f"{scratch_name}.fichero"
     shutil.rmtree(scratch, ignore_errors=True)
     for sub in ("lance", "storage", "files"):
@@ -755,7 +765,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             watcher.start()
         for card in cards:
             if card.get("card") in ("find-documents", "entries"):
-                jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
+                _say_on_row(db, job_id, stage_id, f"Trying {stage.title}: {name}")
                 made_here, state, why = _organise(copy, card, pages, back)
                 extra.update(made_here)
                 ran.append({"steps": card["steps"], "state": state, "why": why})
@@ -763,7 +773,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             if card.get("card") == "regions":
                 from fichero_server.recipes.regions import find_regions
 
-                jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
+                _say_on_row(db, job_id, stage_id, f"Trying {stage.title}: {name}")
                 find_regions(copy, pages, job_id, str(card.get("model")), provider=card.get("provider") or "yolo",
                              person=True)  # a try is one a person presses and watches
                 ran.append({"steps": card["steps"], "state": "done", "why": None})
@@ -771,7 +781,7 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
             if card.get("card") != "workflow":
                 ran.append({"steps": card.get("steps"), "state": "skipped", "why": "not tried on samples yet"})
                 continue
-            jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
+            _say_on_row(db, job_id, stage_id, f"Trying {stage.title}: {name}")
             run_on, uncertain = pages, []
             if card.get("job") in runner._NAMES_JOBS:  # not on a reading too uncertain to name anyone (#5694)
                 uncertain = runner.too_uncertain_for_names(copy, pages)
