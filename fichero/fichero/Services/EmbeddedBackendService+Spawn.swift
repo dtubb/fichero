@@ -354,10 +354,6 @@ extension EmbeddedBackendService {
             if let host = RemoteAccessConfig.lanListenerHost(publicHost: RemoteAccessConfig.publicBaseURL?.host) {
                 environment["FICHERO_LAN_HOST"] = host
             }
-            // Only an explicit choice is passed; unset, the engine keeps the listener while a device is paired.
-            if let choice = RemoteAccessConfig.thisNetworkChoice {
-                environment["FICHERO_THIS_NETWORK"] = choice ? "1" : "0"
-            }
         }
         if let publicBaseURL {
             // Reuse the same env contract as RemoteAccessConfig so the

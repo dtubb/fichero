@@ -121,11 +121,6 @@ struct ShareSettingsView: View {
 
             if hostingEnabled {
                 Section("Connected Devices") {
-                    if let note = RemoteAccessConfig.thisNetworkOffNote(
-                        thisNetwork: RemoteAccessConfig.thisNetworkChoice ?? true, publicHost: validatedPublicURL?.host
-                    ) {
-                        Text(note).font(.caption).foregroundStyle(.secondary)
-                    }
                     PairedDevicesSectionView(
                         devices: activePairedDevices(from: pairedDevices),
                         isLoading: isLoadingDevices,

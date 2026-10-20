@@ -90,6 +90,8 @@ extension ShareSettingsView {
         backendService.stop()
         do {
             try await backendService.start()
+            // A start that was already in flight is waited for, and a stop() of ours may have killed its engine: end with one (#5909).
+            if EmbeddedBackendService.needsAnotherStart(status: backendService.status) { try await backendService.start() }
             await appState.checkBackendHealth()
             appState.reconfigureGeneratedClientsForCurrentHost()
             libraryManager.reconfigureGeneratedClientsForCurrentHost()
