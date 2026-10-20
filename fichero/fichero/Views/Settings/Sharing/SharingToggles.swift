@@ -19,7 +19,7 @@ enum SharingToggles {
     ]
 
     /// Where the Sharing switches live: ONE constant, so moving them is one edit (#5917).
-    static let location = "Settings → Sharing → Devices"
+    static let location = "Settings → Sharing → Advanced"
 
     /// The switch's name, found by its id (not by its place in the list).
     static func label(_ id: ID) -> String { all.first { $0.id == id }?.label ?? "" }

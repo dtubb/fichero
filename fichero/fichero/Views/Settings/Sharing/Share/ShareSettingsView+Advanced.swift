@@ -4,38 +4,55 @@ import SwiftUI
 extension ShareSettingsView {
     // MARK: - Advanced (the ONE escape hatch)
 
+    /// Commit the Address field on Return: a blank or invalid draft is not committed (the red line says why).
+    func commitAddress() {
+        let text = addressDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard SharingPaneText.addressProblem(addressDraft) == nil, text != publicBaseURL else { return }
+        publicBaseURL = text.isEmpty ? Self.autoLocalBaseURL : text
+        Task { await applySharing() }
+    }
+
     @ViewBuilder
     var advancedSection: some View {
         Section {
             DisclosureGroup("Advanced") {
-                // Use an override only for an address the app cannot infer, such as Tailscale or a fixed IP.
-                LabeledContent("Automatic address") {
-                    Text(Self.autoLocalBaseURL)
-                        .font(.caption.monospaced())
-                        .textSelection(.enabled)
-                        .foregroundStyle(.secondary)
+                // An address the app cannot infer, such as a fixed IP or a Tailscale name: committed on Return.
+                HStack {
+                    TextField("Address", text: $addressDraft)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .onSubmit(commitAddress)
+                    Button("Reset") {
+                        addressDraft = Self.autoLocalBaseURL
+                        publicBaseURL = Self.autoLocalBaseURL
+                        Task { await applySharing() }
+                    }
+                    .disabled(isApplyingChange || publicBaseURL == Self.autoLocalBaseURL)
+                }
+                if let problem = SharingPaneText.addressProblem(addressDraft) {
+                    Text(problem)
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
 
                 if let tailnet = detectedTailnetURL, tailnet != publicBaseURL {
-                    LabeledContent("Tailscale address") {
-                        HStack {
-                            Text(tailnet)
-                                .font(.caption.monospaced())
-                                .textSelection(.enabled)
-                                .foregroundStyle(.secondary)
-                            Button("Use") {
-                                addressDraft = tailnet
-                                publicBaseURL = tailnet
-                                Task { await applySharing() }
-                            }
-                            .disabled(isApplyingChange)
+                    HStack {
+                        Text(tailnet)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                            .foregroundStyle(.secondary)
+                        Button("Use") {
+                            addressDraft = tailnet
+                            publicBaseURL = tailnet
+                            Task { await applySharing() }
                         }
+                        .disabled(isApplyingChange)
                     }
                 }
 
                 if let command = sharingState?.tailnetServeCommand {
                     // The sandboxed app cannot run the Tailscale CLI: one command to paste (#5317).
-                    Text("Fichero can't start the Tailscale connection itself. Paste this in Terminal once:")
+                    Text("Run once in Terminal:")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     HStack {
@@ -49,31 +66,6 @@ extension ShareSettingsView {
                     }
                 }
 
-                TextField("Address other devices use", text: $addressDraft)
-                    .textFieldStyle(.roundedBorder)
-                    .autocorrectionDisabled()
-
-                Text("A literal IP address, a .local hostname, or a Tailscale .ts.net hostname. "
-                     + "It must be https:// so the connection can be pinned.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                HStack {
-                    Button("Use This Address") {
-                        publicBaseURL = addressDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                        Task { await applySharing() }
-                    }
-                    .disabled(isApplyingChange || addressDraft == publicBaseURL)
-
-                    Button("Restore Automatic") {
-                        publicBaseURL = Self.autoLocalBaseURL
-                        Task { await applySharing() }
-                    }
-                    .disabled(isApplyingChange || publicBaseURL == Self.autoLocalBaseURL)
-                }
-
-                Divider()
-
                 // The only invite-rotation affordance in the app: mints a fresh
                 // one-time code and invalidates the one already on screen.
                 Button(isGeneratingCode ? "Resetting Invite…" : "Reset Invite") {
@@ -81,23 +73,17 @@ extension ShareSettingsView {
                 }
                 .disabled(isApplyingChange || isGeneratingCode || pairingBlocker != nil)
 
-                Button("Remove All Devices", role: .destructive) {
-                    confirmRemoveAllDevices = true
+                // Multi-user lives here, not on the main pane (`sharing.settings.multiuser-out-of-sharing`).
+                Toggle(isOn: multiuserBinding) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SharingToggles.label(.multiUser))
+                        Text(SharingToggles.caption(.multiUser))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .disabled(!EngineConfig.engineIsLocal || activePairedDevices(from: pairedDevices).isEmpty)
+                .disabled(isApplyingChange || !EngineConfig.engineIsLocal)
             }
-        }
-        .confirmationDialog(
-            "Remove all connected devices?",
-            isPresented: $confirmRemoveAllDevices,
-            titleVisibility: .visible
-        ) {
-            Button("Remove All Devices", role: .destructive) {
-                Task { await revokeAllDevices() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Every device that has joined this project will have to scan a new QR code to get back in.")
         }
     }
 }

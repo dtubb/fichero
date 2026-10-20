@@ -580,14 +580,13 @@ final class DocumentStoreAndSidebarTypesTests: XCTestCase {
     }
 
     func testMacBackendSettingsShowsInlinePairingQrAndNoSheetAssumption() throws {
-        // The pairing surface moved into ShareSettingsView, which renders the
-        // inline PairingCardView / PairedDevicesSectionView (defined in
-        // PairingCardView.swift). No sheet, no scanner.
+        // The pairing surface is ShareSettingsView's Add Device sheet, which renders the PairingCardView
+        // (defined in PairingCardView.swift) beside the Devices list (`sharing.settings.add-device-sheet`, #5928). No scanner.
         let shareSource = try Self.appSource("Views/Settings/Sharing/Share/ShareSettingsView.swift")
         let remoteAccessSource = try Self.appSource("Views/Settings/Sharing/PairingCardView.swift")
 
         XCTAssertTrue(shareSource.contains("PairingCardView("))
-        XCTAssertTrue(shareSource.contains("PairedDevicesSectionView("))
+        XCTAssertTrue(shareSource.contains("SharingPaneText.addDevice"))
         XCTAssertTrue(shareSource.contains("activePairedDevices(from: pairedDevices)"))
         XCTAssertTrue(remoteAccessSource.contains("ProgressView(\"Preparing QR code…\")"))
         XCTAssertTrue(remoteAccessSource.contains(".accessibilityLabel(\"Pairing QR code\")"))

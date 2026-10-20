@@ -127,16 +127,6 @@ extension ShareSettingsView {
         detectedTailnetURL = try? await pairing.detectedTailnetURL()
     }
 
-    func refreshConnectedClients() async {
-        guard EngineConfig.engineIsLocal else { return }
-        do {
-            connectedClients = try await PairingService(apiRoot: EngineConfig.host).connectedClients()
-        } catch {
-            // Presence is a nicety — do not surface an error banner for it.
-            connectedClients = []
-        }
-    }
-
     func refreshDevices() async {
         isLoadingDevices = true
         defer { isLoadingDevices = false }
@@ -159,17 +149,16 @@ extension ShareSettingsView {
         }
     }
 
-    func revokeAllDevices() async {
+    func revokeSelected() async {
         shareError = nil
         guard EngineConfig.engineIsLocal else { return }
         let service = PairingService(apiRoot: EngineConfig.host)
         do {
-            for device in activePairedDevices(from: pairedDevices) {
-                try await service.revokeDevice(id: device.id)
-            }
+            for id in selectedDevices { try await service.revokeDevice(id: id) }
         } catch {
             shareError = error.localizedDescription
         }
+        selectedDevices.removeAll()
         await refreshDevices()
     }
 
