@@ -76,6 +76,7 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
             onnxruntime.disable_telemetry_events()
         except Exception as exc:  # noqa: BLE001 -- an older onnxruntime has no such switch
             os.environ["FICHERO_EMBED_TELEMETRY_SWITCH"] = f"missing: {type(exc).__name__}"  # the child's own note
+            logger.warning("embedder child: onnxruntime telemetry switch unavailable: %s", exc)
         if os.environ.get("FICHERO_EMBED_FAKE_INIT_SECONDS"):  # tests: a slow, fake model load
             import time
 
@@ -107,6 +108,7 @@ def _serve(conn: Any, model_name: str, cache_dir: str, threads: int, env: dict[s
             conn.send(("error", f"{type(exc).__name__}: {exc}"))
         except Exception as sent:  # noqa: BLE001 -- the pipe is gone with the parent: nobody is left to tell
             os.environ["FICHERO_EMBED_LAST_WORDS_LOST"] = type(sent).__name__
+            logger.warning("embedder child: could not report why it stopped: %s", sent)
     finally:
         os._exit(0)
 
@@ -183,6 +185,7 @@ class RemoteEmbedder:
             self._conn.close()
         except Exception as exc:  # noqa: BLE001 -- already closed or the pipe broke; the process is ended below
             self.close_failure = f"{type(exc).__name__}: {exc}"
+            logger.warning("embedder: closing the pipe failed: %s", exc)
         if self._process.is_alive():
             self._process.terminate()
             self._process.join(5)
@@ -195,3 +198,4 @@ class RemoteEmbedder:
             self.close()
         except Exception as exc:  # noqa: BLE001 -- interpreter shutdown: kept on the class, nothing can be raised here
             RemoteEmbedder.release_failure = f"{type(exc).__name__}: {exc}"
+            logger.warning("embedder: release failed: %s", exc)
