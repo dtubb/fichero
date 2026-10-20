@@ -4,7 +4,7 @@ import Foundation
 /// Bonjour services are offered, and how a typed name becomes an address. Discovery
 /// (NWBrowser on `_fichero._tcp`) only feeds `offered`; the pairing code grants trust.
 enum HostChoices {
-    struct Found: Equatable {
+    struct Found: Equatable, Sendable {
         let name: String
         let publicURL: String?
     }

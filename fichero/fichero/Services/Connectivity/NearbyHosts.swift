@@ -5,7 +5,9 @@ import Observation
 /// The Fichero Macs on this network, found by browsing Bonjour (`_fichero._tcp`) for "Connect This Mac to Another
 /// Fichero" (sharing.mac-finds-host, #5892). Presence only: the TXT record's `public_url` is the address to offer, and
 /// the pairing code or invite grants trust. Which of these are shown is `HostChoices.offered`.
-@Observable
+/// Main-actor isolated, so it is Sendable: the browser's handler (a @Sendable closure) may hold it weakly and hop back
+/// to the main actor to publish what it found.
+@MainActor @Observable
 final class NearbyHosts {
     private(set) var found: [HostChoices.Found] = []
     private var browser: NWBrowser?
@@ -20,7 +22,7 @@ final class NearbyHosts {
                 if case let .bonjour(txt) = result.metadata { url = txt["public_url"] }
                 return .init(name: name, publicURL: url?.isEmpty == false ? url : nil)
             }
-            Task { @MainActor in self?.found = hosts }
+            Task { @MainActor [weak self] in self?.found = hosts }
         }
         browser.start(queue: .main)
         self.browser = browser
