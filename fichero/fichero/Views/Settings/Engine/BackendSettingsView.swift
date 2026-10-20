@@ -170,7 +170,11 @@ private struct AdvancedConnectionSection: View {
             try await EngineHostSwitch.standard(
                 appState: appState, backendService: backendService, libraryManager: libraryManager,
                 setHost: { engineHost = $0 }
-            ).run(from: engineHost, to: draft, notResponding: "That address did not answer, so the previous one is back.")
+            ).run(
+                from: engineHost, to: draft,
+                notResponding: draft == engineHost
+                    ? "The engine did not answer."
+                    : "That address did not answer, so the previous one is back.")
         } catch {
             applyError = error.localizedDescription
         }

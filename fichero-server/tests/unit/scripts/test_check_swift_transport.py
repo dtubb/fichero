@@ -265,3 +265,31 @@ def test_allows_the_one_writer_and_its_callers(tmp_path: Path) -> None:
            ".standard(appState: a, backendService: b, libraryManager: c, setHost: { engineHost = $0 })\n"
            "guard let engineHost = EngineConfig.host.host?.lowercased() else { return }\n")
     assert not scan(tmp_path)
+
+
+def test_rule_6_catches_the_host_key_spelled_as_a_literal(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift", 'UserDefaults.standard.set(url, forKey: "fichero.server.host")\n')
+    assert scan(tmp_path)
+
+
+def test_rule_6_catches_the_key_held_in_a_local_variable(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift", "let key = EngineConfig.userDefaultsKey\ndefaults.set(url, forKey: key)\n")
+    assert scan(tmp_path)
+
+
+def test_rule_6_catches_a_multi_line_set(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift",
+           "EngineConfig.defaults.set(\n    url,\n    forKey: EngineConfig.userDefaultsKey\n)\n")
+    assert scan(tmp_path)
+
+
+def test_rule_6_catches_another_appstorage_name_for_the_host(tmp_path: Path) -> None:
+    _write(tmp_path, "Views/V.swift",
+           "@AppStorage(EngineConfig.userDefaultsKey) private var serverURL = EngineConfig.defaultHostString\n"
+           'Button("Apply") { serverURL = draft }\n')
+    assert len(scan(tmp_path)) == 1
+
+
+def test_rule_6_allows_reading_the_host_key(tmp_path: Path) -> None:
+    _write(tmp_path, "Services/S.swift", "let host = EngineConfig.defaults.string(forKey: EngineConfig.userDefaultsKey)\n")
+    assert not scan(tmp_path)

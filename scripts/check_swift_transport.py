@@ -92,8 +92,14 @@ SANCTIONED_OWN_CLIENT: dict[str, tuple[int, str]] = {
 # The stored engine host has ONE writer (#5916): `EngineConfig.storeHost` / `clearStoredHost`, reached from the callers
 # listed in sharing.one-writer-of-the-engine-host. Anything else that sets or removes the key, or assigns an
 # `engineHost` binding outside `EngineHostSwitch`'s `setHost:` closure, is a second writer.
-_HOST_KEY_WRITE_RE = re.compile(r"(\.set\(|removeObject\()[^\n]*EngineConfig\.(userDefaultsKey|legacyUserDefaultsKey)")
-_ENGINE_HOST_ASSIGN_RE = re.compile(r"^(?!.*(@AppStorage|\bvar\b|\blet\b|setHost:)).*\bengineHost\s*=[^=]")
+# Any mention of the host key outside EngineConfig.swift is a second writer unless it is a declaration of an
+# @AppStorage binding or a READ: that catches `set`, `removeObject`, a multi-line `set(`, the key held in a local
+# variable, and the key spelled as a literal.
+_HOST_KEY_MENTION_RE = re.compile(
+    r"EngineConfig\.(userDefaultsKey|legacyUserDefaultsKey)|\"fichero\.server\.host\"|\"fichero\.engine\.host\"")
+_HOST_KEY_ALLOWED_RE = re.compile(r"@AppStorage\(|\.(string|object|data)\(forKey:")
+# `@AppStorage(EngineConfig.userDefaultsKey) var <name>`: ANY name bound to the host, not only `engineHost`.
+_HOST_BINDING_RE = re.compile(r"@AppStorage\(\s*EngineConfig\.userDefaultsKey\s*\)[^\n]*?\bvar\s+(\w+)")
 
 # Deliberately allowed exceptions. Empty on the current codebase; kept as an
 # escape hatch for sanctioned low-level transport files.
@@ -381,8 +387,11 @@ def scan(swift_dir: Path = SWIFT_DIR) -> dict[str, str]:
                 )
         # A second writer of the stored engine host (#5916).
         if rel != "Services/EngineConfig.swift":
+            names = {m.group(1) for line in lines for m in [_HOST_BINDING_RE.search(line)] if m}
+            assign = re.compile(
+                r"^(?!.*(@AppStorage|\bvar\b|\blet\b|setHost:)).*\b(" + "|".join(sorted(names | {"engineHost"})) + r")\s*=[^=]")
             for idx, line in enumerate(lines):
-                if _HOST_KEY_WRITE_RE.search(line) or _ENGINE_HOST_ASSIGN_RE.search(line):
+                if (_HOST_KEY_MENTION_RE.search(line) and not _HOST_KEY_ALLOWED_RE.search(line)) or assign.search(line):
                     found[_key(rel, line)] = (
                         f"a second writer of the stored engine host: use EngineConfig.storeHost/clearStoredHost or "
                         f"EngineHostSwitch (line {idx + 1}, #5916)"
