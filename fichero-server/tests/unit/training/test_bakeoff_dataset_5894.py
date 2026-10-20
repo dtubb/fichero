@@ -85,6 +85,12 @@ def test_the_dataset_card_says_these_are_a_models_readings_not_a_persons_check(t
     assert "not checked by a person" in card and "not ground truth" in card and "mlx:m" in card and "private" in card
 
 
+class NotFound(Exception):
+    """What the Hub raises for a dataset that does not exist."""
+
+    response = SimpleNamespace(status_code=404)
+
+
 class Api:
     """The Hub at the boundary: records every call, uploads nothing."""
 
@@ -101,9 +107,11 @@ class Api:
 
     def dataset_info(self, repo_id, **kw):
         self.calls.append(("dataset_info", {"repo_id": repo_id}))
-        private = self.existing_private if self.existing_private is not None and not any(
-            c[0] == "create_repo" for c in self.calls) else self.created_private
-        return SimpleNamespace(private=private)
+        if not any(c[0] == "create_repo" for c in self.calls):
+            if self.existing_private is None:  # not there yet: the Hub answers 404
+                raise NotFound()
+            return SimpleNamespace(private=self.existing_private)
+        return SimpleNamespace(private=self.created_private)
 
     def upload_folder(self, **kw):
         self.calls.append(("upload_folder", kw))

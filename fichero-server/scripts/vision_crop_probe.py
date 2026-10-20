@@ -108,21 +108,28 @@ def probe(rows: list[dict], pages: Path, *, arm: str = "vision", ocr=vision_text
     return {"arm": arm, "empties": len(results), "real_word_empties": len(real), "errors": errored,
             "today_share": today_share, "today_rereads": today_share > TODAY_WARN_SHARE,
             "rescued": {n: count(results, n) for n in VARIANTS}, "rescued_real_word": {n: count(real, n) for n in VARIANTS},
-            "bar": RESCUE_SHARE, "decision": {
-                n: bool(real) and count(real, n) / len(real) >= RESCUE_SHARE for n in VARIANTS if n != "today"},
+            "bar": RESCUE_SHARE,
+            # Against `today`, not against zero: Vision reads some of these on a plain re-run (the first probe: 10 of 19
+            # real words with the crop unchanged), so only what a variant reads BEYOND today's own re-read is the crop's.
+            "gain_over_today": {n: count(real, n) - count(real, "today") for n in VARIANTS if n != "today"},
+            "decision": {n: bool(real) and (count(real, n) - count(real, "today")) / len(real) >= RESCUE_SHARE
+                         for n in VARIANTS if n != "today"},
             "lines": results}
 
 
 def report_md(r: dict) -> str:
-    rows = ["| variant | empties it reads | real-word empties it reads | Vision errors |", "|---|---|---|---|"]
+    rows = ["| variant | empties it reads | real-word empties it reads | beyond `today` (real words) | Vision errors |",
+            "|---|---|---|---|---|"]
     for n in VARIANTS:
+        gain = "-" if n == "today" else f"{r['gain_over_today'][n]:+d}"
         rows.append(f"| {n} | {r['rescued'][n]} of {r['empties']} | {r['rescued_real_word'][n]} of {r['real_word_empties']} "
-                    f"| {r['errors'][n]} |")
+                    f"| {gain} | {r['errors'][n]} |")
     yes = [n for n, ok in r["decision"].items() if ok]
-    verdict = (f"**{', '.join(yes)}** read at least {r['bar']:.0%} of the real-word empties: specify a crop change for Apple "
-               "Vision only (the cloud readers keep `crop_line`)." if yes else
-               f"No variant reads {r['bar']:.0%} of the real-word empties: leave `crop_line` as it is; the misses are Vision's "
-               "own limit on this hand.")
+    verdict = (f"**{', '.join(yes)}** read at least {r['bar']:.0%} of the real-word empties MORE than `today` did: specify a "
+               "crop change for Apple Vision only (the cloud readers keep `crop_line`)." if yes else
+               f"No variant reads {r['bar']:.0%} of the real-word empties more than `today` did: leave `crop_line` as it is; "
+               "the misses are Vision's own limit on this hand, and what a variant reads that `today` also reads is Vision "
+               "varying between runs.")
     warnings = []
     if any(r["errors"].values()):
         warnings.append("**Vision errors** (not misses): " + ", ".join(f"{n} {k}" for n, k in r["errors"].items() if k)
