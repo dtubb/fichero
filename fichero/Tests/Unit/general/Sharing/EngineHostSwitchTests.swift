@@ -70,10 +70,20 @@ struct EngineHostSwitchTests {
         #expect(log.steps.last == "restore failed")
     }
 
-    @Test func anUnchangedHostOnlyRepointsTheClients() async throws {
+    @Test func anUnchangedHostIsRepointedAndReconnectedWithoutARestart() async throws {
         let log = Log()
         try await make(log).run(from: "same", to: "same", notResponding: "no answer")
-        #expect(log.steps == ["repoint"], "no needless engine restart")
+        #expect(log.steps == ["repoint", "reconnect"], "a re-pair reads the engine's health again; no needless restart")
+    }
+
+    @Test func anUnchangedHostThatDoesNotAnswerSaysSoAndChangesNothing() async {
+        let log = Log()
+        log.answers = false
+        await #expect(throws: EngineHostSwitchError.self) {
+            try await make(log).run(from: "same", to: "same", notResponding: "no answer")
+        }
+        #expect(log.steps == ["repoint", "reconnect"])
+        #expect(log.host == "previous", "the stored host was never touched")
     }
 
     @Test func theNotRespondingSentenceIsTheCallers() async {

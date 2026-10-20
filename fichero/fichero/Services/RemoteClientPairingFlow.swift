@@ -244,7 +244,7 @@ enum RemoteClientPairing {
         }
         // Record the token's expiry so renewal can fire before it lapses (#3096).
         DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
-        EngineConfig.defaults.set(result.apiRoot.absoluteString, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.storeHost(result.apiRoot.absoluteString)
         // Reset the failover endpoint set to just this newly paired endpoint
         // (#3098): a fresh pairing establishes THE paired host, so a previous
         // Mac's endpoints must not linger and be walked during a later failover.
@@ -371,7 +371,7 @@ enum RemoteClientPairing {
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: attemptedHost.absoluteString)
         DeviceTokenRenewal.clearExpiry(host: attemptedHost.absoluteString)
         EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
-        EngineConfig.defaults.set(previousHost, forKey: EngineConfig.userDefaultsKey)
+        EngineConfig.storeHost(previousHost)
     }
 
     /// Forgets the current pairing so a broken connection is no longer a dead
@@ -388,10 +388,7 @@ enum RemoteClientPairing {
         RemoteCertificatePinning.clearPersistedSPKIPin(hostString: hostString)
         DeviceTokenRenewal.clearExpiry(host: hostString)
         PairedHostEndpointStore.clear()
-        EngineConfig.defaults.removeObject(forKey: EngineConfig.userDefaultsKey)
-        // #4227: also clear the pre-rename key — the read paths fall back to
-        // it, so leaving it behind would resurrect the forgotten host.
-        EngineConfig.defaults.removeObject(forKey: EngineConfig.legacyUserDefaultsKey)
+        EngineConfig.clearStoredHost()
         EngineConfig.defaults.removeObject(forKey: RemoteAccessConfig.pairedLibraryPathKey)
     }
 
