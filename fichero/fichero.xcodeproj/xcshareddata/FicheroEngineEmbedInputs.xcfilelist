@@ -226,10 +226,15 @@ $(SRCROOT)/../fichero-server/src/fichero_server/core/__init__.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/background_compute.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/compute_preferences.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/duckdb_session.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/egress.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/failure_text.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/logging.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/loop_lag.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/naturalsort.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/no_model_in_get.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/off_loop.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/perf.py
+$(SRCROOT)/../fichero-server/src/fichero_server/core/single_flight.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/timeutil.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/tls.py
 $(SRCROOT)/../fichero-server/src/fichero_server/core/utf16_offsets.py
@@ -239,6 +244,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/db/app.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/busy_evidence.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/dataset_query.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/document_tree.py
+$(SRCROOT)/../fichero-server/src/fichero_server/db/embed_process.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/embeddings.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/library_paths.py
 $(SRCROOT)/../fichero-server/src/fichero_server/db/manager.py
@@ -468,6 +474,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/derived.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/diff.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/discovery.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/done.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/examples.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/hands.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/htr_united.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/jobs.py
@@ -475,6 +482,7 @@ $(SRCROOT)/../fichero-server/src/fichero_server/recipes/known_names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/layers.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/names.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/placement.py
+$(SRCROOT)/../fichero-server/src/fichero_server/recipes/places.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/prepare.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/project.py
 $(SRCROOT)/../fichero-server/src/fichero_server/recipes/recipe.py
