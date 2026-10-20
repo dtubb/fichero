@@ -83,3 +83,72 @@ def test_staging_drops_the_lines_a_person_already_checked_and_says_so(tmp_path):
     assert '"also_a_persons_line": 1' in (tmp_path / "out" / "README.md").read_text(encoding="utf-8")
     kept = bl.stage_dataset(winning, pages, tmp_path / "out2", person_keys={"not-this-line"})
     assert kept.count == 1
+
+
+# --- the pick is `reading.choose`, with a compare-and-set (`source.compare.pick`) ---------------------------------
+
+import pytest  # noqa: E402
+
+from fichero_server.actions.registry import ActionContext, registry  # noqa: E402
+from fichero_server.models.readings import ChoiceNeedsAPerson, ReadingChoice  # noqa: E402
+from tests.unit.api.test_segment_readings import (  # noqa: E402,F401
+    _artifact, _convert, _converted_segments, _make_doc, _person, _write,
+)
+
+
+def _two_readings(db, client):
+    doc = _make_doc(db)
+    artifact = _artifact(db, doc)
+    _convert(client, artifact.id)
+    segment = _converted_segments(db, artifact.id)[1]
+    first = _write(db, segment, content="nombre").result["id"]
+    second = _write(db, segment, content="nomine").result["id"]
+    return segment, first, second
+
+
+def _counting(client, segment):
+    return client.get(f"/api/segments/{segment.id}/readings?kind=transcription").json()["counting"]["transcription"]["representation_id"]
+
+
+def test_a_pick_on_the_view_the_person_saw_is_recorded(db, client):
+    segment, first, second = _two_readings(db, client)
+    saw = _counting(client, segment)
+    pick = first if saw != first else second
+    r = client.post(f"/api/segments/{segment.id}/readings/choice",
+                    json={"kind": "transcription", "representation_id": pick, "expected_counting_id": saw})
+    assert r.status_code == 200, r.text
+    assert _counting(client, segment) == pick
+
+
+def test_a_pick_on_a_stale_view_is_refused_with_409_and_writes_nothing(db, client):
+    segment, first, second = _two_readings(db, client)
+    counting = _counting(client, segment)
+    other = first if counting != first else second
+    # the view said `other` counted; in fact `counting` does
+    r = client.post(f"/api/segments/{segment.id}/readings/choice",
+                    json={"kind": "transcription", "representation_id": other, "expected_counting_id": other})
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["counting_representation_id"] == counting
+    assert not list(db.query(ReadingChoice, segment_id=segment.id)), "a refused pick writes no choice"
+    assert _counting(client, segment) == counting
+
+
+def test_a_model_may_not_pick_even_with_a_matching_view(db, client):
+    segment, first, second = _two_readings(db, client)
+    with pytest.raises(ChoiceNeedsAPerson):
+        registry.invoke(db, "reading.choose",
+                        {"segment_id": segment.id, "kind": "transcription", "representation_id": first,
+                         "expected_counting_id": second},
+                        ActionContext(actor="runner", run_id="run-1", is_bootstrap=True))
+
+
+def test_one_undo_takes_a_pick_back(db, client):
+    segment, first, second = _two_readings(db, client)
+    before = _counting(client, segment)
+    pick = first if before != first else second
+    done = registry.invoke(db, "reading.choose",
+                           {"segment_id": segment.id, "kind": "transcription", "representation_id": pick,
+                            "expected_counting_id": before}, _person())
+    assert _counting(client, segment) == pick
+    assert client.post(f"/api/actions/audit/{done.id}/undo").status_code == 200
+    assert _counting(client, segment) == before

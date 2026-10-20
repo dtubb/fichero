@@ -1684,7 +1684,7 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   `source.compare.readers-answer` therefore carries, for every reader's reading on a line, the `representation_id` it is stored
   under, so the app sends an id and never a text: a pick is always something a reader said, as written. There is one way to make a
   reading count and this is it: `reading.choose`, described once, at `source.reading.chosen-is-worked-out` (audited, one undo, only a
-  person: 403 for a model; and its optional `expected_counting_id` (**[GAP]**, #5900, not built: to be added to `reading.choose`), which the view will send so a pick on a stale view is refused with
+  person: 403 for a model; and its optional `expected_counting_id` (**built**, #5900: `ReadingChooseParams` and `ReadingChoiceBody`; `content_representations.refuse_if_counting_moved`, the same compare-and-set `representation.create` uses; `test_compare_pick_5900.py`), which the view will send so a pick on a stale view is refused with
   409 and writes nothing). Nothing is copied here.
   A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
   a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with

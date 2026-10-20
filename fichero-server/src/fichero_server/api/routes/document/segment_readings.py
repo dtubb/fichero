@@ -868,6 +868,9 @@ class ReadingChoiceBody(BaseModel):
 
     kind: str = Field(description='The kind of reading chosen (e.g. transcription).')
     representation_id: str = Field(description='The reading to make the one that counts.')
+    expected_counting_id: Optional[str] = Field(None, description=(
+        "The reading that counted when you looked. When another counts now, the choice is refused (409, naming it) "
+        "and nothing is written. Unset: no check."))
 
 
 @router.post("/{segment_id}/readings/choice")
@@ -883,9 +886,11 @@ async def choose_segment_reading(
         result = registry.invoke(
             db,
             "reading.choose",
-            {"segment_id": segment_id, **payload.model_dump()},
+            {"segment_id": segment_id, **payload.model_dump(exclude_none=True)},
             ctx,
         )
+    except HTTPException:
+        raise  # the stale 409 carries its own detail
     except Exception as exc:
         raise _as_http_error(exc) from exc
     return result.result

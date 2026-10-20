@@ -201,25 +201,30 @@ def _refuse_if_the_counting_reading_moved(
     writer can offer keep-mine / take-theirs / compare -- and NOTHING is written. The typed words stay
     with the writer; the engine never keeps a half-applied edit.
     """
-    from fichero_server.api.routes.document.segment_readings import counting_by_kind_and_level, readings_of_segment
-
     if segment is None:
         raise HTTPException(status_code=422, detail="expected_counting_id needs the segment_id whose counting reading it names")
+    refuse_if_counting_moved(db, segment, params.kind, params.level, params.expected_counting_id)
+
+
+def refuse_if_counting_moved(db: Database, segment: Segment, kind: str, level: str | None, expected: str | None) -> None:
+    """409 (naming the reading that counts now) unless `expected` is the reading that counts for this kind at this level."""
+    from fichero_server.api.routes.document.segment_readings import counting_by_kind_and_level, readings_of_segment
+
     items = readings_of_segment(db, segment.id)
     # The reading that counts AT THE LEVEL being written (`source.reading.counts-per-level`): an expanded
     # reading written against the as-written one that counts is not stale because of it.
-    answer = counting_by_kind_and_level(db, segment.id, items).get((params.kind, counting_level(params.level)))
+    answer = counting_by_kind_and_level(db, segment.id, items).get((kind, counting_level(level)))
     current = answer.representation_id if answer is not None else None
-    if current == params.expected_counting_id:
+    if current == expected:
         return
     text = next((item.content for item in items if item.id == current), None)
     raise HTTPException(status_code=409, detail={
         "reason": "stale",
-        "message": (f"another {params.kind} counts for this segment now; nothing was written. "
+        "message": (f"another {kind} counts for this segment now; nothing was written. "
                     "Keep yours (write again against the one that counts), take theirs, or compare."),
         "segment_id": segment.id,
-        "kind": params.kind,
-        "expected_counting_id": params.expected_counting_id,
+        "kind": kind,
+        "expected_counting_id": expected,
         "counting_representation_id": current,
         "counting_text": text,
     })
@@ -674,6 +679,9 @@ class ReadingChooseParams(BaseModel):
     segment_id: str
     kind: str
     representation_id: str
+    #: The reading that counted when the person looked (`source.compare.pick`): when another counts now the choice is
+    #: refused (409, naming it) and nothing is written. Unset: no check, today's behaviour.
+    expected_counting_id: str | None = None
 
 
 def _assert_a_person(ctx: ActionContext, what: str) -> None:
@@ -747,6 +755,9 @@ def choose_reading(
         raise ValueError(
             f"reading {reading.id} reads segment {reading.segment_id}, not {segment.id}"
         )
+
+    if params.expected_counting_id is not None:
+        refuse_if_counting_moved(db, segment, params.kind, reading.level, params.expected_counting_id)
 
     # A choice supersedes the earlier choices AT ITS OWN LEVEL only (`source.reading.counts-per-level`):
     # choosing which expanded reading counts says nothing about which as-written one does.
