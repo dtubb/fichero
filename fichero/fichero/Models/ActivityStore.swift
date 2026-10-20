@@ -177,6 +177,11 @@ final class ActivityStore: ChangeEventConsumer {
     /// Jobs reads that failed in a row, for the reconnect backoff and the one reload when the engine answers again.
     private(set) var jobsPollFailures = 0
 
+    /// The rows shown are the last the engine sent and it has not answered for this many reads in a row (Fable #10): the window
+    /// greys them and says so, instead of showing "running" for as long as the engine is down.
+    static let staleAfterFailedReads = 3
+    var rowsAreStale: Bool { jobsPollFailures >= Self.staleAfterFailedReads }
+
     /// How long to wait after `failures` failed reads in a row: 2 s, doubling to at most 30 s.
     static func pollInterval(afterFailures failures: Int) -> Duration {
         .seconds(min(30, 2 << min(max(failures, 0), 4)))

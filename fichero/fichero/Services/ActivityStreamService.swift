@@ -107,6 +107,15 @@ final class ActivityStreamService {
         accessDenied = false
     }
 
+    /// 403s in a row that make the stream give up (`activity.window.honest-state`, Fable #10).
+    static let deniedBeforeTerminal = 3
+
+    static func denialIsTerminal(consecutiveDenials: Int) -> Bool {
+        consecutiveDenials >= deniedBeforeTerminal
+    }
+
+    private var consecutiveDenials = 0
+
     private func runLoop(onEvent: @escaping @MainActor (ActivityItem) -> Void) async {
         var backoffNanos: UInt64 = 1_000_000_000
         var consecutiveUnavailableCycles = 0
@@ -115,11 +124,20 @@ final class ActivityStreamService {
             do {
                 try await subscribeOnce(onEvent: onEvent)
                 hasConnectedBefore = true
+                consecutiveDenials = 0
                 consecutiveUnavailableCycles = 0
                 backoffNanos = 1_000_000_000
             } catch StreamError.accessDenied(let detail) {
-                // 403: terminal (#2479). The cause is the engine's to state, not
-                // ours to guess — see LibraryChangeStream for the same fix (#4532).
+                // 403: terminal (#2479), but only after `Self.deniedBeforeTerminal` in a row with no connect between: the
+                // first answer after an engine restart can be a 403 while the session is re-established (Fable #10).
+                // The cause is the engine's to state, not ours to guess — see LibraryChangeStream (#4532).
+                consecutiveDenials += 1
+                if !Task.isCancelled, !Self.denialIsTerminal(consecutiveDenials: consecutiveDenials) {
+                    log.info("activity stream denied (403) \(self.consecutiveDenials) time(s), trying again")
+                    try? await Task.sleep(nanoseconds: backoffNanos)
+                    backoffNanos = min(backoffNanos * 2, 30_000_000_000)
+                    continue
+                }
                 if !Task.isCancelled {
                     let reason = detail ?? "engine gave no reason"
                     log.error("activity stream denied (403), not retrying — \(reason, privacy: .public)")
