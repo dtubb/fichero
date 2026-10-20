@@ -21,6 +21,13 @@ def _app() -> FastAPI:
     def deep_helper():  # two calls down, in a worker thread: the scan cannot see this
         return kraken_runtime._kraken_call(lambda: "read")
 
+    def deep_reader():  # recognising lines is a different entry point from segmenting: it must be refused too
+        return kraken_runtime.recognize_lines("page.png", "model.safetensors")
+
+    @app.get("/recognise")
+    async def recognise():
+        return await asyncio.to_thread(deep_reader)
+
     @app.get("/indirect")
     async def indirect():
         return await asyncio.to_thread(deep_helper)
@@ -46,6 +53,11 @@ def test_a_get_reaching_kraken_through_a_helper_thread_is_refused_in_words():
     assert response.status_code == 503
     detail = response.json()["detail"]
     assert "GET /indirect" in detail and "isn't ready" in detail and "model lane" in detail
+
+
+def test_a_get_recognising_lines_is_refused_too():
+    response = _call("GET", "/recognise")
+    assert response.status_code == 503 and "GET /recognise" in response.json()["detail"]  # and not wrapped into a 500 'Kraken recognition failed'
 
 
 def test_a_post_is_not_refused():
