@@ -198,11 +198,15 @@ async def _refine_with_llm(text: str, llm_config: LLMConfig, library_path: str =
     if not llm_config or not llm_config.provider:
         return text
 
-    try:
-        from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused  # noqa: F401
-        from fichero_server.execution.jobs import JobCancelled  # noqa: F401
-        from fichero_server.llm import call_llm_with_cache
+    from fichero_server.execution.cancellation import WorkflowCancelled, WorkflowPaused
+    from fichero_server.execution.jobs import JobCancelled
 
+    try:
+        from fichero_server.llm import call_llm_with_cache
+    except ImportError:  # #5921: the refinement function does not exist (the import line alone, not the call)
+        _say_refinement_unavailable(library_path)
+        return text
+    try:
         response = await call_llm_with_cache(
             prompt=f"{_REFLOW_AI_INSTRUCTIONS}\n\n---\n\n{text}",
             llm_config=llm_config,
@@ -213,10 +217,6 @@ async def _refine_with_llm(text: str, llm_config: LLMConfig, library_path: str =
         # A Stop or Pause is not a failed refinement (#5919 sweep): swallowed, the page would be marked done unrefined and
         # never redone; raised, Resume does it again.
         raise
-    except ImportError:
-        # #5921: the refinement function does not exist. The page keeps its reflowed text; the run says so, once.
-        _say_refinement_unavailable(library_path)
-        return text
     except Exception:
         # If LLM call fails, return the heuristic result
         return text
