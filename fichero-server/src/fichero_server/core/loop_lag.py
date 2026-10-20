@@ -4,12 +4,20 @@
 that keeps the GIL for seconds, like the first `import torch` of a Kraken run) delays it, and the manager's watcher read
 a slow health as a dead engine. A watcher thread asks the loop to answer a ping every `PING_SECONDS`; when the answer
 comes later than `SLOW_SECONDS` it logs how late and the stack the loop thread was in, so the log names the culprit.
+
+The held engine is the one the app restarts, so a live health field cannot say what held it. The watcher therefore also
+writes the last stall (seconds and `module:function` only, no paths or arguments) to `previous_stall.json` under the state
+root, and the NEXT engine reports it once in `GET /api/health` `dependencies['previous_stall']` and deletes the file
+(`activity.engine.restart-says-why`). The file is only touched from the watcher thread, never on the event loop.
 """
 from __future__ import annotations
 
 import asyncio
 import faulthandler
+import json
 import logging
+import os
+import re
 import sys
 import threading
 import time
@@ -21,6 +29,64 @@ PING_SECONDS = 0.5
 SLOW_SECONDS = 1.0
 #: A loop that has not run its heartbeat for this long gets every thread's stack dumped, again every this long (#5847).
 DUMP_SECONDS = 30.0
+
+
+STALL_FILE = "previous_stall.json"
+_FRAME = re.compile(r"^[\w.]+:[\w<>]+$")  # module:function, nothing else: health is unauthenticated
+
+
+def _stall_path():
+    from fichero_server.db.paths import server_state_dir
+
+    return server_state_dir() / STALL_FILE
+
+
+def culprit(frame) -> str:
+    """`module:function` of the innermost fichero_server frame (else the innermost frame) the loop thread is in."""
+    best = None
+    while frame is not None:
+        name = f"{frame.f_globals.get('__name__', '?')}:{frame.f_code.co_name}"
+        if best is None:
+            best = name
+        if name.startswith("fichero_server"):
+            return name
+        frame = frame.f_back
+    return best or "?"
+
+
+def record_stall(frame_name: str, seconds: float) -> None:
+    """Write the last stall atomically (tmp + replace). Watcher thread only; a failure is logged, never raised."""
+    try:
+        path = _stall_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(json.dumps({"frame": frame_name, "seconds": round(seconds)}))
+        os.replace(tmp, path)
+    except Exception:
+        logger.warning("could not record the loop stall", exc_info=True)
+
+
+def take_previous_stall() -> str | None:
+    """Read the previous engine's stall once and delete it: `'41s in kraken_runtime:load_model'`, or None. A corrupt
+    or missing file is ignored (logged). Call from a thread, not the event loop."""
+    try:
+        path = _stall_path()
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text())
+            frame, seconds = data["frame"], int(data["seconds"])
+            if not (isinstance(frame, str) and _FRAME.match(frame)):
+                raise ValueError("frame is not module:function")
+        except Exception:
+            logger.warning("ignoring an unreadable loop-stall record", exc_info=True)
+            return None
+        finally:
+            path.unlink(missing_ok=True)
+        return f"{seconds}s in {frame}"
+    except Exception:
+        logger.warning("could not read the loop-stall record", exc_info=True)
+        return None
 
 
 def _arm_dump(seconds: float, file) -> None:
@@ -50,6 +116,9 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
         pass
 
     def watch() -> None:
+        from fichero_server import startup_warnings
+
+        startup_warnings.set_previous_stall(take_previous_stall())
         while not stop.wait(ping_seconds):
             answered = threading.Event()
             asked = time.monotonic()
@@ -60,8 +129,12 @@ def start(loop: asyncio.AbstractEventLoop, *, ping_seconds: float = PING_SECONDS
                 return
             if answered.wait(slow_seconds):
                 continue
-            where = "".join(traceback.format_stack(sys._current_frames().get(loop_thread)))[-1500:]
+            frame = sys._current_frames().get(loop_thread)
+            where = "".join(traceback.format_stack(frame))[-1500:]
+            name = culprit(frame)
+            record_stall(name, time.monotonic() - asked)  # now: the app may kill this engine before the loop is free
             answered.wait()
+            record_stall(name, time.monotonic() - asked)
             logger.warning("the event loop was held for %.1f s (health answers late); it was in:\n%s",
                            time.monotonic() - asked, where)
 

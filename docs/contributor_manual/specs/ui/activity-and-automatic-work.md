@@ -1459,7 +1459,13 @@ and node, not by job); a retry action for failed pages.
   health checks went unanswered, the connection detail says why in words: how many seconds were missed, and that an import was
   running, then "Reconnecting…" (`AppState.restartSentence`, `ConnectionPresentation.lastRestartReason`, cleared when the
   engine answers). Pinned by `fichero/Tests/Unit/general/App/EngineRestartSaysWhyTests.swift` (needs compile). LIMIT: it says
-  the engine did not answer, not what held the loop (the engine log's `loop_lag` dump names that).
+  the engine did not answer, not what held the loop (the engine log's `loop_lag` dump names that). Engine half (#5843): the
+  watchdog thread writes the last stall (`<N>s`, `module:function` only: no paths, arguments or locals) atomically to
+  `previous_stall.json` under `$FICHERO_BASE_PATH`, never on the event loop; the NEXT engine reads it once at start, reports
+  `GET /api/health` `dependencies['previous_stall']` = `'<N>s in <module:function>'` and deletes the file, so it shows for one
+  engine life only; a corrupt, path-bearing or missing file is ignored (logged). Pinned by
+  `fichero-server/tests/unit/api/test_previous_stall_in_health_5843.py` (unrun). NOT built: the app saying it in the restart
+  sentence (Swift, HELD).
 - `activity.jobs-poll-off-the-loop` — **[PARTIAL]** (Fable runner review #2, 2026-10-19; the app polls `GET /api/activity/jobs` every 2 s) the poll never holds the
   event loop. Already so on the chain head: the app-DB flag reads are cached (`is_paused`, `is_started`, the settings), auth waits off the
   loop, `snapshot`, `waiting_reason_of`, `read_again_runs` and the summary run on threads. Added: the per-row reads (`name_and_pages`,
