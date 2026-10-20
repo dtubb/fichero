@@ -254,7 +254,7 @@ def _smaller_build(model: Any, context_tokens: int, total: int, catalog: Any) ->
     return getattr(best, "display_name", None) or best.repo_id
 
 #: How long a model load waits for memory before its page fails with the reason (#5537). Well under
-#: the lane's hold limit (`execution.jobs.HOLD_LIMIT_SECONDS`, 900 s), which ends a slot held longer:
+#: the lane's hold limit (`execution.jobs.HOLD_LIMIT_SECONDS`, 900 s), past which a slot's row says it keeps its place:
 #: the wait, the server's start (30-300 s) and the page's read all happen inside that one slot.
 MEMORY_WAIT_LIMIT_SECONDS = 300.0
 #: How often a load waiting for memory looks again.
