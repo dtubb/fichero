@@ -120,6 +120,8 @@ struct ActivityBrowserView: View {
                     Section("Background") {
                         ForEach(activityStore.backgroundJobs) { job in
                             ActivityJobRow(job: job)
+                                // The engine has not answered for several reads: these are its last words, not the present.
+                                .opacity(activityStore.rowsAreStale ? 0.45 : 1)
                                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
                                 .listRowSeparator(.hidden)
                         }
