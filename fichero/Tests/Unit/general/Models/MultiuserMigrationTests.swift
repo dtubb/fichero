@@ -1,0 +1,53 @@
+import XCTest
+
+@testable import Fichero
+
+@MainActor
+final class MultiuserMigrationTests: XCTestCase {
+    private var defaults: UserDefaults!
+
+    override func setUp() {
+        super.setUp()
+        defaults = UserDefaults(suiteName: "MultiuserMigrationTests.\(UUID().uuidString)")
+    }
+
+    private struct Refused: LocalizedError {
+        var errorDescription: String? { "Multi-user needs the owner's account to have a password first" }
+    }
+
+    func testOnlyAnOldAppOnWithTheEngineOffIsPushed() {
+        XCTAssertTrue(MultiuserMigration.shouldPush(localOn: true, engineOn: false, alreadyTried: false, engineIsLocal: true))
+        XCTAssertFalse(MultiuserMigration.shouldPush(localOn: false, engineOn: false, alreadyTried: false, engineIsLocal: true))
+        XCTAssertFalse(MultiuserMigration.shouldPush(localOn: true, engineOn: true, alreadyTried: false, engineIsLocal: true))
+        XCTAssertFalse(MultiuserMigration.shouldPush(localOn: true, engineOn: false, alreadyTried: true, engineIsLocal: true))
+        XCTAssertFalse(MultiuserMigration.shouldPush(localOn: true, engineOn: false, alreadyTried: false, engineIsLocal: false))
+    }
+
+    func testItTurnsMultiuserOnOnceAndNeverAgain() async {
+        defaults.set(true, forKey: EngineConfig.multiuserEnabledKey)
+        var calls = 0
+        let first = await MultiuserMigration.run(engineOn: false, engineIsLocal: true, defaults: defaults) { calls += 1 }
+        let second = await MultiuserMigration.run(engineOn: false, engineIsLocal: true, defaults: defaults) { calls += 1 }
+        XCTAssertTrue(first)
+        XCTAssertFalse(second)
+        XCTAssertEqual(calls, 1)
+        XCTAssertNil(MultiuserMigration.takeNote(defaults: defaults))
+    }
+
+    func testARefusalIsSaidOnceAndNotRetried() async {
+        defaults.set(true, forKey: EngineConfig.multiuserEnabledKey)
+        var calls = 0
+        _ = await MultiuserMigration.run(engineOn: false, engineIsLocal: true, defaults: defaults) { calls += 1; throw Refused() }
+        _ = await MultiuserMigration.run(engineOn: false, engineIsLocal: true, defaults: defaults) { calls += 1; throw Refused() }
+        XCTAssertEqual(calls, 1, "a refusal does not loop")
+        let note = MultiuserMigration.takeNote(defaults: defaults)
+        XCTAssertEqual(note?.contains("owner's account to have a password"), true)
+        XCTAssertNil(MultiuserMigration.takeNote(defaults: defaults), "said once")
+    }
+
+    func testTheLocalCopyFollowsTheEngine() {
+        defaults.set(true, forKey: EngineConfig.multiuserEnabledKey)
+        MultiuserMigration.follow(engineOn: false, defaults: defaults)
+        XCTAssertFalse(defaults.bool(forKey: EngineConfig.multiuserEnabledKey))
+    }
+}
