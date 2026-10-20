@@ -717,11 +717,14 @@ class ProviderQuotaError(RuntimeError):
 class LocalOnlyViolationError(RuntimeError):
     """Raised when local-only mode would otherwise call a remote provider."""
 
-    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm"):
+    def __init__(self, provider: str, *, model: str | None = None, kind: str = "llm", because: str | None = None):
         self.provider = provider
         self.model = model
         self.kind = kind
         model_label = f"/{model}" if model else ""
+        if because:  # the person's own answer in Set Up, in their words (`source.egress.setting-is-reachable`)
+            super().__init__(f"Refusing {kind} call to {provider}{model_label}. {because}")
+            return
         super().__init__(
             "Local-only AI mode is enabled; refusing "
             f"{kind} call to remote provider {provider}{model_label}. "
@@ -1206,9 +1209,13 @@ def is_local_only() -> bool:
     except Exception:
         setting = None
 
-    if setting is None:
-        return False
-    return str(setting).strip().lower() in {"1", "true", "yes", "on"}
+    if setting is not None and str(setting).strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    # The Set Up answer is the one source of truth (`source.egress.setting-is-reachable`): "nothing leaves this Mac"
+    # is local-only. `local_only_ai` stays only as the older stored form.
+    from fichero_server.recipes.places import THIS_MAC, get_places
+
+    return get_places() == [THIS_MAC]
 
 
 def _place_of(config: LLMConfig) -> str:
@@ -1226,11 +1233,17 @@ def _runs_on_this_mac(config: LLMConfig) -> bool:
 
 
 def _enforce_local_only_provider(config: LLMConfig, *, kind: str) -> None:
-    if not is_local_only():
-        return
     if _runs_on_this_mac(config):
         return
-    raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
+    # The Set Up answer, per place (`source.egress.setting-is-reachable`): another Mac is not the cloud.
+    from fichero_server.recipes.places import refusal
+
+    place = "another-mac" if _place_of(config) == "own_machine" else "cloud"
+    because = refusal(place)
+    if because:
+        raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind, because=because)
+    if is_local_only():
+        raise LocalOnlyViolationError(config.provider, model=config.model, kind=kind)
 
 
 # =============================================================================
@@ -4860,6 +4873,9 @@ def get_langchain_model(config: LLMConfig) -> Any:
     """Return a cached LangChain ChatModel for one config identity."""
     from fichero_server.llm.places import with_row_address
 
+    # The one gate, here, so every caller is covered (`source.egress.every-call-site`): chat_with_tools and
+    # structured_output reach a model only through this.
+    _enforce_local_only_provider(with_row_address(config), kind="chat")
     # The provider row's Server URL is the address every call to that row uses (#5587); part of
     # the cache identity, so a changed Server URL is a new model.
     config = with_row_address(config)

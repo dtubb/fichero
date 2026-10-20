@@ -2686,16 +2686,23 @@ Jobs and chains
 
 The one egress home (ruled 2026-10-04). Moved here from `ai/local-runtimes.md`; `compute.leave.one-gate` (`compute/transfer-and-results.md`) is the remote-work sheet over this gate.
 
-- `source.egress.every-call-site` — **[BROKEN]** (#5368) every model call goes through the gate;
-  today `chat_with_tools` (`llm/__init__.py:2971`) and `structured_output` call
-  `get_langchain_model` without it. A guardrail test lists every caller of the model factory.
+- `source.egress.every-call-site` — **[PARTIAL]** (#5368) every model call goes through the gate: it sits INSIDE
+  `get_langchain_model`, so `chat_with_tools`, `structured_output` and everything `chat_workflow` reaches are covered, and the
+  per-function checks stay as the earlier, clearer refusal. The guardrail lists every caller of the factory (by AST, anywhere in
+  the engine's source) and fails on a new one outside the reviewed files, then proves a refusal through the factory and through
+  each of the two that skipped it (`fichero-server/tests/unit/llm/test_egress_gate_every_call_site.py`). NOT covered: a provider
+  reached without the factory (Fichero's own fetches, `source.egress.fichero-own-fetches-listed`; embeddings; the cloud OCR and
+  transcription paths that build their own client), which keep their own per-function check.
 - `source.egress.no-silent-cloud-fallback` — **[PARTIAL]** (#5368) no resolver falls back to a cloud
   model; it refuses, naming what to configure. Fixed for the chat route in 7feee5872 and pinned by
   `test_chat_never_falls_back_to_the_cloud.py`; the retrieval query compiler's library-database
   lookup is not yet re-checked *(review: `retrieval/query_compiler.py:148`)*.
-- `source.egress.setting-is-reachable` — **[GAP]** (#5368, #4951) the project's egress rule is set
-  in setup and the Inspector and is what `is_local_only()` reads; today it reads `local_only_ai`,
-  which nothing writes.
+- `source.egress.setting-is-reachable` — **[PARTIAL]** (#5368, #4951) the Set Up answer on where models may run
+  (`recipes/places.py`) IS the egress setting: answered "nothing leaves this Mac" makes `is_local_only()` true, and the gate checks
+  the call's place against the answer (another Mac is not the cloud; each is allowed or refused alone), refusing in the person's
+  words ("Your places do not include a cloud AI service … Allow it in Set Up Fichero…"). Not answered caps nothing, as before.
+  `local_only_ai` (and `FICHERO_LOCAL_ONLY`) remain as older ways to say yes to local-only. Pinned by the same test file. Not yet:
+  the Inspector's per-project switch (a project's own `cloud_allowed` is read by `may_leave_to`, not by this gate).
 - `source.egress.fichero-own-fetches-listed` — **[GAP]** (#5368) Fichero's own fetches (the weekly
   price list, Hub and Zenodo searches, tokenizers for language fit, model downloads) are listed in
   Settings, carry no library content, run as jobs, and stop when the person chooses to work
