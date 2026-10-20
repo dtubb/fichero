@@ -82,11 +82,12 @@ _WEBVIEW_FUNC_RE = re.compile(r"\bfunc\s+webView\s*\(", re.DOTALL)
 
 
 # `FicheroClient(` call sites (#4224). A call naming `baseURL:` must also pass how to dial it.
-_CLIENT_CTOR_RE = re.compile(r"\bFicheroClient\s*\(")
+_CLIENT_CTOR_RE = re.compile(r"\bFicheroClient\s*(?:\.\s*init\s*)?\(")
 _CLIENT_DIAL_ARGS = ("transportMode:", "session:", "expectedSPKIPin:", "transport:")
 # Files that may build a client from a base URL alone, because it is a DIFFERENT host than the app's engine.
-SANCTIONED_OWN_CLIENT: dict[str, str] = {
-    "App/AppState/AppState+Heartbeat.swift": "probes a failover candidate: another host, dialled over its own pinned session",
+# The value is (how many such calls the file may hold, why): a second one in the same file fails.
+SANCTIONED_OWN_CLIENT: dict[str, tuple[int, str]] = {
+    "App/AppState/AppState+Heartbeat.swift": (1, "probes a failover candidate: another host, dialled over its own pinned session"),
 }
 
 # Deliberately allowed exceptions. Empty on the current codebase; kept as an
@@ -358,16 +359,20 @@ def scan(swift_dir: Path = SWIFT_DIR) -> dict[str, str]:
 
         # A client built from a base URL alone ignores the app's transport (#4224).
         flat = "\n".join(lines)
+        own_clients = 0
         for match in _CLIENT_CTOR_RE.finditer(flat):
             depth, end = 1, match.end()
             while end < len(flat) and depth:
                 depth += (flat[end] == "(") - (flat[end] == ")")
                 end += 1
             args = flat[match.end():end]
-            if "baseURL:" in args and not any(a in args for a in _CLIENT_DIAL_ARGS) and rel not in SANCTIONED_OWN_CLIENT:
+            if "baseURL:" in args and not any(a in args for a in _CLIENT_DIAL_ARGS):
+                own_clients += 1
+                if own_clients <= SANCTIONED_OWN_CLIENT.get(rel, (0, ""))[0]:
+                    continue
                 line_no = flat.count("\n", 0, match.start()) + 1
                 found[_key(rel, lines[line_no - 1])] = (
-                    f"FicheroClient(baseURL:) with no transportMode:/session: ignores the app's transport (line {line_no}, #4224)"
+                    f"FicheroClient(baseURL:) with no transportMode:/session:/transport:/expectedSPKIPin: ignores the app's transport (line {line_no}, #4224)"
                 )
 
         # Per-call pinned session + .bytes SSE regression (#2605 / #2608).
