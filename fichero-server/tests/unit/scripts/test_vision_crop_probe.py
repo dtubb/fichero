@@ -77,3 +77,43 @@ def test_when_nothing_rescues_enough_the_verdict_says_leave_crop_line_alone(tmp_
     assert not any(result["decision"].values())
     assert "leave `crop_line` as it is" in vp.report_md(result)
     assert "not ground truth" in vp.report_md(result)
+
+
+def test_a_vision_error_is_reported_as_an_error_and_not_counted_as_not_rescued(tmp_path):
+    rows = [{"page": "p.png", "id": "0", "polygon": _poly(100, 100, 500, 140), "kraken": "Carlos", "vision": ""}]
+
+    def ocr(img):
+        if img.height >= 150:
+            raise RuntimeError("Apple Vision timed out")
+        return ""
+
+    result = vp.probe(rows, _page(tmp_path), ocr=ocr)
+    assert result["errors"] == {"today": 0, "white": 0, "up2": 1, "up2_white": 1}
+    assert result["lines"][0]["errors"]["up2"] == "RuntimeError: Apple Vision timed out"
+    md = vp.report_md(result)
+    assert "Vision errors" in md and "not misses" in md and "up2 1" in md
+
+
+def test_vision_text_does_not_swallow_an_error(monkeypatch):
+    import types
+
+    fake = types.ModuleType("fichero_server.workflows.tools.vision_base")
+
+    def boom(path, language):
+        raise ValueError("Vision request failed")
+
+    fake.apple_vision_ocr = boom
+    monkeypatch.setitem(sys.modules, "fichero_server.workflows.tools.vision_base", fake)
+    with pytest.raises(ValueError, match="Vision request failed"):
+        vp.vision_text(Image.new("RGB", (10, 10)))
+
+
+def test_a_today_variant_that_reads_many_of_the_empties_warns_that_vision_differs_run_to_run(tmp_path):
+    rows = [{"page": "p.png", "id": str(i), "polygon": _poly(100, 100, 500, 140), "kraken": "x", "vision": ""}
+            for i in range(5)]
+    pages = _page(tmp_path)
+    result = vp.probe(rows, pages, ocr=lambda img: "reads now")
+    assert result["today_rereads"] is True and result["today_share"] == 1.0
+    assert "A re-run of Vision differs by itself" in vp.report_md(result)
+    quiet = vp.probe(rows, pages, ocr=lambda img: "")
+    assert quiet["today_rereads"] is False and "re-run of Vision" not in vp.report_md(quiet)

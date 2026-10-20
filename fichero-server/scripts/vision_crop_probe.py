@@ -30,6 +30,7 @@ from pathlib import Path
 WIDE_PX = 120  # as in ab_kraken_cloud.py: a narrower polygon is a fragment
 LANGUAGE = "es-ES"
 RESCUE_SHARE = 0.25  # the bar for changing the app's crop
+TODAY_WARN_SHARE = 0.10  # `today` was empty before: if it now reads this much, Vision differs run to run by itself
 VARIANTS = ("today", "white", "up2", "up2_white")
 
 
@@ -68,7 +69,8 @@ def real_word(row: dict) -> bool:
 
 
 def vision_text(image) -> str:
-    """Apple Vision on one picture through the engine's own call, as the line reader makes it."""
+    """Apple Vision on one picture through the engine's own call, as the line reader makes it. An error is RAISED: the
+    probe records it as an error, never as "not rescued"."""
     from fichero_server.workflows.tools.vision_base import apple_vision_ocr
 
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
@@ -76,8 +78,6 @@ def vision_text(image) -> str:
     try:
         image.save(path, format="PNG")
         return (apple_vision_ocr(str(path), LANGUAGE) or "").strip()
-    except Exception as exc:  # noqa: BLE001 -- a picture Vision refuses reads as empty, and the probe goes on
-        return ""
     finally:
         path.unlink(missing_ok=True)
 
@@ -93,12 +93,20 @@ def probe(rows: list[dict], pages: Path, *, arm: str = "vision", ocr=vision_text
         if row["page"] not in cache:
             cache[row["page"]] = Image.open(pages / row["page"])
             cache[row["page"]].load()
-        read = {name: ocr(img) for name, img in variants(cache[row["page"]], row["polygon"]).items()}
+        read, errors = {}, {}
+        for name, img in variants(cache[row["page"]], row["polygon"]).items():
+            try:
+                read[name] = ocr(img)
+            except Exception as exc:  # noqa: BLE001 -- recorded as an ERROR of that variant, not as a miss; the probe goes on
+                read[name], errors[name] = "", f"{type(exc).__name__}: {exc}"[:200]
         results.append({"page": row["page"], "id": row["id"], "kraken": row.get("kraken", ""), "real_word": real_word(row),
-                        "read": read})
+                        "read": read, "errors": errors})
     real = [r for r in results if r["real_word"]]
     count = lambda group, name: sum(1 for r in group if r["read"][name])  # noqa: E731
-    return {"arm": arm, "empties": len(results), "real_word_empties": len(real),
+    errored = {n: sum(1 for r in results if n in r["errors"]) for n in VARIANTS}
+    today_share = (count(results, "today") / len(results)) if results else 0.0
+    return {"arm": arm, "empties": len(results), "real_word_empties": len(real), "errors": errored,
+            "today_share": today_share, "today_rereads": today_share > TODAY_WARN_SHARE,
             "rescued": {n: count(results, n) for n in VARIANTS}, "rescued_real_word": {n: count(real, n) for n in VARIANTS},
             "bar": RESCUE_SHARE, "decision": {
                 n: bool(real) and count(real, n) / len(real) >= RESCUE_SHARE for n in VARIANTS if n != "today"},
@@ -106,20 +114,29 @@ def probe(rows: list[dict], pages: Path, *, arm: str = "vision", ocr=vision_text
 
 
 def report_md(r: dict) -> str:
-    rows = ["| variant | empties it reads | real-word empties it reads |", "|---|---|---|"]
+    rows = ["| variant | empties it reads | real-word empties it reads | Vision errors |", "|---|---|---|---|"]
     for n in VARIANTS:
-        rows.append(f"| {n} | {r['rescued'][n]} of {r['empties']} | {r['rescued_real_word'][n]} of {r['real_word_empties']} |")
+        rows.append(f"| {n} | {r['rescued'][n]} of {r['empties']} | {r['rescued_real_word'][n]} of {r['real_word_empties']} "
+                    f"| {r['errors'][n]} |")
     yes = [n for n, ok in r["decision"].items() if ok]
     verdict = (f"**{', '.join(yes)}** read at least {r['bar']:.0%} of the real-word empties: specify a crop change for Apple "
                "Vision only (the cloud readers keep `crop_line`)." if yes else
                f"No variant reads {r['bar']:.0%} of the real-word empties: leave `crop_line` as it is; the misses are Vision's "
                "own limit on this hand.")
+    warnings = []
+    if any(r["errors"].values()):
+        warnings.append("**Vision errors** (not misses): " + ", ".join(f"{n} {k}" for n, k in r["errors"].items() if k)
+                        + ". The counts above undercount what those variants could read; look at `probe.json` before deciding.")
+    if r["today_rereads"]:
+        warnings.append(f"**`today` read {r['rescued']['today']} of {r['empties']} empties ({r['today_share']:.0%})**: the same "
+                        "pictures Vision gave up on before. A re-run of Vision differs by itself, so some of any variant's "
+                        "gain is not the crop.")
     sample = [f"- {x['page']} #{x['id']} (Kraken: {x['kraken']!r}): " + ", ".join(
         f"{n}={t!r}" for n, t in x["read"].items() if t) for x in r["lines"] if any(x["read"].values())][:30]
     return ("\n".join([f"# Vision crop probe on {r['empties']} empty lines ({r['arm']} arm)\n",
                        f"Real word = Kraken read text and the polygon is at least {WIDE_PX} px wide. Texts below are Apple "
                        "Vision readings, **not ground truth**; `today` should read about none (they were empty).\n", *rows,
-                       f"\n{verdict}\n", "## What was read", *(sample or ["(nothing)"])]) + "\n")
+                       f"\n{verdict}\n", *warnings, "## What was read", *(sample or ["(nothing)"])]) + "\n")
 
 
 def main(argv: list[str] | None = None) -> int:
