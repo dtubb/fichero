@@ -21,6 +21,7 @@ import concurrent.futures
 from contextvars import ContextVar
 import os
 import tempfile
+import sys
 import threading
 import time
 import base64
@@ -2489,6 +2490,8 @@ locale_warm_failure: str | None = None
 def warm_supported_locales() -> None:
     """Load the Vision bundle and ask it, in the caller's thread (the engine does this at startup, off the loop)."""
     global locale_warm_failure
+    if sys.platform != "darwin":
+        return  # Vision is macOS-only: nothing to warm and nothing to say
     try:
         _supported_vision_locales()
     except Exception as exc:  # noqa: BLE001 -- off macOS: nothing to warm
