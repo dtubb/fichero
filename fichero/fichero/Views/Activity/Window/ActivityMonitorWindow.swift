@@ -20,16 +20,13 @@ struct ActivityMonitorWindow: View {
     @Environment(LibraryManager.self) private var libraryManager
     @Environment(\.openWindow) private var openWindow
     @State private var selectionState = ActivityWindowSelectionState.shared
-    /// Multi-select (#4960 p3), separate from `selectionState`, which names
-    /// the ONE run the detail window follows.
-    @State private var selectedIDs: Set<ActivityMonitorRow.ID> = []
-    @State private var sortOrder = ActivityMonitorRow.defaultSort
+    /// The run opened over the list (`activity.window.open-a-run`).
+    @State private var openedID: ActivityMonitorRow.ID?
     /// The outcome of the last Delete, Clear Failed, Pause or Stop: said
     /// plainly rather than silently (#4960).
     @State private var notice: String?
     /// The "Clear Finished…" confirmation (#5016).
     @State private var confirmingClearFinished = false
-    @AppStorage("activity.groupByProject") private var groupByProject = false
 
     /// EVERY open library, global included (Daniel #19: "show ALL libraries").
     private var libraries: [LibraryManager.LibraryReference] {
@@ -44,30 +41,29 @@ struct ActivityMonitorWindow: View {
     var body: some View {
         Group {
             if libraries.isEmpty {
-                ContentUnavailableView(
-                    "No Project Open",
-                    systemImage: "tray",
-                    description: Text("Open a project to monitor its workflow activity.")
-                )
-            } else if groups.allSatisfy(\.rows.isEmpty) {
-                ContentUnavailableView(
-                    "No Runs Yet",
-                    systemImage: "clock.arrow.circlepath",
-                    description: Text("Workflow runs from every open project appear here.")
-                )
+                Color.clear  // empty means blank (`activity.window.no-empty-prose`)
             } else {
-                VStack(spacing: 0) {
-                    // What is working now, from the engine's one summary, the popover's words (`activity.window.live-block`).
-                    ActivityLiveSection(summaries: libraries.compactMap { $0.activityStore.activitySummary })
-                    table
-                    // The detail below the table (#5561): the selected row's details,
-                    // the same view the ⓘ button and double-click open.
-                    if let selected = selectedDetails {
-                        Divider()
+                if let selected = openedDetails {
+                    // An opened run replaces the list; the back arrow returns to it (`activity.window.open-a-run`).
+                    VStack(alignment: .leading, spacing: 0) {
+                        Button { openedID = nil } label: { Label("Activity", systemImage: "chevron.left") }
+                            .buttonStyle(.borderless)
+                            .padding(10)
+                            .accessibilityIdentifier("activity.back")
                         ActivityDetailsView(selection: selected.selection)
                             .libraryServiceEnvironment(selected.library)
-                            .frame(minHeight: 220, idealHeight: 320)
                     }
+                } else {
+                    ActivityGroupsView(
+                        groups: windowGroups, showsProject: projectNames.count > 1,
+                        appeared: { await rowAppeared($0) },
+                        perform: { button, row in perform(button, on: row) },
+                        open: { openedID = $0.id },
+                        stopTarget: { runMenuTarget(for: $0) },
+                        clearFailed: { Task { await clearFailed() } },
+                        clearFinished: { confirmingClearFinished = true },
+                        delete: { row in Task { await deleteRuns(withIDs: [row.id]) } }
+                    )
                 }
             }
         }
@@ -83,28 +79,6 @@ struct ActivityMonitorWindow: View {
                     ActivityModeButton(store: store)
                 }
             }
-            ToolbarItem {
-                Toggle(isOn: $groupByProject) {
-                    Label("Group by Project", systemImage: "square.stack.3d.up")
-                }
-                .help("Group the rows by project, with this Mac's own work as a group of its own")
-            }
-            ToolbarItem {
-                // Every failed row the window shows: runs and jobs of their own (#5634).
-                Button("Clear Failed", role: .destructive) { Task { await clearFailed() } }
-                    .disabled(!libraries.contains {
-                        $0.activityStore.runs.contains { $0.status == .failed } || !$0.activityStore.failedJobs.isEmpty
-                    })
-                    .help("Clear every failed run and job from the list")
-                    .accessibilityIdentifier("activity.toolbar.clearFailed")
-            }
-            ToolbarItem {
-                // Every run that has ended, whatever the way (#5016): the one way to empty the list.
-                Button("Clear Finished…", role: .destructive) { confirmingClearFinished = true }
-                    .disabled(!libraries.contains { $0.activityStore.runs.contains { ActivityRunStatus.finished.contains($0.status) } })
-                    .help("Remove every finished run from the list; running ones stay")
-                    .accessibilityIdentifier("activity.toolbar.clearFinished")
-            }
         }
         .confirmationDialog("Remove every finished run?", isPresented: $confirmingClearFinished) {
             Button("Clear Finished", role: .destructive) { Task { await clearFinished() } }
@@ -114,88 +88,6 @@ struct ActivityMonitorWindow: View {
         .safeAreaInset(edge: .bottom) { footer }
         // The window owns the run-list load (Daniel, 2026-08-28).
         .task(id: refreshKey) { await refreshAll() }
-    }
-
-    private var table: some View {
-        Table(of: ActivityMonitorRow.self, selection: $selectedIDs, sortOrder: $sortOrder) {
-            TableColumn("Name", value: \.name) { row in
-                ActivityNameCell(row: row, showsProject: !groupByProject)
-                    .task(id: row.id) { await rowAppeared(row) }
-            }
-            .width(min: 180, ideal: 260)
-            TableColumn("State", value: \.phaseKey) { row in ActivityStateCell(row: row) }
-                .width(min: 120, ideal: 220)
-            TableColumn("Progress", value: \.progressKey) { row in
-                Text(row.progressText).monospacedDigit()
-            }
-            .width(min: 70, ideal: 150)
-            TableColumn("Started", value: \.startedKey) { row in
-                Text(row.started == nil ? "" : ActivityTimeText.absolute(row.started))
-            }
-            .width(min: 70, ideal: 110)
-            TableColumn("Time", value: \.secondsKey) { row in ActivityElapsedCell(row: row) }
-                .width(min: 50, ideal: 70)
-            TableColumn("Cost", value: \.costKey) { row in Text(row.costText).monospacedDigit() }
-                .width(min: 50, ideal: 70)
-            TableColumn("Errors", value: \.errors) { row in
-                Text(row.errorsText).monospacedDigit().foregroundStyle(.red)
-            }
-            .width(min: 40, ideal: 50)
-            TableColumn("Model", value: \.modelKey) { row in Text(row.model ?? "").lineLimit(1) }
-                .width(min: 60, ideal: 120)
-            TableColumn("") { row in
-                ActivityRowControls(
-                    row: row,
-                    run: runMenuTarget(for: row),
-                    perform: { control in Task { await act(control, on: row) } },
-                    showDetails: { showDetails(for: row) }
-                )
-            }
-            .width(min: 70, ideal: 110)
-        } rows: {
-            if groupByProject {
-                ForEach(sortedGroups) { group in
-                    Section {
-                        OutlineGroup(group.rows, children: \.children) { row in TableRow(row) }
-                    } header: {
-                        Text(group.title)
-                            .accessibilityIdentifier(group.isMac ? "activity.group.mac" : "activity.group.\(group.id)")
-                    }
-                }
-            } else {
-                OutlineGroup(sortedRows, children: \.children) { row in TableRow(row) }
-            }
-            historyTableRows
-        }
-        .accessibilityIdentifier("activity.table")
-        .focusedSceneValue(\.activityRun, selectedIDs.count == 1 ? selectedIDs.first.flatMap(runMenuTarget(for:)) : nil)
-        // Edit › Delete (⌘⌫) on the selected runs while the table has focus (#5652): the same item as its menu.
-        .focusedValue(\.itemVerbs, deleteTarget(selectedIDs))
-        .contextMenu(forSelectionType: ActivityMonitorRow.ID.self) { ids in
-            if ids.count == 1, let id = ids.first, let target = runMenuTarget(for: id) {
-                if target.canStop { ActivityStopMenuItem(target: target) }
-                if target.readAgainLabel != nil { ActivityReadAgainMenuItem(target: target) }
-            }
-            // Edit › Delete's own item (#5652), on the runs this click acts on.
-            DeleteItemsMenuItem(target: deleteTarget(ids))
-        } primaryAction: { ids in
-            guard ids.count == 1, let id = ids.first, let row = Self.find(id, in: sortedRows) else { return }
-            showDetails(for: row)
-        }
-        #if os(macOS)
-        .onDeleteCommand { Task { await deleteRuns(withIDs: selectedIDs) } }
-        #endif
-    }
-
-    /// Ended, stopped and interrupted work the engine folded away (`activity.window.history-group`, #5851); its own
-    /// property so the table's row builder stays small enough to type-check.
-    @TableRowBuilder<ActivityMonitorRow>
-    private var historyTableRows: some TableRowContent<ActivityMonitorRow> {
-        if !historyRows.isEmpty {
-            Section("History") {
-                OutlineGroup(historyRows, children: \.children) { row in TableRow(row) }
-            }
-        }
     }
 
     @ViewBuilder
@@ -232,7 +124,7 @@ struct ActivityMonitorWindow: View {
     /// What has ended: the runs that finished, stopped or failed and the jobs the engine put in History
     /// (`ActivityStore.historyJobs`), under their own heading, emptied by Clear Finished (`activity.window.history-group`).
     private var historyRows: [ActivityMonitorRow] {
-        ActivityMonitorRow.sorted(libraries.flatMap { library in
+        libraries.flatMap { library in
             ActivityMonitorRow.group(
                 libraryId: library.id, libraryName: library.displayName,
                 isMac: library.id == libraryManager.globalLibrary?.id,
@@ -240,20 +132,16 @@ struct ActivityMonitorWindow: View {
                     .map { .run($0, tree: library.activityStore.runTrees[$0.threadId ?? $0.runId]) },
                 jobs: library.activityStore.historyJobs
             ).rows
-        }, using: sortOrder)
-    }
-
-    private var sortedRows: [ActivityMonitorRow] {
-        ActivityMonitorRow.sorted(groups.flatMap(\.rows), using: sortOrder)
-    }
-
-    private var sortedGroups: [ActivityMonitorRow.Group] {
-        groups.filter { !$0.rows.isEmpty }.map { group in
-            var group = group
-            group.rows = ActivityMonitorRow.sorted(group.rows, using: sortOrder)
-            return group
         }
     }
+
+    /// Every top-level row, live and ended, as the one list's three groups (`activity.window.three-groups`).
+    private var allRows: [ActivityMonitorRow] { groups.flatMap(\.rows) + historyRows }
+
+    private var windowGroups: ActivityWindowGroups { ActivityWindowGroups(rows: allRows) }
+
+    /// The projects with work in the window: the project leads a row's name when there are several.
+    private var projectNames: Set<String> { Set(allRows.compactMap(\.projectName)) }
 
     /// A run row drawn for the first time reads its tree; the last run row of
     /// a library pages in that library's next runs (#4960 infinite scroll).
@@ -272,10 +160,10 @@ struct ActivityMonitorWindow: View {
         return libraries.first { $0.id == id }
     }
 
-    /// The one selected row's details and its project, for the detail below the table.
-    private var selectedDetails: (selection: ActivitySelection, library: LibraryManager.LibraryReference)? {
-        guard selectedIDs.count == 1, let id = selectedIDs.first,
-              let row = Self.find(id, in: sortedRows), let selection = row.selection,
+    /// The opened run's details and its project.
+    private var openedDetails: (selection: ActivitySelection, library: LibraryManager.LibraryReference)? {
+        guard let id = openedID,
+              let row = Self.find(id, in: allRows), let selection = row.selection,
               let library = library(for: row.libraryId) else { return nil }
         return (selection, library)
     }
@@ -285,7 +173,7 @@ struct ActivityMonitorWindow: View {
     /// Stop and Read Again for one row, shared by the row's own buttons, its context menu and the menu
     /// bar (#5652): each renders `ActivityStopMenuItem` / `ActivityReadAgainMenuItem` on this target.
     private func runMenuTarget(for id: ActivityMonitorRow.ID) -> ActivityRunMenuTarget? {
-        Self.find(id, in: sortedRows).map(runMenuTarget(for:))
+        Self.find(id, in: allRows).map(runMenuTarget(for:))
     }
 
     private func runMenuTarget(for row: ActivityMonitorRow) -> ActivityRunMenuTarget {
@@ -315,21 +203,14 @@ struct ActivityMonitorWindow: View {
         notice = failure.map { "Couldn't \(control.label.lowercased()) \(row.name): \($0)" }
     }
 
-    /// ⓘ on a row (#5560) and double-click: that row's own details (#5561), a
-    /// step's or a page's too, not its run's. Selection is set FIRST because the
-    /// details window reads what to show from the shared selection state.
-    private func showDetails(for row: ActivityMonitorRow) {
-        guard let selection = row.selection else { return }
-        selectionState.select(selection)
-        openWindow(id: ActivityWindowSelectionState.detailWindowID)
-    }
-
-    /// These rows, as Delete acts on them: the one delete operation below.
-    private func deleteTarget(_ ids: Set<ActivityMonitorRow.ID>) -> ItemVerbsTarget {
-        var target = ItemVerbsTarget(ids: ids.sorted(), documents: [])
-        target.deletableCount = ids.count
-        if !ids.isEmpty { target.delete = { Task { await deleteRuns(withIDs: ids) } } }
-        return target
+    /// A row's one button (`activity.window.one-button`): Pause, Resume and Retry act on its job; Show opens the run.
+    private func perform(_ button: ActivityMonitorRow.OneButton, on row: ActivityMonitorRow) {
+        switch button {
+        case .pause: Task { await act(.pause, on: row) }
+        case .resume: Task { await act(.resume, on: row) }
+        case .retry: Task { await act(.retry, on: row) }
+        case .show: openedID = row.id
+        }
     }
 
     /// The ONE delete operation (#4960), routed per row's OWN library. Only
@@ -343,7 +224,7 @@ struct ActivityMonitorWindow: View {
             let outcome = await library.activityStore.deleteRuns(threadIds: threadIds)
             skippedCount += outcome.skippedIds.count
         }
-        selectedIDs.removeAll()
+        openedID = nil
         notice = skippedCount > 0 ? "\(skippedCount) run\(skippedCount == 1 ? "" : "s") still running — not deleted." : nil
     }
 
@@ -365,7 +246,7 @@ struct ActivityMonitorWindow: View {
             let outcome = await library.activityStore.deleteRuns(statuses: ActivityRunStatus.finishedEngineNames)
             skipped += outcome.skippedIds.count
         }
-        selectedIDs.removeAll()
+        openedID = nil
         notice = skipped > 0 ? "\(skipped) run\(skipped == 1 ? "" : "s") could not be cleared." : nil
     }
 

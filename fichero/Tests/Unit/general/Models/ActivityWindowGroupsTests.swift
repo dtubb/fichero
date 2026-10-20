@@ -55,14 +55,15 @@ struct ActivityWindowGroupsTests {
         #expect(ActivityWindowGroups(rows: [], now: today).isEmpty)
     }
 
-    @Test("a job of its own with no start or end time is listed, not lost; an overnight run that ended today is DONE TODAY")
+    @Test("DONE TODAY goes by the END time: an overnight run that ended today is in, a row with no known end is not")
     func endTimeNotStartTime() {
         let yesterday = today.addingTimeInterval(-86_400)
         let groups = ActivityWindowGroups(rows: [
             row("job", .done, kind: .job), row("overnight", .done, started: yesterday, ended: today.addingTimeInterval(-300)),
             row("ended-yesterday", .done, started: yesterday, ended: yesterday),
+            row("started-today-ended-never", .done, started: today.addingTimeInterval(-10)),
         ], now: today)
-        #expect(groups.doneToday.map(\.id) == ["overnight", "job"])  // the unknown end last
+        #expect(groups.doneToday.map(\.id) == ["overnight"])
     }
 
     @Test("a run and the job row of the same work are one row: the run")
