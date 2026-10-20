@@ -3069,12 +3069,10 @@ class _Scheduler:
                     held_params.append(f)
             held = " OR ".join(held_parts)
             person_first = f"{_PERSON_RANK_SQL} > 0"  # a person's job is never held for the loaded model's batch
-            if attached:
-                where += f" AND (id IN ({', '.join('?' for _ in attached)}) OR {person_first} OR NOT ({held}))"
-                params += [*attached, *held_params]
-            else:
-                where += f" AND ({person_first} OR NOT ({held}))"
-                params += held_params
+            # A page a run handed in is held like a stored job: exempting it let two background runs on different heavy models swap
+            # per page (`activity.run.stage-by-stage-no-model-juggling`, #5939). A person's page still goes first (person_first).
+            where += f" AND ({person_first} OR NOT ({held}))"
+            params += held_params
             lane.look_again_at = quiet_from  # look again when the spell ends
             # Held jobs are waiting, not absent: the library stays on the lane so its thread is still
             # there to look again when the spell ends (else it retired, and the held job sat unrun).
