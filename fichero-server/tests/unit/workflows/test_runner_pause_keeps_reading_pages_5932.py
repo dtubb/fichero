@@ -73,3 +73,24 @@ def test_pages_reading_at_pause_finish_and_nothing_is_read_twice(client, workflo
     assert _wait_for(lambda: _status(client, run) in ("completed", "failed"))
     assert _status(client, run) == "completed"
     assert model.calls == 3, f"each page is read once across Pause and Resume: {model.calls} calls for 3 pages"
+
+
+def test_a_stop_while_the_pause_waits_for_reading_pages_stops_the_run(client, workflow, pages, monkeypatch):
+    """Stop during the wait for the pages still reading ends the run cancelled at once, not paused and not hung (## 652)."""
+    import fichero_server.llm as llm
+    from fichero_server.workflows import validation
+
+    model = GatedModel()
+    monkeypatch.setattr(llm, "vision", model)
+    monkeypatch.setattr(validation, "validate_workflow_llm_preflight", lambda *a, **k: [])
+    monkeypatch.setitem(jobs.LANES, "network", 1)
+    monkeypatch.setattr(jobs, "_scheduler", jobs._Scheduler())
+
+    run = _execute(client, workflow, pages)
+    assert model.started[0].wait(30)  # page 0 is mid-read
+    assert client.put(f"/api/activity/jobs/{run}/paused", json={"paused": True}).status_code == 200
+    time.sleep(0.5)
+    assert client.post(f"/api/activity/jobs/{run}/cancel").status_code == 200
+    model.gates[0].set()
+    assert _wait_for(lambda: _status(client, run) == "cancelled")
+    assert model.calls == 1, "nothing was started after the Stop"
