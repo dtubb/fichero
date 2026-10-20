@@ -808,10 +808,12 @@ class _PageGate:
         self._active = 0
         self._whole = False
         self._wanting_whole = 0
+        self.last_allowed: int | None = None  # the pages-at-once the newest page was admitted under (reader copies follow it)
 
     @contextlib.contextmanager
     def page(self, allowed: int = 1):
         with self._cond:
+            self.last_allowed = max(1, allowed)
             while self._whole or self._wanting_whole or self._active >= max(1, allowed):
                 self._cond.wait()
             self._active += 1
@@ -1297,6 +1299,7 @@ class _ReaderPool:
         self._idle: list[object] = []
         self._template: object | None = None
         self.copies_made = 0
+        self.live = 0  # copies that exist: idle ones and those pages hold
 
     def checkout(self, template: object) -> object:
         import copy
@@ -1304,16 +1307,33 @@ class _ReaderPool:
         with self._lock:
             if self._template is not template:  # the model it was copied from is gone
                 self._idle.clear()
+                self.live = 0
                 self._template = template
             if self._idle:
                 return self._idle.pop()
             self.copies_made += 1
+            self.live += 1
         return copy.deepcopy(template)
 
-    def checkin(self, reader: object, template: object) -> None:
+    def checkin(self, reader: object, template: object, keep: int | None = None) -> None:
+        """A page ended well: its copy goes idle, unless more copies exist than `keep` (the pages at once now allowed): idle
+        copies are trimmed to `keep` as pages end, and this one is dropped when none are left to trim."""
+        with self._lock:
+            if self._template is not template:
+                return
+            while keep is not None and self.live > keep and self._idle:
+                self._idle.pop()
+                self.live -= 1
+            if keep is not None and self.live > keep:
+                self.live -= 1
+            else:
+                self._idle.append(reader)
+
+    def drop(self, template: object) -> None:
+        """A page failed holding a copy: it is not reused."""
         with self._lock:
             if self._template is template:
-                self._idle.append(reader)
+                self.live -= 1
 
 
 @contextlib.contextmanager
@@ -1322,8 +1342,12 @@ def _own_reader(model_path: str, load: Callable[[], object]):
     template = _resident("read", model_path, load)
     pool = _resident("read-copies", model_path, _ReaderPool)
     reader = pool.checkout(template)  # type: ignore[attr-defined]
-    yield reader
-    pool.checkin(reader, template)  # type: ignore[attr-defined]  # not reached when the page failed: that copy is dropped
+    try:
+        yield reader
+    except BaseException:
+        pool.drop(template)  # type: ignore[attr-defined]  # a failed page's copy is not reused
+        raise
+    pool.checkin(reader, template, _INFERENCE_LOCK.last_allowed)  # type: ignore[attr-defined]
 
 
 def _recognize_raw(image_path: str | Path, model_path: str, direction: str | None = None) -> dict[str, object]:
