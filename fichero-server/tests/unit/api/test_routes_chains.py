@@ -214,6 +214,11 @@ class TestExecuteChain:
             assert cancel.status_code == 200 and cancel.json()["cancelled"] is True
             release.set()
             final = _wait_terminal(client, execution_id)
+            for _ in range(250):  # the chain reads cancelled at once; the step settles when its run returns
+                final = client.get(f"/api/chains/executions/{execution_id}").json()
+                if final["step_results"][0]["status"] != "running":
+                    break
+                time.sleep(0.02)
         assert final["status"] == "cancelled"
         # Stopped is not failed: the step is cancelled with no error, and the chain row carries no failure reason.
         assert [(sr["status"], sr["error"]) for sr in final["step_results"]][0] == ("cancelled", None)
