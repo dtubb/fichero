@@ -23,7 +23,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
 
         init(engineState: String) {
             switch engineState.lowercased() {
-            case "running", "stalled": self = .running
+            case "running", "stalled", "stopping", "pausing", "resuming", "retrying": self = .running  // transient: still live
             case "waiting", "accepted", "queued": self = .waiting
             case "paused": self = .paused
             case "failed", "error": self = .failed
@@ -43,6 +43,7 @@ struct ActivityMonitorRow: Identifiable, Equatable {
             case .completed: self = .done
             case .failed: self = .failed
             case .cancelled: self = .cancelled
+            case .unknown: self = .unknown
             }
         }
 

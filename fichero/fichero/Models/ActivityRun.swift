@@ -103,6 +103,8 @@ enum ActivityRunStatus {
     case completed
     case failed
     case cancelled
+    /// A state the app does not know: counted in its own bucket, never as running or done (#5957).
+    case unknown
 
     /// The statuses a run has ended in: what "Clear Finished" enables on AND what it deletes (#5016).
     static let finished: [ActivityRunStatus] = [.completed, .failed, .cancelled]
@@ -118,6 +120,7 @@ enum ActivityRunStatus {
         case .completed: return "completed"
         case .failed: return "failed"
         case .cancelled: return "cancelled"
+        case .unknown: return "unknown"
         }
     }
 
@@ -128,6 +131,7 @@ enum ActivityRunStatus {
         case .completed: return "checkmark.circle.fill"
         case .failed: return "xmark.circle.fill"
         case .cancelled: return "stop.circle.fill"
+        case .unknown: return "questionmark.circle"
         }
     }
 
@@ -138,6 +142,7 @@ enum ActivityRunStatus {
         case .completed: return .green
         case .failed: return .red
         case .cancelled: return .orange
+        case .unknown: return .secondary
         }
     }
 
@@ -149,6 +154,7 @@ enum ActivityRunStatus {
         case .completed: return .completed
         case .failed: return .failed
         case .cancelled: return .cancelled
+        case .unknown: return .idle
         }
     }
 }

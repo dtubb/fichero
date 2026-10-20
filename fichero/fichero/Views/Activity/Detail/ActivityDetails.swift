@@ -319,7 +319,8 @@ extension ActivityRun {
     init(node: ActivityJobNode, libraryId: UUID?, libraryName: String?) {
         let status: ActivityRunStatus
         switch ActivityMonitorRow.Phase(engineState: node.state) {
-        case .running, .waiting, .unknown: status = .running
+        case .running, .waiting: status = .running
+        case .unknown: status = .unknown
         case .paused: status = .paused
         case .failed, .interrupted: status = .failed
         case .cancelled, .notRun: status = .cancelled
