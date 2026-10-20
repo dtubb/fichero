@@ -27,7 +27,7 @@ def _kraken_was_sure(page, sure: list[float | None]) -> None:
             page["db"].save(reading)
 
 
-async def _correct(page, monkeypatch, answers: list[str | None], **extra):
+async def _correct(page, monkeypatch, answers: list[str | None], force: bool = False, **extra):
     """Run the review with a bar; `answers` are what the fake model says to each line it is sent, in order."""
     import fichero_server.llm as llm
     from fichero_server.workflows.tools.transcribe_review import transcribe_review
@@ -41,8 +41,8 @@ async def _correct(page, monkeypatch, answers: list[str | None], **extra):
 
     monkeypatch.setattr(llm, "vision", model)
     result = await transcribe_review(
-        inputs={"files": page["src"]["files"], "documents": page["src"]["documents"], "skip_if_artifact_exists": False,
-                "only_below_confidence": 0.6, "language": "es", **extra},
+        inputs={"files": page["src"]["files"], "documents": page["src"]["documents"],
+                "skip_if_artifact_exists": not force, "only_below_confidence": 0.6, "language": "es", **extra},
         state={"library_path": page["library"], "task_id": "run-correct-1"},
         llm_config=LLMConfig(provider=REVIEWER[0], model=REVIEWER[1]))
     assert not result.get("error"), result.get("error")
@@ -116,6 +116,16 @@ async def test_a_re_run_does_not_ask_again_the_lines_this_model_already_answered
     assert again["calls"] == [], "both unsure lines already carry this model's reading: no call, no cost"
     assert any("already answered by mlx/" in note and "not asked again" in note for note in again["notes"]), again["notes"]
     assert _counting(page) == [KRAKEN_READS[0], "vezino de la ciudad", "y lo firmo."]
+
+
+@pytest.mark.asyncio
+async def test_a_forced_re_run_asks_every_unsure_line_again(page, monkeypatch):
+    _kraken_was_sure(page, [0.95, 0.30, 0.50])
+    await _correct(page, monkeypatch, ["vezino de la ciudad", "y lo firmo."])
+
+    again = await _correct(page, monkeypatch, ["vezino de la cibdad", "y lo firmo"], force=True)
+
+    assert sum(len(c["images"]) for c in again["calls"]) == 2, "skip_if_artifact_exists False re-asks"
 
 
 @pytest.mark.asyncio

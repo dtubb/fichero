@@ -336,7 +336,9 @@ async def _review_unsure_lines(prior_text: Any, documents: list, files: list, ll
         texts = counting_texts(db, rows.lines)
         with Image.open(page.path) as img:
             width, height = img.size
-        done = _answered_by(db, str(doc_id), llm_config.provider, llm_config.model)
+        # a forced re-run (`skip_if_artifact_exists` False) asks every unsure line again
+        done = (_answered_by(db, str(doc_id), llm_config.provider, llm_config.model)
+                if inputs.get("skip_if_artifact_exists", True) else set())
         already += len(shown & done)
         asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
                  for r in rows.lines if r.id in shown and r.id not in done]
