@@ -29,3 +29,9 @@ def test_stopped_pages_count_in_the_partial_words():
         {"index": 0, "file": "/a", "success": True, "result": {}}, {"index": 1, "file": "/b", "success": True, "result": {}},
         {"index": 2, "file": "/c", "cancelled": True}]}}
     assert partial_words(state) == "Partial: 2 of 3 pages read (1 stopped)"
+
+
+def test_a_clean_run_with_a_page_skipped_by_design_says_nothing_674():
+    state = {"files": ["/a", "/b", "/c"], "parallel_results": {"read": [
+        {"index": 0, "file": "/a", "success": True, "result": {}}, {"index": 1, "file": "/b", "success": True, "result": {}}]}}
+    assert partial_words(state) is None, "a page nobody read or stopped read as Partial"
