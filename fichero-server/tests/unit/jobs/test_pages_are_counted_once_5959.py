@@ -51,3 +51,31 @@ def test_a_step_still_counts_its_own_pages(db):
     step = _stage(db, run, "a", ["done", "done", "failed", "waiting"])
     node = next(c for c in jobs.tree(db, run)["children"] if c["id"] == step)
     assert (node["done"], node["total"], node["failed"]) == (2, 4, 1)
+
+
+def test_a_page_is_not_done_while_a_step_that_has_not_finished_has_not_reached_it_682(db):
+    """## 682: stage a done on 4 pages, b and c still waiting with no leaves yet: 0 of 4, not 4 of 4."""
+    jobs._ensure(db)
+    for n in range(4):
+        _page(db, n)
+    run = jobs._insert(db, "workflow", "run-5959c", None, "owner")
+    _stage(db, run, "a", ["done", "done", "done", "done"])
+    for name in ("b", "c"):
+        step = jobs._insert(db, "workflow-step", f"{run}:{name}", None, "owner")
+        jobs.set_parent(db, step, run)
+        db.execute("UPDATE jobs SET state = 'waiting' WHERE id = ?", [step])
+    tree = jobs.tree(db, run)
+    assert (tree["done"], tree["total"]) == (0, 4)
+
+
+def test_a_page_missing_from_a_finished_step_was_skipped_there_and_does_not_hold_the_run_back_682(db):
+    jobs._ensure(db)
+    for n in range(4):
+        _page(db, n)
+    run = jobs._insert(db, "workflow", "run-5959d", None, "owner")
+    _stage(db, run, "a", ["done", "done", "done", "done"])
+    _stage(db, run, "b", ["done", "done"])  # a finished step that read only two pages
+    jobs.tree(db, run)
+    for step in jobs.tree(db, run)["children"]:
+        db.execute("UPDATE jobs SET state = 'done' WHERE id = ?", [step["id"]])
+    assert (jobs.tree(db, run)["done"], jobs.tree(db, run)["total"]) == (4, 4)
