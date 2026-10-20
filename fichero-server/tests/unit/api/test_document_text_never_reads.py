@@ -21,7 +21,7 @@ def test_opening_a_pages_text_starts_no_recognise(db, monkeypatch):
 
     for name in ("recognize_to_geometry", "recognize_lines", "segment_to_geometry", "_kraken_call"):
         monkeypatch.setattr(kraken_runtime, name, recognise, raising=False)
-    page = Document(name="p1", doc_type=DocType.image)
+    page = Document(name="p1", doc_type=DocType.page)
     db.save(page)
 
     derived = segment_readings.document_text(db, page.id)
