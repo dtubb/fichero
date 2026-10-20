@@ -290,7 +290,7 @@ def write(db: Any, subject: str) -> None:
         if data is not None:
             _put(db, export, unit.filename, data)
     if left_out:  # the job finishes done and Activity says what it left out (#5966)
-        jobs.note_done(f"{len(left_out)} image(s) left out")
+        jobs.note_done(f"Partial: {len(left_out)} image(s) left out")
 
 
 def status(db: Any) -> list[dict[str, Any]]:
