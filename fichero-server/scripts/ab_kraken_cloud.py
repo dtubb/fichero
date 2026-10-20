@@ -5,7 +5,8 @@ the lines, the model reads every line), on a folder of page images (#5894; spec 
 A script only: no app change, no engine, no token. It runs in the engine's venv (kraken, torch), as `bench_reading.py`
 does, on the test Mac (the M4), and measures the MODEL CALL of each variant, not the recipe step around it: it calls
 `kraken_runtime` for Kraken, `llm.re_ask_lines.re_ask` for A with the step's own lines per request
-(`lines_per_request_for`) and the step's own `sanitize_transcription` on each answer, and `llm.line_reader.read_lines` for B.
+(`lines_per_request_for`) and the step's own `sanitize_transcription` on each answer, and `llm.line_reader.read_lines` for B (with the page, reduced, once per request beside the batch of
+lines, as the recipe's vision reader sends it; the cost reported for B includes it).
 What the step adds (the database, the pass, the skip of lines already answered) is not exercised here.
 
   python fichero-server/scripts/ab_kraken_cloud.py --pages DIR --out DIR [--model fake] [--bar 0.6] [--cap 1.00]
@@ -202,7 +203,9 @@ def install_model(spec: str, ledger: Ledger):
 
         async def fake(images, prompt, config, **kw):
             ledger.add(0.0)
-            return json.dumps([text] * len(images))
+            # B sends the page once beside the lines: the answer is one text for each LINE image the prompt names.
+            n = int(re.search(r"(\d+) (?:line )?images", prompt).group(1))
+            return json.dumps([text] * n)
 
         llm.vision = fake
         return llm.LLMConfig(provider="fake", model=spec)
