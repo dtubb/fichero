@@ -11,6 +11,14 @@ import threading
 
 _LOCK = threading.Lock()
 _WARNINGS: dict[str, str] = {}
+_PREVIOUS_STALL: str | None = None
+
+
+def set_previous_stall(text: str | None) -> None:
+    """What held the PREVIOUS engine's event loop (`'41s in kraken_runtime:load_model'`), shown for this engine's life."""
+    global _PREVIOUS_STALL
+    with _LOCK:
+        _PREVIOUS_STALL = text
 
 
 def note(name: str, kind: str) -> None:
@@ -28,4 +36,7 @@ def as_dependencies() -> dict[str, str]:
     """The warnings as health `dependencies` entries: `{"vision_locales": "failed: OSError"}`. A warm-up that
     did not fail is absent."""
     with _LOCK:
-        return {HEALTH_KEYS.get(name, name): f"failed: {kind}" for name, kind in _WARNINGS.items()}
+        out = {HEALTH_KEYS.get(name, name): f"failed: {kind}" for name, kind in _WARNINGS.items()}
+        if _PREVIOUS_STALL:
+            out["previous_stall"] = _PREVIOUS_STALL
+        return out
