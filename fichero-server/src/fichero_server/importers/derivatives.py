@@ -48,7 +48,7 @@ MAX_CONCURRENT_DERIVATIVES = 2
 #: The job kinds (`execution/jobs.py`), one per stage.
 THUMBNAIL_KIND = "thumbnail"
 EMBED_KIND = "embed"
-EMBED_CLAIMS_KIND = "embed-claims"
+EMBED_KNOWLEDGE_KIND = "embed-knowledge"  # subject "claims" or "entities"
 NLP_KIND = "nlp-draft"
 
 # Types whose derivative is worth generating eagerly. Everything else keeps the
@@ -1087,22 +1087,27 @@ def _thumbnail_job(db: "Database", doc_id: str) -> Path | None:
     return thumb
 
 
-def _embed_claims_job(db: "Database", _subject: str) -> None:
-    from fichero_server.models.knowledge import KnowledgeClaim
+def _embed_knowledge_job(db: "Database", subject: str) -> None:
+    from fichero_server.models.knowledge import KnowledgeClaim, KnowledgeEntity
 
-    db._embed_worker().embed_claims(db.all(KnowledgeClaim))  # unchanged claims are skipped inside
+    worker = db._embed_worker()
+    if subject == "entities":
+        worker.embed_entities(db.all(KnowledgeEntity))  # unchanged ones are skipped inside
+    else:
+        worker.embed_claims(db.all(KnowledgeClaim))
 
 
-def queue_claims_backfill(db: "Database") -> bool:
-    """Queue the claims backfill (`activity.read.claims-backfill-is-a-lane-job`) unless one already waits or runs: once, not
-    once per GET. Returns whether this call queued it."""
+def queue_knowledge_backfill(db: "Database", what: str) -> bool:
+    """Queue the backfill of the vectors of `what` ("claims" or "entities", `activity.read.claims-backfill-is-a-lane-job`)
+    unless one already waits or runs: once, not once per GET. Returns whether this call queued it."""
     from fichero_server.execution import jobs
 
     jobs.load_kinds()
     jobs._ensure(db)
-    if db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND state IN ('waiting', 'running')", [EMBED_CLAIMS_KIND]):
+    if db.execute_fetchone("SELECT id FROM jobs WHERE kind = ? AND subject = ? AND state IN ('waiting', 'running')",
+                           [EMBED_KNOWLEDGE_KIND, what]):
         return False
-    jobs.enqueue(db, EMBED_CLAIMS_KIND, "claims")
+    jobs.enqueue(db, EMBED_KNOWLEDGE_KIND, what)
     return True
 
 
@@ -1128,8 +1133,8 @@ def register_job_kinds() -> None:
                        # Its own lane (#5847: the embedder is a child process): an embed beside a Kraken page must not
                        # unload Kraken's models at the end of a step and reload them for the next.
                        lane="embed")
-    jobs.register_kind(EMBED_CLAIMS_KIND, _embed_claims_job, model="embedder", name="Embed claims for search",
-                       lane="embed")  # the claims backfill a search GET asks for; it embeds only what has no vector
+    jobs.register_kind(EMBED_KNOWLEDGE_KIND, _embed_knowledge_job, model="embedder", name="Embed claims and entities for search",
+                       lane="embed")  # the backfill a search GET or an auto-embed in a GET asks for; it embeds only what has no vector
     jobs.register_kind(NLP_KIND, lambda db, doc_id: _nlp_stage(doc_id, _library_of(db)),
                        model="spacy", name="Read names (NLP draft)",
                        lane="embed")  # a small model: runs beside the big ones, never the heavy lane

@@ -81,9 +81,9 @@ def search_claims_semantic_impl(
     indexed = db._vector_table_stats(KG_CLAIM_EMBEDDINGS_TABLE)["indexed_count"]
     missing = max(0, db.count(KnowledgeClaim) - int(indexed))
     if missing:
-        from fichero_server.importers.derivatives import queue_claims_backfill
+        from fichero_server.importers.derivatives import queue_knowledge_backfill
 
-        queue_claims_backfill(db)
+        queue_knowledge_backfill(db, "claims")
     not_embedded = missing or None
     claim_ids = [r["id"] for r in results]
     if not claim_ids:
