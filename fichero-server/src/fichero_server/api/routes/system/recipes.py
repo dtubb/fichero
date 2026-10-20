@@ -2630,6 +2630,22 @@ class BakeoffRow(BaseModel):
     extra_lines: Optional[int] = Field(default=None, description="a line finder: its lines that match no checked one")
 
 
+class BakeoffRecommendation(BaseModel):
+    """What Set Up recommends from the measured rows (#5922): the reader that reads best by more than the project's
+    noise band, or a local or cheaper one within the band of the best, with the reason in words."""
+
+    card: str
+    name: str
+    cer: float
+    local: bool
+    runs_on: Optional[str] = None
+    cost_per_page_usd: Optional[float] = Field(default=None, description="none when the price is not known")
+    cost_set_usd: Optional[float] = Field(default=None, description="for the project's whole page count")
+    within_noise_band_of: Optional[str] = Field(default=None, description="the best reader's card, when this one is "
+                                                "recommended because it reads within the band of it")
+    sentence: str
+
+
 class BakeoffResult(BaseModel):
     id: str
     job_id: str = Field(description="the evaluation job in Activity")
@@ -2647,6 +2663,9 @@ class BakeoffResult(BaseModel):
         "how the winner was asked, when it is a vision model (#5722)"))
     no_winner_why: Optional[str] = Field(default=None, description="when the job has finished with no winner, why, in "
                                          "words: only one reader could be compared, or no reader read these pages")
+    recommendation: Optional[BakeoffRecommendation] = Field(default=None, description=(
+        "Set Up's recommendation from the measured rows, frontier models weighed with the local ones (#5922); none "
+        "while scoring or with no winner"))
 
 
 class BakeoffReadiness(BaseModel):
