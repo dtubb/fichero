@@ -185,6 +185,32 @@ def kraken_catalog_entries() -> list[Any]:
                 source=_source(True),
             )
         )
+    # Readers downloaded from Hugging Face (`kraken-hf-<owner>--<repo>`, `source.onboard.model-search-kraken-on-hub`): installed
+    # here, so listed like the others.
+    for marker in sorted(kr.recognition_model_dir().glob("kraken-hf-*.installed")):
+        model_id = marker.name[: -len(".installed")]
+        repo = str((kr.recognition_spec(model_id) or {}).get("hf") or model_id)
+        problem = kr.recognition_model_problem(model_id)
+        on_disk = kr.recognition_model_bytes(model_id)
+        entries.append(
+            _make_entry(
+                provider_type=ProviderType.kraken,
+                model_id=model_id,
+                display_name=kr.recognition_display_name(model_id),
+                capabilities=["recognition"],
+                installed=True,
+                download_size_bytes=on_disk,
+                disk_usage_bytes=on_disk,
+                min_memory_bytes=None,
+                memory_class=None,
+                supported=problem is None,
+                unsupported_reason=problem,
+                note=f"A Kraken reader from Hugging Face ({repo}).",
+                tested_status="untested",
+                license_label="user-managed",
+                source=_source(True),
+            )
+        )
     # Readers Fichero trained (#5398): landed from a training job, with where they came from. Listed
     # like any reader; never made a default by landing (`compute.tune.not-default-until-chosen`).
     for model_id, card in kr.trained_readers():

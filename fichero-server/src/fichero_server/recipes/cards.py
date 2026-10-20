@@ -70,6 +70,10 @@ def kraken_reader_for(pin: dict) -> str | None:
 
     if pin.get("trained"):  # a reader Fichero trained and adopted for this project (#5700)
         return str(pin["trained"])
+    if pin.get("kraken_hf"):  # a Kraken reader hosted on Hugging Face
+        from fichero_server.llm.kraken_runtime import reader_id_for_hub
+
+        return reader_id_for_hub(str(pin["kraken_hf"]))
     if not pin.get("zenodo"):
         return None
     return next((rid for rid, row in KRAKEN_RECOGNITION_MODELS.items()
