@@ -9,6 +9,26 @@ enum HostChoices {
         let publicURL: String?
     }
 
+    /// The Bonjour service name the engine advertises for a Mac (`security/discovery.py`: "Fichero Server on <host>",
+    /// dots made dashes), so a Mac can leave itself out of its own list (#5892).
+    static func ownServiceName(hostName: String) -> String {
+        "Fichero Server on " + hostName.replacingOccurrences(of: ".", with: "-")
+    }
+
+    /// Whether pairing with this host needs its invite link: Bonjour carries no key to pin (its TXT record is
+    /// unauthenticated), so only a host certified by a public authority can be paired with from a code alone.
+    static func needsInvite(_ host: Found) -> Bool {
+        guard let raw = host.publicURL, let url = URL(string: raw) else { return true }
+        return !RemoteCertificatePinning.usesPublicCertificateAuthority(url: url)
+    }
+
+    /// Whether a pasted invite's address is the host that was picked (a different one is refused in words).
+    static func invite(_ inviteURL: String, isFor host: Found) -> Bool {
+        guard let raw = host.publicURL, let want = URL(string: raw)?.host?.lowercased(),
+              let got = URL(string: inviteURL)?.host?.lowercased() else { return false }
+        return want == got
+    }
+
     /// Reachable, secure, not this Mac, one row per address, sorted by name.
     static func offered(_ found: [Found], ownName: String) -> [Found] {
         var seen = Set<String>()

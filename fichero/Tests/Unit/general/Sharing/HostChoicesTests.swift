@@ -41,4 +41,19 @@ struct HostChoicesTests {
         #expect(HostChoices.typedURL("http://studio.local") == nil)
         #expect(HostChoices.typedURL("https://studio.local/path") == nil)
     }
+
+    @Test func aMacLeavesItselfOutByItsServiceName() {
+        let own = HostChoices.ownServiceName(hostName: "Daniels-Mac.local")
+        #expect(own == "Fichero Server on Daniels-Mac-local")
+        let found = [host(own, "https://me.local:8443"), host("Fichero Server on Studio", "https://studio.local:8443")]
+        #expect(HostChoices.offered(found, ownName: own).map(\.name) == ["Fichero Server on Studio"])
+    }
+
+    @Test func aLocalHostNeedsItsInviteAndAPickedInviteMustBeForThatHost() {
+        let studio = host("Studio", "https://studio.local:8443")
+        #expect(HostChoices.needsInvite(studio))
+        #expect(HostChoices.invite("https://studio.local:8443", isFor: studio))
+        #expect(!HostChoices.invite("https://other.local:8443", isFor: studio))
+        #expect(!HostChoices.invite("not a url", isFor: studio))
+    }
 }

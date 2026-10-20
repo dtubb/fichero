@@ -1,0 +1,34 @@
+#if canImport(AppKit)
+import Network
+import Observation
+
+/// The Fichero Macs on this network, found by browsing Bonjour (`_fichero._tcp`) for "Connect This Mac to Another
+/// Fichero" (sharing.mac-finds-host, #5892). Presence only: the TXT record's `public_url` is the address to offer, and
+/// the pairing code or invite grants trust. Which of these are shown is `HostChoices.offered`.
+@Observable
+final class NearbyHosts {
+    private(set) var found: [HostChoices.Found] = []
+    private var browser: NWBrowser?
+
+    func start() {
+        guard browser == nil else { return }
+        let browser = NWBrowser(for: .bonjourWithTXTRecord(type: "_fichero._tcp", domain: "local."), using: .tcp)
+        browser.browseResultsChangedHandler = { [weak self] results, _ in
+            let hosts = results.compactMap { result -> HostChoices.Found? in
+                guard case let .service(name, _, _, _) = result.endpoint else { return nil }
+                var url: String?
+                if case let .bonjour(txt) = result.metadata { url = txt["public_url"] }
+                return .init(name: name, publicURL: url?.isEmpty == false ? url : nil)
+            }
+            Task { @MainActor in self?.found = hosts }
+        }
+        browser.start(queue: .main)
+        self.browser = browser
+    }
+
+    func stop() {
+        browser?.cancel()
+        browser = nil
+    }
+}
+#endif
