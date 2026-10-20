@@ -50,3 +50,18 @@ def test_an_english_or_arabic_print_project_is_not_offered_spanish_tessdata(clie
         r = client.get("/api/recipes/candidates", params={"scripts": scripts, "languages": languages, "material": "print",
                                                           "job": "read-a-line", "mac_memory_gb": 32})
         assert TESSERACT not in {c["id"] for c in r.json()["items"]}, languages
+
+
+def test_a_local_model_of_no_stated_size_gets_no_invented_tier_and_apple_vision_is_general():
+    from dataclasses import replace
+
+    from fichero_server.recipes.cards import all_seed_cards
+    from fichero_server.recipes.discovery import reader_tier
+
+    cards = {c.id: c for c in all_seed_cards()}
+    qwen = next(c for c in cards.values() if "hf" in c.pin and "Qwen2.5-VL-3B" in c.pin["hf"])
+    assert reader_tier(qwen, "read-a-line") == "small-vlm"
+    assert reader_tier(replace(qwen, size_gb=0.0), "read-a-line") is None
+    assert reader_tier(replace(qwen, size_gb=20.0), "read-a-line") == "general"
+    apple = next(c for c in cards.values() if c.pin.get("builtin") == "apple-vision")
+    assert reader_tier(apple, "read-a-line") == "general"
