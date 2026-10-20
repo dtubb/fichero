@@ -163,9 +163,11 @@ struct ActivityPopoverSummary: Equatable {
     }
 
     static func block(_ live: Components.Schemas.LiveBlock) -> Block {
-        let pages = live.total > 0 ? "\(live.done) of \(live.total) \(live.total == 1 ? "page" : "pages")" : "no pages yet"
+        // The counts have engine defaults (0), so the generated client makes them optional.
+        let total = live.total ?? 0, done = live.done ?? 0, failedCount = live.failed ?? 0
+        let pages = total > 0 ? "\(done) of \(total) \(total == 1 ? "page" : "pages")" : "no pages yet"
         let folders = live.foldersTotal.map { "\(live.foldersDone ?? 0) of \($0) \($0 == 1 ? "folder" : "folders")" }
-        let failed = live.failed > 0 ? "\(live.failed) failed" : nil
+        let failed = failedCount > 0 ? "\(failedCount) failed" : nil
         return Block(
             id: live.id,
             title: [live.recipe, live.stage, live.workflow].compactMap { $0 }.joined(separator: " › "),
@@ -177,7 +179,7 @@ struct ActivityPopoverSummary: Equatable {
     static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundLine {
         BackgroundLine(
             id: line.kind,
-            text: line.total > 0 ? "\(line.name) · \(line.done) of \(line.total)" : line.name,
+            text: (line.total ?? 0) > 0 ? "\(line.name) · \(line.done ?? 0) of \(line.total ?? 0)" : line.name,
             waiting: line.state == "waiting" ? (line.reason.map(worded) ?? "Waiting") : nil
         )
     }
