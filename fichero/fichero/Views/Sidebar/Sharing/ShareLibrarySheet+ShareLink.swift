@@ -1,6 +1,12 @@
 import SwiftUI
 
 extension ShareLibrarySheet {
+    /// Every note shown under the share link. The link goes to ANOTHER person, so it never carries the Settings card's
+    /// own-Mac hint (a link minted on the owner's host would pair that Mac as the owner, ## 534); a test reads this list.
+    static func linkNotes(person: String) -> [String] {
+        ["This link lets \(person) connect to your project — it carries a single-use code that expires. Share only with them."]
+    }
+
     /// The link the person you just shared with actually opens.
     ///
     /// It is the SAME `fichero://` payload as the pairing QR and the copyable
@@ -30,10 +36,11 @@ extension ShareLibrarySheet {
                         }
                     }
                 }
-                Text("This link lets \(sharedPersonName) connect to your project — "
-                    + "it carries a single-use code that expires. Share only with them.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                ForEach(Self.linkNotes(person: sharedPersonName), id: \.self) { note in
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let localNetworkOnlyAdvisory {
                     // Advisory, not a blocker: the link above is real and works on
                     // this network. Same shape as the unavailable-reason card so it

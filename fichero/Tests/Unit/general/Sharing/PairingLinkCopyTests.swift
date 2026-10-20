@@ -13,6 +13,7 @@ import Foundation
 import Testing
 
 struct PairingLinkCopyTests {
+#if canImport(AppKit)
     /// #5898 / ## 534: the Settings card tells a person their OWN other Mac is paired by the same link.
     @Test func theHostSaysTheSameLinkPairsTheirOwnOtherMac() {
         let hint = PairingLinkCopy.ownOtherMacHint
@@ -23,14 +24,13 @@ struct PairingLinkCopyTests {
     }
 
     /// The share sheet hands a link to ANOTHER person: a link minted on the owner's host would pair their Mac as the owner,
-    /// so the sheet must never carry the own-Mac hint (## 534).
-    @Test func theShareSheetNeverShowsTheOwnOtherMacHint() throws {
-        let sheet = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("fichero/Views/Sidebar/Sharing/ShareLibrarySheet+ShareLink.swift")
-        let source = try String(contentsOf: sheet, encoding: .utf8)
-        #expect(!source.contains("ownOtherMacHint") && !source.contains("syncedCopyHint"))
+    /// so nothing the sheet says under the link may be the own-Mac hint (## 534).
+    @Test func theShareSheetNeverShowsTheOwnOtherMacHint() {
+        let notes = ShareLibrarySheet.linkNotes(person: "Maya")
+        #expect(notes.contains { $0.contains("Maya") })
+        #expect(!notes.contains { $0.contains(PairingLinkCopy.ownOtherMacHint) || $0.contains("Your other Mac") })
     }
+#endif
 
     @Test func withNoLinkTheCardSaysWhyInWords() {
         let outcome = PairingLinkCopy.attempt(link: nil, blocker: .pinNotDerived,
