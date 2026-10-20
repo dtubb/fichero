@@ -231,6 +231,14 @@ async def stream_workflow_events(thread_id: str, http_request: Request) -> Strea
     Returns:
         StreamingResponse with SSE events
     """
+    # A stream is not a library read the dependency sees: with the project named, the caller is checked as for any other
+    # library-level read, so a person shared only a folder never subscribes to a run's events (review 705,
+    # `sharing.share-sheet-chooses-what`, #5967).
+    from fichero_server.api.library_header import optional_library_path
+    from fichero_server.api.main import assert_library_read_authorized
+
+    if library := optional_library_path(http_request):
+        assert_library_read_authorized(http_request, library)
     # Check if workflow is being tracked
     state = _get_workflow_state(thread_id)
     if not state:
