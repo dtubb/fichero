@@ -34,6 +34,9 @@ PYTHONPATH=fichero-server/src pytest fichero-server/tests/unit/
 ./fichero-server/scripts/start_fichero_server.sh --uds
 # CLI / MCP need the HTTPS engine instead (app quit, or a scratch library):
 bash fichero-server/scripts/start_fichero_server.sh   # HTTPS :8765; app pins it fail-closed — never bare uvicorn/HTTP, #2538
+# Both launchers REFUSE to start without FICHERO_BASE_PATH set to a scratch folder (never ~/Fichero, ~/Fichero Projects,
+# the app's state dir or an app container, #5924). Only the owner, on purpose, by hand: FICHERO_ALLOW_REAL_STATE=1
+# ./fichero-server/scripts/start_fichero_server.sh --uds  (no script or agent ever sets it).
 
 # Swift — lint your diff; the manager runs the build + test (prefer the Xcode MCP)
 swiftlint lint fichero/fichero/
