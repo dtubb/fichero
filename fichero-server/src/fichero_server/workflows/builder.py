@@ -17,6 +17,7 @@ from langgraph.errors import GraphBubbleUp
 import asyncio
 import logging
 import os
+import time
 import uuid
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -1728,7 +1729,34 @@ def _make_parallel_node_function(
     # not yet read do not start, and the node fails on it at once instead of trying page after page.
     refused_for_all: list[str] = []
 
+    #: How many pages of this node are inside the function now, and how many of those hold a pause they raised (#5919).
+    reading = {"active": 0, "parked": 0}
+    PAUSE_WAITS_FOR_READING_SECONDS = 600.0
+
     async def parallel_node_function(state: State) -> dict:
+        """One page; a page the run's Pause cut short waits until every page still reading has finished, then raises the pause.
+
+        Raised at once, the fan-out aborts and cancels the page that is mid-read: its paid result is lost and Resume reads it
+        again. Held until the readers are done, their results are kept with the checkpoint and only undone pages are read
+        on Resume (`activity.durable.paused-stays-paused`, `nothing-twice`; #5919)."""
+        reading["active"] += 1
+        parked = False
+        try:
+            try:
+                return await _read_one_page(state)
+            except WorkflowPaused:
+                parked = True
+                reading["parked"] += 1
+                deadline = time.monotonic() + PAUSE_WAITS_FOR_READING_SECONDS
+                while reading["active"] > reading["parked"] and time.monotonic() < deadline:
+                    await asyncio.sleep(0.05)
+                raise
+        finally:
+            reading["active"] -= 1
+            if parked:
+                reading["parked"] -= 1
+
+    async def _read_one_page(state: State) -> dict:
         """Process a single file in parallel."""
         node_id = node_def.id
 
