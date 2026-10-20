@@ -34,8 +34,17 @@ struct SharingTogglesTests {
     // sharing.people-tab-names-the-multiuser-switch (#5917)
     @Test func theMultiUserOffHintNamesTheSwitchWhereItIs() {
         let hint = SharingToggles.multiUserOffHint
-        #expect(hint.contains("Settings → Sharing → Devices"))
-        #expect(hint.contains(SharingToggles.all[1].label))
+        #expect(hint.contains(SharingToggles.location))
+        #expect(hint.contains(SharingToggles.label(.multiUser)))
         #expect(!hint.contains("Engine"))
+    }
+
+    @Test func theHintPromisesNoRestart() {
+        #expect(!SharingToggles.multiUserOffHint.localizedCaseInsensitiveContains("restart"))
+    }
+
+    @Test func aLabelIsFoundByItsIdNotItsPlace() {
+        #expect(SharingToggles.label(.sharing) == "Sharing")
+        #expect(SharingToggles.label(.multiUser) == "Multi-user")
     }
 }
