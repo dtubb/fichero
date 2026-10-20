@@ -62,7 +62,7 @@ def _cached(model_name: str, cache_dir: str) -> bool:
     source = space.source_model_name if space else model_name
     folder = "models--" + (_fastembed_source_repo(source) or source).replace("/", "--")
     try:
-        return any(d.name.lower() == folder.lower() and (d / "snapshots").is_dir() for d in os.scandir(cache_dir))
+        return any(d.name.lower() == folder.lower() and os.path.isdir(os.path.join(d.path, "snapshots")) for d in os.scandir(cache_dir))
     except OSError:
         return False
 
