@@ -239,6 +239,22 @@ evidence backs.
   release is about to publish to — `create-github-release.sh` already does this one; folding it
   into the same script keeps every update-readiness check in one place.
 
+## Release scope (owner ruling 2026-10-20)
+
+The next release is about three things, in this order; lane work is sorted by it:
+
+1. **Recipes with cloud AND local models.** Set Up recommends a reader wisely, weighing frontier models (Claude,
+   Gemini) with local ones on the project's own Try pages, with cost per page and per set
+   (`source.recipe.reader-tiers.frontier-on-the-try-pages`, #5922); the bake-off is the first evidence.
+2. **Sharing**, between the owner's own Macs and with other people (the bar below, #5910).
+3. **Tahoe (macOS 26)**: APIs that exist only on macOS 27 are availability-gated, and the app launches and runs on
+   26 (#5730).
+
+After the release, in this order: the ACENet cluster and Hugging Face training working end to end, then the iPhone.
+
+- `release.scope.three-goals` — **[GAP]** (#5910, #5922, #5730) the release ships when goals 1-3 are met;
+  goal 2 is met by the sharing release bar below.
+
 ## Release bar: sharing (owner ruling 2026-10-20, #5910)
 
 The next release ships only when sharing works solidly. Every item below needs all three before it
