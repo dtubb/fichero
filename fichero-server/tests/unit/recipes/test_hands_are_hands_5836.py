@@ -28,7 +28,7 @@ def test_what_is_offered_is_only_ever_the_curated_list(script, period):
 
 def test_a_typed_answer_is_never_among_the_offered_hands(client):
     saved = client.get("/api/recipes/project").json()
-    answers = {**saved["answers"], "hands": ["Typewriter", "20th century handwritten script"], "period": "20th century"}
+    answers = {**(saved["answers"] or {}), "hands": ["Typewriter", "20th century handwritten script"], "period": "20th century"}
     assert client.put("/api/recipes/project", json={"answers": answers, "recipe": saved["recipe"]}).status_code == 200
     offered = client.get("/api/recipes/hands", params={"script": "Latn", "period": "20th century"}).json()["items"]
     assert not [h for h in offered if h["title"].lower() in ("typewriter", "20th century handwritten script")]

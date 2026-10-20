@@ -973,7 +973,8 @@ class TestErrorDetection:
             await agg_fn(state)
 
         assert exc_info.value.error_count == 7
-        assert "error rate" in str(exc_info.value).lower()
+        # The stop says which rule fired (#5859): more than half of a large batch.
+        assert "7 of 12 pages failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_small_batch_no_rate_check(self):

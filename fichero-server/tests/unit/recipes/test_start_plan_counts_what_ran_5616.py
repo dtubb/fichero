@@ -53,7 +53,7 @@ def test_the_effective_model_is_the_override_else_the_workflows(db):
     assert done.effective_model(db, {"model_override": None, "workflow_id": None}) is None
 
 
-def test_a_step_the_last_run_left_unfinished_says_how_it_ended(client, db, pages, with_material):
+def test_a_step_the_last_run_left_unfinished_says_how_it_ended(client, db, pages):
     """`last_run`/`last_why` on each step the failed run did not finish, as the plan offers it again."""
     from pathlib import Path
 

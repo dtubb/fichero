@@ -92,7 +92,7 @@ def test_a_found_model_this_build_cannot_run_is_never_chosen_by_the_rules(client
 def test_each_source_says_what_it_did_in_one_short_sentence(client, db, store, hub):
     body = _searched(client, db)
     lines = {s["source"]: s["detail"] for s in body["sources"]}
-    assert lines["shipped"].startswith(f"{_source(body, 'shipped')['count']} ship")  # then how many are here (#5809)
+    assert lines["shipped"].startswith(f"{_source(body, 'shipped')['count']} available")  # then how many are here (#5809)
     assert lines["hugging-face"] == "2 found on Hugging Face"
     assert lines["kraken-repository"] == "0 found on Zenodo"
     for line in lines.values():

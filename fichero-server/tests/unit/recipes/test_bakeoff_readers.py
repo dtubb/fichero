@@ -369,7 +369,9 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     started, _ = _run(client, db)
     url = f"/api/recipes/project/bakeoffs/{started['id']}/use"
     assert client.post(url, json={"card": MEDIEVAL, "scope": "project"}).status_code == 200  # not the rules' first
-    assert client.post(url, json={"card": PPOCR, "scope": "folder", "folder_id": folder.id}).status_code == 200
+    # A folder-scoped Use This is refused until a run applies it (`source.recipe.per-folder`, review 2026-10-20).
+    refused = client.post(url, json={"card": PPOCR, "scope": "folder", "folder_id": folder.id})
+    assert refused.status_code == 422 and "whole project" in refused.json()["detail"], refused.text
 
     again = client.post("/api/recipes/assemble", json=answers)
     assert again.status_code == 200, again.text
@@ -377,13 +379,13 @@ def test_assembling_again_keeps_a_use_this_reader(client, db, tmp_path, folder, 
     (step,) = [s for s in proposed["steps"] if s["job"] == "read-a-line"]
     assert step["card"]["id"] == MEDIEVAL and step["model"] == {"zenodo": "10.5281/zenodo.12743230"}
     assert "bake-off" in step["reasons"][0] and step["card"]["cer_measured_here"] is not None
-    assert [(o["scope"], o["card"]) for o in proposed["overrides"]] == [("project", MEDIEVAL), ("folder", PPOCR)]
-    # Saved again as proposed, the choice and both overrides survive.
+    assert [(o["scope"], o["card"]) for o in proposed["overrides"]] == [("project", MEDIEVAL)]
+    # Saved again as proposed, the choice and its override survive.
     saved = client.put("/api/recipes/project", json={"answers": answers, "recipe": proposed})
     assert saved.status_code == 200, saved.text
     kept = saved.json()["recipe"]
     assert next(s for s in kept["steps"] if s["job"] == "read-a-line")["card"]["id"] == MEDIEVAL
-    assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL), ("folder", PPOCR)]
+    assert [(o["scope"], o["card"]) for o in kept["overrides"]] == [("project", MEDIEVAL)]
 
 
 def test_readiness_is_counted_as_a_start_is_and_said_before_pressing(client, db, tmp_path, folder, with_material):

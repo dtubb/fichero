@@ -17,12 +17,12 @@ def _card(name: str, installed: bool | None) -> Card:
 
 def test_shipped_models_say_how_many_are_here_and_how_many_need_a_download():
     said = discovery.shipped_words([_card("a", True), _card("b", False), _card("c", False)])
-    assert said == "3 ship with Fichero: 1 here, 2 to download"
+    assert said == "3 available: 1 here, 2 to download"  # "Available" since #5812
 
 
 def test_all_shipped_models_here_says_so():
-    assert discovery.shipped_words([_card("a", True)]) == "1 ships with Fichero, all on this Mac"
-    assert discovery.shipped_words([_card("a", True), _card("b", True)]) == "2 ship with Fichero, all on this Mac"
+    assert discovery.shipped_words([_card("a", True)]) == "1 available, all on this Mac"
+    assert discovery.shipped_words([_card("a", True), _card("b", True)]) == "2 available, all on this Mac"
 
 
 def test_a_model_that_needs_no_download_counts_as_on_this_mac():
@@ -30,7 +30,7 @@ def test_a_model_that_needs_no_download_counts_as_on_this_mac():
 
 
 def test_nothing_shipped_says_so():
-    assert discovery.shipped_words([]) == "Nothing ships with Fichero for this step"
+    assert discovery.shipped_words([]) == "Nothing available for this step"
 
 
 def test_your_own_models_are_counted_in_words_not_as_a_bare_zero():
@@ -55,5 +55,5 @@ def test_discover_uses_those_words():
 
     _cards, sources = discovery.discover(Answers(), online=False, job="read-a-line")
     by = {s["source"]: s["detail"] for s in sources}
-    assert "with Fichero" in by["shipped"] or by["shipped"].startswith("Nothing ships")
+    assert " available" in by["shipped"]
     assert by["transkribus"] == discovery.TRANSKRIBUS_NOT_SEARCHED
