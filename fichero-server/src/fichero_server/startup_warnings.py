@@ -2,7 +2,7 @@
 
 A warm-up (the Keychain's API keys, Vision's locales) that fails leaves the lookups to read on demand, so the engine goes
 on; but a log line alone is a failure no caller can see. Each failure is kept here by name, and `GET /api/health` carries
-them as `startup_warnings`, so the app (or a person reading health) can tell a skipped warm-up from one that never ran.
+them in its free-form `dependencies` map (`provider_keys`, `vision_locales`: `failed: why`), so the app (or a person reading health) can tell a skipped warm-up from one that never ran.
 """
 
 from __future__ import annotations
@@ -25,7 +25,12 @@ def clear(name: str) -> None:
         _WARNINGS.pop(name, None)
 
 
-def current() -> list[str]:
-    """The warnings, `name: message`, in the order they were first noted."""
+#: The health `dependencies` key each warm-up reports under (no schema change: that map is free-form strings).
+HEALTH_KEYS = {"keychain-warm-up": "provider_keys", "vision-locales-warm-up": "vision_locales"}
+
+
+def as_dependencies() -> dict[str, str]:
+    """The warnings as health `dependencies` entries: `{"vision_locales": "failed: OSError: no bundle"}`. A warm-up that
+    did not fail is absent."""
     with _LOCK:
-        return [f"{name}: {message}" for name, message in _WARNINGS.items()]
+        return {HEALTH_KEYS.get(name, name): f"failed: {message}" for name, message in _WARNINGS.items()}

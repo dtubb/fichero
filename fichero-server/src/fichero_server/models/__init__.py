@@ -2068,9 +2068,6 @@ class HealthResponse(BaseModel):
     #: Error type name when moving old device tokens to the new clients table failed at open (#5799). The old
     #: tokens still work and the move is retried at the next open; None when nothing is pending. A warning only.
     device_token_migration_error: str | None = None
-    #: Start-up warm-ups that were skipped, `name: why` (the Keychain's keys, Vision's locales): each leaves its lookups to
-    #: read on demand, and health says so rather than only the log (#4420). Empty when none.
-    startup_warnings: list[str] = Field(default_factory=list)
     # Live dependency versions for the About box's "Built with" (Daniel wants
     # them DERIVED, never hard-typed). Keys are lowercased pip distribution
     # names → installed version; a lib that is not installed is simply absent
