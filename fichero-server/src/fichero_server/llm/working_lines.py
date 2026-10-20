@@ -29,6 +29,15 @@ NO_WRITING_MARK = "read_no_writing"
 #: Where a line with no baseline of its own (Apple Vision's boxes give none) is read along: this far down its
 #: box, the usual place of a baseline in a line's box.
 BASELINE_AT = 0.75
+#: A page read mostly empty (`source.read.line-with-no-writing-is-read`): of at least this many lines, more than half.
+MOSTLY_EMPTY_MIN_LINES = 5
+
+
+def reads_mostly_nothing(empty: int, found: int) -> bool:
+    """Whether a Kraken reader failed a page: it gave no text for every line, or, on a page of at least
+    `MOSTLY_EMPTY_MIN_LINES`, for more than half. Such a page's empty lines are not 'no writing' (a hand it cannot
+    read is not a blank page); they stay unread so a second Start or another reader takes them."""
+    return found > 0 and (empty == found or (found >= MOSTLY_EMPTY_MIN_LINES and empty * 2 > found))
 
 
 @dataclass(frozen=True)
