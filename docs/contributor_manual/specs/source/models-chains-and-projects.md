@@ -3678,12 +3678,12 @@ Setup
   measured result still override the tier. The order by tier is not built. **Swift half (needs regen and compile):** the finder groups the reading candidates under the tier's words, in the order specialist, small vision model, general, keeping the engine's order inside a group; the person's chosen reader and any measured on their pages head the list ungrouped, whatever their tier (`ModelFinderTiers`, `fichero/Tests/Unit/general/Models/ModelFinderTiersTests.swift`).
 - `source.recipe.reader-tiers.frontier-on-the-try-pages` — **[GAP]** (#5922; owner ruling 2026-10-20) Set Up's
   recommendation weighs frontier models (Claude, Gemini) as well as local ones. On the project's own Try pages the
-  candidates include the frontier vision models unless the project said local only (`answers.cloud_allowed` false), and
+  candidates include the frontier vision models unless the project said its pages may not leave this Mac (`places.may_leave_to`, `source.onboard.pages-may-leave`), and
   the combination "Kraken reads, then a cloud model re-reads only the unsure lines" (variant A, `correct` with
   `only_below_confidence`) is a candidate too. Each candidate shows its measured error on the Try pages, its cost per
   page and its cost for the whole set (the project's page count), and where it runs. The recommendation is the
   candidate that reads best by more than the project's noise band; if a local or cheaper candidate is within the band
-  of the best, that one is recommended and the reason is said in words (for example "reads within the noise band of
+  of the best, that one is recommended and the reason is said in words; when several are within the band, the cheapest for the whole set wins, and at equal cost the one on this Mac (for example "reads within the noise band of
   Claude for $0 per page, on this Mac"). Cloud candidates still need the project's permission before any page leaves
   (`source.onboard.pages-may-leave`). The first evidence is the bake-off on the owner's Test 2 copies (#5910 work
   queue; reference reads are labelled as a model reference, never ground truth). Not built.
