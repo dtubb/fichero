@@ -2046,6 +2046,7 @@ async def _translate_with_deepl(
     config: LLMConfig,
 ) -> str:
     """DeepL translation call via `/v2/translate`."""
+    _enforce_local_only_provider(config, kind="translation")  # where the client is built, not only at the caller
     import aiohttp
 
     if not text.strip():
@@ -4639,6 +4640,7 @@ def _build_langchain_model(config: LLMConfig) -> Any:
     transient OpenRouter / Anthropic blips recover silently with
     exponential backoff + jitter.
     """
+    _enforce_local_only_provider(config, kind="chat")  # where the client is built (`source.egress.every-call-site`)
     provider = config.provider.lower()
     # Defensive prefix strip: saved rows from the litellm-era model list
     # carry the provider prefix ("openrouter/google/gemini-…"), and passing

@@ -68,3 +68,56 @@ def test_allowing_another_mac_does_not_open_the_cloud_and_unanswered_caps_nothin
     assert llm.is_local_only() is False
     with pytest.raises(LocalOnlyViolationError):
         llm.get_langchain_model(LLMConfig(provider="openai", model="m"))
+
+
+# --- the clients that are not the model factory: transcription, translation, the Hugging Face API, OCR, embeddings ---
+
+_CLIENTS = {"ClientSession", "OpenAIWhisperParser", "AsyncClient", "ChatOpenAI", "AzureChatOpenAI", "init_chat_model"}
+
+
+def test_every_outbound_client_in_the_llm_module_is_built_behind_the_gate():
+    """Each function that builds a network client calls the gate itself, or is an internal of the factory whose only
+    caller already did. A new client without the gate fails here."""
+    tree = ast.parse((SRC / "llm/__init__.py").read_text())
+    ungated = []
+    for fn in ast.walk(tree):
+        if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            built = {getattr(n.func, "attr", getattr(n.func, "id", "")) for n in ast.walk(fn) if isinstance(n, ast.Call)} & _CLIENTS
+            if built and "_enforce_local_only_provider" not in ast.unparse(fn):
+                ungated.append(fn.name)
+    # the shared httpx client is made only for `_build_langchain_model`, which has the gate
+    assert sorted(ungated) == ["_get_shared_httpx_async_client"], ungated
+    callers = {fn.name for fn in ast.walk(tree) if isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and "_get_shared_httpx_async_client(" in ast.unparse(fn)} - {"_get_shared_httpx_async_client"}
+    assert callers == {"_build_langchain_model"}
+
+
+@pytest.mark.parametrize("provider", ["deepl", "openai"])
+def test_translation_and_transcription_clients_refuse_when_local_only(monkeypatch, provider):
+    monkeypatch.setenv("FICHERO_LOCAL_ONLY", "1")
+    config = LLMConfig(provider=provider, model="m")
+    with pytest.raises(LocalOnlyViolationError):
+        asyncio.run(llm._translate_with_deepl(text="x", source_lang="auto", target_lang="en", config=config))
+    with pytest.raises(LocalOnlyViolationError):
+        asyncio.run(llm.audio_transcription("/nonexistent.wav", "p", config))
+
+
+def test_a_cloud_ocr_provider_meets_the_same_check_as_a_model_call(client, app_db, monkeypatch):
+    from fichero_server.media.ocr_geometry import OCRCloudProviderBlocked, enforce_ocr_provider_policy
+
+    monkeypatch.delenv("FICHERO_LOCAL_ONLY", raising=False)
+    enforce_ocr_provider_policy("google_vision")  # not answered: caps nothing
+    client.put("/api/recipes/places", json={"places": []})
+    for provider in ("google_vision", "aws_textract", "azure_document_intelligence"):
+        with pytest.raises(OCRCloudProviderBlocked) as refused:
+            enforce_ocr_provider_policy(provider)
+        assert "Your places do not include a cloud AI service" in str(refused.value)
+    enforce_ocr_provider_policy("apple_vision")  # on this Mac: allowed
+
+
+def test_no_cloud_embeddings_client_exists_and_a_new_one_must_be_gated():
+    """Embeddings run in fastembed on this Mac (`db/embeddings.py`). If a cloud embeddings client is ever added, this
+    fails until it is built behind the gate and listed in `_CLIENTS`."""
+    hits = [str(p.relative_to(SRC)) for p in SRC.rglob("*.py")
+            if any(w in p.read_text() for w in ("OpenAIEmbeddings(", "init_embeddings(", ".embeddings.create("))]
+    assert hits == []
