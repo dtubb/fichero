@@ -256,6 +256,7 @@ while any box is open.
   - [ ] Two named people pair as themselves through person-bound invites (spec: `sharing.invite`, `multiuser.invite-registers-public-key`, #2403)
   - [ ] Activity reconnects after a Sharing switch (spec: `sharing.toggle-restarts-engine`, #5912)
   - [ ] No engine death on any Sharing or Multi-user switch (spec: `sharing.toggle-restarts-engine`, #5909)
+  - [ ] Another person sees only what the owner shared with them: a project or a folder in it, chosen on its Share… sheet (spec: `sharing.share-sheet-chooses-what`, #5967; owner ruling 2026-10-20)
 
 ## Open questions
 
