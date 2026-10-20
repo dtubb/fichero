@@ -35,6 +35,15 @@ struct ServerAdvancedModelTests {
         #expect(ServerSettingsText.addressProblem("http://pro.local:8765") == "Address must start with https://")
     }
 
+    @Test("the app's own default address reads as blank (Built-in); a blank field asks for an address where there is no built-in engine")
+    func builtInIsBlank() {
+        #expect(ServerSettingsText.shownAddress(stored: EngineConfig.defaultHostString, builtInAvailable: true) == "")
+        #expect(ServerSettingsText.shownAddress(stored: EngineConfig.defaultHostString, builtInAvailable: false) == EngineConfig.defaultHostString)
+        #expect(ServerSettingsText.shownAddress(stored: "https://pro.local:8765", builtInAvailable: true) == "https://pro.local:8765")
+        #expect(ServerSettingsText.addressProblem("", builtInAvailable: true) == nil)
+        #expect(ServerSettingsText.addressProblem("", builtInAvailable: false)?.hasPrefix("Enter the address") == true)
+    }
+
     @Test("Return hands the draft to the one writer, from the stored host, and writes nothing itself")
     func commitGoesThroughTheOneWriter() async {
         let model = ServerAdvancedModel()
