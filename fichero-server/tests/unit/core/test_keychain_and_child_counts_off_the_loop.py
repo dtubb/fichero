@@ -141,30 +141,32 @@ def test_startup_warms_only_the_providers_the_person_has_set_up(monkeypatch):
     assert warmed == [["openai"]]  # enabled and not on-device; the disabled and the local ones are not asked
 
 
-def test_an_unreadable_keychain_drops_the_old_found_answer(monkeypatch):
-    """#4534: the keychain locks after a key was read; the refresh says UNREADABLE and the old FOUND is not served on."""
+def test_an_unreadable_keychain_replaces_the_old_found_answer_and_a_repeat_runs_no_subprocess_on_the_caller(monkeypatch):
+    """#4534 + 435: the keychain locks after a key was read; the refresh says UNREADABLE, the old FOUND is not served on,
+    and while it stays locked a repeat lookup is a cache hit (a refusal is kept ~5 s), never `security` on the caller."""
     from fichero_server.security.keychain import ProviderKeyState
 
-    _security(monkeypatch, [(0, "sk-1\n", ""), (36, "", "User interaction is not allowed.")])
+    threads: list[int] = []
+    answers = [(0, "sk-1\n", ""), (36, "", "User interaction is not allowed.")]
+
+    def run(*args, input_data=None):
+        threads.append(threading.get_ident())
+        return answers.pop(0) if len(answers) > 1 else answers[0]
+
+    monkeypatch.setattr(keychain, "_run_security", run)
     assert keychain.lookup_api_key("openai").state is ProviderKeyState.FOUND
     monkeypatch.setattr(keychain, "_LOOKUP_SECONDS", -1.0)  # the kept answer is stale
-    done = threading.Event()
-    real = keychain._read_api_key
-
-    def read(provider):
-        try:
-            return real(provider)
-        finally:
-            done.set()
-
-    monkeypatch.setattr(keychain, "_read_api_key", read)
-    assert keychain.lookup_api_key("openai").state is ProviderKeyState.FOUND  # the stale answer, served once
-    assert done.wait(10)
-    for _ in range(100):  # the refresh thread drops the entry just after the read returns
-        if "openai" not in keychain._LOOKUPS:
+    assert keychain.lookup_api_key("openai").state is ProviderKeyState.FOUND  # served once; re-read on a thread
+    for _ in range(200):
+        kept = keychain._LOOKUPS.get("openai")
+        if kept is not None and kept[1].state is ProviderKeyState.UNREADABLE:
             break
         threading.Event().wait(0.02)
-    assert keychain.lookup_api_key("openai").state is ProviderKeyState.UNREADABLE
+    before = len(threads)
+    for _ in range(3):  # locked: every repeat is answered from the cache
+        assert keychain.lookup_api_key("openai").state is ProviderKeyState.UNREADABLE
+    assert len(threads) == before, "a repeat lookup ran `security` again"
+    assert all(t != threading.get_ident() for t in threads[1:]), "the refresh ran off the calling thread"
 
 
 def test_a_found_answer_is_kept_for_a_short_while_only():
