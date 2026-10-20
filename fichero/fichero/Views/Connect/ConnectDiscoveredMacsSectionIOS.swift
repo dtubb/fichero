@@ -8,7 +8,8 @@ import SwiftUI
 struct DiscoveredMacsSection: View {
     @ObservedObject var discovery: BonjourDiscoveryService
     let isPairing: Bool
-    let onSelectHost: () -> Void
+    /// Which Mac was tapped (#5918): the caller pairs with THAT Mac.
+    let onSelectHost: (BonjourHostRecord) -> Void
 
     var body: some View {
         Section {
@@ -20,7 +21,7 @@ struct DiscoveredMacsSection: View {
                 }
             } else {
                 ForEach(discovery.hosts) { host in
-                    Button(action: onSelectHost) {
+                    Button { onSelectHost(host) } label: {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(host.displayName)
