@@ -1637,6 +1637,13 @@ async def save_project_setup(
                 library = _library(db)
                 if read_project_setup(library).get("recipe") is None:
                     params["recipe"] = _assemble(params["answers"], library)
+        if params.get("recipe"):
+            # A Use This made since the app loaded this recipe is kept, an override a PUT adds is dropped (an undo goes through the action)
+            from fichero_server.recipes import bakeoff
+
+            bakeoff.apply_project_overrides(
+                bakeoff.keep_saved_overrides(read_project_setup(_library(db)).get("recipe"), params["recipe"]),
+                list(known_cards(include_not_built=True)))
         result = registry.invoke(db, "project.save_setup", params, ctx)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
