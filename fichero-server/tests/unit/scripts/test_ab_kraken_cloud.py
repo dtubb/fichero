@@ -531,3 +531,13 @@ def test_the_huggingface_token_may_be_named_hf_token_in_the_key_file(tmp_path):
     got = _REAL_ENSURE_KEY("huggingface", env_file=env_file, environ=environ, log=lambda _l: None,
                            lookup=_lookup(ProviderKeyState.ABSENT))
     assert got == "the key file" and environ["HUGGINGFACE_API_KEY"] == "hf_FILEVALUE12345"
+
+
+def test_a_keychain_key_of_any_shape_is_scrubbed_by_value():
+    from fichero_server.security.keychain import ProviderKeyState
+
+    key = "not-a-known-prefix-VALUE-9876"
+    _REAL_ENSURE_KEY("google", lookup=_lookup(ProviderKeyState.FOUND, key=key), environ={}, log=lambda _l: None)
+    assert key not in ab.scrub(f"the call with {key} failed", environ={})
+    assert "AIzaSyABCDEFGHIJKLMNOPQRSTUV" not in ab.scrub("key AIzaSyABCDEFGHIJKLMNOPQRSTUV here", environ={})
+    ab._KNOWN_SECRETS.discard(key)

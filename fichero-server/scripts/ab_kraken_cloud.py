@@ -272,16 +272,22 @@ def read_env_file(path: Path, *, log=print) -> dict[str, str]:
 KEY_ALIASES = {"huggingface": ("HF_TOKEN",)}
 
 
+#: Key values this process has resolved (the keychain's, the key file's): scrubbed by VALUE, whatever shape they have.
+_KNOWN_SECRETS: set[str] = set()
+
+
 def scrub(text: str, environ=None) -> str:
     """`text` with every secret in it replaced: the value of any *_API_KEY / *_TOKEN variable in the environment, and anything shaped
     like a provider key (sk-..., hf_...). Failures are written to report.md; a key must never reach it."""
     import re
 
     environ = os.environ if environ is None else environ
+    for secret in _KNOWN_SECRETS:
+        text = text.replace(secret, "<key>")
     for name, value in environ.items():
         if value and len(value) >= 8 and (name.endswith("_API_KEY") or name.endswith("_TOKEN") or name == "HF_TOKEN"):
             text = text.replace(value, "<key>")
-    return re.sub(r"\b(?:sk-[A-Za-z0-9_-]{8,}|hf_[A-Za-z0-9]{8,})", "<key>", text)
+    return re.sub(r"\b(?:sk-[A-Za-z0-9_-]{8,}|hf_[A-Za-z0-9]{8,}|AIza[A-Za-z0-9_-]{20,})", "<key>", text)
 
 
 def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=None, environ=None, log=print) -> str:
@@ -298,6 +304,8 @@ def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=N
     variable = info.api_key_env if info and info.api_key_env else f"{provider.upper()}_API_KEY"
     answer = (lookup or lookup_api_key)(provider)
     if answer.state is ProviderKeyState.FOUND:
+        if answer.key and len(answer.key) >= 8:
+            _KNOWN_SECRETS.add(answer.key)
         log(f"{provider}: key found in the keychain")
         return "keychain"
     if answer.state is ProviderKeyState.UNREADABLE:
@@ -307,11 +315,15 @@ def ensure_provider_key(provider: str, *, env_file: Path | None = None, lookup=N
     names = (variable, *KEY_ALIASES.get(provider, ()))
     if (hit := next((n for n in names if environ.get(n)), None)):
         environ[variable] = environ[hit]
+        if len(environ[hit]) >= 8:
+            _KNOWN_SECRETS.add(environ[hit])
         log(f"{provider}: key found in the environment ({hit})")
         return "environment"
     found = read_env_file(env_file or AB_ENV, log=log)
     if (hit := next((n for n in names if found.get(n)), None)):
         environ[variable] = found[hit]
+        if len(found[hit]) >= 8:
+            _KNOWN_SECRETS.add(found[hit])
         from fichero_server.llm import clear_api_key_cache
 
         clear_api_key_cache(provider)
