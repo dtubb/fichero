@@ -10,7 +10,7 @@ def test_a_run_with_failed_pages_says_how_many_were_read():
     state = {"files": ["/a", "/b", "/c", "/d"], "parallel_results": {"read": [
         {"index": 0, "file": "/a", "success": True, "result": {}}, {"index": 1, "file": "/b", "success": True, "result": {}},
         {"index": 2, "file": "/c", "success": True, "result": {}}, {"index": 3, "file": "/d", "success": False, "error": "boom"}]}}
-    assert partial_words(state) == "Partial: 3 of 4 pages read"
+    assert partial_words(state) == "Partial: 3 of 4 pages read (1 failed)"
 
 
 def test_a_run_that_lost_no_page_says_nothing():
@@ -22,3 +22,10 @@ def test_a_partly_failed_batch_is_done_with_partial_in_its_reason(db):
     jobs.record_batch(db, "batch-5937", status="partial_failure")
     row = jobs.read_job(db, "batch-5937")
     assert row["state"] == "done" and row["reason"].startswith("Partial")
+
+
+def test_stopped_pages_count_in_the_partial_words():
+    state = {"files": ["/a", "/b", "/c"], "parallel_results": {"read": [
+        {"index": 0, "file": "/a", "success": True, "result": {}}, {"index": 1, "file": "/b", "success": True, "result": {}},
+        {"index": 2, "file": "/c", "cancelled": True}]}}
+    assert partial_words(state) == "Partial: 2 of 3 pages read (1 stopped)"

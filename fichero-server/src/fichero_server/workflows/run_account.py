@@ -135,9 +135,10 @@ def partial_words(state: dict[str, Any] | None) -> str | None:
     """"Partial: N of M pages read" for a run that finished with some pages failed, else None. The run's row stays `done` and
     the reason carries the word, until a real partial state exists (#5937)."""
     account = build_account(status="completed", reason=None, state=state)
-    if not account.pages_failed:
+    if not (account.pages_failed or account.pages_left):
         return None
-    return f"Partial: {account.pages_done} of {account.pages_total} pages read"
+    lost = [f"{n} {word}" for n, word in ((account.pages_failed, "failed"), (account.pages_left, "stopped")) if n]
+    return f"Partial: {account.pages_done} of {account.pages_total} pages read ({', '.join(lost)})"
 
 
 def build_account(*, status: str | None, reason: str | None, state: dict[str, Any] | None,
