@@ -111,3 +111,22 @@ def log_transport_banner(
     for line in transport_banner(binding, uds_path=uds_path).splitlines():
         logger.info("%s", line)
     return binding
+
+
+_FIRST_SEEN: set[str] = set()
+
+
+def note_first_request(scope: dict) -> str | None:
+    """Log `first request on <uds|https|http> after start` once per transport per engine life (#5868), so a repro can tell
+    requests that never arrived from ones that arrived and failed. Says only the transport: no path, address, header or
+    token. Returns the transport named the first time, else None."""
+    server = scope.get("server")
+    if server and server[1] is None:  # uvicorn gives a Unix socket (path, None); a TCP listener has a port
+        transport = "uds"
+    else:
+        transport = "https" if scope.get("scheme") == "https" else "http"
+    if transport in _FIRST_SEEN:
+        return None
+    _FIRST_SEEN.add(transport)
+    logger.info("first request on %s after start", transport)
+    return transport
