@@ -1422,7 +1422,8 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
     if online and not egress_allowed():
         why, quiet = "Offline: not searched", "offline"
     elif online:
-        why, quiet = not_searched or "Searching…", "not-searched"
+        failed = SEARCH_FAILURES.get(_languages_key(a.languages))
+        why, quiet = not_searched or (f"The automatic search could not be queued: {failed}" if failed else "Searching…"), "not-searched"
     else:
         why, quiet = "Not searched", "not-searched"
     if job not in READER_JOBS:
@@ -1543,6 +1544,8 @@ def _say_search(search: dict[str, Any], *rows: dict[str, Any]) -> None:
 
 #: The job kind: a person waits on it, on the search lane (`source.find.online-search-is-a-job`).
 SEARCH_KIND = "find-models"
+#: Why the automatic search could not be queued, by languages key: the candidate list says it beside the search.
+SEARCH_FAILURES: dict[str, str] = {}
 
 
 def register_job_kinds() -> None:

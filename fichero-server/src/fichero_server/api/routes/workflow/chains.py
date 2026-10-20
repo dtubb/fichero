@@ -683,6 +683,13 @@ async def execute_chain(
     if not chain.steps:
         raise HTTPException(status_code=400, detail="Chain has no steps to run")
 
+    unapplied = [s.name or s.id for s in chain.steps if s.condition or s.input_mappings]
+    if unapplied or (chain.entry_step and chain.entry_step != chain.steps[0].id):
+        raise HTTPException(
+            status_code=422,
+            detail=("This chain uses a condition, an input mapping or an entry step "
+                    f"({', '.join(unapplied) or 'its entry step'}), which a run does not apply: its steps run in order, "
+                    "each on the same pages. Remove them to run it."))
     # One way to run (`activity.run.one-way-to-run`): the chain's steps are real runs of the one runner, in list order,
     # under a chain row in Activity that Stop reaches; the same path as /execute-steps. The chain's conditions,
     # entry_step and output mappings are the old executor's graph semantics and are not applied here.
@@ -980,6 +987,7 @@ async def _run_chain_steps(
             continue
 
         error: str | None = None
+        stopped = False
         workflow = _load_step_workflow(db, step.workflow_id)
         exec_request = None
         if workflow is None:
@@ -1022,10 +1030,14 @@ async def _run_chain_steps(
                 error = str(exc)
             if error is None:
                 status_str, run_error = _step_run_outcome(thread_id)
-                if status_str != "completed" or run_error:
+                if canceller.cancelled and status_str == "cancelled":
+                    stopped = True  # a person stopped it: not a failure, and no error to show
+                elif status_str != "completed" or run_error:
                     error = run_error or f"Run ended with status: {status_str}"
 
-        if error is None:
+        if stopped:
+            _set_step_result(result, index, step, ChainStepStatus.CANCELLED)
+        elif error is None:
             _set_step_result(result, index, step, ChainStepStatus.COMPLETED)
             _emit_step_event(
                 execution_id, chain, ChainEventType.STEP_COMPLETED, step, index,
