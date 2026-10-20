@@ -136,7 +136,7 @@ struct WhatFicheroRunsFields: View {
             Toggle(place.title, isOn: Binding(
                 get: { store.allows(place.place) },
                 set: { allowed in Task { await store.set(place.place, allowed: allowed) } }))
-                .toggleStyle(.checkbox)
+                .setupCheckbox()  // a checkbox on the Mac, a switch on iOS
                 .labelsHidden()
                 .disabled(isThisMac)  // where the app is: always allowed
                 .accessibilityLabel(place.title)

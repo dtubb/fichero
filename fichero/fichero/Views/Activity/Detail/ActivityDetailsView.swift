@@ -461,7 +461,7 @@ struct ActivityDetailsLog: View {
                 Text("Log").font(.headline)
                 Spacer()
                 Toggle("Developer", isOn: $developer)
-                    .toggleStyle(.checkbox)
+                    .setupCheckbox()  // a checkbox on the Mac, a switch on iOS
                     .controlSize(.small)
                     .help("Also show the debug lines: when each step started, what a row waited for, a server's output")
                     .accessibilityIdentifier("activity.details.log.developer")
