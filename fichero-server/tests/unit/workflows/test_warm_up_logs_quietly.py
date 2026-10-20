@@ -36,3 +36,15 @@ def test_an_unreadable_job_table_is_one_line_not_a_traceback(monkeypatch, caplog
         assert derivatives._jobs_say("/tmp/lib") is None
     records = [r for r in caplog.records if "job table unreadable" in r.getMessage()]
     assert len(records) == 1 and records[0].exc_info is None
+
+
+def test_a_failed_keychain_warm_up_says_so_once_and_does_not_raise(monkeypatch, caplog):
+    """410 LOW: the failure is the log line (no module global nobody reads); the lookups read on demand."""
+    from fichero_server.api import main
+    from fichero_server.db import app as app_db
+
+    monkeypatch.setattr(app_db, "get_app_db", lambda: (_ for _ in ()).throw(RuntimeError("no app db")))
+    with caplog.at_level(logging.WARNING):
+        main._warm_configured_provider_keys()
+    assert len([r for r in caplog.records if "Keychain warm-up skipped" in r.getMessage()]) == 1
+    assert not hasattr(main, "keychain_warm_failure") and not hasattr(vision_base, "locale_warm_failure")
