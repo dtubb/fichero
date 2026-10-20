@@ -81,16 +81,8 @@ struct BakeoffSection: View {
                 if let why = comparison.noWinnerWhy {
                     Text(why).font(.caption).foregroundStyle(.secondary)
                 }
-                if !context.folders.isEmpty {
-                    Picker("Use for", selection: $scope) {
-                        Text("This project").tag(BakeoffStore.Scope.project)
-                        ForEach(context.folders) { folder in
-                            Text(folder.name).tag(BakeoffStore.Scope.folder(id: folder.id))
-                        }
-                    }
-                    .controlSize(.small)
-                    .fixedSize()
-                }
+                // No "Use for" a folder: a folder's own reader is stored but no run applies it yet, so Use This is for
+                // the project (`source.recipe.per-folder`, spec review 2026-10-20).
                 if let confirmation {
                     Label(confirmation, systemImage: "checkmark.circle").font(.body)
                 }
