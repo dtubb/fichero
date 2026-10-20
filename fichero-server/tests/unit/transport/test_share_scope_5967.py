@@ -274,3 +274,52 @@ def test_an_editor_invited_to_view_a_folder_is_told_they_already_have_more(proje
     assert refused.status_code == 409
     assert "already has more access" in refused.json()["detail"] and "editor" in refused.json()["detail"]
     assert "Folder A" not in refused.json()["detail"]
+
+
+# -- review 705: streams and runs go round the per-row filter; they fail closed too ----------------------------------------
+def _scoped_client(project, role="viewer"):
+    _person(project.harness, "carla")
+    authz.grant_folder(actor=project.users["owner"], library=project.library, user="carla", folder_id=project.ids["A"],
+                       role=role)
+    return _as(project.harness, "carla")
+
+
+def _status(client, method, path):
+    """The status only: a leaked event stream never ends, so the body is never read."""
+    with client.stream(method, path) as response:
+        return response.status_code
+
+
+def _paths(suffix):
+    from fastapi.routing import APIRoute
+
+    return [route.path for route in _app().routes if isinstance(route, APIRoute) and route.path.endswith(suffix)]
+
+
+@pytest.mark.parametrize("suffix, probe", [("/activity/stream", None), ("/changes/stream", None),
+                                           ("/stream/{thread_id}", "/no-such-run")])
+def test_a_person_shared_a_folder_is_refused_the_library_wide_event_streams(project, suffix, probe):
+    client = _scoped_client(project)
+    paths = _paths(suffix)
+    assert paths, f"no route ends {suffix}"
+    for path in paths:
+        got = _status(client, "GET", path.replace("/{thread_id}", probe) if probe else path)
+        assert got in (401, 403), f"{path} answered a person shared one folder with {got}"
+
+
+def test_a_scoped_editor_cannot_start_a_run_or_any_library_level_write(project):
+    """A folder to edit lets them edit THERE; a route that writes the library as a whole (a run over the project, a reindex,
+    a batch) is refused, so a run they start can touch only what a path id names inside their grants."""
+    from fastapi.routing import APIRoute
+
+    client = _scoped_client(project, role="editor")
+    started = []
+    for route in _app().routes:
+        if not isinstance(route, APIRoute) or "{" in route.path or not (route.methods & {"POST", "PUT", "PATCH", "DELETE"}):
+            continue
+        if "get_library_database_for_write" not in {getattr(d.call, "__name__", "") for d in _walk(route.dependant)}:
+            continue
+        for method in sorted(route.methods & {"POST", "PUT", "PATCH", "DELETE"}):
+            if client.request(method, route.path, json={}).status_code < 300:
+                started.append(f"{method} {route.path}")
+    assert not started, f"a person shared one folder to edit changed the whole project through: {started}"
