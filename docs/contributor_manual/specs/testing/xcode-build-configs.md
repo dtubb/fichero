@@ -56,9 +56,17 @@ Cross-cutting invariants (all configs):
   `::test_an_ios_target_at_26_is_caught`.
 - `platform.supports-tahoe-and-golden-gate` — **[GAP]** (#5730) the app builds, launches and works on macOS 26
   and 27, and on iOS 27 (iOS 26 is not supported). Test: `fichero-server/tests/unit/scripts/test_platform_floor_to_spec.py`.
-- `platform.27-only-api-gated` — **[GAP]** (#5730) every 27-only API (Foundation Models image input and OCR tool,
-  Core AI, 27 adapters) sits behind an availability check, with a 26 path where one exists. Checked by a Mac build at floor 26
-  (an ungated 27 API fails to compile there); no source-scan test.
+- `platform.27-only-api-gated` — **[PARTIAL]** (#5730; audited 2026-10-20 against the macOS 27.0 SDK on this branch; the guard is built, unrun until an M4 pass) every 27-only API (Foundation Models image input and OCR tool,
+  Core AI, 27 adapters) sits behind an availability check, with a 26 path where one exists. AUDIT RESULT: (1) the Mac app is
+  compiled at floor 26.0, so an ungated 27-only API fails to compile there (no source-scan test is needed or built); the app
+  imports neither FoundationModels nor CoreAI, and has no `#available` for 27 because none is used. (2) The one place the
+  compiler did NOT enforce the floor was the helper compiled by a bare `swiftc` (the fm-bridge: `bin/fm-bridge/build.sh` and
+  `bundle_python_backend.sh` built it for the host's OS, minos 27; only `build_fm_bridge.sh` named the floor): both now pass
+  `-target arm64-apple-macos26.0`, and `scripts/check_swiftc_floor.py` fails any `swiftc` that builds the bridge without it
+  (`fichero-server/tests/unit/scripts/test_check_swiftc_floor.py`). (3) The engine reads no OS version for any 27 path. (4)
+  The 27-only features themselves (#5716 the on-device model as a reader, Core AI) are not built, so nothing is ungated; when one is built
+  its code is `@available(macOS 27, *)` / `#available`, and it is named "needs macOS 27" where there is no 26 path
+  (`platform.needs-27-said-plainly`). *Not built: a launch on a macOS 26 Mac or VM (the builder's / owner's, needs a 26 machine).*
 - `platform.needs-27-said-plainly` — **[GAP]** (#5730) where no 26 path exists the UI says "needs macOS 27"
   rather than failing or hiding the control. Test: none yet (no 27-only feature exists).
 - `config.mas-is-a-configuration` — **[PARTIAL]** (#5730, #3982; ruled 2026-10-17) the Mac App Store build is an

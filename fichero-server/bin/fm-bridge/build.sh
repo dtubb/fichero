@@ -12,7 +12,7 @@ cd "$SCRIPT_DIR"
 
 # -O      release-optimized
 # -parse-as-library  required for @main when there's also top-level Codable structs
-swiftc -O -parse-as-library -o fm-bridge FmBridge.swift
+swiftc -O -parse-as-library -target arm64-apple-macos26.0 -o fm-bridge FmBridge.swift
 
 echo "✅ Built $SCRIPT_DIR/fm-bridge"
 echo "   Smoke test: echo '{\"prompt\": \"hello\"}' | ./fm-bridge"
