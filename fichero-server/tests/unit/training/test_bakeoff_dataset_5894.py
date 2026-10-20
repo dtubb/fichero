@@ -167,3 +167,24 @@ def test_a_dataset_under_another_account_is_refused_before_anything_is_created(t
     with pytest.raises(bl.NotYourNamespace, match="own account"):
         bl.push_private_dataset(_staged(tmp_path), "someone-else/lines", token="hf_x", api=api, confirmed_lines=1)
     assert api.names() == ["whoami"]
+
+
+def test_staging_refuses_a_folder_that_already_holds_something(tmp_path):
+    got = bl.winning_lines(_lines_json(tmp_path), winner="mlx:m")
+    full = tmp_path / "desktop"
+    full.mkdir()
+    (full / "passport.pdf").write_text("not ours")
+    with pytest.raises(ValueError, match="not empty"):
+        bl.stage_dataset(got, _pages(tmp_path), full)
+    assert [p.name for p in full.iterdir()] == ["passport.pdf"], "nothing was written into it"
+
+
+def test_only_the_files_that_were_staged_are_uploaded_by_name(tmp_path):
+    staged = _staged(tmp_path)
+    (staged.path / "stray-note.txt").write_text("added after staging")
+    api = Api()
+    bl.push_private_dataset(staged, "historian/test2-lines", token="hf_x", api=api, confirmed_lines=1)
+    upload = next(kw for name, kw in api.calls if name == "upload_folder")
+    assert sorted(upload["allow_patterns"]) == sorted(staged.files)
+    assert "README.md" in staged.files and "pairs.jsonl" in staged.files and any(f.startswith("lines/") for f in staged.files)
+    assert "stray-note.txt" not in upload["allow_patterns"]
