@@ -110,7 +110,7 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
     segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
-    processor = AutoProcessor.from_pretrained(step["model"])
+    processor = AutoProcessor.from_pretrained(step["model"], revision=step.get("model_revision"))
     model = AutoModelForImageTextToText.from_pretrained(step["model"], revision=step.get("model_revision"),
                                                         torch_dtype=torch.bfloat16, device_map=device,
                                                         use_safetensors=True)  # never unpickle a repository (#5981 sweep)
