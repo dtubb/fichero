@@ -124,3 +124,17 @@ def test_a_page_the_node_already_failed_is_not_counted_twice(db, monkeypatch):
     runner._after_the_step(db, {"card": "model", "job": "read-a-line", "steps": ["r"]}, step, {"folder": "f"}, [page],
                            "done", "c", None, {}, [], "r")
     assert step["pages_lost"] == 1 and len(step["failed_pages"]) == 1
+
+
+def test_the_summary_says_most_lines_came_back_empty_when_that_is_the_case():
+    from fichero_server.recipes import run_view
+    from fichero_server.recipes.done import MOSTLY_NOTHING_FOR_PAGE, NOTHING_FOR_PAGE
+
+    def said(why):
+        s = run_view.RecipeRunSummary(job_id="j", state="done", finished=True, pages=5, pages_read=4, names=[], dates=0,
+                                      statements=0, lines_unread=20, lines_unread_why=why, pages_read_nothing=1,
+                                      failed=[], pages_failed=0, skipped=[], not_run=[])
+        return run_view._lines(s, 0)
+
+    assert "1 page the reader came back empty on most lines for" in said({MOSTLY_NOTHING_FOR_PAGE: 20})
+    assert "1 page the reader returned nothing for" in said({NOTHING_FOR_PAGE: 20})
