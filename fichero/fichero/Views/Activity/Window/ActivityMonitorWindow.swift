@@ -62,7 +62,7 @@ struct ActivityMonitorWindow: View {
                         stopTarget: { runMenuTarget(for: $0) },
                         clearFailed: { Task { await clearFailed() } },
                         clearFinished: { confirmingClearFinished = true },
-                        delete: { row in Task { await deleteRuns(withIDs: [row.id]) } }
+                        delete: { rows in Task { await deleteRuns(withIDs: Set(rows.map(\.id))) } }
                     )
                 }
             }
@@ -275,6 +275,7 @@ struct ActivityMonitorWindow: View {
                 activeExecutions: Array(library.workflowExecutionStore.executions.values),
                 library: library
             )
+            await library.activityStore.loadRunsForToday(library: library)
         }
     }
 }

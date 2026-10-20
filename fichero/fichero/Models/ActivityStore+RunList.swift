@@ -67,6 +67,27 @@ extension ActivityStore {
         }
     }
 
+    /// Whether the runs loaded so far may leave out runs that ended today: more exist, and the oldest loaded run is itself
+    /// from today (DONE TODAY would miss what is on the next page). A run whose date is unknown stops the paging: it
+    /// would never end (## 749).
+    func mayHaveMoreRunsToday(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard runsHasMore, !runs.isEmpty else { return false }
+        let dates = runs.map { $0.completedAt ?? $0.timestamp }
+        guard !dates.contains(where: { $0 == nil }), let oldest = dates.compactMap({ $0 }).min() else { return false }
+        return oldest >= calendar.startOfDay(for: now)
+    }
+
+    /// Page in older runs until the loaded ones reach back past today, so DONE TODAY is whole whether or not its rows are
+    /// drawn (the window's rows page the list only when they appear, and DONE TODAY is collapsed). Stops when a page adds
+    /// nothing.
+    func loadRunsForToday(library: LibraryManager.LibraryReference, now: Date = Date(), calendar: Calendar = .current) async {
+        while mayHaveMoreRunsToday(now: now, calendar: calendar) {
+            let before = historicalRunsFetched
+            await loadMoreRuns(library: library)
+            if historicalRunsFetched == before { return }
+        }
+    }
+
     /// Update ONE row in place by id, at its EXISTING array position (same
     /// identity for a future Table's selection/scroll); a run not yet
     /// present is appended. The only way `runs` content ever changes.
@@ -200,7 +221,8 @@ extension ActivityStore {
             isLive: false,
             libraryId: library.id,
             libraryName: library.displayName,
-            failureReason: (summary.error?.isEmpty == false) ? summary.error : nil
+            failureReason: (summary.error?.isEmpty == false) ? summary.error : nil,
+            completedAt: summary.completedAt.flatMap(parseEngineDate)
         )
     }
 
