@@ -29,7 +29,9 @@ USED = re.compile(r"\'([\w-]+)/([\w-]+)/threads=(\d+)")  # each key of the prior
 
 def measure(priority: str, model: str, pages: int, images: str | None, automatic: bool = False) -> tuple[float | None, str]:
     scratch = tempfile.mkdtemp(prefix="bench-qos-")
-    env = {**os.environ, "FICHERO_COMPUTE_PRIORITY": priority, "FICHERO_BASE_PATH": scratch}
+    env = {**os.environ, "FICHERO_BASE_PATH": scratch}
+    if not automatic:  # the automatic row is the throttle's own choice (Mac in use), not an override
+        env["FICHERO_COMPUTE_PRIORITY"] = priority
     cmd = [sys.executable, str(BENCH), "--model", model, "--pages", str(pages)] + (["--images", images] if images else []) + (["--automatic"] if automatic else [])
     try:
         run = subprocess.run(cmd, env=env, capture_output=True, text=True)
