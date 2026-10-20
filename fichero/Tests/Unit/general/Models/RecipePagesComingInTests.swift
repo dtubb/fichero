@@ -1,3 +1,4 @@
+import FicheroAPIClient
 @testable import Fichero
 import XCTest
 
