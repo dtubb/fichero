@@ -997,6 +997,83 @@ plan's peak memory across steps. Ready shows none of it.
   Activity saying why and what fixes it: a `run-a-recipe` row, failed, started by `import`, whose reason
   names the pages, the plan's refusals in its words (each with its fix) and that Set Up… › Ready shows
   the plan; the new pages are not read.
+- `source.onboard.defaults.matrix-measured` — **[GAP]** (#5969; owner 2026-10-20, release item 1) Set Up's
+  proposals are right beyond 20th-century Spanish, and that is measured, not assumed: for each set of the Test
+  Corpus (46 public sets; `briefs/onboarding-defaults-matrix-2026-10-20.md`), 3 to 5 pages, the start plan the app
+  calls (`POST /api/recipes/assemble`, then the project's plan) gives what it PROPOSES (language, script, direction,
+  the finder and the reader with its reason, the cloud offer, the stages) and that is set against what the set IS
+  (its folder name and the PAGE/ALTO language and script tags); where the set carries PAGE/ALTO text, the proposed
+  reader reads the pages and the CER/WER is recorded, and another default that does clearly better is named. Free
+  arms only (Kraken, Apple Vision, local MLX); a cloud check only inside the project's cap. One matrix file lists
+  set, truth, proposed, right or wrong, CER with the default, a better option, the issue. Each wrong default gets
+  its own issue. The classes the matrix must cover: right-to-left, vertical, non-Latin scripts, tables, marginalia
+  and interlinear glosses, mixed languages or scripts on a line, print against hand. *Built:* the rules
+  (`recipes/assemble.py`, `seed/cards.yaml`); the direction a script derives (`recipes/answers.default_direction`).
+  *Not built:* the matrix script and its first run on the M4; the result is unknown until then. Until it runs,
+  these are predictions from the seed cards' script lists, not findings: PP-OCRv6 lists ten scripts (Latin, Arabic,
+  Armenian, Cyrillic, Ge'ez, Georgian, Greek, Hebrew, Malayalam, Syriac), Apple Vision lists six read printed
+  (Latin, Cyrillic, Han, Hangul, Arabic, Thai; Latin also handwritten) and the two Qwen VL cards four (Latin,
+  Cyrillic, Han, Arabic), so Devanagari, Cherokee, Canadian syllabics, Tibetan, Newa and Japanese kana have no seed
+  reader and are expected to say "needs a model". *Test:* the matrix script itself, run on the M4 (named without a
+  path until the file exists).
+- `source.onboard.defaults.direction-and-script-from-the-set` — **[PARTIAL]** (#5969) the direction Set Up
+  saves follows from the script (`source.onboard` direction line above; vertical Han, Hant, Japanese, Hiragana,
+  Katakana read top to bottom with columns right to left, Mongolian and Phags-pa top to bottom with columns left
+  to right, every right-to-left script right to left) and a set the person did not describe is proposed the script
+  its sample pages show. *Built:* the direction from the script. *Not built, unmeasured:* the script and language
+  guess from sample pages against the Test Corpus's tags (the matrix reports its hit rate per set; a set where the
+  guess is wrong is an issue).
+- `source.onboard.defaults.mixed-scripts-need-one-reader-for-all` — **[PARTIAL]** (#5969) a project that
+  names two scripts (Persian with English on the page, Latin and Old English, Latin and Arabic) is proposed a
+  reader whose card lists EVERY one of them, else the plan says which script nothing covers and offers the
+  ordinary fixes (download, cloud, choose, train); it is never proposed a reader for one of them alone.
+  *Built:* the rule (`assemble._refusal`: `no-model-for-script` unless all the asked scripts are listed).
+  *Not built:* a per-line language or script choice inside one page (the Test Corpus's line-tagged sets);
+  the matrix records how many such sets exist and what the page-level proposal costs in CER.
+- `source.onboard.defaults.no-model-says-so-with-a-way-on` — **[PARTIAL]** (#5969) for a script or language
+  where no card reads (the matrix's expected Devanagari, Cherokee, Cree syllabics, Tibetan, Newa, Japanese kana),
+  Set Up says in words that no model reads it and what a person can do (download one it found, a cloud reader if
+  the project allows pages to leave, train from corrected lines, choose a model by hand), never a reader that does
+  not list the script and never a silent empty step. *Built:* the refusal codes and fixes
+  (`source.onboard.says-no-model`). *Not built, unmeasured:* that the fix offered is the right one for each script
+  (the matrix reads each set's plan and says).
+- `source.onboard.defaults.model-search-recorded` — **[GAP]** (#5970; owner 2026-10-20) for each set the
+  matrix also runs Set Up's model search (the automatic one: Hugging Face by task and language, Zenodo and
+  HTR-United Kraken models, the catalogue; `recipes/discovery.py`) and records what it finds for that script and
+  language (for example classical Chinese, Aramaic or Syriac, Hebrew, Maghrebi Arabic, Devanagari, Fraktur), whether
+  a found model reads better than the default (CER where truth exists, the found model run on the same pages), and,
+  when it finds NOTHING, says so in words in the matrix as a gap with what a person could do (train from corrected
+  lines, a cloud reader). Search is network: only inside the egress rules (`ai.where.egress-gate`), public queries
+  only, no page leaves. *Built:* the search (`discovery.search_hugging_face`, `repository_cards`). *Not built:*
+  the per-script record and the comparison.
+- `source.onboard.model-search-names-the-script` — **[GAP]** (#5970; audit `briefs/model-search-audit-2026-10-20.md`) the
+  Hugging Face search asks for the project's languages and scripts BY NAME and by tag, not only the nine Latin-script
+  languages it has words for today (`discovery._LANGUAGE_WORDS`: es, la, fr, it, de, pt, ca, nl, en): arabic, ottoman,
+  hebrew, chinese, hanzi, slavonic, syriac, aramaic, persian and the rest, from the language registry
+  (`recipes/names.py`) and `script_words()`, and the tags that models of those languages really carry (`ota`, `ott`,
+  `arc`, `syc`, `cu`). *Built:* the language pass (tag filter per project language, image-to-text and
+  image-text-to-text, with and without `mlx`), the tag pass (generic HTR tags plus the language and the project's hand
+  tags) and the name pass (`search=` generic HTR words, plus a language word for the nine only); the Kraken repository
+  (Zenodo, 82 records) is fetched whole and ranked by script, not queried per language. *Not built:* script and
+  language words for any other language; `ota` finds nothing because models carry `ott`/`ottoman`. *Test (to write):*
+  a project of Ottoman Turkish sends `search=ottoman` and a tag `ott`, and a recorded listing's Ottoman model is a
+  candidate.
+- `source.onboard.model-search-ranks-specialists` — **[GAP]** (#5970) candidates rank by script and language match, then
+  handwriting or historical tags and the card's stated evaluation, then downloads; a component (detector, orientation,
+  layout part) is never a candidate. *Built:* a reader whose tags list the project language first, then Hugging Face
+  downloads. *Not built:* the audit's live run for Chinese shows parts of PaddleOCR (detectors, orientation) accepted
+  as readers and a general reader (1.7 million downloads) above specialists with tens. *Test (to write):* a recorded
+  listing of GLM-OCR, a PP-OCR detector and an Arabic handwritten model for `ar` ranks the Arabic model first and drops
+  the detector.
+- `source.onboard.model-search-reads-the-card` — **[GAP]** (#5970) the top candidates' cards are read for licence, language,
+  training data and a stated CER, and a candidate with no stated measurement is labelled unmeasured. *Built:* none: a
+  candidate is kept by its listing alone (task, tags, name); the licence is stored and shown, no card text or metric is
+  read. *Test (to write):* a card with an evaluation CER of 4.2 shows "CER 4.2% on its own material".
+- `source.onboard.model-search-nothing-found-says-what-next` — **[GAP]** (#5970) when no source finds a reader for the
+  project's script, the finder says so in words and offers what a person can do (train from about a hundred corrected
+  lines, or a cloud reader if the project allows pages to leave), with both actions. *Built:* one line per source
+  ("0 found on Hugging Face"); no gap text, no next step. *Test (to write):* a Chinese project with empty listings
+  shows that text and both actions.
 - `source.onboard.auto.lands-on-the-run` — **[PARTIAL]** (#5576, see #5555) after Start, the project
   window shows the run: each stage, pages done and left, time left, and what is waiting and why (memory,
   a download, another run). **Built 2026-10-07 (engine + app), not yet seen:** Start closes setup onto

@@ -812,6 +812,22 @@ needs them.
   rendered in the Hub's form, with base model, training set, licence and the adapter library
   named as the Hub expects (CITED, S14); no second card is written by hand. *Test:* round trip
   of the rendered fields.
+- `compute.publish.dry-run-first` — **[GAP]** (#5971; owner 2026-10-20) a publish can be rehearsed: the dry run builds
+  the repository's files (the model, its card) in a scratch folder and shows what would be sent and to which repository
+  and visibility, with nothing sent and no token read. A real publish is a second, separate step. *Built:* nothing:
+  there is no publish code; the Hub is reached only for jobs (`training/hf_jobs.py`) and nothing uploads a model.
+  *Test (to write):* a dry run makes no network call (recorded) and leaves the card on disk.
+- `compute.publish.card-says-how-it-was-made` — **[GAP]** (#5971) the card of a model trained in Fichero states: the base
+  model and its licence, the training data (what kind, how many lines, its rights answer, never the text), the
+  script and language, the period and hand where the project knows them, the held-out CER and WER with the noise
+  band of the project, the licence of the model, and that it was made in Fichero (the version and the recipe step), in
+  the Hub's form. A figure without a held-out measurement is not stated. *Test (to write):* a rendered card for a
+  trained Kraken model carries every one of these, and a model with no held-out result says "not measured".
+- `compute.publish.public-needs-the-owners-yes-each-time` — **[GAP]** (#5971; owner 2026-10-20) a repository is PRIVATE
+  unless the person chooses otherwise (`compute.publish.private-by-default`), and making anything public needs the
+  owner's yes for that publish, asked each time and never remembered, never inferred from an earlier yes to send or
+  to publish privately. Until the yes, a private repository is the only thing that can be created. *Test (to write):*
+  a publish asking for public visibility without a fresh yes is refused in words and creates nothing.
 - `compute.publish.zenodo-for-kraken` — **[GAP]** (#5240) a Kraken model or a ground-truth set can instead be
   deposited on Zenodo, with the metadata Kraken's own repository expects, and gets a DOI that
   the card then carries. *Test:* against Zenodo's sandbox.
