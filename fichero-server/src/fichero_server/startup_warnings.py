@@ -12,6 +12,14 @@ import threading
 _LOCK = threading.Lock()
 _WARNINGS: dict[str, str] = {}
 _PREVIOUS_STALL: str | None = None
+_MULTIUSER_WORDS: str | None = None
+
+
+def set_multiuser_words(text: str | None) -> None:
+    """Why Multi-user started off although the environment asked for it (`multiuser.env-without-owner-password-starts-off`)."""
+    global _MULTIUSER_WORDS
+    with _LOCK:
+        _MULTIUSER_WORDS = text
 
 
 def set_previous_stall(text: str | None) -> None:
@@ -39,4 +47,6 @@ def as_dependencies() -> dict[str, str]:
         out = {HEALTH_KEYS.get(name, name): f"failed: {kind}" for name, kind in _WARNINGS.items()}
         if _PREVIOUS_STALL:
             out["previous_stall"] = _PREVIOUS_STALL
+        if _MULTIUSER_WORDS:
+            out["multiuser"] = _MULTIUSER_WORDS
         return out

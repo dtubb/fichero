@@ -73,3 +73,21 @@ def owner_password_gap(app_db) -> str | None:
     if not any(user.is_owner and user.active for user in app_db.list_users()):
         return OWNER_PASSWORD_REFUSAL
     return None if (app_db.get_setting(OWNER_PASSWORD_SET_KEY) or "") == "true" else OWNER_PASSWORD_REFUSAL
+
+
+GATE_ENV_FLAG = "FICHERO_GATE_MULTIUSER_ENV"  # set by the engine's own `main()`; tests and dev servers do not gate
+ENV_OFF_WORDS = "off: the owner has not chosen a password yet"
+
+
+def gate_env_at_start(app_db, environ: "dict[str, str] | None" = None) -> str | None:
+    """`multiuser.env-without-owner-password-starts-off` (#5908): the environment is a start-up reading of the persisted
+    choice, not the switch. `FICHERO_MULTIUSER` on while no owner password was ever chosen starts Multi-user OFF and returns
+    the words for health (never an exit: refusing to start would itself kill the engine). None when nothing was gated."""
+    env = os.environ if environ is None else environ
+    if env.get(GATE_ENV_FLAG) != "1" or (env.get("FICHERO_MULTIUSER") or "").strip().lower() not in TRUE_VALUES:
+        return None
+    if owner_password_gap(app_db) is None:
+        return None
+    env["FICHERO_MULTIUSER"] = "0"
+    logger.warning("FICHERO_MULTIUSER is on but the owner has not chosen a password: Multi-user starts OFF")
+    return ENV_OFF_WORDS
