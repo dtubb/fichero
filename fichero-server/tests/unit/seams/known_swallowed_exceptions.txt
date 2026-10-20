@@ -151,7 +151,7 @@ workflows/activity.py::_settle_recovered_run_documents 1
 workflows/activity.py::get_activity_tracker 1
 workflows/builder.py::_make_node_function.node_function 2
 # #5555: the file_retry event, like the file_start/complete/error events beside it, never fails a page.
-workflows/builder.py::_make_parallel_node_function.parallel_node_function 8
+workflows/builder.py::_make_parallel_node_function._read_one_page 8
 workflows/cache.py::NodeCache.set 1
 workflows/completion.py::finalize_run_documents 3
 workflows/default_workflows.py::_load_preset_files 1
