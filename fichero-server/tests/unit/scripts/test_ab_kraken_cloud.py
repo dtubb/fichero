@@ -506,3 +506,28 @@ def test_the_environment_wins_over_the_file_without_reading_it(tmp_path):
     got = _REAL_ENSURE_KEY("openrouter", env_file=tmp_path / "never-read.env", log=lambda _l: None,
                            environ={"OPENROUTER_API_KEY": "sk-ENV"}, lookup=_lookup(ProviderKeyState.ABSENT))
     assert got == "environment"
+
+
+def test_a_failure_never_carries_a_key_into_the_report(tmp_path, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-SECRETVALUE123")
+
+    async def boom(*a, **k):
+        raise RuntimeError("401 for key sk-or-SECRETVALUE123 and hf_ABCDEFGHIJKLM")
+
+    monkeypatch.setattr(ab, "reading_by_model", boom)
+    report = ab.run(_pages(tmp_path), tmp_path / "out", model="fake", reference_model="fake", bar=0.6, cap=1.0,
+                    reader_ref="unused", language="es", kraken=_stub_kraken, arms=["kraken", "B"])
+    text = json.dumps(report["failures"]) + (tmp_path / "out" / "report.md").read_text()
+    assert "SECRETVALUE" not in text and "ABCDEFGHIJKLM" not in text and "<key>" in text
+
+
+def test_the_huggingface_token_may_be_named_hf_token_in_the_key_file(tmp_path):
+    from fichero_server.security.keychain import ProviderKeyState
+
+    env_file = tmp_path / "ab.env"
+    env_file.write_text("HF_TOKEN=hf_FILEVALUE12345\n")
+    env_file.chmod(0o600)
+    environ = {}
+    got = _REAL_ENSURE_KEY("huggingface", env_file=env_file, environ=environ, log=lambda _l: None,
+                           lookup=_lookup(ProviderKeyState.ABSENT))
+    assert got == "the key file" and environ["HUGGINGFACE_API_KEY"] == "hf_FILEVALUE12345"

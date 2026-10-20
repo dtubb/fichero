@@ -25,28 +25,16 @@ def _harness():
 def main() -> int:
     from huggingface_hub import HfApi
 
-    from fichero_server.security.keychain import ProviderKeyState, lookup_api_key
     from fichero_server.training import hf_jobs
 
-    token = None
-    answer = lookup_api_key("huggingface")
-    if answer.state is ProviderKeyState.FOUND:
-        token, source = answer.key, "the keychain (the app's item)"
-    else:
-        if answer.state is ProviderKeyState.UNREADABLE:
-            print(f"KEYCHAIN: the app's huggingface item exists but this process cannot read it ({answer.detail or 'no detail'}): "
-                  "locked, or over SSH there is no session to unlock it, or the item belongs to the app and a plain python process "
-                  "is not trusted by it.")
-        else:
-            print("KEYCHAIN: no huggingface item.")
-        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
-        source = "the environment"
-        if not token:
-            found = _harness().read_env_file(Path("~/.config/fichero/ab.env"))
-            token, source = found.get("HF_TOKEN") or found.get("HUGGINGFACE_API_KEY"), "the key file"
-        if not token:
-            print("TOKEN: none readable here (keychain, environment, ab.env). Nothing checked.")
-            return 2
+    try:
+        source = _harness().ensure_provider_key("huggingface")  # the engine's lookup, in words, then the key file
+    except SystemExit as exc:
+        print(f"TOKEN: {exc}. Nothing checked.")
+        return 2
+    from fichero_server.llm import get_api_key
+
+    token = get_api_key("huggingface")
     print(f"TOKEN: found in {source}")
     me = HfApi().whoami(token=token)
     access = (me.get("auth") or {}).get("accessToken") or {}

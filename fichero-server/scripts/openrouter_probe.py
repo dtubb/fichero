@@ -114,7 +114,7 @@ def main() -> int:
         with urllib.request.urlopen(request, timeout=60) as r:
             answer = json.load(r)
     except Exception as exc:  # noqa: BLE001 -- the reason is the output; the key is never in it
-        print(f"CALL: {type(exc).__name__}: {str(exc).replace(key or '', '<key>')[:200]}")
+        print(f"CALL: {type(exc).__name__}: {ab.scrub(str(exc))[:200]}")
         return 3
     usage = answer.get("usage") or {}
     pin, pout = price(cheapest)
