@@ -2085,7 +2085,7 @@ def _with_server_proof(response: HealthResponse, nonce: str | None) -> HealthRes
     through here, so it also names any missing required package (#5384)."""
     response.missing_dependencies = _missing_required_modules()
     response.device_token_migration_error = device_token_migration_error()
-    response.startup_warnings = startup_warnings.current()
+    response.dependencies = {**response.dependencies, **startup_warnings.as_dependencies()}
     missing_routes = _missing_routes()
     if missing_routes:
         response.status = "unhealthy"
