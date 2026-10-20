@@ -442,6 +442,11 @@ def _session_expiry_should_refresh(expires_at: datetime, now: datetime) -> bool:
     return expires_at - now <= refresh_window
 
 
+def _owner_session_route_while_off(method: str, path: str) -> bool:
+    """The routes an owner's key session may call while Multi-user is off: choose the owner's password, set the switch."""
+    return (method == "PUT" and path == "/api/pair/multiuser") or (method == "PATCH" and path.startswith("/api/auth/users/"))
+
+
 def _authenticate_session_token(token: str):
     """Resolve a bearer session token to a live user/session pair."""
     token_hash = accounts.hash_token(token)
@@ -823,6 +828,15 @@ def attach_auth_middleware(
                 client_host = request.client.host if request.client else None
                 return _refused(request, 403, {"detail": "loopback only"}, "non_loopback",
                                 is_loopback, detail=f"from {client_host}")
+            if _owner_session_route_while_off(request.method, routed_path) and provided.startswith("Bearer "):
+                # The owner signed in with their key (the app's own way in): the two steps that must work while Multi-user is off
+                # (`multiuser.owner-session-sets-the-switch`, #5908). Another person's session falls through and is refused.
+                session_user, session = _authenticate_session_token(provided.removeprefix("Bearer ").strip())
+                if session_user is not None and session is not None and session_user.is_owner:
+                    request.state.user = session_user
+                    request.state.session = session
+                    request.state.bootstrap_auth = False
+                    return await call_next(request)
             if not secrets.compare_digest(provided, expected_header):
                 return _refused(
                     request, 401,

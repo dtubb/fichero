@@ -55,8 +55,11 @@ def _update(app_db, monkeypatch, user_id, **fields):
     from fichero_server.api.routes.auth import accounts as routes
 
     monkeypatch.setattr(routes, "_use_multiuser_auth", lambda: False)
-    bootstrap = fields.pop("bootstrap", True)
-    request = SimpleNamespace(state=SimpleNamespace(bootstrap_auth=bootstrap), headers={})
+    # the owner's own signed-in (key) session by default; "bootstrap" is the start-up credential, which is refused
+    caller = fields.pop("caller", None) or next(u for u in app_db.list_users() if u.is_owner)
+    start_up_key = fields.pop("bootstrap", False)
+    request = SimpleNamespace(state=SimpleNamespace(
+        bootstrap_auth=start_up_key, session=None if start_up_key else object(), user=caller), headers={})
     return routes.update_user(request, user_id, routes.UpdateUserRequest(**fields), app_db)
 
 
@@ -73,7 +76,8 @@ def test_while_off_nothing_else_is_allowed_and_not_for_a_paired_device(app_db, m
     for kwargs in ({"user_id": member.id, "password": "p"},            # not the owner
                    {"user_id": owner.id, "display_name": "Other"},      # not the password
                    {"user_id": owner.id, "password": "p", "active": False},
-                   {"user_id": owner.id, "password": "p", "bootstrap": False}):  # not the app's own credential
+                   {"user_id": owner.id, "password": "p", "bootstrap": True},      # not the start-up credential
+                   {"user_id": owner.id, "password": "p", "caller": member}):    # not another person's session
         with pytest.raises(HTTPException) as refused:
             _update(app_db, monkeypatch, **kwargs)
         assert refused.value.status_code == 404
