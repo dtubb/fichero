@@ -15,9 +15,8 @@ extension ChainService {
     /// stop-on-failure; each step gets a pre-assigned thread id so its run
     /// can be watched from the first moment.
     ///
-    /// Throws `.stepExecutionUnavailable` on a 404 so the caller can
-    /// feature-detect: an older engine has no execute-steps route, and the
-    /// bar falls back to its client-side loop rather than breaking.
+    /// Throws `.stepExecutionUnavailable` on a 404 (an older engine has no execute-steps route, or the chain was
+    /// removed); the bar says so in words (`ChainRunWords`).
     func executeChainSteps(
         chainId: String,
         inputs: [String: AnyCodableValue] = [:]

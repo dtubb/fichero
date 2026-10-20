@@ -368,9 +368,8 @@ enum ChainServiceError: LocalizedError {
     case notFound(String)
     case validationError(String)
     case unexpectedResponse
-    /// The engine answered 404 to execute-steps: either an older engine
-    /// without the route, or the chain vanished. Both mean "run the chain
-    /// client-side instead" — the feature-detect seam, never a user error.
+    /// The engine answered 404 to execute-steps: either an older engine without the route, or the chain vanished.
+    /// Said in words (`ChainRunWords.engineCannot`); there is no client-side way to run the chain instead.
     case stepExecutionUnavailable
 
     var errorDescription: String? {
@@ -384,7 +383,7 @@ enum ChainServiceError: LocalizedError {
         case .unexpectedResponse:
             return "Unexpected response from the chain service"
         case .stepExecutionUnavailable:
-            return "This engine cannot run chains server-side"
+            return ChainRunWords.engineCannot
         }
     }
 }

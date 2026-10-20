@@ -1662,7 +1662,8 @@ def _search_when_known(db: Database, answers: Optional[dict]) -> None:
         return
     try:
         discovery.search(db, languages, by_itself=True)
-    except Exception:  # noqa: BLE001 -- a search that cannot be queued is the Search Online button's to say, not the save's
+    except Exception as exc:  # noqa: BLE001 -- a search that cannot be queued never fails the save; the finder says so
+        discovery.SEARCH_FAILURES[discovery._languages_key(languages)] = f"{type(exc).__name__}: {exc}"
         logger.warning("the automatic model search could not be queued", exc_info=True)
 
 
