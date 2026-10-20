@@ -447,7 +447,17 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
         return "running"
     if not pause_requested(job_id):
         awaited = _awaited_child(db, job_id)
-        if awaited is not None and jobs._job_row(db, awaited)[1] == "paused":
+        try:
+            awaited_state = jobs._job_row(db, awaited)[1] if awaited is not None else None
+        except KeyError:  # the step run's row is gone: say so, and the recipe starts that step again
+            row = jobs.read_job(db, job_id)
+            detail = json.loads(row["detail"] or "{}")
+            detail.pop("awaiting", None)
+            jobs.save_detail(db, job_id, json.dumps(detail), reason="Its step run is gone; the recipe starts that step again")
+            db.execute("UPDATE jobs SET run_after = NULL WHERE id = ? AND state = 'waiting'", [job_id])
+            jobs.wake_lane(db)
+            return jobs.pause_stored(db, job_id, False, state)
+        if awaited_state == "paused":
             # A person paused the step's run itself: Resume on the recipe resumes that run (the recipe adopts it when it is taken up).
             clear_pause(awaited)
             _resume_step_run(db, awaited, job_id)
