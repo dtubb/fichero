@@ -2493,7 +2493,7 @@ def warm_supported_locales() -> None:
         _supported_vision_locales()
     except Exception as exc:  # noqa: BLE001 -- the locales are asked again on first use
         logger.warning("vision locale warm-up skipped: %s", exc)
-        startup_warnings.note("vision-locales-warm-up", f"{type(exc).__name__}: {exc}")  # health says it (#4420)
+        startup_warnings.note("vision-locales-warm-up", type(exc).__name__)  # health says which kind; the text is logged above (#4420)
 
 
 def supported_locales_are_known() -> bool:
