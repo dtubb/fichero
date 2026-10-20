@@ -71,6 +71,10 @@ def project(db, test_package, tmp_path, monkeypatch):
     monkeypatch.setattr(
         pc, "prove_snapshot", lambda *_a, **_k: {"tables": 1, "rows": 1, "mismatches": {}}
     )
+    # Hold the job queue: a lane an earlier test left running would write beside the conversion's CHECKPOINT.
+    from fichero_server.execution import jobs
+
+    monkeypatch.setitem(jobs._flag_cache, jobs.PAUSE_SETTING_KEY, True)
     return SimpleNamespace(db=db, path=package)
 
 

@@ -243,6 +243,25 @@ def prove_snapshot(
     }
 
 
+def _checkpoint_when_quiet(db: Any, seconds: float = 10.0) -> None:
+    """`db.checkpoint()`, waiting a little for another connection's write to commit: DuckDB refuses a CHECKPOINT while
+    any other write transaction is open, and a background job committing at that moment is not a reason to refuse the
+    conversion. Still raises (so the conversion refuses rather than snapshot an incomplete file) when it stays busy."""
+    import time
+
+    import duckdb
+
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            db.checkpoint()
+            return
+        except duckdb.TransactionException as exc:
+            if "other write transactions" not in str(exc) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.25)
+
+
 def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
     """Steps 1 to 3. Returns the run to proceed with, or a refusal, or None.
 
@@ -306,7 +325,7 @@ def plan_conversion(db: Any, library_path: str | Path) -> ConversionRun | None:
         # writes and looked fine. If the checkpoint cannot be taken, the
         # conversion must refuse rather than snapshot an incomplete file — so
         # this is allowed to fall through to the refusal below.
-        db.checkpoint()
+        _checkpoint_when_quiet(db)
 
         # The project's row counts at the copy, taken under the same locks (#5562).
         rows_at_copy: dict[str, int] = {}
