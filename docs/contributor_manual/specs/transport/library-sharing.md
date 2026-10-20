@@ -75,7 +75,7 @@ internet. A second PERSON is a separate question (multi-user), answered by accou
   an address that serves its own certificate (`.local`); an address a public CA terminates (`.ts.net` behind
   `tailscale serve`) gets a link with NO pin, which the guest checks with normal TLS validation (system trust + hostname
   match) and the pairing code still grants trust; plain http gets no link at all, with the reason in words: never a link
-  with no pin and no TLS check. A missing pin is made by the button "Make a Pairing Link" on the blocker, which says it restarts sharing (and so stops work in flight); never automatically when the pane opens. Pinned by
+  with no pin and no TLS check. A missing pin is made by the button "Make a Pairing Link" on the blocker, which says it restarts sharing (and so stops work in flight); never automatically when the pane opens; on an engine this app did not start (Dev Local) there is no button, and the blocker says in words that a restart there cannot mint a pin. Pinned by
   `fichero/Tests/Unit/general/Sharing/PairingLinkCopyTests.swift` (unrun: **[PARTIAL]** until compiled and tried on the
   owner's Pro).
 
