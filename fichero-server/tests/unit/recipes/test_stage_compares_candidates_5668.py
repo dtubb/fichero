@@ -9,6 +9,8 @@ finders at theirs; the copying, the plan and the measures are the engine's own.
 
 from __future__ import annotations
 
+import threading
+
 from pathlib import Path
 
 import pytest
@@ -117,6 +119,27 @@ def test_find_regions_is_compared_by_the_overlap_of_its_shapes(client, db, tmp_p
     assert kraken["measures"]["kind"] == "shapes" and yolo["measures"]["kind"] == "shapes"
     assert kraken["agreement"] == pytest.approx(0.8, abs=0.01) == yolo["agreement"]  # 0.5×0.4 inside 0.5×0.5
     assert kraken["per_page"][0]["segments"] == {"region": 1}
+
+
+def test_a_try_of_find_regions_is_served_by_the_real_lane_on_its_scratch_copy(client, db, tmp_path, monkeypatch,
+                                                                              real_model_lane):
+    """The try runs on a scratch copy of the pages (`samples._run_one`); Kraken's segmenter there goes through the model
+    lane, and the lane must serve the copy: with the real scheduler (no `jobs_run_by_the_test`, no inline lane) the try
+    finishes. Production hangs the way the harness did (M4, 14f3f1216: `wake` stubbed, nothing served the page) only if this fails."""
+    from fichero_server.llm import kraken_runtime
+
+    _pages(db, tmp_path, 1)
+    _set_up(client, ["find-regions"])
+    monkeypatch.setattr(kraken_runtime, "segment_lines", lambda path, **k: {
+        "width": 200, "height": 300, "lines": [],
+        "regions": [{"id": "r1", "type": "text", "polygon": [[20, 30], [120, 30], [120, 180], [20, 180]]}]})
+    started = client.post("/api/recipes/stages/find-regions/try", json={"candidates": ["kraken:builtin/blla@bundled"]})
+    assert started.status_code == 200, started.text
+    done = threading.Event()
+    threading.Thread(target=lambda: (_run(db, started.json()), done.set()), daemon=True).start()
+    assert done.wait(30), "the try's page waited for a lane that never served the scratch copy"
+    result = client.get("/api/recipes/stages/find-regions/try").json()
+    assert result["state"] == "done" and result["candidates"][0]["per_page"][0]["segments"] == {"region": 1}, result
 
 
 def test_read_is_compared_by_agreement_and_by_errors_on_lines_a_person_corrected(client, db, tmp_path, monkeypatch,

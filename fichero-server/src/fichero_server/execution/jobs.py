@@ -286,7 +286,7 @@ def queue_of(job_id: str) -> tuple[tuple[str, ...], str, tuple[str, ...]] | None
 # in by a workflow step that waits for each page. Named as the recipe job registry names them.
 # Utility QoS: a person is waiting for these pages, and background measured ~18 times slower for
 # Kraken (#4959).
-for _attached in ("find-lines", "read-a-line", "read-a-page", "ask-a-model"):
+for _attached in ("find-regions", "find-lines", "read-a-line", "read-a-page", "ask-a-model"):
     register_kind(_attached, None, model=None, qos=set_utility_qos)
 
 #: True while this task holds a lane slot: a model call made inside work that already holds one
