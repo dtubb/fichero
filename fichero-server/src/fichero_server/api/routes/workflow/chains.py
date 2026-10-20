@@ -1148,7 +1148,7 @@ def _start_chain(chain: WorkflowChain, inputs: dict[str, Any], library_path: str
     _evict_old_executions()
     _execution_events[execution_id] = []
     tracked = ChainExecutionResult(
-        chain_id=chain_id,
+        chain_id=chain.id,
         execution_id=execution_id,
         status=ChainStepStatus.PENDING,
         step_results=[
