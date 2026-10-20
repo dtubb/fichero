@@ -1601,6 +1601,16 @@ class DatabaseEmbeddingMixin:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            from fichero_server.core.no_model_in_get import in_get
+
+            if in_get():  # a GET's thread may not embed: a lane job does it, so the vectors are not lost
+                if label == "claim":
+                    from fichero_server.importers.derivatives import queue_claims_backfill
+
+                    queue_claims_backfill(self)
+                else:
+                    logger.warning("Auto-embed of %s skipped inside a GET; a reindex makes the vectors", label)
+                return
             try:
                 _run()
             except Exception as exc:

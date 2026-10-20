@@ -138,3 +138,30 @@ def test_a_get_with_every_claim_embedded_says_nothing_and_queues_nothing(db):
         answer = search_claims_semantic_impl(db=db, q="q")
     assert answer.not_embedded is None
     assert db.execute_fetchall("SELECT id FROM jobs WHERE kind = ?", [EMBED_CLAIMS_KIND]) == []
+
+
+def test_auto_embed_with_no_loop_inside_a_get_queues_the_backfill_instead_of_losing_the_vectors(monkeypatch):
+    """Review 366: the sync fallback runs inline in the GET's marked thread, where the passage embed is refused."""
+    import contextvars
+
+    from fichero_server.importers import derivatives
+
+    queued: list[object] = []
+    monkeypatch.setattr(derivatives, "queue_claims_backfill", lambda database: queued.append(database))
+
+    class Db(DatabaseEmbeddingMixin):
+        def _embed_worker(self):
+            raise AssertionError("the GET's thread must not embed")
+
+    db, outcome = Db(), []
+
+    def in_a_thread():  # as asyncio.to_thread: a thread with the GET's context and no running loop
+        db._schedule_embedding_task([_Row(id="c1")], label="claim")
+        outcome.append("returned")
+
+    with no_model_in_get.marked_get("/api/thing"):
+        context = contextvars.copy_context()
+        thread = threading.Thread(target=context.run, args=(in_a_thread,))
+        thread.start()
+        thread.join(10)
+    assert outcome == ["returned"] and queued == [db]
