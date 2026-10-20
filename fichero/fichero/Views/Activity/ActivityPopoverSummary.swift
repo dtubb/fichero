@@ -64,7 +64,7 @@ struct ActivityPopoverSummary: Equatable {
     }
 
     /// One kind of background work and its total, from the same summary; a wait looks waiting and says why.
-    struct BackgroundLine: Equatable, Identifiable {
+    struct BackgroundRow: Equatable, Identifiable {
         let id: String
         let text: String
         let waiting: String?
@@ -75,7 +75,7 @@ struct ActivityPopoverSummary: Equatable {
     /// The live blocks the engine's summary names, first in the popover.
     var blocks: [Block] = []
     /// One line per background kind with its total.
-    var background: [BackgroundLine] = []
+    var background: [BackgroundRow] = []
 
     /// The recipe runs in hand, each with its stages.
     var runs: [Run] = []
@@ -176,8 +176,8 @@ struct ActivityPopoverSummary: Equatable {
         )
     }
 
-    static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundLine {
-        BackgroundLine(
+    static func backgroundLine(_ line: Components.Schemas.BackgroundLine) -> BackgroundRow {
+        BackgroundRow(
             id: line.kind,
             text: (line.total ?? 0) > 0 ? "\(line.name) · \(line.done ?? 0) of \(line.total ?? 0)" : line.name,
             waiting: line.state == "waiting" ? (line.reason.map(worded) ?? "Waiting") : nil

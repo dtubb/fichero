@@ -23,19 +23,19 @@ struct StageCandidateChooser: View {
 
     /// The list split by fit to the project's period (#5808): the readers made for it (or for none stated), then the
     /// ones made for another period, which the page lists apart under "Other periods".
-    static func split(_ candidates: [Components.Schemas.ModelCandidate])
+    nonisolated static func split(_ candidates: [Components.Schemas.ModelCandidate])
         -> (fitting: [Components.Schemas.ModelCandidate], otherPeriods: [Components.Schemas.ModelCandidate]) {
         (candidates.filter { $0.otherPeriod != true }, candidates.filter { $0.otherPeriod == true })
     }
 
     /// The names Compare runs when none is ticked, as the engine chose them (`compared_by_default`).
-    static func defaultNames(_ candidates: [Components.Schemas.ModelCandidate]) -> [String] {
+    nonisolated static func defaultNames(_ candidates: [Components.Schemas.ModelCandidate]) -> [String] {
         candidates.filter { $0.comparedByDefault == true }.map(\.name)
     }
 
     /// Whether a row can be ticked now: up to three, and never a model that won't fit this Mac (greyed with its
     /// reason, #5641); a row already ticked can always be unticked.
-    static func canTick(_ candidate: Components.Schemas.ModelCandidate, chosen: [String],
+    nonisolated static func canTick(_ candidate: Components.Schemas.ModelCandidate, chosen: [String],
                         in list: [Components.Schemas.ModelCandidate]) -> Bool {
         if chosen.contains(candidate.id) { return true }
         if CandidateFit.of(candidate, in: list)?.isGreyed == true { return false }

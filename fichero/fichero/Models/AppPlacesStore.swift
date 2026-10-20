@@ -84,12 +84,16 @@ final class AppPlacesStore {
                 failed = true
             }
         }
-        // The ticks show what the engine holds, not what was asked for.
-        if failed { await load() }
+        // The ticks show what the engine holds, not what was asked for: the last answer it gave, not a re-read.
+        if failed { places = held }
     }
+
+    /// The places as the engine last answered them (what a refused change falls back to).
+    private var held: Set<String> = []
 
     private func take(_ view: Components.Schemas.PlacesView) {
         places = Set(view.places)
+        held = places
         answered = view.answered
         thisMacLine = view.thisMac
     }

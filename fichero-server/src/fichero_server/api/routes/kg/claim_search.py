@@ -19,7 +19,7 @@ from fichero_server.api.auth import request_actor
 from fichero_server.api.main import get_library_database, get_library_database_for_write
 from fichero_server.db import Database
 from fichero_server.db.embeddings import KG_CLAIM_EMBEDDINGS_TABLE
-from fichero_server.models import KGGraphListResponse
+from fichero_server.models import KGClaimSearchResponse, KGGraphListResponse
 from fichero_server.models.knowledge import (
     ClaimCurationState,
     ClaimType,
@@ -60,7 +60,7 @@ def search_claims_semantic_impl(
     claim_type: ClaimType | None = None,
     curation_state: ClaimCurationState | None = None,
     limit: int = 20,
-) -> KGGraphListResponse:
+) -> KGClaimSearchResponse:
     """Shared semantic claim retrieval for the route and /api/search."""
     if KG_CLAIM_EMBEDDINGS_TABLE not in db._lance_tables():
         raise HTTPException(
@@ -87,7 +87,7 @@ def search_claims_semantic_impl(
     not_embedded = missing or None
     claim_ids = [r["id"] for r in results]
     if not claim_ids:
-        return KGGraphListResponse(items=[], count=0, not_embedded=not_embedded)
+        return KGClaimSearchResponse(items=[], count=0, not_embedded=not_embedded)
 
     claims = {c.id: c for c in db.all(KnowledgeClaim) if c.id in claim_ids}
     score_map = {r["id"]: _vector_similarity(r) for r in results}
@@ -98,7 +98,7 @@ def search_claims_semantic_impl(
         and (claim_type is None or claims[cid].claim_type == claim_type)
         and (curation_state is None or claims[cid].curation_state == curation_state)
     ]
-    return KGGraphListResponse(items=items, count=len(items), not_embedded=not_embedded)
+    return KGClaimSearchResponse(items=items, count=len(items), not_embedded=not_embedded)
 
 
 @action(
@@ -160,14 +160,14 @@ async def embed_claims(
     return EmbedClaimsResponse(**result.result)
 
 
-@router.get("", response_model=KGGraphListResponse)
+@router.get("", response_model=KGClaimSearchResponse)
 async def search_claims_semantic(
     q: str = Query(..., description="Natural language query"),
     claim_type: ClaimType | None = Query(default=None),
     curation_state: ClaimCurationState | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     db: Database = Depends(get_library_database),
-) -> KGGraphListResponse:
+) -> KGClaimSearchResponse:
     """Semantic claim search via LanceDB cosine similarity."""
     # In a thread: the query embed waits up to its bound (`activity.read.get-embeds-its-own-query`).
     return await asyncio.to_thread(
