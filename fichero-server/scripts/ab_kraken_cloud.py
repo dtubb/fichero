@@ -518,7 +518,12 @@ def outside_script(text: str, language: str | None) -> bool:
     import unicodedata
 
     script = SCRIPT_OF.get((language or "es").split("-")[0].lower(), "LATIN")
-    return any(ch.isalpha() and ch not in ORDINALS and not unicodedata.name(ch, "").startswith(script) for ch in text or "")
+    def foreign(ch: str) -> bool:
+        name = unicodedata.name(ch, "")
+        # ᵒ ᵉ ʳ (MODIFIER LETTER SMALL ...) are the superscripts of early-modern abbreviations (q̃ᵉ, Sʳ), written by a good reader
+        return ch.isalpha() and ch not in ORDINALS and not name.startswith((script, "MODIFIER LETTER"))
+
+    return any(foreign(ch) for ch in text or "")
 
 
 def _width(row: dict) -> float:
