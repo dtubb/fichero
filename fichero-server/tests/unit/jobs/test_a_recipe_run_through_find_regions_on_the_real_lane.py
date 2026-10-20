@@ -64,18 +64,25 @@ def test_stop_on_the_run_withdraws_the_waiting_segmenter_page_and_the_step_reads
     clear_cancellation(run)
 
 
-def test_pause_on_the_run_withdraws_the_waiting_segmenter_page_and_the_step_is_not_failed(
+def test_pause_on_the_run_defers_it_not_done_and_un_pausing_finishes_find_regions(
         client, test_package, pages, model_lane_held):
+    """434: a Pause withdraws the waiting segmenter page and the run goes back to WAITING (resumes from its checkpoint);
+    it must not end done with nothing left to resume. Un-pause (and a free lane): Find Regions finishes."""
     db = db_manager.get_database(test_package)
     run = _regions_run(db, pages)
     assert _wait_for(lambda: _waiting_segmenter(db, run), 60)
 
     request_pause(run)
 
-    assert _wait_for(lambda: jobs.read_job(db, run)["state"] in ENDED, 30), jobs.read_job(db, run)
-    [step] = _recipe_steps(db, run)
-    assert step["state"] != "failed", step  # the pause catch (#5863): paused with its run, not 'could not start'
-    assert step["why"] == "Paused with its run"
+    assert _wait_for(lambda: jobs.read_job(db, run)["state"] == "waiting"
+                     and jobs.read_job(db, run)["reason"] == "Paused with its run", 30), jobs.read_job(db, run)
+    assert jobs.read_job(db, run)["state"] != "done"
     assert db.execute_fetchone("SELECT state FROM jobs WHERE kind = 'find-regions' AND parent_id = ?",
                                [run]) == ("cancelled",)
+
     clear_pause(run)
+    model_lane_held.set()  # the lane frees too
+    assert _wait_for(lambda: jobs.read_job(db, run)["state"] in ENDED, 90), jobs.read_job(db, run)
+    assert jobs.read_job(db, run)["state"] == "done", jobs.read_job(db, run)
+    [step] = _recipe_steps(db, run)
+    assert step["state"] == "done", step
