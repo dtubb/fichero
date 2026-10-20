@@ -793,6 +793,43 @@ def devices_list(ctx: typer.Context) -> None:
     _invoke(ctx, lambda c: c.list_devices())
 
 
+@devices_app.command("pair")
+def devices_pair(
+    link: str = typer.Argument(None, help="A fichero://pair link (prefer --link-file: argv sits in shell history)."),
+    link_file: Path = typer.Option(None, "--link-file", help="A file holding the link."),
+    name: str = typer.Option(None, "--name", help="What the host should call this device."),
+    local: bool = typer.Option(False, "--local", help="Redeem over this Mac's own engine socket (run on the host)."),
+) -> None:
+    """Pair this CLI as a device of the host the link names; the token is stored, never printed."""
+    from fichero_cli import pairing
+
+    if bool(link) == bool(link_file):
+        typer.echo("Give the link as an argument or with --link-file, not both and not neither.", err=True)
+        raise typer.Exit(2)
+    uds = None
+    if local:
+        uds = client_module._app_socket_to_dial("http://127.0.0.1:8765", base_url_was_explicit=False)
+        if not uds:
+            typer.echo("No engine socket answered on this Mac; run this on the host, with the app open.", err=True)
+            raise typer.Exit(1)
+    try:
+        text = link_file.read_text(encoding="utf-8") if link_file else link
+        done = pairing.pair(text, device_name=name, uds=uds)
+    except (FicheroError, OSError) as exc:
+        typer.echo(f"Pairing failed: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Paired as {done['name']!r} with {done['host']} (device {done['device_id']}); token stored.")
+
+
+@devices_app.command("forget")
+def devices_forget(host: str = typer.Argument(..., help="Host name the device was paired with.")) -> None:
+    """Drop this CLI's stored token for a host (the host's `devices revoke` ends the device there)."""
+    from fichero_cli import pairing
+
+    dropped = pairing.forget(host)
+    typer.echo(f"Forgot {dropped} paired device(s) for {host}." if dropped else f"No paired device for {host}.")
+
+
 @devices_app.command("revoke")
 def devices_revoke(
     ctx: typer.Context,

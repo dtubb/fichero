@@ -20,6 +20,7 @@ from fichero_cli import FicheroClient, FicheroError
 # something a single route does not (see each docstring's "Kept" line). Everything else on the
 # surface is generated from the contract or an operator alias of a generated tool.
 HAND_WRITTEN_TOOLS = {
+    "fichero_devices_pair",
     "fichero_health",
     "fichero_use_library",
     "fichero_docs_list",

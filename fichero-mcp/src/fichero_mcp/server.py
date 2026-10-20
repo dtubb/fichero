@@ -222,6 +222,22 @@ def select_toolsets(toolsets: Iterable[str], server: FastMCP | None = None) -> l
 
 # -- hand-written tools that a single route cannot be --------------------------
 @mcp.tool()
+def fichero_devices_pair(link_file: str, device_name: str = "") -> Any:
+    """Pair this machine's CLI/MCP as a revocable device of a host, from a file holding its pairing link.
+
+    The device token is stored on this machine (owner-only) and used for that host from then on; it is never
+    returned. A host using Multi-user needs a person to sign in at a terminal: this tool fails in words instead.
+    The host's `devices revoke` ends the device. Routes: POST /api/pair (hand tool: the generated
+    `fichero_pairing_pair_device` takes a bare code, skips the pin check and returns the token).
+    """
+    from pathlib import Path
+
+    from fichero_cli import pairing
+
+    return pairing.pair(Path(link_file).expanduser().read_text(encoding="utf-8"), device_name=device_name or None)
+
+
+@mcp.tool()
 def fichero_health() -> Any:
     """Check that the Fichero backend is reachable.
 
