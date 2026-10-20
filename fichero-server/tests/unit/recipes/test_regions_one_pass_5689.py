@@ -117,3 +117,33 @@ def test_the_segmenter_runs_through_the_model_lane_not_beside_it(db, tmp_path, m
     find_regions(db, [p.id for p in pages], "run-1", "blla", provider="kraken")
 
     assert seen == [("find-regions", "kraken:blla", p.id) for p in pages]
+
+
+def test_a_lane_page_of_a_recipe_step_hangs_under_its_run_and_takes_the_runs_starter(db, test_package):
+    """Review 390: a recipe step has no workflow node context, so the page row was orphaned and 'workflow'-started, and an
+    AUTOMATIC run's segmenter ranked and held as a person's. Through the real submit, not a stand-in."""
+    from fichero_server.execution import jobs
+
+    background = jobs._insert(db, "recipe-run", "auto", None, "automatic")
+    person = jobs._insert(db, "recipe-run", "hand", None, "person")
+    for run, waits in ((background, False), (person, True)):
+        jobs.run_on_lane_blocking(str(test_package), "find-regions", f"page-{run[:4]}", model="kraken:blla",
+                                  fn=lambda: "segmented", parent_id=run, run_id=run)
+        row = db.execute_fetchone("SELECT id, parent_id FROM jobs WHERE subject = ?", [f"page-{run[:4]}"])
+        assert row[1] == run, "the page is a child of its run, so the tree and Stop reach it"
+        assert jobs.person_waits_on(db, row[0]) is waits
+
+
+def test_a_lane_job_that_asks_for_the_lane_runs_in_place_instead_of_waiting_on_itself(db, test_package):
+    """Review 390 LOW: waiting for a slot of the lane the caller holds would never end."""
+    from fichero_server.execution import jobs
+
+    seen = []
+
+    def outer():
+        seen.append(jobs.run_on_lane_blocking(str(test_package), "find-regions", "inner", model="kraken:blla",
+                                              fn=lambda: "inner ran"))
+
+    jobs.run_on_lane_blocking(str(test_package), "find-regions", "outer", model="kraken:blla", fn=outer)
+    assert seen == ["inner ran"]
+    assert db.execute_fetchone("SELECT COUNT(*) FROM jobs WHERE subject = 'inner'") == (0,)
