@@ -84,8 +84,12 @@ struct RecipeCloudQuestion: View {
             VStack(alignment: .leading, spacing: 2) {
                 Toggle("Allow pages to be sent to a cloud service", isOn: $store.cloudAllowed)
                     .onChange(of: store.cloudAllowed) { Task { await store.assemble() } }
-                Text("Cloud models often read difficult hands better and cost a few cents a page. Off: every page stays on this Mac. Change it any time in the Inspector.")
+                Text("Cloud models often read difficult hands better. Off: every page stays on this Mac. Change it any time in the Inspector.")
                     .font(.caption).foregroundStyle(.secondary)
+                // What would be sent, to whom, how many pages and the estimate: the engine's words, per step.
+                ForEach(store.cloudOfferSentences, id: \.self) { sentence in
+                    Text(sentence).font(.caption).foregroundStyle(.secondary)
+                }
             }
         } else {
             Label("Everything runs on this Mac.", systemImage: "desktopcomputer")

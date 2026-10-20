@@ -266,7 +266,7 @@ struct RecipeSetupStoreTests {
             RecipesMockURLProtocol.status == 200
                 ? Self.reply(request, 200, Self.recipeJSON)
                 : Self.reply(request, 200, Self.recipeJSON.replacingOccurrences(
-                    of: #""problems":[]"#, with: #""cloud_options":["correct"],"problems":[]"#))
+                    of: #""problems":[]"#, with: #""cloud_options":["correct"],"cloud_offer":[{"job":"correct","title":"Correct","sends":"the text of the pages","to":"google","pages":3000,"cost_usd":4.5,"sentence":"Correct: would send the text of 3,000 pages to google, about $4.50."}],"problems":[]"#))
         }
         store.languages = ["es"]
         store.scripts = ["Latn"]
@@ -278,6 +278,8 @@ struct RecipeSetupStoreTests {
         await store.assemble()
         #expect(store.recipe?.cloudOptions == ["correct"])
         #expect(store.asksCloudQuestion)
+        #expect(store.cloudOfferSentences == ["Correct: would send the text of 3,000 pages to google, about $4.50."],
+                "the question shows what is sent, to whom, how many pages and the estimate, in the engine's words")
 
         RecipesMockURLProtocol.status = 200
         store.cloudAllowed = true

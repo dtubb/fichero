@@ -300,6 +300,18 @@ class RecipeChange(BaseModel):
     now: Optional[dict[str, Any]] = Field(default=None, description="the fresh step's model")
 
 
+class CloudOffer(BaseModel):
+    """What one step would send to a cloud model, for the egress question (`source.onboard.egress-asked-once`)."""
+
+    job: str
+    title: str
+    sends: str = Field(description="what would be sent: the page pictures, or the text of the pages")
+    to: str = Field(description="the provider that would receive it")
+    pages: Optional[int] = Field(default=None, description="how many pages; null while they are uncounted")
+    cost_usd: Optional[float] = Field(default=None, description="the estimate; null when it cannot be worked out")
+    sentence: str = Field(description="the above in one sentence, as setup shows it under the question")
+
+
 class AssembledRecipe(BaseModel):
     # Optional so older clients keep decoding; present so a recipe saved from this answer is a
     # whole recipe.yaml that passes the check (`source.recipe.is-a-file`).
@@ -331,6 +343,10 @@ class AssembledRecipe(BaseModel):
         default_factory=list,
         description="jobs a cloud model would also fit if pages could leave this Mac; "
         "setup asks the egress question only when this is not empty",
+    )
+    cloud_offer: list["CloudOffer"] = Field(
+        default_factory=list,
+        description="per job in cloud_options: what setup shows under the egress question",
     )
     problems: list[str] = Field(description="what the recipe check finds (empty when it can run)")
     overrides: Optional[list[dict[str, Any]]] = Field(default=None, description=(
@@ -1044,7 +1060,7 @@ async def assemble_recipe(
         steps=[RecipeStep(**s, **_run_titles(s)) for s in recipe["steps"]], automatic=recipe.get("automatic") or [],
         gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
-        cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
+        cloud_options=recipe["cloud_options"], cloud_offer=[CloudOffer(**o) for o in recipe.get("cloud_offer") or []], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"), changes=_changes(library, recipe),
     )
 
