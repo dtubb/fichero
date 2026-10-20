@@ -237,6 +237,26 @@ extension ActivityStore {
         await loadRunTree(threadId: jobId)
     }
 
+    /// The kind a waiting or paused kind row stands for (`waiting:<kind>`, `paused:<kind>`); nil for any other row.
+    static func queuedKind(ofRowId id: String) -> String? {
+        for prefix in ["waiting:", "paused:"] where id.hasPrefix(prefix) && id.count > prefix.count {
+            return String(id.dropFirst(prefix.count))
+        }
+        return nil
+    }
+
+    /// Read the pages queued behind a kind's row; the details call it when the row's count changes. A failed read
+    /// keeps the pages already shown.
+    func loadQueuedItems(rowId: String, limit: Int = 50) async {
+        guard let kind = Self.queuedKind(ofRowId: rowId) else { return }
+        do {
+            let items = try await activityService.listQueuedItems(kind: kind, limit: limit)
+            if queuedItems[kind] != items { queuedItems[kind] = items }
+        } catch {
+            log.debug("ActivityStore: pages of \(kind, privacy: .public) failed \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// Read one row's log; the details call it when the row's node changes.
     /// A failed read keeps the lines already shown.
     func loadJobLog(jobId: String, developer: Bool = false) async {

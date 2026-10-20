@@ -502,6 +502,25 @@ extension ActivityService {
         }
     }
 
+    /// The jobs queued behind one kind's row, in the order the lane picks them (`activity.window.expands-to-pages`,
+    /// #5839). Nil when the engine has no such kind row.
+    func listQueuedItems(kind: String, limit: Int = 50, offset: Int = 0) async throws -> [ActivityQueuedItem] {
+        let response = try await client.api.listQueuedItemsApiActivityJobsKindKindItemsGet(
+            path: .init(kind: kind), query: .init(limit: limit, offset: offset))
+        switch response {
+        case .ok(let okResponse):
+            return try okResponse.body.json.map(ActivityQueuedItem.init)
+        case .unprocessableContent(let error):
+            let detail = try? error.body.json
+            throw ActivityServiceError.validationError(detail?.detail?.description ?? "Validation error")
+        case .undocumented(let statusCode, let payload):
+            if let denial = await AccessError.denial(statusCode: statusCode, payload: payload) {
+                throw denial
+            }
+            throw ActivityServiceError.unexpectedResponse(statusCode)
+        }
+    }
+
     /// Pause or resume one job and what is under it (`activity.pause.per-job`):
     /// the audited `job.pause` action. Returns the job's state after the request.
     func setJobPaused(id: String, paused: Bool) async throws -> String {
