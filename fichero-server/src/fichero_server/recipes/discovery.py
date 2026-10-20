@@ -826,6 +826,161 @@ _SCRIPT_WORDS = {"fraktur": "Latf", "kuzushiji": "Jpan"}
 _NOT_SCRIPT_WORDS = frozenset({"Latn", "Goth", "Zyyy", "Zinh", "Zzzz", "Zsym", "Zmth", "Zxxx", "Zsye"})
 
 
+#: Tags models are published under that differ from the project's language tag: Ottoman Turkish is `ota` in the registry and
+#: `ott` on the Hub, Church Slavonic `cu` and `chu`, Syriac and Aramaic each other's, classical Chinese `lzh` and `zh`
+#: (the search audit, 2026-10-20, #5970: nobody tags models `ota`).
+_TAG_ALIASES = {"ota": ("ott",), "cu": ("chu",), "chu": ("cu",), "arc": ("syc", "syr"), "syc": ("arc", "syr"), "syr": ("syc", "arc"),
+                "lzh": ("zh",), "grc": ("el",), "fro": ("fr",), "pro": ("oc",), "ang": ("en",)}
+#: A script's name as models are named for it when its ISO 15924 name is not one word the listings use.
+_SCRIPT_SEARCH_WORDS = {"Hant": "chinese", "Hans": "chinese", "Hani": "chinese", "Jpan": "japanese", "Hang": "korean",
+                        "Cans": "syllabics", "Syrc": "syriac", "Deva": "devanagari"}
+#: Words in a language's name that say nothing about it.
+_NAME_NOISE = frozenset({"language", "languages", "old", "middle", "modern", "classical", "ancient", "early", "late", "standard",
+                         "north", "south", "east", "west", "central"})
+#: What marks a reader made for old hands and manuscripts, beside the words of OCR_WORDS (the specialist signal of the rank).
+SPECIALIST_WORDS = frozenset({"htr", "handwriting", "handwritten", "handwriting-recognition", "manuscript", "manuscripts",
+                              "catmus", "palaeography", "paleography", "medieval", "historical", "incunabula", "kurrent"})
+#: Parts of an OCR pipeline published under the same task as the readers (a detector, an orientation or layout model): never a
+#: reader, so never a candidate (`source.onboard.model-search-ranks-specialists`).
+COMPONENT_WORDS = frozenset({"det", "detector", "detection", "orientation", "ori", "layout", "cls", "unwarping", "uvdoc", "lcnet"})
+
+
+def language_tags(languages: frozenset[str]) -> list[str]:
+    """The Hub tags to ask for: each project language's primary tag and the tags models of that language are published under."""
+    out: list[str] = []
+    for tag in sorted(languages):
+        primary = tag.split("-")[0].lower()
+        for t in (primary, *_TAG_ALIASES.get(primary, ())):
+            if t not in out:
+                out.append(t)
+    return out
+
+
+def search_words(languages: frozenset[str]) -> list[str]:
+    """The names to search model names for, for every project language and the script it is written in: the language's own
+    name and its words ("Ottoman Turkish" -> ottoman, turkish), the nine Latin-script words that were there before, and the
+    script's name (arabic, hebrew, syriac). Not the words of a language's name that say nothing (old, modern)."""
+    from fichero_server.recipes.names import language_name, script_name, usual_script
+
+    words: list[str] = []
+
+    def add(word: str | None) -> None:
+        if word and len(word) >= 4 and word not in words and word not in _NAME_NOISE:
+            words.append(word)
+
+    for tag in sorted(languages):
+        primary = tag.split("-")[0].lower()
+        add(_LANGUAGE_WORDS.get(primary))
+        name = language_name(tag)
+        if name != tag:
+            for word in re.findall(r"[a-z]+", name.lower().split("(")[0]):
+                add(word)
+        code = usual_script(tag)
+        if code and code not in _NOT_SCRIPT_WORDS:
+            add(_SCRIPT_SEARCH_WORDS.get(code))
+            sname = script_name(code).lower()
+            if re.fullmatch(r"[a-z]{4,}", sname):
+                add(sname)
+    return words
+
+
+def is_component(model: dict[str, Any]) -> bool:
+    """A detector, orientation or layout part of an OCR pipeline: it carries the readers' task on the Hub and reads nothing."""
+    return bool(_words(model) & COMPONENT_WORDS) and not (_words(model) & SPECIALIST_WORDS)
+
+
+def specialist_score(model: dict[str, Any], languages: frozenset[str]) -> int:
+    """How much a listing says it was made for old hands and for these languages and their scripts: a point for each
+    handwriting or manuscript word, two when a language's name or tag, or its script's name, is in the tags or the name.
+    Downloads are not in it."""
+    words = _words(model)
+    score = len(words & SPECIALIST_WORDS)
+    if words & (set(search_words(languages)) | set(language_tags(languages))):
+        score += 2
+    return score
+
+
+def parse_card_text(text: str) -> dict[str, Any]:
+    """What a model's README states (front matter first, then its words): licence, languages, datasets and a CER as a fraction,
+    or None for a CER it does not state. Nothing is guessed: a number is read only from a `model-index` metric named CER or
+    character error rate, or a sentence 'CER ... n %'."""
+    out: dict[str, Any] = {"licence": None, "languages": [], "datasets": [], "cer": None}
+    front = ""
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        front, text = (text[3:end], text[end + 4:]) if end > 0 else ("", text)
+    meta: dict[str, Any] = {}
+    if front:
+        try:
+            import yaml
+
+            loaded = yaml.safe_load(front)
+            meta = loaded if isinstance(loaded, dict) else {}
+        except Exception:  # noqa: BLE001 -- a card with broken front matter states nothing
+            meta = {}
+    lic = meta.get("license")
+    out["licence"] = str(lic) if isinstance(lic, (str, int, float)) else None
+    langs = meta.get("language")
+    out["languages"] = [str(x) for x in (langs if isinstance(langs, list) else [langs] if langs else [])]
+    data = meta.get("datasets")
+    out["datasets"] = [str(x) for x in (data if isinstance(data, list) else [data] if data else [])]
+
+    def fraction(value: Any) -> float | None:
+        try:
+            number = float(str(value).strip().rstrip("%"))
+        except ValueError:
+            return None
+        return number / 100 if number > 1 else number
+
+    for entry in meta.get("model-index") or []:
+        for result in (entry or {}).get("results") or []:
+            for metric in result.get("metrics") or []:
+                label = f"{metric.get('type', '')} {metric.get('name', '')}".lower()
+                if re.search(r"\bcer\b|character error", label) and (v := fraction(metric.get("value"))) is not None:
+                    out["cer"] = v
+                    return out
+    found = re.search(r"\bCER\b[^0-9\n]{0,24}([0-9]+(?:\.[0-9]+)?)\s*%", text)
+    if found:
+        out["cer"] = float(found.group(1)) / 100
+    return out
+
+
+def card_words(read: dict[str, Any] | None) -> str:
+    """What a read card adds to a candidate's reason: its stated CER on its own material, else that it states none."""
+    if read is None:
+        return "its card could not be read: unmeasured"
+    if read["cer"] is None:
+        return "its card states no measurement: unmeasured"
+    return f"CER {read['cer'] * 100:.1f}% on its own material"
+
+
+#: How many of the best-ranked candidates have their card read (one fetch each).
+CARDS_READ = 5
+
+
+async def _fetch_card_text(repo: str) -> str | None:
+    """A Hub repository's README, or None when it cannot be fetched. Network: only behind the search's egress check."""
+    import httpx  # lazy: off the engine boot path
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://huggingface.co/{repo}/raw/main/README.md", timeout=20.0, follow_redirects=True)
+            return response.text if response.status_code == 200 else None
+    except httpx.HTTPError:
+        return None
+
+
+def nothing_found_words(languages: frozenset[str]) -> str:
+    """What Set Up says when no source has a reader for the project's language and script, and what a person can do."""
+    from fichero_server.recipes.names import language_name, usual_script, script_name
+
+    names = ", ".join(language_name(t) for t in sorted(languages)) or "your language"
+    codes = {usual_script(t) for t in languages} - {None}
+    script = " in " + " and ".join(sorted(script_name(c) for c in codes)) if codes else ""
+    return (f"No model that reads {names}{script} was found. You can train one from about a hundred lines you correct, "
+            "or use a cloud reader if this project lets pages leave this Mac.")
+
+
 @lru_cache(maxsize=1)
 def script_words() -> dict[str, str]:
     """Word -> ISO 15924 code for every script whose English name is one word ("cyrillic" -> Cyrl) (#5594 residue)."""
@@ -848,7 +1003,7 @@ def reads_text(model: dict[str, Any]) -> str | None:
     published as image-to-text (not a captioner), or a vision-language model (image-text-to-text) whose
     tags or name say OCR use. A chat build is never a reader, whatever its task."""
     words = _words(model)
-    if words & CHAT_BUILD_WORDS:
+    if words & CHAT_BUILD_WORDS or is_component(model):
         return None
     ocr = bool(words & OCR_WORDS)
     if model.get("pipeline_tag") == "image-to-text" and (ocr or "image-captioning" not in words):
@@ -1005,7 +1160,8 @@ async def search_hugging_face(languages: frozenset[str],
     Raises the Hub fetch's error."""
     from fichero_server.api.routes.ai.models import _fetch_hf_models
 
-    filters = [[lang.split("-")[0]] for lang in sorted(languages)] or [[]]
+    filters = [[tag] for tag in language_tags(languages)] or [[]]
+    models: dict[str, dict[str, Any]] = {}  # every listing seen, by repository: the rank reads their tags and names
     found: dict[str, Card] = {}
     left_out: set[str] = set()
     originals: list[tuple[dict[str, Any], str]] = []
@@ -1019,6 +1175,7 @@ async def search_hugging_face(languages: frozenset[str],
                 listing = await _fetch_hf_models(task=task, tags=["mlx", *tags] if mlx else (tags or None),
                                                  limit=HF_LIMIT)
                 for m in listing:
+                    models.setdefault(str(m.get("modelId") or m.get("id")), m)
                     what = reads_text(m)
                     if mlx and _runs_on_mlx(m) and not _gguf_only(m):
                         repo = str(m.get("modelId") or m.get("id"))
@@ -1039,6 +1196,7 @@ async def search_hugging_face(languages: frozenset[str],
         """One listing found by a name or a tag: an MLX build, a repository the catalogue runs, a safetensors
         original whose MLX conversion is looked up, or listed as one that cannot run yet (transformers, GGUF)."""
         repo = str(m.get("modelId") or m.get("id"))
+        models.setdefault(repo, m)
         downloads[repo] = max(downloads.get(repo, 0), int(m.get("downloads") or 0))
         if what is None or repo in found:
             return
@@ -1064,7 +1222,7 @@ async def search_hugging_face(languages: frozenset[str],
 
     # The HTR models made for manuscripts (TrOCR fine-tunes, VLMs trained on old hands): by the tags they are
     # published under, alone and with each project language (ruled 2026-10-11), then by name (#5660 item 3).
-    langs = sorted({t.split("-")[0] for t in languages})
+    langs = language_tags(languages)
     # The hand answered in Your Material joins them (#5668, `source.onboard.material.feeds-the-reader-search`):
     # a Kurrent hand asks for `kurrent`, alone and with each language.
     hands = [t for t in dict.fromkeys(hand_tags) if t not in HTR_TAGS]
@@ -1076,8 +1234,7 @@ async def search_hugging_face(languages: frozenset[str],
         for m in await _fetch_hf_models(task=task, tags=tags, limit=HF_TAG_LIMIT):
             if m.get("pipeline_tag") in (None, *HF_READER_TASKS):
                 consider(m, htr(m))
-    terms = list(HTR_SEARCH_TERMS) + [f"{_LANGUAGE_WORDS[t.split('-')[0]]}" for t in sorted(languages)
-                                      if t.split("-")[0] in _LANGUAGE_WORDS]
+    terms = list(HTR_SEARCH_TERMS) + search_words(languages)  # the language's and the script's names, not only the nine
     asks = [(term, "image-to-text") for term in terms] + [(term, "image-text-to-text") for term in terms[:3]]
     for n, (term, task) in enumerate(asks, 1):
         progress(f"Searching Hugging Face for HTR models ({n} of {len(asks)})")
@@ -1110,13 +1267,30 @@ async def search_hugging_face(languages: frozenset[str],
         if repo not in converted and repo not in found:
             found.setdefault(f"not-runnable:{repo}", card)
 
-    def rank(card: Card) -> tuple:
-        # Ruled 2026-10-11: a reader that lists the project's languages first, then the most downloaded.
-        repo = str(card.pin.get("hf"))
-        matches = bool(languages and card.languages and {t.split("-")[0] for t in languages} & set(card.languages))
-        return (not matches, -downloads.get(repo, 0), card.id)
+    wanted_tags = set(language_tags(languages))
 
-    return sorted(found.values(), key=rank), len(left_out - set(found))
+    def rank(card: Card) -> tuple:
+        # A reader that lists the project's languages first (ruled 2026-10-11); then the one made for old hands and for these
+        # languages and scripts over a general OCR model (`source.onboard.model-search-ranks-specialists`, #5970); downloads
+        # only last, since a general reader has thousands of times a specialist's.
+        repo = str(card.pin.get("hf"))
+        matches = bool(languages and card.languages and wanted_tags & set(card.languages))
+        return (not matches, -min(specialist_score(models.get(repo, {}), languages), 6), -downloads.get(repo, 0), card.id)
+
+    ranked = sorted(found.values(), key=rank)
+    # The best few have their card read: licence, and a CER the card itself states, else "unmeasured"
+    # (`source.onboard.model-search-reads-the-card`). One fetch each; a card that cannot be fetched says so.
+    from dataclasses import replace
+
+    for n, card in enumerate(ranked[:CARDS_READ]):
+        repo = str(card.pin.get("hf"))
+        progress(f"Reading the card of {repo}")
+        text = await _fetch_card_text(repo)
+        read = parse_card_text(text) if text else None
+        ranked[n] = replace(card, offered_because="; ".join([card.offered_because, card_words(read)]),
+                            cer_published=(read or {}).get("cer") if card.cer_published is None else card.cer_published,
+                            licence=card.licence or ((read or {}).get("licence") or ""))
+    return ranked, len(left_out - set(found))
 
 
 def _hub_file() -> dict[str, Any]:
@@ -1463,7 +1637,16 @@ def discover(a: Answers, *, online: bool, search: dict[str, Any] | None = None,
                                    else "Remote compute: not set up (needs a token)")})
         sources += [{"source": "transkribus", "state": "not-searched", "count": 0,
                      "detail": TRANSKRIBUS_NOT_SEARCHED}, _htr_united_source(a)]
-    return [*shipped, *installed, *repo_cards, *hf_cards, *remote, *_print_baselines(seed, job, a)], sources
+    everything = [*shipped, *installed, *repo_cards, *hf_cards, *remote, *_print_baselines(seed, job, a)]
+    if cached is not None and hub_source["state"] == "cached":
+        # Both online sources have been searched: if no card reads this project's script and language, say so in words and
+        # what a person can do, never a bare "0 found" (`source.onboard.model-search-nothing-found-says-what-next`, #5970).
+        from fichero_server.recipes.assemble import _refusal
+
+        if not any(job in c.jobs and _refusal(job, c, a, a.material) is None for c in everything):
+            sources.append({"source": "nothing-found", "state": "read", "count": 0,
+                            "detail": nothing_found_words(a.languages)})
+    return everything, sources
 
 
 #: A local vision model up to this size is a small one; a larger one is a general model (`source.recipe.reader-tiers`).

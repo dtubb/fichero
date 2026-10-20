@@ -1025,34 +1025,40 @@ plan's peak memory across steps. Ready shows none of it.
   lines, a cloud reader). Search is network: only inside the egress rules (`ai.where.one-egress-gate`), public queries
   only, no page leaves. *Built:* the search (`discovery.search_hugging_face`, `repository_cards`). *Not built:*
   the per-script record and the comparison.
-- `source.onboard.model-search-names-the-script` — **[GAP]** (#5970; audit `briefs/model-search-audit-2026-10-20.md`) the
+- `source.onboard.model-search-names-the-script` — **[PARTIAL]** (#5970; audit `briefs/model-search-audit-2026-10-20.md`) the
   Hugging Face search asks for the project's languages and scripts BY NAME and by tag, not only the nine Latin-script
-  languages it has words for today (`discovery._LANGUAGE_WORDS`: es, la, fr, it, de, pt, ca, nl, en): arabic, ottoman,
-  hebrew, chinese, hanzi, slavonic, syriac, aramaic, persian and the rest, from the language registry
-  (`recipes/names.py`) and `script_words()`, and the tags that models of those languages really carry (`ota`, `ott`,
-  `arc`, `syc`, `cu`). *Built:* the language pass (tag filter per project language, image-to-text and
-  image-text-to-text, with and without `mlx`), the tag pass (generic HTR tags plus the language and the project's hand
-  tags) and the name pass (`search=` generic HTR words, plus a language word for the nine only); the Kraken repository
-  (Zenodo, 82 records) is fetched whole and ranked by script, not queried per language. *Not built:* script and
-  language words for any other language; `ota` finds nothing because models carry `ott`/`ottoman`. *Test (to write):*
-  a project of Ottoman Turkish sends `search=ottoman` and a tag `ott`, and a recorded listing's Ottoman model is a
-  candidate.
-- `source.onboard.model-search-ranks-specialists` — **[GAP]** (#5970) candidates rank by script and language match, then
-  handwriting or historical tags and the card's stated evaluation, then downloads; a component (detector, orientation,
-  layout part) is never a candidate. *Built:* a reader whose tags list the project language first, then Hugging Face
-  downloads. *Not built:* the audit's live run for Chinese shows parts of PaddleOCR (detectors, orientation) accepted
-  as readers and a general reader (1.7 million downloads) above specialists with tens. *Test (to write):* a recorded
-  listing of GLM-OCR, a PP-OCR detector and an Arabic handwritten model for `ar` ranks the Arabic model first and drops
-  the detector.
-- `source.onboard.model-search-reads-the-card` — **[GAP]** (#5970) the top candidates' cards are read for licence, language,
-  training data and a stated CER, and a candidate with no stated measurement is labelled unmeasured. *Built:* none: a
-  candidate is kept by its listing alone (task, tags, name); the licence is stored and shown, no card text or metric is
-  read. *Test (to write):* a card with an evaluation CER of 4.2 shows "CER 4.2% on its own material".
-- `source.onboard.model-search-nothing-found-says-what-next` — **[GAP]** (#5970) when no source finds a reader for the
-  project's script, the finder says so in words and offers what a person can do (train from about a hundred corrected
-  lines, or a cloud reader if the project allows pages to leave), with both actions. *Built:* one line per source
-  ("0 found on Hugging Face"); no gap text, no next step. *Test (to write):* a Chinese project with empty listings
-  shows that text and both actions.
+  languages it had words for. *Built, unrun until an M4 pass:* `discovery.language_tags` (a language's tag and the tags
+  models of it are published under: `ota` also asks `ott`, `cu` also `chu`, Syriac and Aramaic each other's, `lzh` also
+  `zh`) feeds the language pass and the tag pass; `discovery.search_words` (the language's own name and its words, the nine
+  old words, and the script's name: arabic, hebrew, syriac, chinese, devanagari) feeds the name pass. The Kraken
+  repository (Zenodo, 82 records) is fetched whole and ranked by script, as before. *Not built:* a per-script Zenodo query
+  beyond the rules' ranking; a word table for languages whose name has no usual script on record. *Test:*
+  `fichero-server/tests/unit/recipes/test_model_search_5970.py` (an Ottoman project asks the Hub for `ott`, `ottoman` and
+  `arabic`; the tags and names for Hebrew, Chinese and Spanish).
+- `source.onboard.model-search-ranks-specialists` — **[PARTIAL]** (#5970) candidates rank by language match, then how much their
+  listing says they were made for old hands and for these languages and scripts (handwriting, manuscript, catmus,
+  medieval, the language's or script's name), then downloads last; a detector, orientation or layout part of an OCR pipeline
+  is never a candidate. *Built, unrun until an M4 pass:* `discovery.specialist_score`, the rank in `search_hugging_face`,
+  `discovery.is_component` (checked in `reads_text`). *Not built:* the score reads the listing only (a card's stated
+  evaluation does not move the rank, since cards are read after ranking); the component list is words, so a part named
+  otherwise gets through. *Test:* `fichero-server/tests/unit/recipes/test_model_search_5970.py` (an Arabic handwritten reader
+  ranks above a general reader with 1.7 million downloads; the detector and orientation parts are not readers).
+- `source.onboard.model-search-reads-the-card` — **[PARTIAL]** (#5970) the five best-ranked candidates have their card
+  (README) read for licence and a CER the card itself states; the candidate's reason says "CER n% on its own material", or
+  that the card states no measurement, or could not be read: unmeasured. *Built, unrun until an M4 pass:*
+  `discovery.parse_card_text` (front matter `license`, `language`, `datasets`, a `model-index` CER metric, else a sentence
+  "CER … n %"; nothing guessed), `card_words`, the read after the rank in `search_hugging_face` (one fetch each,
+  `_fetch_card_text`), the stated CER kept as the card's `cer_published`. *Not built:* a card's language and datasets are
+  parsed but not yet shown or used; candidates beyond the first five are not read; Zenodo records are not read this way.
+  *Test:* `fichero-server/tests/unit/recipes/test_model_search_5970.py` (a card with an evaluation CER of 4.2 shows
+  "CER 4.2% on its own material"; no number reads "unmeasured"; a card that cannot be fetched says so).
+- `source.onboard.model-search-nothing-found-says-what-next` — **[PARTIAL]** (#5970) when both online sources have been
+  searched and no candidate reads the project's script and language, the finder's sources gain a row, `nothing-found`, that
+  says so in words and what a person can do: train one from about a hundred corrected lines, or use a cloud reader if the
+  project lets pages leave. *Built, unrun until an M4 pass:* `discovery.nothing_found_words` and the row in `discover`.
+  *Not built:* the two actions as buttons on that row (Swift); the row is not shown while a search is still running or
+  when the engine is offline. *Test:* `fichero-server/tests/unit/recipes/test_model_search_5970.py` tests the words; the row
+  in `discover` is exercised on the M4.
 - `source.onboard.auto.lands-on-the-run` — **[PARTIAL]** (#5576, see #5555) after Start, the project
   window shows the run: each stage, pages done and left, time left, and what is waiting and why (memory,
   a download, another run). **Built 2026-10-07 (engine + app), not yet seen:** Start closes setup onto
