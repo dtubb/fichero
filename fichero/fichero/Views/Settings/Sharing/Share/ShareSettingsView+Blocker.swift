@@ -53,7 +53,9 @@ extension ShareSettingsView {
                 publicBaseURL = Self.autoLocalBaseURL
             }
             await applySharing()
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerived:
+        case .pinNotDerived:
+            await applySharing()  // restarts the engine, which mints and files the pin; only on the person's press (#5891)
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
             break  // no button offered — see PairingBlocker.actionTitle
         }
     }

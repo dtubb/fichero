@@ -73,9 +73,8 @@ enum PairingBlocker: Equatable {
         case .addressInvalid(let reason):
             return reason
         case .pinNotDerived:
-            return "Fichero mints the certificate for this address automatically when sharing "
-                + "starts — the QR appears as soon as it's ready. Turning sharing off and on "
-                + "again re-mints it if needed."
+            return "Fichero has no certificate pin filed for this address yet. Making the link restarts "
+                + "sharing, which mints it; any work running in the engine is stopped, so do it when nothing is running."
         }
     }
 
@@ -86,11 +85,10 @@ enum PairingBlocker: Equatable {
         switch self {
         case .engineNotRunning: return "Start Server"
         case .sharingNotStarted: return "Turn On Sharing"
-        // No "Prepare Certificate" button: turning sharing on mints the certificate
-        // itself, so this is a transient "preparing" state, never a step the user
-        // must trigger (#3811). If minting genuinely fails it stays an honest message
-        // and toggling sharing off/on re-runs the mint — not a dead control.
-        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid, .pinNotDerived:
+        // The pin is normally minted when sharing turns on; when it is missing anyway the cure restarts the
+        // engine, which stops work in flight, so it is a button the person presses, never automatic (#5891).
+        case .pinNotDerived: return "Make a Pairing Link"
+        case .engineIsRemote, .addressMissing, .addressInsecure, .addressInvalid:
             return nil
         }
     }
@@ -121,18 +119,6 @@ enum PairingLinkCopy {
             return .notCopied("Fichero couldn't copy the link to the clipboard. Select the pairing link above and copy it by hand.")
         }
         return .copied
-    }
-}
-
-/// When the Sharing pane derives the pin itself (#5891): sharing is on, this app started the engine, the address serves
-/// its own certificate, and no pin is filed for it (the engine was started before the address was set, or by a path that
-/// did not file it). Restarting the engine mints and files it (`applySharing`); once per opening of the pane, so a
-/// restart that cannot derive it does not loop.
-enum PairingPinRepair {
-    static func needed(hostingEnabled: Bool, backendRunning: Bool, externalEngine: Bool, address: URL?,
-                       pin: String, alreadyTried: Bool) -> Bool {
-        guard hostingEnabled, backendRunning, !externalEngine, !alreadyTried, let address else { return false }
-        return RemoteClientPairing.invitePin(pin, for: address) == .missing
     }
 }
 
