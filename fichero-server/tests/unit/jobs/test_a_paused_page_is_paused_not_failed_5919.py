@@ -62,12 +62,16 @@ def test_the_refinement_function_it_calls_does_not_exist_today():
     assert not hasattr(llm, "call_llm_with_cache")
 
 
-def test_a_broken_import_in_the_refinement_surfaces_instead_of_being_swallowed():
-    """#5921: with the missing function the option used to fall back silently; now the ImportError reaches the caller."""
+def test_a_missing_refinement_keeps_the_reflowed_text_and_says_so_once_per_run(monkeypatch):
+    """#5921: the page finishes with its heuristic text (not a raw 'cannot import name'); the run is told once, in words."""
     from fichero_server import llm
     from fichero_server.workflows.tools import text_reflow
 
-    assert not hasattr(llm, "call_llm_with_cache")
+    assert not hasattr(llm, "call_llm_with_cache")  # tripwire: delete this test when #5921 builds or removes the refinement
+    said: list[str] = []
+    monkeypatch.setattr(text_reflow, "_said_for", set())
+    monkeypatch.setattr(text_reflow.logger, "warning", lambda message, *a: said.append(message))
     config = llm.LLMConfig(provider="openai", model="gpt-x")
-    with pytest.raises(ImportError):
-        asyncio.run(text_reflow._refine_with_llm("some text", config))
+    for _ in range(3):  # three pages of one run
+        assert asyncio.run(text_reflow._refine_with_llm("some text", config)) == "some text"
+    assert said == [text_reflow.REFINEMENT_UNAVAILABLE] and "#5921" in said[0] and "isn't available yet" in said[0]
