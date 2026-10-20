@@ -56,7 +56,18 @@ def test_the_text_refinement_still_falls_back_to_the_text_on_an_ordinary_failure
 def test_the_refinement_function_it_calls_does_not_exist_today():
     """Honest pin (found by the M4 run of this file): `fichero_server.llm` has no `call_llm_with_cache`, so the AI refinement
     (`use_ai_refinement`) has always raised ImportError, swallowed into 'return the heuristic text'. The tests above inject the
-    name so the Pause/Stop re-raise is exercised; when the refinement is built or removed this test is deleted."""
+    name so the Pause/Stop re-raise is exercised; when the refinement is built or removed (#5921) this test is deleted."""
     from fichero_server import llm
 
     assert not hasattr(llm, "call_llm_with_cache")
+
+
+def test_a_broken_import_in_the_refinement_surfaces_instead_of_being_swallowed():
+    """#5921: with the missing function the option used to fall back silently; now the ImportError reaches the caller."""
+    from fichero_server import llm
+    from fichero_server.workflows.tools import text_reflow
+
+    assert not hasattr(llm, "call_llm_with_cache")
+    config = llm.LLMConfig(provider="openai", model="gpt-x")
+    with pytest.raises(ImportError):
+        asyncio.run(text_reflow._refine_with_llm("some text", config))
