@@ -59,10 +59,13 @@ extension AppState {
     }
 
     /// The reason the app restarts its engine, in words: it missed its health checks (one every 5 s), and was working.
-    static func restartSentence(failures: Int, busyWithImport: Bool) -> String {
+    /// `previousStall` is the engine's own `dependencies['previous_stall']` (`'<N>s in <module:function>'`, #5843): what
+    /// held the loop the last time an engine died stuck, appended when the app has it.
+    static func restartSentence(failures: Int, busyWithImport: Bool, previousStall: String? = nil) -> String {
         let seconds = failures * 5
         let busy = busyWithImport ? " while importing" : ""
-        return "Fichero's engine didn't answer its health check for about \(seconds) seconds\(busy), so the app is restarting it."
+        let why = (previousStall?.isEmpty == false) ? " The last time it got stuck was \(previousStall!)." : ""
+        return "Fichero's engine didn't answer its health check for about \(seconds) seconds\(busy), so the app is restarting it.\(why)"
     }
 
     func noteHeartbeatFailure(reason: String) async {
@@ -107,7 +110,9 @@ extension AppState {
         switch Self.supervisedDropOutcome(for: EngineConfig.engineProvisioningStrategy()) {
         case .autoRestart:
             if let onDropped = onSupervisedBackendDropped {
-                ConnectionPresentation.lastRestartReason = Self.restartSentence(failures: heartbeatFailureCount, busyWithImport: importsRunning)
+                ConnectionPresentation.lastRestartReason = Self.restartSentence(
+                    failures: heartbeatFailureCount, busyWithImport: importsRunning,
+                    previousStall: ConnectionPresentation.lastPreviousStall)
                 logger.warning(
                     """
                     Backend heartbeat: \(self.heartbeatFailureCount) consecutive failures \
