@@ -227,6 +227,125 @@ def _within_budget(prior_text: Any, model: str, prompt: str = "", files: list | 
     return (texts if isinstance(prior_text, list) else texts[0]), said
 
 
+def _only_unsure(prior_text: Any, below: float, model: str) -> tuple[Any, list[str], tuple[int, int]]:
+    """Variant A, Kraken then a cloud model (`source.recipe.kraken-then-cloud-unsure-lines`): of each page's listed lines
+    only those whose stated certainty is under `below` stay in what the model is sent; a line at or above it is not
+    sent, so the answer names no such line and its reading is untouched. A line with no stated certainty is sent: it
+    cannot be called sure. Returns the context, the note for the step ("N of M lines sent to <model>"), and (N, M)."""
+    texts = list(prior_text) if isinstance(prior_text, list) else [prior_text or ""]
+    sent = total = 0
+    for index, text in enumerate(texts):
+        rows = str(text or "").split("\n")
+        keep = []
+        for row in rows:
+            if not _SHOWN_LINE.match(row):
+                keep.append(row)
+                continue
+            total += 1
+            fields = row.split(" | ", 4)
+            try:
+                sure = float(fields[3])
+            except (IndexError, ValueError):
+                sure = None  # "-": the machine stated none
+            if sure is None or sure < below:
+                sent += 1
+                keep.append(row)
+        texts[index] = "\n".join(keep)
+    note = f"{sent} of {total} lines sent to {model}: the others are at or above {below:g} sure and are not re-read"
+    return (texts if isinstance(prior_text, list) else texts[0]), [note], (sent, total)
+
+
+async def _review_whole_page(inputs: dict[str, Any], state: State, llm_config: LLMConfig, prior_text: Any,
+                             prompt: str, files: list, documents: list, input_metadata: Any,
+                             update_page_content: bool) -> dict[str, Any]:
+    """The review as it always was: the model is shown the page and its lines' text."""
+    tool_config = VisionToolConfig(
+        artifact_type="transcription_review",
+        update_page_content=update_page_content,
+        trigger_embedding=update_page_content,
+        supports_apple_vision=False,
+        skip_if_artifact_exists=inputs.get("skip_if_artifact_exists", True),
+    )
+    return await process_vision(
+        files=files,
+        documents=documents,
+        prompt=prompt,
+        llm_config=llm_config,
+        library_path=state.get("library_path", ""),
+        task_id=state.get("task_id"),
+        tool_config=tool_config,
+        force_ocr=True,
+        context=prior_text,
+        input_metadata=input_metadata,
+        thinking_mode=inputs.get("thinking_mode", "medium"),
+        # #4496: the review nodes were the worst offenders — t4, the FINAL
+        # pass, scored CER 5.41 by storing reasoning as the reviewed
+        # transcription, with `update_page_content=True` writing it to the page
+        # as well. Strip delimited reasoning; raise on anything still
+        # commentary-shaped so the run goes red.
+        postprocess_text=sanitize_transcription,
+    )
+
+
+async def _review_unsure_lines(prior_text: Any, documents: list, files: list, llm_config: LLMConfig, state: State,
+                               inputs: dict[str, Any]) -> dict[str, Any]:
+    """Variant A (`source.recipe.kraken-then-cloud-unsure-lines`): the model is sent each unsure line's own crop with
+    Kraken's text and the language, never the page (`re_ask_lines.re_ask`, the line cut the line reader uses). A page
+    with no unsure line makes no call. A line the model gives nothing for keeps Kraken's text, and the note says so.
+    The answers are saved as the page's review artifact; `_onto_lines` puts them on the lines as for any review."""
+    from PIL import Image
+
+    from fichero_server.api.routes.document.segment_readings import counting_texts
+    from fichero_server.db import db_manager
+    from fichero_server.llm.line_reader import LINES_PER_CALL
+    from fichero_server.llm.re_ask_lines import re_ask
+    from fichero_server.llm.working_lines import in_pixels, working_lines
+    from fichero_server.models import Artifact, Document
+    from fichero_server.recipes.cards import lines_per_request_for
+
+    library_path = state.get("library_path", "")
+    db = db_manager.get_database(library_path)
+    model = f"{llm_config.provider}/{llm_config.model}"
+    language = inputs.get("language")
+    pages = list(prior_text) if isinstance(prior_text, list) else [prior_text]
+    result: dict[str, Any] = {"text": "", "value": None, "texts": [], "values": [], "results": [], "artifacts": [],
+                              "output_files": [], "page_records": [], "notes": []}
+    for index, file_path in enumerate(files):
+        doc = documents[index] if index < len(documents) else None
+        doc_id = doc.get("id") if isinstance(doc, dict) else getattr(doc, "id", None)
+        shown = {row[:32] for row in str(pages[index] if index < len(pages) else "").split("\n")
+                 if _SHOWN_LINE.match(row)}
+        rows = working_lines(db, str(doc_id)) if doc_id else None
+        if rows is None or not shown:
+            result["results"].append({"file": file_path, "text": "", "value": None, "lines": "no line under the bar"})
+            continue
+        page = db.get(Document, str(doc_id))
+        texts = counting_texts(db, rows.lines)
+        with Image.open(page.path) as img:
+            width, height = img.size
+        asked = [{"id": r.id, "text": texts.get(r.id, ""), "polygon": in_pixels(r, width, height)["polygon"]}
+                 for r in rows.lines if r.id in shown]
+        got, missing = await re_ask(page.path, asked, "", llm_config,
+                                    batch=lines_per_request_for(str(llm_config.model)) or LINES_PER_CALL,
+                                    language=language)
+        name = getattr(page, "name", None) or doc_id
+        if missing:
+            result["notes"].append(f"{name}: {model} gave no reading for {len(missing)} of {len(asked)} lines "
+                                   f"({', '.join(missing)}); they keep their first reader's text")
+        content = "\n".join(f"{r['id']} | {got[r['id']]}" for r in asked if r["id"] in got)
+        if not content:
+            result["results"].append({"file": file_path, "text": "", "value": None, "lines": "no line answered"})
+            continue
+        art = Artifact(document_id=str(doc_id), artifact_type="transcription_review", content=content,
+                       provider=llm_config.provider, model=llm_config.model, version=1, reviewed=False)
+        db.save(art)
+        result["artifacts"].append(art.id)
+        result["texts"].append(content)
+        result["page_records"].append({"doc_id": str(doc_id), "text": content})
+        result["results"].append({"file": file_path, "text": content, "value": content, "artifact_id": art.id})
+    return result
+
+
 def _project_prompt(lens: str, library_path: str) -> tuple[str, str]:
     """The prompt for `lens` built from the project's setup answers and the profile they choose
     (`source.job.review-is-built-from-the-project-and-a-profile`), and which profile that was."""
@@ -335,37 +454,23 @@ async def transcribe_review(
         if names:
             prompt = f"{prompt}\n\n{names}"
 
-    prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""), prompt, files)
-    tool_config = VisionToolConfig(
-        artifact_type="transcription_review",
-        update_page_content=update_page_content,
-        trigger_embedding=update_page_content,
-        supports_apple_vision=False,
-        skip_if_artifact_exists=inputs.get("skip_if_artifact_exists", True),
-    )
-
-    result = await process_vision(
-        files=files,
-        documents=documents,
-        prompt=prompt,
-        llm_config=llm_config,
-        library_path=state.get("library_path", ""),
-        task_id=state.get("task_id"),
-        tool_config=tool_config,
-        force_ocr=True,
-        context=prior_text,
-        input_metadata=input_metadata,
-        thinking_mode=inputs.get("thinking_mode", "medium"),
-        # #4496: the review nodes were the worst offenders — t4, the FINAL
-        # pass, scored CER 5.41 by storing reasoning as the reviewed
-        # transcription, with `update_page_content=True` writing it to the page
-        # as well. Strip delimited reasoning; raise on anything still
-        # commentary-shaped so the run goes red.
-        postprocess_text=sanitize_transcription,
-    )
+    counted: tuple[int, int] | None = None
+    said_sent: list[str] = []
+    cut: list[str] = []
+    below = inputs.get("only_below_confidence")
+    if below is not None and shows_segment_lines(prior_text):
+        prior_text, said_sent, counted = _only_unsure(
+            prior_text, float(below), f"{llm_config.provider}/{llm_config.model}")
+        result = await _review_unsure_lines(prior_text, documents, files, llm_config, state, inputs)
+    else:
+        prior_text, cut = _within_budget(prior_text, str(getattr(llm_config, "model", "") or ""), prompt, files)
+        result = await _review_whole_page(inputs, state, llm_config, prior_text, prompt, files, documents,
+                                          input_metadata, update_page_content)
     if profile_said:
         result.setdefault("notes", []).append(profile_said)
-    result.setdefault("notes", []).extend(cut)
+    result.setdefault("notes", []).extend(said_sent + cut)
+    if counted is not None:
+        result["lines_sent"], result["lines_total"] = counted
     library_path = state.get("library_path", "")
     if library_path and result.get("artifacts"):
         import asyncio
