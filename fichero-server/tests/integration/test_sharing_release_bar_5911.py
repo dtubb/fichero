@@ -157,19 +157,21 @@ def test_release_bar_8_no_engine_death_on_any_sharing_or_multiuser_switch():
 
 
 
-def test_a_guest_sending_its_own_library_path_is_refused_in_words_that_name_what_the_host_serves(pair):
-    """`sharing.guest-addresses-the-hosts-library` (#5965): the paired iPhone's own `/var/mobile/.../global.fichero` as the
-    library header gets a 403 that ends with the libraries this Mac serves; the host's own library header still reads."""
+def test_a_rejected_library_path_names_no_library_of_the_host_before_or_after_sign_in(pair):
+    """`sharing.guest-addresses-the-hosts-library` (#5965, ## 688): the 403 is made before authentication, so neither an
+    unauthenticated caller nor a paired guest sending its own path learns the name or path of any library the host serves; the
+    host's own library header still reads."""
     host, guest = pair
-    made = host.make_library("Served by the host")
-    with host.uds as local:  # the host's registry lists what it serves
-        local.post("/api/registry/add", params={"path": unquote(made["X-Fichero-Library-Path"]), "name": "Served by the host"}).raise_for_status()
+    made = host.make_library("Secret Diaries")
+    with host.uds as local:
+        local.post("/api/registry/add", params={"path": unquote(made["X-Fichero-Library-Path"]), "name": "Secret Diaries"}).raise_for_status()
     paired = _paired_guest_device(host, guest)
-    own = {"Authorization": f"Bearer {paired['device_token']}",
-           "X-Fichero-Library-Path": "/var/mobile/Containers/Data/Application/ABC/Documents/global.fichero"}
+    own = {"X-Fichero-Library-Path": "/var/mobile/Containers/Data/Application/ABC/Documents/global.fichero"}
     with httpx.Client(verify=host.lan_ssl(), base_url=f"https://{host.lan}:{host.port}", timeout=30) as lan:
-        refused = lan.get("/api/notes", headers=own)
-        assert refused.status_code == 403, refused.text
-        assert "This Mac serves:" in refused.json()["detail"] and "Served by the host" in refused.json()["detail"], refused.text
+        for headers in (own, {**own, "Authorization": f"Bearer {paired['device_token']}"}):
+            refused = lan.get("/api/notes", headers=headers)
+            assert refused.status_code == 403, refused.text
+            assert "Secret Diaries" not in refused.text and "Documents/Secret" not in refused.text, refused.text
+            assert "after signing in" in refused.json()["detail"], refused.text
         read = lan.get("/api/notes", headers={"Authorization": f"Bearer {paired['device_token']}", **made})
         assert read.status_code == 200, read.text
