@@ -131,3 +131,21 @@ def test_a_variant_is_judged_against_today_not_against_zero(tmp_path):
     assert not any(result["decision"].values()), "reading as much as today is not a rescue"
     md = vp.report_md(result)
     assert "leave `crop_line` as it is" in md and "Vision varying between runs" in md and "beyond `today`" in md
+
+
+def test_the_gain_over_today_is_counted_line_by_line_not_as_a_difference_of_totals(tmp_path):
+    """today reads line 0 and misses line 1; the variant reads line 1 and misses line 0: equal totals, one real gain."""
+    rows = [{"page": "p.png", "id": str(i), "polygon": _poly(100, 100, 500, 160), "kraken": "Carlos", "vision": ""}
+            for i in range(2)]
+    pages = _page(tmp_path)
+    calls = {"n": 0}
+
+    def ocr(img):  # per line the four variants arrive in order: today, white, up2, up2_white
+        calls["n"] += 1
+        line, variant = divmod(calls["n"] - 1, 4)
+        return "x" if (line == 0 and variant == 0) or (line == 1 and variant == 1) else ""
+
+    result = vp.probe(rows, pages, ocr=ocr)
+    assert result["rescued_real_word"]["today"] == 1 and result["rescued_real_word"]["white"] == 1, "equal totals"
+    assert result["gain_over_today"]["white"] == 1 and result["gain_over_today"]["up2"] == 0
+    assert result["decision"]["white"] is True, "1 of 2 real words beyond today is over the quarter"
