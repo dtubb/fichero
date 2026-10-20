@@ -81,7 +81,8 @@ def test_when_nothing_rescues_enough_the_verdict_says_leave_crop_line_alone(tmp_
 
 
 def test_a_vision_error_is_reported_as_an_error_and_not_counted_as_not_rescued(tmp_path):
-    rows = [{"page": "p.png", "id": "0", "polygon": _poly(100, 100, 500, 140), "kraken": "Carlos", "vision": ""}]
+    # a 60 px line: today's cut is 100 px tall, the doubled one 200, so only the doubled crops reach the stub's 150 px
+    rows = [{"page": "p.png", "id": "0", "polygon": _poly(100, 100, 500, 160), "kraken": "Carlos", "vision": ""}]
 
     def ocr(img):
         if img.height >= 150:
