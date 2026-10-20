@@ -10,7 +10,7 @@
 import Testing
 
 @MainActor
-@Suite("Engine restart says why")
+@Suite("Engine restart says why", .serialized)  // the stall is process-global state
 struct EngineRestartSaysWhyTests {
     @Test("the sentence names the seconds missed, and an import when one was running")
     func sentenceNamesSeconds() {
@@ -45,19 +45,20 @@ struct EngineRestartSaysWhyTests {
     @Test("a stall is said once: the second restart without a new stall says nothing about it")
     func stallIsSaidOnce() {
         ConnectionPresentation.lastPreviousStall = "31s in fichero_server.db:save"
-        defer { ConnectionPresentation.lastPreviousStall = nil }
+        defer { _ = ConnectionPresentation.takePreviousStall() }
         #expect(AppState.takeRestartSentence(failures: 2, busyWithImport: false).contains("31s in fichero_server.db:save"))
         #expect(ConnectionPresentation.lastPreviousStall == nil)
         #expect(!AppState.takeRestartSentence(failures: 2, busyWithImport: false).contains("stuck"))
     }
 
-    @Test("a health re-read of the same stall is not logged or kept again; a new stall is")
-    func sameStallIsNoteOnce() {
-        defer { ConnectionPresentation.lastPreviousStall = nil }
+    @Test("a health re-read of the same stall is not logged or kept again; a new stall is; the same text after a restart is news")
+    func sameStallIsNotedOnce() {
+        defer { _ = ConnectionPresentation.takePreviousStall() }  // clears the kept stall and the last seen one
         #expect(ConnectionPresentation.notePreviousStall("12s in fichero_server.a:one"))
-        #expect(ConnectionPresentation.takePreviousStall() == "12s in fichero_server.a:one")
         #expect(!ConnectionPresentation.notePreviousStall("12s in fichero_server.a:one"), "a Settings re-read of the same stall")
+        #expect(ConnectionPresentation.takePreviousStall() == "12s in fichero_server.a:one")
         #expect(ConnectionPresentation.takePreviousStall() == nil, "and it is not kept again for the next restart sentence")
+        #expect(ConnectionPresentation.notePreviousStall("12s in fichero_server.a:one"), "a second death with the same text, after the restart took the first")
         #expect(ConnectionPresentation.notePreviousStall("40s in fichero_server.b:two"))
         #expect(ConnectionPresentation.takePreviousStall() == "40s in fichero_server.b:two")
     }
