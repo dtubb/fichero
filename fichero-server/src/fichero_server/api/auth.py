@@ -137,6 +137,10 @@ def _sandbox_containers_root() -> Path:
 
 
 def _uuid_sandbox_token_paths() -> list[Path]:
+    # FICHERO_TOKEN_DIR isolates a test or scratch engine from every real token copy: the user's `.api-key`, the bundle-id
+    # container's (`_sandbox_token_file_path`) and these UUID containers' (a scratch run's token was otherwise mirrored into each).
+    if os.environ.get("FICHERO_TOKEN_DIR", "").strip():
+        return []
     root = _sandbox_containers_root()
     try:
         container_dirs = list(root.iterdir())
