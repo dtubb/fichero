@@ -259,8 +259,12 @@ def refused(db: Any, plan: dict[str, Any], documents: list[str]) -> str:
                                started_by="import")
 
 
-def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: str) -> tuple[str, str, str | None]:
-    """A workflow card through the real runner: (child id, state, why)."""
+def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: str,
+                  adopt: str | None = None) -> tuple[str, str, str | None]:
+    """A workflow card through the real runner: (child id, state, why). `adopt`: the run this recipe parked on, taken up again
+    instead of starting a new one (nothing is read twice, #5933)."""
+    if adopt:
+        return _adopt_step_run(adopt, parent)
     from fichero_server.api.routes.workflow.chains import (
         _load_step_workflow,
         _record_step_run_accepted,
@@ -341,32 +345,73 @@ def _run_workflow(db: Any, card: dict[str, Any], documents: list[str], parent: s
     return thread_id, ("done" if status == "completed" else "failed"), error
 
 
+class ParkedOnStepRun(Exception):
+    """A step's run is paused: the recipe parks (a stored row that leaves the recipes lane) until that run is resumed, instead of
+    sleeping in its slot, which would hold every other recipe back (the lane is one wide; ## 656)."""
+
+    def __init__(self, thread_id: str):
+        super().__init__(thread_id)
+        self.thread_id = thread_id
+
+
 def _settled_outcome(thread_id: str, parent: str) -> tuple[str, str | None]:
-    """A step run's outcome once it is no longer paused. A run paused (by the recipe's Pause, or by a person on that run's own
-    row) is WAITING for its Resume, never failed and never moved on from (#5933); a Stop on the recipe ends the wait."""
+    """A step run's outcome. A run paused (by the recipe's Pause, or by a person on that run's own row) is not failed and the
+    recipe does not move on from it: it parks (`ParkedOnStepRun`) and is taken up again when the run is resumed (#5933). A Stop
+    on the recipe returns the paused outcome for the caller's Stop handling."""
     from fichero_server.api.routes.workflow.chains import _step_run_outcome
 
     status, error = _step_run_outcome(thread_id)
-    while status == "paused" and not _stop_asked(parent):
-        time.sleep(_CHECK_POLL_SECONDS)
-        status, error = _step_run_outcome(thread_id)
+    if status == "paused" and not _stop_asked(parent):
+        raise ParkedOnStepRun(thread_id)
     return status, error
 
 
+def _adopt_step_run(thread_id: str, parent: str) -> tuple[str, str, str | None]:
+    """The run this recipe parked on, taken up again: still paused, it parks again; live, it is waited for; ended, its outcome is
+    the step's. (child id, state, why)."""
+    from fichero_server.api.routes.workflow.chains import _step_run_outcome
+    from fichero_server.execution.runner import LIVE_RUN_STATUSES
+
+    while _step_run_outcome(thread_id)[0] in LIVE_RUN_STATUSES and not _stop_asked(parent):
+        time.sleep(_CHECK_POLL_SECONDS)
+    status, error = _settled_outcome(thread_id, parent)
+    return thread_id, ("done" if status == "completed" else "failed"), (None if status == "completed" else outcome_why(status, error))
+
+
+def _park(db: Any, job_id: str, detail: dict[str, Any], card: dict[str, Any], thread_id: str) -> None:
+    """Park the recipe on a paused step run: remember the run, go back to waiting (off the lane), come back soon to look again."""
+    detail["awaiting"] = {"card": card.get("id"), "child": thread_id}
+    jobs.save_detail(db, job_id, json.dumps(detail), reason="Paused with its run")
+    jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
+    raise jobs.JobDeferred("Paused with its run")
+
+
 def _wait_out_a_pause(db: Any, job_id: str) -> None:
-    """The recipe's Pause lands between steps: the next step does not start until Resume; a Stop ends the wait."""
+    """The recipe's Pause lands between steps: the recipe goes back to waiting (off the lane) and the next step does not start until
+    Resume; a Stop ends it."""
     from fichero_server.execution.cancellation import pause_requested
 
-    while pause_requested(job_id) and not _stop_asked(job_id):
-        time.sleep(_CHECK_POLL_SECONDS)
+    if pause_requested(job_id) and not _stop_asked(job_id):
+        jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
+        raise jobs.JobDeferred("Paused with its run")
 
 
-def _resume_step_run(db: Any, thread_id: str) -> None:
-    """Resume a step's paused run from its checkpoint, on the engine's background loop."""
+def _resume_step_run(db: Any, thread_id: str, recipe_id: str | None = None) -> None:
+    """Resume a step's paused run from its checkpoint on the engine's background loop, without waiting for it (the PUT answers at
+    once). A resume that fails is said on the recipe's row, never left silent."""
     from fichero_server.api.routes.workflow_execution import core
     from fichero_server.execution.runner import on_background_loop
 
-    on_background_loop(core.resume_workflow(thread_id, None, db=db)).result(60)
+    def said(done: Any) -> None:
+        exc = done.exception()
+        if exc is not None and recipe_id is not None:
+            try:
+                db.execute("UPDATE jobs SET reason = ? WHERE id = ?", [f"Could not resume its step: {exc}", recipe_id])
+            except Exception:  # noqa: BLE001 -- the row is what we can say it on; the log has the rest
+                logger.exception("could not say the failed resume of %s on %s", thread_id, recipe_id)
+            logger.warning("recipe %s: resuming its step run %s failed: %s", recipe_id, thread_id, exc)
+
+    on_background_loop(core.resume_workflow(thread_id, None, db=db)).add_done_callback(said)
 
 
 def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
@@ -396,8 +441,9 @@ def pause_recipe(db: Any, job_id: str, paused: bool) -> str:
     if child is not None:
         clear_pause(child)  # still winding down to its pause: let it go on
         if jobs._job_row(db, child)[1] == "paused":
-            _resume_step_run(db, child)
-    db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND reason = ?", [job_id, jobs.PAUSING])
+            _resume_step_run(db, child, job_id)
+    db.execute("UPDATE jobs SET reason = NULL WHERE id = ? AND reason IN (?, 'Paused with its run')", [job_id, jobs.PAUSING])
+    db.execute("UPDATE jobs SET run_after = NULL WHERE id = ? AND state = 'waiting'", [job_id])  # a parked recipe is taken up now
     jobs.wake_lane(db)
     return jobs._job_row(db, job_id)[1]
 
@@ -420,11 +466,13 @@ def _join_live_run(live: str, parent: str) -> tuple[str, str, str | None]:
     from fichero_server.api.routes.workflow.chains import _step_run_outcome
     from fichero_server.execution.runner import LIVE_RUN_STATUSES, _get_workflow_state
 
-    while _step_run_outcome(live)[0] in (*LIVE_RUN_STATUSES, "paused"):  # a paused run is waited for, not failed (#5933)
+    while _step_run_outcome(live)[0] in LIVE_RUN_STATUSES:
         if _stop_asked(parent):
             break
         time.sleep(_CHECK_POLL_SECONDS)
     status, error = _step_run_outcome(live)
+    if status == "paused" and not _stop_asked(parent):
+        raise ParkedOnStepRun(live)  # the joined run was paused: the recipe parks and frees its slot (#5933)
     name = (_get_workflow_state(live) or {}).get("workflow_name") or "the same step"
     if status == "completed":
         return live, "done", f"joined the run of {name} already reading these pages"
@@ -468,7 +516,13 @@ def request_cancel(db: Any, job_id: str) -> str:
 
     state = jobs._job_row(db, job_id)[1]
     if state in ("waiting", "paused"):
+        child = jobs.running_child(db, job_id)  # a recipe parked on a paused step run stops that run too
         jobs.cancel_waiting(db, job_id)
+        if child is not None:
+            try:
+                jobs.cancel_job(db, child)
+            except (ValueError, KeyError):
+                logger.info("recipe %s stopped; its step run %s was not stopped by it", job_id, child)
         return "cancelled"
     if state != "running":
         return state
@@ -1156,10 +1210,15 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
         step.update(state="running", child_id=None)
         jobs.save_detail(db, job_id, json.dumps(detail), reason=jobs.STOPPING if _stop_asked(job_id) else
                          f"Running step {named}: {_folders_words(detail)}")
+        waiting_on = detail.get("awaiting") or {}
+        adopt = waiting_on.get("child") if waiting_on.get("card") == card.get("id") else None
         try:
-            child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by)
+            child, state, why = _run_card(db, card, documents, kinds, job_id, scratch, started_by, adopt)
+            detail.pop("awaiting", None)
         except (jobs.JobCancelled, jobs.JobDeferred, jobs.JobOutOfReach):
             raise  # the queue's own: stopped, to come back later, out of reach
+        except ParkedOnStepRun as parked:  # its step's run is paused: park, off the lane, until it is resumed (#5933)
+            _park(db, job_id, detail, card, parked.thread_id)
         except WorkflowPaused as paused:  # a page waiting for the lane was withdrawn by the run's Pause (#5863, 434)
             # The run is not done: the row goes back to waiting and resumes from its checkpoint, after a pause's grace.
             jobs.come_back_after(db, job_id, PAUSED_LOOK_AGAIN_SECONDS)
@@ -1184,14 +1243,14 @@ def _run_batch(db: Any, job_id: str, detail: dict[str, Any], batch: dict[str, An
 
 
 def _run_card(db: Any, card: dict[str, Any], documents: list[str], kinds: dict[str, str], job_id: str,
-              scratch: dict[str, Any], started_by: str) -> tuple[str | None, str, str | None]:
+              scratch: dict[str, Any], started_by: str, adopt: str | None = None) -> tuple[str | None, str, str | None]:
     """One step's work on a batch's pages, by its card: (its job, its end, why)."""
     if card.get("place") == "cluster":
         child, state, why = _run_at_scale(db, card, documents, job_id, started_by)
     elif card["card"] == "workflow" and card.get("readers"):
         child, state, why = _run_by_reader(db, card, documents, kinds, job_id, scratch)
     elif card["card"] == "workflow":
-        child, state, why = _run_workflow(db, card, documents, job_id)
+        child, state, why = _run_workflow(db, card, documents, job_id, adopt)
     elif card["card"] == "check":
         child, state, why = _run_check(db, card, documents, job_id, started_by)
     elif card["card"] == "find-documents":
