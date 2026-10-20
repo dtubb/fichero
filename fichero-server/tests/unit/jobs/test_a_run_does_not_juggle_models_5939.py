@@ -78,3 +78,30 @@ def test_a_three_step_run_on_six_pages_loads_each_heavy_model_once_pages_handed_
     assert order == ["k1", "k2", "k3", "v1", "v2", "v3"]
     assert swaps == [("kraken:blla", "omlx:big-vlm")], f"each heavy model loads once: {swaps}"
     del k1, k2
+
+
+def test_a_person_pre_empting_mid_stage_costs_exactly_one_extra_reload_661(db, monkeypatch):
+    """## 661 LOW 1: a page a person is looking at goes first even mid-stage; the lane swaps to its model and back once."""
+    lane = _lane_with(db, monkeypatch)
+    swaps: list[tuple[str, str]] = []
+
+    def pick() -> str | None:
+        found = jobs._scheduler._next(lane)
+        if found is None:
+            return None
+        job_id, _kind, subject, model, *_ = found[2]
+        if jobs._heavy_switch(lane.loaded_model, model):
+            swaps.append((lane.loaded_model, model))
+        lane.loaded_model, lane.loaded_used_at = model, time.monotonic()
+        _finish(db, job_id)
+        return subject
+
+    _hand_in(db, KRAKEN, "k1")
+    assert pick() == "k1"
+    _hand_in(db, KRAKEN, "k2")  # the stage is not over
+    person = _hand_in(db, VLM, "watched page")
+    db.execute("UPDATE jobs SET watched = TRUE WHERE id = ?", [person])  # a person has it open on screen
+    assert pick() == "watched page"
+    lane.loaded_used_at -= 10.0  # its quiet spell is over
+    assert pick() == "k2"
+    assert swaps == [("kraken:blla", "omlx:big-vlm"), ("omlx:big-vlm", "kraken:blla")], swaps
