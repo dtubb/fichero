@@ -18,7 +18,7 @@ def pair():
     lan = engines.lan_address()
     if lan is None:
         pytest.skip("this Mac has no LAN address")
-    # Multi-user on: the app's state, and the only one in which the host's owner signs in as a person to mint a code.
+    # Multi-user on (owner signed in, password chosen, switch on, engine restarted): the state in which the owner signs in as a person to mint a code.
     host = engines.start_host(lan, multiuser=True)
     try:
         guest = engines.start_guest()
@@ -77,9 +77,8 @@ def test_release_bar_8_no_engine_death_on_any_sharing_or_multiuser_switch():
     host = engines.start_host(lan, sharing=False)
     try:
         for cycle in range(3):
-            # TODO(#5908): once 5b44474cd (candidate 13) is in this base, turn Multi-user on through the route after the owner's
-            # password is set, and assert it is refused without one; today the switch is the env the app gives the engine.
-            # TODO(#5911): switch items 1 and 8 to the Sharing-on path (no separate "This network" switch) once 5b44474cd is in this base.
+            # Sharing on is the one switch for the LAN listener (5b44474cd); Multi-user is the engine's persisted setting, which
+            # restart() writes as the app's switch would (the route's own refusal without a password is pinned by its unit tests, #5908).
             for sharing, multiuser in ((True, False), (True, True), (False, True), (False, False)):
                 host.restart(sharing=sharing, multiuser=multiuser)
                 where = f"cycle {cycle}, sharing={sharing}, multiuser={multiuser}"
