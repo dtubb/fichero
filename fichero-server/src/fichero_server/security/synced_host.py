@@ -1,6 +1,6 @@
 """The non-secret `sharing-host.json` a host engine writes into a shared project (#5898).
 
-`sharing.synced-project-names-its-host`: exactly three keys, https only, small. A guest engine reads it so its Mac
+`sharing.synced-project-names-its-host`: exactly four keys, https only, small. A guest engine reads it so its Mac
 can ask once for the host's pairing link; the app never reads the project root itself.
 """
 
@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
-from urllib.parse import urlparse, urlsplit
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -28,6 +27,7 @@ class SyncedHost(BaseModel):
     hostURL: str  # noqa: N815 -- the file's own key
     hostName: str  # noqa: N815
     person: str
+    hostEngineId: str  # noqa: N815 -- the engine's stable id (not a secret)
 
     @field_validator("hostURL")
     @classmethod
@@ -39,7 +39,7 @@ class SyncedHost(BaseModel):
             raise ValueError("hostURL must be an https origin only (no user, path, query or fragment)")
         return value
 
-    @field_validator("hostName", "person")
+    @field_validator("hostName", "person", "hostEngineId")
     @classmethod
     def _short_text(cls, value: str) -> str:
         if not value.strip() or len(value) > 200:
@@ -61,24 +61,21 @@ def read_synced_host(library_root: Path) -> SyncedHost | None:
         return None
 
 
-def _origin(url: str | None) -> str | None:
-    """`https://host[:port]`, host lower-cased, the default port dropped; None for anything that is not an https address."""
-    parts = urlsplit((url or "").strip())
-    if parts.scheme != "https" or not parts.hostname:
-        return None
-    port = f":{parts.port}" if parts.port and parts.port != 443 else ""
-    return f"https://{parts.hostname.lower()}{port}"
+def this_engine_id() -> str:
+    """This engine's stable id: the `engine_id` the sign-in challenge reports. The host's writer calls this."""
+    from fichero_server.api.routes.auth.accounts import _engine_id
+    from fichero_server.db.app import get_app_db
+
+    return _engine_id(get_app_db())
 
 
-def own_origin() -> str | None:
-    """This engine's own https origin (FICHERO_PUBLIC_BASE_URL), the one test for "this engine is the recorded host"
-    (the host's writer, `sharing_host_file`, names itself by the same variable)."""
-    return _origin(os.environ.get("FICHERO_PUBLIC_BASE_URL"))
+def is_this_engine(host_engine_id: str | None) -> bool:
+    """Whether the file names THIS engine: identity is the engine's id, not its address, so Sharing off or a changed
+    address cannot make the host's own copy ask the owner to ask themself. False for None or empty."""
+    return bool(host_engine_id) and this_engine_id() == host_engine_id
 
 
 def host_to_ask(library_root: Path) -> SyncedHost | None:
     """What a GUEST asks for: the file's host, unless it names THIS engine (the host's own copy asks nobody)."""
     host = read_synced_host(library_root)
-    if host is None:
-        return None
-    return None if _origin(host.hostURL) == own_origin() else host
+    return None if host is None or is_this_engine(host.hostEngineId) else host
