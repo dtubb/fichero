@@ -1683,9 +1683,9 @@ shows the difference: the compare design of 2026-08-25). Nothing in it vouches f
   `fichero_segments_choose_reading`) with the `representation_id` of the reading the person clicked. The answer of
   `source.compare.readers-answer` therefore carries, for every reader's reading on a line, the `representation_id` it is stored
   under, so the app sends an id and never a text: a pick is always something a reader said, as written. There is one way to make a
-  reading count and this is it (`reading.choose`: audited, one undo, only a person: 403 for a model; a model has its own readings and
-  cannot check them). Where `reading.choose` lacks it, it is extended here, never copied: an optional `expected_counting_id` (when
-  another reading counts than the one the view showed, 409 naming it and nothing written, as `segments correct-line` has).
+  reading count and this is it: `reading.choose`, described once, at `source.reading.chosen-is-worked-out` (audited, one undo, only a
+  person: 403 for a model; and its optional `expected_counting_id`, which the view sends so a pick on a stale view is refused with
+  409 and writes nothing). Nothing is copied here.
   A reading the person types is the existing correction (`segments correct-line`), unchanged. A pick is per line only, never per word:
   a line that needs one reader's word in another's reading is made by choosing the closest line and then correcting it in place with
   that same action, saved as the person's reading. There is **no pick-all and no accept-what-agrees**: unanimous lines are marked
