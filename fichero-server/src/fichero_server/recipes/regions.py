@@ -48,7 +48,7 @@ def progress_words(done: int, total: int, *, elapsed: float = 0.0, seconds_left:
 
 def find_regions(db: Any, documents: list[str], run_id: str, model: str,
                  stop: Callable[[], bool] | None = None, provider: str = "yolo",
-                 say: Callable[[str], None] | None = None) -> dict[str, int]:
+                 say: Callable[[str], None] | None = None, person: bool | None = None) -> dict[str, int]:
     """Each page image's regions found and saved, by Kraken's segmenter (`provider="kraken"`) or a YOLO model; the
     account: `pages` read, `regions` found, `no_image` (a PDF's page or a text file: nothing to look at). `stop` is
     asked before each page. Before each page, while the throttle holds background work, it waits, and `say` is told
@@ -67,7 +67,8 @@ def find_regions(db: Any, documents: list[str], run_id: str, model: str,
     library = str(Path(db.path).parent)
     account = {"pages": 0, "regions": 0, "no_image": 0}
     started = time.monotonic()
-    person = jobs.person_waits_on(db, run_id)
+    if person is None:  # a try runs on a scratch copy that holds no row of the run: its caller says a person watches
+        person = jobs.person_waits_on(db, run_id)
     for number, doc_id in enumerate(documents):
         # The throttle's one decision (#5819): memory and heat hold (and battery, for background work); a person's run
         # on battery, and background work under a build or while the Mac is used, goes on slower and says so.

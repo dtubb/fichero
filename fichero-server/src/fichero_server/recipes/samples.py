@@ -647,8 +647,11 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     total = len(result["pages"])
     for i, card in enumerate(cards or [None]):
         started = time.monotonic()
-        def publish(made, state="running", page=None, _card=card.id if card is not None else None):  # noqa: E306
-            publish_progress(library, stage_id, _card, progress_of(made, total, stage_id, state, page), made)
+        def publish(made, state="running", page=None, _card=card.id if card is not None else None, _first=i == 0):  # noqa: E306
+            progress = progress_of(made, total, stage_id, state, page)
+            publish_progress(library, stage_id, _card, progress, made)
+            if _first:  # the row Activity shows counts the first run's pages
+                _count_on_the_row(db, job_id, stage_id, progress)
 
         publish([], "running")  # it says it is running, with 0 of N, before its first page is made
         one = _run_one(db, stage, _with_card(setup, step, card), result["pages"], job_id,
@@ -671,6 +674,17 @@ def _run_try_watched(db: Any, subject: str) -> dict[str, Any]:
     result["progress"] = finished_progress(own["state"], own["made"]["per_page"], total, stage_id)
     _write(library, stage_id, result)
     return result
+
+
+def _count_on_the_row(db: Any, job_id: str, stage_id: str, progress: dict[str, Any]) -> None:
+    """The try's own row carries the pages done and tried (`activity.details.progress-counts`): its pages live in a
+    scratch copy that is deleted when the try ends, so the row's tree could only say 0 of 1."""
+    from fichero_server.execution import jobs
+
+    try:
+        jobs.save_detail(db, job_id, json.dumps({"stage": stage_id, "done": progress["done"], "total": progress["total"]}))
+    except Exception:  # noqa: BLE001 -- a count is a courtesy; the try's result stands
+        logger.debug("a try's count could not be kept on its row", exc_info=True)
 
 
 #: How often a running candidate's finished pages are read back from its copy and published (seconds).
@@ -750,7 +764,8 @@ def _run_one(db: Any, stage: Any, setup: dict[str, Any], page_ids: list[str], jo
                 from fichero_server.recipes.regions import find_regions
 
                 jobs.save_detail(db, job_id, json.dumps({"stage": stage_id}), reason=f"Trying {stage.title}: {name}")
-                find_regions(copy, pages, job_id, str(card.get("model")), provider=card.get("provider") or "yolo")
+                find_regions(copy, pages, job_id, str(card.get("model")), provider=card.get("provider") or "yolo",
+                             person=True)  # a try is one a person presses and watches
                 ran.append({"steps": card["steps"], "state": "done", "why": None})
                 continue
             if card.get("card") != "workflow":
