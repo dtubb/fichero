@@ -814,13 +814,18 @@ class _ChainStepsCanceller:
         return self._cancelled
 
 
+#: Why a chain's Activity row could not be written, by the id it was written for (read by tests and diagnostics).
+_row_problems: dict[str, str] = {}
+
+
 def _note_chain(db: Any, what: str, *args: Any, **kwargs: Any) -> None:
     """A chain's row in Activity (`jobs.record_chain` / `jobs.set_parent`): the run goes on if the row cannot be written."""
     from fichero_server.execution import jobs  # noqa: PLC0415
 
     try:
         getattr(jobs, what)(db, *args, **kwargs)
-    except Exception:  # noqa: BLE001 -- Activity's row is the account of the run, never its gate
+    except Exception as exc:  # noqa: BLE001 -- Activity's row is the account of the run, never its gate
+        _row_problems[str(args[0]) if args else what] = f"{what}: {exc}"  # recorded, and said at warning
         logger.warning("could not write the chain's %s row", what, exc_info=True)
 
 
