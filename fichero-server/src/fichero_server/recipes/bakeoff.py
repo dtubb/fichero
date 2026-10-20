@@ -585,19 +585,19 @@ def use_this(recipe: dict[str, Any] | None, table: dict[str, Any], card: Card, *
 
 
 def keep_newer_overrides(stored: dict[str, Any] | None, sent: dict[str, Any]) -> dict[str, Any]:
-    """The recipe a client sends back, with the overrides the project already holds that the client did not have yet.
-    Use This (the bake-off's or a candidate's) writes an override straight to the saved recipe; Set Up then saves the
-    recipe it loaded earlier, whole, and dropped that newer choice. Per (step, scope, folder) the override with the
-    later `at` wins, and one only the stored recipe holds is kept; a project-scope one sets its step again. Changes
-    `sent` in place (`source.project.setup-saves-what-is-sent`, Fable review #6)."""
+    """The recipe a client sends back, with the project's own overrides kept. Use This (the bake-off's or a candidate's)
+    writes an override straight to the saved recipe, stamped with the SERVER's time; Set Up then saves the recipe it
+    loaded earlier, whole, and dropped that newer choice. A saved override for a (step, scope, folder) wins over the
+    one the client sends for the same: a client's `at` is never trusted (a skewed or future clock must not win), and a
+    choice is only ever made through Use This, which stamps it. An override only the client holds is kept as sent, and
+    one only the saved recipe holds is kept. Changes `sent` in place (`source.project.setup-saves-what-is-sent`,
+    Fable review #6)."""
     def key(o: dict[str, Any]) -> tuple:
         return (o.get("step"), o.get("scope"), o.get("folder_id"))
 
     merged = {key(o): o for o in sent.get("overrides") or []}
-    for old in (stored or {}).get("overrides") or []:
-        mine = merged.get(key(old))
-        if mine is None or str(old.get("at") or "") > str(mine.get("at") or ""):
-            merged[key(old)] = old
+    for kept in (stored or {}).get("overrides") or []:
+        merged[key(kept)] = kept
     if merged:
         sent["overrides"] = list(merged.values())
     return sent
