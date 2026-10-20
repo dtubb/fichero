@@ -81,7 +81,7 @@ struct ActivityJobRow: View {
             // What it waits for ("Paused by you", "Waiting: memory is tight").
             return job.reason ?? "Waiting"
         case .completed:
-            return "Completed"
+            return ActivityMonitorRow.partialWords(job.reason) ?? "Completed"
         case .running, .other:
             guard job.showsProgress else { return nil }
             return "\(job.current) of \(job.total)"

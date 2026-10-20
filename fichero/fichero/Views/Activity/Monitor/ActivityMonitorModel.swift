@@ -227,7 +227,15 @@ struct ActivityMonitorRow: Identifiable, Equatable {
         if phase == .running, let workingOn, !workingOn.isEmpty {
             return "Running: \(workingOn)"
         }
+        if phase == .done, let partial = partialWords(reason) { return partial }
         return phase.word
+    }
+
+    /// A finished run that lost pages keeps the state `done` and says "Partial: 8 of 10 pages read (2 stopped)" in its reason
+    /// (`activity.run.partial-said-on-a-done-row`, #5937): shown instead of plain Done/Completed. Nil for any other reason.
+    static func partialWords(_ reason: String?) -> String? {
+        guard let reason, reason.hasPrefix("Partial") else { return nil }
+        return reason
     }
 
     /// Seconds left at the pace so far, while it runs and some are done: the
