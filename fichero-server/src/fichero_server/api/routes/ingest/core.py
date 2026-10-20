@@ -61,7 +61,7 @@ def _validate_ingest_path(raw_path: str) -> None:
         })
 
 
-def _require_ingest_owner(request: Request, library_path: str) -> None:
+def _require_ingest_owner(request: Request) -> None:
     if getattr(request.state, "bootstrap_auth", False):
         return
     user = getattr(request.state, "user", None)
@@ -854,7 +854,7 @@ async def ingest_file(
 
     Returns the created Document immediately.
     """
-    _require_ingest_owner(http_request, x_fichero_library_path)
+    _require_ingest_owner(http_request)
     result = await asyncio.to_thread(
         registry.invoke,
         db,
@@ -896,7 +896,7 @@ async def ingest_files(
     Before this, a drop of loose files went to /file one by one, the engine never saw the image
     and its layout together, and every .xml landed as a raw text document beside its image.
     """
-    _require_ingest_owner(http_request, x_fichero_library_path)
+    _require_ingest_owner(http_request)
     if not request.paths:
         raise HTTPException(status_code=400, detail="No files given")
     files: list[Path] = []
@@ -972,7 +972,7 @@ async def ingest_folder(
 
     Returns immediately with a task_id. Use /status/{task_id} to check progress.
     """
-    _require_ingest_owner(http_request, x_fichero_library_path)
+    _require_ingest_owner(http_request)
     path = Path(request.path)
     _validate_ingest_path(request.path)
     if not path.exists():
@@ -1248,7 +1248,7 @@ async def ingest_xlsx(
     Document is created per row; the ``name`` field (or the first mapped
     field) is used as the document name.
     """
-    _require_ingest_owner(http_request, x_fichero_library_path)
+    _require_ingest_owner(http_request)
     result = registry.invoke(
         db,
         "import.xlsx",
@@ -1308,7 +1308,7 @@ async def cancel_ingest(
     x_fichero_library_path: str = Depends(require_library_path),
 ) -> IngestCancelResponse:
     """Request cancellation between committed files; repeated calls are safe."""
-    _require_ingest_owner(http_request, x_fichero_library_path)
+    _require_ingest_owner(http_request)
     task = _tasks.get(task_id)
     if task is None or task["library_path"] != x_fichero_library_path:
         raise HTTPException(status_code=404, detail=f"Task not found: {task_id}")
