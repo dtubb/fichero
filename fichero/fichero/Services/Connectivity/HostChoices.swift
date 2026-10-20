@@ -15,11 +15,22 @@ enum HostChoices {
         "Fichero Server on " + hostName.replacingOccurrences(of: ".", with: "-")
     }
 
-    /// Whether pairing with this host needs its invite link: Bonjour carries no key to pin (its TXT record is
-    /// unauthenticated), so only a host certified by a public authority can be paired with from a code alone.
-    static func needsInvite(_ host: Found) -> Bool {
-        guard let raw = host.publicURL, let url = URL(string: raw) else { return true }
-        return !RemoteCertificatePinning.usesPublicCertificateAuthority(url: url)
+    /// The tailnet a `.ts.net` address belongs to: its name without the machine's first label
+    /// ("studio.tail1234.ts.net" is on "tail1234.ts.net"); nil for any other address.
+    static func tailnet(of urlString: String?) -> String? {
+        guard let host = urlString.flatMap({ URL(string: $0)?.host?.lowercased() }), host.hasSuffix(".ts.net") else { return nil }
+        let labels = host.split(separator: ".")
+        return labels.count >= 3 ? labels.dropFirst().joined(separator: ".") : nil
+    }
+
+    /// Whether pairing with this host needs its invite link. Bonjour carries no key to pin and nothing that binds a
+    /// name to a host (its TXT record is unauthenticated), so the code alone is enough ONLY for a `.ts.net` host in
+    /// THIS Mac's own tailnet: a certificate for that name is one only a member of that tailnet holds. Any other host
+    /// (another tailnet, a look-alike, a `.local` name) asks for its invite, and a Mac with no tailnet name of its own
+    /// asks every host for it (#5892, review 474).
+    static func needsInvite(_ host: Found, ownTailnetURL: String?) -> Bool {
+        guard let theirs = tailnet(of: host.publicURL), let ours = tailnet(of: ownTailnetURL) else { return true }
+        return theirs != ours
     }
 
     /// Whether a pasted invite's address is the host that was picked (a different one is refused in words).
@@ -29,11 +40,17 @@ enum HostChoices {
         return want == got
     }
 
-    /// Reachable, secure, not this Mac, one row per address, sorted by name.
-    static func offered(_ found: [Found], ownName: String) -> [Found] {
+    /// Reachable, secure, not this Mac, one row per address, sorted by name. A `.ts.net` host is offered only in THIS
+    /// Mac's own tailnet, whose suffix is read from Tailscale (`ownTailnetURL`, the engine's detected address), never
+    /// from Bonjour; with that suffix unknown every `.ts.net` host is left out (review 474).
+    static func offered(_ found: [Found], ownName: String, ownTailnetURL: String? = nil) -> [Found] {
         var seen = Set<String>()
         return found
             .filter { $0.name.caseInsensitiveCompare(ownName) != .orderedSame }
+            .filter { host in
+                guard let theirs = tailnet(of: host.publicURL) else { return !(host.publicURL ?? "").lowercased().contains(".ts.net") }
+                return theirs == tailnet(of: ownTailnetURL)
+            }
             .compactMap { host -> Found? in
                 guard let raw = host.publicURL,
                       let url = try? validatedRemoteURL(
