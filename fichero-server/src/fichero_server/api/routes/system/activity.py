@@ -724,6 +724,8 @@ async def list_background_jobs(
             # Named by its recipe, with the pages it runs over (#5615), never its kind's id.
             name, pages = await asyncio.to_thread(recipe_runner.name_and_pages, db, row["id"])  # a database read
             total = pages if pages is not None else 0
+            if row["id"] in recipe_statuses:
+                total = _recipe_pages_in_all(recipe_statuses[row["id"]], total)
         jobs.append(
             BackgroundJob(
                 id=row["id"],
@@ -849,10 +851,15 @@ def _cut(node: dict[str, Any], depth: int) -> None:
 
 
 def _recipe_pages_done(status: dict[str, Any]) -> int:
-    """A recipe run's pages done (#5615): those its furthest started workflow stage has done, by that stage's
-    run account; 0 before one starts."""
-    accounts = [s["account"] for s in status["steps"] if s.get("account") is not None]
-    return accounts[-1].pages_done if accounts else 0
+    """A recipe run's pages done over every workflow stage it has started (#5615): the sum of the stages' run accounts,
+    so a 92-page recipe at Read 92 of 92 does not read 0 of 92 the moment Names starts (Fable review #13); 0 before
+    one starts."""
+    return sum(s["account"].pages_done for s in status["steps"] if s.get("account") is not None)
+
+
+def _recipe_pages_in_all(status: dict[str, Any], pages: int) -> int:
+    """The run's pages in all: its pages, or the stages' pages together once more than one stage has started."""
+    return max(pages, sum(s["account"].pages_total for s in status["steps"] if s.get("account") is not None))
 
 
 async def _recipe_state(db: Database, job_id: str) -> tuple[str, Optional[str], dict[str, Any]]:
