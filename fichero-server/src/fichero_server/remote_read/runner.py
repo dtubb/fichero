@@ -111,7 +111,8 @@ def vlm_reader(package: Path, step: dict[str, Any], device: str) -> Callable[[An
 
     segmenter = vgsl.TorchVGSLModel.load_model(resources.files("kraken").joinpath("blla.mlmodel"))
     processor = AutoProcessor.from_pretrained(step["model"])
-    model = AutoModelForImageTextToText.from_pretrained(step["model"], torch_dtype=torch.bfloat16, device_map=device)
+    model = AutoModelForImageTextToText.from_pretrained(step["model"], torch_dtype=torch.bfloat16, device_map=device,
+                                                                use_safetensors=True)  # never unpickle a repository (#5981 sweep)
     prompt = step["prompt"]
 
     def ask(picture: Any) -> str | None:

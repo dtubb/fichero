@@ -105,7 +105,8 @@ def main() -> None:
     from transformers import AutoModelForImageTextToText, AutoProcessor
 
     processor = AutoProcessor.from_pretrained(args.base)
-    model = AutoModelForImageTextToText.from_pretrained(args.base, torch_dtype=torch.bfloat16, device_map="cuda")
+    model = AutoModelForImageTextToText.from_pretrained(args.base, torch_dtype=torch.bfloat16, device_map="cuda",
+                                                            use_safetensors=True)  # never unpickle a repository (#5981 sweep)
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()

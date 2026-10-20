@@ -514,6 +514,10 @@ def candidate_installed(card: Card) -> bool | None:
         here = local_models.embedding_model_installed(str(card.pin["hf"]))
         if here is not None:
             return here
+    if card.pin.get("trocr"):
+        from fichero_server.llm.trocr_runtime import is_installed
+
+        return is_installed(str(card.pin["trocr"]))
     if card.pin.get("zenodo") or card.pin.get("kraken_hf"):
         # A Kraken reader: downloaded (Settings, Set Up, or a run that fetched it) or not yet (#5660 item 3).
         from fichero_server.llm.kraken_runtime import is_recognition_model_installed
@@ -538,7 +542,7 @@ def candidate_download(card: Card) -> dict[str, Any] | None:
         runtime, model = "mlx", get_mlx_model_store().canonical_id(repo)
     elif "spacy" in card.pin:
         runtime, model = "spacy", str(card.pin["spacy"])
-    elif card.pin.get("zenodo") or card.pin.get("kraken_hf"):
+    elif card.pin.get("zenodo") or card.pin.get("kraken_hf") or card.pin.get("trocr"):
         from fichero_server.recipes.cards import kraken_reader_for
 
         runtime, model = "kraken", str(kraken_reader_for(card.pin))
@@ -1117,7 +1121,7 @@ def _trocr_hub_card(model: dict[str, Any], what: str, wanted: frozenset[str]) ->
 
     repo = str(model.get("modelId") or model.get("id"))
     card = _hf_card(model, what, "a TrOCR model: it reads the lines Kraken finds, on this Mac with the torch and transformers "
-                    "Fichero ships, and downloads when first used", wanted)
+                    "Fichero ships; its safetensors download before the run asks (a pickled repository is refused)", wanted)
     return replace(card, id=f"trocr:hf/{repo}@main", pin={"trocr": repo}, jobs=frozenset({"read-a-line"}))
 
 

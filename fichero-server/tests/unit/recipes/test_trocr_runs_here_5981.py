@@ -60,9 +60,12 @@ def test_the_search_makes_a_trocr_card_that_runs_on_this_mac(monkeypatch):
     found, _ = asyncio.run(discovery.search_hugging_face(frozenset({"zh"})))
     card = next(c for c in found if c.pin.get("trocr") == REPO)
     assert card.runs_here and card.local and card.jobs == discovery.READER_JOBS
-    assert "TrOCR" in card.offered_because and "Kraken" in card.offered_because
-    assert discovery.candidate_installed(card) is None  # it downloads when first used, as the card says
-    assert "first used" in discovery.candidate_availability(card)[1]
+    assert "TrOCR" in card.offered_because and "Kraken" in card.offered_because and "safetensors" in card.offered_because
+    monkeypatch.setattr(tr, "is_installed", lambda repo: False)
+    assert discovery.candidate_installed(card) is False  # its safetensors download before the run asks for them
+    assert discovery.candidate_download(card) == {
+        "runtime": "kraken", "model": READER, "action": "model.download",
+        "params": {"runtime": "kraken", "model": READER}}
 
 
 def test_the_plan_reads_with_it_as_a_reader_override():
@@ -100,3 +103,130 @@ async def test_the_transcribe_tool_reads_the_pages_working_lines_with_it(page, m
 
 
 from tests.unit.workflows.test_review_corrects_the_lines_5654 import page  # noqa: E402,F401  (the page fixture is theirs)
+
+
+# -- safetensors only, at the pinned commit (review 765: a recipe pin names any Hub repo; a pickle would run in the engine) ----
+SHA = "d" * 40
+
+
+def _hub(monkeypatch, files, sha=SHA):
+    monkeypatch.setattr(tr, "hub_info", lambda repo: {"sha": sha, "siblings": [{"rfilename": f, "size": 10} for f in files]})
+
+
+@pytest.fixture
+def store(tmp_path, monkeypatch):
+    monkeypatch.setattr(tr, "_store", lambda: tmp_path)
+    return tmp_path
+
+
+def test_a_repository_with_only_a_pickled_bin_is_refused_in_words_and_nothing_downloads(store, monkeypatch):
+    _hub(monkeypatch, ["pytorch_model.bin", "config.json", "training_args.bin"])
+    fetched = []
+    monkeypatch.setattr(tr, "_snapshot", lambda *a: fetched.append(a))
+    with pytest.raises(tr.NoSafetensors, match="no safetensors weights"):
+        tr.download(REPO)
+    assert fetched == [] and not tr.is_installed(REPO)
+
+
+def test_the_download_pins_the_commit_and_takes_no_pickled_file(store, monkeypatch):
+    _hub(monkeypatch, ["model.safetensors", "config.json", "optimizer.pt", "training_args.bin"])
+    seen = []
+    monkeypatch.setattr(tr, "_snapshot", lambda repo, revision, cache_dir: seen.append((repo, revision, cache_dir)))
+    assert tr.download(REPO) == SHA
+    assert seen == [(REPO, SHA, str(store))]
+    assert tr.is_installed(REPO) and tr.revision_of(REPO) == SHA
+    assert {"*.bin", "*.pt", "*.ckpt", "*.pth"} <= set(tr.PICKLED)  # the snapshot ignores every pickle pattern
+
+
+def test_the_load_names_the_pinned_commit_demands_safetensors_and_reads_only_what_is_on_this_mac(store, monkeypatch):
+    import sys
+    import types
+
+    from fichero_server.workflows.tools import economy_htr
+
+    _hub(monkeypatch, ["model.safetensors", "config.json"])
+    monkeypatch.setattr(tr, "_snapshot", lambda *a: None)
+    calls = {}
+
+    class Model:
+        def to(self, device):
+            return self
+
+        def eval(self):
+            return self
+
+    fake = types.ModuleType("transformers")
+    fake.TrOCRProcessor = types.SimpleNamespace(from_pretrained=lambda mid, **kw: calls.setdefault("processor", kw) or object())
+    fake.VisionEncoderDecoderModel = types.SimpleNamespace(
+        from_pretrained=lambda mid, **kw: (calls.setdefault("model", kw), Model())[1])
+    monkeypatch.setitem(sys.modules, "transformers", fake)
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    economy_htr._TROCR_CACHE.clear()
+    economy_htr._load_trocr(REPO)
+    for kw in (calls["processor"], calls["model"]):
+        assert kw["revision"] == SHA and kw["local_files_only"] is True
+    assert calls["model"]["use_safetensors"] is True
+
+
+def test_a_bin_only_repository_is_never_loaded(store, monkeypatch):
+    import sys
+    import types
+
+    from fichero_server.workflows.tools import economy_htr
+
+    _hub(monkeypatch, ["pytorch_model.bin"])
+    loaded = []
+    fake = types.ModuleType("transformers")
+    fake.TrOCRProcessor = types.SimpleNamespace(from_pretrained=lambda *a, **k: loaded.append("processor"))
+    fake.VisionEncoderDecoderModel = types.SimpleNamespace(from_pretrained=lambda *a, **k: loaded.append("model"))
+    monkeypatch.setitem(sys.modules, "transformers", fake)
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    economy_htr._TROCR_CACHE.clear()
+    with pytest.raises(tr.NoSafetensors):
+        economy_htr._load_trocr(REPO)
+    assert loaded == []
+
+
+def test_a_trocr_model_not_yet_downloaded_is_listed_in_missing_models_so_the_run_asks_first(store):
+    from fichero_server.recipes import start
+
+    run = {"provider_override": "kraken", "model_override": READER, "steps": ["read"], "card": "x"}
+    [offer] = start.missing_models([run])
+    assert offer["model"] == READER and offer["runtime"] == "kraken" and offer["action"] == "model.download"
+    assert REPO in offer["name"] and offer["steps"] == ["read"]
+
+
+def test_the_download_job_accepts_the_trocr_reader_id():
+    from fichero_server.llm import kraken_runtime as kr
+
+    assert kr.recognition_spec(READER) == {"trocr": REPO}
+    assert kr.recognition_display_name(READER) == "trocr-traditional-chinese-historical-finetune"
+
+
+def test_economy_htr_reads_on_the_cpu_by_default(monkeypatch):
+    import sys
+    import types
+
+    from fichero_server.core import compute_preferences as cp
+    from fichero_server.workflows.tools import economy_htr
+
+    monkeypatch.setattr(cp, "compute_preferences", lambda: {"device": "auto"})
+    monkeypatch.setattr(tr, "ensure", lambda repo: SHA)
+    seen = {}
+
+    class Model:
+        def to(self, device):
+            seen["device"] = device
+            return self
+
+        def eval(self):
+            return self
+
+    fake = types.ModuleType("transformers")
+    fake.TrOCRProcessor = types.SimpleNamespace(from_pretrained=lambda *a, **k: object())
+    fake.VisionEncoderDecoderModel = types.SimpleNamespace(from_pretrained=lambda *a, **k: Model())
+    monkeypatch.setitem(sys.modules, "transformers", fake)
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    economy_htr._TROCR_CACHE.clear()
+    economy_htr._load_trocr(REPO)
+    assert seen["device"] == "cpu"

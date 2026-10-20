@@ -873,6 +873,16 @@ def missing_models(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
             label = f"the spaCy pipeline {name}"
         elif runtime == "kraken":
             spec = kraken_runtime.recognition_spec(name)
+            if spec and "trocr" in spec:  # a TrOCR model: its safetensors, asked for before the run, never silently in a page
+                from fichero_server.llm.trocr_runtime import is_installed
+
+                if is_installed(str(spec["trocr"])):
+                    continue
+                entry = out.setdefault(name, {"runtime": runtime, "model": name, "name": f"the TrOCR model {spec['trocr']}",
+                                              "steps": [], "size_mb": None, "action": "model.download",
+                                              "params": {"runtime": runtime, "model": name}})
+                _add_steps(entry["steps"], run["steps"])
+                continue
             if not spec or "trained" in spec or _kraken_reader_here(name):
                 continue
             record, seed = _repository_record(spec.get("doi")), _seed_card(spec.get("doi"))

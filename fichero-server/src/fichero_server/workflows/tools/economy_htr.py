@@ -151,10 +151,15 @@ def _load_trocr(model_id: str) -> tuple[Any, Any, str]:
     # The CPU unless the person chose the GPU: a process that used MPS faults at exit on macOS 27 (#5929), and the GPU
     # keeps a compiled graph for every new line shape (`torch_accelerator`).
     device = torch_accelerator(compute_preferences()["device"])
-    # Into Fichero's store, never ~/.cache (`runtime.models-in-the-store`: 4.2 GB of tridis was found there).
+    # Into Fichero's store, never ~/.cache (`runtime.models-in-the-store`: 4.2 GB of tridis was found there). Safetensors
+    # only, at the commit that was downloaded, from the files on this Mac: a pickled repository is refused, never loaded.
+    from fichero_server.llm import trocr_runtime
+
     store = str(hf_hub_dir())
-    processor = TrOCRProcessor.from_pretrained(model_id, cache_dir=store)
-    model = VisionEncoderDecoderModel.from_pretrained(model_id, cache_dir=store).to(device).eval()
+    revision = trocr_runtime.ensure(model_id)
+    processor = TrOCRProcessor.from_pretrained(model_id, cache_dir=store, revision=revision, local_files_only=True)
+    model = VisionEncoderDecoderModel.from_pretrained(
+        model_id, cache_dir=store, revision=revision, local_files_only=True, use_safetensors=True).to(device).eval()
     _TROCR_CACHE[model_id] = (processor, model, device)
     return _TROCR_CACHE[model_id]
 
