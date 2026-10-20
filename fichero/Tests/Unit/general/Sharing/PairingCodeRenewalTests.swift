@@ -48,13 +48,20 @@ struct PairingCodeRenewalTests {
         guard case .cancelled = await task.value else { Issue.record("expected cancelled"); return }
     }
 
-    @Test func aCodeIsNeverClearedBeforeItsReplacementArrives() async {
-        // The mint runs while the caller still holds the old code; renew has no way to clear anything.
-        var held: PairingCodeRecord? = PairingCodeRecord(code: "OLD-CODE", expiresAt: now)
-        var heldDuringMint: String?
-        let outcome = await PairingCodeRenewal.renew(mint: { heldDuringMint = held?.code; return fresh })
-        if case .fresh(let code) = outcome { held = code }
-        #expect(heldDuringMint == "OLD-CODE")
-        #expect(held?.code == "NEW-CODE")
+    @Test func eachRenewalMintsExactlyOneCode() async {
+        var minted = 0
+        _ = await PairingCodeRenewal.renew(mint: { minted += 1; return fresh })
+        #expect(minted == 1)
+    }
+
+    @Test func aCodeMintedAfterTheCardWentAwayIsDropped() async {
+        let task = Task {
+            await PairingCodeRenewal.renew(mint: {
+                try? await Task.sleep(for: .milliseconds(50))  // the card goes away while the mint is in flight
+                return fresh
+            })
+        }
+        task.cancel()
+        guard case .cancelled = await task.value else { Issue.record("a late code must not be applied"); return }
     }
 }
