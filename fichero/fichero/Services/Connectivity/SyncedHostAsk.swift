@@ -4,9 +4,8 @@ import Foundation
 /// token for its host asks, once, for the host's pairing LINK. The copy carries only the host's address and which person
 /// (never a token); trust comes from the link, never from a bare code.
 struct SyncedHostRecord: Codable, Equatable {
-    /// Written into the project's root beside the copy; the host Mac writes it (bugs' half of #5898).
-    static let fileName = "sharing-host.json"
-
+    /// Read from the project's `sharing-host.json` by the guest ENGINE, which validates it and reports it on
+    /// `GET /api/registry/open` (`synced_host`); the app never reads the project root.
     let hostURL: String
     let hostName: String
     let person: String
@@ -22,8 +21,6 @@ enum SyncedHostAsk {
     static func sentence(_ record: SyncedHostRecord) -> String {
         "This project is hosted on \(record.hostName). Ask \(record.person) for a pairing link."
     }
-
-    static let readOnlyNote = "Until you connect, this project opens read-only from the copy on this Mac."
 
     /// The fields to redeem, from a pasted LINK for this record's host. A bare code, a link for another Mac, or anything
     /// else is refused in words.
@@ -56,16 +53,11 @@ enum SyncedHostAsk {
         }
     }
 
-    static func read(in libraryRoot: URL) -> SyncedHostRecord? {
-        (try? Data(contentsOf: libraryRoot.appendingPathComponent(SyncedHostRecord.fileName)))
-            .flatMap { try? JSONDecoder().decode(SyncedHostRecord.self, from: $0) }
-    }
+    private static func key(_ path: String) -> String { "sharing.hostAskDismissed." + path }
 
-    private static func key(_ root: URL) -> String { "sharing.hostAskDismissed." + root.path }
+    static func isDismissed(_ path: String, defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: key(path)) }
 
-    static func isDismissed(_ root: URL, defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: key(root)) }
-
-    static func dismiss(_ root: URL, defaults: UserDefaults = .standard) { defaults.set(true, forKey: key(root)) }
+    static func dismiss(_ path: String, defaults: UserDefaults = .standard) { defaults.set(true, forKey: key(path)) }
 }
 
 enum SyncedHostAskError: LocalizedError, Equatable {

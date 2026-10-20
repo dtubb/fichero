@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Asks once for the host's pairing link when a synced project's host holds no token here (#5898).
-/// Connect redeems it with the same machinery as Settings > Sharing; the project stays read-only until it succeeds.
+/// Connect redeems it with the same machinery as Settings > Sharing.
 struct SyncedHostAskSheet: View {
     let record: SyncedHostRecord
     let onConnected: () -> Void
@@ -13,7 +13,6 @@ struct SyncedHostAskSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(SyncedHostAsk.sentence(record))
-            Text(SyncedHostAsk.readOnlyNote).font(.callout).foregroundStyle(.secondary)
             TextField("Pairing link", text: $link).textFieldStyle(.roundedBorder)
             if let error { Text(error).font(.callout).foregroundStyle(.red) }
             HStack {
@@ -37,8 +36,8 @@ struct SyncedHostAskSheet: View {
                 remoteURL: fields.remoteURL, pairCode: fields.pairCode,
                 deviceName: RemoteClientPairing.defaultDeviceName(), expectedSPKIPin: fields.spkiPin)
             try await RemoteClientPairing.probeRemoteHealth(at: result.apiRoot, expectedSPKIPin: fields.spkiPin)
-            // Token and pin only: this project's engine stays where it is, the copy is not switched to the host.
-            try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
+            // Token, pin and expiry only: this Mac's engine stays where it is, the copy is not switched to the host.
+            try RemoteClientPairing.persistHostCredentials(result, expectedSPKIPin: fields.spkiPin)
             onConnected()
         } catch let APIError.httpError(status, message) {
             error = SyncedHostAsk.words(forStatus: status, detail: message)
@@ -48,31 +47,33 @@ struct SyncedHostAskSheet: View {
     }
 }
 
-/// The window's one host for the ask: shown for the current project while its copy names a host this Mac holds no
-/// token for, until connected or dismissed.
+/// The window's one host for the ask: shown for the current project while the engine reports a host its copy names
+/// and this Mac holds no token for it, until connected or dismissed.
 struct SyncedHostAskHost: ViewModifier {
-    let libraryRoot: URL?
+    let libraryPath: String?
     @State private var record: SyncedHostRecord?
+    private let registry = KnownLibraryRegistryStore.shared
 
     func body(content: Content) -> some View {
         content
-            .task(id: libraryRoot) { refresh() }
+            .task(id: Key(path: libraryPath, hosts: registry.syncedHosts)) { refresh() }
             .sheet(item: Binding(get: { record.map(Ask.init) }, set: { if $0 == nil { later() } })) { ask in
                 SyncedHostAskSheet(record: ask.record, onConnected: { record = nil }, onLater: later)
             }
     }
 
+    private struct Key: Equatable { let path: String?; let hosts: [String: SyncedHostRecord] }
     private struct Ask: Identifiable { let record: SyncedHostRecord; var id: String { record.hostURL } }
 
     private func refresh() {
-        guard let root = libraryRoot, let found = SyncedHostAsk.read(in: root) else { record = nil; return }
+        guard let path = libraryPath, let found = registry.syncedHosts[path] else { record = nil; return }
         record = SyncedHostAsk.needsAsk(
             found, hasToken: { AuthTokenMiddleware.readRemoteTokenForHost($0) != nil },
-            dismissed: SyncedHostAsk.isDismissed(root)) ? found : nil
+            dismissed: SyncedHostAsk.isDismissed(path)) ? found : nil
     }
 
     private func later() {
-        if let root = libraryRoot { SyncedHostAsk.dismiss(root) }
+        if let path = libraryPath { SyncedHostAsk.dismiss(path) }
         record = nil
     }
 }

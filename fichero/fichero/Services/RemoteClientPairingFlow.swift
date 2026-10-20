@@ -226,12 +226,10 @@ enum RemoteClientPairing {
         )
     }
 
+    /// The host's credentials only: token, pin (or none for a public CA) and the expiry renewal reads. A synced
+    /// project's ask (#5898) stores just these; it does not move this Mac's engine to the host.
     @MainActor
-    static func persistPairedHost(
-        _ result: PairingExchangeResult,
-        expectedSPKIPin: String?,
-        libraryPath: String?
-    ) throws {
+    static func persistHostCredentials(_ result: PairingExchangeResult, expectedSPKIPin: String?) throws {
         try PairingService.persistAuthToken(result.deviceToken, for: result.apiRoot)
         // No pin for a publicly-trusted host. Storing one would be worse than
         // useless: `shouldEnforcePinning` only grants the public-CA exemption
@@ -244,6 +242,15 @@ enum RemoteClientPairing {
         }
         // Record the token's expiry so renewal can fire before it lapses (#3096).
         DeviceTokenRenewal.storeExpiry(result.expiresAt, host: result.apiRoot.absoluteString)
+    }
+
+    @MainActor
+    static func persistPairedHost(
+        _ result: PairingExchangeResult,
+        expectedSPKIPin: String?,
+        libraryPath: String?
+    ) throws {
+        try persistHostCredentials(result, expectedSPKIPin: expectedSPKIPin)
         EngineConfig.storeHost(result.apiRoot.absoluteString)
         // Reset the failover endpoint set to just this newly paired endpoint
         // (#3098): a fresh pairing establishes THE paired host, so a previous

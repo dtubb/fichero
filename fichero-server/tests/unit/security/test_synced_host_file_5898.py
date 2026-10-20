@@ -1,0 +1,53 @@
+"""#5898 sharing.synced-project-names-its-host: the guest engine reads and validates `sharing-host.json`."""
+
+import json
+
+import pytest
+
+from fichero_server.security.synced_host import FILE_NAME, MAX_BYTES, read_synced_host
+
+GOOD = {"hostURL": "https://studio.local:8765", "hostName": "Studio", "person": "Ana"}
+
+
+def _write(root, data):
+    (root / FILE_NAME).write_text(data if isinstance(data, str) else json.dumps(data))
+
+
+def test_a_valid_file_is_read(tmp_path):
+    _write(tmp_path, GOOD)
+    host = read_synced_host(tmp_path)
+    assert (host.hostURL, host.hostName, host.person) == tuple(GOOD.values())
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {**GOOD, "token": "x"},  # an extra key (a secret must never travel in it)
+        {"hostURL": GOOD["hostURL"], "hostName": "Studio"},  # a missing key
+        {**GOOD, "hostURL": "http://studio.local:8765"},  # not https
+        {**GOOD, "hostURL": "fichero://pair?x=1"},
+        {**GOOD, "hostURL": "https://studio.local:8765/pair?code=ABCD"},  # more than an origin
+        {**GOOD, "hostURL": "https://user:pw@studio.local:8765"},
+        {**GOOD, "person": "fichero://pair?payload=x"},  # link-like
+        {**GOOD, "person": ""},
+        {**GOOD, "hostName": "x" * 201},
+        "not json",
+        {**GOOD, "pad": "x" * MAX_BYTES},  # over the size cap
+    ],
+)
+def test_anything_else_names_no_host(tmp_path, bad):
+    _write(tmp_path, bad)
+    assert read_synced_host(tmp_path) is None
+
+
+def test_no_file_names_no_host(tmp_path):
+    assert read_synced_host(tmp_path) is None
+
+
+def test_the_open_handle_carries_the_host(tmp_path, monkeypatch):
+    from fichero_server.api.routes.library import registry
+
+    _write(tmp_path, GOOD)
+    monkeypatch.setattr(registry.db_manager, "open_library_paths", lambda: [str(tmp_path)])
+    handles = registry.list_open_libraries().libraries
+    assert handles[0].synced_host.person == "Ana"

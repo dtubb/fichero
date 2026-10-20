@@ -31,6 +31,7 @@ Usage:
 from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator, model_validator
 from datetime import datetime
 from fichero_server.core.timeutil import utc_now
+from fichero_server.security.synced_host import SyncedHost
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
 from uuid import uuid4
@@ -2331,6 +2332,8 @@ class OpenLibraryHandle(BaseModel):
     id: str
     path: str
     is_open: bool = True
+    # The host this project's synced copy names, when it has a valid `sharing-host.json` (#5898).
+    synced_host: SyncedHost | None = None
 
 
 class OpenLibraryHandlesResponse(BaseModel):
