@@ -126,6 +126,33 @@ def test_the_egress_question_is_needed_only_where_a_cloud_model_would_fit():
     assert assemble(for_print, [c for c in CARDS if c.id != "gemini-flash"])["cloud_options"] == []
 
 
+def test_the_egress_question_says_what_is_sent_to_whom_how_many_pages_and_the_estimate():
+    """`source.onboard.egress-asked-once`: the toggle is not a bare yes. Per step a cloud model would fit, it names what
+    would be sent, to whom, for how many pages and at what cost, so the answer is an informed one."""
+    recipe = assemble(Answers("search", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=3000,
+                              job_answers=YES_CORRECT), CARDS)
+    offer = {o["job"]: o for o in recipe["cloud_offer"]}
+    assert list(offer) == recipe["cloud_options"] == ["correct"]
+    correct = offer["correct"]
+    assert correct["sends"] == "the text of the pages" and correct["pages"] == 3000
+    assert correct["to"] and correct["cost_usd"] is not None and correct["cost_usd"] > 0
+    assert str(correct["pages"]) in correct["sentence"].replace(",", "") and correct["to"] in correct["sentence"]
+    assert f"${correct['cost_usd']:.2f}" in correct["sentence"]
+    # Nothing a cloud model fits: nothing is offered, so nothing is asked.
+    for_print = Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), "print")
+    assert assemble(for_print, [c for c in CARDS if c.id != "gemini-flash"])["cloud_offer"] == []
+
+
+def test_a_picture_step_says_the_page_pictures_are_sent():
+    from fichero_server.recipes.assemble import cloud_offer
+
+    card = next(c for c in CARDS if c.id == "gemini-flash")
+    one = cloud_offer(["read-a-line"], [type(card)(**{**card.__dict__, "jobs": frozenset({"read-a-line"})})],
+                      Answers("transcribe", frozenset({"es"}), frozenset({"Latn"}), "handwriting", pages=1,
+                              cloud_allowed=True))
+    assert one and one[0]["sends"] == "the page pictures" and "1 page " in one[0]["sentence"] + " "
+
+
 def test_a_chosen_step_carries_its_cards_facts():
     """Setup shows what it proposes, not just a pin (`source.onboard.proposes-chain`)."""
     steps = {s["job"]: s for s in assemble(SPANISH_LETTERS, CARDS)["steps"]}

@@ -854,6 +854,37 @@ def _correct_left_off(cards: list[Card], a: Answers, offered: list[Card] | tuple
     return {"job": CORRECT, "title": "Correct", "sentence": f"Correct is off: {cost}.", "offered": offered}
 
 
+#: The jobs that send a page's PICTURE to a model; the others send the text read from it.
+PICTURE_JOBS = frozenset({"find-the-script", "find-regions", "find-lines", "refine-shapes", "find-signs",
+                          "find-a-tables-cells", "read-a-line", "read-a-page"})
+
+
+def cloud_offer(jobs: list[str], cards: list[Card], with_cloud: Answers) -> list[dict[str, Any]]:
+    """What the egress question is about (`source.onboard.egress-asked-once`): per step a cloud model would fit, what would
+    be sent, to whom, for how many pages and at about what cost, in one sentence. The cheapest fitting card is the one named."""
+    from fichero_server.recipes.jobs import get_job
+
+    pages = with_cloud.pages if with_cloud.pages > 0 else None
+    offers = []
+    for job in jobs:
+        fits = [c for c in cards if job in c.jobs and c.runs_on.startswith("cloud")
+                and _hard_constraints(job, c, with_cloud) is None]
+        if not fits:
+            continue
+        card = min(fits, key=lambda c: c.cost_per_page)
+        to = card.runs_on.split(":", 1)[-1]
+        sends = "the page pictures" if job in PICTURE_JOBS else "the text of the pages"
+        cost = round(card.cost_per_page * pages, 2) if pages and card.cost_per_page else None
+        known = get_job(job)
+        title = known.name if known else job
+        count = f"{pages:,} {'page' if pages == 1 else 'pages'}" if pages else "every page"
+        price = (f"about ${cost:.2f}" if cost is not None
+                 else "at a price Fichero cannot work out yet" if pages else "priced once the pages are counted")
+        offers.append({"job": job, "title": title, "sends": sends, "to": to, "pages": pages, "cost_usd": cost,
+                       "sentence": f"{title}: would send {sends} of {count} to {to}, {price}."})
+    return offers
+
+
 def _take_out(jobs_in_order: list[str], a: Answers) -> tuple[list[str], list[dict[str, str]]]:
     """The plan without the steps the person took out (#5627), in step order. A step a step left in needs stays
     (it carries `needed_by`); a removed job the plan no longer has is ignored. Returns the plan and what was taken
@@ -1005,6 +1036,7 @@ def assemble(a: Answers, cards: list[Card], offered: list[Card] | tuple[Card, ..
         "left_off": left_off,
         "gaps": notes,
         "cloud_options": cloud_options,
+        "cloud_offer": cloud_offer(cloud_options, cards, with_cloud),
         # What Ready says when there is nothing to read (#5553).
         **({"already_text": "The material is already text: nothing to read"
                             + (f"; the plan starts at {_topic(jobs_in_order[0]).get('title', jobs_in_order[0])}."

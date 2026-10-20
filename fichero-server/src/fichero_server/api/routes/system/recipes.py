@@ -332,6 +332,11 @@ class AssembledRecipe(BaseModel):
         description="jobs a cloud model would also fit if pages could leave this Mac; "
         "setup asks the egress question only when this is not empty",
     )
+    cloud_offer: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="per job in cloud_options: what would be sent (`sends`), to whom (`to`), how many pages (`pages`, "
+        "null while uncounted), the estimate (`cost_usd`, null when unknown) and the sentence setup shows under the question",
+    )
     problems: list[str] = Field(description="what the recipe check finds (empty when it can run)")
     overrides: Optional[list[dict[str, Any]]] = Field(default=None, description=(
         "the open project's saved overrides (Use This, for the project or a folder), kept so a recipe proposed "
@@ -1044,7 +1049,7 @@ async def assemble_recipe(
         steps=[RecipeStep(**s, **_run_titles(s)) for s in recipe["steps"]], automatic=recipe.get("automatic") or [],
         gaps=recipe["gaps"], by_hand=recipe.get("by_hand") or [],
         removed=recipe.get("removed") or [], left_off=recipe.get("left_off") or [],
-        cloud_options=recipe["cloud_options"], problems=problems, overrides=recipe.get("overrides"),
+        cloud_options=recipe["cloud_options"], cloud_offer=recipe.get("cloud_offer") or [], problems=problems, overrides=recipe.get("overrides"),
         already_text=recipe.get("already_text"), changes=_changes(library, recipe),
     )
 
