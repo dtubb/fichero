@@ -102,6 +102,11 @@ def test_ticked_with_two_readers_the_step_names_them_and_is_built_in(mac):
     assert step["built_in"] and "needs" not in step and len(step["compares"]) == 2
     assert not step.get("needed_by"), "Remove from Plan always works for the comparison"
     assert step["reasons"][0].startswith("Compares ") and step["compares"][0] in step["reasons"][0]
+    # The fixture card's reader is pinned on Hugging Face, which Start cannot fetch (#4951): the plan reads with a
+    # Kraken reader of Kraken's repository, as setup now proposes.
+    for s in recipe["steps"]:
+        if s["job"] == "read-a-line":
+            s["model"] = KRAKEN
     plan = plan_start(recipe, stays_local=True)
     assert [b["step"] for b in plan["built_in"]] == [DISAGREE_JOB] and not plan["skipped"]
 

@@ -51,7 +51,7 @@ def test_a_refused_way_says_what_to_do_in_a_sentence():
 
 @pytest.mark.parametrize("cloud_allowed", [True, False])
 @pytest.mark.parametrize("app_places", [None, [], ["huggingface"], ["cloud"]])
-def test_the_plan_and_auto_start_agree_on_the_place(client, db, tmp_path, folder, monkeypatch, cloud_allowed, app_places):  # noqa: F811
+def test_the_plan_and_auto_start_agree_on_the_place(client, db, tmp_path, folder, monkeypatch, cloud_allowed, app_places, with_material):  # noqa: F811
     """#5841: one place check for training (Hugging Face Jobs) in the Start plan and in auto-start, for each setting."""
     from fichero_server.recipes import places, train_offers as mod
     from fichero_server.recipes.train_offers import _offers_now
