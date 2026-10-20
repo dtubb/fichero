@@ -1299,7 +1299,7 @@ and node, not by job); a retry action for failed pages.
   finish their item). Paused jobs are counted on one row per kind too, so pausing 137 pages does not
   list 137 rows. Built (2026-10-09): `pause_job` / `cancel_job` take the row's id
   (`derivatives`, the import's row in the project the request names; `waiting:<kind>`, `paused:<kind>`), through `job.pause` / `job.cancel`
-  (`test_start_stop_mode.py`). Not yet seen in the app.
+  (`test_start_stop_mode.py`). The cheap snapshot (#5843) once listed no `paused:<kind>` row for an ordinary kind; pinned by `test_the_import_row_pauses_resumes_and_stops_its_stages` (`test_start_stop_mode.py`) and `test_the_real_snapshot_sql_runs_on_duckdb_with_watched_and_person_started_jobs` (`test_poll_pile_up_5843.py`). Not yet seen in the app.
 - `activity.pause.cancel-long-call` — **[PARTIAL]** (→ #4402) cancel is checked at every per-item
   boundary (`execution/cancellation.py`, `builder.py`); a single long call is still waited for. Owned
   by `activity.run.stop-reaches-in-flight-calls`; this line points there.
@@ -1681,7 +1681,7 @@ and node, not by job); a retry action for failed pages.
   paused after relaunch. Holds for rows in the `jobs` table (`fichero-server/tests/unit/jobs/test_job_queue.py`) and,
   since 2026-10-08, for workflow runs: the reopen sweep and the interrupted-run marking take only
   running and accepted runs, a paused run is listed in Activity as paused, and its Resume carries on
-  from its checkpoint (`fichero-server/tests/unit/jobs/test_durable_5357.py`).
+  from its checkpoint (`fichero-server/tests/unit/jobs/test_durable_5357.py`). A page waiting for the lane when its run is paused is paused with it, never recorded as that page's error, even when the run's pause flag is already cleared (`fichero-server/tests/unit/jobs/test_a_paused_waiter_is_paused_not_failed.py`).
 - `activity.durable.run-deletable-after-a-crash` — **[OK]** (#5644) a failed run from a session the engine did not close cleanly can be deleted or cleared, and the project stays usable. Deleting it used to raise DuckDB's FATAL "Failed to delete all rows from index" on a stale index and shut the database for the session. Pinned by `fichero-server/tests/unit/db/test_saved_is_found_after_a_crash.py::test_a_failed_run_can_be_deleted_after_the_engine_was_killed`.
 - `activity.durable.poison-item` — **[PARTIAL]** (#5357) an item that fails three times is
   set aside with its reason and the job carries on. Built: a queued job interrupted by a quit or

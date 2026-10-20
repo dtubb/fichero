@@ -17,7 +17,8 @@ import time
 import pytest
 
 from fichero_server.execution import jobs
-from tests.unit.jobs.test_runs_are_jobs import _execute, _status, _tree, _wait_for, no_embedding_model  # noqa: F401
+from tests.unit.jobs.test_runs_are_jobs import (  # noqa: F401
+    _execute, _status, _tree, _wait_for, make_page_sets, no_embedding_model)
 
 
 @pytest.fixture
@@ -38,27 +39,7 @@ def pages(db, tmp_path):
 
 @pytest.fixture
 def page_sets(db, tmp_path):
-    """A new set of three letters on every call: a page is read by one live run at a time (#5848,
-    `activity.run.one-live-read-per-page`), so runs that must each make their calls need letters of their own."""
-    from fichero_server.models import DocType, Document, FileType
-
-    made = []
-
-    def new():
-        tag = len(made)
-        docs = []
-        for i in range(3):
-            text = f"Letter {tag}-{i}: the vecino of Cartagena sold a house."
-            path = tmp_path / f"set{tag}-letter-{i}.txt"
-            path.write_text(text, encoding="utf-8")
-            doc = Document(name=path.name, doc_type=DocType.file, file_type=FileType.text, path=str(path),
-                           page_content=text)
-            db.save(doc)
-            docs.append(doc)
-        made.append(docs)
-        return docs
-
-    return new
+    return make_page_sets(db, tmp_path, text=True)
 
 
 @pytest.fixture
