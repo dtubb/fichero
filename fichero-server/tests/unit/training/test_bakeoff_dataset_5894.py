@@ -68,12 +68,21 @@ def test_staging_writes_each_line_picture_and_a_pairs_file_and_counts_them(tmp_p
     assert (out / row["image"]).exists() and Image.open(out / row["image"]).height > 0
 
 
-def test_staging_refuses_a_folder_inside_the_repository_checkout(tmp_path):
+def test_staging_refuses_a_folder_inside_any_git_work_tree_not_only_this_checkout(tmp_path):
     repo = Path(bl.__file__).resolve().parents[4]  # .../fichero-server/src/fichero_server/training -> the checkout
+    other = tmp_path / "someone-elses-clone"
+    (other / ".git").mkdir(parents=True)
     got = bl.winning_lines(_lines_json(tmp_path), winner="mlx:m")
-    with pytest.raises(ValueError, match="inside the repository"):
-        bl.stage_dataset(got, _pages(tmp_path), repo / "scratch-stage")
-    assert not (repo / "scratch-stage").exists()
+    for inside in (repo / "scratch-stage", other / "data" / "stage"):
+        with pytest.raises(ValueError, match="inside the git work tree"):
+            bl.stage_dataset(got, _pages(tmp_path) if not (tmp_path / "pages").exists() else tmp_path / "pages", inside)
+        assert not inside.exists()
+
+
+def test_the_dataset_card_says_these_are_a_models_readings_not_a_persons_check(tmp_path):
+    staged = _staged(tmp_path)
+    card = (staged.path / "README.md").read_text()
+    assert "not checked by a person" in card and "not ground truth" in card and "mlx:m" in card and "private" in card
 
 
 class Api:
@@ -126,16 +135,35 @@ def test_there_is_no_way_to_ask_for_a_public_dataset():
     assert not any("public" in name or name == "private" for name in params)
 
 
-@pytest.mark.parametrize("make, error, words", [
-    (lambda: dict(token=""), NoHuggingFaceToken, "Hugging Face token"),
-    (lambda: dict(token="hf_x", api=Api(role="read")), HuggingFaceTokenRejected, "write"),
-    (lambda: dict(token="hf_x", api=Api(existing_private=False)), bl.PublicDatasetRefused, "public"),
-    (lambda: dict(token="hf_x", api=Api(created_private=False)), bl.PublicDatasetRefused, "not private"),
-    (lambda: dict(token="hf_x", api=Api(), confirmed_lines=None), bl.NotConfirmed, "1 line"),
-    (lambda: dict(token="hf_x", api=Api(), confirmed_lines=7), bl.NotConfirmed, "1 line"),
-])
-def test_every_refusal_happens_before_a_byte_leaves(tmp_path, make, error, words):
-    args = {"api": Api(), "confirmed_lines": 1, **make()}
-    with pytest.raises(error, match=words):
-        bl.push_private_dataset(_staged(tmp_path), "historian/test2-lines", **args)
-    assert "upload_folder" not in args["api"].names(), "nothing was uploaded"
+def test_no_token_or_no_confirmation_is_refused_before_the_hub_is_touched(tmp_path):
+    staged = _staged(tmp_path)
+    for kw, error, words in ((dict(token="", confirmed_lines=1), NoHuggingFaceToken, "Hugging Face token"),
+                             (dict(token="hf_x", confirmed_lines=None), bl.NotConfirmed, "1 line"),
+                             (dict(token="hf_x", confirmed_lines=7), bl.NotConfirmed, "1 line")):
+        api = Api()
+        with pytest.raises(error, match=words):
+            bl.push_private_dataset(staged, "historian/test2-lines", api=api, **kw)
+        assert api.names() == [], "the fake Hub saw no call at all"
+
+
+def test_a_token_that_may_not_write_or_a_public_dataset_is_refused_before_anything_is_created(tmp_path):
+    staged = _staged(tmp_path)
+    for api, error, words in ((Api(role="read"), HuggingFaceTokenRejected, "write"),
+                              (Api(existing_private=False), bl.PublicDatasetRefused, "public")):
+        with pytest.raises(error, match=words):
+            bl.push_private_dataset(staged, "historian/test2-lines", token="hf_x", api=api, confirmed_lines=1)
+        assert "create_repo" not in api.names() and "upload_folder" not in api.names()
+
+
+def test_a_dataset_that_comes_back_public_is_refused_and_nothing_is_uploaded(tmp_path):
+    api = Api(created_private=False)
+    with pytest.raises(bl.PublicDatasetRefused, match="not private"):
+        bl.push_private_dataset(_staged(tmp_path), "historian/test2-lines", token="hf_x", api=api, confirmed_lines=1)
+    assert "upload_folder" not in api.names()
+
+
+def test_a_dataset_under_another_account_is_refused_before_anything_is_created(tmp_path):
+    api = Api()
+    with pytest.raises(bl.NotYourNamespace, match="own account"):
+        bl.push_private_dataset(_staged(tmp_path), "someone-else/lines", token="hf_x", api=api, confirmed_lines=1)
+    assert api.names() == ["whoami"]
