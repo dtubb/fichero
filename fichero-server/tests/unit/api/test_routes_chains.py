@@ -163,6 +163,22 @@ class TestExecuteChain:
         ran = run_mock.await_args_list[0].kwargs["request"]
         assert ran.inputs["k"] == "v" and ran.inputs["input_files"] == ["/tmp/in.txt"]
 
+    def test_execute_refuses_a_chain_with_a_condition_a_mapping_or_an_entry_step(self, client):
+        """The old executor's graph semantics are not applied; a chain that relies on them is refused in words rather than
+        run in a different order (maybe a paid step)."""
+        base = _steps_payload("Graphy")
+        with_condition = {**base, "steps": [{**base["steps"][0], "condition": {"expression": "x", "true_step": "s2", "false_step": None}},
+                                            *base["steps"][1:]]}
+        with_mapping = {**base, "steps": [{**base["steps"][0], "input_mappings": [{"source_path": "a", "target_key": "b"}]},
+                                          *base["steps"][1:]]}
+        with_entry = {**base, "entry_step": base["steps"][1]["id"]}
+        for payload in (with_condition, with_mapping, with_entry):
+            created = client.post("/api/chains", json=payload)
+            assert created.status_code == 200, created.text
+            r = client.post(f"/api/chains/{created.json()['id']}/execute", json={"inputs": {}, "input_files": []},
+                            headers=LIB_HEADER)
+            assert r.status_code == 422 and "does not apply" in r.json()["detail"], r.text
+
     def test_execute_missing_chain_returns_404(self, client):
         r = client.post(
             "/api/chains/no-such-id/execute",
@@ -187,7 +203,8 @@ class TestExecuteChain:
 
         seams["run"].new.side_effect = hang
         with seams["db"], seams["load"], seams["validate"], seams["record"], seams["run"], seams["outcome"], \
-                patch("fichero_server.execution.cancellation.request_cancellation") as asked:
+                patch("fichero_server.execution.cancellation.request_cancellation") as asked, \
+                patch.object(chain_routes, "_note_chain") as note:
             r = client.post(f"/api/chains/{created['id']}/execute", json={"inputs": {}, "input_files": []},
                             headers=LIB_HEADER)
             assert r.status_code == 200
@@ -198,6 +215,10 @@ class TestExecuteChain:
             release.set()
             final = _wait_terminal(client, execution_id)
         assert final["status"] == "cancelled"
+        # Stopped is not failed: the step is cancelled with no error, and the chain row carries no failure reason.
+        assert [(sr["status"], sr["error"]) for sr in final["step_results"]][0] == ("cancelled", None)
+        ended = [c for c in note.call_args_list if c.args[1] == "record_chain" and c.kwargs.get("status") == "cancelled"]
+        assert ended and ended[-1].kwargs.get("reason") is None
         thread_ids = [call.args[0] for call in asked.call_args_list]
         assert thread_ids and thread_ids[0].startswith("thread-")  # the in-flight step's run was asked to stop
 

@@ -3850,8 +3850,11 @@ def note_who_started_the_run(task_id: str | None, library_path: str | None) -> N
         from fichero_server.execution import jobs
 
         jobs._run_is_a_persons.set(jobs.person_waits_on(db_manager.get_database(library_path), task_id))
-    except Exception:  # an unknown run reads as automatic: one page at a time
+    except Exception:  # an unknown run reads as automatic: one page at a time, said so in the context
         logger.debug("run starter unknown for %s", task_id, exc_info=True)
+        from fichero_server.execution import jobs
+
+        jobs._run_is_a_persons.set(False)
 
 
 async def process_vision(
