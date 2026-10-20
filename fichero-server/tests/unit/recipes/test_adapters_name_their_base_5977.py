@@ -123,7 +123,7 @@ def test_the_runner_loads_the_base_then_the_adapter_and_merges_it(monkeypatch):
 
     base = Model()
     transformers = types.SimpleNamespace(
-        AutoProcessor=types.SimpleNamespace(from_pretrained=lambda name, **k: calls.append(("processor", name))),
+        AutoProcessor=types.SimpleNamespace(from_pretrained=lambda name, **k: calls.append(("processor", name, k.get("revision")))),
         AutoModelForImageTextToText=types.SimpleNamespace(
             from_pretrained=lambda name, **k: (calls.append(("base", name, k.get("revision"), k.get("use_safetensors"))), base)[1]))
     peft = types.SimpleNamespace(PeftModel=types.SimpleNamespace(
@@ -143,5 +143,5 @@ def test_the_runner_loads_the_base_then_the_adapter_and_merges_it(monkeypatch):
     monkeypatch.setattr("importlib.resources.files", lambda pkg: types.SimpleNamespace(joinpath=lambda n: n))
     runner.vlm_reader(None, {"model": BASE, "adapter": ADAPTER, "prompt": "p",
                                   "model_revision": "b" * 40, "adapter_revision": "a" * 40}, "cpu")
-    assert calls == [("processor", BASE), ("base", BASE, "b" * 40, True),
+    assert calls == [("processor", BASE, "b" * 40), ("base", BASE, "b" * 40, True),
                      ("fetch", ADAPTER, "a" * 40, ["*.safetensors", "*.json"]), ("adapter", "/folder"), "merge"]
