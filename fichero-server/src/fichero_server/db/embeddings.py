@@ -716,6 +716,51 @@ class DatabaseEmbeddingMixin:
                     embedded_ids.add(doc.id)
             return embedded_ids
 
+    def embedding_is_current(self, doc: Any) -> bool:
+        """Whether the vectors stored for ``doc`` are the ones its text and the current model would give: the same passages
+        (each unit's id and text) stamped with this model. Read from the vectors themselves, so there is no second record to
+        go stale, and a page embedded before this existed is judged on what is stored (`runtime.embed.once-per-text-version`,
+        #5954). False for a page with no embeddable text, no vectors, another passage, or another model."""
+        text = self._embedding_text_for_document(doc)
+        if not text:
+            return False
+        units = self.passage_units_for_document(doc, text=text)
+        if not units:
+            return False
+        try:
+            if EMBEDDINGS_TABLE not in self._lance_tables():
+                return False
+            safe_id = str(doc.id).replace("'", "''")
+            rows = (self.lance.open_table(EMBEDDINGS_TABLE).search()
+                    .where(f"document_id = '{safe_id}'").limit(len(units) + 1).to_list())
+        except Exception:  # noqa: BLE001 -- cannot tell: not current, so it is embedded (never skipped on a guess)
+            return False
+        if len(rows) != len(units):
+            return False
+        model = self._get_embedding_model_id()
+        stored = {row.get("id"): (row.get("text"), row.get(EMBEDDING_MODEL_ID_FIELD)) for row in rows}
+        return all(stored.get(unit.id) == (unit.text, model) for unit in units)
+
+    def embed_unless_current(self, doc: Any):
+        """``embed``, except that a page whose stored vectors are already the current ones is left alone: a page read, then
+        searched, is embedded once per text version, not once per door that asks (#5954). Returns the outcome; for a page
+        left alone it is ``embedded=True, reason="unchanged"``."""
+        from fichero_server.db import EmbedOutcome
+
+        if self.embedding_is_current(doc):
+            self.last_embed_outcome = EmbedOutcome(embedded=True, document_id=doc.id, reason="unchanged")
+            return self.last_embed_outcome
+        return self.embed(doc)
+
+    def embed_many_unless_current(self, docs: list[Any]) -> tuple[int, int, int]:
+        """(pages left alone as current, pages embedded, pages that have text to embed) for a batch: the stale ones go
+        through ``embed_many``, one forward pass per batch, not one per page (#5954). A page with no embeddable text is
+        not counted, so the caller can tell a page that failed from one with nothing to embed."""
+        docs = [doc for doc in docs if doc is not None]
+        wanted = [doc for doc in docs if self._embedding_text_for_document(doc)]
+        stale = [doc for doc in wanted if not self.embedding_is_current(doc)]
+        return len(wanted) - len(stale), self.embed_many(stale) if stale else 0, len(wanted)
+
     def embedding_stats(self) -> dict:
         """Get statistics about embeddings.
 
