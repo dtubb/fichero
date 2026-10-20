@@ -520,6 +520,11 @@ def _set_multiuser_action(_db, params: MultiuserParams, ctx: ActionContext):
     if (os.environ.get("FICHERO_MULTIUSER") or "").strip():
         raise ActionRefused("Multi-user is set by FICHERO_MULTIUSER; unset it to change it here")
     app_db = get_app_db()
+    if params.enabled:  # turning it on: someone must be able to sign in with a password (#5908)
+        from fichero_server.security.multiuser import owner_password_gap
+
+        if gap := owner_password_gap(app_db):
+            raise ActionRefused(gap)  # the route answers 409 in these words
     before = {"enabled": multiuser_enabled()}
     app_db.set_setting(MULTIUSER_SETTING_KEY, "true" if params.enabled else "false")
     after = {"enabled": params.enabled}

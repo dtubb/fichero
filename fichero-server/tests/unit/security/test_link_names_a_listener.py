@@ -22,7 +22,7 @@ def _bound():
 
 def test_a_local_link_with_only_loopback_bound_is_refused_in_words():
     gap = td.network_listener_gap("https://macbook-air-m4.local:8765", ["127.0.0.1"])
-    assert gap and "macbook-air-m4.local" in gap and "This network" in gap
+    assert gap and "macbook-air-m4.local" in gap and "not listening there" in gap
 
 
 def test_a_local_link_with_a_lan_listener_is_fine():
